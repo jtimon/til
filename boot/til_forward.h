@@ -3903,6 +3903,7 @@ U32 priv___src_self_interpreter_til__container_capacity(Str * struct_name, void 
 void priv___src_self_interpreter_til__container_elem_deep_free(Str * elem_type, void * slot, Context * ctx);
 void priv___src_self_interpreter_til__container_elem_clone_into(Str * elem_type, void * dst, void * src, U32 elem_size, Context * ctx);
 void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
+void priv___src_self_interpreter_til__heap_drop(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_data(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_str_data_cached(void * data);
 void priv___src_self_interpreter_til__clone_container_buffer(Str * struct_name, void * src_data, void * dst_data, Context * ctx);

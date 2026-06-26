@@ -260,18 +260,11 @@ namespace:
         // value's last use, so this is where the payload is reclaimed.
         if self.borrowed.not() {
             if self.data.is_null().not() {
-                // #286: deep free, but CACHE-driven (struct_deep_free reads
-                // ctx.struct_layouts, which outlives the AST) instead of the
-                // dangling struct_def -- safe at scope teardown, no #239 UAF.
-                if self.is_str {
-                    ref s_str : Str = to_ptr(self.data)
-                    if str_owns_c_str(s_str) {
-                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
-                    }
-                } else if self.is_str_container {
-                    free_container_str_data_cached(self.data)
-                } else if self.ctx.is_null().not() {
-                    struct_deep_free(self.struct_name(), self.data, self.ctx)
+                // #286 Stage 2: deep-free the contents through the canonical
+                // heap_drop (dual of heap_clone) when the layout is known, then
+                // free the owning block. A layout-less sentinel just frees block.
+                if self.layout.is_null().not() {
+                    heap_drop(self.struct_name(), self.data, self.ctx)
                 }
                 EvalHeap.heap_free(own self.data)
             }
@@ -2589,6 +2582,27 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
     }
 }
 
+// #286 Stage 2: canonical typed deep-free of a value's CONTENTS -- the dual of
+// heap_clone. Frees the deep heap owned by a value of type `struct_name` at
+// `data` (its Str c_str, nested own/inline struct fields, container element
+// buffers, and callable boxes via struct_deep_free). The owning block itself is
+// freed separately by the caller (one heap_free(ptr) per owning block), since
+// `data` here is a borrow. The single typed-free entry the boxed delete paths
+// route through, replacing the scattered hand-frees over time (plan Stage 2).
+priv heap_drop := func(struct_name: Str, data: Dynamic, ctx: Context) {
+    if data.is_null() { return }
+    if struct_name == "Str" {
+        ref s : Str = to_ptr(data)
+        if str_owns_c_str(s) {
+            if s.c_str.is_null().not() { free(own s.c_str) }
+        }
+    } else {
+        struct_deep_free(struct_name, data, ctx)
+    }
+}
+
+// Free a container's `own data` buffer and its elements (the field loop skips
+// `own` fields, so the buffer + elements would otherwise leak).
 priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
     elem_type := container_elem_type(struct_name)
     if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
@@ -2700,18 +2714,10 @@ priv free_temp_arg_value := func(shallow v: Value) {
     case Value.Struct(si):
         if si.borrowed.not() {
             if si.data.is_null().not() {
-                // #286: cache-driven deep free (struct_deep_free reads
-                // ctx.struct_layouts, AST-independent), restoring nested
-                // reclamation without the dangling struct_def ref.
-                if si.is_str {
-                    ref s_str : Str = to_ptr(si.data)
-                    if str_owns_c_str(s_str) {
-                        if s_str.c_str.is_null().not() { free(own s_str.c_str) }
-                    }
-                } else if si.is_str_container {
-                    free_container_str_data_cached(si.data)
-                } else if si.ctx.is_null().not() {
-                    struct_deep_free(si.struct_name(), si.data, si.ctx)
+                // #286 Stage 2: contents-free via the canonical heap_drop, then
+                // free the owning block (a layout-less sentinel just frees it).
+                if si.layout.is_null().not() {
+                    heap_drop(si.struct_name(), si.data, si.ctx)
                 }
                 EvalHeap.heap_free(own si.data)
             }
