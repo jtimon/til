@@ -3569,6 +3569,8 @@ void priv___src_self_builder_til__emit_dyn_call_bodies(File * f, LoadedProgram *
 void priv___src_self_builder_til__emit_dyn_has_bodies(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_collection_helpers(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_global_declarations(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_ns_const_defs_for_stmt(File * f, Expr * stmt);
+void priv___src_self_builder_til__emit_ns_const_global_defs(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_test_main(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_script_main(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_function_bodies(File * f, Mode * mode, LoadedProgram * lp);

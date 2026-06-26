@@ -3963,23 +3963,6 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
     case:
         UNREACHABLE()
     }
-    // Namespace non-function fields as globals
-    ref ng_ns : Vec(Declaration) = def_ns_decls(struct_def)
-    for dd : Declaration in ng_ns {
-        if dd.default_value.is_null() { continue }
-        if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
-        if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
-        if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-            ng_sname := til_type_name(dd.default_value.expr_til_type())
-            if ng_sname.len() > 0 {
-                f.write(ng_sname).write(" ").write(name).write("_").write(dd.name).write(";\n")
-            } else {
-                tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(name).write("_").write(dd.name).write(";\n")
-            }
-        } else {
-            tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(name).write("_").write(dd.name).write(";\n")
-        }
-    }
 }
 
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
@@ -7059,7 +7042,57 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
             }
         }
     }
+    emit_ns_const_global_defs(f, lp)
     f.write("\n")
+}
+
+// #264 follow-up: namespace DATA constants (e.g. U8.MAX) are emitted as
+// file-scope globals in the main TU here -- defined once (uninitialised,
+// since values like U64.bnot(0) aren't C constant expressions) and
+// initialised in main via emit_ns_inits. Covers ext.h primitive types,
+// whose typedef is skipped by emit_struct_typedef. Single TU, so no
+// extern/header split is needed.
+priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr) {
+    if is_struct_or_enum(stmt).not() { return }
+    switch stmt.node_type {
+    case NodeType.Decl(sdecl):
+        ref edef : Expr = stmt.children[0]
+        if edef.node_type.is(NodeType.EnumDef) { return }
+        ref ns : Vec(Declaration) = def_ns_decls(edef)
+        for dd : Declaration in ns {
+            if dd.default_value.is_null() { continue }
+            if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+            if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
+            if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
+                ng_sname := til_type_name(dd.default_value.expr_til_type())
+                if ng_sname.len() > 0 {
+                    f.write(ng_sname).write(" ").write(sdecl.name).write("_").write(dd.name).write(";\n")
+                } else {
+                    tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(sdecl.name).write("_").write(dd.name).write(";\n")
+                }
+            } else {
+                tc := til_type_to_c(dd.til_type); f.write(tc).write(" ").write(sdecl.name).write("_").write(dd.name).write(";\n")
+            }
+        }
+    case:
+    }
+}
+
+priv emit_ns_const_global_defs := proc(f: File, lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            for stmt : Expr in iu.ast.children {
+                emit_ns_const_defs_for_stmt(f, stmt)
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            emit_ns_const_defs_for_stmt(f, stmt)
+        }
+    }
 }
 
 priv emit_test_main := proc(f: File, lp: LoadedProgram) {

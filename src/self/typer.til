@@ -2870,6 +2870,17 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             }
             infer_func_def_expr(inner, tc_nd.default_value, ctx)
         case:
+            // A non-func namespace member is a constant (e.g. `MAX : F32 =
+            // 3.4..e38`). Coerce its numeric literals to the declared type
+            // before inference, exactly like top-level / local / field decls
+            // (infer_decl_typed_value), so a typed float/int literal isn't
+            // mis-parsed as I64 by the constfolder / interpreter.
+            if tc_nd.explicit_type.len() > 0 {
+                ns_declared := type_from_name(tc_nd.explicit_type, inner, ctx)
+                if is_numeric_type(ns_declared) {
+                    pre_coerce_decl_numeric_literals(tc_nd.default_value, ns_declared)
+                }
+            }
             infer_expr(inner, tc_nd.default_value, 0, ctx)
             tc_nd.til_type =tc_nd.default_value.expr_til_type().clone()
         }
