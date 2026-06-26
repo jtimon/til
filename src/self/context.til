@@ -930,7 +930,8 @@ enum_has_payloads := func(enum_def: Expr) returns Bool {
 }
 
 // #264: the enum's discriminant (tag) type. Empty tag_type means the
-// declaration omitted `(Type)`, defaulting to U32.
+// declaration omitted `(Type)`, defaulting to U8 (a 1-byte tag) for
+// compactness; `enum(Type)` overrides the width.
 enum_tag_type := func(enum_def: Expr) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
@@ -938,7 +939,7 @@ enum_tag_type := func(enum_def: Expr) returns Str {
     case:
         UNREACHABLE(__LOC__)
     }
-    return "U32"
+    return "U8"
 }
 
 // #264: size in bytes of the enum's discriminant.

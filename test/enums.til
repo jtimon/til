@@ -855,17 +855,19 @@ test_mut_nested_enum_payload_binding := test() {
 }
 
 // #264: `enum(Type)` pins the discriminant (tag) width. The default
-// (no parens) stays U32 (4 bytes); U8/U16/U64 shrink/grow the in-memory
-// tag so sizeof matches a chosen C backing type for FFI/compactness.
+// (no parens) is U8 (1 byte) for compactness; U16/U32/U64 widen the
+// in-memory tag to match a chosen C backing type for FFI/compactness.
 TagDefault := enum { A, B, C }
 TagU8  := enum(U8)  { A, B, C }
 TagU16 := enum(U16) { A, B, C }
+TagU32 := enum(U32) { A, B, C }
 TagU64 := enum(U64) { A, B, C }
 
 test_enum_tag_width_sizes := test() {
-    assert_eq(I64, dyn_size_of("TagDefault").to_i64(), 4)
+    assert_eq(I64, dyn_size_of("TagDefault").to_i64(), 1)
     assert_eq(I64, dyn_size_of("TagU8").to_i64(), 1)
     assert_eq(I64, dyn_size_of("TagU16").to_i64(), 2)
+    assert_eq(I64, dyn_size_of("TagU32").to_i64(), 4)
     assert_eq(I64, dyn_size_of("TagU64").to_i64(), 8)
 }
 

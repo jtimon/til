@@ -280,3 +280,27 @@ test_op_increment_decrement := test() {
     counter++
     assert_eq(I64, counter, 3)
 }
+
+// #264 follow-up: MIN / MAX namespace constants on the numeric types.
+test_numeric_min_max := test() {
+    assert_eq(Str, U8.MIN.to_str(), "0")
+    assert_eq(Str, U8.MAX.to_str(), "255")
+    assert_eq(Str, U16.MAX.to_str(), "65535")
+    assert_eq(Str, U32.MAX.to_str(), "4294967295")
+    assert_eq(Str, U64.MIN.to_str(), "0")
+    assert_eq(Str, U64.MAX.to_str(), "18446744073709551615")
+    assert_eq(Str, I8.MIN.to_str(), "-128")
+    assert_eq(Str, I8.MAX.to_str(), "127")
+    assert_eq(Str, I16.MIN.to_str(), "-32768")
+    assert_eq(Str, I16.MAX.to_str(), "32767")
+    assert_eq(Str, I32.MIN.to_str(), "-2147483648")
+    assert_eq(Str, I32.MAX.to_str(), "2147483647")
+    assert_eq(Str, I64.MAX.to_str(), "9223372036854775807")
+    // I64.MIN.to_str is a separate pre-existing bug (negating MIN
+    // overflows); check the value via arithmetic instead.
+    expect(I64.MIN.lt(0), "I64.MIN < 0")
+    assert_eq(I64, I64.MIN.add(1), -9223372036854775807)
+    // F32 extremes (scientific-notation literals).
+    expect(F32.MAX.gt(3.0e38), "F32.MAX large")
+    expect(F32.MIN.lt(-3.0e38), "F32.MIN small")
+}

@@ -1165,14 +1165,21 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
-    // #264: a pinned tag must be wide enough to represent 0..N-1.
-    if edd.tag_type.eq("U8").and(variant_idx.gt(256)) {
+    // #264 follow-up: the discriminant must hold one tag per variant. The
+    // limit is the type's MAX (default U8 -> 255); a U64 tag has no
+    // practical limit. Recommend the next wider unsigned type.
+    mut ttn := "U8"
+    if edd.tag_type.len() > 0 { ttn = edd.tag_type }
+    mut tag_limit : I64 = 0
+    mut has_limit := false
+    mut next_bigger := ""
+    if ttn == "U8"  { tag_limit = U8.MAX.to_i64();  has_limit = true; next_bigger = "U16" }
+    if ttn == "U16" { tag_limit = U16.MAX.to_i64(); has_limit = true; next_bigger = "U32" }
+    if ttn == "U32" { tag_limit = U32.MAX.to_i64(); has_limit = true; next_bigger = "U64" }
+    if has_limit.and(variant_idx.gt(tag_limit)) {
         panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-            ": enum has ", variant_idx.to_str(), " variants, too many for a U8 discriminant (max 256)")
-    }
-    if edd.tag_type.eq("U16").and(variant_idx.gt(65536)) {
-        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-            ": enum has ", variant_idx.to_str(), " variants, too many for a U16 discriminant (max 65536)")
+            ": enum(", ttn, ") can have at most ", tag_limit.to_str(),
+            " variants, use something bigger like enum(", next_bigger, ") instead")
     }
     p.pending_doc = saved_doc.clone()
     return def
