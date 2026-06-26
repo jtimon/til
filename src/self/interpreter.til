@@ -440,14 +440,25 @@ Binding := struct {
     cell_is_local := false
 }
 
+HeapBinding := struct {
+    til_type := Type.Unknown
+    own_type := OwnType.Shallow
+    is_local := false
+    is_borrowed := false
+    moved_out := false
+}
+
 Scope := struct {
     bindings := Map(Str, Binding).new()
-    // #286 commit 1: name -> raw heap pointer (rstil's heap_index), added
-    // alongside `bindings` so eval can migrate value-kind by value-kind
-    // onto the EvalHeap (commits 2-3). Empty until then. A stored Dynamic
-    // is the block's real address (from Context.eval_heap.heap_alloc); the
-    // value bytes live there and the type lives in the symbol tables.
+    // #286: name -> raw heap pointer (rstil's heap_index), added alongside
+    // `bindings` so eval can migrate value-kind by value-kind onto the
+    // EvalHeap. A stored Dynamic is the block's real address (from
+    // EvalHeap.heap_alloc); the value bytes live there.
     heap_index := Map(Str, Dynamic).new()
+    // #286: metadata for heap_index entries. Values must not carry their
+    // type/ownership inside the heap bytes; this map is the transition bridge
+    // from boxed Value cells to the final raw-heap scope model.
+    heap_bindings := Map(Str, HeapBinding).new()
     ref parent : Scope = NULL
     // #211 follow-up: payload bindings that alias an enum's payload memory.
     // Key: binding name (the case-binding identifier). Value: encoded as
@@ -2624,9 +2635,43 @@ scope_lookup_offset := func(mut s: Scope, name: Str) returns ref Dynamic {
     return NULL
 }
 
+// #286: lookup the type/ownership metadata that describes a heap_index
+// pointer. Mirrors scope_lookup_offset's parent-chain walk so migrated values
+// can be resolved without inspecting a boxed Value.
+scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns ref HeapBinding {
+    ref mut cur : Scope = s
+    while true {
+        if cur.is_null() { return NULL }
+        if cur.heap_bindings.has(name) {
+            ref b : HeapBinding = cur.heap_bindings[name]
+            return b
+        }
+        cur = cur.parent
+    }
+    return NULL
+}
+
 // #286 commit 1: bind `name` to a heap pointer in the current scope.
 scope_insert_offset := func(mut s: Scope, name: Str, own ptr: Dynamic) {
     s.heap_index.set(name, own ptr)
+}
+
+// #286 Stage 1: bind a typed raw-heap slot in the current scope. Later stages
+// replace scope_set_owned / scope_set_borrowed call sites with this helper as
+// each value class moves off Cell/Value.
+scope_set_heap_owned := func(mut s: Scope, name: Str, own ptr: Dynamic, shallow til_type: Type, own_type: OwnType, is_local: Bool, is_borrowed: Bool = false) {
+    scope_insert_offset(s, name, own ptr)
+    meta := HeapBinding(til_type = til_type.clone(), own_type = own_type, is_local = is_local, is_borrowed = is_borrowed, moved_out = false)
+    s.heap_bindings.set(name, own meta)
+}
+
+// #286 Stage 1: mark a heap slot as moved out without deleting its metadata.
+// Move sites need this separate from removing the map entry so later reads can
+// fail at the source instead of silently falling back to a stale parent binding.
+scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
+    ref b : HeapBinding = scope_lookup_heap_binding(s, name)
+    if b.is_null() { panic("scope_set_heap_moved: heap binding not found: ", name) }
+    b.moved_out = moved_out
 }
 
 priv scope_new_boxed := func(parent: Scope) returns ref Scope {
@@ -2635,6 +2680,7 @@ priv scope_new_boxed := func(parent: Scope) returns ref Scope {
     ref s : Scope = to_ptr(raw)
     s.bindings = Map(Str, Binding).new()
     s.heap_index = Map(Str, Dynamic).new()
+    s.heap_bindings = Map(Str, HeapBinding).new()
     s.parent = parent
     s.payload_aliases = Map(Str, Str).new()
     s.ref_primitive_ptrs = Map(Str, Dynamic).new()
@@ -2786,6 +2832,11 @@ scope_free := func(own s: Scope) {
     // pointers above).
     own s.heap_index.delete(false)
     memset(s.heap_index, 0, Map(Str, Dynamic).size().cast(U64))
+    // #286 Stage 1: same treatment for the heap_index metadata map. It owns
+    // only type/ownership metadata; heap payload blocks are still freed by the
+    // active Value path until later stages switch scope teardown to heap_drop.
+    own s.heap_bindings.delete(false)
+    memset(s.heap_bindings, 0, Map(Str, HeapBinding).size().cast(U64))
     // Issue #217 follow-up: free the boxes that box_scalar_to_dynamic
     // allocated for `: Dynamic` parameters bound from scalars. The Vec
     // stores owning pointer boxes so the raw heap pointer can be passed to

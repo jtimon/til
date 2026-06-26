@@ -334,6 +334,7 @@ typedef struct Value Value;
 typedef struct InterpCallableBox InterpCallableBox;
 typedef struct Cell Cell;
 typedef struct Binding Binding;
+typedef struct HeapBinding HeapBinding;
 typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
@@ -341,8 +342,10 @@ typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Map__Str_Binding Map__Str_Binding;
+typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
 typedef struct Vec__Binding Vec__Binding;
+typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct Vector2 Vector2;
 typedef struct Vector3 Vector3;
@@ -1070,6 +1073,15 @@ typedef struct Binding {
 } Binding;
 
 
+typedef struct HeapBinding {
+    Type til_type;
+    OwnType own_type;
+    Bool is_local;
+    Bool is_borrowed;
+    Bool moved_out;
+} HeapBinding;
+
+
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
     U8 *p;
 } priv___src_self_interpreter_til__DynPtrBox;
@@ -1116,6 +1128,13 @@ typedef struct Vec__Binding {
     U32 count;
     U32 cap;
 } Vec__Binding;
+
+
+typedef struct Vec__HeapBinding {
+    U8 *data;
+    U32 count;
+    U32 cap;
+} Vec__HeapBinding;
 
 
 typedef struct priv___src_self_binder_til__BinderState {
@@ -1751,6 +1770,12 @@ typedef struct Map__Str_Binding {
 } Map__Str_Binding;
 
 
+typedef struct Map__Str_HeapBinding {
+    Vec__Str keys;
+    Vec__HeapBinding values;
+} Map__Str_HeapBinding;
+
+
 typedef struct EnumDef {
     Vec__Declaration ns_decls;
     Vec__Str variants;
@@ -1922,6 +1947,7 @@ typedef struct LoadedProgram {
 typedef struct Scope {
     Map__Str_Binding bindings;
     Map__Str_Dynamic heap_index;
+    Map__Str_HeapBinding heap_bindings;
     Scope *parent;
     Map__Str_Str payload_aliases;
     Map__Str_Dynamic ref_primitive_ptrs;
@@ -3755,6 +3781,10 @@ U32 Cell_size(void);
 Binding * Binding_clone(Binding * self);
 void Binding_delete(Binding * self, Bool call_free);
 U32 Binding_size(void);
+HeapBinding * HeapBinding_clone(HeapBinding * self);
+void HeapBinding_delete(HeapBinding * self, Bool call_free);
+U64 HeapBinding_hash(HeapBinding * self, HashFn hasher);
+U32 HeapBinding_size(void);
 Scope * Scope_clone(Scope * self);
 void Scope_delete(Scope * self, Bool call_free);
 U32 Scope_size(void);
@@ -3993,6 +4023,11 @@ void Map__Str_Binding_delete(Map__Str_Binding * self, Bool call_free);
 Map__Str_Binding * Map__Str_Binding_clone(Map__Str_Binding * self);
 U64 Map__Str_Binding_hash(Map__Str_Binding * self, HashFn hasher);
 U32 Map__Str_Binding_size(void);
+Map__Str_HeapBinding * Map__Str_HeapBinding_new(void);
+void Map__Str_HeapBinding_delete(Map__Str_HeapBinding * self, Bool call_free);
+Map__Str_HeapBinding * Map__Str_HeapBinding_clone(Map__Str_HeapBinding * self);
+U64 Map__Str_HeapBinding_hash(Map__Str_HeapBinding * self, HashFn hasher);
+U32 Map__Str_HeapBinding_size(void);
 Vec__DynPtrBox * Vec__DynPtrBox_new(void);
 U32 Vec__DynPtrBox_len(Vec__DynPtrBox * self);
 void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);
@@ -4009,6 +4044,11 @@ void Vec__Binding_unsafe_set(Vec__Binding * self, U32 i, Binding * val);
 void Vec__Binding_delete(Vec__Binding * self, Bool call_free);
 Vec__Binding * Vec__Binding_clone(Vec__Binding * self);
 U32 Vec__Binding_size(void);
+Vec__HeapBinding * Vec__HeapBinding_new(void);
+void Vec__HeapBinding_clear(Vec__HeapBinding * self);
+void Vec__HeapBinding_delete(Vec__HeapBinding * self, Bool call_free);
+Vec__HeapBinding * Vec__HeapBinding_clone(Vec__HeapBinding * self);
+U32 Vec__HeapBinding_size(void);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
 U32 priv___src_self_binder_til__skip_ws(Str * s, U32 from);
 U32 priv___src_self_binder_til__skip_word(Str * s, U32 from);
