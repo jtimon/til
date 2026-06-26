@@ -4418,6 +4418,14 @@ priv h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) return
 // introspection primitives hand back owned copies. Issue #56/#58.
 priv str_to_owned_value := func(src: Str, ctx: Context) returns shallow Value {
     n := src.count
+    if n == 0 {
+        // Empty src: malloc(1) + make_str_value_own would adopt an owned
+        // 1-byte c_str with count==0, which the count==0 teardown guard never
+        // frees -> leak (enum_variant_payload_type of a payloadless variant
+        // like `Nothing` hits this). Return a normalized empty (CAP_LIT, no
+        // owned buffer) instead, matching make_str_value's empty case.
+        return make_str_value(src.c_str, 0, ctx)
+    }
     buf : Dynamic = malloc(n.add(1).cast(U64))
     memcpy(buf, src.c_str, n.cast(U64))
     ref mut term : U8 = ptr_add(buf, n.cast(U64))
