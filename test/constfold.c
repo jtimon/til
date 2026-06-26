@@ -2442,7 +2442,7 @@ Bool and(Bool a, Bool b) {
     {
         Bool hoisted__Bool_2175 = 1;
         (void)hoisted__Bool_2175;
-        Bool hoisted__Bool_2176 = Bool_eq(a, hoisted__Bool_2175);
+        Bool hoisted__Bool_2176 = ((Bool)(a == hoisted__Bool_2175));
         (void)hoisted__Bool_2176;
         if (hoisted__Bool_2176) {
             Bool hoisted__Bool_2173 = Bool_clone(&b);
@@ -2458,7 +2458,7 @@ Bool and(Bool a, Bool b) {
 }
 
 I64 Bool_cmp(Bool a, Bool b) {
-    Bool hoisted__Bool_2186 = Bool_eq(a, b);
+    Bool hoisted__Bool_2186 = ((Bool)(a == b));
     (void)hoisted__Bool_2186;
     if (hoisted__Bool_2186) {
         I64 hoisted__I64_2184 = 0;

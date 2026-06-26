@@ -2879,6 +2879,18 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         emit_deref(f, e.children[2], depth, ctx)
                         f.write("))")
                     }
+                } else if (sname == "Bool").and(mname.field_access_name() == "eq") {
+                    // Peephole: inline Bool.eq as native `==` -- a hot ext_func
+                    // call (1.8B in the --prof profile). Bool stays an ext_func
+                    // (the interpreter FFIs it, so both modes agree); same
+                    // approach as the `is` inline.
+                    f.write("((")
+                    f.write(til_type_name_c(e.expr_til_type()))
+                    f.write(")(")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write(" == ")
+                    emit_deref(f, e.children[2], depth, ctx)
+                    f.write("))")
                 } else {
                     f.write(sname)
                     f.write("_")
