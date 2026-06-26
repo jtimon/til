@@ -232,7 +232,7 @@ doc_cache: bin/til
 # Runs examples/issues.til which walks issues/open/, parses each
 # .org file, and writes issues/summary.org.  Use instead of `make test`
 # when only issue tracking files changed (Doc: commits).
-summary: bin/til
+summary: tmp bin/til
 	bin/til run examples/issues.til
 
 # --- Self-host build profiler / regression harness (issue #237) ---

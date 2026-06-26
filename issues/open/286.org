@@ -4,72 +4,68 @@
 
   The interpreter's runtime value representation is the root cause of the
   recurring memory leaks (#275 and the long tail of follow-ups after it).
-  We box every runtime value in a ~Value~ enum (~src/self/interpreter.til:382~);
-  the heap-owning variants ~Struct: StructInstance~ and ~Enum: EnumInstance~
-  keep their payload in a per-value ~own data~ malloc plus dangling ~ref~
-  type fields, binding/passing deep-clones the box, and teardown frees it
-  by hand. rstil (the Rust predecessor, github.com/jtimon/rstil, cloned at
-  ~/home/user/rstil~ in the session that filed this) has NO Value box: a
-  variable is a NAME -> OFFSET into one flat heap, the value is the raw
-  bytes (the same layout the C backend emits), the type lives in the
-  scope's symbol table, and reclamation is one ~heap_free(ptr)~ per block.
-  This issue ports that model. It is large; stage it.
+  Current master has the real-pointer ~EvalHeap~ and ~Scope.heap_index~
+  groundwork, but eval still boxes every runtime result in ~Value~
+  (~src/self/interpreter.til:331~). The heap-owning variants
+  ~Value.Struct(StructInstance)~ and ~Value.Enum(EnumInstance)~ still carry
+  per-value payload ownership, binding/passing still deep-clones the box,
+  and teardown still runs hand-written helpers. The target is the rstil
+  model with no ~Value~ box: a variable is NAME -> real heap pointer, the
+  value is raw C-layout bytes, the type lives in scope metadata / the typed
+  AST, and reclamation is one ~heap_drop(type, ptr)~ plus
+  ~heap_free(ptr)~ per owning block. It is large; stage it.
 
 *** Progress
 
-  Plan: 4 commits (revised from 9 after reading rstil). Only the last is
-  bootstrap-independent in self.org terms -- removing Value variants changes
-  what til_boot's committed boot/ encodes (the reason Sbyte/Ushort were
-  appended, not inserted). Commits 1-3 are regular single commits, each
-  green on ~make test~ + ~make test_two_pass~.
+  Done on current master:
 
-  - Commit 1 DONE: real-pointer EvalHeap. The first Stage-1 cut used a flat
-    growable buffer with synthetic offsets; that was WRONG -- later commits
-    store real C pointers inside heap bytes (Str.c_str, Vec.data, enum
-    payloads) and pass them back to get()/FFI, and a growable buffer moves
-    under realloc and dangles them. So ~src/self/eval_heap.til~ now wraps
-    calloc/free: a handle is a REAL address (rstil's alloc_zeroed -> ptr),
-    heap_free = free (C needs no size, so no heap_blocks table), and a
-    live_blocks counter is the balance/leak probe. Standalone infrastructure
-    also wired in: ~Scope.heap_index : Map(Str, Dynamic)~ +
-    scope_lookup_offset / scope_insert_offset (parent-chain walk, rstil's
-    lookup_var) and ~Context.eval_heap~. Eval does not read the heap yet.
-    Exercised by ~test/eval_heap.til~ in both interpret and compiled+ASAN;
-    ~make clean && make test_two_pass~ green at 161/161.
-  - Commit 2: unbox Struct + containers onto the heap (one generic
-    heap_clone/heap_free pair). Also adds the garbager's explicit
-    clone-on-assign insertion (rstil #159) and stops the interpreter cloning
-    implicitly -- til's garbager today only inserts deletes (it reasons
-    about clones but never emits them), so the clone side must be added,
-    coupled with the representation change. Removes StructInstance and, with
-    it, the #239 dangling type-refs.
-  - Commit 3: unbox Str + Enum; delete struct_deep_free, free_value,
-    free_value_full, free_container_str_data, clone_container_str_buffer,
-    free_temp_arg_value, free_non_own_temp_args.
-  - Commit 4 (self.org-independent): remove the Value.Struct/Enum/Str/Ref/
-    Dynamic variants, scalars into heap. A ~Two-pass:~ commit, or a
-    prep + removal pair across a master merge if two_pass can't carry it.
+  - ~src/self/eval_heap.til~ exists and uses real C heap pointers, not a
+    growable offset buffer. This is the correct til port because payload
+    bytes contain real pointers such as ~Str.c_str~, container ~data~, enum
+    payload pointers, callable boxes, and FFI-visible addresses.
+  - ~Context.eval_heap~, ~Scope.heap_index : Map(Str, Dynamic)~,
+    ~scope_lookup_offset~, and ~scope_insert_offset~ exist. They are still
+    mostly infrastructure: ordinary eval lookup/bind still uses
+    ~Scope.bindings : Map(Str, Binding)~ -> ~Cell~ -> ~Value~.
+  - ~heap_clone(struct_name, data, ctx)~ exists and can clone struct bytes by
+    type/layout, including Str payloads and some container cases. It is still
+    not the single canonical clone path: it calls old helpers and still
+    manufactures / consumes boxed ~Value~ in enum and field paths.
+  - ~StructInstance~ no longer carries ~struct_def~, but it still carries
+    ~struct_name~, ~ctx~, ~is_str~, ~is_str_container~, ~own data~, and
+    ~borrowed~. ~EnumInstance~ still carries ~enum_name~, payload data,
+    size, borrowed, and Str-payload state. The boxed-payload model remains
+    live.
+  - The garbager is not the first blocker anymore. It already inserts
+    scope/last-use deletes, assignment old-value deletes, own-transfer
+    handling, clone-to-move rewrites for last-use aggregate assignments, and
+    heap-promotion metadata. The remaining work is to make the interpreter
+    execute those operations against raw heap pointers instead of ~Value~
+    boxes.
+
+  Remaining plan: staged source commits plus a final bootstrap-sensitive
+  ~Two-pass:~ removal commit. Do not keep a thin scalar ~Value~ fallback; the
+  end state removes ~Value~ completely.
 
 *** Why the current model leaks (band-aids will not converge)
 
-  ~Value.Struct(StructInstance { ref struct_name, ref struct_def, ref ctx,
-  own data, borrowed })~ (interpreter.til:144) is a SECOND memory model
-  layered on top of the raw buffer that ~make_struct_value~
-  (interpreter.til:2478) already mallocs:
+  ~Value.Struct(StructInstance { struct_name, ctx, data, borrowed, ... })~
+  and ~Value.Enum(EnumInstance { enum_name, data, data_size, borrowed, ... })~
+  are still a second memory model layered on top of raw C-layout buffers:
 
-  - Per-value clone: 56 ~.clone()~ sites in interpreter.til alone;
-    ~Value~ / ~StructInstance.clone~ deep-copy the box, and post-#275
-    ~clone_container_str_buffer~ deep-copies container element buffers.
-  - Per-value hand-free: ~struct_deep_free~ (81), ~free_value~ (2216),
-    ~free_value_full~ (2248), ~free_container_str_data~ (2287),
-    ~free_temp_arg_value~ (2345), ~free_non_own_temp_args~ (2370). Every
-    one is a band-aid; each new clone path is a new leak (the #275
-    follow-ups -- va arrays, container teardown, own-field teardown --
-    are exactly this treadmill).
-  - Dangling refs: ~ref struct_name / struct_def / ctx~ exist ONLY so a
-    boxed value can find its own type to clone/free itself, and they
-    dangle once the AST/Context is torn down (this is #239). A value that
-    is just bytes does not carry them.
+  - Per-value clone: ~Value.clone~, ~StructInstance.clone~, and
+    ~EnumInstance.clone~ deep-copy boxes. The current ~heap_clone~ helper is
+    progress, but its callers still wrap the result back into boxed
+    ~Value~ / ~StructInstance~ ownership.
+  - Per-value hand-free: ~struct_deep_free~, ~free_value~,
+    ~free_value_full~, ~free_container_str_data~,
+    ~free_container_str_data_cached~, ~clone_container_str_buffer~,
+    ~free_temp_arg_value~, and ~free_non_own_temp_args~ are still present.
+    Every one is a special case that must stay exactly symmetric with every
+    clone, read, field-write, return, call, and FFI handoff path.
+  - Type refs remain in values: ~StructInstance~ still needs ~struct_name~ and
+    ~ctx~ so a value can free or clone itself. In the target model the value
+    is only bytes; the scope/AST supplies the type at each operation.
 
   The garbager (~src/self/garbager.til~) already inserts asap-destruction
   ~delete~ calls into the AST -- it is NOT broken. The defect is that the
@@ -78,31 +74,26 @@
   raw heap bytes (heap_free, which is total). Same garbager, wrong runtime
   representation.
 
-*** rstil's target model (what to port -- read these files)
+*** Target model
 
-  ~src/rs/eval_heap.rs~, ~src/rs/init.rs~, ~src/rs/interpreter.rs~,
-  ~src/rs/garbager.rs~ in the rstil clone.
+  - Runtime scope: name -> real heap pointer. The pointer is the address
+    returned by ~EvalHeap.heap_alloc~, not a synthetic offset.
+  - Type metadata: a binding's type comes from scope metadata mirrored from
+    declarations/params/captures plus the typed AST at expression sites. It
+    is not stored inside the value bytes.
+  - Value bytes: scalars, structs, Str, enums, containers, Dynamic pointers,
+    and callable boxes use the same in-memory layout that the C backend emits.
+  - Clone/drop: one typed byte-level pair, ~heap_clone(type, ptr, ctx)~ and
+    ~heap_drop(type, ptr, ctx)~, owns all deep-copy and deep-free logic. It
+    handles Str c_str, container buffers/elements, enum payloads, own fields,
+    funcptr/callable boxes, and nested aggregates.
+  - Eval result: expression evaluation returns either a typed heap pointer /
+    borrowed view or a direct control-flow result. It does not return a boxed
+    ~Value~. A store decides whether to move, clone, borrow, or drop based on
+    the typed AST and ownership metadata.
 
-  - ~ScopeFrame~ (init.rs:73): ~heap_index: HashMap<String, usize>~ maps a
-    variable name -> offset in the heap. Separate ~symbols~, ~structs~,
-    ~enums~, ~funcs~ tables hold the TYPE info (NOT carried in the value).
-  - ~ScopeStack~ (init.rs:98): ~frames: Vec<ScopeFrame>~;
-    ~lookup_var(name) -> Option<usize>~ walks frames inner->outer and
-    returns the offset (init.rs:153).
-  - ~EvalHeap~ (eval_heap.rs): one flat heap. API surface:
-      get(offset,len)->&[u8], set(offset,bytes),
-      heap_alloc(size)->ptr, heap_free(ptr)            (block-level, #163),
-      insert_i64/u8/string/struct/enum/array(ctx,id,...) -- writes bytes
-        AND records frame.heap_index[id]=offset,
-      get_i64/u8/string/enum/struct(ctx,id) -- lookup_var -> read bytes.
-    Stored via ~to_le_bytes~ / read via ~from_le_bytes~: the exact C
-    layout the backend emits.
-  - The garbager (garbager.rs, rstil Issue #159) inserts explicit
-    ~.clone()~ AST calls for deep-copy semantics on assignment; the
-    interpreter NEVER deep-clones implicitly. Reclamation is ~heap_free~.
-
-  Net target: no Value box, no StructInstance, no per-value clone, no
-  hand-free, no dangling type-refs.
+  Net target: no ~Value~, no ~Cell~, no ~StructInstance~, no ~EnumInstance~,
+  no per-value clone/delete, no type refs inside values.
 
 *** Bootstrap constraint (read FIRST)
 
@@ -115,96 +106,100 @@
   after the heap path is already live. The interpreter compiles itself, so
   every stage must also round-trip ~make two_pass~.
 
-*** Staged migration plan (each stage: keep ~make clean && make test~ at
-    157/157 AND do not regress the strings.til leak probe)
+*** Staged migration plan
 
-  Stage 1 -- EvalHeap module. Port ~eval_heap.rs~ to a new
-    ~src/self/eval_heap.til~: a heap of malloc/realloc blocks tracked like
-    rstil's ~heap_blocks~ (ptr -> size), with get/set/heap_alloc/heap_free.
-    rstil uses a ~static mut~ singleton; in til prefer threading it through
-    ~Context~ (Context already flows everywhere) rather than a global.
-    Exercise it standalone before touching eval.
+  Stage 1 -- Runtime heap-binding metadata.
 
-  Stage 2 -- name -> offset scope. Add ~heap_index : Map(Str, USize)~ to
-    ~Scope~ (interpreter.til:484) alongside the existing
-    ~bindings : Map(Str, Binding)~, and ~scope_lookup_offset(name)~. Keep
-    both maps live so eval can migrate value-kind by value-kind.
+    Keep ~Scope.bindings~ temporarily, but make ~Scope.heap_index~ the real
+    owner for new migrated paths. Add the missing metadata beside it: binding
+    type, ownership/ref state, moved-out state, and callable/closure metadata
+    as needed. Add typed helpers for lookup, bind, overwrite, move, borrow,
+    clone, drop, and scope teardown. The helpers must take explicit type
+    metadata and real heap pointers; they must not inspect a ~Value~ to decide
+    what they own.
 
-  Stage 3 -- kill the dangling type-refs (smallest standalone win; do it
-    first). Drop ~ref struct_name / struct_def / ctx~ from StructInstance;
-    carry only the struct's type NAME (owned Str or interned id) and look
-    up struct_def/ctx from the scope's type tables at use sites (mirrors
-    rstil's ~symbols~/~structs~). Removes the #239 UAF class and shrinks
-    StructInstance toward "just a pointer to bytes". Verify with
-    ~bin/til_asan~ that no use-after-free appears.
+  Stage 2 -- Canonical typed heap clone/drop.
 
-  Stage 4 -- unbox Struct. Replace ~Value.Struct(StructInstance)~ with a
-    binding of (heap offset, type name): ~x := Foo(...)~ writes Foo's bytes
-    into the EvalHeap and records the offset in ~heap_index~. Field
-    access reads/writes bytes at offset+field_offset (~ctx_field_layout~
-    already returns the offsets). The garbager's ~x.delete()~ lowers to
-    ~heap_free(offset)~; ~x.clone()~ lowers to ONE generic
-    ~heap_clone(offset, type)~ = byte-copy + deep-copy of owned-pointer
-    fields (Str c_str, container data), replacing struct_deep_free AND
-    clone_container_str_buffer with a single symmetric pair.
+    Finish ~heap_clone(type, ptr, ctx)~ and add its dual
+    ~heap_drop(type, ptr, ctx)~ before changing storage. These replace the
+    current scattered clone/free routines structurally, not by wrapping them.
+    Cover primitive bytes, Str c_str, inline and own aggregate fields,
+    containers and their elements, enum payloads (including Str payloads and
+    nested enums), funcptr/callable boxes, Dynamic-owned pointers, refs/views,
+    and closures. Existing helpers may delegate to the new pair during the
+    transition, but the direction must be old -> new, never new -> old.
 
-  Stage 5 -- unbox Str. A Str is {c_str, count, cap}; store it in the heap
-    and let heap_clone/heap_free own the c_str (cap < CAP_VIEW still
-    distinguishes owned from view). Remove the ~is_str~ flag and the Str
-    special-cases in free_temp_arg_value / StructInstance.clone.
+  Stage 3 -- Aggregates bind/read/write through the real heap.
 
-  Stage 6 -- unbox Enum (EnumInstance, ~interpreter.til:337~) the same
-    way: payload bytes in the heap, tag + payload-type from the enum table.
+    Migrate struct construction, Str construction, enum construction,
+    container construction, field access, field assignment, payload aliases,
+    switch/match enum reads, return propagation, and namespace aggregate
+    fields so their durable storage is the heap pointer in ~heap_index~.
+    Temporary expression results may still bridge to ~Value~ at unmigrated
+    boundaries, but no scope-owned aggregate payload should live in
+    ~Cell.val~ after this stage.
 
-  Stage 7 -- containers. Array/Vec/Map already hold ~own data~ raw
-    buffers; once Struct is unboxed they are just structs whose
-    heap_clone/heap_free recurse on the data buffer + elements. Delete
-    free_container_str_data / clone_container_str_buffer (subsumed by the
-    generic heap_clone/heap_free).
+  Stage 4 -- Calls, refs, Dynamic, closures, and FFI use typed heap slots.
 
-  Stage 8 -- scope teardown = heap_free. ~scope_free~ walks the popped
-    frame's ~heap_index~ and heap_frees each block, honouring borrowed /
-    moved-out cells (the garbager already nulls moved-out sources). Delete
-    free_temp_arg_value, free_non_own_temp_args, struct_deep_free,
-    free_value, free_value_full.
+    Migrate parameter binding, capture binding, ref-mut primitive pointers,
+    Dynamic autoboxing, callable boxes, FFI argument/result marshalling,
+    CLI argv construction, and constfolder known/namespace values to typed
+    heap slots. Delete the side ownership tables that only exist because
+    ~Value.Dynamic~ and callable boxes hide raw pointers from scope teardown.
 
-  Stage 9 -- scalars + drop the box. Move Int/Byte/.../Bool into heap
-    bytes (rstil's insert_i64), or keep a thin inline ~Value~ for scalars
-    ONLY if a full unbox is too invasive. Then remove the
-    Struct/Enum/Str/Ref/Dynamic variants from ~Value~ (the staged-
-    bootstrap step) and delete the dead clone/free machinery.
+  Stage 5 -- Scalars move into heap bytes.
+
+    Store Int/Byte/Sbyte/Short/Ushort/Int32/Uint32/Uint64/F32/Bool/None as
+    typed heap bytes too. Conditions, numeric widening, comparisons, switch
+    keys, primitive ext-function dispatch, and diagnostics read scalar bytes
+    via typed helpers. This stage removes the last legitimate reason for
+    expression eval to return ~Value~.
+
+  Stage 6 -- Delete the boxed runtime.
+
+    Remove ~Value~, ~Cell~, ~Binding.cell~, ~StructInstance~,
+    ~EnumInstance~, ~make_struct_value~, ~make_enum_value~,
+    ~borrow_value~, ~shallow_copy_value~, ~value_is_borrowed~,
+    ~free_value~, ~free_value_full~, ~free_temp_arg_value~,
+    ~free_non_own_temp_args~, ~struct_deep_free~,
+    ~free_container_str_data~, ~free_container_str_data_cached~,
+    ~clone_container_str_buffer~, and the remaining ~Value.clone~ call graph.
+    This is the bootstrap-sensitive step because ~Value~ tags are baked into
+    committed boot C. Make it a ~Two-pass:~ commit unless it needs a prep +
+    removal pair across a master merge under ~doc/self.org~.
 
 *** Deletions when done
 
-  StructInstance/EnumInstance type-refs and the whole boxed-payload path;
-  struct_deep_free, free_value, free_value_full, free_container_str_data,
-  clone_container_str_buffer, free_temp_arg_value, free_non_own_temp_args,
-  and make_struct_value's boxing wrapper; the bulk of the 56 ~.clone()~
-  sites (replaced by the garbager's explicit clones + one heap_clone).
-  interpreter.til is 5631 lines today; this should delete a large fraction
-  of the runtime-memory code.
+  The whole boxed runtime disappears: ~Value~, ~Cell~ ownership, boxed
+  Struct/Enum payloads, per-value borrowed/is_str/is_str_container/is_str
+  flags, all boxed clone/free helpers, and the ownership side tables whose
+  only job is to compensate for ~Value.Dynamic~ or callable boxes. The
+  interpreter should shrink: the target is one typed heap clone/drop pair and
+  direct byte reads/writes, not more special-case cleanup code.
 
 *** Verification at every stage
 
-  - ~make clean && make test~ stays 157/157.
-  - strings.til ASAN probe does not regress and trends to ~0:
-      ulimit -d unlimited; TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 \
-        bin/til_asan interpret  test/strings.til
-        bin/til_asan translate test/strings.til
-    (current master: interpret 2494, translate 6070; rstil leaks nothing
-    on equivalent inputs -- the END target is 0 true leaks).
-  - ~make two_pass~ green (the interpreter self-applies).
-  - When eval semantics are ambiguous, cross-check against rstil's
-    ~interpreter.rs~ for the same construct.
+  - Source stages: ~make clean && make test~.
+  - Final ~Two-pass:~ removal stage: ~make clean && make test_two_pass~.
+  - Keep ~test/eval_heap.til~ green in interpret and compiled paths.
+  - Keep the strings leak probe from regressing and drive it toward zero true
+    leaks:
+      ~TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til~
+      ~TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til~
+  - Add focused regression tests as each storage class migrates: struct field
+    clone/drop, Str return/assign/reassign, enum payload clone/drop, container
+    of Str/container of aggregate, ref payload alias writeback, Dynamic
+    autobox/free, callable/closure field, FFI aggregate arg/result, and
+    constfolder known values.
 
 *** Notes
 
   - This SUBSUMES the #275 follow-up leak work: once values are raw bytes
-    with one heap_clone/heap_free pair, the own-field / container / clone
-    leaks chased one-by-one disappear structurally rather than needing a
-    new hand-free per case.
-  - Confirm til's garbager has rstil-#159 parity (explicit clone insertion
-    for assignment deep-copy), since the new model forbids the interpreter
-    from deep-cloning implicitly. til's garbager currently emphasises
-    asap-destruction (delete insertion); verify the clone side exists or
-    add it before Stage 4.
+    with one typed heap clone/drop pair, own-field / container / clone leaks
+    disappear structurally rather than needing a new hand-free per case.
+  - Do not add another boxed result type as a replacement for ~Value~. Short
+    transition structs are acceptable only as typed pointer views and must not
+    own payloads or clone/free themselves.
+  - Existing garbager behavior should be reused, not reimplemented first. Add
+    garbager work only where the raw-heap interpreter exposes a concrete
+    missing clone/delete/move in the typed AST.
