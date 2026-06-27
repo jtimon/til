@@ -1537,6 +1537,14 @@ __attribute__((weak)) unsigned long __sanitizer_get_current_allocated_bytes(void
 static void til_leak_probe(void) __attribute__((destructor));
 static void til_leak_probe(void) {
     if (!getenv("TIL_LEAK_PROBE")) return;
+    // Flush and release libc's own stdio write buffer before measuring: the
+    // stdout st_blksize buffer (~4096B) is libc-owned and reclaimed at exit,
+    // and is only live here because this destructor runs before libc's stdio
+    // teardown -- it is not a til leak. (translate prints its success line to
+    // stdout via println, so only the translate channel showed this 4096-byte
+    // floor; interpret writes to stderr.)
+    fflush(NULL);
+    fclose(stdout);
     if (&__sanitizer_get_current_allocated_bytes)
         fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
 }
