@@ -111,6 +111,56 @@ repl_ast_has_help_call := func(e: Expr) returns Bool {
     return false
 }
 
+repl_ast_updates_doc_cache := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Decl:      return true
+    case NodeType.FuncDef:   return true
+    case NodeType.StructDef: return true
+    case NodeType.EnumDef:   return true
+    case NodeType.FCall:
+        if e.children.len() > 0 {
+            ref callee : Expr = e.children[0]
+            switch callee.node_type {
+            case NodeType.Ident(name):
+                if name.ident_name() == "import" { return true }
+            case:
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children {
+        if repl_ast_updates_doc_cache(child) { return true }
+    }
+    return false
+}
+
+repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), mut user_info_cache: Str, mut user_docs_cache: Str) {
+    if accum.len() == 0 {
+        user_info_cache = ""
+        user_docs_cache = ""
+        return
+    }
+
+    mut combined := ""
+    combined = combined.format("mode ", mode_str, "\n")
+    combined = combined.format(accum)
+    File.writefile(tmp_path, combined)
+
+    mut doc_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+    type_errors := type_program_errors(doc_lp, false)
+    if type_errors > 0 { panic("REPL user doc cache refresh failed") }
+
+    mut user_merged := Expr.new(NodeType.Body, 0, 0)
+    for u : ProgramUnit in doc_lp.units {
+        ref iu : ImportUnit = doc_lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
+    }
+    user_info_cache = Str.with_capacity(65536)
+    user_docs_cache = Str.with_capacity(65536)
+    collect_decl_packed(user_merged, doc_lp.ctx.scope, user_info_cache, user_docs_cache)
+    ffi_cleanup(doc_lp.ctx)
+}
+
 // Run one REPL session in a given mode. On EOF, leaves next_mode_out empty.
 // If a `mode X` statement is entered, sets next_mode_out = X so the caller
 // can restart the session in the new mode.
@@ -129,9 +179,9 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
     ext_c_path := bin_dir.format("/src/c/ext.c")
-    mut escaped_core_info := ""
-    mut escaped_core_docs := ""
-    mut docs_loaded := false
+    core_info_cache_path := bin_dir.format("/", REPL_CORE_INFO_CACHE)
+    core_docs_cache_path := bin_dir.format("/", REPL_CORE_DOCS_CACHE)
+    mut docs_active := false
 
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
@@ -140,6 +190,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     mut prev_out := ""
     mut user_info_cache := ""
     mut user_docs_cache := ""
+    mut user_docs_dirty := false
 
     // Keep block Strs alive so parsed AST views don't dangle.
     source_keep := Vec(Str).new()
@@ -173,17 +224,15 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut block_eff := block.clone()
         mut full_out := ""
         mut ran_ok := false
-        need_docs := repl_ast_has_help_call(peek_ast)
-        if need_docs {
-            if docs_loaded.not() {
-                escaped_core_info = File.readfile(bin_dir.format("/", REPL_CORE_INFO_CACHE))
-                escaped_core_docs = File.readfile(bin_dir.format("/", REPL_CORE_DOCS_CACHE))
-                docs_loaded = true
-            }
+        current_has_help := repl_ast_has_help_call(peek_ast)
+        need_docs := docs_active.or(current_has_help)
+        if current_has_help.and(user_docs_dirty) {
+            repl_refresh_user_doc_cache(mode_str, accum, tmp_path, bin_dir, cwd, ext_c_path, extra_modes, user_info_cache, user_docs_cache)
+            user_docs_dirty = false
         }
         mut doc_line := ""
         if need_docs {
-            doc_line = build_doc_init_line_cached(escaped_core_info, escaped_core_docs, user_info_cache, user_docs_cache)
+            doc_line = build_doc_init_line_cache_files(core_info_cache_path, core_docs_cache_path, user_info_cache, user_docs_cache)
         }
 
         if repl_parse_allows_wrap(peek_ast) {
@@ -221,15 +270,6 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut typed_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
             typer_errs := repl_typecheck(typed_lp)
             if typer_errs == 0 {
-                mut user_merged := Expr.new(NodeType.Body, 0, 0)
-                for u : ProgramUnit in typed_lp.units {
-                    ref iu : ImportUnit = typed_lp.ctx.imported[u.path]
-                    for stmt : Expr in iu.ast.children { user_merged.add_child(own stmt.clone()) }
-                }
-                user_info_cache = Str.with_capacity(65536)
-                user_docs_cache = Str.with_capacity(65536)
-                collect_decl_packed(user_merged, typed_lp.ctx.scope, user_info_cache, user_docs_cache)
-
                 finish_init_and_type_program(typed_lp)
                 finish_prepare_program(typed_lp)
                 full_out = repl_capture_interpret(typed_lp, out_path)
@@ -239,6 +279,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         }
 
         if ran_ok {
+            if current_has_help { docs_active = true }
+            if repl_ast_updates_doc_cache(peek_ast) { user_docs_dirty = true }
             // Print only the delta vs the previous run's output. Since the
             // combined program is re-run from scratch each turn, prior side
             // effects (println output, etc.) replay; we hide them by

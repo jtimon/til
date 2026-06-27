@@ -28,37 +28,24 @@ __doc_init__ := func(info_data: Str, docs_data: Str) {
     __til_docs_blob__ = docs_data.clone()
 }
 
+doc_cache_read_unescape := ext_proc(path: Str) returns Str {}
+doc_cache_lookup := ext_func(blob: Str, name: Str) returns Str {}
+
+/// Runtime doc init for the REPL. The core cache files contain escaped string
+/// literal payloads, so unescape them once after reading instead of injecting
+/// the whole cache as source on every help() replay.
+doc_init_cache_files := proc(info_path: Str, docs_path: Str, user_info_data: Str, user_docs_data: Str) {
+    core_info := doc_cache_read_unescape(info_path)
+    core_docs := doc_cache_read_unescape(docs_path)
+    __til_info_blob__ = format(core_info, user_info_data)
+    __til_docs_blob__ = format(core_docs, user_docs_data)
+}
+
 // Scan blob for `name`. Returns the matching value as an owned Str or
-// "" if not found. Linear scan; intended for interactive use of help().
+// "" if not found. Implemented in C because REPL help() searches the
+// packed core cache interactively.
 __doc_lookup__ := func(blob: Str, name: Str) returns Str {
-    n := blob.len()
-    nm_len := name.len()
-    mut i : USize = 0
-    while i < n {
-        mut sep1 := i
-        while sep1.lt(n).and(blob.unsafe_get(sep1).neq(1)) {
-            sep1++
-        }
-        if sep1 >= n { return "" }
-        mut sep2 := sep1 + 1
-        while sep2.lt(n).and(blob.unsafe_get(sep2).neq(2)) {
-            sep2++
-        }
-        if sep2 > n { return "" }
-        if sep1 - i == nm_len {
-            mut hit := true
-            for k in 0..nm_len {
-                ref a : I8 = blob.unsafe_get(i + k)
-                ref b : I8 = name.unsafe_get(k)
-                if a != b { hit = false }
-            }
-            if hit {
-                return blob.substr(sep1 + 1, sep2.sub(sep1) - 1).clone()
-            }
-        }
-        i = sep2 + 1
-    }
-    return ""
+    return doc_cache_lookup(blob, name)
 }
 
 /// Print the doc comment and the kind/signature info for a top-level

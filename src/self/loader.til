@@ -1600,6 +1600,14 @@ build_doc_init_line_cached := func(escaped_core_info: Str, escaped_core_docs: St
     return format("__doc_init__(\"", escaped_core_info, esc_user_info, "\", \"", escaped_core_docs, esc_user_docs, "\")\n")
 }
 
+build_doc_init_line_cache_files := func(core_info_path: Str, core_docs_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str {
+    esc_info_path := escape_doc_for_literal_str(core_info_path)
+    esc_docs_path := escape_doc_for_literal_str(core_docs_path)
+    esc_user_info := escape_doc_for_literal_str(packed_user_info)
+    esc_user_docs := escape_doc_for_literal_str(packed_user_docs)
+    return format("doc_init_cache_files(\"", esc_info_path, "\", \"", esc_docs_path, "\", \"", esc_user_info, "\", \"", esc_user_docs, "\")\n")
+}
+
 ReplCoreDocCache := struct {
     escaped_info := ""
     escaped_docs := ""

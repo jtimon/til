@@ -575,6 +575,93 @@ void File_writefile(const Str *path, const Str *content) {
     fclose(f);
 }
 
+Str *doc_cache_unescape(const Str *raw) {
+    char *buf = malloc((size_t)raw->count + 1);
+    if (!buf) {
+        fprintf(stderr, "doc_cache_unescape: allocation failed\n");
+        exit(1);
+    }
+
+    USize j = 0;
+    for (USize i = 0; i < raw->count; i++) {
+        char c = (char)raw->c_str[i];
+        if (c == '\\') {
+            i++;
+            if (i >= raw->count) {
+                fprintf(stderr, "doc_cache_unescape: unterminated escape\n");
+                exit(1);
+            }
+            char esc = (char)raw->c_str[i];
+            switch (esc) {
+            case 'n':  buf[j++] = '\n'; break;
+            case 't':  buf[j++] = '\t'; break;
+            case '\\': buf[j++] = '\\'; break;
+            case '"':  buf[j++] = '"'; break;
+            default:
+                fprintf(stderr, "doc_cache_unescape: invalid escape '%c'\n", esc);
+                exit(1);
+            }
+        } else {
+            buf[j++] = c;
+        }
+    }
+    buf[j] = '\0';
+
+    Str *s = malloc(sizeof(Str));
+    if (!s) {
+        fprintf(stderr, "doc_cache_unescape: Str allocation failed\n");
+        exit(1);
+    }
+    s->c_str = (I8 *)buf;
+    s->count = j;
+    s->cap = j;
+    return s;
+}
+
+Str *doc_cache_read_unescape(const Str *path) {
+    Str *raw = File_readfile(path);
+    Str *result = doc_cache_unescape(raw);
+    free(raw->c_str);
+    free(raw);
+    return result;
+}
+
+Str *doc_cache_lookup(const Str *blob, const Str *name) {
+    USize i = 0;
+    while (i < blob->count) {
+        USize sep1 = i;
+        while (sep1 < blob->count && (U8)blob->c_str[sep1] != 1) sep1++;
+        if (sep1 >= blob->count) return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+
+        USize sep2 = sep1 + 1;
+        while (sep2 < blob->count && (U8)blob->c_str[sep2] != 2) sep2++;
+
+        if (sep1 - i == name->count && memcmp(blob->c_str + i, name->c_str, (size_t)name->count) == 0) {
+            USize len = sep2 - sep1 - 1;
+            char *buf = malloc((size_t)len + 1);
+            if (!buf) {
+                fprintf(stderr, "doc_cache_lookup: allocation failed\n");
+                exit(1);
+            }
+            memcpy(buf, blob->c_str + sep1 + 1, (size_t)len);
+            buf[len] = '\0';
+
+            Str *s = malloc(sizeof(Str));
+            if (!s) {
+                fprintf(stderr, "doc_cache_lookup: Str allocation failed\n");
+                exit(1);
+            }
+            s->c_str = (I8 *)buf;
+            s->count = len;
+            s->cap = len;
+            return s;
+        }
+
+        i = sep2 + 1;
+    }
+    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+}
+
 void stdio_capture_begin(const Str *path) {
     if (stdio_capture_stdout_fd != -1 || stdio_capture_stderr_fd != -1) {
         fprintf(stderr, "stdio_capture_begin: capture already active\n");

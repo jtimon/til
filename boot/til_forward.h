@@ -3346,7 +3346,7 @@ void priv___src_self_loader_til__collect_member_method_packed(Str * type_name, D
 void priv___src_self_loader_til__collect_struct_members_packed(Str * type_name, StructDef * sdef, Str * info, Str * docs);
 void priv___src_self_loader_til__collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, Str * docs);
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
-Str * build_doc_init_line_cached(Str * escaped_core_info, Str * escaped_core_docs, Str * packed_user_info, Str * packed_user_docs);
+Str * build_doc_init_line_cache_files(Str * core_info_path, Str * core_docs_path, Str * packed_user_info, Str * packed_user_docs);
 ReplCoreDocCache * ReplCoreDocCache_clone(ReplCoreDocCache * self);
 void ReplCoreDocCache_delete(ReplCoreDocCache * self, Bool call_free);
 U64 ReplCoreDocCache_hash(ReplCoreDocCache * self, HashFn hasher);
@@ -4339,6 +4339,8 @@ I32 repl_typecheck(LoadedProgram * lp);
 Str * repl_capture_interpret(LoadedProgram * lp, Str * out_path);
 Bool repl_parse_allows_wrap(Expr * peek_ast);
 Bool repl_ast_has_help_call(Expr * e);
+Bool repl_ast_updates_doc_cache(Expr * e);
+void repl_refresh_user_doc_cache(Str * mode_str, Str * accum, Str * tmp_path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes, Str * user_info_cache, Str * user_docs_cache);
 void run_repl_session(Str * mode_name_in, Str * next_mode_out, Vec__Str * extra_modes);
 void run_repl(Str * initial_mode, Vec__Str * extra_modes);
 void usage(void);

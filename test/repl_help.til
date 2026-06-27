@@ -2,8 +2,9 @@ mode cli
 
 import("../src/std/sys")
 
-// REPL smoke test for #157: pipe one help() call into bin/til, capture
-// stdout, and verify the expected core doc text appears. Invoked via
+// REPL smoke test for #157: pipe one help() call plus a later expression
+// into bin/til, capture stdout, and verify the expected core doc text
+// appears without poisoning later replay. Invoked via
 // `make test_repl_help` rather than `make test` because the REPL still
 // runs the compiler pipeline for each turn, costing too much wall time
 // for the regular test suite.
@@ -23,18 +24,20 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "help(\"println\")\n")
+    File.writefile("tmp/repl_help_input", "help(\"println\")\n1 + 1\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
     output := File.readfile("tmp/repl_help_output")
     needle := "Print strings to stdout followed by a newline."
     n := count_matches(output, needle)
-    if n.eq(1) {
+    bad := count_matches(output, "undefined symbol: println")
+    two := count_matches(output, "til[script]> 2\n")
+    if n.eq(1).and(bad.eq(0)).and(two.eq(1)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: expected 1 match of '", needle, "', got ", n.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", expression matches=", two.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)
