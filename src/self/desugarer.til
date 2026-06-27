@@ -3395,7 +3395,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     mut out_val := val.clone()
     if val.node_type.is(NodeType.Ident).or(val.node_type.is(NodeType.FieldAccess)) {
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val.expr_til_type().is_funcptr().not()) {
+        if tname.len().gt(0).and(val.expr_til_type().is_funcptr().not()).and(val.expr_til_type().is(Type.Body).not()) {
             out_val = make_clone_call(tname, val.expr_til_type(), val, val)
         }
     }
@@ -3548,7 +3548,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()) {
+        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()).and(val_in.expr_til_type().is(Type.Body).not()) {
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
     }
@@ -3624,7 +3624,7 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: St
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()) {
+        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()).and(val_in.expr_til_type().is(Type.Body).not()) {
             val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
         }
     }

@@ -23,7 +23,7 @@ namespace:
         // Issue #58/#54: function pointers are 8-byte callable values.
         // Store them in slots directly; cleanup uses the closure hook
         // instead of a non-existent FuncSig.delete method.
-        if elem_type == "Fn" {
+        if (elem_type == "Fn").or(elem_type == "Body") {
             return DynVec(data = malloc(8), cap = 1,
                        elem_size = 8, elem_kind = ELEM_FN)
         }

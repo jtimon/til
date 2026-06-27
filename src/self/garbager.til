@@ -128,7 +128,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // scope-end delete.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
         if scope.struct_def_of(b.name).is_null().not() { continue }
-        if scope.lookup_func(b.name).is_null().not().and(b.type.is_funcptr().not()) { continue }
+        if scope.lookup_func(b.name).is_null().not().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
         mut decl_idx : I32 = -1
         for j in 0..body.children.len() {
@@ -203,7 +203,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
         li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
-        if b.type.is_funcptr().and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
+        if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         // Decls whose RHS the builder will stack-allocate must use
         // call_free=false in their cleanup or `free()` would touch a
         // stack pointer. Two flavors:
@@ -228,8 +228,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                         if b.type.is_funcptr().and(rhs_fd.captures.len().gt(0)).and(b.own_type.is(OwnType.Ref).not()) {
                             li.is_heap = true
                         }
+                    case NodeType.BodyValue:
+                        if b.type.is(Type.Body).and(b.own_type.is(OwnType.Ref).not()) {
+                            li.is_heap = true
+                        }
                     case NodeType.FCall:
-                        if b.type.is_funcptr().and(b.own_type.is(OwnType.Ref).not()) {
+                        if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) {
                             li.is_heap = true
                         }
                     case:
@@ -331,6 +335,22 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
                         }
                     }
                     for cap : Declaration in fd.captures {
+                        if cap.own_type.is(OwnType.Ref).not() { continue }
+                        for local2 : LocalInfo in locals {
+                            if local2.name.eq(cap.name).and(local2.last_use.lt(closure_last)) {
+                                local2.last_use = closure_last
+                                ref_changed = true
+                            }
+                        }
+                    }
+                case NodeType.BodyValue(bd):
+                    mut closure_last : I32 = i.cast(I32)
+                    for local : LocalInfo in locals {
+                        if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
+                            closure_last = local.last_use
+                        }
+                    }
+                    for cap : Declaration in bd.captures {
                         if cap.own_type.is(OwnType.Ref).not() { continue }
                         for local2 : LocalInfo in locals {
                             if local2.name.eq(cap.name).and(local2.last_use.lt(closure_last)) {

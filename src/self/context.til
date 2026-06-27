@@ -852,7 +852,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len() == 0 { return false }
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
-    if t.is_funcptr() { return true }
+    if t.is_funcptr().or(t.is(Type.Body)) { return true }
     expect(scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }

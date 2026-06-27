@@ -54,6 +54,10 @@ Type := enum {
     // eventually be dropped (#147 step 5). Same append-at-end rule as
     // Primitive: keeps the existing tags stable for bootstrapping.
     FuncPtrSig: Str,
+    // Issue #55: first-class executable statement bodies. Backends may use
+    // the same closure carrier as FuncPtr internally, but the source type is
+    // distinct.
+    Body,
 }
 
 til_type_name_c := func(t: Type) returns Str {
@@ -77,6 +81,7 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.FuncDef:   return "FunctionDef"
     case Type.FuncPtr:   return "Fn"
     case Type.FuncPtrSig: return "Fn"
+    case Type.Body:      return "Body"
     case Type.Dynamic:   return "Dynamic"
     case Type.Custom(name): return name.clone()
     }
@@ -571,6 +576,7 @@ namespace:
 /// scope-restriction check. Child 0 is the Body.
 CaptureBlockData := struct {
     captures := Vec(Declaration).new()
+    closure_name := ""
 namespace:
     eq := func(a: CaptureBlockData, b: CaptureBlockData) returns Bool {
         return a.captures.len() == b.captures.len()
@@ -636,6 +642,10 @@ NodeType := enum {
     // a Literal.Str first. Appended at the end of the enum so existing variant
     // tags stay stable for bootstrapping.
     Loc,
+    // Issue #55: Body literal used as a value. Child 0 is the executable
+    // Body; captures carry the same explicit list as closures. Appended after
+    // Loc so existing NodeType tags stay stable.
+    BodyValue: CaptureBlockData,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
     // cannot tell the literal kinds apart -- it matches any Literal. These
@@ -784,6 +794,7 @@ expr_til_type := func(e: Expr) returns Type {
         return e.children[0].expr_til_type()
     case NodeType.FCall(fcd):  return fcd.til_type.clone()
     case NodeType.FuncDef:     return Type.FuncPtr
+    case NodeType.BodyValue:   return Type.Body
     case NodeType.StructDef:   return Type.Struct("StructDef")
     case NodeType.EnumDef:     return Type.Struct("EnumDef")
     case NodeType.FieldAccess(fd): return fd.til_type.clone()
@@ -913,6 +924,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.Throw:          return "Throw"
     case NodeType.Catch:          return "Catch"
     case NodeType.CaptureBlock:   return "CaptureBlock"
+    case NodeType.BodyValue:      return "BodyValue"
     case: return "?"
     }
 }
@@ -971,6 +983,7 @@ node_name := func(data: NodeType) returns Str {
     case NodeType.Throw:       return "throw"
     case NodeType.Catch:       return "catch"
     case NodeType.CaptureBlock: return "capture_block"
+    case NodeType.BodyValue: return "body_value"
     case: return "?"
     }
 }

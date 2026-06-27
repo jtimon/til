@@ -43,7 +43,9 @@ priv field_nested_def := func(dd: Declaration, ctx: Context) returns ref Expr {
 
 priv decl_is_funcsig := func(dd: Declaration, ctx: Context) returns Bool {
     if dd.til_type.is_funcptr() { return true }
+    if dd.til_type.is(Type.Body) { return true }
     if dd.explicit_type == "Fn" { return true }
+    if dd.explicit_type == "Body" { return true }
     ref tdef : Expr = lookup_interp_type_def(dd.explicit_type, ctx)
     if tdef.is_null() { return false }
     if tdef.node_type.is(NodeType.FuncDef) {
@@ -742,6 +744,8 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     case NodeType.FuncDef(fd):
         if fd.captures.len().gt(0) { return make_interp_closure(e, scope) }
         return Value.Func(e)
+    case NodeType.BodyValue:
+        return make_interp_closure(e, scope)
     case NodeType.StructDef:
         return Value.Func(e)
     case NodeType.EnumDef:
@@ -1825,6 +1829,14 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Value, m
         ref func_def : Expr = deref(fp)
         return eval_user_func_call(caller_scope, e, func_def, caller_scope, ctx)
     case Value.Closure(cl):
+        switch cl.func_def.node_type {
+        case NodeType.BodyValue:
+            body_scope := scope_new(cl.env)
+            eval_body(body_scope, cl.func_def.children[0], ctx)
+            scope_free(own body_scope)
+            return val_none()
+        case:
+        }
         return eval_user_func_call(caller_scope, e, cl.func_def, cl.env, ctx)
     case:
         interp_error(e, "callee did not evaluate to a function", ctx)
@@ -2895,6 +2907,20 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope) returns Value {
                 mut cap_val2 := shallow_copy_value(src.val)
                 if src.val.is(Value.Func).not() { memcpy(src.val, val_none(), Value.size().cast(U64)) }
                 scope_set_owned(env, cap.name, cap_val2)
+            }
+        }
+    case NodeType.BodyValue(bd):
+        for cap2 : Declaration in bd.captures {
+            ref src2 : Cell = scope_get(scope, cap2.name)
+            if cap2.own_type.is(OwnType.Ref) {
+                scope_set_borrowed(env, cap2.name, src2)
+            } else if cap2.own_type.is(OwnType.Shallow) {
+                mut cap_val3 := src2.val.clone()
+                scope_set_owned(env, cap2.name, cap_val3)
+            } else {
+                mut cap_val4 := shallow_copy_value(src2.val)
+                if src2.val.is(Value.Func).not() { memcpy(src2.val, val_none(), Value.size().cast(U64)) }
+                scope_set_owned(env, cap2.name, cap_val4)
             }
         }
     case:
@@ -4322,7 +4348,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     // sources (Vec.get on an Fn-typed Vec) the payload is the slot
     // address and the function pointer is one further deref; for
     // Value.Func source it's already the fn ptr in the payload slot.
-    if tn == "Fn" {
+    if (tn == "Fn").or(tn == "Body") {
         switch v {
         case Value.Func(fp):
             ref real_fp : Dynamic = deref(fp)
@@ -4899,6 +4925,10 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
         }
         if tag == enum_variant_tag(til_type_def, "FuncPtr") {
             r = make_str_value("Fn".c_str, 2, ctx)
+            return true
+        }
+        if tag == enum_variant_tag(til_type_def, "Body") {
+            r = make_str_value("Body".c_str, 4, ctx)
             return true
         }
         if tag == enum_variant_tag(til_type_def, "Dynamic") {

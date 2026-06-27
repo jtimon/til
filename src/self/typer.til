@@ -81,6 +81,7 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     // type via til_type_name. As migration progresses this can grow
     // its own variant_name path.
     case Type.FuncPtrSig: variant_name = "FuncPtr"
+    case Type.Body:      variant_name = "Body"
     case Type.Dynamic:   variant_name = "Dynamic"
     case Type.Custom(s): variant_name = "Custom"; payload_name = s.clone(); has_payload = true
     }
@@ -669,6 +670,20 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
     case NodeType.StructDef(fpf_sdd):
         for fd : Declaration in fpf_sdd.fields {
             if fd.name.eq(method).not() { continue }
+            if fd.til_type.is(Type.Body) {
+                fa.set_expr_til_type(Type.Body)
+                nargs := e.children.len() - 1
+                if nargs != 0 {
+                    e.type_error(format("Body field '", method, "' expects 0 args, got ", nargs.to_str()), ctx)
+                }
+                if in_func != 0 {
+                    e.type_error(format("func cannot call Body field '", method, "'"), ctx)
+                } else if ctx.proc_def_depth > 0 {
+                    ctx.proc_calls_count = ctx.proc_calls_count + 1
+                }
+                e.set_expr_til_type(Type.None)
+                return true
+            }
             // Issue #58 / #147 step 5: read the FuncSig alias name from
             // fd.til_type's FuncPtrSig payload instead of fd.explicit_type
             // + scope.find indirection.
@@ -966,6 +981,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
             mut needs_infer := ci.expr_til_type().is(Type.Unknown)
             switch ci.node_type {
             case NodeType.FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
+            case NodeType.BodyValue: needs_infer = true
             case:
             }
             if needs_infer {
@@ -1278,6 +1294,20 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
     mut fn_type := scope.get_type(name)
     if fn_type.is(Type.Unknown) {
         e.type_error(format("undefined function '", name, "'"), ctx)
+    }
+    if fn_type.is(Type.Body) {
+        e.children[0].set_expr_til_type(Type.Body)
+        nargs := e.children.len() - 1
+        if nargs != 0 {
+            e.type_error(format("Body '", name, "' expects 0 args, got ", nargs.to_str()), ctx)
+        }
+        if in_func != 0 {
+            e.type_error(format("func cannot call Body '", name, "'"), ctx)
+        } else if ctx.proc_def_depth > 0 {
+            ctx.proc_calls_count = ctx.proc_calls_count + 1
+        }
+        e.set_expr_til_type(Type.None)
+        return
     }
     if fn_type.is_funcptr() {
         if callee_bind.is_null().not() {
@@ -2201,6 +2231,9 @@ priv cast_pair_ok := func(src: Type, target: Type) returns Bool {
     if target.is_funcptr() {
         if src.is(Type.Dynamic).or(src.is_funcptr()) { return true }
     }
+    if target.is(Type.Body) {
+        if src.is(Type.Dynamic).or(src.is(Type.Body)) { return true }
+    }
     return false
 }
 
@@ -2369,6 +2402,19 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     // FuncSig Ident), and validate the outer call against the FuncSig.
     if callee.node_type.is(NodeType.FCall) {
         infer_expr(scope, callee, in_func, ctx)
+        if callee.expr_til_type().is(Type.Body) {
+            nargs := e.children.len() - 1
+            if nargs != 0 {
+                e.type_error(format("Body value expects 0 args, got ", nargs.to_str()), ctx)
+            }
+            if in_func != 0 {
+                e.type_error("func cannot call Body value", ctx)
+            } else if ctx.proc_def_depth > 0 {
+                ctx.proc_calls_count = ctx.proc_calls_count + 1
+            }
+            e.set_expr_til_type(Type.None)
+            return
+        }
         if infer_funcptr_call_via_cast(scope, e, in_func, ctx) { return }
         // Other non-Ident callees (e.g. ops[0](args) without cast) are
         // not yet supported; the typer below will fall through to the
@@ -2497,6 +2543,7 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context)
         expr.node_type = NodeType.Literal(Literal.Str(format(ctx.path, ":", expr.line.to_str(), ":", expr.col.to_str())))
     case NodeType.Ident:       infer_ident_expr(scope, expr, ctx)
     case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
+    case NodeType.BodyValue:   infer_body_value_expr(scope, expr, ctx)
     case NodeType.StructDef:   infer_type_def_expr(scope, expr, ctx)
     case NodeType.EnumDef:     infer_type_def_expr(scope, expr, ctx)
     case NodeType.FCall:       infer_fcall_expr(scope, expr, in_func, ctx)
@@ -2936,6 +2983,7 @@ priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) r
 // (step 1) or a small value-shaped struct (step 3).
 priv is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if is_primitive(t) { return true }
+    if t.is(Type.Body) { return true }
     return is_shallow_struct(type_name, scope, ctx)
 }
 
@@ -3004,7 +3052,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             // Type, so look it up.
             if sig_auto_shallow.and(fdef.return_own_type.is(OwnType.Ref).not()).and(param.own_type.is(OwnType.Ref)).and(param.is_mut.not()) {
                 ref pbind : TypeBinding = scope.get_binding(resolved_ptype)
-                if pbind.is_null().not().and(pbind.type.is_funcptr()) {
+                if param.til_type.is(Type.Body).or(pbind.is_null().not().and(pbind.type.is_funcptr())) {
                     param.own_type = OwnType.Shallow
                 }
             }
@@ -3745,7 +3793,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
                         if b.own_type.is(OwnType.Ref).and(b.is_alias).or(b.is_param.and(b.own_type.is(OwnType.Own).not())) {
                             tname := type_to_name(stmt.expr_til_type())
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-                            if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
+                            if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()).and(stmt.expr_til_type().is(Type.Body).not()) {
                                 mc := make_clone_call(tname, stmt.expr_til_type(), stmt.children[0], stmt)
                                 stmt.children[0] = mc
                             }
@@ -3991,7 +4039,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     ) {
         tname := type_to_name(rhs.expr_til_type())
         // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-        if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
+        if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()).and(rhs.expr_til_type().is(Type.Body).not()) {
             mc := make_clone_call(tname, rhs.expr_til_type(), rhs, rhs)
             stmt.children[1] = mc
         }
@@ -4481,7 +4529,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
         if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
             stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
         }
-        if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.expr_til_type().is_funcptr().not()) {
+        if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.expr_til_type().is_funcptr().not()).and(stmt.expr_til_type().is(Type.Body).not()) {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id2):
                 ref rb : TypeBinding = scope.get_binding(rhs_id2.ident_name())
@@ -4504,7 +4552,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 tname := type_to_name(stmt.expr_til_type())
                 // Issue #58 / #147 step 5: a FuncPtr/FuncPtrSig has no
                 // T_clone method; it's a plain 8-byte pointer.
-                if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()) {
+                if tname.len().gt(0).and(stmt.expr_til_type().is_funcptr().not()).and(stmt.expr_til_type().is(Type.Body).not()) {
                     mc := make_clone_call(tname, stmt.expr_til_type(), rhs, stmt)
                     stmt.children[0] = mc
                 }
@@ -4682,6 +4730,7 @@ priv capture_block_check_refs := proc(e: Expr,
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.CaptureBlock: return
+    case NodeType.BodyValue: return
     case NodeType.FuncDef: return
     case NodeType.Ident(idd):
         capture_block_check_name(e, idd.name, 0, enclosing, block_scope, root, captures, ctx)
@@ -4692,6 +4741,49 @@ priv capture_block_check_refs := proc(e: Expr,
     for c : Expr in e.children {
         capture_block_check_refs(c, enclosing, block_scope, root, captures, ctx)
     }
+}
+
+priv body_value_check_no_return := proc(e: Expr, ctx: Context) {
+    switch e.node_type {
+    case NodeType.FuncDef: return
+    case NodeType.Return:
+        e.type_error("Body value cannot contain return", ctx)
+    case:
+    }
+    for c : Expr in e.children {
+        body_value_check_no_return(c, ctx)
+    }
+}
+
+priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
+    mut captures := Vec(Declaration).new()
+    switch expr.node_type {
+    case NodeType.BodyValue(bd):
+        if bd.closure_name.len().eq(0) {
+            bd.closure_name = format("body_", ctx.hoist_counter.to_str())
+            ctx.hoist_counter++
+        }
+        captures = bd.captures.clone()
+    case:
+        UNREACHABLE()
+    }
+    validate_captures(scope, captures, expr, ctx)
+    switch expr.node_type {
+    case NodeType.BodyValue(bd): bd.captures = captures.clone()
+    case:
+        UNREACHABLE()
+    }
+    ref mut body : Expr = expr.children[0]
+    body_value_check_no_return(body, ctx)
+    body_scope := TypeScope(parent = scope)
+    infer_body(body_scope, body, 0, 1, 0, 0, 0, ctx)
+    ref root : TypeScope = scope_root_ref(scope)
+    capture_block_check_refs(body, scope, body_scope, root, captures, ctx)
+    garbager_destroy_body(ctx, body, body_scope)
+    check_unused_locals(body_scope, ctx.path, ctx)
+    check_unused_mut_locals(body_scope, ctx.path, ctx)
+    TypeScope.delete(own body_scope)
+    expr.set_expr_til_type(Type.Body)
 }
 
 // Issue #54: validate a capture list against the enclosing scope. Each
@@ -5324,7 +5416,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         ) {
             tname := type_to_name(rhs.expr_til_type())
             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig has no T_clone.
-            if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()) {
+            if tname.len().gt(0).and(rhs.expr_til_type().is_funcptr().not()).and(rhs.expr_til_type().is(Type.Body).not()) {
                 mc := make_clone_call(tname, rhs.expr_til_type(), rhs, stmt)
                 stmt.children[0] = mc
                 if scope.bindings.has(aname).not() {
@@ -5717,6 +5809,7 @@ type_to_name := func(t: Type) returns Str {
     case Type.Primitive(Primitive.U64): return U64Name.clone()
     case Type.Primitive(Primitive.F32): return F32Name.clone()
     case Type.Primitive(Primitive.Bool): return BoolName.clone()
+    case Type.Body: return "Body"
     case: return ""
     }
 }
@@ -5736,7 +5829,7 @@ make_closure_delete_call := func(var_name: Str, src: Expr) returns Expr {
 }
 
 make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Expr {
-    if type.is_funcptr() {
+    if type.is_funcptr().or(type.is(Type.Body)) {
         if call_free.not() { return NULL }
         return make_closure_delete_call(var_name, src)
     }
@@ -5850,7 +5943,7 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
 // type's destructor. Used after value-copy ownership transfer to a Shallow
 // struct field, where the field's own destructor will free the inner data.
 make_free_call := func(var_name: Str, shallow type: Type, src: Expr) returns Expr {
-    if type.is_funcptr() { return make_closure_delete_call(var_name, src) }
+    if type.is_funcptr().or(type.is(Type.Body)) { return make_closure_delete_call(var_name, src) }
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.set_expr_til_type(Type.None)
 

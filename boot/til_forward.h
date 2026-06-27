@@ -43,7 +43,8 @@ typedef enum {
     Type_TAG_Dynamic,
     Type_TAG_Custom,
     Type_TAG_Primitive,
-    Type_TAG_FuncPtrSig
+    Type_TAG_FuncPtrSig,
+    Type_TAG_Body
 } Type_tag;
 typedef struct Type Type;
 typedef enum {
@@ -116,7 +117,8 @@ typedef enum {
     NodeType_TAG_Catch,
     NodeType_TAG_RestPattern,
     NodeType_TAG_CaptureBlock,
-    NodeType_TAG_Loc
+    NodeType_TAG_Loc,
+    NodeType_TAG_BodyValue
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -1618,6 +1620,7 @@ typedef struct StructLayout {
 
 typedef struct CaptureBlockData {
     Vec__Declaration captures;
+    Str closure_name;
 } CaptureBlockData;
 
 
@@ -1804,6 +1807,7 @@ struct NodeType {
         Str NamedArg;
         MatchData Match;
         CaptureBlockData CaptureBlock;
+        CaptureBlockData BodyValue;
     } data;
 };
 
@@ -2424,6 +2428,8 @@ Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Par
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
 Vec__Declaration * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p, Bool allow_modes);
+Expr * priv___src_self_parser_til__parse_body_value(priv___src_self_parser_til__Parser * p);
+Expr * priv___src_self_parser_til__parse_expr_for_decl_type(priv___src_self_parser_til__Parser * p, Str * type_name);
 Vec__Declaration * priv___src_self_parser_til__parse_generic_params(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
@@ -2726,6 +2732,7 @@ Vec__ExprPtrBox * Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self);
 U32 Vec__ExprPtrBox_size(void);
 Bool priv___src_self_initer_til__is_dynamic_type(Str * name);
 Bool priv___src_self_initer_til__primitive_type_info(Str * name, TypeScope * scope, Primitive * prim, U32 * sz, U32 * al, Bool * is_builtin);
+void priv___src_self_initer_til__register_body_type_token(Context * ctx, TypeScope * scope);
 I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 Bool priv___src_self_initer_til__struct_field_supports_generated_method(Declaration * fd, Str * method, TypeScope * scope);
 Bool priv___src_self_initer_til__struct_fields_support_generated_method(StructDef * sdd, Str * method, TypeScope * scope);
@@ -2976,6 +2983,8 @@ Bool priv___src_self_typer_til__capture_is_mut(Vec__Declaration * captures, Str 
 TypeScope * priv___src_self_typer_til__scope_root_ref(TypeScope * s);
 void priv___src_self_typer_til__capture_block_check_name(Expr * e, Str * name, I32 is_write, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec__Declaration * captures, Context * ctx);
 void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * enclosing, TypeScope * block_scope, TypeScope * root, Vec__Declaration * captures, Context * ctx);
+void priv___src_self_typer_til__body_value_check_no_return(Expr * e, Context * ctx);
+void priv___src_self_typer_til__infer_body_value_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec__Declaration * captures, Expr * errnode, Context * ctx);
 void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, U32 * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
@@ -3523,6 +3532,7 @@ void priv___src_self_builder_til__emit_stmt_switch(File * f, Expr * e, I32 depth
 void priv___src_self_builder_til__emit_stmt(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_fcall_funcptr_cast(File * f, Expr * e, Expr * sig);
 void emit_fcall_closure_call(File * f, Expr * e, Expr * callee, Expr * sig, I32 depth, Context * ctx);
+void emit_body_closure_call(File * f, Expr * callee, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_fcall_funcptr_args(File * f, Expr * e, Expr * sig, I32 depth, Context * ctx);
 File * emit_capturing_closure_value(File * f, Expr * e, I32 * _depth, Context * _ctx);
 void priv___src_self_builder_til__emit_str_lit_expr(File * f, Str * s, Context * ctx);

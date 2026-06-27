@@ -52,7 +52,6 @@
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
-*** [[./open/55.org][#55]] Lambda functions and first-class bodies
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/114.org][#114]] Source docs + repl help/introspection

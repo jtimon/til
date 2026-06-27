@@ -133,6 +133,7 @@ builtin_type_from_name := func(name: Str, mut out: Type) returns Bool {
     if name == "StructDef" { out = Type.Struct("StructDef"); return true }
     if name == "EnumDef" { out = Type.Struct("EnumDef"); return true }
     if name == "Fn" { out = Type.FuncPtr; return true }
+    if name == "Body" { out = Type.Body; return true }
     if name == "Dynamic" { out = Type.Dynamic; return true }
     return false
 }
@@ -452,6 +453,29 @@ priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec(De
     return caps
 }
 
+priv parse_body_value := proc(mut p: Parser) returns Expr {
+    line := peek_line(p)
+    col := peek_col(p)
+    mut bd := CaptureBlockData()
+    if check(p, TokenType.LBracket) {
+        bd.captures = parse_capture_list(p, true)
+    }
+    expect_token(p, TokenType.LBrace)
+    mut body := parse_block(p)
+    mut node := Expr.new(NodeType.BodyValue(bd), line, col)
+    node.add_child(own body)
+    return node
+}
+
+priv parse_expr_for_decl_type := proc(mut p: Parser, type_name: Str) returns Expr {
+    if type_name == "Body" {
+        if check(p, TokenType.LBrace).or(check(p, TokenType.LBracket)) {
+            return parse_body_value(p)
+        }
+    }
+    return parse_expression(p)
+}
+
 // Issue #267 / #58: parse an optional `<T: Type, ...>` generic-parameter
 // list. Shared by struct<T>/enum<T> type templates (parse_struct_def /
 // parse_enum_def) and func<T> generic functions (parse_func_def). Returns
@@ -624,7 +648,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := false
         if check(p, TokenType.Eq) {
             advance(p)
-            param_decl.default_value = parse_expression(p)
+            param_decl.default_value = parse_expr_for_decl_type(p, param_decl.explicit_type)
             has_default = true
         }
         if fd.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
@@ -774,7 +798,7 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     // literal Str in the value tree and leaking it with the AST -- the
     // #252 regression). decl_typed does not touch the parser, so parsing
     // here keeps the same token position as the old constructor form.
-    ns_decl.default_value = parse_expression(p)
+    ns_decl.default_value = parse_expr_for_decl_type(p, ns_explicit_type)
     return ns_decl
 }
 
@@ -958,7 +982,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
                 doc = f_doc,
                 is_priv = member_priv)
             if f_has_default {
-                f_dd.default_value = parse_expression(p)
+                f_dd.default_value = parse_expr_for_decl_type(p, f_explicit_type)
             }
             sdd.fields.push(own f_dd)
         }
@@ -1610,6 +1634,8 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         e = parse_expression(p)
         expect_token(p, TokenType.RParen)
         e_set = true
+    case TokenType.LBracket:
+        return parse_body_value(p)
     case TokenType.KwMatch:
         // Issue #244: `match` is the value-producing selection form. Same arm
         // syntax as `switch`, but each arm body is a single expression and the
@@ -1962,7 +1988,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
 
         mut dd := decl_typed(name = name, explicit_type = type_name, is_mut = is_mut, own_type = own_type)
         mut decl := Expr.new(NodeType.Decl(dd), t_line, t_col)
-        decl.add_child(own parse_expression(p))
+        decl.add_child(own parse_expr_for_decl_type(p, type_name))
         return decl
     }
 

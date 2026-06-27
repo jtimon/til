@@ -1,6 +1,24 @@
 # priority: low
 # category: features
-** OPEN #55 Lambda functions and first-class bodies
+** FIXED #55 Lambda functions and first-class bodies
+
+*** Post-mortem
+
+    Root cause: til had first-class function values, but no distinct AST or
+    type-system representation for statement bodies as values. Bare blocks were
+    only statement bodies, so they could not be stored, passed, called, or kept
+    in dynamic containers without pretending they were ~proc()~ values.
+
+    Fix: added a distinct ~Type.Body~ and ~NodeType.BodyValue~, parsed typed
+    ~Body~ literals and capture-list body literals, typed Body calls as
+    zero-argument proc-like calls, and reused the existing closure carrier for
+    interpreter/codegen storage, cleanup, struct fields, and ~DynVec(Body)~.
+    Lambda functions were already fixed separately by #61; this commit lands
+    the remaining first-class Body half of #55.
+
+    Regression test: ~test/first_class.til~ covers direct Body calls, captured
+    Body mutation, Body parameters, struct fields, ~dyn_type_to_str(Body)~, and
+    ~DynVec(Body)~ cast-call execution.
 
 :DEPENDENCIES: [[./14.org][#14]] [[./54.org][#54]]
   Based on rstil/doc/first_class.org. Anonymous inline functions (lambdas)
@@ -146,4 +164,3 @@
    Ruby is the closest precedent. Ruby blocks can be passed to methods
    implicitly (~yield~) or explicitly (~&block~), and ~Proc.new~ wraps a
    block into a first-class value.
-

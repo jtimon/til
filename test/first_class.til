@@ -195,6 +195,53 @@ test_vec_funcsig_cast_call_inline := test() {
     assert_eq(I64, cast(raw1, BinaryOp)(3, 4), 12)
 }
 
+// --- First-class Body values (issue #55) ---
+
+run_body_twice := proc(b: Body) {
+    b()
+    b()
+}
+
+BodyHolder := struct {
+    on_done : Body = { }
+}
+
+test_body_basic_call := test() {
+    mut x := 0
+    b : Body = [mut x] { x = x.add(1) }
+    b()
+    b()
+    assert_eq(I64, x, 2)
+}
+
+test_body_as_proc_arg := test() {
+    mut x := 0
+    b : Body = [mut x] { x = x.add(1) }
+    run_body_twice(b)
+    assert_eq(I64, x, 2)
+}
+
+test_body_struct_field := test() {
+    mut x := 0
+    h := BodyHolder(on_done = [mut x] { x = x.add(3) })
+    h.on_done()
+    assert_eq(I64, x, 3)
+}
+
+test_dyn_type_to_str_body := test() {
+    assert_eq(Str, "Body", dyn_type_to_str(Body))
+}
+
+test_vec_body_cast_call_inline := test() {
+    mut x := 0
+    mut bodies := DynVec.new(Body)
+    b : Body = [mut x] { x = x.add(1) }
+    bodies.push(own b)
+    ref raw : Dynamic = bodies[0]
+    cast(raw, Body)()
+    assert_eq(I64, x, 1)
+}
+
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---
 // rstil's first_class.org uses `FuncDef` as the metatype name for
 // concrete function definitions; til's internal struct is named
