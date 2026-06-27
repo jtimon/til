@@ -110,8 +110,10 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 dst_cap = s.count.clone()
                 memset(cloned_str, 0, Str.size().cast(U64))
             }
-        } else if container_elem_type(struct_name) == "Str" {
-            clone_container_str_buffer(struct_name, data, dst_data, ctx)
+        } else if struct_name == "DynVec" {
+            clone_dyn_vec_buffer(data, dst_data, ctx)
+        } else if container_elem_type(struct_name).len() > 0 {
+            clone_container_buffer(struct_name, data, dst_data, ctx)
         } else if struct_def_shallow_safe(sdef_data, ctx) {
         } else {
             for dd : Declaration in sdef_data.fields {
@@ -1707,10 +1709,9 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     // deletes (method form or flattened *_delete) whose receiver is an Ident;
     // explicit-arg / non-Ident (borrowed-view nested) calls fall through to
     // the normal body. call_free=false frees nested contents but keeps the
-    // outer slot valid for callers that immediately memset/free it. Str-element
-    // containers are also intercepted: their custom Vec/Array delete bodies
-    // call Str.delete(false) on borrowed element views, which cannot free the
-    // element c_strs.
+    // outer slot valid for callers that immediately memset/free it. Containers
+    // are also intercepted: their Vec/Array/Set delete bodies call T.delete on
+    // borrowed element views, which cannot free nested element ownership.
     mut del_method := false
     switch callee_expr.node_type {
     case NodeType.FieldAccess(del_fn):
@@ -1741,7 +1742,9 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 switch recv_cell.val {
                 case Value.Struct(rsi):
                     if rsi.struct_name == "Str" { do_intercept = true }
+                    if rsi.struct_name == "DynVec" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
+                    if container_elem_type(rsi.struct_name).len() > 0 { do_intercept = true }
                 case:
                 }
                 if do_intercept {
@@ -2194,16 +2197,11 @@ priv free_value_full := func(shallow v: Value) {
     }
 }
 
-// Issue #275: an Array(Str)/Vec(Str) keeps its elements in an `own data` heap
-// buffer. struct_deep_free skips `own` fields and StructInstance.clone's outer
-// memcpy only shallow-copies the data pointer, so at interpret-mode scope
-// teardown the buffer AND every element c_str leak (e.g. the constfolder's
-// va_scope arrays from 25de8797), while a cloned container would share its
-// buffer. The two helpers below fix it symmetrically: free_container_str_data
-// reclaims the buffer + element c_strs at teardown (called from
-// struct_deep_free), and clone_container_str_buffer deep-copies them at clone
-// time so each value owns its buffer -- no double-free. Only Str-element
-// containers are handled; other element types stay on the existing shallow path.
+// Issue #275, generalized after #58: Array/Vec/Set keep elements in an
+// `own data` heap buffer. struct_deep_free skips the `own data : U8` field
+// itself, and StructInstance.clone's outer memcpy only shallow-copies the data
+// pointer. Clone/free the backing buffer here so interpreted containers have
+// the same ownership as their generated delete/clone methods.
 
 // Element type of a monomorphized container ("Array__Str" -> "Str",
 // "Vec__I64" -> "I64"); "" for a non-container struct name.
@@ -2216,14 +2214,122 @@ priv container_elem_type := func(struct_name: Str) returns Str {
     if struct_name.starts_with(vec_prefix) {
         return struct_name.substr(vec_prefix.count, struct_name.count - vec_prefix.count)
     }
+    set_prefix := "Set__"
+    if struct_name.starts_with(set_prefix) {
+        return struct_name.substr(set_prefix.count, struct_name.count - set_prefix.count)
+    }
     return ""
+}
+
+priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
+    resolved := type_from_name_init(elem_type, ctx.scope)
+    switch resolved {
+    case Type.Primitive(p):
+        mut sz : USize = 0
+        mut al : USize = 0
+        builtin_primitive_size_align(p, sz, al)
+        return sz
+    case Type.Dynamic:
+        return 8
+    case Type.FuncPtr:
+        return 8
+    case Type.FuncPtrSig:
+        return 8
+    case:
+    }
+    sz2 := ctx_total_size(elem_type, ctx)
+    if sz2 == 0 { panic("container element has no registered size: ", elem_type) }
+    return sz2
+}
+
+priv type_name_is_funcsig := func(type_name: Str, ctx: Context) returns Bool {
+    if type_from_name_init(type_name, ctx.scope).is_funcptr() { return true }
+    ref tdef : Expr = lookup_interp_type_def(type_name, ctx)
+    if tdef.is_null() { return false }
+    if tdef.node_type.is(NodeType.FuncDef) {
+        return tdef.children.len() == 0
+    }
+    return false
+}
+
+priv container_live_count := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
+    mut count_field := "count"
+    if struct_name.starts_with("Array__") { count_field = "cap" }
+    fl := ctx_field_layout(struct_name, count_field, ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv container_capacity := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
+    fl := ctx_field_layout(struct_name, "cap", ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Context) {
+    if type_name_is_funcsig(elem_type, ctx) {
+        ref stored_callable : Dynamic = deref(slot)
+        if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
+        return
+    }
+    resolved := type_from_name_init(elem_type, ctx.scope)
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) { return }
+    ref elem_def : Expr = lookup_interp_type_def(elem_type, ctx)
+    if elem_def.is_null() { panic("container element has no registered type def: ", elem_type) }
+    switch elem_def.node_type {
+    case NodeType.StructDef:
+        if elem_type == "Str" {
+            ref s : Str = slot
+            if str_owns_c_str(s) {
+                if s.c_str.is_null().not() { free(own s.c_str) }
+            }
+        } else {
+            struct_deep_free(elem_type, slot, ctx)
+        }
+    case NodeType.EnumDef:
+        if enum_has_payloads(elem_def) {
+            ref tag : I32 = slot
+            if enum_variant_is_str(elem_type, tag, ctx) { enum_free_str_payload(slot) }
+        }
+    case:
+        panic("container element is not a struct or enum: ", elem_type)
+    }
+}
+
+priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynamic, elem_size: USize, ctx: Context) {
+    if type_name_is_funcsig(elem_type, ctx) {
+        ref stored_callable : Dynamic = deref(src)
+        if stored_callable.is_null().not() { write_ptr(dst, callable_storage_clone(stored_callable)) }
+        return
+    }
+    resolved := type_from_name_init(elem_type, ctx.scope)
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) {
+        memcpy(dst, src, elem_size.cast(U64))
+        return
+    }
+    ref elem_def : Expr = lookup_interp_type_def(elem_type, ctx)
+    if elem_def.is_null() { panic("container element has no registered type def: ", elem_type) }
+    switch elem_def.node_type {
+    case NodeType.StructDef:
+        cloned_ptr : Dynamic = heap_clone(elem_type, src, ctx)
+        memcpy(dst, cloned_ptr, elem_size.cast(U64))
+        EvalHeap.heap_free(own cloned_ptr)
+    case NodeType.EnumDef:
+        memcpy(dst, src, elem_size.cast(U64))
+        if enum_has_payloads(elem_def) {
+            ref tag : I32 = dst
+            if enum_variant_is_str(elem_type, tag, ctx) { enum_clone_str_payload(dst) }
+        }
+    case:
+        panic("container element is not a struct or enum: ", elem_type)
+    }
 }
 
 // #286: cache-driven deep free of a struct value's nested heap. Reads
 // ctx.struct_layouts (a name-keyed cache that outlives the AST) instead of the
 // dangling struct_def, so it is safe at scope teardown. Frees own struct
 // fields' blocks (recursing first), Str fields' c_strs, recurses into inline
-// nested structs, and reclaims a Str-element container's data buffer. Enum
+// nested structs, and reclaims container data buffers. Enum
 // fields and own non-struct pointers stay shallow (their construction can
 // share a pointer, so freeing here would risk a double-free).
 priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
@@ -2270,28 +2376,23 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
             struct_deep_free(fl.struct_name, ptr_add(data, foff.cast(U64)), ctx)
         }
     }
-    if container_elem_type(struct_name) == "Str" {
-        free_container_str_data(struct_name, data, ctx)
+    if struct_name == "DynVec" {
+        free_dyn_vec_buffer(data, ctx)
+    } else if container_elem_type(struct_name).len() > 0 {
+        free_container_data(struct_name, data, ctx)
     }
 }
 
-// Free an Array(Str)/Vec(Str) `own data` buffer and its element c_strs (the
-// field loop skips `own` fields, so the buffer + element c_strs would
-// otherwise leak). cap >= CAP_VIEW guards borrowed/view element c_strs.
-priv free_container_str_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
+priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
+    elem_type := container_elem_type(struct_name)
+    if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
     data_fl := ctx_field_layout(struct_name, "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
-    mut count_field := "cap"
-    if struct_name.starts_with("Vec__") { count_field = "count" }
-    cnt_fl := ctx_field_layout(struct_name, count_field, ctx)
-    ref n : USize = ptr_add(data, cnt_fl.offset.cast(U64))
-    esz := Str.size()
+    n := container_live_count(struct_name, data, ctx)
+    esz := container_elem_size(elem_type, ctx)
     for i in 0..n {
-        ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
-        if str_owns_c_str(s) {
-            if s.c_str.is_null().not() { free(own s.c_str) }
-        }
+        container_elem_deep_free(elem_type, ptr_add(hdr.p, i.mul(esz).cast(U64)), ctx)
     }
     EvalHeap.heap_free(own hdr.p)
 }
@@ -2310,37 +2411,80 @@ priv free_container_str_data_cached := func(data: Dynamic) {
     EvalHeap.heap_free(own hdr.p)
 }
 
-// Deep-copy an Array(Str)/Vec(Str) `own data` buffer into a freshly cloned
-// instance (dual of free_container_str_data). StructInstance.clone's outer
-// memcpy shallow-copies the data pointer, so without this the clone would
-// share -- and later double-free -- the original's buffer. Give the clone its
-// own buffer and freshly cloned element c_strs.
-priv clone_container_str_buffer := func(struct_name: Str, src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+    elem_type := container_elem_type(struct_name)
+    if elem_type.len() == 0 { panic("clone_container_buffer: not a container: ", struct_name) }
     data_fl := ctx_field_layout(struct_name, "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
-    cap_fl := ctx_field_layout(struct_name, "cap", ctx)
-    ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
-    esz := Str.size()
-    buf_bytes := cap.mul(esz).cast(U64)
+    cap := container_capacity(struct_name, src_data, ctx)
+    esz := container_elem_size(elem_type, ctx)
     new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(esz))
-    memcpy(new_buf, src_hdr.p, buf_bytes)
-    mut count_field := "cap"
-    if struct_name.starts_with("Vec__") { count_field = "count" }
-    cnt_fl := ctx_field_layout(struct_name, count_field, ctx)
-    ref n : USize = ptr_add(src_data, cnt_fl.offset.cast(U64))
+    n := container_live_count(struct_name, src_data, ctx)
     for i in 0..n {
         elem_off := i.mul(esz).cast(U64)
-        ref s : Str = ptr_add(src_hdr.p, elem_off)
-        if str_owns_c_str(s) {
-            if s.c_str.is_null().not() {
-                cloned_str := s.clone()
-                write_ptr(ptr_add(new_buf, elem_off), cloned_str.c_str)
-                ref mut dst_elem_cap : U32 = ptr_add(ptr_add(new_buf, elem_off), 12)
-                dst_elem_cap = s.count.clone()
-                memset(cloned_str, 0, Str.size().cast(U64))
-            }
+        container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), esz, ctx)
+    }
+    write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
+}
+
+priv dyn_vec_count := func(data: Dynamic, ctx: Context) returns USize {
+    fl := ctx_field_layout("DynVec", "count", ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv dyn_vec_cap := func(data: Dynamic, ctx: Context) returns USize {
+    fl := ctx_field_layout("DynVec", "cap", ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv dyn_vec_elem_size := func(data: Dynamic, ctx: Context) returns USize {
+    fl := ctx_field_layout("DynVec", "elem_size", ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv dyn_vec_elem_kind := func(data: Dynamic, ctx: Context) returns USize {
+    fl := ctx_field_layout("DynVec", "elem_kind", ctx)
+    ref n : USize = ptr_add(data, fl.offset.cast(U64))
+    return n.clone()
+}
+
+priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynVec", "data", ctx)
+    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
+    if hdr.p.is_null() { return }
+    count := dyn_vec_count(data, ctx)
+    elem_size := dyn_vec_elem_size(data, ctx)
+    elem_kind := dyn_vec_elem_kind(data, ctx)
+    if elem_kind == ELEM_FN {
+        for i in 0..count {
+            ref stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size).cast(U64)))
+            if stored.is_null().not() { callable_storage_free(stored) }
         }
+    }
+    EvalHeap.heap_free(own hdr.p)
+}
+
+priv clone_dyn_vec_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynVec", "data", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
+    if src_hdr.p.is_null() { return }
+    cap := dyn_vec_cap(src_data, ctx)
+    count := dyn_vec_count(src_data, ctx)
+    elem_size := dyn_vec_elem_size(src_data, ctx)
+    elem_kind := dyn_vec_elem_kind(src_data, ctx)
+    new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(elem_size))
+    if elem_kind == ELEM_FN {
+        for i in 0..count {
+            elem_off := i.mul(elem_size).cast(U64)
+            ref stored : Dynamic = deref(ptr_add(src_hdr.p, elem_off))
+            if stored.is_null().not() { write_ptr(ptr_add(new_buf, elem_off), callable_storage_clone(stored)) }
+        }
+    } else {
+        memcpy(new_buf, src_hdr.p, cap.mul(elem_size).cast(U64))
     }
     write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
 }
@@ -3250,8 +3394,17 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns ref Value {
 priv ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context) {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
-    mut vcopy := val
+    mut vcopy := val.clone()
     c.ns_fields.set(qn, own vcopy)
+}
+
+priv interpreter_free_ns := func(mut ctx: Context) {
+    if ctx.ns_inited.not() { return }
+    own ctx.ns_fields.delete(false)
+    memset(ctx.ns_fields, 0, Map(Str, Value).size().cast(U64))
+    own ctx.ns_keys.delete(false)
+    memset(ctx.ns_keys, 0, Vec(Dynamic).size().cast(U64))
+    ctx.ns_inited = false
 }
 
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
@@ -3920,9 +4073,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         }
     } } }
 
+    interpreter_free_ns(lp.ctx)
     scope_free(own global)
     ffi_cleanup(lp.ctx)
-    c.ns_inited = false
     return 0
 }
 
