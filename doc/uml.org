@@ -132,6 +132,10 @@
 *** offset : USize = 0
 *** size : USize = 0
 *** struct_name := ""
+*** own_type := OwnType.Shallow
+*** is_str := false
+*** is_enum := false
+*** is_funcptr := false
 ** StructLayout: StructDef
 *** total_size : USize = 0
 *** align : USize = 1
@@ -283,7 +287,7 @@
 *** has_return := false
 *** has_break := false
 *** has_continue := false
-*** ... (55 more)
+*** ... (58 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -383,7 +387,7 @@
 ** StructInstance: StructDef
 *** ref struct_name : Str = NULL
 *** is_str := false
-*** ref struct_def : Expr = NULL
+*** is_str_container := false
 *** ref ctx : Context = NULL
 *** own data : U8 = 0
 *** borrowed := false
@@ -415,6 +419,9 @@
 *** Sbyte:I8
 *** Ushort:U16
 *** Closure:InterpClosure
+** InterpCallableBox: StructDef
+*** magic : U64 = 0
+*** val := Value.None
 ** Cell: StructDef
 *** val := Value.None
 ** Binding: StructDef
@@ -428,6 +435,7 @@
 *** payload_aliases := Map(Str, Str).new()
 *** ref_primitive_ptrs := Map(Str, Dynamic).new()
 *** box_owned_dynamics := Vec(DynPtrBox).new()
+*** box_owned_callables := Vec(DynPtrBox).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** ExtStr: StructDef
@@ -453,4 +461,4 @@
 *** alias_to_dynamic := "|"
 * eval_heap
 ** EvalHeap: StructDef
-*** live_blocks : USize = 0
+*** unused : U8 = 0

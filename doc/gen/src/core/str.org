@@ -33,6 +33,23 @@ Concatenate multiple strings into one.
 func format(parts: ..Str) returns Str
 #+end_src
 
+* concat3
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.concat3
+:group: Core
+:END:
+
+Concatenate exactly three strings WITHOUT the variadic Array(Str) that
+`format` makes the caller build per call. One pre-sized result Str, no
+per-call Array alloc. Used on the hot flat-name path (`sname + "_" +
+method`) that the dispatch / codegen / scope lookups rebuild on every
+method resolution -- the self-host --prof run flagged Array__Str_new
+(1.6M allocs) as a top string-churn source.
+
+#+begin_src til
+func concat3(a: Str, b: Str, c: Str) returns Str
+#+end_src
+
 * Str
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.str.Str
@@ -289,6 +306,13 @@ struct Vec__Str {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Str
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Str
     func len(self: Vec__Str) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.

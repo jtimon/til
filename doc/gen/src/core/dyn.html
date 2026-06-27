@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/dyn.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/dyn.til</h1>
+<article class="doc-entry" id="til.src.core.dyn.Dynamic">
+<h2>Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Dynamic {
+namespace:
+    func size() returns shallow U32
+    func clone(self: Dynamic) returns Dynamic
+    func delete(own self: Dynamic, shallow call_free: Bool)
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.is">
+<h2>is</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.is_n">
+<h2>is_n</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.get_payload">
+<h2>get_payload</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func get_payload(self: Dynamic) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_call">
+<h2>dyn_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_call(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_call_ret">
+<h2>dyn_call_ret</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_call_ret(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_fn">
+<h2>dyn_fn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_size_of">
+<h2>dyn_size_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_size_of(type_name: Str) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.struct_field_count">
+<h2>struct_field_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func struct_field_count(type_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.struct_field_name">
+<h2>struct_field_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func struct_field_name(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.struct_field_is_mut">
+<h2>struct_field_is_mut</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func struct_field_is_mut(type_name: Str, shallow index: I64) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.struct_field_type">
+<h2>struct_field_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func struct_field_type(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.enum_variant_count">
+<h2>enum_variant_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func enum_variant_count(type_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.enum_variant_name">
+<h2>enum_variant_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func enum_variant_name(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.enum_variant_has_payload">
+<h2>enum_variant_has_payload</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func enum_variant_has_payload(type_name: Str, shallow index: I64) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.enum_variant_payload_type">
+<h2>enum_variant_payload_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func enum_variant_payload_type(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_param_count">
+<h2>func_sig_param_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_param_count(type_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_param_type">
+<h2>func_sig_param_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_param_type(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_return_count">
+<h2>func_sig_return_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_return_count(type_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_return_type">
+<h2>func_sig_return_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_return_type(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_throw_count">
+<h2>func_sig_throw_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_throw_count(type_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_throw_type">
+<h2>func_sig_throw_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func func_sig_throw_type(type_name: Str, shallow index: I64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.CloneFn">
+<h2>CloneFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func CloneFn(: Dynamic) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.DeleteFn">
+<h2>DeleteFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func DeleteFn(: Dynamic, shallow : Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.CmpFn">
+<h2>CmpFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func CmpFn(: Dynamic, : Dynamic) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.IncFn">
+<h2>IncFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func IncFn(: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.DistanceFn">
+<h2>DistanceFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.HashFn">
+<h2>HashFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func HashFn(: Dynamic, shallow : U32) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.TypeHashFn">
+<h2>TypeHashFn</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func TypeHashFn(: Dynamic, shallow : HashFn) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_clone">
+<h2>default_clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_clone(v: Dynamic) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_delete">
+<h2>default_delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_delete(_v: Dynamic, shallow _cf: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_cmp">
+<h2>default_cmp</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_cmp(_a: Dynamic, _b: Dynamic) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_inc">
+<h2>default_inc</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_inc(_v: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_distance">
+<h2>default_distance</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.default_type_hash">
+<h2>default_type_hash</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func default_type_hash(_v: Dynamic, _h: HashFn) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_has_method">
+<h2>dyn_has_method</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_has_method(type_name: Str, method: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.ELEM_POD">
+<h2>ELEM_POD</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ELEM_POD is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.ELEM_BOXED">
+<h2>ELEM_BOXED</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ELEM_BOXED is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.ELEM_FN">
+<h2>ELEM_FN</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ELEM_FN is a U32
+</code></pre>
+</article>
+</main>
+</body>
+</html>

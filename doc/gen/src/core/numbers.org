@@ -1,0 +1,575 @@
+#+TITLE: src/core/numbers.til
+#+OPTIONS: toc:t
+
+* U8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U8
+:group: Core
+:END:
+
+Unsigned 8-bit integer.
+
+#+begin_src til
+struct U8 {
+namespace:
+    ext_func to_i64(shallow val: U8) returns shallow I64
+    ext_func to_i32(shallow val: U8) returns shallow I32
+    ext_func to_usize(shallow val: U8) returns shallow U32
+    ext_func to_f32(shallow val: U8) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U8) returns Str
+    core_func add(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func sub(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func mul(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func div(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func mod(shallow a: U8, shallow b: U8) returns shallow U8
+    func inc(mut self: U8)
+    func dec(mut self: U8)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U8) returns shallow U8
+    core_func eq(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func neq(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func lt(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func gt(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func lte(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func gte(shallow a: U8, shallow b: U8) returns shallow Bool
+    ext_func cmp(shallow a: U8, shallow b: U8) returns shallow I64
+    core_func band(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bor(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bxor(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bnot(shallow a: U8) returns shallow U8
+    core_func shl(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func shr(shallow a: U8, shallow b: U8) returns shallow U8
+    ext_func clone(val: U8) returns shallow U8
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U8, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.add for the wrapping variant.
+    func safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U8.sub for the wrapping variant.
+    func safe_sub(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.mul for the wrapping variant.
+    func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    func hash(shallow self: U8, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* U16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U16
+:group: Core
+:END:
+
+Unsigned 16-bit integer.
+
+#+begin_src til
+struct U16 {
+namespace:
+    ext_func to_i64(shallow val: U16) returns shallow I64
+    ext_func to_f32(shallow val: U16) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U16) returns Str
+    core_func add(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func sub(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func mul(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func div(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func mod(shallow a: U16, shallow b: U16) returns shallow U16
+    func inc(mut self: U16)
+    func dec(mut self: U16)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U16) returns shallow U16
+    core_func eq(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func neq(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func lt(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func gt(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func lte(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func gte(shallow a: U16, shallow b: U16) returns shallow Bool
+    ext_func cmp(shallow a: U16, shallow b: U16) returns shallow I64
+    core_func band(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func bor(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
+    ext_func clone(val: U16) returns shallow U16
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U16, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U16.add for the wrapping variant.
+    func safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U16.sub for the wrapping variant.
+    func safe_sub(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U16.mul for the wrapping variant.
+    func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    func hash(shallow self: U16, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* U32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U32
+:group: Core
+:END:
+
+Unsigned 32-bit integer.
+
+#+begin_src til
+struct U32 {
+namespace:
+    ext_func to_i64(shallow val: U32) returns shallow I64
+    ext_func to_i32(shallow val: U32) returns shallow I32
+    ext_func to_u32(shallow val: U32) returns shallow U32
+    ext_func to_u64(shallow val: U32) returns shallow U64
+    ext_func to_f32(shallow val: U32) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U32) returns Str
+    core_func add(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func sub(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func mul(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func div(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func mod(shallow a: U32, shallow b: U32) returns shallow U32
+    func inc(mut self: U32)
+    func dec(mut self: U32)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U32) returns shallow U32
+    core_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func neq(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func lt(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func gt(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func lte(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func gte(shallow a: U32, shallow b: U32) returns shallow Bool
+    ext_func cmp(shallow a: U32, shallow b: U32) returns shallow I64
+    core_func band(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bor(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bxor(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bnot(shallow a: U32) returns shallow U32
+    core_func shl(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func shr(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func clone(val: U32) returns shallow U32
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U32.add for the wrapping variant.
+    func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U32.sub for the wrapping variant.
+    func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U32.mul for the wrapping variant.
+    func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    func hash(shallow self: U32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* U64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.U64
+:group: Core
+:END:
+
+Unsigned 64-bit integer.
+
+#+begin_src til
+struct U64 {
+namespace:
+    ext_func to_u32(shallow val: U64) returns shallow U32
+    ext_func to_i32(shallow val: U64) returns shallow I32
+    ext_func to_i64(shallow val: U64) returns shallow I64
+    ext_func to_u64(shallow val: U64) returns shallow U64
+    ext_func to_usize(shallow val: U64) returns shallow U32
+    ext_func to_f32(shallow val: U64) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U64) returns Str
+    core_func add(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func sub(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func mul(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func div(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func mod(shallow a: U64, shallow b: U64) returns shallow U64
+    func inc(mut self: U64)
+    func dec(mut self: U64)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U64) returns shallow U64
+    core_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func neq(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func lt(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func gt(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func lte(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func gte(shallow a: U64, shallow b: U64) returns shallow Bool
+    ext_func cmp(shallow a: U64, shallow b: U64) returns shallow I64
+    core_func band(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bor(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bxor(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bnot(shallow a: U64) returns shallow U64
+    core_func shl(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func shr(shallow a: U64, shallow b: U64) returns shallow U64
+    ext_func clone(val: U64) returns shallow U64
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U64, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.add for the wrapping variant.
+    func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U64.sub for the wrapping variant.
+    func safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.mul for the wrapping variant.
+    func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    func hash(shallow self: U64, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* I8
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I8
+:group: Core
+:END:
+
+Signed 8-bit integer.
+
+#+begin_src til
+struct I8 {
+namespace:
+    ext_func to_u64(shallow val: I8) returns shallow U64
+    /// Convert to decimal string representation.
+    func to_str(shallow val: I8) returns Str
+    core_func add(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func sub(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func mul(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func div(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func mod(shallow a: I8, shallow b: I8) returns shallow I8
+    func inc(mut self: I8)
+    func dec(mut self: I8)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I8) returns shallow I8
+    core_func eq(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func neq(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func lt(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func gt(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func lte(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func gte(shallow a: I8, shallow b: I8) returns shallow Bool
+    ext_func cmp(shallow a: I8, shallow b: I8) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I8) returns shallow I8
+    /// Absolute value.
+    func abs(shallow a: I8) returns shallow I8
+    core_func band(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bor(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bxor(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bnot(shallow a: I8) returns shallow I8
+    core_func shl(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func shr(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func clone(val: I8) returns shallow I8
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I8, shallow call_free: Bool)
+    func size() returns shallow U32
+    func hash(shallow self: I8, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* I16
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I16
+:group: Core
+:END:
+
+Signed 16-bit integer.
+
+#+begin_src til
+struct I16 {
+namespace:
+    ext_func to_u64(shallow val: I16) returns shallow U64
+    ext_func to_u32(shallow val: I16) returns shallow U32
+    ext_func to_f32(shallow val: I16) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: I16) returns Str
+    core_func add(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func sub(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func mul(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func div(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func mod(shallow a: I16, shallow b: I16) returns shallow I16
+    func inc(mut self: I16)
+    func dec(mut self: I16)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I16) returns shallow I16
+    core_func eq(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func neq(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func lt(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func gt(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func lte(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func gte(shallow a: I16, shallow b: I16) returns shallow Bool
+    ext_func cmp(shallow a: I16, shallow b: I16) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I16) returns shallow I16
+    /// Absolute value.
+    func abs(shallow a: I16) returns shallow I16
+    core_func band(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func bor(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
+    ext_func clone(val: I16) returns shallow I16
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I16, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I16.add for the wrapping variant.
+    func safe_add(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I16.sub for the wrapping variant.
+    func safe_sub(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I16.mul for the wrapping variant.
+    func safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+    func hash(shallow self: I16, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* I32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I32
+:group: Core
+:END:
+
+Signed 32-bit integer.
+
+#+begin_src til
+struct I32 {
+namespace:
+    ext_func to_u64(shallow val: I32) returns shallow U64
+    ext_func to_usize(shallow val: I32) returns shallow U32
+    ext_func to_f32(shallow val: I32) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: I32) returns Str
+    core_func add(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func sub(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func mul(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func div(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func mod(shallow a: I32, shallow b: I32) returns shallow I32
+    func inc(mut self: I32)
+    func dec(mut self: I32)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I32) returns shallow I32
+    core_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func neq(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func lt(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func gt(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func lte(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func gte(shallow a: I32, shallow b: I32) returns shallow Bool
+    ext_func cmp(shallow a: I32, shallow b: I32) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I32) returns shallow I32
+    /// Absolute value.
+    func abs(shallow a: I32) returns shallow I32
+    core_func band(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bor(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bxor(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bnot(shallow a: I32) returns shallow I32
+    core_func shl(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func shr(shallow a: I32, shallow b: I32) returns shallow I32
+    ext_func clone(val: I32) returns shallow I32
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I32.add for the wrapping variant.
+    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I32.sub for the wrapping variant.
+    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I32.mul for the wrapping variant.
+    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    func hash(shallow self: I32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.I64
+:group: Core
+:END:
+
+Signed 64-bit integer.
+
+#+begin_src til
+struct I64 {
+namespace:
+    func to_str(shallow val: I64) returns Str
+    ext_func to_u8(shallow val: I64) returns shallow U8
+    ext_func to_i8(shallow val: I64) returns shallow I8
+    ext_func to_i16(shallow val: I64) returns shallow I16
+    ext_func to_u16(shallow val: I64) returns shallow U16
+    ext_func to_i32(shallow val: I64) returns shallow I32
+    ext_func to_u32(shallow val: I64) returns shallow U32
+    /// Convert to USize (target-width unsigned integer). Backed by the
+    /// C-level cast (USize)val so it tracks ext.h's USize typedef once it
+    /// becomes target-driven on 64-bit; see issue #192.
+    ext_func to_usize(shallow val: I64) returns shallow U32
+    ext_func to_f32(shallow val: I64) returns shallow F32
+    core_func add(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func sub(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func mul(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func div(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func mod(shallow a: I64, shallow b: I64) returns shallow I64
+    func inc(mut self: I64)
+    func dec(mut self: I64)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I64) returns shallow I64
+    core_func eq(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func neq(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func lt(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func gt(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func lte(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func gte(shallow a: I64, shallow b: I64) returns shallow Bool
+    ext_func cmp(shallow a: I64, shallow b: I64) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I64) returns shallow I64
+    /// Absolute value.
+    func abs(shallow a: I64) returns shallow I64
+    core_func band(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bor(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bxor(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bnot(shallow a: I64) returns shallow I64
+    core_func shl(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func shr(shallow a: I64, shallow b: I64) returns shallow I64
+    ext_func clone(val: I64) returns shallow I64
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I64, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Issue #198: division that throws DivideByZero when dividing by
+    /// zero. Use I64.div for the panicking variant.
+    func safe_div(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow I64
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I64.add for the wrapping variant.
+    func safe_add(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I64.sub for the wrapping variant.
+    func safe_sub(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I64.mul for the wrapping variant.
+    func safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+    func hash(shallow self: I64, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* F32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32
+:group: Core
+:END:
+
+32-bit floating-point number.
+
+#+begin_src til
+struct F32 {
+namespace:
+    ext_func to_i64(shallow val: F32) returns shallow I64
+    ext_func to_str(shallow val: F32) returns Str
+    /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+    ext_func to_repr(shallow val: F32) returns Str
+    /// Convert from I64 to F32.
+    func from_i64(shallow val: I64) returns shallow F32
+    core_func add(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func sub(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func mul(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func div(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func eq(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func neq(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func lt(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func gt(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func lte(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func gte(shallow a: F32, shallow b: F32) returns shallow Bool
+    ext_func cmp(shallow a: F32, shallow b: F32) returns shallow I64
+    ext_func clone(val: F32) returns shallow F32
+    func delete(own self: F32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Division that throws DivideByZero when dividing by zero.
+    /// Reuses the DivideByZero type defined below.
+    /// Use F32.div for the silent (NaN/Inf) variant.
+    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
+    func hash(shallow self: F32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+* DivideByZero
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.DivideByZero
+:group: Core
+:END:
+
+Error thrown by I64.safe_div / F32.safe_div when dividing by zero.
+Carries a "file:line:col:<method>: divide by zero" msg pointing at
+the caller (loc defaults to the call site, like IntegerOverflow).
+
+#+begin_src til
+struct DivideByZero {
+    mut msg : Str
+namespace:
+    func clone(self: DivideByZero) returns DivideByZero
+    func delete(own self: DivideByZero, shallow call_free: Bool)
+    func hash(self: DivideByZero, hasher: HashFn) returns shallow U64
+    func eq(self: DivideByZero, other: DivideByZero) returns shallow Bool
+    func to_str(self: DivideByZero) returns Str
+    func size() returns shallow U32
+}
+#+end_src
+
+* IntegerOverflow
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.IntegerOverflow
+:group: Core
+:END:
+
+Error thrown by safe_add / safe_sub / safe_mul on the integer
+types when the operation would wrap. Carries a
+"file:line:col:<method>: a OP b overflows/underflows" msg. One
+shared type for all integer widths.
+
+#+begin_src til
+struct IntegerOverflow {
+    mut msg : Str
+namespace:
+    func clone(self: IntegerOverflow) returns IntegerOverflow
+    func delete(own self: IntegerOverflow, shallow call_free: Bool)
+    func hash(self: IntegerOverflow, hasher: HashFn) returns shallow U64
+    func eq(self: IntegerOverflow, other: IntegerOverflow) returns shallow Bool
+    func to_str(self: IntegerOverflow) returns Str
+    func size() returns shallow U32
+}
+#+end_src
+
+* USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.USize
+:group: Core
+:END:
+
+#+begin_src til
+USize
+#+end_src
+
+* UPtr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.UPtr
+:group: Core
+:END:
+
+UPtr is the target-native unsigned integer for raw pointer arithmetic,
+address calculations, and byte counts that must match pointer width.
+The source alias defaults to U64; the loader retargets it to U32 for
+32-bit targets before typecheck/codegen.
+
+#+begin_src til
+UPtr
+#+end_src

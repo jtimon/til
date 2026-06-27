@@ -21,7 +21,7 @@ ext_proc system_cmd(cmd: Str) returns shallow I32
 struct StructInstance {
     ref mut struct_name : Str
     mut is_str : Bool
-    ref mut struct_def : Expr
+    mut is_str_container : Bool
     ref mut ctx : Context
     own mut data : U8
     mut borrowed : Bool
@@ -126,6 +126,34 @@ namespace:
 }
 #+end_src
 
+* CALLABLE_BOX_MAGIC
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.CALLABLE_BOX_MAGIC
+:group: Compiler tools
+:END:
+
+#+begin_src til
+CALLABLE_BOX_MAGIC is a U64
+#+end_src
+
+* InterpCallableBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.InterpCallableBox
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct InterpCallableBox {
+    mut magic : U64
+    mut val : Value
+namespace:
+    func clone(self: InterpCallableBox) returns InterpCallableBox
+    func delete(own self: InterpCallableBox, shallow call_free: Bool)
+    func hash(self: InterpCallableBox, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 * Cell
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.Cell
@@ -175,6 +203,7 @@ struct Scope {
     mut payload_aliases : Map__Str_Str
     mut ref_primitive_ptrs : Map__Str_Dynamic
     mut box_owned_dynamics : Vec__DynPtrBox
+    mut box_owned_callables : Vec__DynPtrBox
 namespace:
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, shallow call_free: Bool)
@@ -603,6 +632,13 @@ struct Vec__DynPtrBox {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__DynPtrBox
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DynPtrBox
     func len(self: Vec__DynPtrBox) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -672,6 +708,13 @@ struct Vec__Binding {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Binding
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Binding
     func len(self: Vec__Binding) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.

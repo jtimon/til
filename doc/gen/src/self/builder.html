@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/builder.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/builder.til</h1>
+<article class="doc-entry" id="til.src.self.builder.system_cmd">
+<h2>system_cmd</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">ext_proc system_cmd(cmd: Str) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.closure_call_name">
+<h2>closure_call_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func closure_call_name(name: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.closure_value_name">
+<h2>closure_value_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func closure_value_name(name: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_fcall_closure_call">
+<h2>emit_fcall_closure_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_fcall_closure_call(f: File, e: Expr, callee: Expr, sig: Expr, shallow depth: I32, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_capturing_closure_value">
+<h2>emit_capturing_closure_value</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_capturing_closure_value(f: File, e: Expr, _depth: I32, _ctx: Context) returns ref File
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_capturing_closure_func">
+<h2>emit_capturing_closure_func</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_capturing_closure_func(f: File, closure_expr: Expr, mut emitted: Set__Str, lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_capturing_closures_in_expr">
+<h2>emit_capturing_closures_in_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_capturing_closures_in_expr(f: File, e: Expr, mut emitted: Set__Str, lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_capturing_closures_lp">
+<h2>emit_capturing_closures_lp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_capturing_closures_lp(f: File, lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_closure_runtime_types">
+<h2>emit_closure_runtime_types</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_closure_runtime_types(f: File)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_funcsig_typedefs_prog">
+<h2>emit_funcsig_typedefs_prog</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_funcsig_typedefs_prog(f: File, prog: Expr, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_funcsig_typedefs">
+<h2>emit_funcsig_typedefs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_funcsig_typedefs(f: File, core_program: Expr, program: Expr, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.build_forward_header_lp">
+<h2>build_forward_header_lp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc build_forward_header_lp(fwd_path: Str, lp: LoadedProgram) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.collect_closure_value_names">
+<h2>collect_closure_value_names</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc collect_closure_value_names(e: Expr, mut names: Set__Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.build_register_closure_values_lp">
+<h2>build_register_closure_values_lp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc build_register_closure_values_lp(lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.emit_dyn_fn_closure_value">
+<h2>emit_dyn_fn_closure_value</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc emit_dyn_fn_closure_value(f: File, type_name: Str, method_name: Str, suffix: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_translate">
+<h2>cmd_translate</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_translate(lp: LoadedProgram, custom_c: Str, target: Target) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_build">
+<h2>cmd_build</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_build(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_install">
+<h2>cmd_install</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_install(lp: LoadedProgram, install_prefix_in: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_run">
+<h2>cmd_run</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_test_build_run">
+<h2>cmd_test_build_run</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_test_build_run(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, shallow asan: Bool, shallow prof: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.DocEntry">
+<h2>DocEntry</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct DocEntry {
+    mut name : Str
+    mut id : Str
+    mut unit_path : Str
+    mut group : Str
+    mut page : Str
+    mut body : Str
+    mut info : Str
+    mut since : Str
+    mut deprecated : Str
+namespace:
+    func clone(self: DocEntry) returns DocEntry
+    func delete(own self: DocEntry, shallow call_free: Bool)
+    func hash(self: DocEntry, hasher: HashFn) returns shallow U64
+    func eq(self: DocEntry, other: DocEntry) returns shallow Bool
+    func to_str(self: DocEntry) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.DocCatalog">
+<h2>DocCatalog</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct DocCatalog {
+    mut entries : Vec__DocEntry
+namespace:
+    func clone(self: DocCatalog) returns DocCatalog
+    func delete(own self: DocCatalog, shallow call_free: Bool)
+    func hash(self: DocCatalog, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_doc">
+<h2>cmd_doc</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_doc(lp: LoadedProgram) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.cmd_doc_cache">
+<h2>cmd_doc_cache</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc cmd_doc_cache(lp: LoadedProgram) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.Array__Bool">
+<h2>Array__Bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct Array__Bool {
+    own mut data : U8
+    cap : U32
+namespace:
+    /// Create a zero-initialized Array with the given capacity.
+    func new(shallow cap: U32) returns Array__Bool
+    func len(self: Array__Bool) returns shallow U32
+    /// Unchecked element access: ref to the element at index `i` with
+    /// NO bounds check. The caller must prove `i &lt; len()`. This is the
+    /// unchecked core that `get` wraps; for-in uses it directly because
+    /// its `_fi &lt; len()` termination test already proves the index in
+    /// bounds (issue #284).
+    func unsafe_get(self: Array__Bool, i: U32) returns ref Bool
+    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
+    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    func get(self: Array__Bool, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Bool
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(self: Array__Bool, shallow i: U32, own val: Bool)
+    /// Overwrite the element at index `i`. Drops the old value. `val` is
+    /// owned. Throws OutOfBounds if `i` is past the end; call as
+    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+    func set(self: Array__Bool, shallow i: U32, own val: Bool, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func delete(own self: Array__Bool, shallow call_free: Bool)
+    func clone(self: Array__Bool) returns Array__Bool
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.Vec__DynCallInfo">
+<h2>Vec__DynCallInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct Vec__DynCallInfo {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__DynCallInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DynCallInfo
+    func len(self: Vec__DynCallInfo) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__DynCallInfo)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__DynCallInfo, own val: priv___src_self_builder_til__DynCallInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__DynCallInfo, mut other: Vec__DynCallInfo)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__DynCallInfo, i: U32) returns ref priv___src_self_builder_til__DynCallInfo
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__DynCallInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_builder_til__DynCallInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__DynCallInfo, shallow n: U32) returns Vec__DynCallInfo
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__DynCallInfo, shallow i: U32, own val: priv___src_self_builder_til__DynCallInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DynCallInfo, shallow i: U32, own val: priv___src_self_builder_til__DynCallInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__DynCallInfo, mut src: Vec__DynCallInfo, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__DynCallInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__DynCallInfo) returns Vec__DynCallInfo
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.Vec__CollectionInfo">
+<h2>Vec__CollectionInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct Vec__CollectionInfo {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__CollectionInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CollectionInfo
+    func len(self: Vec__CollectionInfo) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CollectionInfo)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CollectionInfo, own val: priv___src_self_builder_til__CollectionInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CollectionInfo, mut other: Vec__CollectionInfo)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CollectionInfo, i: U32) returns ref priv___src_self_builder_til__CollectionInfo
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CollectionInfo, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_builder_til__CollectionInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CollectionInfo, shallow n: U32) returns Vec__CollectionInfo
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CollectionInfo, shallow i: U32, own val: priv___src_self_builder_til__CollectionInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CollectionInfo, shallow i: U32, own val: priv___src_self_builder_til__CollectionInfo, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CollectionInfo, mut src: Vec__CollectionInfo, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CollectionInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CollectionInfo) returns Vec__CollectionInfo
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.builder.Vec__DocEntry">
+<h2>Vec__DocEntry</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">struct Vec__DocEntry {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__DocEntry
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DocEntry
+    func len(self: Vec__DocEntry) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__DocEntry)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__DocEntry, own val: DocEntry)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__DocEntry, own other: Vec__DocEntry)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__DocEntry, mut other: Vec__DocEntry)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__DocEntry, i: U32) returns ref DocEntry
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__DocEntry, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref DocEntry
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__DocEntry) returns DocEntry
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__DocEntry, shallow n: U32) returns Vec__DocEntry
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__DocEntry, shallow i: U32, own val: DocEntry)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DocEntry, shallow i: U32, own val: DocEntry, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__DocEntry, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__DocEntry) returns Vec__DocEntry
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

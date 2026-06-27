@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/kwargs_map.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/kwargs_map.til</h1>
+<article class="doc-entry" id="til.src.core.kwargs_map.KwargsMap">
+<h2>KwargsMap</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>String-keyed map of dynamically-typed kwargs values.</p>
+</div>
+<pre><code class="language-til">struct KwargsMap {
+    mut items : Map__Str_Tuple
+namespace:
+    /// Create an empty KwargsMap.
+    func new() returns KwargsMap
+    func len(self: KwargsMap) returns shallow U32
+    /// True if `key` exists in the map.
+    func has(self: KwargsMap, key: Str) returns shallow Bool
+    /// Insert or overwrite `key` with typed value. The value is owned.
+    func set(mut self: KwargsMap, key: Str, elem_type: Str, shallow _elem_size: U32, own val: Dynamic)
+    /// Ref to the value stored under `key`. Panics if not found.
+    func get(self: KwargsMap, key: Str) returns ref Dynamic
+    /// Type name of the value stored under `key`.
+    func type_at(self: KwargsMap, key: Str) returns ref Str
+    /// Byte size of the value stored under `key`.
+    func size_at(self: KwargsMap, key: Str) returns ref U32
+    func clone(self: KwargsMap) returns KwargsMap
+    func delete(own self: KwargsMap, shallow call_free: Bool)
+    func hash(self: KwargsMap, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.kwargs_map.Map__Str_Tuple">
+<h2>Map__Str_Tuple</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Map__Str_Tuple {
+    mut keys : Vec__Str
+    mut values : Vec__Tuple
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_Tuple
+    func len(self: Map__Str_Tuple) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_Tuple)
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_Tuple, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Tuple
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
+    func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
+    func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
+    func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.kwargs_map.Vec__Tuple">
+<h2>Vec__Tuple</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__Tuple {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Tuple
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Tuple
+    func len(self: Vec__Tuple) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Tuple)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Tuple, own val: Tuple)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Tuple, own other: Vec__Tuple)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Tuple, mut other: Vec__Tuple)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Tuple, i: U32) returns ref Tuple
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Tuple, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Tuple
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Tuple) returns Tuple
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Tuple, shallow n: U32) returns Vec__Tuple
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Tuple, shallow i: U32, own val: Tuple)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Tuple, shallow i: U32, own val: Tuple, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Tuple, mut src: Vec__Tuple, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Tuple, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Tuple) returns Vec__Tuple
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

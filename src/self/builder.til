@@ -8085,12 +8085,274 @@ priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
     return out
 }
 
+priv doc_html_escape := func(s: Str) returns Str {
+    mut out := s.replace("&", "&amp;")
+    out = out.replace("<", "&lt;")
+    out = out.replace(">", "&gt;")
+    out = out.replace("\"", "&quot;")
+    return out
+}
+
+priv doc_html_path := func(org_path: Str) returns Str {
+    if org_path.ends_with(".org").not() { panic("doc HTML path source is not .org: ", org_path) }
+    return format(org_path.strip_suffix(".org"), ".html")
+}
+
+priv doc_html_relative_prefix := func(from_page: Str) returns Str {
+    mut depth : USize = 0
+    for i in 0..from_page.len() {
+        ref ch : I8 = from_page.unsafe_get(i)
+        if ch.eq('/') { depth++ }
+    }
+    mut out := Str.with_capacity(depth.mul(3))
+    for _ in 0..depth { out.push_str("../") }
+    return out
+}
+
+priv doc_html_href := func(from_page: Str, to_org_page: Str, anchor: Str) returns Str {
+    return format(doc_html_relative_prefix(from_page), doc_html_path(to_org_page), "#", anchor)
+}
+
+priv append_doc_html_file_link := func(mut out: Str, content: Str, current_page: Str, loc: Str) {
+    sep := content.find("][")
+    if sep < 0 { panic("HTML doc link missing label in ", loc) }
+    sep_u := sep.to_usize()
+    target := content.substr(0, sep_u)
+    label := content.substr(sep_u + 2, content.len() - sep_u - 2)
+    if target.is_empty() { panic("HTML doc link target is empty in ", loc) }
+    if label.is_empty() { panic("HTML doc link label is empty in ", loc) }
+
+    anchor_sep := target.find("::#")
+    if anchor_sep < 0 { panic("HTML doc file link missing anchor in ", loc) }
+    anchor_sep_u := anchor_sep.to_usize()
+    org_page := target.substr(0, anchor_sep_u)
+    anchor := target.substr(anchor_sep_u + 3, target.len() - anchor_sep_u - 3)
+    if org_page.is_empty() { panic("HTML doc file link page is empty in ", loc) }
+    if anchor.is_empty() { panic("HTML doc file link anchor is empty in ", loc) }
+
+    href := doc_html_href(current_page, org_page, anchor)
+    out.push_str("<a href=\"")
+    out.push_str(doc_html_escape(href))
+    out.push_str("\">")
+    out.push_str(doc_html_escape(label))
+    out.push_str("</a>")
+}
+
+priv append_doc_html_inline := func(mut out: Str, text: Str, current_page: Str, loc: Str) {
+    mut pos : USize = 0
+    while pos < text.len() {
+        rest := text.substr(pos, text.len() - pos)
+        link_rel := rest.find("[[file:")
+        if link_rel < 0 {
+            out.push_str(doc_html_escape(rest))
+            return
+        }
+
+        link_start := pos + link_rel.to_usize()
+        if link_start > pos { out.push_str(doc_html_escape(text.substr(pos, link_start - pos))) }
+
+        content_start := link_start + 7
+        link_end := doc_find_link_end(text, content_start, loc)
+        content := text.substr(content_start, link_end - content_start)
+        append_doc_html_file_link(out, content, current_page, loc)
+        pos = link_end + 2
+    }
+}
+
+priv append_doc_html_body := func(mut out: Str, body: Str, current_page: Str, loc: Str) {
+    mut pos : USize = 0
+    mut in_para := false
+    while pos < body.len() {
+        rest := body.substr(pos, body.len() - pos)
+        line_rel := rest.find("\n")
+        mut line_end := body.len()
+        if line_rel >= 0 { line_end = pos + line_rel.to_usize() }
+        line := body.substr(pos, line_end - pos)
+        if line.trim().is_empty() {
+            if in_para {
+                out.push_str("</p>\n")
+                in_para = false
+            }
+        } else {
+            if in_para {
+                out.push_str("\n")
+            } else {
+                out.push_str("<p>")
+                in_para = true
+            }
+            append_doc_html_inline(out, line, current_page, loc)
+        }
+        if line_rel < 0 { pos = body.len() } else { pos = line_end + 1 }
+    }
+    if in_para { out.push_str("</p>\n") }
+}
+
+priv append_doc_html_meta := func(mut out: Str, e: DocEntry, include_group: Bool) {
+    has_group := include_group.and(e.group.is_empty().not())
+    if e.since.is_empty().not().or(e.deprecated.is_empty().not()).or(has_group) {
+        out.push_str("<dl class=\"meta\">")
+        if has_group {
+            out.push_str("<dt>Group</dt><dd>")
+            out.push_str(doc_html_escape(e.group))
+            out.push_str("</dd>")
+        }
+        if e.since.is_empty().not() {
+            out.push_str("<dt>Since</dt><dd>")
+            out.push_str(doc_html_escape(e.since))
+            out.push_str("</dd>")
+        }
+        if e.deprecated.is_empty().not() {
+            out.push_str("<dt>Deprecated</dt><dd>")
+            out.push_str(doc_html_escape(e.deprecated))
+            out.push_str("</dd>")
+        }
+        out.push_str("</dl>\n")
+    }
+}
+
+priv append_doc_html_head := func(mut out: Str, title: Str) {
+    out.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
+    out.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
+    out.push_str("<title>")
+    out.push_str(doc_html_escape(title))
+    out.push_str("</title>\n")
+    out.push_str("<style>\n")
+    out.push_str(":root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}\n")
+    out.push_str("@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}\n")
+    out.push_str("body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}\n")
+    out.push_str("main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}\n")
+    out.push_str("a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}\n")
+    out.push_str("h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}\n")
+    out.push_str(".meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}\n")
+    out.push_str(".doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}\n")
+    out.push_str("</style>\n</head>\n<body>\n<main>\n")
+}
+
+priv append_doc_html_tail := func(mut out: Str) {
+    out.push_str("</main>\n</body>\n</html>\n")
+}
+
+priv doc_html_entry_capacity := func(e: DocEntry) returns USize {
+    return e.name.len()
+        .add(e.id.len())
+        .add(e.page.len())
+        .add(e.group.len())
+        .add(e.since.len())
+        .add(e.deprecated.len())
+        .add(e.body.len())
+        .add(e.info.len())
+        .mul(6)
+        + 1024
+}
+
+priv append_doc_html_unit_entry := func(mut out: Str, e: DocEntry, current_page: Str) {
+    out.push_str("<article class=\"doc-entry\" id=\"")
+    out.push_str(doc_html_escape(e.id))
+    out.push_str("\">\n<h2>")
+    out.push_str(doc_html_escape(e.name))
+    out.push_str("</h2>\n")
+    append_doc_html_meta(out, e, true)
+    if e.body.is_empty().not() {
+        out.push_str("<div class=\"doc-body\">\n")
+        append_doc_html_body(out, e.body, current_page, e.name)
+        out.push_str("</div>\n")
+    }
+    if e.info.is_empty().not() {
+        out.push_str("<pre><code class=\"language-til\">")
+        out.push_str(doc_html_escape(e.info))
+        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str("</code></pre>\n")
+    }
+    out.push_str("</article>\n")
+}
+
+priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog) returns Str {
+    mut title := unit_path.clone()
+    if title.starts_with("./") { title = title.strip_prefix("./").clone() }
+
+    current_page := doc_index_link_path(doc_html_path(til_doc_out_path(unit_path)))
+    mut total : USize = title.len().mul(6) + 8192
+    for e : DocEntry in catalog.entries {
+        if e.unit_path == unit_path { total = total + doc_html_entry_capacity(e) }
+    }
+
+    mut out := Str.with_capacity(total)
+    append_doc_html_head(out, title)
+    out.push_str("<nav><a href=\"")
+    out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "index.html")))
+    out.push_str("\">Index</a></nav>\n")
+    out.push_str("<h1>")
+    out.push_str(doc_html_escape(title))
+    out.push_str("</h1>\n")
+    for e : DocEntry in catalog.entries {
+        if e.unit_path == unit_path { append_doc_html_unit_entry(out, e, current_page) }
+    }
+    append_doc_html_tail(out)
+    return out
+}
+
+priv append_doc_html_index_entry := func(mut out: Str, e: DocEntry, current_page: Str) {
+    out.push_str("<li><a href=\"")
+    out.push_str(doc_html_escape(doc_html_href(current_page, e.page, e.id)))
+    out.push_str("\">")
+    out.push_str(doc_html_escape(e.name))
+    out.push_str("</a>\n")
+    append_doc_html_meta(out, e, false)
+    if e.info.is_empty().not() {
+        out.push_str("<pre><code class=\"language-til\">")
+        out.push_str(doc_html_escape(e.info))
+        if e.info.ends_with("\n").not() { out.push_str("\n") }
+        out.push_str("</code></pre>\n")
+    }
+    out.push_str("</li>\n")
+}
+
+priv format_doc_index_html := func(catalog: DocCatalog) returns Str {
+    groups := doc_index_collect_groups(catalog)
+    mut has_ungrouped := false
+    mut total : USize = 8192
+    for group : Str in groups { total = total + group.len().mul(6) + 128 }
+    for e : DocEntry in catalog.entries {
+        total = total + doc_html_entry_capacity(e)
+        if e.group.is_empty() { has_ungrouped = true }
+    }
+
+    mut out := Str.with_capacity(total)
+    append_doc_html_head(out, "til documentation index")
+    out.push_str("<h1>til documentation index</h1>\n")
+    current_page := "index.html"
+    for group : Str in groups {
+        out.push_str("<section>\n<h2>")
+        out.push_str(doc_html_escape(group))
+        out.push_str("</h2>\n<ul class=\"doc-index\">\n")
+        for e : DocEntry in catalog.entries {
+            if e.group == group { append_doc_html_index_entry(out, e, current_page) }
+        }
+        out.push_str("</ul>\n</section>\n")
+    }
+
+    if has_ungrouped {
+        out.push_str("<section>\n<h2>Ungrouped</h2>\n<ul class=\"doc-index\">\n")
+        for e : DocEntry in catalog.entries {
+            if e.group.is_empty() { append_doc_html_index_entry(out, e, current_page) }
+        }
+        out.push_str("</ul>\n</section>\n")
+    }
+    append_doc_html_tail(out)
+    return out
+}
+
 priv emit_doc_index := proc(catalog: DocCatalog) {
     out := "doc/gen/index.org"
     ensure_parent_dir(out)
     page := format_doc_index_org(catalog)
     File.writefile(out, page)
     println(format("Generated: ", out))
+
+    html_out := "doc/gen/index.html"
+    html_page := format_doc_index_html(catalog)
+    File.writefile(html_out, html_page)
+    println(format("Generated: ", html_out))
 }
 
 // "src/core/vec.til" -> "doc/gen/src/core/vec.org"
@@ -8105,6 +8367,10 @@ priv til_doc_out_path := func(unit_path: Str) returns Str {
     if name.starts_with("./") { name = name.strip_prefix("./").clone() }
     if name.ends_with(".til") { name = name.strip_suffix(".til").clone() }
     return format("doc/gen/", name, ".org")
+}
+
+priv til_doc_html_out_path := func(unit_path: Str) returns Str {
+    return doc_html_path(til_doc_out_path(unit_path))
 }
 
 // Ensure the parent directory of `path` exists (mkdir -p).
@@ -8122,6 +8388,11 @@ priv emit_unit_doc := proc(u: ProgramUnit, catalog: DocCatalog) {
     page := format_unit_doc_org(u.path, catalog)
     File.writefile(out, page)
     println(format("Generated: ", out))
+
+    html_out := til_doc_html_out_path(u.path)
+    html_page := format_unit_doc_html(u.path, catalog)
+    File.writefile(html_out, html_page)
+    println(format("Generated: ", html_out))
 }
 
 cmd_doc := proc(lp: LoadedProgram) returns I32 {

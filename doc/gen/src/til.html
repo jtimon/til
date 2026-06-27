@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/til.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../index.html">Index</a></nav>
+<h1>src/til.til</h1>
+<article class="doc-entry" id="til.src.til.BASE_VERSION">
+<h2>BASE_VERSION</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">BASE_VERSION is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.get_version">
+<h2>get_version</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">macro get_version() returns shallow Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.VERSION">
+<h2>VERSION</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">VERSION is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.get_bin_dir">
+<h2>get_bin_dir</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">ext_proc get_bin_dir() returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.get_cwd_str">
+<h2>get_cwd_str</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">ext_proc get_cwd_str() returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_read_line">
+<h2>repl_read_line</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc repl_read_line(mode_name: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_typecheck">
+<h2>repl_typecheck</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_should_wrap">
+<h2>repl_should_wrap</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.run_repl_session">
+<h2>run_repl_session</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.run_repl">
+<h2>run_repl</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc run_repl(initial_mode: Str, extra_modes: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.usage">
+<h2>usage</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc usage()
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.CliArgs">
+<h2>CliArgs</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">struct CliArgs {
+    mut command : Str
+    mut path : Str
+    mut custom_bin : Str
+    mut custom_c : Str
+    mut target_str : Str
+    mut cc : Str
+    mut install_prefix : Str
+    mut path_idx : U32
+    mut early_return : Bool
+    mut asan : Bool
+    mut prof : Bool
+    own mut extra_modes
+namespace:
+    func clone(self: CliArgs) returns CliArgs
+    func delete(own self: CliArgs, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.parse_args">
+<h2>parse_args</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc parse_args(args: Array__Str) returns CliArgs
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.collect_user_argv">
+<h2>collect_user_argv</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U32) returns Vec__Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.main">
+<h2>main</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc main(args: ..Str)
+</code></pre>
+</article>
+</main>
+</body>
+</html>

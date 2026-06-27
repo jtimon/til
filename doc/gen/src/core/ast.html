@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/ast.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/ast.til</h1>
+<article class="doc-entry" id="til.src.core.ast.Primitive">
+<h2>Primitive</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Real primitive types. Issue #203 migrates them one at a time;
+I16 first because it has the smallest call-site surface.</p>
+</div>
+<pre><code class="language-til">enum Primitive {
+    I16
+    U16
+    I8
+    U8
+    U32
+    I32
+    U64
+    I64
+    F32
+    Bool
+namespace:
+    I16
+    U16
+    I8
+    U8
+    U32
+    I32
+    U64
+    I64
+    F32
+    Bool
+    func is(self: Primitive, other: Primitive) returns shallow Bool
+    func eq(self: Primitive, other: Primitive) returns shallow Bool
+    func delete(own self: Primitive, shallow call_free: Bool)
+    func to_str(self: Primitive) returns Str
+    func clone(self: Primitive) returns Primitive
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Type">
+<h2>Type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Type representation for the til compiler. Carries payload for named
+types (Struct/Enum/Custom) and is tag-only for builtins.</p>
+</div>
+<pre><code class="language-til">enum Type {
+    Unknown
+    None
+    Struct: Str
+    StructDef
+    Enum: Str
+    EnumDef
+    FuncDef
+    FuncPtr
+    Dynamic
+    Custom: Str
+    Primitive: Primitive
+    FuncPtrSig: Str
+namespace:
+    ext_func Unknown() returns Type
+    ext_func None() returns Type
+    ext_func Struct(own val: Str) returns Type
+    ext_func StructDef() returns Type
+    ext_func Enum(own val: Str) returns Type
+    ext_func EnumDef() returns Type
+    ext_func FuncDef() returns Type
+    ext_func FuncPtr() returns Type
+    ext_func Dynamic() returns Type
+    ext_func Custom(own val: Str) returns Type
+    ext_func Primitive(own val: Primitive) returns Type
+    ext_func FuncPtrSig(own val: Str) returns Type
+    func is(self: Type, other: Type) returns shallow Bool
+    func eq(self: Type, other: Type) returns shallow Bool
+    func delete(own self: Type, shallow call_free: Bool)
+    func to_str(self: Type) returns Str
+    func clone(self: Type) returns Type
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.til_type_name_c">
+<h2>til_type_name_c</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func til_type_name_c(t: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.til_type_name">
+<h2>til_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func til_type_name(t: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.is_primitive">
+<h2>is_primitive</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func is_primitive(t: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.is_funcptr">
+<h2>is_funcptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func is_funcptr(t: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.is_aggregate">
+<h2>is_aggregate</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func is_aggregate(t: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.dyn_type_to_str">
+<h2>dyn_type_to_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_type_to_str(type: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FuncType">
+<h2>FuncType</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Classifies a til function declaration: func, proc, test, macro, or external.</p>
+</div>
+<pre><code class="language-til">enum FuncType {
+    Func
+    Proc
+    Test
+    Macro
+    ExtFunc
+    ExtProc
+    LazyFunc
+    LazyProc
+    CoreFunc
+    CoreProc
+namespace:
+    Func
+    Proc
+    Test
+    Macro
+    ExtFunc
+    ExtProc
+    LazyFunc
+    LazyProc
+    CoreFunc
+    CoreProc
+    func is(self: FuncType, other: FuncType) returns shallow Bool
+    func eq(self: FuncType, other: FuncType) returns shallow Bool
+    func delete(own self: FuncType, shallow call_free: Bool)
+    func to_str(self: FuncType) returns Str
+    func clone(self: FuncType) returns FuncType
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.OwnType">
+<h2>OwnType</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).</p>
+</div>
+<pre><code class="language-til">enum OwnType {
+    Own
+    Ref
+    Shallow
+namespace:
+    Own
+    Ref
+    Shallow
+    func is(self: OwnType, other: OwnType) returns shallow Bool
+    func eq(self: OwnType, other: OwnType) returns shallow Bool
+    func delete(own self: OwnType, shallow call_free: Bool)
+    func to_str(self: OwnType) returns Str
+    func clone(self: OwnType) returns OwnType
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Declaration">
+<h2>Declaration</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Variable/field/parameter declaration node.</p>
+</div>
+<pre><code class="language-til">struct Declaration {
+    mut name : Str
+    mut doc : Str
+    mut explicit_type : Str
+    mut is_mut : Bool
+    mut redundant_mut : Bool
+    mut is_priv : Bool
+    mut used : Bool
+    mut own_type : OwnType
+    mut til_type : Type
+    own mut default_value : Expr
+    mut orig_name : Str
+namespace:
+    func eq(a: Declaration, b: Declaration) returns shallow Bool
+    func to_str(self: Declaration) returns Str
+    func clone(self: Declaration) returns Declaration
+    func delete(own self: Declaration, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FunctionDef">
+<h2>FunctionDef</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Function signature metadata: params, return type, variadic info.</p>
+</div>
+<pre><code class="language-til">struct FunctionDef {
+    mut func_type : FuncType
+    mut params : Vec__Declaration
+    mut return_type : Str
+    mut throw_types : Vec__Str
+    mut variadic_index : I32
+    mut kwargs_index : I32
+    mut return_own_type : OwnType
+    mut auto_generated : Bool
+    mut is_enum_variant_ctor : Bool
+    mut captures : Vec__Declaration
+    mut closure_name : Str
+namespace:
+    func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
+    func to_str(self: FunctionDef) returns Str
+    func clone(self: FunctionDef) returns FunctionDef
+    func delete(own self: FunctionDef, shallow call_free: Bool)
+    func hash(self: FunctionDef, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FCallData">
+<h2>FCallData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Per-callsite data for function calls: parse-time flags (is_splat,
+does_throw, is_bang), own_args bitmap, result type. The variadic
+and kwargs block positions and counts are not stored -- they all
+derive from the resolved callee's param layout plus the structural
+markers in fcall.children:
+  - kwargs_count : trailing-NamedArg count (fcall_kwargs_count).
+  - kwargs_index : derived position via fcall_kwargs_index_via_scope.
+  - variadic_count : children layout + nparam + has-kwargs
+    (fcall_variadic_count).
+  - variadic_index : implicit at `1 + fdef_data.variadic_index`
+    post-desugar. Step 7 of #147 closes here: the trailing typer
+    resolution artifact is gone.</p>
+</div>
+<pre><code class="language-til">struct FCallData {
+    mut is_splat : Bool
+    mut does_throw : Bool
+    mut is_bang : Bool
+    mut own_args : U64
+    mut swap_replace : Bool
+    mut til_type : Type
+namespace:
+    func eq(_a: FCallData, _b: FCallData) returns shallow Bool
+    func to_str(_self: FCallData) returns Str
+    func clone(self: FCallData) returns FCallData
+    func delete(own self: FCallData, shallow call_free: Bool)
+    func hash(self: FCallData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.LiteralNumData">
+<h2>LiteralNumData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct LiteralNumData {
+    mut text : Str
+    mut til_type : Type
+namespace:
+    func eq(a: LiteralNumData, b: LiteralNumData) returns shallow Bool
+    func to_str(self: LiteralNumData) returns Str
+    func to_i64(self: LiteralNumData) returns shallow I64
+    func to_u8(self: LiteralNumData) returns shallow U8
+    func to_i8(self: LiteralNumData) returns shallow I8
+    func to_i16(self: LiteralNumData) returns shallow I16
+    func to_u16(self: LiteralNumData) returns shallow U16
+    func to_i32(self: LiteralNumData) returns shallow I32
+    func to_u32(self: LiteralNumData) returns shallow U32
+    func to_u64(self: LiteralNumData) returns shallow U64
+    func to_usize(self: LiteralNumData) returns shallow U32
+    func to_f32(self: LiteralNumData) returns shallow F32
+    func clone(self: LiteralNumData) returns LiteralNumData
+    func delete(own self: LiteralNumData, shallow call_free: Bool)
+    func hash(self: LiteralNumData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.IdentData">
+<h2>IdentData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct IdentData {
+    mut name : Str
+    mut til_type : Type
+namespace:
+    func eq(a: IdentData, b: IdentData) returns shallow Bool
+    func to_str(self: IdentData) returns Str
+    func len(self: IdentData) returns shallow U32
+    func is_empty(self: IdentData) returns shallow Bool
+    func starts_with(self: IdentData, prefix: Str) returns shallow Bool
+    func ends_with(self: IdentData, suffix: Str) returns shallow Bool
+    func replace(self: IdentData, old: Str, new: Str) returns Str
+    func strip_suffix(self: IdentData, suffix: Str) returns Str
+    func unsafe_get(self: IdentData, i: U32) returns ref I8
+    func get(self: IdentData, i: U32) returns ref I8
+    func clone(self: IdentData) returns IdentData
+    func delete(own self: IdentData, shallow call_free: Bool)
+    func hash(self: IdentData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FieldAccessData">
+<h2>FieldAccessData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct FieldAccessData {
+    mut name : Str
+    mut til_type : Type
+namespace:
+    func eq(a: FieldAccessData, b: FieldAccessData) returns shallow Bool
+    func to_str(self: FieldAccessData) returns Str
+    func len(self: FieldAccessData) returns shallow U32
+    func is_empty(self: FieldAccessData) returns shallow Bool
+    func starts_with(self: FieldAccessData, prefix: Str) returns shallow Bool
+    func replace(self: FieldAccessData, old: Str, new: Str) returns Str
+    func clone(self: FieldAccessData) returns FieldAccessData
+    func delete(own self: FieldAccessData, shallow call_free: Bool)
+    func hash(self: FieldAccessData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.literal_num_text">
+<h2>literal_num_text</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func literal_num_text(n: LiteralNumData) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.ident_name">
+<h2>ident_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func ident_name(id: IdentData) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.field_access_name">
+<h2>field_access_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func field_access_name(fa: FieldAccessData) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.set_own_arg">
+<h2>set_own_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func set_own_arg(mut fcall: Expr, shallow arg_index: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.get_own_arg">
+<h2>get_own_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func get_own_arg(fcall: Expr, shallow arg_index: U32) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.is_range_new_call">
+<h2>is_range_new_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func is_range_new_call(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructDef">
+<h2>StructDef</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Struct definition: field declarations, namespace methods, c_tag.
+Issue #147 step 4: total_struct_size dropped from the AST in favour
+of ctx.struct_layouts[name].total_size, populated by
+compute_struct_layout at typer time.</p>
+</div>
+<pre><code class="language-til">struct StructDef {
+    mut fields : Vec__Declaration
+    mut ns_decls : Vec__Declaration
+    mut c_tag : Str
+    mut is_interface : Bool
+    mut interface_ns_marker : Bool
+    mut implements_name : Str
+namespace:
+    func eq(a: StructDef, b: StructDef) returns shallow Bool
+    func to_str(_self: StructDef) returns Str
+    func clone(self: StructDef) returns StructDef
+    func delete(own self: StructDef, shallow call_free: Bool)
+    func hash(self: StructDef, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.EnumDef">
+<h2>EnumDef</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Enum definition: variants, payload types, namespace methods.
+Issue #147 step 4: total_enum_size dropped from the AST in favour
+of ctx.struct_layouts[name].total_size, populated by
+compute_enum_layout at typer time.</p>
+</div>
+<pre><code class="language-til">struct EnumDef {
+    mut ns_decls : Vec__Declaration
+    mut variants : Vec__Str
+    mut payload_types : Map__I64_Str
+    mut payload_consts : Vec__Bool
+    mut implements_name : Str
+    mut tag_type : Str
+namespace:
+    func eq(a: EnumDef, b: EnumDef) returns shallow Bool
+    func to_str(_self: EnumDef) returns Str
+    func clone(self: EnumDef) returns EnumDef
+    func delete(own self: EnumDef, shallow call_free: Bool)
+    func hash(self: EnumDef, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FieldLayout">
+<h2>FieldLayout</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct FieldLayout {
+    mut offset : U32
+    mut size : U32
+    mut struct_name : Str
+    mut own_type : OwnType
+    mut is_str : Bool
+    mut is_enum : Bool
+    mut is_funcptr : Bool
+namespace:
+    func eq(a: FieldLayout, b: FieldLayout) returns shallow Bool
+    func to_str(self: FieldLayout) returns Str
+    func clone(self: FieldLayout) returns FieldLayout
+    func delete(own self: FieldLayout, shallow call_free: Bool)
+    func hash(self: FieldLayout, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.StructLayout">
+<h2>StructLayout</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct StructLayout {
+    mut total_size : U32
+    mut align : U32
+    mut fields : Vec__FieldLayout
+namespace:
+    func eq(a: StructLayout, b: StructLayout) returns shallow Bool
+    func to_str(self: StructLayout) returns Str
+    func clone(self: StructLayout) returns StructLayout
+    func delete(own self: StructLayout, shallow call_free: Bool)
+    func hash(self: StructLayout, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.struct_def_of">
+<h2>struct_def_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func struct_def_of(type_name: Str) returns StructDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.enum_def_of">
+<h2>enum_def_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func enum_def_of(type_name: Str) returns EnumDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.func_sig_of">
+<h2>func_sig_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func func_sig_of(type_name: Str) returns FunctionDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.AssignData">
+<h2>AssignData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Payload for assignment nodes: which name is being assigned to.</p>
+</div>
+<pre><code class="language-til">struct AssignData {
+    mut name : Str
+    mut save_old_delete : Bool
+    mut is_payload_alias : Bool
+    mut swap_replace : Bool
+namespace:
+    func eq(a: AssignData, b: AssignData) returns shallow Bool
+    func to_str(self: AssignData) returns Str
+    func clone(self: AssignData) returns AssignData
+    func delete(own self: AssignData, shallow call_free: Bool)
+    func hash(self: AssignData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.FieldAssignData">
+<h2>FieldAssignData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct FieldAssignData {
+    mut name : Str
+    mut save_old_delete : Bool
+namespace:
+    func eq(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
+    func to_str(self: FieldAssignData) returns Str
+    func clone(self: FieldAssignData) returns FieldAssignData
+    func delete(own self: FieldAssignData, shallow call_free: Bool)
+    func hash(self: FieldAssignData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.ForInData">
+<h2>ForInData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Payload for `for name in range` loop nodes. The two-variable
+key/value form `for k, v in map` fills name2/is_mut2; name2 is
+empty for the ordinary single-variable form.</p>
+</div>
+<pre><code class="language-til">struct ForInData {
+    mut name : Str
+    mut is_mut : Bool
+    mut til_type : Type
+    mut name2 : Str
+    mut is_mut2 : Bool
+namespace:
+    func eq(a: ForInData, b: ForInData) returns shallow Bool
+    func to_str(self: ForInData) returns Str
+    func clone(self: ForInData) returns ForInData
+    func delete(own self: ForInData, shallow call_free: Bool)
+    func hash(self: ForInData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Literal">
+<h2>Literal</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Literal (constant) node kinds: the leaf values written directly in
+source. Grouped under NodeType.Literal so &quot;is this any literal?&quot;
+is a single check (NodeType.Literal) instead of a four-way chain.</p>
+</div>
+<pre><code class="language-til">enum Literal {
+    Str: Str
+    Num: LiteralNumData
+    Bool: Bool
+    Null
+    MapLit
+    SetLit
+namespace:
+    ext_func Str(own val: Str) returns Literal
+    ext_func Num(own val: LiteralNumData) returns Literal
+    ext_func Bool(val: Bool) returns Literal
+    ext_func Null() returns Literal
+    ext_func MapLit() returns Literal
+    ext_func SetLit() returns Literal
+    func is(self: Literal, other: Literal) returns shallow Bool
+    func eq(self: Literal, other: Literal) returns shallow Bool
+    func delete(own self: Literal, shallow call_free: Bool)
+    func to_str(self: Literal) returns Str
+    func clone(self: Literal) returns Literal
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.MatchData">
+<h2>MatchData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Payload for NodeType.Match: a `match` expression yields a value, so
+the typer records the common arm type here (mirrors FCallData.til_type).</p>
+</div>
+<pre><code class="language-til">struct MatchData {
+    mut til_type : Type
+    mut result_temp : Str
+namespace:
+    func eq(a: MatchData, b: MatchData) returns shallow Bool
+    func to_str(_self: MatchData) returns Str
+    func clone(self: MatchData) returns MatchData
+    func delete(own self: MatchData, shallow call_free: Bool)
+    func hash(self: MatchData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.CaptureBlockData">
+<h2>CaptureBlockData</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
+block carrying an explicit capture list. The captures restrict which
+outer-scope locals the block body may reference -- a compile-time
+&quot;insurance policy&quot;. Each capture is a Declaration (name + is_mut);
+the block stays inline at runtime, so the only effect is the typer's
+scope-restriction check. Child 0 is the Body.</p>
+</div>
+<pre><code class="language-til">struct CaptureBlockData {
+    mut captures : Vec__Declaration
+namespace:
+    func eq(a: CaptureBlockData, b: CaptureBlockData) returns shallow Bool
+    func to_str(_self: CaptureBlockData) returns Str
+    func clone(self: CaptureBlockData) returns CaptureBlockData
+    func delete(own self: CaptureBlockData, shallow call_free: Bool)
+    func hash(self: CaptureBlockData, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.NodeType">
+<h2>NodeType</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>AST node kind. Each variant carries an optional payload (struct, string, bool).</p>
+</div>
+<pre><code class="language-til">enum NodeType {
+    Body
+    Literal: Literal
+    Ident: IdentData
+    Decl: Declaration
+    Assign: AssignData
+    FCall: FCallData
+    FuncDef: FunctionDef
+    StructDef: StructDef
+    EnumDef: EnumDef
+    FieldAccess: FieldAccessData
+    FieldAssign: FieldAssignData
+    Return
+    If
+    While
+    ForIn: ForInData
+    NamedArg: Str
+    Break
+    Continue
+    Switch
+    Match: MatchData
+    Case
+    NoDefaultArg
+    Throw
+    Catch
+    RestPattern
+    CaptureBlock: CaptureBlockData
+    Loc
+namespace:
+    func is_literal_str(self: NodeType) returns shallow Bool
+    func is_literal_num(self: NodeType) returns shallow Bool
+    func is_literal_bool(self: NodeType) returns shallow Bool
+    func is_literal_null(self: NodeType) returns shallow Bool
+    func is_map_lit(self: NodeType) returns shallow Bool
+    func is_set_lit(self: NodeType) returns shallow Bool
+    func is_nonnull_literal(self: NodeType) returns shallow Bool
+    ext_func Body() returns NodeType
+    ext_func Literal(own val: Literal) returns NodeType
+    ext_func Ident(own val: IdentData) returns NodeType
+    ext_func Decl(own val: Declaration) returns NodeType
+    ext_func Assign(own val: AssignData) returns NodeType
+    ext_func FCall(own val: FCallData) returns NodeType
+    ext_func FuncDef(own val: FunctionDef) returns NodeType
+    ext_func StructDef(own val: StructDef) returns NodeType
+    ext_func EnumDef(own val: EnumDef) returns NodeType
+    ext_func FieldAccess(own val: FieldAccessData) returns NodeType
+    ext_func FieldAssign(own val: FieldAssignData) returns NodeType
+    ext_func Return() returns NodeType
+    ext_func If() returns NodeType
+    ext_func While() returns NodeType
+    ext_func ForIn(own val: ForInData) returns NodeType
+    ext_func NamedArg(own val: Str) returns NodeType
+    ext_func Break() returns NodeType
+    ext_func Continue() returns NodeType
+    ext_func Switch() returns NodeType
+    ext_func Match(own val: MatchData) returns NodeType
+    ext_func Case() returns NodeType
+    ext_func NoDefaultArg() returns NodeType
+    ext_func Throw() returns NodeType
+    ext_func Catch() returns NodeType
+    ext_func RestPattern() returns NodeType
+    ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
+    ext_func Loc() returns NodeType
+    func is(self: NodeType, other: NodeType) returns shallow Bool
+    func eq(self: NodeType, other: NodeType) returns shallow Bool
+    func delete(own self: NodeType, shallow call_free: Bool)
+    func to_str(self: NodeType) returns Str
+    func clone(self: NodeType) returns NodeType
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Expr">
+<h2>Expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>AST expression node with line/col, type, children, and node-specific payload.</p>
+</div>
+<pre><code class="language-til">struct Expr {
+    mut node_type : NodeType
+    mut children : Vec__Expr
+    mut line : U32
+    mut col : U32
+namespace:
+    /// Null-safe delete. The auto-generated version dereferences `self`
+    /// unconditionally, so the asap pass deleting an owned-but-null Expr
+    /// (e.g. a fold helper that returns NULL on failure) SEGVs. Guarding
+    /// here lets functions return owned `Expr` that may be null without
+    /// the caller having to clone-and-leak to dodge the deep delete.
+    func delete(own self: Expr, shallow call_free: Bool)
+    /// Print a diagnostic error with file path and source location.
+    proc error(self: Expr, path: Str, msg: Str)
+    /// Like error() but adds &quot;not implemented yet&quot; note.
+    proc todo_error(self: Expr, path: Str, msg: Str)
+    /// Like error() but adds &quot;bug in the language&quot; note.
+    proc lang_error(self: Expr, path: Str, msg: Str)
+    /// Take ownership of `child` and append it to the children list.
+    func add_child(mut self: Expr, own child: Expr)
+    /// Clone `child` and append the clone to the children list.
+    func push_child_clone(mut self: Expr, child: Expr)
+    /// Append other's children into self via raw memcpy (no cloning).
+    /// Zeroes other's count so it no longer owns the moved items.
+    func take_children(mut self: Expr, mut other: Expr)
+    /// Create a new Expr with the given node_type and source location.
+    func new(data: NodeType, shallow line: U32, shallow col: U32) returns Expr
+    func eq(_self: Expr, _other: Expr) returns shallow Bool
+    func to_str(self: Expr) returns Str
+    func clone(self: Expr) returns Expr
+    func hash(self: Expr, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.ident_node">
+<h2>ident_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func ident_node(name: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.literal_num_node">
+<h2>literal_num_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func literal_num_node(text: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.field_access_node">
+<h2>field_access_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func field_access_node(name: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.expr_til_type">
+<h2>expr_til_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func expr_til_type(e: Expr) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.set_expr_til_type">
+<h2>set_expr_til_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func set_expr_til_type(mut e: Expr, shallow t: Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.set_fcall_til_type">
+<h2>set_fcall_til_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func set_fcall_til_type(mut fcall: Expr, shallow t: Type)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.func_type_variant_name">
+<h2>func_type_variant_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func func_type_variant_name(ft: FuncType) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.node_head_str">
+<h2>node_head_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func node_head_str(data: NodeType) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.expr_to_str_indent">
+<h2>expr_to_str_indent</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func expr_to_str_indent(self: Expr, shallow indent: U32) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.node_name">
+<h2>node_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func node_name(data: NodeType) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.func_type_name">
+<h2>func_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func func_type_name(ft: FuncType) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.lazy_body_inlinable">
+<h2>lazy_body_inlinable</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func lazy_body_inlinable(body: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.lazy_body_split_point">
+<h2>lazy_body_split_point</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func lazy_body_split_point(body: Expr) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.lazy_body_stmt_inlinable">
+<h2>lazy_body_stmt_inlinable</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func lazy_body_stmt_inlinable(body: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.ast_print">
+<h2>ast_print</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">proc ast_print(e: Expr, shallow indent: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.fcall_kwargs_count">
+<h2>fcall_kwargs_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func fcall_kwargs_count(fcall: Expr) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.fcall_variadic_count">
+<h2>fcall_variadic_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func fcall_variadic_count(fcall: Expr, shallow nparam: U32, shallow callee_has_kwargs: Bool) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Map__I64_Str">
+<h2>Map__I64_Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Map__I64_Str {
+    mut keys : Vec__I64
+    mut values : Vec__Str
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__I64_Str
+    func len(self: Map__I64_Str) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__I64_Str)
+    /// True if a value exists for the given key.
+    func has(self: Map__I64_Str, shallow key: I64) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__I64_Str, key: I64, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Str
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__I64_Str, shallow key: I64, own val: Str)
+    func delete(own self: Map__I64_Str, shallow call_free: Bool)
+    func clone(self: Map__I64_Str) returns Map__I64_Str
+    func hash(self: Map__I64_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Bool">
+<h2>Vec__Bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__Bool {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Bool
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Bool
+    func len(self: Vec__Bool) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Bool)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Bool, own val: Bool)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Bool, own other: Vec__Bool)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Bool, mut other: Vec__Bool)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Bool, i: U32) returns ref Bool
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Bool, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Bool
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Bool) returns shallow Bool
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Bool, shallow n: U32) returns Vec__Bool
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Bool, shallow i: U32, own val: Bool)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Bool, shallow i: U32, own val: Bool, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Bool, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Bool) returns Vec__Bool
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__FieldLayout">
+<h2>Vec__FieldLayout</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__FieldLayout {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__FieldLayout
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__FieldLayout
+    func len(self: Vec__FieldLayout) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__FieldLayout)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__FieldLayout, own val: FieldLayout)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__FieldLayout, mut other: Vec__FieldLayout)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__FieldLayout, i: U32) returns ref FieldLayout
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__FieldLayout, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FieldLayout
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__FieldLayout) returns FieldLayout
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__FieldLayout, shallow n: U32) returns Vec__FieldLayout
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__FieldLayout, shallow i: U32, own val: FieldLayout)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__FieldLayout, shallow i: U32, own val: FieldLayout, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__FieldLayout, mut src: Vec__FieldLayout, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__FieldLayout, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Declaration">
+<h2>Vec__Declaration</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__Declaration {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Declaration
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Declaration
+    func len(self: Vec__Declaration) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Declaration)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Declaration, own val: Declaration)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Declaration, own other: Vec__Declaration)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Declaration, mut other: Vec__Declaration)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Declaration, i: U32) returns ref Declaration
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Declaration, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Declaration
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Declaration) returns Declaration
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Declaration, shallow n: U32) returns Vec__Declaration
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Declaration, shallow i: U32, own val: Declaration)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Declaration, shallow i: U32, own val: Declaration, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Declaration, mut src: Vec__Declaration, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Declaration, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Declaration) returns Vec__Declaration
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__Expr">
+<h2>Vec__Expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__Expr {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Expr
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Expr
+    func len(self: Vec__Expr) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Expr)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Expr, own val: Expr)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Expr, own other: Vec__Expr)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Expr, mut other: Vec__Expr)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Expr, i: U32) returns ref Expr
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Expr, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Expr
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Expr) returns Expr
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Expr, shallow n: U32) returns Vec__Expr
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Expr, shallow i: U32, own val: Expr)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Expr, shallow i: U32, own val: Expr, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Expr, mut src: Vec__Expr, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Expr, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Expr) returns Vec__Expr
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.ast.Vec__I64">
+<h2>Vec__I64</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__I64 {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__I64
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__I64
+    func len(self: Vec__I64) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__I64)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__I64, own val: I64)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__I64, own other: Vec__I64)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__I64, mut other: Vec__I64)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__I64, i: U32) returns ref I64
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__I64, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I64
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__I64) returns shallow I64
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__I64, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

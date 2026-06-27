@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/vec.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/vec.til</h1>
+<article class="doc-entry" id="til.src.core.vec.vec">
+<h2>vec</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func vec(T: Type, elements: ..Dynamic) returns Vec
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Vec">
+<h2>Vec</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Dynamic array of typed elements. Checked indexing throws <a href="../../src/core/str.html#til.src.core.str.OutOfBounds">OutOfBounds</a>.</p>
+</div>
+<pre><code class="language-til">macro Vec(T: Type) returns StructDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.vec.Array__Dynamic">
+<h2>Array__Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Array__Dynamic {
+    own mut data : U8
+    cap : U32
+namespace:
+    /// Create a zero-initialized Array with the given capacity.
+    func new(shallow cap: U32) returns Array__Dynamic
+    func len(self: Array__Dynamic) returns shallow U32
+    /// Unchecked element access: ref to the element at index `i` with
+    /// NO bounds check. The caller must prove `i &lt; len()`. This is the
+    /// unchecked core that `get` wraps; for-in uses it directly because
+    /// its `_fi &lt; len()` termination test already proves the index in
+    /// bounds (issue #284).
+    func unsafe_get(self: Array__Dynamic, i: U32) returns ref Dynamic
+    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
+    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    func get(self: Array__Dynamic, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Dynamic
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(self: Array__Dynamic, shallow i: U32, own val: Dynamic)
+    /// Overwrite the element at index `i`. Drops the old value. `val` is
+    /// owned. Throws OutOfBounds if `i` is past the end; call as
+    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+    func set(self: Array__Dynamic, shallow i: U32, own val: Dynamic, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func delete(own self: Array__Dynamic, shallow call_free: Bool)
+    func clone(self: Array__Dynamic) returns Array__Dynamic
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

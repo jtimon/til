@@ -21,6 +21,16 @@ ext_func free(own elem: Dynamic)
 ext_func til_closure_delete(closure: Fn)
 #+end_src
 
+* til_closure_slot_delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.til_closure_slot_delete
+:group: Core
+:END:
+
+#+begin_src til
+ext_func til_closure_slot_delete(slot: Dynamic)
+#+end_src
+
 * malloc
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.mem.malloc

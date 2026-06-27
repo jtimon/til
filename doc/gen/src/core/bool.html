@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/bool.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/bool.til</h1>
+<article class="doc-entry" id="til.src.core.bool.and">
+<h2>and</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.bool.or">
+<h2>or</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.bool.not">
+<h2>not</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func not(shallow a: Bool) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.bool.Bool">
+<h2>Bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Boolean value: true or false.</p>
+</div>
+<pre><code class="language-til">struct Bool {
+namespace:
+    /// Return &quot;true&quot; or &quot;false&quot;.
+    func to_str(shallow b: Bool) returns Str
+    ext_func eq(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    /// Comparison: false &lt; true. Returns 0, -1, or 1.
+    func cmp(shallow a: Bool, shallow b: Bool) returns shallow I64
+    ext_func clone(val: Bool) returns shallow Bool
+    func delete(own self: Bool, shallow call_free: Bool)
+    func size() returns shallow U32
+    func hash(shallow self: Bool, hasher: HashFn) returns shallow U64
+    func lt(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func gt(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func neq(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func lte(shallow a: Bool, shallow b: Bool) returns shallow Bool
+    func gte(shallow a: Bool, shallow b: Bool) returns shallow Bool
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

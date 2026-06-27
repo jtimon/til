@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/parser.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/parser.til</h1>
+<article class="doc-entry" id="til.src.self.parser.builtin_primitive_from_name">
+<h2>builtin_primitive_from_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func builtin_primitive_from_name(name: Str, mut out: Primitive) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.builtin_primitive_size_align">
+<h2>builtin_primitive_size_align</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func builtin_primitive_size_align(prim: Primitive, mut sz: U32, mut al: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.builtin_type_from_name">
+<h2>builtin_type_from_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func builtin_type_from_name(name: Str, mut out: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.til_type_from_explicit_type">
+<h2>til_type_from_explicit_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func til_type_from_explicit_type(name: Str) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.decl_typed">
+<h2>decl_typed</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.parse">
+<h2>parse</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Set__Str">
+<h2>Set__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct Set__Str {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create an empty Set. T must implement `cmp`.
+    func new() returns Set__Str
+    func len(self: Set__Str) returns shallow U32
+    /// Drop all live elements but keep the allocated storage so the Set can be reused.
+    func clear(mut self: Set__Str)
+    /// True if the set contains an element equal to `val`.
+    func has(self: Set__Str, val: Str) returns shallow Bool
+    /// Insert `val` into the set (sorted order). If an equal element
+    /// already exists, `val` is dropped. `val` is owned.
+    func add(mut self: Set__Str, own val: Str)
+    func delete(own self: Set__Str, shallow call_free: Bool)
+    func clone(self: Set__Str) returns Set__Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.Map__Str_Str">
+<h2>Map__Str_Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct Map__Str_Str {
+    mut keys : Vec__Str
+    mut values : Vec__Str
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_Str
+    func len(self: Map__Str_Str) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_Str)
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_Str, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_Str, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Str
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_Str, key: Str, own val: Str)
+    func delete(own self: Map__Str_Str, shallow call_free: Bool)
+    func clone(self: Map__Str_Str) returns Map__Str_Str
+    func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

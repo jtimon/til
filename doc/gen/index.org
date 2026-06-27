@@ -3,286 +3,6 @@
 
 * Core
 
-** [[file:src/core/f32.org::#til.src.core.f32.F32][F32]]
-#+begin_src til
-struct F32 {
-namespace:
-    ext_func to_i64(shallow val: F32) returns shallow I64
-    ext_func to_str(shallow val: F32) returns Str
-    /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
-    ext_func to_repr(shallow val: F32) returns Str
-    /// Convert from I64 to F32.
-    func from_i64(shallow val: I64) returns shallow F32
-    ext_func add(shallow a: F32, shallow b: F32) returns shallow F32
-    ext_func sub(shallow a: F32, shallow b: F32) returns shallow F32
-    ext_func mul(shallow a: F32, shallow b: F32) returns shallow F32
-    ext_func div(shallow a: F32, shallow b: F32) returns shallow F32
-    ext_func eq(shallow a: F32, shallow b: F32) returns shallow Bool
-    ext_func cmp(shallow a: F32, shallow b: F32) returns shallow I64
-    ext_func clone(val: F32) returns shallow F32
-    func delete(own self: F32, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Division that throws DivideByZero when dividing by zero.
-    /// Reuses the DivideByZero type from src/core/i64.til.
-    /// Use F32.div for the silent (NaN/Inf) variant.
-    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
-    func hash(shallow self: F32, hasher: HashFn) returns shallow U64
-    func lt(shallow a: F32, shallow b: F32) returns shallow Bool
-    func gt(shallow a: F32, shallow b: F32) returns shallow Bool
-    func neq(shallow a: F32, shallow b: F32) returns shallow Bool
-    func lte(shallow a: F32, shallow b: F32) returns shallow Bool
-    func gte(shallow a: F32, shallow b: F32) returns shallow Bool
-}
-#+end_src
-
-** [[file:src/core/u64.org::#til.src.core.u64.U64][U64]]
-#+begin_src til
-struct U64 {
-namespace:
-    ext_func to_u32(shallow val: U64) returns shallow U32
-    ext_func to_i32(shallow val: U64) returns shallow I32
-    ext_func to_i64(shallow val: U64) returns shallow I64
-    ext_func to_u64(shallow val: U64) returns shallow U64
-    ext_func to_usize(shallow val: U64) returns shallow U32
-    ext_func to_f32(shallow val: U64) returns shallow F32
-    /// Convert to decimal string representation.
-    func to_str(shallow val: U64) returns Str
-    ext_func add(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func sub(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func mul(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func div(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func mod(shallow a: U64, shallow b: U64) returns shallow U64
-    func inc(mut self: U64)
-    func dec(mut self: U64)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: U64) returns shallow U64
-    ext_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
-    ext_func cmp(shallow a: U64, shallow b: U64) returns shallow I64
-    ext_func band(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func bor(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func bxor(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func bnot(shallow a: U64) returns shallow U64
-    ext_func shl(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func shr(shallow a: U64, shallow b: U64) returns shallow U64
-    ext_func clone(val: U64) returns shallow U64
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: U64, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U64.add for the wrapping variant.
-    func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U64.sub for the wrapping variant.
-    func safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U64.mul for the wrapping variant.
-    func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
-    func hash(shallow self: U64, hasher: HashFn) returns shallow U64
-    func lt(shallow a: U64, shallow b: U64) returns shallow Bool
-    func gt(shallow a: U64, shallow b: U64) returns shallow Bool
-    func neq(shallow a: U64, shallow b: U64) returns shallow Bool
-    func lte(shallow a: U64, shallow b: U64) returns shallow Bool
-    func gte(shallow a: U64, shallow b: U64) returns shallow Bool
-}
-#+end_src
-
-** [[file:src/core/u32.org::#til.src.core.u32.U32][U32]]
-#+begin_src til
-struct U32 {
-namespace:
-    ext_func to_i64(shallow val: U32) returns shallow I64
-    ext_func to_i32(shallow val: U32) returns shallow I32
-    ext_func to_u32(shallow val: U32) returns shallow U32
-    ext_func to_u64(shallow val: U32) returns shallow U64
-    ext_func to_f32(shallow val: U32) returns shallow F32
-    /// Convert to decimal string representation.
-    func to_str(shallow val: U32) returns Str
-    ext_func add(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func sub(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func mul(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func div(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func mod(shallow a: U32, shallow b: U32) returns shallow U32
-    func inc(mut self: U32)
-    func dec(mut self: U32)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: U32) returns shallow U32
-    ext_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
-    ext_func cmp(shallow a: U32, shallow b: U32) returns shallow I64
-    ext_func band(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func bor(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func bxor(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func bnot(shallow a: U32) returns shallow U32
-    ext_func shl(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func shr(shallow a: U32, shallow b: U32) returns shallow U32
-    ext_func clone(val: U32) returns shallow U32
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: U32, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U32.add for the wrapping variant.
-    func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U32.sub for the wrapping variant.
-    func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U32.mul for the wrapping variant.
-    func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
-    func hash(shallow self: U32, hasher: HashFn) returns shallow U64
-    func lt(shallow a: U32, shallow b: U32) returns shallow Bool
-    func gt(shallow a: U32, shallow b: U32) returns shallow Bool
-    func neq(shallow a: U32, shallow b: U32) returns shallow Bool
-    func lte(shallow a: U32, shallow b: U32) returns shallow Bool
-    func gte(shallow a: U32, shallow b: U32) returns shallow Bool
-}
-#+end_src
-
-** [[file:src/core/i32.org::#til.src.core.i32.I32][I32]]
-#+begin_src til
-struct I32 {
-namespace:
-    ext_func to_u64(shallow val: I32) returns shallow U64
-    ext_func to_usize(shallow val: I32) returns shallow U32
-    ext_func to_f32(shallow val: I32) returns shallow F32
-    /// Convert to decimal string representation.
-    func to_str(shallow val: I32) returns Str
-    ext_func add(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func sub(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func mul(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func div(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func mod(shallow a: I32, shallow b: I32) returns shallow I32
-    func inc(mut self: I32)
-    func dec(mut self: I32)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: I32) returns shallow I32
-    ext_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
-    ext_func cmp(shallow a: I32, shallow b: I32) returns shallow I64
-    /// Negate the value.
-    func neg(shallow a: I32) returns shallow I32
-    /// Absolute value.
-    func abs(shallow a: I32) returns shallow I32
-    ext_func band(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func bor(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func bxor(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func bnot(shallow a: I32) returns shallow I32
-    ext_func shl(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func shr(shallow a: I32, shallow b: I32) returns shallow I32
-    ext_func clone(val: I32) returns shallow I32
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: I32, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Addition that throws IntegerOverflow on signed wrap.
-    /// Use I32.add for the wrapping variant.
-    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    /// Subtraction that throws IntegerOverflow on signed wrap.
-    /// Use I32.sub for the wrapping variant.
-    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    /// Multiplication that throws IntegerOverflow on signed wrap.
-    /// Use I32.mul for the wrapping variant.
-    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
-    func hash(shallow self: I32, hasher: HashFn) returns shallow U64
-    func lt(shallow a: I32, shallow b: I32) returns shallow Bool
-    func gt(shallow a: I32, shallow b: I32) returns shallow Bool
-    func neq(shallow a: I32, shallow b: I32) returns shallow Bool
-    func lte(shallow a: I32, shallow b: I32) returns shallow Bool
-    func gte(shallow a: I32, shallow b: I32) returns shallow Bool
-}
-#+end_src
-
-** [[file:src/core/i8.org::#til.src.core.i8.I8][I8]]
-#+begin_src til
-struct I8 {
-namespace:
-    ext_func to_u64(shallow val: I8) returns shallow U64
-    /// Convert to decimal string representation.
-    func to_str(shallow val: I8) returns Str
-    ext_func add(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func sub(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func mul(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func div(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func mod(shallow a: I8, shallow b: I8) returns shallow I8
-    func inc(mut self: I8)
-    func dec(mut self: I8)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: I8) returns shallow I8
-    ext_func eq(shallow a: I8, shallow b: I8) returns shallow Bool
-    ext_func cmp(shallow a: I8, shallow b: I8) returns shallow I64
-    /// Negate the value.
-    func neg(shallow a: I8) returns shallow I8
-    /// Absolute value.
-    func abs(shallow a: I8) returns shallow I8
-    ext_func band(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func bor(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func bxor(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func bnot(shallow a: I8) returns shallow I8
-    ext_func shl(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func shr(shallow a: I8, shallow b: I8) returns shallow I8
-    ext_func clone(val: I8) returns shallow I8
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: I8, shallow call_free: Bool)
-    func size() returns shallow U32
-    func hash(shallow self: I8, hasher: HashFn) returns shallow U64
-    func lt(shallow a: I8, shallow b: I8) returns shallow Bool
-    func gt(shallow a: I8, shallow b: I8) returns shallow Bool
-    func neq(shallow a: I8, shallow b: I8) returns shallow Bool
-    func lte(shallow a: I8, shallow b: I8) returns shallow Bool
-    func gte(shallow a: I8, shallow b: I8) returns shallow Bool
-}
-#+end_src
-
-** [[file:src/core/u8.org::#til.src.core.u8.U8][U8]]
-#+begin_src til
-struct U8 {
-namespace:
-    ext_func to_i64(shallow val: U8) returns shallow I64
-    ext_func to_i32(shallow val: U8) returns shallow I32
-    ext_func to_usize(shallow val: U8) returns shallow U32
-    ext_func to_f32(shallow val: U8) returns shallow F32
-    /// Convert to decimal string representation.
-    func to_str(shallow val: U8) returns Str
-    ext_func add(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func sub(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func mul(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func div(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func mod(shallow a: U8, shallow b: U8) returns shallow U8
-    func inc(mut self: U8)
-    func dec(mut self: U8)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: U8) returns shallow U8
-    ext_func eq(shallow a: U8, shallow b: U8) returns shallow Bool
-    ext_func cmp(shallow a: U8, shallow b: U8) returns shallow I64
-    ext_func band(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func bor(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func bxor(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func bnot(shallow a: U8) returns shallow U8
-    ext_func shl(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func shr(shallow a: U8, shallow b: U8) returns shallow U8
-    ext_func clone(val: U8) returns shallow U8
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: U8, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U8.add for the wrapping variant.
-    func safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U8.sub for the wrapping variant.
-    func safe_sub(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U8.mul for the wrapping variant.
-    func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
-    func hash(shallow self: U8, hasher: HashFn) returns shallow U64
-    func lt(shallow a: U8, shallow b: U8) returns shallow Bool
-    func gt(shallow a: U8, shallow b: U8) returns shallow Bool
-    func neq(shallow a: U8, shallow b: U8) returns shallow Bool
-    func lte(shallow a: U8, shallow b: U8) returns shallow Bool
-    func gte(shallow a: U8, shallow b: U8) returns shallow Bool
-}
-#+end_src
-
 ** [[file:src/core/vec.org::#til.src.core.vec.vec][vec]]
 #+begin_src til
 ext_func vec(T: Type, elements: ..Dynamic) returns Vec
@@ -338,6 +58,11 @@ CAP_VIEW is a U32
 ** [[file:src/core/str.org::#til.src.core.str.format][format]]
 #+begin_src til
 func format(parts: ..Str) returns Str
+#+end_src
+
+** [[file:src/core/str.org::#til.src.core.str.concat3][concat3]]
+#+begin_src til
+func concat3(a: Str, b: Str, c: Str) returns Str
 #+end_src
 
 ** [[file:src/core/str.org::#til.src.core.str.Str][Str]]
@@ -537,6 +262,13 @@ struct Vec__Str {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Str
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Str
     func len(self: Vec__Str) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -792,7 +524,247 @@ ELEM_BOXED is a U32
 ELEM_FN is a U32
 #+end_src
 
-** [[file:src/core/i16.org::#til.src.core.i16.I16][I16]]
+** [[file:src/core/numbers.org::#til.src.core.numbers.U8][U8]]
+#+begin_src til
+struct U8 {
+namespace:
+    ext_func to_i64(shallow val: U8) returns shallow I64
+    ext_func to_i32(shallow val: U8) returns shallow I32
+    ext_func to_usize(shallow val: U8) returns shallow U32
+    ext_func to_f32(shallow val: U8) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U8) returns Str
+    core_func add(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func sub(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func mul(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func div(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func mod(shallow a: U8, shallow b: U8) returns shallow U8
+    func inc(mut self: U8)
+    func dec(mut self: U8)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U8) returns shallow U8
+    core_func eq(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func neq(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func lt(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func gt(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func lte(shallow a: U8, shallow b: U8) returns shallow Bool
+    core_func gte(shallow a: U8, shallow b: U8) returns shallow Bool
+    ext_func cmp(shallow a: U8, shallow b: U8) returns shallow I64
+    core_func band(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bor(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bxor(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func bnot(shallow a: U8) returns shallow U8
+    core_func shl(shallow a: U8, shallow b: U8) returns shallow U8
+    core_func shr(shallow a: U8, shallow b: U8) returns shallow U8
+    ext_func clone(val: U8) returns shallow U8
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U8, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.add for the wrapping variant.
+    func safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U8.sub for the wrapping variant.
+    func safe_sub(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U8.mul for the wrapping variant.
+    func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    func hash(shallow self: U8, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.U16][U16]]
+#+begin_src til
+struct U16 {
+namespace:
+    ext_func to_i64(shallow val: U16) returns shallow I64
+    ext_func to_f32(shallow val: U16) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U16) returns Str
+    core_func add(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func sub(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func mul(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func div(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func mod(shallow a: U16, shallow b: U16) returns shallow U16
+    func inc(mut self: U16)
+    func dec(mut self: U16)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U16) returns shallow U16
+    core_func eq(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func neq(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func lt(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func gt(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func lte(shallow a: U16, shallow b: U16) returns shallow Bool
+    core_func gte(shallow a: U16, shallow b: U16) returns shallow Bool
+    ext_func cmp(shallow a: U16, shallow b: U16) returns shallow I64
+    core_func band(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func bor(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
+    ext_func clone(val: U16) returns shallow U16
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U16, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U16.add for the wrapping variant.
+    func safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U16.sub for the wrapping variant.
+    func safe_sub(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U16.mul for the wrapping variant.
+    func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    func hash(shallow self: U16, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.U32][U32]]
+#+begin_src til
+struct U32 {
+namespace:
+    ext_func to_i64(shallow val: U32) returns shallow I64
+    ext_func to_i32(shallow val: U32) returns shallow I32
+    ext_func to_u32(shallow val: U32) returns shallow U32
+    ext_func to_u64(shallow val: U32) returns shallow U64
+    ext_func to_f32(shallow val: U32) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U32) returns Str
+    core_func add(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func sub(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func mul(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func div(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func mod(shallow a: U32, shallow b: U32) returns shallow U32
+    func inc(mut self: U32)
+    func dec(mut self: U32)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U32) returns shallow U32
+    core_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func neq(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func lt(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func gt(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func lte(shallow a: U32, shallow b: U32) returns shallow Bool
+    core_func gte(shallow a: U32, shallow b: U32) returns shallow Bool
+    ext_func cmp(shallow a: U32, shallow b: U32) returns shallow I64
+    core_func band(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bor(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bxor(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func bnot(shallow a: U32) returns shallow U32
+    core_func shl(shallow a: U32, shallow b: U32) returns shallow U32
+    core_func shr(shallow a: U32, shallow b: U32) returns shallow U32
+    ext_func clone(val: U32) returns shallow U32
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U32.add for the wrapping variant.
+    func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U32.sub for the wrapping variant.
+    func safe_sub(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U32.mul for the wrapping variant.
+    func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    func hash(shallow self: U32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.U64][U64]]
+#+begin_src til
+struct U64 {
+namespace:
+    ext_func to_u32(shallow val: U64) returns shallow U32
+    ext_func to_i32(shallow val: U64) returns shallow I32
+    ext_func to_i64(shallow val: U64) returns shallow I64
+    ext_func to_u64(shallow val: U64) returns shallow U64
+    ext_func to_usize(shallow val: U64) returns shallow U32
+    ext_func to_f32(shallow val: U64) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: U64) returns Str
+    core_func add(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func sub(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func mul(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func div(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func mod(shallow a: U64, shallow b: U64) returns shallow U64
+    func inc(mut self: U64)
+    func dec(mut self: U64)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: U64) returns shallow U64
+    core_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func neq(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func lt(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func gt(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func lte(shallow a: U64, shallow b: U64) returns shallow Bool
+    core_func gte(shallow a: U64, shallow b: U64) returns shallow Bool
+    ext_func cmp(shallow a: U64, shallow b: U64) returns shallow I64
+    core_func band(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bor(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bxor(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func bnot(shallow a: U64) returns shallow U64
+    core_func shl(shallow a: U64, shallow b: U64) returns shallow U64
+    core_func shr(shallow a: U64, shallow b: U64) returns shallow U64
+    ext_func clone(val: U64) returns shallow U64
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: U64, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.add for the wrapping variant.
+    func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Subtraction that throws IntegerOverflow when a < b (underflow
+    /// wraps unsigned). Use U64.sub for the wrapping variant.
+    func safe_sub(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Multiplication that throws IntegerOverflow on unsigned wrap.
+    /// Use U64.mul for the wrapping variant.
+    func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    func hash(shallow self: U64, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.I8][I8]]
+#+begin_src til
+struct I8 {
+namespace:
+    ext_func to_u64(shallow val: I8) returns shallow U64
+    /// Convert to decimal string representation.
+    func to_str(shallow val: I8) returns Str
+    core_func add(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func sub(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func mul(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func div(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func mod(shallow a: I8, shallow b: I8) returns shallow I8
+    func inc(mut self: I8)
+    func dec(mut self: I8)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I8) returns shallow I8
+    core_func eq(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func neq(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func lt(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func gt(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func lte(shallow a: I8, shallow b: I8) returns shallow Bool
+    core_func gte(shallow a: I8, shallow b: I8) returns shallow Bool
+    ext_func cmp(shallow a: I8, shallow b: I8) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I8) returns shallow I8
+    /// Absolute value.
+    func abs(shallow a: I8) returns shallow I8
+    core_func band(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bor(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bxor(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func bnot(shallow a: I8) returns shallow I8
+    core_func shl(shallow a: I8, shallow b: I8) returns shallow I8
+    core_func shr(shallow a: I8, shallow b: I8) returns shallow I8
+    ext_func clone(val: I8) returns shallow I8
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I8, shallow call_free: Bool)
+    func size() returns shallow U32
+    func hash(shallow self: I8, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.I16][I16]]
 #+begin_src til
 struct I16 {
 namespace:
@@ -801,24 +773,29 @@ namespace:
     ext_func to_f32(shallow val: I16) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: I16) returns Str
-    ext_func add(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func sub(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func mul(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func div(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func mod(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func add(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func sub(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func mul(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func div(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func mod(shallow a: I16, shallow b: I16) returns shallow I16
     func inc(mut self: I16)
     func dec(mut self: I16)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I16) returns shallow I16
-    ext_func eq(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func eq(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func neq(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func lt(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func gt(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func lte(shallow a: I16, shallow b: I16) returns shallow Bool
+    core_func gte(shallow a: I16, shallow b: I16) returns shallow Bool
     ext_func cmp(shallow a: I16, shallow b: I16) returns shallow I64
     /// Negate the value.
     func neg(shallow a: I16) returns shallow I16
     /// Absolute value.
     func abs(shallow a: I16) returns shallow I16
-    ext_func band(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func bor(shallow a: I16, shallow b: I16) returns shallow I16
-    ext_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func band(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func bor(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
     ext_func clone(val: I16) returns shallow I16
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
@@ -834,15 +811,63 @@ namespace:
     /// Use I16.mul for the wrapping variant.
     func safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
     func hash(shallow self: I16, hasher: HashFn) returns shallow U64
-    func lt(shallow a: I16, shallow b: I16) returns shallow Bool
-    func gt(shallow a: I16, shallow b: I16) returns shallow Bool
-    func neq(shallow a: I16, shallow b: I16) returns shallow Bool
-    func lte(shallow a: I16, shallow b: I16) returns shallow Bool
-    func gte(shallow a: I16, shallow b: I16) returns shallow Bool
 }
 #+end_src
 
-** [[file:src/core/i64.org::#til.src.core.i64.I64][I64]]
+** [[file:src/core/numbers.org::#til.src.core.numbers.I32][I32]]
+#+begin_src til
+struct I32 {
+namespace:
+    ext_func to_u64(shallow val: I32) returns shallow U64
+    ext_func to_usize(shallow val: I32) returns shallow U32
+    ext_func to_f32(shallow val: I32) returns shallow F32
+    /// Convert to decimal string representation.
+    func to_str(shallow val: I32) returns Str
+    core_func add(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func sub(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func mul(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func div(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func mod(shallow a: I32, shallow b: I32) returns shallow I32
+    func inc(mut self: I32)
+    func dec(mut self: I32)
+    /// Return the multiplicative identity (1) for this type.
+    func unity(shallow _self: I32) returns shallow I32
+    core_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func neq(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func lt(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func gt(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func lte(shallow a: I32, shallow b: I32) returns shallow Bool
+    core_func gte(shallow a: I32, shallow b: I32) returns shallow Bool
+    ext_func cmp(shallow a: I32, shallow b: I32) returns shallow I64
+    /// Negate the value.
+    func neg(shallow a: I32) returns shallow I32
+    /// Absolute value.
+    func abs(shallow a: I32) returns shallow I32
+    core_func band(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bor(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bxor(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func bnot(shallow a: I32) returns shallow I32
+    core_func shl(shallow a: I32, shallow b: I32) returns shallow I32
+    core_func shr(shallow a: I32, shallow b: I32) returns shallow I32
+    ext_func clone(val: I32) returns shallow I32
+    /// Absolute difference between two values, useful for Range iteration.
+    func distance(a: Dynamic, b: Dynamic) returns shallow U64
+    func delete(own self: I32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Addition that throws IntegerOverflow on signed wrap.
+    /// Use I32.add for the wrapping variant.
+    func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Subtraction that throws IntegerOverflow on signed wrap.
+    /// Use I32.sub for the wrapping variant.
+    func safe_sub(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Multiplication that throws IntegerOverflow on signed wrap.
+    /// Use I32.mul for the wrapping variant.
+    func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    func hash(shallow self: I32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.I64][I64]]
 #+begin_src til
 struct I64 {
 namespace:
@@ -858,27 +883,32 @@ namespace:
     /// becomes target-driven on 64-bit; see issue #192.
     ext_func to_usize(shallow val: I64) returns shallow U32
     ext_func to_f32(shallow val: I64) returns shallow F32
-    ext_func add(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func sub(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func mul(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func div(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func mod(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func add(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func sub(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func mul(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func div(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func mod(shallow a: I64, shallow b: I64) returns shallow I64
     func inc(mut self: I64)
     func dec(mut self: I64)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I64) returns shallow I64
-    ext_func eq(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func eq(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func neq(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func lt(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func gt(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func lte(shallow a: I64, shallow b: I64) returns shallow Bool
+    core_func gte(shallow a: I64, shallow b: I64) returns shallow Bool
     ext_func cmp(shallow a: I64, shallow b: I64) returns shallow I64
     /// Negate the value.
     func neg(shallow a: I64) returns shallow I64
     /// Absolute value.
     func abs(shallow a: I64) returns shallow I64
-    ext_func band(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func bor(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func bxor(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func bnot(shallow a: I64) returns shallow I64
-    ext_func shl(shallow a: I64, shallow b: I64) returns shallow I64
-    ext_func shr(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func band(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bor(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bxor(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func bnot(shallow a: I64) returns shallow I64
+    core_func shl(shallow a: I64, shallow b: I64) returns shallow I64
+    core_func shr(shallow a: I64, shallow b: I64) returns shallow I64
     ext_func clone(val: I64) returns shallow I64
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
@@ -897,15 +927,42 @@ namespace:
     /// Use I64.mul for the wrapping variant.
     func safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
     func hash(shallow self: I64, hasher: HashFn) returns shallow U64
-    func lt(shallow a: I64, shallow b: I64) returns shallow Bool
-    func gt(shallow a: I64, shallow b: I64) returns shallow Bool
-    func neq(shallow a: I64, shallow b: I64) returns shallow Bool
-    func lte(shallow a: I64, shallow b: I64) returns shallow Bool
-    func gte(shallow a: I64, shallow b: I64) returns shallow Bool
 }
 #+end_src
 
-** [[file:src/core/i64.org::#til.src.core.i64.DivideByZero][DivideByZero]]
+** [[file:src/core/numbers.org::#til.src.core.numbers.F32][F32]]
+#+begin_src til
+struct F32 {
+namespace:
+    ext_func to_i64(shallow val: F32) returns shallow I64
+    ext_func to_str(shallow val: F32) returns Str
+    /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+    ext_func to_repr(shallow val: F32) returns Str
+    /// Convert from I64 to F32.
+    func from_i64(shallow val: I64) returns shallow F32
+    core_func add(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func sub(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func mul(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func div(shallow a: F32, shallow b: F32) returns shallow F32
+    core_func eq(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func neq(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func lt(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func gt(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func lte(shallow a: F32, shallow b: F32) returns shallow Bool
+    core_func gte(shallow a: F32, shallow b: F32) returns shallow Bool
+    ext_func cmp(shallow a: F32, shallow b: F32) returns shallow I64
+    ext_func clone(val: F32) returns shallow F32
+    func delete(own self: F32, shallow call_free: Bool)
+    func size() returns shallow U32
+    /// Division that throws DivideByZero when dividing by zero.
+    /// Reuses the DivideByZero type defined below.
+    /// Use F32.div for the silent (NaN/Inf) variant.
+    func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
+    func hash(shallow self: F32, hasher: HashFn) returns shallow U64
+}
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.DivideByZero][DivideByZero]]
 #+begin_src til
 struct DivideByZero {
     mut msg : Str
@@ -919,7 +976,7 @@ namespace:
 }
 #+end_src
 
-** [[file:src/core/i64.org::#til.src.core.i64.IntegerOverflow][IntegerOverflow]]
+** [[file:src/core/numbers.org::#til.src.core.numbers.IntegerOverflow][IntegerOverflow]]
 #+begin_src til
 struct IntegerOverflow {
     mut msg : Str
@@ -931,6 +988,16 @@ namespace:
     func to_str(self: IntegerOverflow) returns Str
     func size() returns shallow U32
 }
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.USize][USize]]
+#+begin_src til
+USize
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.UPtr][UPtr]]
+#+begin_src til
+UPtr
 #+end_src
 
 ** [[file:src/core/bool.org::#til.src.core.bool.and][and]]
@@ -1333,6 +1400,10 @@ struct FieldLayout {
     mut offset : U32
     mut size : U32
     mut struct_name : Str
+    mut own_type : OwnType
+    mut is_str : Bool
+    mut is_enum : Bool
+    mut is_funcptr : Bool
 namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns shallow Bool
     func to_str(self: FieldLayout) returns Str
@@ -1710,6 +1781,13 @@ struct Vec__Bool {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Bool
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Bool
     func len(self: Vec__Bool) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -1774,6 +1852,13 @@ struct Vec__FieldLayout {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__FieldLayout
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__FieldLayout
     func len(self: Vec__FieldLayout) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -1838,6 +1923,13 @@ struct Vec__Declaration {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Declaration
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Declaration
     func len(self: Vec__Declaration) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -1902,6 +1994,13 @@ struct Vec__Expr {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Expr
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Expr
     func len(self: Vec__Expr) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -1966,6 +2065,13 @@ struct Vec__I64 {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__I64
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__I64
     func len(self: Vec__I64) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -2061,11 +2167,6 @@ func __doc_lookup__(blob: Str, name: Str) returns Str
 proc help(name: Str)
 #+end_src
 
-** [[file:src/core/usize.org::#til.src.core.usize.USize][USize]]
-#+begin_src til
-USize
-#+end_src
-
 ** [[file:src/core/tuple.org::#til.src.core.tuple.Tuple][Tuple]]
 #+begin_src til
 struct Tuple {
@@ -2105,6 +2206,13 @@ struct Vec__U32 {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__U32
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__U32
     func len(self: Vec__U32) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -2221,6 +2329,13 @@ struct Vec__Tuple {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Tuple
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Tuple
     func len(self: Vec__Tuple) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -2440,11 +2555,6 @@ namespace:
 }
 #+end_src
 
-** [[file:src/core/uptr.org::#til.src.core.uptr.UPtr][UPtr]]
-#+begin_src til
-UPtr
-#+end_src
-
 ** [[file:src/core/mem.org::#til.src.core.mem.free][free]]
 #+begin_src til
 ext_func free(own elem: Dynamic)
@@ -2453,6 +2563,11 @@ ext_func free(own elem: Dynamic)
 ** [[file:src/core/mem.org::#til.src.core.mem.til_closure_delete][til_closure_delete]]
 #+begin_src til
 ext_func til_closure_delete(closure: Fn)
+#+end_src
+
+** [[file:src/core/mem.org::#til.src.core.mem.til_closure_slot_delete][til_closure_slot_delete]]
+#+begin_src til
+ext_func til_closure_slot_delete(slot: Dynamic)
 #+end_src
 
 ** [[file:src/core/mem.org::#til.src.core.mem.malloc][malloc]]
@@ -2603,51 +2718,6 @@ namespace:
 ** [[file:src/core/set.org::#til.src.core.set.Set][Set]]
 #+begin_src til
 macro Set(T: Type) returns StructDef
-#+end_src
-
-** [[file:src/core/u16.org::#til.src.core.u16.U16][U16]]
-#+begin_src til
-struct U16 {
-namespace:
-    ext_func to_i64(shallow val: U16) returns shallow I64
-    ext_func to_f32(shallow val: U16) returns shallow F32
-    /// Convert to decimal string representation.
-    func to_str(shallow val: U16) returns Str
-    ext_func add(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func sub(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func mul(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func div(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func mod(shallow a: U16, shallow b: U16) returns shallow U16
-    func inc(mut self: U16)
-    func dec(mut self: U16)
-    /// Return the multiplicative identity (1) for this type.
-    func unity(shallow _self: U16) returns shallow U16
-    ext_func eq(shallow a: U16, shallow b: U16) returns shallow Bool
-    ext_func cmp(shallow a: U16, shallow b: U16) returns shallow I64
-    ext_func band(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func bor(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
-    ext_func clone(val: U16) returns shallow U16
-    /// Absolute difference between two values, useful for Range iteration.
-    func distance(a: Dynamic, b: Dynamic) returns shallow U64
-    func delete(own self: U16, shallow call_free: Bool)
-    func size() returns shallow U32
-    /// Addition that throws IntegerOverflow on unsigned wrap.
-    /// Use U16.add for the wrapping variant.
-    func safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    /// Subtraction that throws IntegerOverflow when a < b (underflow
-    /// wraps unsigned). Use U16.sub for the wrapping variant.
-    func safe_sub(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    /// Multiplication that throws IntegerOverflow on unsigned wrap.
-    /// Use U16.mul for the wrapping variant.
-    func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
-    func hash(shallow self: U16, hasher: HashFn) returns shallow U64
-    func lt(shallow a: U16, shallow b: U16) returns shallow Bool
-    func gt(shallow a: U16, shallow b: U16) returns shallow Bool
-    func neq(shallow a: U16, shallow b: U16) returns shallow Bool
-    func lte(shallow a: U16, shallow b: U16) returns shallow Bool
-    func gte(shallow a: U16, shallow b: U16) returns shallow Bool
-}
 #+end_src
 
 ** [[file:src/core/core.org::#til.src.core.core.noop_proc][noop_proc]]
@@ -2998,6 +3068,13 @@ struct Vec__Token {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Token
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Token
     func len(self: Vec__Token) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -3062,6 +3139,13 @@ struct Vec__TokenType {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__TokenType
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__TokenType
     func len(self: Vec__TokenType) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -3384,7 +3468,10 @@ struct Context {
     mut auto_gen_depth : I32
     mut throw_used_local_names : Set__Str
     mut builder_func : BuilderFuncScratch
-    mut builder_file_static_str_lits : Set__Str
+    mut builder_str_lit_symbols : Map__Str_Str
+    mut builder_str_lit_values : Vec__Str
+    mut builder_str_lit_alias_symbols : Map__Str_Str
+    mut builder_str_lit_alias_names : Vec__Str
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -3752,6 +3839,13 @@ struct Vec__Dynamic {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Dynamic
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Dynamic
     func len(self: Vec__Dynamic) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -3924,6 +4018,13 @@ struct Vec__FFITypePtrBox {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__FFITypePtrBox
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__FFITypePtrBox
     func len(self: Vec__FFITypePtrBox) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -3988,6 +4089,13 @@ struct Vec__TypeBinding {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__TypeBinding
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__TypeBinding
     func len(self: Vec__TypeBinding) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4052,6 +4160,13 @@ struct Vec__Mode {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Mode
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Mode
     func len(self: Vec__Mode) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4116,6 +4231,13 @@ struct Vec__ImportUnit {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__ImportUnit
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__ImportUnit
     func len(self: Vec__ImportUnit) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4180,6 +4302,13 @@ struct Vec__StructLayout {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__StructLayout
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__StructLayout
     func len(self: Vec__StructLayout) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4244,6 +4373,13 @@ struct Vec__FuncType {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__FuncType
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__FuncType
     func len(self: Vec__FuncType) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4308,6 +4444,13 @@ struct Vec__Value {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Value
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Value
     func len(self: Vec__Value) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4372,6 +4515,13 @@ struct Vec__call_Vec_Str {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__call_Vec_Str
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__call_Vec_Str
     func len(self: Vec__call_Vec_Str) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4436,6 +4586,13 @@ struct Vec__FFIEntry {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__FFIEntry
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__FFIEntry
     func len(self: Vec__FFIEntry) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4500,6 +4657,13 @@ struct Vec__ExprPtrBox {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__ExprPtrBox
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__ExprPtrBox
     func len(self: Vec__ExprPtrBox) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -4634,6 +4798,13 @@ struct Vec__I32 {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__I32
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__I32
     func len(self: Vec__I32) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -5035,6 +5206,13 @@ struct Vec__CtorArg {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__CtorArg
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CtorArg
     func len(self: Vec__CtorArg) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -5099,6 +5277,13 @@ struct Vec__CoverageNode {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__CoverageNode
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CoverageNode
     func len(self: Vec__CoverageNode) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -5476,6 +5661,13 @@ struct Vec__ProgramUnit {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__ProgramUnit
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__ProgramUnit
     func len(self: Vec__ProgramUnit) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -5540,6 +5732,13 @@ struct Vec__DeclRef {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__DeclRef
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DeclRef
     func len(self: Vec__DeclRef) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -5720,6 +5919,13 @@ struct Vec__LocalInfo {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__LocalInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__LocalInfo
     func len(self: Vec__LocalInfo) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -6006,33 +6212,6 @@ namespace:
 }
 #+end_src
 
-** [[file:src/self/builder.org::#til.src.self.builder.Map__Str_U32][Map__Str_U32]]
-#+begin_src til
-struct Map__Str_U32 {
-    mut keys : Vec__Str
-    mut values : Vec__U32
-namespace:
-    /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
-    func new() returns Map__Str_U32
-    func len(self: Map__Str_U32) returns shallow U32
-    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
-    func clear(mut self: Map__Str_U32)
-    /// True if a value exists for the given key.
-    func has(self: Map__Str_U32, key: Str) returns shallow Bool
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-    /// on a missing key.
-    func get(self: Map__Str_U32, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref U32
-    /// Insert or overwrite the value for `key`. The value is owned.
-    func set(mut self: Map__Str_U32, key: Str, own val: U32)
-    func delete(own self: Map__Str_U32, shallow call_free: Bool)
-    func clone(self: Map__Str_U32) returns Map__Str_U32
-    func hash(self: Map__Str_U32, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
-}
-#+end_src
-
 ** [[file:src/self/builder.org::#til.src.self.builder.Vec__DynCallInfo][Vec__DynCallInfo]]
 #+begin_src til
 struct Vec__DynCallInfo {
@@ -6042,6 +6221,13 @@ struct Vec__DynCallInfo {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__DynCallInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DynCallInfo
     func len(self: Vec__DynCallInfo) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -6106,6 +6292,13 @@ struct Vec__CollectionInfo {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__CollectionInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CollectionInfo
     func len(self: Vec__CollectionInfo) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -6170,6 +6363,13 @@ struct Vec__DocEntry {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__DocEntry
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DocEntry
     func len(self: Vec__DocEntry) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -6230,11 +6430,11 @@ namespace:
 ** [[file:src/self/eval_heap.org::#til.src.self.eval_heap.EvalHeap][EvalHeap]]
 #+begin_src til
 struct EvalHeap {
-    mut live_blocks : U32
+    mut unused : U8
 namespace:
     func new() returns shallow EvalHeap
-    func heap_alloc(mut self: EvalHeap, shallow size: U32) returns Dynamic
-    func heap_free(mut self: EvalHeap, own ptr: Dynamic)
+    func heap_alloc(shallow size: U32) returns Dynamic
+    func heap_free(own ptr: Dynamic)
     func delete(own self: EvalHeap, shallow call_free: Bool)
     func set_bytes(ptr: Dynamic, src: Dynamic, shallow n: U32)
     func get_bytes(ptr: Dynamic, dst: Dynamic, shallow n: U32)
@@ -6266,7 +6466,7 @@ ext_proc system_cmd(cmd: Str) returns shallow I32
 struct StructInstance {
     ref mut struct_name : Str
     mut is_str : Bool
-    ref mut struct_def : Expr
+    mut is_str_container : Bool
     ref mut ctx : Context
     own mut data : U8
     mut borrowed : Bool
@@ -6356,6 +6556,24 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.CALLABLE_BOX_MAGIC][CALLABLE_BOX_MAGIC]]
+#+begin_src til
+CALLABLE_BOX_MAGIC is a U64
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.InterpCallableBox][InterpCallableBox]]
+#+begin_src til
+struct InterpCallableBox {
+    mut magic : U64
+    mut val : Value
+namespace:
+    func clone(self: InterpCallableBox) returns InterpCallableBox
+    func delete(own self: InterpCallableBox, shallow call_free: Bool)
+    func hash(self: InterpCallableBox, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.Cell][Cell]]
 #+begin_src til
 struct Cell {
@@ -6390,6 +6608,7 @@ struct Scope {
     mut payload_aliases : Map__Str_Str
     mut ref_primitive_ptrs : Map__Str_Dynamic
     mut box_owned_dynamics : Vec__DynPtrBox
+    mut box_owned_callables : Vec__DynPtrBox
 namespace:
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, shallow call_free: Bool)
@@ -6633,6 +6852,13 @@ struct Vec__DynPtrBox {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__DynPtrBox
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__DynPtrBox
     func len(self: Vec__DynPtrBox) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -6697,6 +6923,13 @@ struct Vec__Binding {
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__Binding
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Binding
     func len(self: Vec__Binding) returns shallow U32
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.

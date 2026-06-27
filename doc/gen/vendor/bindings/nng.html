@@ -1,0 +1,3067 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vendor/bindings/nng.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>vendor/bindings/nng.til</h1>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_MAJOR_VERSION">
+<h2>NNG_MAJOR_VERSION</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_MAJOR_VERSION is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_MINOR_VERSION">
+<h2>NNG_MINOR_VERSION</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_MINOR_VERSION is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_PATCH_VERSION">
+<h2>NNG_PATCH_VERSION</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_PATCH_VERSION is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx">
+<h2>nng_ctx</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_ctx {
+    mut id : U32
+namespace:
+    func clone(shallow self: nng_ctx) returns shallow nng_ctx
+    func delete(own self: nng_ctx, shallow call_free: Bool)
+    func hash(shallow self: nng_ctx, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_ctx, shallow other: nng_ctx) returns shallow Bool
+    func to_str(shallow self: nng_ctx) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer">
+<h2>nng_dialer</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_dialer {
+    mut id : U32
+namespace:
+    func clone(shallow self: nng_dialer) returns shallow nng_dialer
+    func delete(own self: nng_dialer, shallow call_free: Bool)
+    func hash(shallow self: nng_dialer, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_dialer, shallow other: nng_dialer) returns shallow Bool
+    func to_str(shallow self: nng_dialer) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener">
+<h2>nng_listener</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_listener {
+    mut id : U32
+namespace:
+    func clone(shallow self: nng_listener) returns shallow nng_listener
+    func delete(own self: nng_listener, shallow call_free: Bool)
+    func hash(shallow self: nng_listener, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_listener, shallow other: nng_listener) returns shallow Bool
+    func to_str(shallow self: nng_listener) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe">
+<h2>nng_pipe</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_pipe {
+    mut id : U32
+namespace:
+    func clone(shallow self: nng_pipe) returns shallow nng_pipe
+    func delete(own self: nng_pipe, shallow call_free: Bool)
+    func hash(shallow self: nng_pipe, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_pipe, shallow other: nng_pipe) returns shallow Bool
+    func to_str(shallow self: nng_pipe) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket">
+<h2>nng_socket</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_socket {
+    mut id : U32
+namespace:
+    func clone(shallow self: nng_socket) returns shallow nng_socket
+    func delete(own self: nng_socket, shallow call_free: Bool)
+    func hash(shallow self: nng_socket, hasher: HashFn) returns shallow U64
+    func eq(shallow self: nng_socket, shallow other: nng_socket) returns shallow Bool
+    func to_str(shallow self: nng_socket) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_duration">
+<h2>nng_duration</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_duration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_time">
+<h2>nng_time</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_time
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg">
+<h2>nng_msg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_msg {
+namespace:
+    func clone(_self: nng_msg) returns nng_msg
+    func delete(own self: nng_msg, shallow call_free: Bool)
+    func hash(self: nng_msg, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_msg, _other: nng_msg) returns shallow Bool
+    func to_str(_self: nng_msg) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat">
+<h2>nng_stat</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_stat {
+namespace:
+    func clone(_self: nng_stat) returns nng_stat
+    func delete(own self: nng_stat, shallow call_free: Bool)
+    func hash(self: nng_stat, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stat, _other: nng_stat) returns shallow Bool
+    func to_str(_self: nng_stat) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio">
+<h2>nng_aio</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_aio {
+namespace:
+    func clone(_self: nng_aio) returns nng_aio
+    func delete(own self: nng_aio, shallow call_free: Bool)
+    func hash(self: nng_aio, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_aio, _other: nng_aio) returns shallow Bool
+    func to_str(_self: nng_aio) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_inproc">
+<h2>nng_sockaddr_inproc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_inproc {
+namespace:
+    func clone(_self: nng_sockaddr_inproc) returns nng_sockaddr_inproc
+    func delete(own self: nng_sockaddr_inproc, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_inproc, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_inproc, _other: nng_sockaddr_inproc) returns shallow Bool
+    func to_str(_self: nng_sockaddr_inproc) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_path">
+<h2>nng_sockaddr_path</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_path {
+namespace:
+    func clone(_self: nng_sockaddr_path) returns nng_sockaddr_path
+    func delete(own self: nng_sockaddr_path, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_path, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_path, _other: nng_sockaddr_path) returns shallow Bool
+    func to_str(_self: nng_sockaddr_path) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_ipc">
+<h2>nng_sockaddr_ipc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_ipc {
+namespace:
+    func clone(_self: nng_sockaddr_ipc) returns nng_sockaddr_ipc
+    func delete(own self: nng_sockaddr_ipc, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_ipc, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_ipc, _other: nng_sockaddr_ipc) returns shallow Bool
+    func to_str(_self: nng_sockaddr_ipc) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_in">
+<h2>nng_sockaddr_in</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_in {
+namespace:
+    func clone(_self: nng_sockaddr_in) returns nng_sockaddr_in
+    func delete(own self: nng_sockaddr_in, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_in, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_in, _other: nng_sockaddr_in) returns shallow Bool
+    func to_str(_self: nng_sockaddr_in) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_in6">
+<h2>nng_sockaddr_in6</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_in6 {
+namespace:
+    func clone(_self: nng_sockaddr_in6) returns nng_sockaddr_in6
+    func delete(own self: nng_sockaddr_in6, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_in6, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_in6, _other: nng_sockaddr_in6) returns shallow Bool
+    func to_str(_self: nng_sockaddr_in6) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_zt">
+<h2>nng_sockaddr_zt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_zt {
+namespace:
+    func clone(_self: nng_sockaddr_zt) returns nng_sockaddr_zt
+    func delete(own self: nng_sockaddr_zt, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_zt, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_zt, _other: nng_sockaddr_zt) returns shallow Bool
+    func to_str(_self: nng_sockaddr_zt) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_abstract">
+<h2>nng_sockaddr_abstract</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_abstract {
+namespace:
+    func clone(_self: nng_sockaddr_abstract) returns nng_sockaddr_abstract
+    func delete(own self: nng_sockaddr_abstract, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_abstract, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_abstract, _other: nng_sockaddr_abstract) returns shallow Bool
+    func to_str(_self: nng_sockaddr_abstract) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr_storage">
+<h2>nng_sockaddr_storage</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_sockaddr_storage {
+namespace:
+    func clone(_self: nng_sockaddr_storage) returns nng_sockaddr_storage
+    func delete(own self: nng_sockaddr_storage, shallow call_free: Bool)
+    func hash(self: nng_sockaddr_storage, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_sockaddr_storage, _other: nng_sockaddr_storage) returns shallow Bool
+    func to_str(_self: nng_sockaddr_storage) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sockaddr">
+<h2>nng_sockaddr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_sockaddr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_iov">
+<h2>nng_iov</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_iov {
+    ref mut iov_buf : Dynamic
+    mut iov_len : U32
+namespace:
+    func clone(self: nng_iov) returns nng_iov
+    func delete(own self: nng_iov, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_fini">
+<h2>nng_fini</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_fini()
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_close">
+<h2>nng_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_close(shallow _arg: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_close">
+<h2>nng_socket_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_close(shallow _arg: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_id">
+<h2>nng_socket_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_id(shallow _arg: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set">
+<h2>nng_socket_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_bool">
+<h2>nng_socket_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_bool(shallow _arg: nng_socket, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_int">
+<h2>nng_socket_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_int(shallow _arg: nng_socket, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_size">
+<h2>nng_socket_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_size(shallow _arg: nng_socket, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_uint64">
+<h2>nng_socket_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_uint64(shallow _arg: nng_socket, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_string">
+<h2>nng_socket_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_string(shallow _arg: nng_socket, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_ptr">
+<h2>nng_socket_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_ms">
+<h2>nng_socket_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_ms(shallow _arg: nng_socket, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_set_addr">
+<h2>nng_socket_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_set_addr(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get">
+<h2>nng_socket_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_bool">
+<h2>nng_socket_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_bool(shallow _arg: nng_socket, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_int">
+<h2>nng_socket_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_int(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_size">
+<h2>nng_socket_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_size(shallow _arg: nng_socket, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_uint64">
+<h2>nng_socket_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_uint64(shallow _arg: nng_socket, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_string">
+<h2>nng_socket_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_string(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_ptr">
+<h2>nng_socket_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_ms">
+<h2>nng_socket_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_ms(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_get_addr">
+<h2>nng_socket_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_get_addr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_proto_id">
+<h2>nng_socket_proto_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_proto_id(shallow id: nng_socket, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_peer_id">
+<h2>nng_socket_peer_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_peer_id(shallow id: nng_socket, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_proto_name">
+<h2>nng_socket_proto_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_proto_name(shallow id: nng_socket, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_peer_name">
+<h2>nng_socket_peer_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_peer_name(shallow id: nng_socket, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_raw">
+<h2>nng_socket_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_raw(shallow _arg: nng_socket, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_str_sockaddr">
+<h2>nng_str_sockaddr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_str_sockaddr(sa: Dynamic, mut buf: I8, shallow bufsz: U32) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_ev">
+<h2>nng_pipe_ev</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_pipe_ev
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_PIPE_EV_ADD_PRE">
+<h2>NNG_PIPE_EV_ADD_PRE</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_PIPE_EV_ADD_PRE is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_PIPE_EV_ADD_POST">
+<h2>NNG_PIPE_EV_ADD_POST</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_PIPE_EV_ADD_POST is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_PIPE_EV_REM_POST">
+<h2>NNG_PIPE_EV_REM_POST</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_PIPE_EV_REM_POST is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_PIPE_EV_NUM">
+<h2>NNG_PIPE_EV_NUM</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_PIPE_EV_NUM is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_cb">
+<h2>nng_pipe_cb</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_pipe_cb
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_notify">
+<h2>nng_pipe_notify</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_notify(shallow _arg: nng_socket, shallow _arg: I32, _arg: Dynamic, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listen">
+<h2>nng_listen</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listen(shallow _arg: nng_socket, _arg: I8, mut _arg: nng_listener, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dial">
+<h2>nng_dial</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dial(shallow _arg: nng_socket, _arg: I8, mut _arg: nng_dialer, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_create">
+<h2>nng_dialer_create</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_create(mut _arg: nng_dialer, shallow _arg: nng_socket, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_create">
+<h2>nng_listener_create</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_create(mut _arg: nng_listener, shallow _arg: nng_socket, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_start">
+<h2>nng_dialer_start</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_start(shallow _arg: nng_dialer, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_start">
+<h2>nng_listener_start</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_start(shallow _arg: nng_listener, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_close">
+<h2>nng_dialer_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_close(shallow _arg: nng_dialer) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_close">
+<h2>nng_listener_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_close(shallow _arg: nng_listener) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_id">
+<h2>nng_dialer_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_id(shallow _arg: nng_dialer) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_id">
+<h2>nng_listener_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_id(shallow _arg: nng_listener) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set">
+<h2>nng_dialer_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_bool">
+<h2>nng_dialer_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_bool(shallow _arg: nng_dialer, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_int">
+<h2>nng_dialer_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_int(shallow _arg: nng_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_size">
+<h2>nng_dialer_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_size(shallow _arg: nng_dialer, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_uint64">
+<h2>nng_dialer_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_uint64(shallow _arg: nng_dialer, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_string">
+<h2>nng_dialer_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_string(shallow _arg: nng_dialer, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_ptr">
+<h2>nng_dialer_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_ms">
+<h2>nng_dialer_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_ms(shallow _arg: nng_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_set_addr">
+<h2>nng_dialer_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_set_addr(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get">
+<h2>nng_dialer_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_bool">
+<h2>nng_dialer_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_bool(shallow _arg: nng_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_int">
+<h2>nng_dialer_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_int(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_size">
+<h2>nng_dialer_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_size(shallow _arg: nng_dialer, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_uint64">
+<h2>nng_dialer_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_uint64(shallow _arg: nng_dialer, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_string">
+<h2>nng_dialer_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_string(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_ptr">
+<h2>nng_dialer_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_ms">
+<h2>nng_dialer_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_ms(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_addr">
+<h2>nng_dialer_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_addr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set">
+<h2>nng_listener_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_bool">
+<h2>nng_listener_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_bool(shallow _arg: nng_listener, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_int">
+<h2>nng_listener_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_int(shallow _arg: nng_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_size">
+<h2>nng_listener_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_size(shallow _arg: nng_listener, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_uint64">
+<h2>nng_listener_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_uint64(shallow _arg: nng_listener, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_string">
+<h2>nng_listener_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_string(shallow _arg: nng_listener, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_ptr">
+<h2>nng_listener_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_ms">
+<h2>nng_listener_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_ms(shallow _arg: nng_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_set_addr">
+<h2>nng_listener_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_set_addr(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get">
+<h2>nng_listener_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_bool">
+<h2>nng_listener_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_bool(shallow _arg: nng_listener, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_int">
+<h2>nng_listener_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_int(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_size">
+<h2>nng_listener_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_size(shallow _arg: nng_listener, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_uint64">
+<h2>nng_listener_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_uint64(shallow _arg: nng_listener, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_string">
+<h2>nng_listener_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_string(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_ptr">
+<h2>nng_listener_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_ms">
+<h2>nng_listener_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_ms(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_addr">
+<h2>nng_listener_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_addr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_strerror">
+<h2>nng_strerror</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_strerror(shallow _arg: I32) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_send">
+<h2>nng_send</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_send(shallow _arg: nng_socket, mut _arg: Dynamic, shallow _arg: U32, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_recv">
+<h2>nng_recv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_recv(shallow _arg: nng_socket, mut _arg: Dynamic, mut _arg: U32, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sendmsg">
+<h2>nng_sendmsg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sendmsg(shallow _arg: nng_socket, mut _arg: nng_msg, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_recvmsg">
+<h2>nng_recvmsg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_recvmsg(shallow _arg: nng_socket, mut _arg: Dynamic, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sock_send">
+<h2>nng_sock_send</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sock_send(shallow _arg: nng_socket, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_send_aio">
+<h2>nng_send_aio</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_send_aio(shallow _arg: nng_socket, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sock_recv">
+<h2>nng_sock_recv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sock_recv(shallow _arg: nng_socket, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_recv_aio">
+<h2>nng_recv_aio</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_recv_aio(shallow _arg: nng_socket, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_open">
+<h2>nng_ctx_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_open(mut _arg: nng_ctx, shallow _arg: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_close">
+<h2>nng_ctx_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_close(shallow _arg: nng_ctx) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_id">
+<h2>nng_ctx_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_id(shallow _arg: nng_ctx) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_recv">
+<h2>nng_ctx_recv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_recv(shallow _arg: nng_ctx, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_recvmsg">
+<h2>nng_ctx_recvmsg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_recvmsg(shallow _arg: nng_ctx, mut _arg: Dynamic, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_send">
+<h2>nng_ctx_send</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_send(shallow _arg: nng_ctx, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_sendmsg">
+<h2>nng_ctx_sendmsg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_sendmsg(shallow _arg: nng_ctx, mut _arg: nng_msg, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get">
+<h2>nng_ctx_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_bool">
+<h2>nng_ctx_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_bool(shallow _arg: nng_ctx, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_int">
+<h2>nng_ctx_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_int(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_size">
+<h2>nng_ctx_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_size(shallow _arg: nng_ctx, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_uint64">
+<h2>nng_ctx_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_uint64(shallow _arg: nng_ctx, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_string">
+<h2>nng_ctx_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_string(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_ptr">
+<h2>nng_ctx_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_ptr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_ms">
+<h2>nng_ctx_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_ms(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set">
+<h2>nng_ctx_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_bool">
+<h2>nng_ctx_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_bool(shallow _arg: nng_ctx, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_int">
+<h2>nng_ctx_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_int(shallow _arg: nng_ctx, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_size">
+<h2>nng_ctx_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_size(shallow _arg: nng_ctx, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_uint64">
+<h2>nng_ctx_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_uint64(shallow _arg: nng_ctx, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_string">
+<h2>nng_ctx_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_string(shallow _arg: nng_ctx, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_ptr">
+<h2>nng_ctx_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_ptr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_ms">
+<h2>nng_ctx_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_ms(shallow _arg: nng_ctx, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_alloc">
+<h2>nng_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_alloc(shallow _arg: U32) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_free">
+<h2>nng_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_free(mut _arg: Dynamic, shallow _arg: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_strdup">
+<h2>nng_strdup</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_strdup(_arg: I8) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_strfree">
+<h2>nng_strfree</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_strfree(mut _arg: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_free">
+<h2>nng_aio_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_free(mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_reap">
+<h2>nng_aio_reap</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_reap(mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_stop">
+<h2>nng_aio_stop</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_stop(mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_result">
+<h2>nng_aio_result</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_result(mut _arg: nng_aio) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_count">
+<h2>nng_aio_count</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_count(mut _arg: nng_aio) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_cancel">
+<h2>nng_aio_cancel</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_cancel(mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_abort">
+<h2>nng_aio_abort</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_abort(mut _arg: nng_aio, shallow _arg: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_wait">
+<h2>nng_aio_wait</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_wait(mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_busy">
+<h2>nng_aio_busy</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_busy(mut _arg: nng_aio) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_msg">
+<h2>nng_aio_set_msg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_msg(mut _arg: nng_aio, mut _arg: nng_msg)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_get_msg">
+<h2>nng_aio_get_msg</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_get_msg(mut _arg: nng_aio) returns ref nng_msg
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_input">
+<h2>nng_aio_set_input</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_input(mut _arg: nng_aio, shallow _arg: U32, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_get_input">
+<h2>nng_aio_get_input</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_get_input(mut _arg: nng_aio, shallow _arg: U32) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_output">
+<h2>nng_aio_set_output</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_output(mut _arg: nng_aio, shallow _arg: U32, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_get_output">
+<h2>nng_aio_get_output</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_get_output(mut _arg: nng_aio, shallow _arg: U32) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_timeout">
+<h2>nng_aio_set_timeout</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_timeout(mut _arg: nng_aio, shallow _arg: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_expire">
+<h2>nng_aio_set_expire</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_expire(mut _arg: nng_aio, shallow _arg: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_set_iov">
+<h2>nng_aio_set_iov</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_set_iov(mut _arg: nng_aio, shallow _arg: U32, _arg: nng_iov) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_begin">
+<h2>nng_aio_begin</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_begin(mut _arg: nng_aio) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_finish">
+<h2>nng_aio_finish</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_finish(mut _arg: nng_aio, shallow _arg: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_cancelfn">
+<h2>nng_aio_cancelfn</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_aio_cancelfn
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_aio_defer">
+<h2>nng_aio_defer</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_aio_defer(mut _arg: nng_aio, _arg: Dynamic, mut _arg: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sleep_aio">
+<h2>nng_sleep_aio</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sleep_aio(shallow _arg: I32, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_alloc">
+<h2>nng_msg_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_alloc(mut _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_free">
+<h2>nng_msg_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_free(mut _arg: nng_msg)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_realloc">
+<h2>nng_msg_realloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_realloc(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_reserve">
+<h2>nng_msg_reserve</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_reserve(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_capacity">
+<h2>nng_msg_capacity</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_capacity(mut _arg: nng_msg) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header">
+<h2>nng_msg_header</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header(mut _arg: nng_msg) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_len">
+<h2>nng_msg_header_len</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_len(_arg: nng_msg) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_body">
+<h2>nng_msg_body</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_body(mut _arg: nng_msg) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_len">
+<h2>nng_msg_len</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_len(_arg: nng_msg) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_append">
+<h2>nng_msg_append</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_append(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_insert">
+<h2>nng_msg_insert</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_insert(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_trim">
+<h2>nng_msg_trim</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_trim(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_chop">
+<h2>nng_msg_chop</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_chop(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_append">
+<h2>nng_msg_header_append</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_append(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_insert">
+<h2>nng_msg_header_insert</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_insert(mut _arg: nng_msg, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_trim">
+<h2>nng_msg_header_trim</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_trim(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_chop">
+<h2>nng_msg_header_chop</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_chop(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_append_u16">
+<h2>nng_msg_header_append_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_append_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_append_u32">
+<h2>nng_msg_header_append_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_append_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_append_u64">
+<h2>nng_msg_header_append_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_append_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_insert_u16">
+<h2>nng_msg_header_insert_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_insert_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_insert_u32">
+<h2>nng_msg_header_insert_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_insert_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_insert_u64">
+<h2>nng_msg_header_insert_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_insert_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_chop_u16">
+<h2>nng_msg_header_chop_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_chop_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_chop_u32">
+<h2>nng_msg_header_chop_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_chop_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_chop_u64">
+<h2>nng_msg_header_chop_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_chop_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_trim_u16">
+<h2>nng_msg_header_trim_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_trim_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_trim_u32">
+<h2>nng_msg_header_trim_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_trim_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_trim_u64">
+<h2>nng_msg_header_trim_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_trim_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_append_u16">
+<h2>nng_msg_append_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_append_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_append_u32">
+<h2>nng_msg_append_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_append_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_append_u64">
+<h2>nng_msg_append_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_append_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_insert_u16">
+<h2>nng_msg_insert_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_insert_u16(mut _arg: nng_msg, shallow _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_insert_u32">
+<h2>nng_msg_insert_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_insert_u32(mut _arg: nng_msg, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_insert_u64">
+<h2>nng_msg_insert_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_insert_u64(mut _arg: nng_msg, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_chop_u16">
+<h2>nng_msg_chop_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_chop_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_chop_u32">
+<h2>nng_msg_chop_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_chop_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_chop_u64">
+<h2>nng_msg_chop_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_chop_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_trim_u16">
+<h2>nng_msg_trim_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_trim_u16(mut _arg: nng_msg, mut _arg: U16) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_trim_u32">
+<h2>nng_msg_trim_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_trim_u32(mut _arg: nng_msg, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_trim_u64">
+<h2>nng_msg_trim_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_trim_u64(mut _arg: nng_msg, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_dup">
+<h2>nng_msg_dup</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_dup(mut _arg: Dynamic, _arg: nng_msg) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_clear">
+<h2>nng_msg_clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_clear(mut _arg: nng_msg)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_header_clear">
+<h2>nng_msg_header_clear</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_header_clear(mut _arg: nng_msg)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_set_pipe">
+<h2>nng_msg_set_pipe</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_set_pipe(mut _arg: nng_msg, shallow _arg: nng_pipe)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_get_pipe">
+<h2>nng_msg_get_pipe</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_get_pipe(_arg: nng_msg) returns shallow nng_pipe
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get">
+<h2>nng_pipe_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_bool">
+<h2>nng_pipe_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_bool(shallow _arg: nng_pipe, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_int">
+<h2>nng_pipe_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_int(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_ms">
+<h2>nng_pipe_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_ms(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_size">
+<h2>nng_pipe_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_size(shallow _arg: nng_pipe, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_uint64">
+<h2>nng_pipe_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_uint64(shallow _arg: nng_pipe, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_string">
+<h2>nng_pipe_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_string(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_ptr">
+<h2>nng_pipe_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_ptr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_get_addr">
+<h2>nng_pipe_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_get_addr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_close">
+<h2>nng_pipe_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_close(shallow _arg: nng_pipe) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_id">
+<h2>nng_pipe_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_id(shallow _arg: nng_pipe) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_socket">
+<h2>nng_pipe_socket</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_socket(shallow _arg: nng_pipe) returns shallow nng_socket
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_dialer">
+<h2>nng_pipe_dialer</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_dialer(shallow _arg: nng_pipe) returns shallow nng_dialer
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_listener">
+<h2>nng_pipe_listener</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_listener(shallow _arg: nng_pipe) returns shallow nng_listener
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stats_get">
+<h2>nng_stats_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stats_get(mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stats_free">
+<h2>nng_stats_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stats_free(mut _arg: nng_stat)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stats_dump">
+<h2>nng_stats_dump</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stats_dump(mut _arg: nng_stat)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_next">
+<h2>nng_stat_next</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_next(mut _arg: nng_stat) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_child">
+<h2>nng_stat_child</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_child(mut _arg: nng_stat) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_name">
+<h2>nng_stat_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_name(mut _arg: nng_stat) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_type">
+<h2>nng_stat_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_type(mut _arg: nng_stat) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_find">
+<h2>nng_stat_find</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_find(mut _arg: nng_stat, _arg: I8) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_find_socket">
+<h2>nng_stat_find_socket</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_find_socket(mut _arg: nng_stat, shallow _arg: nng_socket) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_find_dialer">
+<h2>nng_stat_find_dialer</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_find_dialer(mut _arg: nng_stat, shallow _arg: nng_dialer) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_find_listener">
+<h2>nng_stat_find_listener</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_find_listener(mut _arg: nng_stat, shallow _arg: nng_listener) returns ref nng_stat
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_unit">
+<h2>nng_stat_unit</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_unit(mut _arg: nng_stat) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_value">
+<h2>nng_stat_value</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_value(mut _arg: nng_stat) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_bool">
+<h2>nng_stat_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_bool(mut _arg: nng_stat) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_string">
+<h2>nng_stat_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_string(mut _arg: nng_stat) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_desc">
+<h2>nng_stat_desc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_desc(mut _arg: nng_stat) returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stat_timestamp">
+<h2>nng_stat_timestamp</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stat_timestamp(mut _arg: nng_stat) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_device">
+<h2>nng_device</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_device(shallow _arg: nng_socket, shallow _arg: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_device_aio">
+<h2>nng_device_aio</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_device_aio(mut _arg: nng_aio, shallow _arg: nng_socket, shallow _arg: nng_socket)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_url">
+<h2>nng_url</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_url {
+    ref mut u_rawurl : I8
+    ref mut u_scheme : I8
+    ref mut u_userinfo : I8
+    ref mut u_host : I8
+    ref mut u_hostname : I8
+    ref mut u_port : I8
+    ref mut u_path : I8
+    ref mut u_query : I8
+    ref mut u_fragment : I8
+    ref mut u_requri : I8
+namespace:
+    func clone(self: nng_url) returns nng_url
+    func delete(own self: nng_url, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_url_parse">
+<h2>nng_url_parse</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_url_parse(mut _arg: Dynamic, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_url_free">
+<h2>nng_url_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_url_free(mut _arg: nng_url)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_url_clone">
+<h2>nng_url_clone</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_url_clone(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_version">
+<h2>nng_version</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_version() returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream">
+<h2>nng_stream</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_stream {
+namespace:
+    func clone(_self: nng_stream) returns nng_stream
+    func delete(own self: nng_stream, shallow call_free: Bool)
+    func hash(self: nng_stream, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream, _other: nng_stream) returns shallow Bool
+    func to_str(_self: nng_stream) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer">
+<h2>nng_stream_dialer</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_stream_dialer {
+namespace:
+    func clone(_self: nng_stream_dialer) returns nng_stream_dialer
+    func delete(own self: nng_stream_dialer, shallow call_free: Bool)
+    func hash(self: nng_stream_dialer, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream_dialer, _other: nng_stream_dialer) returns shallow Bool
+    func to_str(_self: nng_stream_dialer) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener">
+<h2>nng_stream_listener</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_stream_listener {
+namespace:
+    func clone(_self: nng_stream_listener) returns nng_stream_listener
+    func delete(own self: nng_stream_listener, shallow call_free: Bool)
+    func hash(self: nng_stream_listener, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_stream_listener, _other: nng_stream_listener) returns shallow Bool
+    func to_str(_self: nng_stream_listener) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_free">
+<h2>nng_stream_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_free(mut _arg: nng_stream)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_close">
+<h2>nng_stream_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_close(mut _arg: nng_stream)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_send">
+<h2>nng_stream_send</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_send(mut _arg: nng_stream, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_recv">
+<h2>nng_stream_recv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_recv(mut _arg: nng_stream, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get">
+<h2>nng_stream_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_bool">
+<h2>nng_stream_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_bool(mut _arg: nng_stream, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_int">
+<h2>nng_stream_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_int(mut _arg: nng_stream, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_ms">
+<h2>nng_stream_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_ms(mut _arg: nng_stream, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_size">
+<h2>nng_stream_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_size(mut _arg: nng_stream, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_uint64">
+<h2>nng_stream_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_uint64(mut _arg: nng_stream, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_string">
+<h2>nng_stream_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_string(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_ptr">
+<h2>nng_stream_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_ptr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_get_addr">
+<h2>nng_stream_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_get_addr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set">
+<h2>nng_stream_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set(mut _arg: nng_stream, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_bool">
+<h2>nng_stream_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_bool(mut _arg: nng_stream, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_int">
+<h2>nng_stream_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_int(mut _arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_ms">
+<h2>nng_stream_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_ms(mut _arg: nng_stream, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_size">
+<h2>nng_stream_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_size(mut _arg: nng_stream, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_uint64">
+<h2>nng_stream_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_uint64(mut _arg: nng_stream, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_string">
+<h2>nng_stream_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_string(mut _arg: nng_stream, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_ptr">
+<h2>nng_stream_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_ptr(mut _arg: nng_stream, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_alloc">
+<h2>nng_stream_dialer_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_alloc(mut _arg: Dynamic, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_alloc_url">
+<h2>nng_stream_dialer_alloc_url</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_alloc_url(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_free">
+<h2>nng_stream_dialer_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_free(mut _arg: nng_stream_dialer)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_close">
+<h2>nng_stream_dialer_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_close(mut _arg: nng_stream_dialer)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_dial">
+<h2>nng_stream_dialer_dial</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_dial(mut _arg: nng_stream_dialer, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set">
+<h2>nng_stream_dialer_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set(mut _arg: nng_stream_dialer, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get">
+<h2>nng_stream_dialer_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_bool">
+<h2>nng_stream_dialer_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_bool(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_int">
+<h2>nng_stream_dialer_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_int(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_ms">
+<h2>nng_stream_dialer_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_ms(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_size">
+<h2>nng_stream_dialer_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_size(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_uint64">
+<h2>nng_stream_dialer_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_uint64(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_string">
+<h2>nng_stream_dialer_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_string(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_ptr">
+<h2>nng_stream_dialer_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_ptr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_get_addr">
+<h2>nng_stream_dialer_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_get_addr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_bool">
+<h2>nng_stream_dialer_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_bool(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_int">
+<h2>nng_stream_dialer_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_int(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_ms">
+<h2>nng_stream_dialer_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_ms(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_size">
+<h2>nng_stream_dialer_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_size(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_uint64">
+<h2>nng_stream_dialer_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_uint64(mut _arg: nng_stream_dialer, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_string">
+<h2>nng_stream_dialer_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_string(mut _arg: nng_stream_dialer, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_ptr">
+<h2>nng_stream_dialer_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_ptr(mut _arg: nng_stream_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_dialer_set_addr">
+<h2>nng_stream_dialer_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_dialer_set_addr(mut _arg: nng_stream_dialer, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_alloc">
+<h2>nng_stream_listener_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_alloc(mut _arg: Dynamic, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_alloc_url">
+<h2>nng_stream_listener_alloc_url</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_alloc_url(mut _arg: Dynamic, _arg: nng_url) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_free">
+<h2>nng_stream_listener_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_free(mut _arg: nng_stream_listener)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_close">
+<h2>nng_stream_listener_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_close(mut _arg: nng_stream_listener)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_listen">
+<h2>nng_stream_listener_listen</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_listen(mut _arg: nng_stream_listener) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_accept">
+<h2>nng_stream_listener_accept</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_accept(mut _arg: nng_stream_listener, mut _arg: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set">
+<h2>nng_stream_listener_set</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set(mut _arg: nng_stream_listener, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get">
+<h2>nng_stream_listener_get</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_bool">
+<h2>nng_stream_listener_get_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_bool(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_int">
+<h2>nng_stream_listener_get_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_int(mut _arg: nng_stream_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_ms">
+<h2>nng_stream_listener_get_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_ms(mut _arg: nng_stream_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_size">
+<h2>nng_stream_listener_get_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_size(mut _arg: nng_stream_listener, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_uint64">
+<h2>nng_stream_listener_get_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_uint64(mut _arg: nng_stream_listener, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_string">
+<h2>nng_stream_listener_get_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_string(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_ptr">
+<h2>nng_stream_listener_get_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_ptr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_get_addr">
+<h2>nng_stream_listener_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_get_addr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_bool">
+<h2>nng_stream_listener_set_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_bool(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_int">
+<h2>nng_stream_listener_set_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_int(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_ms">
+<h2>nng_stream_listener_set_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_ms(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_size">
+<h2>nng_stream_listener_set_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_size(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_uint64">
+<h2>nng_stream_listener_set_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_uint64(mut _arg: nng_stream_listener, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_string">
+<h2>nng_stream_listener_set_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_string(mut _arg: nng_stream_listener, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_ptr">
+<h2>nng_stream_listener_set_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_ptr(mut _arg: nng_stream_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_listener_set_addr">
+<h2>nng_stream_listener_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_listener_set_addr(mut _arg: nng_stream_listener, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp">
+<h2>nng_udp</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_udp {
+namespace:
+    func clone(_self: nng_udp) returns nng_udp
+    func delete(own self: nng_udp, shallow call_free: Bool)
+    func hash(self: nng_udp, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_udp, _other: nng_udp) returns shallow Bool
+    func to_str(_self: nng_udp) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_open">
+<h2>nng_udp_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_open(mut udpp: Dynamic, mut sa: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_close">
+<h2>nng_udp_close</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_close(mut udp: nng_udp)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_sockname">
+<h2>nng_udp_sockname</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_sockname(mut udp: nng_udp, mut sa: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_send">
+<h2>nng_udp_send</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_send(mut udp: nng_udp, mut aio: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_recv">
+<h2>nng_udp_recv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_recv(mut udp: nng_udp, mut aio: nng_aio)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_udp_multicast_membership">
+<h2>nng_udp_multicast_membership</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_udp_multicast_membership(mut udp: nng_udp, mut sa: Dynamic, shallow join: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msg_getopt">
+<h2>nng_msg_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msg_getopt(mut _arg: nng_msg, shallow _arg: I32, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt">
+<h2>nng_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_bool">
+<h2>nng_getopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_bool(shallow _arg: nng_socket, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_int">
+<h2>nng_getopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_int(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_ms">
+<h2>nng_getopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_ms(shallow _arg: nng_socket, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_size">
+<h2>nng_getopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_size(shallow _arg: nng_socket, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_uint64">
+<h2>nng_getopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_uint64(shallow _arg: nng_socket, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_ptr">
+<h2>nng_getopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_getopt_string">
+<h2>nng_getopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_getopt_string(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt">
+<h2>nng_setopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt(shallow _arg: nng_socket, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_bool">
+<h2>nng_setopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_bool(shallow _arg: nng_socket, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_int">
+<h2>nng_setopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_int(shallow _arg: nng_socket, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_ms">
+<h2>nng_setopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_ms(shallow _arg: nng_socket, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_size">
+<h2>nng_setopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_size(shallow _arg: nng_socket, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_uint64">
+<h2>nng_setopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_uint64(shallow _arg: nng_socket, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_string">
+<h2>nng_setopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_string(shallow _arg: nng_socket, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_setopt_ptr">
+<h2>nng_setopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_setopt_ptr(shallow _arg: nng_socket, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_getopt">
+<h2>nng_ctx_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_getopt(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_getopt_bool">
+<h2>nng_ctx_getopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_getopt_bool(shallow _arg: nng_ctx, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_getopt_int">
+<h2>nng_ctx_getopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_getopt_int(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_getopt_ms">
+<h2>nng_ctx_getopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_getopt_ms(shallow _arg: nng_ctx, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_getopt_size">
+<h2>nng_ctx_getopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_getopt_size(shallow _arg: nng_ctx, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_setopt">
+<h2>nng_ctx_setopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_setopt(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_setopt_bool">
+<h2>nng_ctx_setopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_setopt_bool(shallow _arg: nng_ctx, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_setopt_int">
+<h2>nng_ctx_setopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_setopt_int(shallow _arg: nng_ctx, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_setopt_ms">
+<h2>nng_ctx_setopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_setopt_ms(shallow _arg: nng_ctx, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_setopt_size">
+<h2>nng_ctx_setopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_setopt_size(shallow _arg: nng_ctx, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt">
+<h2>nng_dialer_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_bool">
+<h2>nng_dialer_getopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_bool(shallow _arg: nng_dialer, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_int">
+<h2>nng_dialer_getopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_int(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_ms">
+<h2>nng_dialer_getopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_ms(shallow _arg: nng_dialer, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_size">
+<h2>nng_dialer_getopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_size(shallow _arg: nng_dialer, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_sockaddr">
+<h2>nng_dialer_getopt_sockaddr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_sockaddr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_uint64">
+<h2>nng_dialer_getopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_uint64(shallow _arg: nng_dialer, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_ptr">
+<h2>nng_dialer_getopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_getopt_string">
+<h2>nng_dialer_getopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_getopt_string(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt">
+<h2>nng_dialer_setopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt(shallow _arg: nng_dialer, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_bool">
+<h2>nng_dialer_setopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_bool(shallow _arg: nng_dialer, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_int">
+<h2>nng_dialer_setopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_int(shallow _arg: nng_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_ms">
+<h2>nng_dialer_setopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_ms(shallow _arg: nng_dialer, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_size">
+<h2>nng_dialer_setopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_size(shallow _arg: nng_dialer, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_uint64">
+<h2>nng_dialer_setopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_uint64(shallow _arg: nng_dialer, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_ptr">
+<h2>nng_dialer_setopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_ptr(shallow _arg: nng_dialer, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_setopt_string">
+<h2>nng_dialer_setopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_setopt_string(shallow _arg: nng_dialer, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt">
+<h2>nng_listener_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_bool">
+<h2>nng_listener_getopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_bool(shallow _arg: nng_listener, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_int">
+<h2>nng_listener_getopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_int(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_ms">
+<h2>nng_listener_getopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_ms(shallow _arg: nng_listener, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_size">
+<h2>nng_listener_getopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_size(shallow _arg: nng_listener, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_sockaddr">
+<h2>nng_listener_getopt_sockaddr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_sockaddr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_uint64">
+<h2>nng_listener_getopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_uint64(shallow _arg: nng_listener, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_ptr">
+<h2>nng_listener_getopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_getopt_string">
+<h2>nng_listener_getopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_getopt_string(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt">
+<h2>nng_listener_setopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt(shallow _arg: nng_listener, _arg: I8, _arg: Dynamic, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_bool">
+<h2>nng_listener_setopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_bool(shallow _arg: nng_listener, _arg: I8, shallow _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_int">
+<h2>nng_listener_setopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_int(shallow _arg: nng_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_ms">
+<h2>nng_listener_setopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_ms(shallow _arg: nng_listener, _arg: I8, shallow _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_size">
+<h2>nng_listener_setopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_size(shallow _arg: nng_listener, _arg: I8, shallow _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_uint64">
+<h2>nng_listener_setopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_uint64(shallow _arg: nng_listener, _arg: I8, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_ptr">
+<h2>nng_listener_setopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_ptr(shallow _arg: nng_listener, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_setopt_string">
+<h2>nng_listener_setopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_setopt_string(shallow _arg: nng_listener, _arg: I8, _arg: I8) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt">
+<h2>nng_pipe_getopt</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_bool">
+<h2>nng_pipe_getopt_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_bool(shallow _arg: nng_pipe, _arg: I8, mut _arg: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_int">
+<h2>nng_pipe_getopt_int</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_int(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_ms">
+<h2>nng_pipe_getopt_ms</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_ms(shallow _arg: nng_pipe, _arg: I8, mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_size">
+<h2>nng_pipe_getopt_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_size(shallow _arg: nng_pipe, _arg: I8, mut _arg: U32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_sockaddr">
+<h2>nng_pipe_getopt_sockaddr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_sockaddr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_uint64">
+<h2>nng_pipe_getopt_uint64</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_uint64(shallow _arg: nng_pipe, _arg: I8, mut _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_ptr">
+<h2>nng_pipe_getopt_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_ptr(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pipe_getopt_string">
+<h2>nng_pipe_getopt_string</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pipe_getopt_string(shallow _arg: nng_pipe, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_closeall">
+<h2>nng_closeall</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_closeall()
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stream_set_addr">
+<h2>nng_stream_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stream_set_addr(mut _arg: nng_stream, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_get_addr">
+<h2>nng_ctx_get_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_get_addr(shallow _arg: nng_ctx, _arg: I8, mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_ctx_set_addr">
+<h2>nng_ctx_set_addr</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_ctx_set_addr(shallow _arg: nng_ctx, _arg: I8, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_init_parameter">
+<h2>nng_init_parameter</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_init_parameter
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_init_set_parameter">
+<h2>nng_init_set_parameter</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_init_set_parameter(shallow _arg: I32, shallow _arg: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_level">
+<h2>nng_log_level</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_log_level
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_NONE">
+<h2>NNG_LOG_NONE</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_NONE is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_ERR">
+<h2>NNG_LOG_ERR</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_ERR is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_WARN">
+<h2>NNG_LOG_WARN</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_WARN is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_NOTICE">
+<h2>NNG_LOG_NOTICE</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_NOTICE is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_INFO">
+<h2>NNG_LOG_INFO</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_INFO is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_DEBUG">
+<h2>NNG_LOG_DEBUG</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_DEBUG is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_facility">
+<h2>nng_log_facility</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_log_facility
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_USER">
+<h2>NNG_LOG_USER</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_USER is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_DAEMON">
+<h2>NNG_LOG_DAEMON</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_DAEMON is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_AUTH">
+<h2>NNG_LOG_AUTH</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_AUTH is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL0">
+<h2>NNG_LOG_LOCAL0</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL0 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL1">
+<h2>NNG_LOG_LOCAL1</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL1 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL2">
+<h2>NNG_LOG_LOCAL2</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL2 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL3">
+<h2>NNG_LOG_LOCAL3</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL3 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL4">
+<h2>NNG_LOG_LOCAL4</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL4 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL5">
+<h2>NNG_LOG_LOCAL5</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL5 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL6">
+<h2>NNG_LOG_LOCAL6</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL6 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.NNG_LOG_LOCAL7">
+<h2>NNG_LOG_LOCAL7</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">NNG_LOG_LOCAL7 is a I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_logger">
+<h2>nng_logger</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">nng_logger
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_null_logger">
+<h2>nng_null_logger</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_null_logger(shallow _arg: I32, shallow _arg: I32, _arg: I8, _arg: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_stderr_logger">
+<h2>nng_stderr_logger</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_stderr_logger(shallow _arg: I32, shallow _arg: I32, _arg: I8, _arg: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_system_logger">
+<h2>nng_system_logger</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_system_logger(shallow _arg: I32, shallow _arg: I32, _arg: I8, _arg: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_set_facility">
+<h2>nng_log_set_facility</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_log_set_facility(shallow facility: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_set_level">
+<h2>nng_log_set_level</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_log_set_level(shallow level: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_get_level">
+<h2>nng_log_get_level</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_log_get_level() returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_log_set_logger">
+<h2>nng_log_set_logger</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_log_set_logger(logger: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_clock">
+<h2>nng_clock</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_clock() returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_msleep">
+<h2>nng_msleep</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_msleep(shallow _arg: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_random">
+<h2>nng_random</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_random() returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_socket_pair">
+<h2>nng_socket_pair</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_socket_pair(mut _arg: I32) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_thread">
+<h2>nng_thread</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_thread {
+namespace:
+    func clone(_self: nng_thread) returns nng_thread
+    func delete(own self: nng_thread, shallow call_free: Bool)
+    func hash(self: nng_thread, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_thread, _other: nng_thread) returns shallow Bool
+    func to_str(_self: nng_thread) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_thread_set_name">
+<h2>nng_thread_set_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_thread_set_name(mut _arg: nng_thread, _arg: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_thread_destroy">
+<h2>nng_thread_destroy</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_thread_destroy(mut _arg: nng_thread)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_mtx">
+<h2>nng_mtx</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_mtx {
+namespace:
+    func clone(_self: nng_mtx) returns nng_mtx
+    func delete(own self: nng_mtx, shallow call_free: Bool)
+    func hash(self: nng_mtx, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_mtx, _other: nng_mtx) returns shallow Bool
+    func to_str(_self: nng_mtx) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_mtx_alloc">
+<h2>nng_mtx_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_mtx_alloc(mut _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_mtx_free">
+<h2>nng_mtx_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_mtx_free(mut _arg: nng_mtx)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_mtx_lock">
+<h2>nng_mtx_lock</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_mtx_lock(mut _arg: nng_mtx)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_mtx_unlock">
+<h2>nng_mtx_unlock</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_mtx_unlock(mut _arg: nng_mtx)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv">
+<h2>nng_cv</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct nng_cv {
+namespace:
+    func clone(_self: nng_cv) returns nng_cv
+    func delete(own self: nng_cv, shallow call_free: Bool)
+    func hash(self: nng_cv, hasher: HashFn) returns shallow U64
+    func eq(_self: nng_cv, _other: nng_cv) returns shallow Bool
+    func to_str(_self: nng_cv) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_alloc">
+<h2>nng_cv_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_alloc(mut _arg: Dynamic, mut _arg: nng_mtx) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_free">
+<h2>nng_cv_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_free(mut _arg: nng_cv)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_wait">
+<h2>nng_cv_wait</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_wait(mut _arg: nng_cv)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_until">
+<h2>nng_cv_until</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_until(mut _arg: nng_cv, shallow _arg: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_wake">
+<h2>nng_cv_wake</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_wake(mut _arg: nng_cv)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_cv_wake1">
+<h2>nng_cv_wake1</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_cv_wake1(mut _arg: nng_cv)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_dialer_get_url">
+<h2>nng_dialer_get_url</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_dialer_get_url(shallow _arg: nng_dialer, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_listener_get_url">
+<h2>nng_listener_get_url</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_listener_get_url(shallow _arg: nng_listener, _arg: Dynamic) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_bus0_open">
+<h2>nng_bus0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_bus0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_bus0_open_raw">
+<h2>nng_bus0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_bus0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pair0_open">
+<h2>nng_pair0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pair0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pair0_open_raw">
+<h2>nng_pair0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pair0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pair1_open">
+<h2>nng_pair1_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pair1_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pair1_open_raw">
+<h2>nng_pair1_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pair1_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pair1_open_poly">
+<h2>nng_pair1_open_poly</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pair1_open_poly(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_push0_open">
+<h2>nng_push0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_push0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_push0_open_raw">
+<h2>nng_push0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_push0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pull0_open">
+<h2>nng_pull0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pull0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pull0_open_raw">
+<h2>nng_pull0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pull0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pub0_open">
+<h2>nng_pub0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pub0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_pub0_open_raw">
+<h2>nng_pub0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_pub0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sub0_open">
+<h2>nng_sub0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sub0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_sub0_open_raw">
+<h2>nng_sub0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_sub0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_req0_open">
+<h2>nng_req0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_req0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_req0_open_raw">
+<h2>nng_req0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_req0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_rep0_open">
+<h2>nng_rep0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_rep0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_rep0_open_raw">
+<h2>nng_rep0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_rep0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_surveyor0_open">
+<h2>nng_surveyor0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_surveyor0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_surveyor0_open_raw">
+<h2>nng_surveyor0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_surveyor0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_respondent0_open">
+<h2>nng_respondent0_open</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_respondent0_open(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.nng.nng_respondent0_open_raw">
+<h2>nng_respondent0_open_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc nng_respondent0_open_raw(mut sock: nng_socket) returns shallow I32
+</code></pre>
+</article>
+</main>
+</body>
+</html>

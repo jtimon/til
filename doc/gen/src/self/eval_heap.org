@@ -9,11 +9,11 @@
 
 #+begin_src til
 struct EvalHeap {
-    mut live_blocks : U32
+    mut unused : U8
 namespace:
     func new() returns shallow EvalHeap
-    func heap_alloc(mut self: EvalHeap, shallow size: U32) returns Dynamic
-    func heap_free(mut self: EvalHeap, own ptr: Dynamic)
+    func heap_alloc(shallow size: U32) returns Dynamic
+    func heap_free(own ptr: Dynamic)
     func delete(own self: EvalHeap, shallow call_free: Bool)
     func set_bytes(ptr: Dynamic, src: Dynamic, shallow n: U32)
     func get_bytes(ptr: Dynamic, dst: Dynamic, shallow n: U32)

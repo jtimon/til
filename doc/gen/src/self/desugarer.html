@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/desugarer.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/desugarer.til</h1>
+<article class="doc-entry" id="til.src.self.desugarer.desugar_user_func_fcall_args">
+<h2>desugar_user_func_fcall_args</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc desugar_user_func_fcall_args(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.typer_lift_lambdas">
+<h2>typer_lift_lambdas</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc typer_lift_lambdas(mut scope: TypeScope, mut prog: Expr, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.lower_guard_bang_calls">
+<h2>lower_guard_bang_calls</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec__Expr, resolve_body: Expr, mut ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.subtree_references_name">
+<h2>subtree_references_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func subtree_references_name(e: Expr, name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.subtree_has_bang">
+<h2>subtree_has_bang</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func subtree_has_bang(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.append_err_out_params">
+<h2>append_err_out_params</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_int_lit">
+<h2>make_int_lit</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_int_lit(shallow n: I64, shallow line: U32, shallow col: U32) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_default_value_expr">
+<h2>make_default_value_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_default_value_expr(type_name: Str, shallow line: U32, shallow col: U32) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_if_kind_eq_zero_wrap">
+<h2>make_if_kind_eq_zero_wrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.extend_throwing_func_sigs">
+<h2>extend_throwing_func_sigs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.process_throw_catch_in_func_body">
+<h2>process_throw_catch_in_func_body</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc process_throw_catch_in_func_body(mut ctx: Context, mut body: Expr, fdef_throws: Vec__Str, return_type: Str, return_own_type: OwnType)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.stmt_contains_match">
+<h2>stmt_contains_match</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func stmt_contains_match(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.splice_stmts_before">
+<h2>splice_stmts_before</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func splice_stmts_before(mut body: Expr, shallow idx: U32, mut pre: Vec__Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.collect_switch_case_bindings">
+<h2>collect_switch_case_bindings</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc collect_switch_case_bindings(mut ctx: Context, e: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_switch_case_condition">
+<h2>make_switch_case_condition</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_switch_case_condition(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, shallow sw_line: U32, shallow sw_col: U32) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.replace_switch_stmt_with_block">
+<h2>replace_switch_stmt_with_block</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.append_switch_else_if">
+<h2>append_switch_else_if</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc append_switch_else_if(mut root_if: Expr, if_node: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.attach_switch_default_body">
+<h2>attach_switch_default_body</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc attach_switch_default_body(mut root_if: Expr, default_body: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.switch_is_clike">
+<h2>switch_is_clike</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func switch_is_clike(scope: TypeScope, stmt: Expr, sw_expr: Expr, shallow is_match: Bool) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.prepend_clike_payload_binding">
+<h2>prepend_clike_payload_binding</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.replace_body_stmt_with_block">
+<h2>replace_body_stmt_with_block</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_for_in_range_while_body">
+<h2>make_for_in_range_while_body</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_for_in_range_while_body(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, elem_type: Str, shallow var_is_mut: Bool) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.body_pre_passes">
+<h2>body_pre_passes</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc body_pre_passes(mut ctx: Context, mut body: Expr, mut scope: TypeScope, shallow owns_scope: I32) returns shallow Bool
+</code></pre>
+</article>
+</main>
+</body>
+</html>

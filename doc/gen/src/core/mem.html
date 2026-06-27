@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/mem.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/mem.til</h1>
+<article class="doc-entry" id="til.src.core.mem.free">
+<h2>free</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func free(own elem: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.til_closure_delete">
+<h2>til_closure_delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func til_closure_delete(closure: Fn)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.til_closure_slot_delete">
+<h2>til_closure_slot_delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func til_closure_slot_delete(slot: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.malloc">
+<h2>malloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func malloc(shallow count: U64) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.calloc">
+<h2>calloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.realloc">
+<h2>realloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.ptr_add">
+<h2>ptr_add</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func ptr_add(buf: Dynamic, shallow offset: U64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.deref">
+<h2>deref</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func deref(slot: Dynamic) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_ptr">
+<h2>write_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_ptr(dest: Dynamic, val: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_i64">
+<h2>write_i64</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_i64(dest: Dynamic, shallow val: I64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_u8">
+<h2>write_u8</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_u8(dest: Dynamic, shallow val: U8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_i8">
+<h2>write_i8</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_i8(dest: Dynamic, shallow val: I8)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_i16">
+<h2>write_i16</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_i16(dest: Dynamic, shallow val: I16)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_u16">
+<h2>write_u16</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_u16(dest: Dynamic, shallow val: U16)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_i32">
+<h2>write_i32</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_i32(dest: Dynamic, shallow val: I32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_u32">
+<h2>write_u32</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_u32(dest: Dynamic, shallow val: U32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_u64">
+<h2>write_u64</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_u64(dest: Dynamic, shallow val: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_f32">
+<h2>write_f32</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_f32(dest: Dynamic, shallow val: F32)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.write_bool">
+<h2>write_bool</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func write_bool(dest: Dynamic, shallow val: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.memcpy">
+<h2>memcpy</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.memmove">
+<h2>memmove</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.memset">
+<h2>memset</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.memcmp">
+<h2>memcmp</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: U64) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.ptr_eq">
+<h2>ptr_eq</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.is_null">
+<h2>is_null</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func is_null(p: Dynamic) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.to_ptr">
+<h2>to_ptr</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func to_ptr(a: Dynamic) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.swap">
+<h2>swap</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func swap(a: Dynamic, b: Dynamic, shallow size: U64)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.mem.move">
+<h2>move</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func move(dest: Dynamic, src: Dynamic, shallow size: U64)
+</code></pre>
+</article>
+</main>
+</body>
+</html>

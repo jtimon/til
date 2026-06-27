@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/scavenger.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/scavenger.til</h1>
+<article class="doc-entry" id="til.src.self.scavenger.vec_push_str">
+<h2>vec_push_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func vec_push_str(mut v: Vec__Str, s: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.scavenger.push_qn">
+<h2>push_qn</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.scavenger.collect_refs">
+<h2>collect_refs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func collect_refs(e: Expr, mut refs: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.scavenger.scavenge_filter">
+<h2>scavenge_filter</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func scavenge_filter(mut program: Expr, visited: Set__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.scavenger.dce_program_bodies">
+<h2>dce_program_bodies</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc dce_program_bodies(mut program: Expr)
+</code></pre>
+</article>
+</main>
+</body>
+</html>

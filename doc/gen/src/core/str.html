@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/core/str.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/core/str.til</h1>
+<article class="doc-entry" id="til.src.core.str.CAP_LIT">
+<h2>CAP_LIT</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">CAP_LIT is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.CAP_VIEW">
+<h2>CAP_VIEW</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">CAP_VIEW is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.format">
+<h2>format</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Concatenate multiple strings into one.</p>
+</div>
+<pre><code class="language-til">func format(parts: ..Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.concat3">
+<h2>concat3</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Concatenate exactly three strings WITHOUT the variadic Array(Str) that
+`format` makes the caller build per call. One pre-sized result Str, no
+per-call Array alloc. Used on the hot flat-name path (`sname + &quot;_&quot; +
+method`) that the dispatch / codegen / scope lookups rebuild on every
+method resolution -- the self-host --prof run flagged Array__Str_new
+(1.6M allocs) as a top string-churn source.</p>
+</div>
+<pre><code class="language-til">func concat3(a: Str, b: Str, c: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.Str">
+<h2>Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>UTF-8 string with owned heap storage. The byte buffer is typed as
+I8 (= C `char`) so direct FFI bindings against `const char *` APIs
+can pass `s.c_str` without an intermediate pointer-cast helper.</p>
+</div>
+<pre><code class="language-til">struct Str {
+    own mut c_str : I8
+    mut count : U32
+    mut cap : U32
+namespace:
+    func len(self: Str) returns shallow U32
+    /// Return a ref to byte `i`. Panics if `i` is out of bounds.
+    func get(self: Str, i: U32) returns ref I8
+    /// Unchecked byte access -- caller must ensure i &lt; self.len().
+    func unsafe_get(self: Str, i: U32) returns ref I8
+    /// Lexicographic comparison. Returns 0 if equal, negative if a &lt; b,
+    /// positive if a &gt; b.
+    func cmp(a: Str, b: Str) returns shallow I64
+    /// Create an empty Str pre-allocated for up to `n` bytes.
+    func with_capacity(shallow n: U32) returns Str
+    /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
+    /// The view borrows `s`; the caller keeps ownership of the buffer.
+    func from_c_str(s: Dynamic) returns Str
+    /// Append `s` to `self`. Panics if `self` is a view/literal or if
+    /// capacity is exceeded.
+    func push_str(mut self: Str, s: Str)
+    /// Deep-copy the string into a new owned Str.
+    func clone(val: Str) returns Str
+    /// String representation of a Str: a fresh owned copy of itself. Lets
+    /// Str satisfy the same `T.to_str(x)` contract as the numeric types, so
+    /// generic code (e.g. assert_eq(Str, a, b)) works uniformly.
+    func to_str(self: Str) returns Str
+    /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
+    /// static literal wrapper, so call_free does not free that wrapper either.
+    func delete(own self: Str, shallow call_free: Bool)
+    /// Return a view into `s` from `start` for `n` bytes (no allocation).
+    /// Clamps to valid bounds.
+    func substr(s: Str, shallow start: U32, shallow n: U32) returns Str
+    /// Return a view of `s` with leading ASCII whitespace (space, tab,
+    /// newline, carriage return) removed. View-only -- no allocation.
+    func trim_start(s: Str) returns Str
+    /// Return a view of `s` with leading and trailing ASCII whitespace
+    /// removed. View-only -- no allocation.
+    func trim(s: Str) returns Str
+    /// True if `a` contains `b` as a substring.
+    func contains(a: Str, b: Str) returns shallow Bool
+    /// True if `a` starts with prefix `b`.
+    func starts_with(a: Str, b: Str) returns shallow Bool
+    /// True if `a` ends with suffix `b`.
+    func ends_with(a: Str, b: Str) returns shallow Bool
+    /// True if the string has zero length.
+    func is_empty(self: Str) returns shallow Bool
+    /// Return the byte index of the first occurrence of `needle`, or -1.
+    func find(self: Str, needle: Str) returns shallow I64
+    /// Return the byte index of the last occurrence of `needle`, or -1.
+    func rfind(self: Str, needle: Str) returns shallow I64
+    /// Return a new Str with all occurrences of `from` replaced by `to`.
+    func replace(self: Str, from: Str, to: Str) returns Str
+    /// View of the single byte at index `i` as a Str.
+    func get_char(self: Str, shallow i: U32) returns Str
+    /// Hash via the caller-supplied byte hasher, feeding it the
+    /// string CONTENT bytes (c_str + count). The default bytewise
+    /// fallback would hash the {c_str, count, cap} struct itself --
+    /// i.e. the heap pointer's address -- which is identity, not
+    /// equality. The container chooses the algorithm; this method
+    /// chooses the right bytes for a Str.
+    func hash(self: Str, hasher: HashFn) returns shallow U64
+    /// If self starts with `prefix`, return the rest; otherwise clone.
+    func strip_prefix(self: Str, prefix: Str) returns Str
+    /// If self ends with `suffix`, return the part before it; otherwise clone.
+    func strip_suffix(self: Str, suffix: Str) returns Str
+    /// Create a 1-byte Str from a U8 value.
+    func from_byte(shallow byte: U8) returns Str
+    /// Parse the string as a signed integer. Accepts an optional leading
+    /// '-', base prefixes 0x/0b/0o (issue #255), and '_' digit separators.
+    /// Bare digit runs are base-10. Panics on invalid input.
+    func to_i64(self: Str) returns shallow I64
+    /// Parse as base-10 unsigned 8-bit integer.
+    func to_u8(self: Str) returns shallow U8
+    /// Parse as base-10 signed 8-bit integer.
+    func to_i8(self: Str) returns shallow I8
+    /// Parse as base-10 signed 16-bit integer.
+    func to_i16(self: Str) returns shallow I16
+    /// Parse as base-10 unsigned 16-bit integer.
+    func to_u16(self: Str) returns shallow U16
+    /// Parse as base-10 signed 32-bit integer.
+    func to_i32(self: Str) returns shallow I32
+    /// Parse as base-10 unsigned 32-bit integer.
+    func to_u32(self: Str) returns shallow U32
+    /// Parse as base-10 unsigned 64-bit integer.
+    func to_u64(self: Str) returns shallow U64
+    /// Parse as base-10 USize (collection sizes/indices).
+    func to_usize(self: Str) returns shallow U32
+    /// Parse as a floating-point number. Backed by C strtof: handles
+    /// decimal and scientific notation at full precision, so a value
+    /// printed by F32.to_repr round-trips exactly back to the same F32.
+    /// '_' digit separators (issue #255) are stripped first since strtof
+    /// does not accept them.
+    func to_f32(self: Str) returns shallow F32
+    /// Split the string on `delim`, returning a Vec of Str clones.
+    func split(self: Str, delim: Str) returns Vec__Str
+    func size() returns shallow U32
+    func eq(a: Str, b: Str) returns shallow Bool
+    func lt(a: Str, b: Str) returns shallow Bool
+    func gt(a: Str, b: Str) returns shallow Bool
+    func neq(a: Str, b: Str) returns shallow Bool
+    func lte(a: Str, b: Str) returns shallow Bool
+    func gte(a: Str, b: Str) returns shallow Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.join">
+<h2>join</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func join(parts: Vec__Str, sep: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.digit_value">
+<h2>digit_value</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func digit_value(shallow ch: I8) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.str_parse_f32">
+<h2>str_parse_f32</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func str_parse_f32(s: Str) returns shallow F32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.c_str_len">
+<h2>c_str_len</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func c_str_len(s: Dynamic) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.OutOfBounds">
+<h2>OutOfBounds</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Error thrown by the indexed collection accessors (Array.get,
+Vec.get, ...) when the index is past the end. The msg field
+carries a &quot;file:line:col:&lt;method&gt;: index N out of bounds (len M)&quot;
+description set at the throw site.</p>
+</div>
+<pre><code class="language-til">struct OutOfBounds {
+    mut msg : Str
+namespace:
+    func clone(self: OutOfBounds) returns OutOfBounds
+    func delete(own self: OutOfBounds, shallow call_free: Bool)
+    func hash(self: OutOfBounds, hasher: HashFn) returns shallow U64
+    func eq(self: OutOfBounds, other: OutOfBounds) returns shallow Bool
+    func to_str(self: OutOfBounds) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.KeyNotFound">
+<h2>KeyNotFound</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Error type for keyed accessors (Map.get, HashMap.get, ...) when
+the key is not present. The msg field carries a
+&quot;file:line:col:&lt;method&gt;: key not found&quot; description set at the
+throw site.</p>
+</div>
+<pre><code class="language-til">struct KeyNotFound {
+    mut msg : Str
+namespace:
+    func clone(self: KeyNotFound) returns KeyNotFound
+    func delete(own self: KeyNotFound, shallow call_free: Bool)
+    func hash(self: KeyNotFound, hasher: HashFn) returns shallow U64
+    func eq(self: KeyNotFound, other: KeyNotFound) returns shallow Bool
+    func to_str(self: KeyNotFound) returns Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.Array__Str">
+<h2>Array__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Array__Str {
+    own mut data : U8
+    cap : U32
+namespace:
+    /// Create a zero-initialized Array with the given capacity.
+    func new(shallow cap: U32) returns Array__Str
+    func len(self: Array__Str) returns shallow U32
+    /// Unchecked element access: ref to the element at index `i` with
+    /// NO bounds check. The caller must prove `i &lt; len()`. This is the
+    /// unchecked core that `get` wraps; for-in uses it directly because
+    /// its `_fi &lt; len()` termination test already proves the index in
+    /// bounds (issue #284).
+    func unsafe_get(self: Array__Str, i: U32) returns ref Str
+    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
+    /// past the end; call as `arr.get(i)!` to panic on a bad index.
+    func get(self: Array__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.cap`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(self: Array__Str, shallow i: U32, own val: Str)
+    /// Overwrite the element at index `i`. Drops the old value. `val` is
+    /// owned. Throws OutOfBounds if `i` is past the end; call as
+    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
+    func set(self: Array__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func delete(own self: Array__Str, shallow call_free: Bool)
+    func clone(self: Array__Str) returns Array__Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.str.Vec__Str">
+<h2>Vec__Str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">struct Vec__Str {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__Str
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__Str
+    func len(self: Vec__Str) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Str)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Str, own val: Str)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Str, own other: Vec__Str)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Str, mut other: Vec__Str)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Str, i: U32) returns ref Str
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Str, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Str) returns Str
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Str, shallow n: U32) returns Vec__Str
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Str, shallow i: U32, own val: Str)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Str, shallow i: U32, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Str, mut src: Vec__Str, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Str, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Str) returns Vec__Str
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

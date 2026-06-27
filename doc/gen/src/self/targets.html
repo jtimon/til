@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/targets.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/targets.til</h1>
+<article class="doc-entry" id="til.src.self.targets.Lang">
+<h2>Lang</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">enum Lang {
+    C
+    HolyC
+    TIL
+namespace:
+    C
+    HolyC
+    TIL
+    func is(self: Lang, other: Lang) returns shallow Bool
+    func eq(self: Lang, other: Lang) returns shallow Bool
+    func delete(own self: Lang, shallow call_free: Bool)
+    func to_str(self: Lang) returns Str
+    func clone(self: Lang) returns Lang
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.Target">
+<h2>Target</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">enum Target {
+    LinuxX64
+    LinuxArm64
+    LinuxRiscv64
+    LinuxX86
+    LinuxArm32
+    LinuxRiscv32
+    WindowsX64
+    MacosX64
+    MacosArm64
+    Wasm32
+    TempleosX86
+namespace:
+    LinuxX64
+    LinuxArm64
+    LinuxRiscv64
+    LinuxX86
+    LinuxArm32
+    LinuxRiscv32
+    WindowsX64
+    MacosX64
+    MacosArm64
+    Wasm32
+    TempleosX86
+    func is(self: Target, other: Target) returns shallow Bool
+    func eq(self: Target, other: Target) returns shallow Bool
+    func delete(own self: Target, shallow call_free: Bool)
+    func to_str(self: Target) returns Str
+    func clone(self: Target) returns Target
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_from_str">
+<h2>target_from_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_from_str(s: Str) returns Target
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_uptr_name">
+<h2>target_uptr_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_uptr_name(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_usize_name">
+<h2>target_usize_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_usize_name(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.toolchain_command">
+<h2>toolchain_command</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func toolchain_command(target: Target, lang: Lang) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.toolchain_extra_args">
+<h2>toolchain_extra_args</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func toolchain_extra_args(target: Target, compiler: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.executable_extension">
+<h2>executable_extension</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func executable_extension(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_system_libs">
+<h2>target_system_libs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_system_libs(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_ffi_lib">
+<h2>target_ffi_lib</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_ffi_lib(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.target_gui_libs">
+<h2>target_gui_libs</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">func target_gui_libs(target: Target) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.targets.detect_current_target">
+<h2>detect_current_target</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
+<pre><code class="language-til">proc detect_current_target() returns Target
+</code></pre>
+</article>
+</main>
+</body>
+</html>

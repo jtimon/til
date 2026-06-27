@@ -294,7 +294,7 @@ usage := proc() {
     println("  install    Build and install a .til program or library")
     println("  run        Compile and run a .til file")
     println("  test       Run test() functions interpreted, then compiled")
-    println("  doc        Emit org-mode docs under doc/gen/")
+    println("  doc        Emit org-mode and HTML docs under doc/gen/")
     println("  doc-cache  Emit escaped REPL core help() cache under doc/")
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  bindings   Generate a `mode lib` .til binding from a C header")

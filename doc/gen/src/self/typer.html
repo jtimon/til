@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>src/self/typer.til</title>
+<style>
+:root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
+@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
+h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
+.meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
+.doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="../../index.html">Index</a></nav>
+<h1>src/self/typer.til</h1>
+<article class="doc-entry" id="til.src.self.typer.fa_is_ns">
+<h2>fa_is_ns</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fa_is_ns(e: Expr, scope: TypeScope) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_til_type_expr">
+<h2>make_til_type_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_til_type_expr(src: Expr, t: Type) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.fa_own_type">
+<h2>fa_own_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fa_own_type(e: Expr, scope: TypeScope) returns shallow OwnType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.I64Name">
+<h2>I64Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">I64Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.U8Name">
+<h2>U8Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">U8Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.I8Name">
+<h2>I8Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">I8Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.I16Name">
+<h2>I16Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">I16Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.U16Name">
+<h2>U16Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">U16Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.I32Name">
+<h2>I32Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">I32Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.U32Name">
+<h2>U32Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">U32Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.U64Name">
+<h2>U64Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">U64Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.F32Name">
+<h2>F32Name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">F32Name is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.BoolName">
+<h2>BoolName</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">BoolName is a Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_error">
+<h2>type_error</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc type_error(e: Expr, msg: Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_error_at">
+<h2>type_error_at</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc type_error_at(path: Str, shallow line: U32, shallow col: U32, msg: Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.find_namespace_func">
+<h2>find_namespace_func</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.find_ns_decl">
+<h2>find_ns_decl</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func find_ns_decl(sdef: Expr, method: Str) returns ref Declaration
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.resolve_fn_sig">
+<h2>resolve_fn_sig</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.fcall_returns_own">
+<h2>fcall_returns_own</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_returns_own(fcall: Expr, scope: TypeScope) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.is_clone_fcall">
+<h2>is_clone_fcall</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_clone_fcall(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.resolve_default_value">
+<h2>resolve_default_value</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.infer_expr">
+<h2>infer_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc infer_expr(scope: TypeScope, mut expr: Expr, shallow in_func: I32, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.PTR_SIZE_BYTES">
+<h2>PTR_SIZE_BYTES</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">PTR_SIZE_BYTES is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.check_unused_locals">
+<h2>check_unused_locals</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc check_unused_locals(scope: TypeScope, path: Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.check_unused_mut_locals">
+<h2>check_unused_mut_locals</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.check_unused_priv_top_level">
+<h2>check_unused_priv_top_level</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc check_unused_priv_top_level(scope: TypeScope, ctx: Context) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.check_unused_priv_members_in_program">
+<h2>check_unused_priv_members_in_program</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc check_unused_priv_members_in_program(program: Expr, path: Str, ctx: Context) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.is_simple_lvalue_expr">
+<h2>is_simple_lvalue_expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_simple_lvalue_expr(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.is_compile_directive">
+<h2>is_compile_directive</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_compile_directive(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.infer_body_stmt">
+<h2>infer_body_stmt</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc infer_body_stmt(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.infer_body">
+<h2>infer_body</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc infer_body(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.normalize_scope_bindings">
+<h2>normalize_scope_bindings</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func normalize_scope_bindings(scope: TypeScope)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_file">
+<h2>type_file</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc type_file(path: Str, ctx: Context) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.rhs_is_clone_fcall">
+<h2>rhs_is_clone_fcall</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.is_numeric_type">
+<h2>is_numeric_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_numeric_type(t: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.is_integral_numeric_type">
+<h2>is_integral_numeric_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_integral_numeric_type(t: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.literal_in_range">
+<h2>literal_in_range</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func literal_in_range(val_str: Str, target: Type) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_from_name">
+<h2>type_from_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func type_from_name(name: Str, scope: TypeScope, ctx: Context) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.resolve_type_alias">
+<h2>resolve_type_alias</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.usize_type">
+<h2>usize_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func usize_type(scope: TypeScope, ctx: Context) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_has_cmp">
+<h2>type_has_cmp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func type_has_cmp(scope: TypeScope, type_name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_uses_var">
+<h2>expr_uses_var</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_uses_var(e: Expr, name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_contains_decl">
+<h2>expr_contains_decl</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_contains_decl(e: Expr, name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_used_in_nested_func">
+<h2>expr_used_in_nested_func</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_used_in_nested_func(e: Expr, name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_prefix">
+<h2>type_prefix</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func type_prefix(t: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.type_to_name">
+<h2>type_to_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func type_to_name(t: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_closure_delete_call">
+<h2>make_closure_delete_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_closure_delete_call(var_name: Str, src: Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_delete_call">
+<h2>make_delete_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.transfer_is_shallow_field_value_copy">
+<h2>transfer_is_shallow_field_value_copy</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func transfer_is_shallow_field_value_copy(e: Expr, var_name: Str, scope: TypeScope) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_free_call">
+<h2>make_free_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_free_call(var_name: Str, shallow type: Type, src: Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_clone_call">
+<h2>make_clone_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_clone_call(type_name: Str, shallow type: Type, arg: Expr, src: Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.make_ns_call">
+<h2>make_ns_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_ns_call(sname: Str, method: Str, shallow ret_type: Type, src: Expr) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.variadic_array_type_name">
+<h2>variadic_array_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_transfers_own">
+<h2>expr_transfers_own</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.fcall_is_get_method">
+<h2>fcall_is_get_method</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_is_get_method(fcall: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.fcall_returns_ref">
+<h2>fcall_returns_ref</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_returns_ref(fcall: Expr, scope: TypeScope) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.fcall_returns_shallow">
+<h2>fcall_returns_shallow</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_returns_shallow(fcall: Expr, scope: TypeScope) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.Vec__CtorArg">
+<h2>Vec__CtorArg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct Vec__CtorArg {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__CtorArg
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CtorArg
+    func len(self: Vec__CtorArg) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CtorArg)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CtorArg, own val: priv___src_self_typer_til__CtorArg)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CtorArg, own other: Vec__CtorArg)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CtorArg, mut other: Vec__CtorArg)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CtorArg, i: U32) returns ref priv___src_self_typer_til__CtorArg
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CtorArg, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_typer_til__CtorArg
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CtorArg) returns priv___src_self_typer_til__CtorArg
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CtorArg, shallow n: U32) returns Vec__CtorArg
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CtorArg, shallow i: U32, own val: priv___src_self_typer_til__CtorArg, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CtorArg, mut src: Vec__CtorArg, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CtorArg, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CtorArg) returns Vec__CtorArg
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.Vec__CoverageNode">
+<h2>Vec__CoverageNode</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct Vec__CoverageNode {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__CoverageNode
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to &gt;= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__CoverageNode
+    func len(self: Vec__CoverageNode) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CoverageNode)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CoverageNode, own other: Vec__CoverageNode)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CoverageNode, mut other: Vec__CoverageNode)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CoverageNode, i: U32) returns ref priv___src_self_typer_til__CoverageNode
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CoverageNode, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_typer_til__CoverageNode
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CoverageNode, shallow n: U32) returns Vec__CoverageNode
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CoverageNode, shallow i: U32, own val: priv___src_self_typer_til__CoverageNode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CoverageNode, mut src: Vec__CoverageNode, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CoverageNode, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CoverageNode) returns Vec__CoverageNode
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
+</main>
+</body>
+</html>

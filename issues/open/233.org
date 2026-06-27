@@ -5,8 +5,8 @@
 *   Current state:
     - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
     - Packed blobs for runtime ~help()~ (linear lookup).
-    - ~til doc~ -> org-mode output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated ~doc/gen/index.org~ grouping, and resolved ~[[til:...]]~ doc links.
-    - No HTML, search, or doctests yet.
+    - ~til doc~ -> org-mode and static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated grouped indexes, and resolved ~[[til:...]]~ doc links.
+    - No search or doctests yet.
 
 *   Proposed vision (Python/Elixir-inspired):
     - Adopt explicit org-mode doc contract metadata in comments.
@@ -23,7 +23,8 @@
     - Third slice generated ~doc/gen/index.org~ as the first navigation layer over public docs, grouped by ~#+group:~.
     - Fourth slice factored ~til doc~ through a reusable in-memory catalog so org pages, the index, and later HTML/search output share one collected doc model.
     - Fifth slice added stable org anchors and default groups for the generated docs index.
-    - Current slice resolves ~[[til:Name]]~ doc-comment links through the catalog into generated org links.
+    - Sixth slice resolved ~[[til:Name]]~ doc-comment links through the catalog into generated org links.
+    - Current slice emits static HTML pages and an HTML index from the same doc catalog.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:
