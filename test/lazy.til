@@ -281,12 +281,11 @@ test_thunk_captures_local := test() {
     # literal/global args above where the thunk captures nothing).
     x := true
     y := false
-    rtt := both(x, x)
-    expect(rtt, "both(x, x) is true via captured locals")
-    rtf := both(x, y)
-    expect(rtf.not(), "both(x, y) is false via captured locals")
-    rft := both(y, x)
-    expect(rft.not(), "both(y, x) short-circuits on a captured local")
+    expect(both(x, x), "both(x, x) is true via captured locals")
+    # `.not()` directly on the call: the capturing thunk arg is a UFCS-receiver
+    # arg, the case that used to trip a spurious #223 redundant-shallow error.
+    expect(both(x, y).not(), "both(x, y) is false via captured locals")
+    expect(both(y, x).not(), "both(y, x) short-circuits on a captured local")
 }
 
 test_thunk_mixed_arg_short_circuits := test() {

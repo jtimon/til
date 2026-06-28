@@ -113,3 +113,17 @@ test_funcptr_field_constfold := test() {
     b := Box295(t = forty_two295)
     assert_eq(I64, b.t(), 42)
 }
+
+// #223: a capturing closure returning a PRIMITIVE, passed as an arg to a
+// function whose RESULT is a UFCS method receiver, must not spuriously error
+// with "redundant 'shallow' on primitive return". The UFCS path re-infers its
+// receiver (and thus the closure arg); the auto-shallow pass had already
+// normalized the closure's Own return to Shallow, so the redundant-shallow
+// check -- which now keys off the parser's explicit-shallow flag, not the
+// normalized return_own_type -- stays idempotent across the re-inference.
+BoolThunk223 := func() returns Bool
+callthunk223 := func(f: BoolThunk223) returns Bool { return f() }
+test_capturing_closure_ufcs_receiver_arg := test() {
+    x := true
+    expect(callthunk223(func() returns Bool [x] { return x }).not().not(), "shallow check idempotent")
+}

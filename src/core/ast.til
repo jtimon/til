@@ -186,6 +186,14 @@ FunctionDef := struct {
     variadic_index : I32 = -1
     kwargs_index : I32 = -1
     return_own_type := OwnType.Own
+    // Issue #223: set by the parser ONLY when the return type carries an
+    // explicit `shallow` qualifier. The redundant-shallow diagnostic must
+    // test this, NOT return_own_type, because the typer's auto-shallow pass
+    // overwrites return_own_type Own->Shallow for primitives -- which would
+    // make the check misfire on any RE-inference of the def (e.g. a capturing
+    // closure re-typed as a UFCS-receiver-call arg). This flag preserves the
+    // user's original intent across re-inference so the check stays idempotent.
+    return_shallow_explicit := false
     // #187 step 2: set true on FuncDefs emitted by initer's auto-gen
     // helpers (clone/delete/size/eq/to_str/variant constructors).
     // The unused-priv-member check skips field/ns reads inside these

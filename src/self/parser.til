@@ -678,6 +678,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         } else if check(p, TokenType.KwShallow) {
             advance(p)
             fd.return_own_type = OwnType.Shallow
+            fd.return_shallow_explicit = true
         }
         fd.return_type = parse_type_ref(p)
     }

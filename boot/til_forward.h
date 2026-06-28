@@ -1594,6 +1594,7 @@ typedef struct FunctionDef {
     I32 variadic_index;
     I32 kwargs_index;
     OwnType return_own_type;
+    Bool return_shallow_explicit;
     Bool auto_generated;
     Bool is_enum_variant_ctor;
     Vec__Declaration captures;
