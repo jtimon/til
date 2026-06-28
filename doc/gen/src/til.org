@@ -71,14 +71,24 @@ proc repl_read_line(mode_name: Str) returns Str
 proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 #+end_src
 
-* repl_capture_interpret
+* repl_capture_eval_current
 :PROPERTIES:
-:CUSTOM_ID: til.src.til.repl_capture_interpret
+:CUSTOM_ID: til.src.til.repl_capture_eval_current
 :group: CLI
 :END:
 
 #+begin_src til
-proc repl_capture_interpret(lp: LoadedProgram, out_path: Str) returns Str
+proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool) returns Str
+#+end_src
+
+* repl_source_line_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_source_line_count
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_source_line_count(s: Str) returns shallow U32
 #+end_src
 
 * repl_parse_allows_wrap

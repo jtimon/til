@@ -342,10 +342,6 @@ namespace:
 }
 </code></pre>
 </li>
-<li><a href="src/core/dyn.html#til.src.core.dyn.is">is</a>
-<pre><code class="language-til">ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
-</code></pre>
-</li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.is_n">is_n</a>
 <pre><code class="language-til">ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
 </code></pre>
@@ -1204,6 +1200,7 @@ namespace:
     mut variadic_index : I32
     mut kwargs_index : I32
     mut return_own_type : OwnType
+    mut return_shallow_explicit : Bool
     mut auto_generated : Bool
     mut is_enum_variant_ctor : Bool
     mut captures : Vec__Declaration
@@ -3324,7 +3321,6 @@ namespace:
     mut builder_str_lit_symbols : Map__Str_Str
     mut builder_str_lit_values : Vec__Str
     mut builder_str_lit_alias_symbols : Map__Str_Str
-    mut builder_str_lit_alias_names : Vec__Str
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -6277,6 +6273,18 @@ namespace:
 }
 </code></pre>
 </li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.InterpSession">InterpSession</a>
+<pre><code class="language-til">struct InterpSession {
+    ref mut global : Scope
+    mut core_evaluated : Bool
+    mut user_argc : U32
+namespace:
+    func clone(self: InterpSession) returns InterpSession
+    func delete(own self: InterpSession, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a>
 <pre><code class="language-til">func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 </code></pre>
@@ -6359,6 +6367,34 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.read_field">read_field</a>
 <pre><code class="language-til">func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_start">interp_session_start</a>
+<pre><code class="language-til">func interp_session_start(mut session: InterpSession, user_argv: Vec__Str)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_free">interp_session_free</a>
+<pre><code class="language-til">func interp_session_free(mut session: InterpSession)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a>
+<pre><code class="language-til">proc interp_session_prepare_context(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns shallow I32
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a>
+<pre><code class="language-til">proc interp_session_finish_context(mut lp: LoadedProgram)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a>
+<pre><code class="language-til">proc interp_session_eval_core_once(mut session: InterpSession, mut lp: LoadedProgram)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a>
+<pre><code class="language-til">proc interp_session_eval_user_units(session: InterpSession, mut lp: LoadedProgram)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a>
+<pre><code class="language-til">proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool)
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.cmd_interpret">cmd_interpret</a>
@@ -6753,8 +6789,12 @@ namespace:
 <pre><code class="language-til">proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 </code></pre>
 </li>
-<li><a href="src/til.html#til.src.til.repl_capture_interpret">repl_capture_interpret</a>
-<pre><code class="language-til">proc repl_capture_interpret(lp: LoadedProgram, out_path: Str) returns Str
+<li><a href="src/til.html#til.src.til.repl_capture_eval_current">repl_capture_eval_current</a>
+<pre><code class="language-til">proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool) returns Str
+</code></pre>
+</li>
+<li><a href="src/til.html#til.src.til.repl_source_line_count">repl_source_line_count</a>
+<pre><code class="language-til">func repl_source_line_count(s: Str) returns shallow U32
 </code></pre>
 </li>
 <li><a href="src/til.html#til.src.til.repl_parse_allows_wrap">repl_parse_allows_wrap</a>

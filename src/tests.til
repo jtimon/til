@@ -7,6 +7,7 @@ TIL := "bin/til"
 RUNNER := "bin/test_runner"
 PLOT := "bin/plot"
 GUI_TIMEOUT := "1"
+DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -84,6 +85,80 @@ mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
     if en_run == 0 { f = format(f, " -no-run") }
     if asan_flag.len() > 0 { f = format(f, " ", asan_flag) }
     return f
+}
+
+doc_test_line_end := func(body: Str, pos: USize) returns USize {
+    rest := body.substr(pos, body.len() - pos)
+    line_rel := rest.find("\n")
+    if line_rel < 0 { return body.len() }
+    return pos + line_rel.to_usize()
+}
+
+doc_test_next_line_pos := func(body: Str, line_end: USize) returns USize {
+    if line_end >= body.len() { return body.len() }
+    return line_end + 1
+}
+
+doc_test_comment_text := func(line: Str, path: Str) returns Str {
+    trimmed := line.trim()
+    if trimmed.starts_with("///").not() { panic("unterminated doctest block in ", path) }
+    mut text := trimmed.strip_prefix("///").clone()
+    if text.starts_with(" ") { text = text.strip_prefix(" ").clone() }
+    return text
+}
+
+doc_test_is_doctest_begin := func(line: Str) returns Bool {
+    trimmed := line.trim()
+    if trimmed.starts_with("///").not() { return false }
+    text := doc_test_comment_text(line, "<doc-test>")
+    return text.trim().starts_with("#+begin_src").and(text.contains(":doctest"))
+}
+
+append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize) returns USize {
+    mut next_count := count
+    mut pos : USize = 0
+    while pos < source.len() {
+        line_end := doc_test_line_end(source, pos)
+        line := source.substr(pos, line_end - pos)
+        if doc_test_is_doctest_begin(line) {
+            pos = doc_test_next_line_pos(source, line_end)
+            out.push_str("doctest_")
+            out.push_str(next_count.to_str())
+            out.push_str(" := test() {\n")
+            mut found_end := false
+            mut has_body := false
+            while pos < source.len() {
+                src_line_end := doc_test_line_end(source, pos)
+                src_line := source.substr(pos, src_line_end - pos)
+                body_line := doc_test_comment_text(src_line, path)
+                if body_line.trim().starts_with("#+end_src") {
+                    found_end = true
+                    pos = doc_test_next_line_pos(source, src_line_end)
+                    break
+                }
+                if body_line.trim().is_empty().not() { has_body = true }
+                out.push_str(body_line)
+                out.push_str("\n")
+                pos = doc_test_next_line_pos(source, src_line_end)
+            }
+            if found_end.not() { panic("unterminated doctest block in ", path) }
+            if has_body.not() { panic("empty doctest block in ", path) }
+            out.push_str("}\n\n")
+            next_count++
+            continue
+        }
+        pos = doc_test_next_line_pos(source, line_end)
+    }
+    return next_count
+}
+
+write_doc_doctests := proc(out_path: Str) {
+    source := File.readfile("src/core/str.til")
+    mut out := Str.with_capacity(source.len().mul(2) + 1024)
+    out.push_str("mode test\n\n")
+    count := append_source_doc_doctests(out, "src/core/str.til", source, 0)
+    if count == 0 { panic("no doc doctests found") }
+    File.writefile(out_path, out)
 }
 
 // --- Data structures ---
@@ -495,6 +570,8 @@ main := proc(args: ..Str) {
     // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
     // assumes docs are populated for til test / til interpret.
     // add_both(tests, "test/doc_comments.til", flags)
+    write_doc_doctests(DOC_DOCTEST_FILE)
+    add_both(tests, DOC_DOCTEST_FILE, flags)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

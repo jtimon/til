@@ -16,16 +16,6 @@ namespace:
 }
 #+end_src
 
-* is
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.dyn.is
-:group: Core
-:END:
-
-#+begin_src til
-ext_func is(self: Dynamic, other: Dynamic) returns shallow Bool
-#+end_src
-
 * is_n
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.is_n

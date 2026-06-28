@@ -95,6 +95,7 @@
 *** variadic_index : I32 = -1
 *** kwargs_index : I32 = -1
 *** return_own_type := OwnType.Own
+*** return_shallow_explicit := false
 *** auto_generated := false
 *** is_enum_variant_ctor := false
 *** captures := Vec(Declaration).new()
@@ -291,7 +292,7 @@
 *** has_return := false
 *** has_break := false
 *** has_continue := false
-*** ... (58 more)
+*** ... (57 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -447,6 +448,10 @@
 *** ref_primitive_ptrs := Map(Str, Dynamic).new()
 *** box_owned_dynamics := Vec(DynPtrBox).new()
 *** box_owned_callables := Vec(DynPtrBox).new()
+** InterpSession: StructDef
+*** ref global : Scope = NULL
+*** core_evaluated := false
+*** user_argc : U32 = 0
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** ExtStr: StructDef

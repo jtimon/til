@@ -231,7 +231,6 @@ struct Context {
     mut builder_str_lit_symbols : Map__Str_Str
     mut builder_str_lit_values : Vec__Str
     mut builder_str_lit_alias_symbols : Map__Str_Str
-    mut builder_str_lit_alias_names : Vec__Str
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr

@@ -233,6 +233,24 @@ namespace:
 }
 #+end_src
 
+* InterpSession
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.InterpSession
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct InterpSession {
+    ref mut global : Scope
+    mut core_evaluated : Bool
+    mut user_argc : U32
+namespace:
+    func clone(self: InterpSession) returns InterpSession
+    func delete(own self: InterpSession, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+#+end_src
+
 * lookup_interp_type_def
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.lookup_interp_type_def
@@ -441,6 +459,76 @@ ENUM_PAYLOAD_OFFSET is a U32
 
 #+begin_src til
 func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
+#+end_src
+
+* interp_session_start
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_start
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func interp_session_start(mut session: InterpSession, user_argv: Vec__Str)
+#+end_src
+
+* interp_session_free
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_free
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func interp_session_free(mut session: InterpSession)
+#+end_src
+
+* interp_session_prepare_context
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_prepare_context
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc interp_session_prepare_context(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns shallow I32
+#+end_src
+
+* interp_session_finish_context
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_finish_context
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc interp_session_finish_context(mut lp: LoadedProgram)
+#+end_src
+
+* interp_session_eval_core_once
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_eval_core_once
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc interp_session_eval_core_once(mut session: InterpSession, mut lp: LoadedProgram)
+#+end_src
+
+* interp_session_eval_user_units
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_eval_user_units
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc interp_session_eval_user_units(session: InterpSession, mut lp: LoadedProgram)
+#+end_src
+
+* interp_session_eval_current_root
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_session_eval_current_root
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool)
 #+end_src
 
 * cmd_interpret

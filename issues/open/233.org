@@ -5,8 +5,8 @@
 *   Current state:
     - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
     - Packed blobs for runtime ~help()~ (linear lookup).
-    - ~til doc~ -> org-mode and searchable static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated grouped indexes, and resolved ~[[til:...]]~ doc links.
-    - No doctests yet.
+    - ~til doc~ -> org-mode and searchable static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated grouped indexes, resolved ~[[til:...]]~ doc links, and HTML source-block rendering.
+    - ~make test~ extracts ~#+begin_src til :doctest~ blocks from selected doc comments and runs them through interpreted and compiled test mode.
 
 *   Proposed vision (Python/Elixir-inspired):
     - Adopt explicit org-mode doc contract metadata in comments.
@@ -25,7 +25,8 @@
     - Fifth slice added stable org anchors and default groups for the generated docs index.
     - Sixth slice resolved ~[[til:Name]]~ doc-comment links through the catalog into generated org links.
     - Seventh slice emitted static HTML pages and an HTML index from the same doc catalog.
-    - Current slice emits ~doc/gen/search.js~ and wires a client-side search box into the generated HTML.
+    - Eighth slice emitted ~doc/gen/search.js~ and wired a client-side search box into the generated HTML.
+    - Current slice renders org source blocks in HTML and adds a test-suite-only doctest MVP.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:

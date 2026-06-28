@@ -214,6 +214,20 @@ namespace:
 }
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.interpreter.InterpSession">
+<h2>InterpSession</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">struct InterpSession {
+    ref mut global : Scope
+    mut core_evaluated : Bool
+    mut user_argc : U32
+namespace:
+    func clone(self: InterpSession) returns InterpSession
+    func delete(own self: InterpSession, shallow call_free: Bool)
+    func size() returns shallow U32
+}
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.interpreter.lookup_interp_type_def">
 <h2>lookup_interp_type_def</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -338,6 +352,48 @@ namespace:
 <h2>read_field</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: U32, ctx: Context) returns shallow Value
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_start">
+<h2>interp_session_start</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func interp_session_start(mut session: InterpSession, user_argv: Vec__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_free">
+<h2>interp_session_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func interp_session_free(mut session: InterpSession)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_prepare_context">
+<h2>interp_session_prepare_context</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc interp_session_prepare_context(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_finish_context">
+<h2>interp_session_finish_context</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc interp_session_finish_context(mut lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_eval_core_once">
+<h2>interp_session_eval_core_once</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc interp_session_eval_core_once(mut session: InterpSession, mut lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_eval_user_units">
+<h2>interp_session_eval_user_units</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc interp_session_eval_user_units(session: InterpSession, mut lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.interp_session_eval_current_root">
+<h2>interp_session_eval_current_root</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.cmd_interpret">

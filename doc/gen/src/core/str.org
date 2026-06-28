@@ -29,6 +29,10 @@ CAP_VIEW is a U32
 
 Concatenate multiple strings into one.
 
+#+begin_src til :doctest
+assert_eq(Str, format("a", "b", "c"), "abc")
+#+end_src
+
 #+begin_src til
 func format(parts: ..Str) returns Str
 #+end_src

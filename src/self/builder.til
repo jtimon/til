@@ -8001,6 +8001,26 @@ priv doc_find_link_end := func(body: Str, start: USize, loc: Str) returns USize 
     return body.len()
 }
 
+priv doc_line_end := func(body: Str, pos: USize) returns USize {
+    rest := body.substr(pos, body.len() - pos)
+    line_rel := rest.find("\n")
+    if line_rel < 0 { return body.len() }
+    return pos + line_rel.to_usize()
+}
+
+priv doc_next_line_pos := func(body: Str, line_end: USize) returns USize {
+    if line_end >= body.len() { return body.len() }
+    return line_end + 1
+}
+
+priv doc_is_src_begin := func(line: Str) returns Bool {
+    return line.trim().starts_with("#+begin_src")
+}
+
+priv doc_is_src_end := func(line: Str) returns Bool {
+    return line.trim().starts_with("#+end_src")
+}
+
 priv doc_expand_til_links := func(body: Str, catalog: DocCatalog, loc: Str) returns Str {
     mut out := ""
     mut pos : USize = 0
@@ -8327,12 +8347,32 @@ priv append_doc_html_body := func(mut out: Str, body: Str, current_page: Str, lo
     mut pos : USize = 0
     mut in_para := false
     while pos < body.len() {
-        rest := body.substr(pos, body.len() - pos)
-        line_rel := rest.find("\n")
-        mut line_end := body.len()
-        if line_rel >= 0 { line_end = pos + line_rel.to_usize() }
+        line_end := doc_line_end(body, pos)
         line := body.substr(pos, line_end - pos)
-        if line.trim().is_empty() {
+        if doc_is_src_begin(line) {
+            if in_para {
+                out.push_str("</p>\n")
+                in_para = false
+            }
+            out.push_str("<pre><code class=\"language-til\">")
+            pos = doc_next_line_pos(body, line_end)
+            mut found_end := false
+            while pos < body.len() {
+                src_line_end := doc_line_end(body, pos)
+                src_line := body.substr(pos, src_line_end - pos)
+                if doc_is_src_end(src_line) {
+                    found_end = true
+                    pos = doc_next_line_pos(body, src_line_end)
+                    break
+                }
+                out.push_str(doc_html_escape(src_line))
+                out.push_str("\n")
+                pos = doc_next_line_pos(body, src_line_end)
+            }
+            if found_end.not() { panic("unterminated doc source block in ", loc) }
+            out.push_str("</code></pre>\n")
+            continue
+        } else if line.trim().is_empty() {
             if in_para {
                 out.push_str("</p>\n")
                 in_para = false
@@ -8346,7 +8386,7 @@ priv append_doc_html_body := func(mut out: Str, body: Str, current_page: Str, lo
             }
             append_doc_html_inline(out, line, current_page, loc)
         }
-        if line_rel < 0 { pos = body.len() } else { pos = line_end + 1 }
+        pos = doc_next_line_pos(body, line_end)
     }
     if in_para { out.push_str("</p>\n") }
 }

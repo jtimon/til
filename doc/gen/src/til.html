@@ -68,10 +68,16 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.til.repl_capture_interpret">
-<h2>repl_capture_interpret</h2>
+<article class="doc-entry" id="til.src.til.repl_capture_eval_current">
+<h2>repl_capture_eval_current</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_capture_interpret(lp: LoadedProgram, out_path: Str) returns Str
+<pre><code class="language-til">proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_source_line_count">
+<h2>repl_source_line_count</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_source_line_count(s: Str) returns shallow U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_parse_allows_wrap">

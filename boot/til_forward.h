@@ -3677,6 +3677,10 @@ void priv___src_self_builder_til__collect_unit_doc_catalog(ProgramUnit * u, Cont
 DocEntry * priv___src_self_builder_til__doc_catalog_lookup(DocCatalog * catalog, Str * name, Str * loc);
 Str * priv___src_self_builder_til__doc_entry_org_link(DocEntry * e, Str * label);
 U32 priv___src_self_builder_til__doc_find_link_end(Str * body, U32 start, Str * loc);
+U32 priv___src_self_builder_til__doc_line_end(Str * body, U32 pos);
+U32 priv___src_self_builder_til__doc_next_line_pos(Str * body, U32 line_end);
+Bool priv___src_self_builder_til__doc_is_src_begin(Str * line);
+Bool priv___src_self_builder_til__doc_is_src_end(Str * line);
 Str * priv___src_self_builder_til__doc_expand_til_links(Str * body, DocCatalog * catalog, Str * loc);
 void priv___src_self_builder_til__expand_doc_catalog_links(DocCatalog * catalog);
 DocCatalog * priv___src_self_builder_til__build_doc_catalog(LoadedProgram * lp);
