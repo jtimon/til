@@ -1,6 +1,6 @@
 # priority: high
 # category: optimizations
-** OPEN #292 Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
+** WIP #292 Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
 
   After the cast Type_Primitive fix landed, a fresh --prof run
   (`bin/til run examples/profile.til src/til.til`; snapshot in

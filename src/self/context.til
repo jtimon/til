@@ -818,7 +818,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     case NodeType.FCall:
         if def_val.children.len() == 0 { return "" }
         switch def_val.children[0].node_type {
-        case NodeType.Ident(cn): return cn.ident_name()
+        case NodeType.Ident(cn): return Str.clone(cn.ident_name())
         case:
         }
     case:
@@ -837,7 +837,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
 array_vec_elem_type_name := func(fcall: Expr) returns Str {
     if fcall.children.len() < 2 { return "" }
     switch fcall.children[1].node_type {
-    case NodeType.Ident(tn): return tn.ident_name()
+    case NodeType.Ident(tn): return Str.clone(tn.ident_name())
     case:
         return ""
     }

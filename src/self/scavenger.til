@@ -117,7 +117,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                             // literal arg. Without recording it here the scavenger
                             // would prune the enum/struct decl as unused.
                             if type_name.ident_name() == "Type" {
-                                mn := method.field_access_name()
+                                ref mn : Str = method.field_access_name()
                                 is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
                                 if is_named_type_ctor.and(e.children.len().gte(2)) {
                                     switch e.children[1].node_type {
@@ -366,7 +366,7 @@ priv collect_body_refs := proc(e: Expr, mut refs: Set(Str), candidates: Set(Str)
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(name):
-        refs.add(own name.ident_name())
+        refs.add(own Str.clone(name.ident_name()))
     case NodeType.Assign(adata):
         refs.add(own adata.name.clone())
     case:
@@ -408,7 +408,7 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
     mut method := ""
     switch callee.node_type {
-    case NodeType.FieldAccess(m): method = m.field_access_name()
+    case NodeType.FieldAccess(m): method = Str.clone(m.field_access_name())
     case:
     }
     if method.eq("delete").not() { return "" }
@@ -424,12 +424,11 @@ priv match_trivial_delete := func(stmt: Expr) returns Str {
     case:
     }
     if bv { return "" }
-    mut tn := ""
     switch arg0.node_type {
-    case NodeType.Ident(n): tn = n.ident_name()
+    case NodeType.Ident(n): return Str.clone(n.ident_name())
     case:
     }
-    return tn
+    return ""
 }
 
 // Side-effect-free, by-value RHS: dropping the binding cannot leak or

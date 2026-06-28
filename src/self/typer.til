@@ -10,7 +10,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     if sn.len() == 0 {
         switch obj.node_type {
         case NodeType.Ident(id):
-            sn = id.ident_name()
+            sn = Str.clone(id.ident_name())
         case:
             return false
         }
@@ -20,7 +20,7 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     mut fname := ""
     switch e.node_type {
     case NodeType.FieldAccess(fn):
-        fname = fn.field_access_name()
+        fname = Str.clone(fn.field_access_name())
     case NodeType.FieldAssign(fad):
         fname = fad.name
     case:
@@ -147,7 +147,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     if sn.len() == 0 {
         switch obj.node_type {
         case NodeType.Ident(id):
-            sn = id.ident_name()
+            sn = Str.clone(id.ident_name())
         case:
             return OwnType.Shallow
         }
@@ -157,7 +157,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     mut fname := ""
     switch e.node_type {
     case NodeType.FieldAccess(fn):
-        fname = fn.field_access_name()
+        fname = Str.clone(fn.field_access_name())
     case NodeType.FieldAssign(fad):
         fname = fad.name
     case:
@@ -324,7 +324,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
             if sname.len() == 0 {
                 switch recv.node_type {
                 case NodeType.Ident(rn):
-                    sname = rn.ident_name()
+                    sname = Str.clone(rn.ident_name())
                 case:
                 }
             }
@@ -1479,7 +1479,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     mut method := ""
     switch fa.node_type {
     case NodeType.FieldAccess(m):
-        method = m.field_access_name()
+        method = Str.clone(m.field_access_name())
     case:
         UNREACHABLE()
         return false
@@ -1664,7 +1664,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         ref fa2 : Expr = e.children[0]
         switch fa2.node_type {
         case NodeType.FieldAccess(m2):
-            method = m2.field_access_name()
+            method = Str.clone(m2.field_access_name())
         case:
             UNREACHABLE()
         }
@@ -1679,7 +1679,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     if obj3_sname.len() == 0 {
         switch obj3.node_type {
         case NodeType.Ident(obj3_id):
-            obj3_sname = obj3_id.ident_name()
+            obj3_sname = Str.clone(obj3_id.ident_name())
         case:
         }
     }
@@ -2140,10 +2140,10 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
             ref del : Expr = find_namespace_func(sdef, "delete", scope)
             if del.is_null() { return }
             e.type_error(format(
-                "free(own ", an.ident_name(), ") shallow-frees managed type '", tn,
+                "free(own ", Str.clone(an.ident_name()), ") shallow-frees managed type '", tn,
                 "': passing 'own' makes the asap pass skip ", tn,
                 ".delete, leaking its owned fields -- call ", tn, ".delete(own ",
-                an.ident_name(), ", true) or let the asap pass free it",
+                Str.clone(an.ident_name()), ", true) or let the asap pass free it",
             ), ctx)
         case:
         }
@@ -2260,7 +2260,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     src_type := e.children[1].expr_til_type()
     mut tname := ""
     switch e.children[2].node_type {
-    case NodeType.Ident(tn0): tname = tn0.ident_name()
+    case NodeType.Ident(tn0): tname = Str.clone(tn0.ident_name())
     case:
         e.children[2].type_error("cast target must be a type name, e.g. cast(x, I32)", ctx)
         e.set_expr_til_type(Type.Unknown)
@@ -2320,7 +2320,7 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
     }
     mut sig_name := ""
     switch callee.children[2].node_type {
-    case NodeType.Ident(tn): sig_name = tn.ident_name()
+    case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
     case:
         return false
     }
@@ -2446,7 +2446,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
             }
             return
         }
-        name = name0.ident_name()
+        name = Str.clone(name0.ident_name())
     case:
         UNREACHABLE()
         return
@@ -2567,7 +2567,7 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case NodeType.Ident(id_name):
         type := scope.get_type(id_name.ident_name())
         if type.is(Type.Unknown) {
-            expr.type_error(format("undefined symbol '", id_name.ident_name(), "'"), ctx)
+            expr.type_error(format("undefined symbol '", Str.clone(id_name.ident_name()), "'"), ctx)
         }
         expr.set_expr_til_type(type)
         ref mut ib : TypeBinding = scope.get_binding(id_name.ident_name())
@@ -3874,7 +3874,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             mut fname := ""
             switch expr.node_type {
             case NodeType.FieldAccess(fn):
-                fname = fn.field_access_name()
+                fname = Str.clone(fn.field_access_name())
             case:
                 UNREACHABLE()
                 return
@@ -4693,7 +4693,7 @@ is_compile_directive := func(e: Expr) returns Bool {
     if e.children.len() < 1 { return false }
     switch e.children[0].node_type {
     case NodeType.Ident(name):
-        name_str := name.ident_name()
+        ref name_str : Str = name.ident_name()
         return name_str.eq("link").or(name_str.eq("link_c")).or(name_str.eq("import"))
     case:
         return false
@@ -5018,7 +5018,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                         // type_from_name would loop until stack overflow).
                         // The struct/func re-binding above is fine because
                         // it pivots on ptr_eq of the old Expr.
-                        rb.alias_target = target_name.ident_name()
+                        rb.alias_target = Str.clone(target_name.ident_name())
                     case:
                     }
                 }
@@ -6050,13 +6050,13 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     if callee.children.len() == 0 { return false }
     mut variant := ""
     switch callee.node_type {
-    case NodeType.FieldAccess(fad): variant = fad.field_access_name()
+    case NodeType.FieldAccess(fad): variant = Str.clone(fad.field_access_name())
     case: return false
     }
     ref base : Expr = callee.children[0]
     mut tn := ""
     switch base.node_type {
-    case NodeType.Ident(idd): tn = idd.ident_name()
+    case NodeType.Ident(idd): tn = Str.clone(idd.ident_name())
     case: return false
     }
     ref sdef : Expr = scope.get_struct(tn)
@@ -6465,11 +6465,11 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                 mut type_name := ""
                 mut variant_name := ""
                 switch pattern.children[0].node_type {
-                case NodeType.Ident(tn): type_name = tn.ident_name()
+                case NodeType.Ident(tn): type_name = Str.clone(tn.ident_name())
                 case:
                 }
                 switch pattern.node_type {
-                case NodeType.FieldAccess(vn): variant_name = vn.field_access_name()
+                case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
                 case:
                 }
                 if type_name == expected_type_name {
@@ -6493,11 +6493,11 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                         mut type_name2 := ""
                         mut variant_name2 := ""
                         switch callee.children[0].node_type {
-                        case NodeType.Ident(tn2): type_name2 = tn2.ident_name()
+                        case NodeType.Ident(tn2): type_name2 = Str.clone(tn2.ident_name())
                         case:
                         }
                         switch callee.node_type {
-                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.field_access_name()
+                        case NodeType.FieldAccess(vn2): variant_name2 = Str.clone(vn2.field_access_name())
                         case:
                         }
                         if type_name2 == expected_type_name {
@@ -6550,11 +6550,11 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                 mut type_name := ""
                 mut variant_name := ""
                 switch pattern.children[0].node_type {
-                case NodeType.Ident(tn): type_name = tn.ident_name()
+                case NodeType.Ident(tn): type_name = Str.clone(tn.ident_name())
                 case:
                 }
                 switch pattern.node_type {
-                case NodeType.FieldAccess(vn): variant_name = vn.field_access_name()
+                case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
                 case:
                 }
                 if type_name == expected_type_name {
@@ -6580,11 +6580,11 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                         mut type_name2 := ""
                         mut variant_name2 := ""
                         switch callee.children[0].node_type {
-                        case NodeType.Ident(tn2): type_name2 = tn2.ident_name()
+                        case NodeType.Ident(tn2): type_name2 = Str.clone(tn2.ident_name())
                         case:
                         }
                         switch callee.node_type {
-                        case NodeType.FieldAccess(vn2): variant_name2 = vn2.field_access_name()
+                        case NodeType.FieldAccess(vn2): variant_name2 = Str.clone(vn2.field_access_name())
                         case:
                         }
                         if type_name2 == expected_type_name {
@@ -6823,7 +6823,7 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
     if pattern.children[0].node_type.is(NodeType.Ident).not() { return }
     mut vsp_type_name := ""
     switch pattern.children[0].node_type {
-    case NodeType.Ident(vspn): vsp_type_name = vspn.ident_name()
+    case NodeType.Ident(vspn): vsp_type_name = Str.clone(vspn.ident_name())
     case:
     }
     mut vsp_all_named := true

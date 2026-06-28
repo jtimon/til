@@ -288,7 +288,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             }
             mut holder_name := ""
             switch target.node_type {
-            case NodeType.Ident(hn): holder_name = hn.ident_name()
+            case NodeType.Ident(hn): holder_name = Str.clone(hn.ident_name())
             case:
             }
             if holder_name.len() == 0 { continue }
@@ -297,7 +297,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             ref value : Expr = stmt.children[1]
             mut src_name := ""
             switch value.node_type {
-            case NodeType.Ident(sn): src_name = sn.ident_name()
+            case NodeType.Ident(sn): src_name = Str.clone(sn.ident_name())
             case:
             }
             if src_name.len() == 0 { continue }

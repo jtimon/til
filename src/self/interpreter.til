@@ -743,7 +743,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     case NodeType.Ident(ident):
         ref cell : Cell = scope_get(scope, ident.ident_name())
         if cell.is_null() {
-            interp_error(e, format("undefined variable '", ident.ident_name(), "'"), ctx)
+            interp_error(e, format("undefined variable '", Str.clone(ident.ident_name()), "'"), ctx)
             exit(1)
         }
         return borrow_value(cell.val)
@@ -784,7 +784,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 if sname.len() == 0 {
                     switch e.children[0].node_type {
                     case NodeType.Ident(ident):
-                        sname = ident.ident_name()
+                        sname = Str.clone(ident.ident_name())
                     case:
                         // Primitive receiver (LiteralNum I64, etc.).
                         sname = til_type_name_c(e.children[0].expr_til_type())
@@ -832,7 +832,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 }
                 return borrow_value(nsv)
             }
-            interp_error(e, format("no namespace field '", fname.field_access_name(), "'"), ctx)
+            interp_error(e, format("no namespace field '", Str.clone(fname.field_access_name()), "'"), ctx)
             exit(1)
         }
         if is_value_ptr(obj) {
@@ -855,7 +855,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         case Value.Struct(si):
             ref fdecl : Declaration = find_field_decl(lookup_interp_type_def(si.struct_name, si.ctx), fname.field_access_name())
             if fdecl.is_null() {
-                interp_error(e, format("no field '", fname.field_access_name(), "'"), ctx)
+                interp_error(e, format("no field '", Str.clone(fname.field_access_name()), "'"), ctx)
                 exit(1)
             }
             fl := ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
@@ -1077,11 +1077,11 @@ priv value_switch_key := func(v: Value) returns I64 {
 // a payload binding `Type.V(x)` (FCall whose FieldAccess callee names V).
 priv clike_case_variant_name := func(pat: Expr) returns Str {
     switch pat.node_type {
-    case NodeType.FieldAccess(fa): return fa.field_access_name()
+    case NodeType.FieldAccess(fa): return Str.clone(fa.field_access_name())
     case NodeType.FCall:
         if pat.children.len() > 0 {
             switch pat.children[0].node_type {
-            case NodeType.FieldAccess(fa2): return fa2.field_access_name()
+            case NodeType.FieldAccess(fa2): return Str.clone(fa2.field_access_name())
             case:
             }
         }
@@ -1162,7 +1162,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     case NodeType.Ident(rhs_ident):
         ref src : Cell = scope_get(scope, rhs_ident.ident_name())
         if src.is_null() {
-            interp_error(rhs, format("undefined variable '", rhs_ident.ident_name(), "'"), ctx)
+            interp_error(rhs, format("undefined variable '", Str.clone(rhs_ident.ident_name()), "'"), ctx)
             exit(1)
         }
         val = shallow_copy_value(src.val)
@@ -1224,7 +1224,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                     if head_id.ident_name() == "get_payload" {
                         switch rhs.children[1].node_type {
                         case NodeType.Ident(enum_id):
-                            enc := format(enum_id.ident_name(), "|", dd.explicit_type)
+                            enc := format(Str.clone(enum_id.ident_name()), "|", dd.explicit_type)
                             scope.payload_aliases.set(dd.name, own enc.clone())
                         case:
                         }
@@ -1253,11 +1253,11 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
         mut sw_target := ""
         mut sw_src := ""
         switch stmt.children[1].node_type {
-        case NodeType.Ident(sw_t): sw_target = sw_t.ident_name()
+        case NodeType.Ident(sw_t): sw_target = Str.clone(sw_t.ident_name())
         case:
         }
         switch stmt.children[2].node_type {
-        case NodeType.Ident(sw_s): sw_src = sw_s.ident_name()
+        case NodeType.Ident(sw_s): sw_src = Str.clone(sw_s.ident_name())
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
@@ -1544,7 +1544,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case:
                     switch stmt.children[0].node_type {
                     case NodeType.Ident(oi):
-                        sname = oi.ident_name()
+                        sname = Str.clone(oi.ident_name())
                     case:
                     }
                 }
@@ -1923,7 +1923,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
             case NodeType.Ident(arg_ident):
                 ref arg_cell : Cell = scope_get(caller_scope, arg_ident.ident_name())
                 if arg_cell.is_null() {
-                    interp_error(arg_expr, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
+                    interp_error(arg_expr, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
                     exit(1)
                 }
                 if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
@@ -2103,7 +2103,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             case NodeType.FieldAccess(fn_name):
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
-                mut flat_str := fn_name.field_access_name()
+                mut flat_str := Str.clone(fn_name.field_access_name())
                 if sn.len() > 0 {
                     flat_str = sn.concat3("_", fn_name.field_access_name())
                 }
@@ -2157,7 +2157,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     // User-defined function or struct instantiation
     ref fn_cell : Cell = scope_get(scope, name.ident_name())
     if fn_cell.is_null() {
-        interp_error(e, format(name.ident_name(), " is undefined"), ctx)
+        interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
         exit(1)
     }
 
@@ -2216,7 +2216,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         case NodeType.Ident(arg_ident):
                             ref src : Cell = scope_get(scope, arg_ident.ident_name())
                             if src.is_null() {
-                                interp_error(arg, format("undefined variable '", arg_ident.ident_name(), "'"), ctx)
+                                interp_error(arg, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
                                 exit(1)
                             }
                             // Null the source only when THIS arg (cur_idx) is
@@ -2258,7 +2258,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     }
 
     if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
-        interp_error(e, format(name.ident_name(), " is not a function"), ctx)
+        interp_error(e, format(Str.clone(name.ident_name()), " is not a function"), ctx)
         exit(1)
     }
 
@@ -5583,7 +5583,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
     switch e.children[1].node_type {
     case NodeType.Ident(id):
         ref cell : Cell = scope_get(s, id.ident_name())
-        if cell.is_null() { panic("til_closure_delete: undefined ", id.ident_name()) }
+        if cell.is_null() { panic("til_closure_delete: undefined ", Str.clone(id.ident_name())) }
         free_callable_storage(cell.val)
         memcpy(cell.val, val_none(), Value.size().cast(U64))
     case NodeType.FieldAccess(fa):

@@ -135,10 +135,10 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         }
         mut sig_name := ""
         switch callee.children[2].node_type {
-        case NodeType.Ident(tn): sig_name = tn.ident_name()
+        case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
         case: return NULL
         }
-        sf := s.find(sig_name.clone())
+        sf := s.find(sig_name)
         switch sf {
         case ScopeFind.Found(ftb):
             ref ftbfd : Expr = s.lookup_func(ftb.name)
@@ -284,7 +284,7 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     if is_pod_struct(tname, ctx).not() { return false }
     switch e.children[1].node_type {
     case NodeType.Ident(an):
-        aname := an.ident_name()
+        ref aname : Str = an.ident_name()
         return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
     case NodeType.FieldAccess:
         return true
@@ -446,7 +446,7 @@ priv fa_struct_name := func(e: Expr) returns Str {
     obj_sname := til_type_name(obj.expr_til_type())
     if obj_sname.len() > 0 { return obj_sname }
     switch obj.node_type {
-    case NodeType.Ident(ident): return ident.ident_name()
+    case NodeType.Ident(ident): return Str.clone(ident.ident_name())
     case:
     }
     return obj_sname
@@ -964,7 +964,7 @@ priv c_lit_byte_count := func(s: Str) returns USize {
 priv collect_ident_refs := proc(e: Expr, mut refs: Set(Str)) {
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
-    case NodeType.Ident(name): refs.add(own name.ident_name())
+    case NodeType.Ident(name): refs.add(own Str.clone(name.ident_name()))
     case NodeType.Assign(ad):  refs.add(own ad.name.clone())
     case:
     }
@@ -1051,7 +1051,7 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
             case NodeType.Ident(callee_name):
                 switch e.children[2].node_type {
                 case NodeType.Literal(Literal.Str(method)):
-                    cn := callee_name.ident_name()
+                    ref cn : Str = callee_name.ident_name()
                     mut has_ret := false
                     if cn == "dyn_call_ret" { has_ret = true }
                     if cn.eq("dyn_call").or(cn.eq("dyn_call_ret")) {
@@ -1161,7 +1161,7 @@ priv resolve_callee_name := func(fcall: Expr) returns Str {
         sname := til_type_name(callee_node.children[0].expr_til_type())
         if sname.len() == 0 { return "" }
         return sname.concat3("_", mname.field_access_name())
-    case NodeType.Ident(ident): return ident.ident_name()
+    case NodeType.Ident(ident): return Str.clone(ident.ident_name())
     case:
         return ""
     }
@@ -1299,7 +1299,7 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
                             if fd.params[pi].is_mut {
                                 switch e.children[a].node_type {
                                 case NodeType.Ident(arg_name):
-                                    ctx.builder_func.unsafe_to_hoist.add(own arg_name.ident_name())
+                                    ctx.builder_func.unsafe_to_hoist.add(own Str.clone(arg_name.ident_name()))
                                 case:
                                 }
                             }
@@ -1325,7 +1325,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                     ref rhs : Expr = stmt.children[0]
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
-                        ctx.builder_func.unsafe_to_hoist.add(own rhs_name.ident_name())
+                        ctx.builder_func.unsafe_to_hoist.add(own Str.clone(rhs_name.ident_name()))
                     case NodeType.FCall:
                         callee := resolve_callee_name(rhs)
                         if callee.len() > 0 {
@@ -1337,7 +1337,7 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                                         for a in 1..rhs.children.len() {
                                             switch rhs.children[a].node_type {
                                             case NodeType.Ident(arg_name):
-                                                ctx.builder_func.unsafe_to_hoist.add(own arg_name.ident_name())
+                                                ctx.builder_func.unsafe_to_hoist.add(own Str.clone(arg_name.ident_name()))
                                             case:
                                             }
                                         }
@@ -2160,10 +2160,10 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 mut vn := ""
                 ref pat : Expr = cn.children[0]
                 switch pat.node_type {
-                case NodeType.FieldAccess(fa): vn = fa.field_access_name()
+                case NodeType.FieldAccess(fa): vn = Str.clone(fa.field_access_name())
                 case NodeType.FCall:
                     switch pat.children[0].node_type {
-                    case NodeType.FieldAccess(fa2): vn = fa2.field_access_name()
+                    case NodeType.FieldAccess(fa2): vn = Str.clone(fa2.field_access_name())
                     case:
                     }
                 case:
@@ -2235,7 +2235,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 // For primitive params especially this left the original
                 // target uninitialized. Treat params like stack locals
                 // here so the deref-write path runs.
-                rname := rhs_ident.ident_name()
+                ref rname : Str = rhs_ident.ident_name()
                 if is_stack_local(rname, ctx).not()
                     .and(is_current_func_param(rname, ctx).not()) { do_rebind = true }
             case:
@@ -2450,11 +2450,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 mut target_name := ""
                 mut temp_name := ""
                 switch swap_target.node_type {
-                case NodeType.Ident(tid): target_name = tid.ident_name()
+                case NodeType.Ident(tid): target_name = Str.clone(tid.ident_name())
                 case:
                 }
                 switch e.children[2].node_type {
-                case NodeType.Ident(stid): temp_name = stid.ident_name()
+                case NodeType.Ident(stid): temp_name = Str.clone(stid.ident_name())
                 case:
                 }
                 if target_name.len().gt(0).and(temp_name.len().gt(0)) {
@@ -2883,7 +2883,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // #288 Stage 3: a core_func scalar op lowers to a native C
                     // operator inline -- no call, no symbol. The result cast is
                     // the method's declared return type, e.g. ((U32)(a + b)).
-                    core_op := mname.field_access_name()
+                    ref core_op : Str = mname.field_access_name()
                     core_ret_c := til_type_name_c(e.expr_til_type())
                     if core_op == "bnot" {
                         f.write("((")
@@ -3359,7 +3359,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
             switch arg.node_type {
             case NodeType.Ident(arg_ident):
                 if arg_ident.ident_name().starts_with("hoisted__") {
-                    ctx.swap_freed.add(own arg_ident.ident_name().clone())
+                    ctx.swap_freed.add(own Str.clone(arg_ident.ident_name()))
                 }
             case:
             }
@@ -5648,7 +5648,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
     case NodeType.Ident(ident):
         if e.expr_til_type().is_funcptr() {
             ref fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
-            if fdef.is_null().not() { names.add(own ident.ident_name()) }
+            if fdef.is_null().not() { names.add(own Str.clone(ident.ident_name())) }
         }
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {

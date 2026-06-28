@@ -597,7 +597,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
                 // model the pointer target. See func_sig_has_dynamic.
                 if func_sig_has_dynamic(fdef) { return true }
                 if visiting.has(name.ident_name()).not() {
-                    visiting.add(own name.ident_name())
+                    visiting.add(own Str.clone(name.ident_name()))
                     switch fdef.node_type {
                     case NodeType.FuncDef:
                         if fdef.children.len() > 0 {
@@ -721,7 +721,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
         ref probe : Value = ns_get(ident.ident_name(), "size", ctx)
-        if probe.is_null().not() { return ident.ident_name() }
+        if probe.is_null().not() { return Str.clone(ident.ident_name()) }
     case:
     }
     return til_type_name_c(recv.expr_til_type())
@@ -953,7 +953,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     ec.add_child(own arg.clone())
                     continue
                 case NodeType.Ident(atok_id):
-                    atok_name := atok_id.ident_name()
+                    atok_name := Str.clone(atok_id.ident_name())
                     if atok_name.len().gt(0).and(atok_name.eq("Type").not()) {
                         mut atok_recv := Expr.new(ident_node("Type"), arg.line, arg.col)
                         atok_recv.set_expr_til_type(Type.Enum("Type"))

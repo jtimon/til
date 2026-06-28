@@ -1184,7 +1184,7 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
     mut target_name := ""
     switch stmt.children[0].node_type {
     case NodeType.Ident(tn):
-        target_name = tn.ident_name()
+        target_name = Str.clone(tn.ident_name())
     case:
         return
     }
@@ -1818,7 +1818,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 ref callee : Expr = def_val.children[0]
                                 switch callee.node_type {
                                 case NodeType.Ident(ft):
-                                    ftype = ft.ident_name()
+                                    ftype = Str.clone(ft.ident_name())
                                 case:
                                 }
                             }
@@ -1866,13 +1866,13 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 ref callee : Expr = def_val.children[0]
                                 switch callee.node_type {
                                 case NodeType.Ident(ft):
-                                    ftype = ft.ident_name()
+                                    ftype = Str.clone(ft.ident_name())
                                 case NodeType.FieldAccess:
                                     if callee.children.len() > 0 {
                                         ref type_node : Expr = callee.children[0]
                                         switch type_node.node_type {
                                         case NodeType.Ident(ft):
-                                            ftype = ft.ident_name()
+                                            ftype = Str.clone(ft.ident_name())
                                         case:
                                         }
                                     }
@@ -1884,7 +1884,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 ref type_node : Expr = def_val.children[0]
                                 switch type_node.node_type {
                                 case NodeType.Ident(ft):
-                                    ftype = ft.ident_name()
+                                    ftype = Str.clone(ft.ident_name())
                                 case:
                                 }
                             }
@@ -2424,7 +2424,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
         ref repl : Expr = subs[name]
         switch repl.node_type {
         case NodeType.Ident(idn):
-            return idn.ident_name().clone()
+            return Str.clone(idn.ident_name())
         case NodeType.FCall:
             return init_macro_inst_name(repl)
         case:
@@ -2451,7 +2451,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
             ref repl_arg : Expr = subs[arg]
             switch repl_arg.node_type {
             case NodeType.Ident(idn_arg):
-                out = format(out, idn_arg.ident_name())
+                out = format(out, Str.clone(idn_arg.ident_name()))
                 changed = true
             case:
                 out = format(out, init_macro_inst_arg_name(repl_arg))
@@ -2486,7 +2486,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
         mut replaced := false
         switch c.node_type {
         case NodeType.Ident(idn):
-            nm := idn.ident_name()
+            ref nm : Str = idn.ident_name()
             if subs.has(nm) {
                 // Substitute through the parent slot: Vec.set deep-deletes
                 // the old Ident, so no manual in-place rewrite is needed
@@ -2513,7 +2513,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
 priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr)) {
     mut nm := ""
     switch holder.default_value.node_type {
-    case NodeType.Ident(idn): nm = idn.ident_name()
+    case NodeType.Ident(idn): nm = Str.clone(idn.ident_name())
     case:
     }
     if nm.len().gt(0).and(subs.has(nm)) {
@@ -2640,7 +2640,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     if callee.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut method_name := ""
     switch callee.node_type {
-    case NodeType.FieldAccess(fan): method_name = fan.field_access_name()
+    case NodeType.FieldAccess(fan): method_name = Str.clone(fan.field_access_name())
     case: return -1
     }
     if method_name.eq("is").not() { return -1 }
@@ -2648,7 +2648,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     ref lhs : Expr = callee.children[0]
     mut lhs_name := ""
     switch lhs.node_type {
-    case NodeType.Ident(idn): lhs_name = idn.ident_name()
+    case NodeType.Ident(idn): lhs_name = Str.clone(idn.ident_name())
     case: return -1
     }
     ref arg : Expr = cond.children[1]
@@ -2660,7 +2660,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
         ref p_callee : Expr = arg.children[0]
         mut p_callee_name := ""
         switch p_callee.node_type {
-        case NodeType.FieldAccess(p_fan): p_callee_name = p_fan.field_access_name()
+        case NodeType.FieldAccess(p_fan): p_callee_name = Str.clone(p_fan.field_access_name())
         case: return -1
         }
         if p_callee_name.eq("Primitive").not() { return -1 }
@@ -2672,7 +2672,7 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
         ref p_arg : Expr = arg.children[1]
         mut prim_name := ""
         switch p_arg.node_type {
-        case NodeType.FieldAccess(p_arg_fan): prim_name = p_arg_fan.field_access_name()
+        case NodeType.FieldAccess(p_arg_fan): prim_name = Str.clone(p_arg_fan.field_access_name())
         case: return -1
         }
         if p_arg.children.len() != 1 { return -1 }
@@ -2686,13 +2686,13 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
     if arg.node_type.is(NodeType.FieldAccess).not() { return -1 }
     mut variant_name := ""
     switch arg.node_type {
-    case NodeType.FieldAccess(fan_arg): variant_name = fan_arg.field_access_name()
+    case NodeType.FieldAccess(fan_arg): variant_name = Str.clone(fan_arg.field_access_name())
     case: return -1
     }
     if arg.children.len() != 1 { return -1 }
     mut recv_name := ""
     switch arg.children[0].node_type {
-    case NodeType.Ident(idr): recv_name = idr.ident_name()
+    case NodeType.Ident(idr): recv_name = Str.clone(idr.ident_name())
     case: return -1
     }
     if recv_name.eq("Type").not() { return -1 }
@@ -2723,7 +2723,7 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns re
     // the root via assignment (save_old_delete reclaims the clone).
     mut cond_root := ""
     switch cond_clone.node_type {
-    case NodeType.Ident(cr_idn): cond_root = cr_idn.ident_name()
+    case NodeType.Ident(cr_idn): cond_root = Str.clone(cr_idn.ident_name())
     case:
     }
     if cond_root.len().gt(0).and(subs.has(cond_root)) {
@@ -2782,7 +2782,7 @@ priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: Typ
     if callee.node_type.is(NodeType.Ident).not() { return false }
     mut nm := ""
     switch callee.node_type {
-    case NodeType.Ident(cn): nm = cn.ident_name()
+    case NodeType.Ident(cn): nm = Str.clone(cn.ident_name())
     case:
     }
     return init_lookup_type_gen_macro(nm, macros, scope, ctx).is_null().not()
@@ -2807,7 +2807,7 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) re
             if arg.node_type.is(NodeType.Ident).not() { continue }
             mut arg_name := ""
             switch arg.node_type {
-            case NodeType.Ident(an): arg_name = an.ident_name()
+            case NodeType.Ident(an): arg_name = Str.clone(an.ident_name())
             case:
             }
             for p : Declaration in mfd.params {
@@ -2857,7 +2857,7 @@ priv init_macro_inst_type_arg_name := func(arg: Expr, scope: TypeScope) returns 
 
 priv init_macro_inst_arg_name := func(arg: Expr) returns Str {
     switch arg.node_type {
-    case NodeType.Ident(an): return an.ident_name()
+    case NodeType.Ident(an): return Str.clone(an.ident_name())
     case NodeType.Literal(Literal.Num(n)): return init_macro_inst_text_name("n", n.literal_num_text())
     case NodeType.Literal(Literal.Str(s)): return init_macro_inst_text_name("s", s)
     case NodeType.Literal(Literal.Bool(b)):
@@ -2888,7 +2888,7 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
     mut out := ""
     ref callee : Expr = e.children[0]
     switch callee.node_type {
-    case NodeType.Ident(cn): out = format(cn.ident_name(), "__")
+    case NodeType.Ident(cn): out = format(Str.clone(cn.ident_name()), "__")
     case:
     }
     for k in 1..e.children.len() {
@@ -2903,7 +2903,7 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
     mut out := ""
     ref callee : Expr = e.children[0]
     switch callee.node_type {
-    case NodeType.Ident(cn): out = format(cn.ident_name(), "__")
+    case NodeType.Ident(cn): out = format(Str.clone(cn.ident_name()), "__")
     case:
     }
     for k in 1..e.children.len() {
@@ -3121,7 +3121,7 @@ priv init_literal_child_type := func(e: Expr) returns Str {
     case NodeType.FieldAccess:
         if e.children.len() > 0 {
             switch e.children[0].node_type {
-            case NodeType.Ident(type_name): return type_name.ident_name().clone()
+            case NodeType.Ident(type_name): return Str.clone(type_name.ident_name())
             case:
             }
         }
@@ -3373,7 +3373,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             ref arg : Expr = call.children[argidx]
             switch arg.node_type {
             case NodeType.Ident(an):
-                tn := an.ident_name()
+                ref tn : Str = an.ident_name()
                 mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
                 subs.set(p.name, own tid)
                 if first.not() { mono = format(mono, "_") }
@@ -3479,7 +3479,7 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
             switch c.children[0].node_type {
             case NodeType.Ident(cn):
-                gnm := cn.ident_name()
+                ref gnm : Str = cn.ident_name()
                 if generics.has(gnm) {
                     // Recurse into the args first (nested generic calls),
                     // then expand this call.
@@ -3612,7 +3612,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             if callee.node_type.is(NodeType.Ident).not() { continue }
             mut callee_name := ""
             switch callee.node_type {
-            case NodeType.Ident(cn): callee_name = cn.ident_name()
+            case NodeType.Ident(cn): callee_name = Str.clone(cn.ident_name())
             case:
             }
             ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope, ctx)
@@ -4345,7 +4345,7 @@ clone_call_type_name := func(e: Expr) returns Str {
     ref recv : Expr = callee.children[0]
     if recv.node_type.is(NodeType.Ident).not() { return "" }
     switch recv.node_type {
-    case NodeType.Ident(n): return n.ident_name()
+    case NodeType.Ident(n): return Str.clone(n.ident_name())
     case: return ""
     }
 }
@@ -4362,7 +4362,7 @@ is_pod_enum_clone_of := func(e: Expr, edef: Expr) returns Bool {
     if arg.expr_til_type().is(Type.Enum).not() { return false }
     mut vname := ""
     switch arg.node_type {
-    case NodeType.FieldAccess(vn): vname = vn.field_access_name()
+    case NodeType.FieldAccess(vn): vname = Str.clone(vn.field_access_name())
     case:
     }
     return enum_variant_is_payload_less(edef, vname)

@@ -304,8 +304,8 @@ namespace:
 }
 
 literal_num_text := func(n: LiteralNumData) returns Str { return n.text.clone() }
-ident_name := func(id: IdentData) returns Str { return id.name.clone() }
-field_access_name := func(fa: FieldAccessData) returns Str { return fa.name.clone() }
+ident_name := func(id: IdentData) returns ref Str { return id.name }
+field_access_name := func(fa: FieldAccessData) returns ref Str { return fa.name }
 
 set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
@@ -896,7 +896,7 @@ node_head_str := func(data: NodeType) returns Str {
         if b { return "LiteralBool true" }
         return "LiteralBool false"
     case NodeType.Literal(Literal.Null):    return "LiteralNull"
-    case NodeType.Ident(s):       return format("Ident ", s.ident_name())
+    case NodeType.Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
     case NodeType.Decl(d):
         if d.is_mut { return format("Decl mut ", d.name) }
         return format("Decl ", d.name)
@@ -905,7 +905,7 @@ node_head_str := func(data: NodeType) returns Str {
     case NodeType.FuncDef(f):     return format("FuncDef ", func_type_variant_name(f.func_type))
     case NodeType.StructDef:      return "StructDef"
     case NodeType.EnumDef:        return "EnumDef"
-    case NodeType.FieldAccess(s): return format("FieldAccess ", s.field_access_name())
+    case NodeType.FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
     case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
     case NodeType.Return:         return "Return"
     case NodeType.If:             return "If"
