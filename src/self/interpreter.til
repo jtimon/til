@@ -1728,6 +1728,48 @@ priv delete_body_has_custom_logic := func(e: Expr) returns Bool {
     return false
 }
 
+priv interp_concrete_expr_type_name := func(e: Expr) returns Str {
+    expr_type := til_type_name(e.expr_til_type())
+    if expr_type.len().gt(0).and(expr_type.eq("unknown").not()).and(expr_type.eq("?").not()).and(expr_type.eq("Dynamic").not()).and(expr_type.eq("None").not()) { return expr_type }
+    expr_type_c := til_type_name_c(e.expr_til_type())
+    if expr_type_c.eq("unknown").not().and(expr_type_c.eq("?").not()).and(expr_type_c.eq("Dynamic").not()).and(expr_type_c.eq("None").not()) {
+        return expr_type_c
+    }
+    return ""
+}
+
+priv delete_ptr_receiver_type := func(e: Expr) returns Str {
+    direct_type := interp_concrete_expr_type_name(e)
+    if direct_type.len().gt(0) { return direct_type }
+    switch e.node_type {
+    case NodeType.FCall:
+        if e.children.len().gt(1) {
+            mut callee_name := ""
+            switch e.children[0].node_type {
+            case NodeType.Ident(fn_id): callee_name = fn_id.ident_name()
+            case:
+            }
+            if callee_name == "ptr_add" { return delete_ptr_receiver_type(e.children[1]) }
+        }
+    case NodeType.FieldAccess(fa):
+        if fa.field_access_name() == "data" {
+            if e.children.len().gt(0) {
+                container_type := interp_concrete_expr_type_name(e.children[0])
+                elem_type := container_elem_type(container_type)
+                if elem_type.len().gt(0) { return elem_type }
+            }
+        }
+    case:
+    }
+    return ""
+}
+
+priv delete_ptr_receiver_type_known := func(type_name: Str, ctx: Context) returns Bool {
+    if type_name.len().eq(0) { return false }
+    if type_from_name_init(type_name, ctx.scope).is(Type.Unknown).not() { return true }
+    return lookup_interp_type_def(type_name, ctx).is_null().not()
+}
+
 priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
     ref callee_expr : Expr = e.children[0]
@@ -1747,8 +1789,9 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     // such values then deletes them). free_temp_arg_value reclaims them
     // (is_str c_str / struct_deep_free + the buffer). Scoped to top-level
     // deletes (method form or flattened *_delete) whose receiver is an Ident;
-    // explicit-arg / non-Ident (borrowed-view nested) calls fall through to
-    // the normal body. call_free=false frees nested contents but keeps the
+    // call_free=false also handles pointer receivers such as
+    // `T.delete(own ptr_add(vec.data, off), false)` by freeing the inline slot
+    // contents in place. call_free=false frees nested contents but keeps the
     // outer slot valid for callers that immediately memset/free it. Containers
     // are also intercepted: their Vec/Array/Set delete bodies call T.delete on
     // borrowed element views, which cannot free nested element ownership.
@@ -1773,6 +1816,23 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
             }
             ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
             if recv_cell.is_null().not() {
+                if call_free.not().and(get_own_arg(e, 1)).and(is_value_ptr(recv_cell.val)) {
+                    mut recv_type0 := delete_ptr_receiver_type(e.children[1])
+                    switch func_def.node_type {
+                    case NodeType.FuncDef(fd_del0):
+                        if recv_type0.len().eq(0).and(fd_del0.params.len().gt(0)) { recv_type0 = fd_del0.params[0].explicit_type }
+                    case:
+                    }
+                    if delete_ptr_receiver_type_known(recv_type0, ctx) {
+                        ref recv_ptr_slot0 : Dynamic = val_to_ptr(recv_cell.val)
+                        ref recv_ptr0 : Dynamic = deref(recv_ptr_slot0)
+                        if recv_ptr0.is_null() { panic("delete pointer receiver is null") }
+                        container_elem_deep_free(recv_type0, recv_ptr0, ctx)
+                        memset(recv_ptr0, 0, container_elem_size(recv_type0, ctx).cast(U64))
+                        memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
+                        return val_none()
+                    }
+                }
                 mut do_intercept := false
                 switch func_def.node_type {
                 case NodeType.FuncDef(fd_ag):
@@ -1813,6 +1873,33 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
             }
         case:
+            mut call_free3 := true
+            if e.children.len().gt(2) {
+                cf_v3 := eval_expr(caller_scope, e.children[2], ctx)
+                switch cf_v3 {
+                case Value.Boolean(cfb3): call_free3 = cfb3
+                case:
+                }
+            }
+            if call_free3.not().and(get_own_arg(e, 1)) {
+                mut recv_type := delete_ptr_receiver_type(e.children[1])
+                switch func_def.node_type {
+                case NodeType.FuncDef(fd_del):
+                    if recv_type.len().eq(0).and(fd_del.params.len().gt(0)) { recv_type = fd_del.params[0].explicit_type }
+                case:
+                }
+                if delete_ptr_receiver_type_known(recv_type, ctx) {
+                    recv_ptr_val := eval_expr(caller_scope, e.children[1], ctx)
+                    if is_value_ptr(recv_ptr_val) {
+                        ref recv_ptr_slot : Dynamic = val_to_ptr(recv_ptr_val)
+                        ref recv_ptr : Dynamic = deref(recv_ptr_slot)
+                        if recv_ptr.is_null() { panic("delete pointer receiver is null") }
+                        container_elem_deep_free(recv_type, recv_ptr, ctx)
+                        memset(recv_ptr, 0, container_elem_size(recv_type, ctx).cast(U64))
+                        return val_none()
+                    }
+                }
+            }
         }
     }
 
@@ -2210,12 +2297,10 @@ priv free_value := func(shallow v: Value) {
 // Used by scope_free and constfolder's known-map teardown, where the Value
 // genuinely owns the payload.
 
-// Single owning-pointer box. Lets free_value_full reinterpret a
-// Value.Dynamic payload slot as a struct with one `own` field so the raw
-// heap pointer it holds can be passed to free() -- deref/to_ptr return a
-// borrowed `ref Dynamic` that the ownership checker rejects for `own`,
-// whereas an `own` struct field is accepted (same trick as the Str c_str
-// free in cleanup_value_payload above).
+// Single owning-pointer box for side tables that need to own raw Dynamic
+// pointers. free_value_full frees a Value.Dynamic payload directly; it must not
+// reinterpret the pointee as this box because Dynamic can point at a 1/2/4-byte
+// scalar allocation.
 priv DynPtrBox := struct {
     own p : U8 = 0
 }
@@ -2242,8 +2327,7 @@ priv free_value_full := func(shallow v: Value) {
     case Value.Dynamic(slot):
         ref box : DynPtrBox = slot
         if box.p.is_null().not() {
-            if callable_box_is(box.p) { callable_box_free(box.p) }
-            else { free(own box.p) }
+            free(own box.p)
         }
     case:
     }

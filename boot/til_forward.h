@@ -3870,6 +3870,9 @@ void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Cont
 void priv___src_self_interpreter_til__materialize_str_result(Value * v);
 void priv___src_self_interpreter_til__free_struct_contents_keep_outer(StructInstance * si);
 Bool priv___src_self_interpreter_til__delete_body_has_custom_logic(Expr * e);
+Str * priv___src_self_interpreter_til__interp_concrete_expr_type_name(Expr * e);
+Str * priv___src_self_interpreter_til__delete_ptr_receiver_type(Expr * e);
+Bool priv___src_self_interpreter_til__delete_ptr_receiver_type_known(Str * type_name, Context * ctx);
 Value priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx);
 Value priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, Value * callable, Context * ctx);
 Value priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx);
