@@ -1,0 +1,114 @@
+# priority: low
+# category: bugs
+** OPEN #297 Namespace constant access through a type alias (USize.MAX) is broken
+
+Accessing a namespace DATA constant through a type alias does not work.
+The motivating case is the #264-follow-up MIN/MAX constants: U8/U16/.../I64/F32
+got ~MIN~/~MAX~ namespace constants, but the two target-width aliases
+~USize~ and ~UPtr~ (~USize := U32~, ~UPtr := U64~ in ~src/core/numbers.til~,
+retargeted per platform by the loader) cannot reach them.
+
+*** Symptom
+
+Interpret:
+
+    USize.MAX        -> error: no namespace field 'MAX'
+
+Compile:
+
+    m : USize = USize.MAX
+    -> gen C: `U32 m = USize->MAX;`  (USize emitted as a value/pointer!)
+    -> cc: error: expected expression before 'USize'
+
+This affects ANY namespace data constant reached through ANY type alias,
+not just USize/UPtr -- e.g. a user `Foo := U8` then `Foo.MAX`. It is NOT
+specific to MIN/MAX; any non-func namespace member accessed via an alias
+hits it.
+
+Method calls through an alias DO work: ~USize.size()~ resolves fine. So the
+gap is specifically NAMESPACE FIELD / CONSTANT access (a bare ~Alias.NAME~
+read), not method dispatch -- the call path already resolves the alias, the
+field-access path does not.
+
+*** Root cause
+
+A ~FieldAccess~ whose receiver is a type alias is never recognised as a
+namespace access, because the alias name has no struct def of its own; the
+receiver type name must be resolved through the alias (USize -> U32/U64, or
+a user alias -> ~alias_target~) before looking up the member. The resolver
+already exists: ~resolve_type_alias(scope, name)~ in ~src/self/typer.til~
+(it special-cases USize/UPtr via ~scope_target_usize_pname~ /
+~scope_target_uptr_pname~, and reads ~alias_target~ for ordinary type
+aliases). It just isn't applied at the field-access sites.
+
+*** Why it is more than a one-liner (notes from a partial attempt)
+
+Resolution is needed at SEVERAL independent sites, in the typer, the
+interpreter, AND the builder -- and the builder has multiple FieldAccess
+emit paths:
+
+  - Typer detection: ~fa_is_ns(e, scope)~ (~src/self/typer.til~) does
+    ~scope.get_struct(sn)~ on the unresolved name -> null for an alias ->
+    returns false, so the access is typed as a struct field access.
+  - Typer typing: ~infer_field_access_expr~ (~src/self/typer.til~) computes
+    ~obj_sname~ from the receiver type and searches that def's fields /
+    ns_decls; with an alias it never finds the member, so ~expr_til_type~
+    is left unset / wrong.
+  - Interpreter: the namespace FieldAccess path calls
+    ~ns_get(sname, fname, ctx)~ (~src/self/interpreter.til~ ~eval_expr~,
+    ~FieldAccess~ case) with the unresolved name. (A one-line fallback that
+    retries ~ns_get(resolve_type_alias(ctx.scope, sname), ...)~ DID make
+    interpret work in isolation -- so the interp side is easy.)
+  - Builder detection: ~builder_fa_is_ns_with_fname~ /
+    ~builder_fa_is_ns~ (~src/self/builder.til~) -> ~find_struct_def(sname)~
+    on the unresolved alias.
+  - Builder emission: ~builder_fa_is_ns~ is checked (and the
+    ~<Type>_<NAME>~ global referenced) at MORE THAN ONE FieldAccess emit
+    site -- at least the ~emit_expr~ FieldAccess case, the decl-RHS /
+    return-box path (~emit_return_box~ and the inline-field-value branch
+    around the ~rv.node_type.is(NodeType.FieldAccess)~ checks), and the
+    FieldAssign path. A debug probe placed in ~emit_expr~'s FieldAccess
+    case did NOT fire for `m : USize = USize.MAX`, confirming the read is
+    emitted by a DIFFERENT proc -- so patching only ~emit_expr~ is not
+    enough.
+
+A partial attempt (resolve at fa_is_ns + infer_field_access_expr + the
+interp ns_get + builder_fa_is_ns_with_fname + the emit_expr emission)
+fixed interpret but NOT compile, because the actual emission path for the
+constant read bypassed the patched site. It was reverted rather than ship
+interp-only behaviour.
+
+*** Suggested approach
+
+Resolve the alias ONCE, as early and centrally as possible, so every
+downstream consumer sees the target type:
+
+  - Preferred: in the typer, when typing ~Alias.NAME~, rewrite/annotate the
+    receiver so its resolved type name is the target (e.g. set the receiver
+    Ident's ~expr_til_type~ to the resolved ~Type.Struct(target)~, or
+    rewrite the Ident to the target name). Then ~fa_struct_name~ /
+    ~til_type_name(obj.expr_til_type())~ already yield the target in both
+    the interpreter and the builder, and no per-emit-site patching is
+    needed.
+  - Alternatively: a single shared "resolve the namespace receiver type
+    name" helper used by ~fa_is_ns~, ~infer_field_access_expr~, the interp
+    ns path, ~builder_fa_is_ns_with_fname~, AND each builder emit site that
+    references the ~<Type>_<NAME>~ global. (More invasive; easy to miss a
+    site -- see above.)
+
+Either way, audit ALL FieldAccess emit sites in ~src/self/builder.til~ for
+the ~builder_fa_is_ns~ + ~til_type_name(obj.expr_til_type())~ pattern.
+
+*** Workaround (today)
+
+Use the target type directly: ~U32.MAX~ / ~U64.MAX~ instead of
+~USize.MAX~ / ~UPtr.MAX~.
+
+*** Regression tests to add
+
+  - ~USize.MAX~, ~USize.MIN~, ~UPtr.MAX~ in BOTH interpret and compile
+    (a value/printability check, since the exact width is target-dependent).
+  - A user-defined alias: ~Foo := U8~ then ~Foo.MAX~ resolves to 255 in
+    both modes.
+  - Keep ~USize.size()~ (method through alias) working -- it already does;
+    guard against a regression.
