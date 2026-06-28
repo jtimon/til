@@ -15,13 +15,55 @@ Status summary (what is merged):
   method-call inlining; Lisp-style N-ary ~and~/~or~ folding; core ~and~/~or~
   migrated to ~lazy_func~ so ~.and~/~.or~/~&&~/~||~ short-circuit (#117, now
   FIXED); throwing calls inside a lazy arg lower correctly into the match
-  arm; non-inlinable bodies HARD-ERROR (no silent eager fallback). Tests in
-  test/lazy.til and test/typer_errors.til.
-  NOT YET DONE: a THUNK fallback for any body the inliner cannot handle
-  (local bindings, loops, first-class, recursion), which would make
-  ~lazy_func~ fully general. The design options for it are documented below
-  (no approach picked -- that is the human's call). First-class lazy callables
-  in particular depend on the closures work (#54).
+  arm. Tests in test/lazy.til and test/typer_errors.til.
+
+  DONE (thunk fallback, Design 2): a non-inlinable lazy body (loops, early
+  returns inside control flow) is now lowered to an ordinary closure-taking
+  function instead of hard-erroring. Each param ~p: T~ becomes a zero-arg
+  thunk ~p: func() returns T~ (the synthetic funcsig ~_Fn_ret_T~), every
+  value-use of ~p~ in the body is auto-forced to ~p()~, and at each call site
+  the argument is wrapped in a synthesized closure ~func() returns T [caps]
+  { return arg }~ (call-by-name; ~caps~ computed by free-variable analysis
+  against the root scope). Non-capturing thunks lift to plain top-level
+  lambdas; capturing ones reuse the #54 closure machinery, whose escape
+  checks gate any captured local that would escape its defining call. Scope:
+  TOP-LEVEL defs, BARE and UFCS calls, EXACT (non-variadic) arity, no
+  param-name shadowing inside the body. Lives in ~expand_lazy_thunks_in_program~
+  / ~lazy_thunk_lower_def~ / ~lazy_wrap_thunk_calls~ (src/self/loader.til),
+  pre-typer. Tests: test/lazy.til (~both~ loop+early-return body, captured
+  locals, UFCS); test/typer_errors.til (~terr_bad_lazy~, a param-shadowing
+  body that stays lazy and still hard-errors). The old "non-inlinable bodies
+  HARD-ERROR" rule now applies only to the residual cases below.
+
+  Related fix merged alongside (#223): the redundant-~shallow~-on-primitive-
+  return diagnostic was not idempotent (the auto-shallow pass overwrites
+  return_own_type, so a re-inferred def -- e.g. a capturing thunk used as a
+  UFCS-receiver-call arg -- misfired). Now keyed off a parser-set
+  ~return_shallow_explicit~ flag.
+
+  REMAINING -- each BLOCKED on a separate prerequisite, NOT on more lazy work:
+    1. Declared-variadic lazy (~lazy_func(xs: ..Bool)~). Design 2 wants the
+       variadic param to become an ARRAY OF THUNKS (~Array(_Fn_ret_T)~). til
+       does not support Array-of-funcptr today: a hand-written
+       ~func(xs: ..SomeFnSig)~ with ~for x in xs~ produces ~47~ type errors
+       (the Array template's generated clone/size/cast do not work for a
+       funcptr element). So variadic lazy is blocked on Array-of-funcptr
+       support, a separate gap useful well beyond lazy_func. (The pervasive
+       variadic ~and~/~or~ is already covered by the N-ary fold, which needs
+       no array.)
+    2. FIRST-CLASS / escaping lazy callables (store/return/pass a lazy func
+       as a value, call it after its defining scope exits -- needed for
+       infinite structures and alpha-beta game trees). The thunks capture by
+       reference, so #54's escape checks correctly reject this today. Blocked
+       on #54's escaping-closure work (shallow/own captures, broader
+       stored-closure escape paths).
+    3. Param-name shadowing inside a thunk-lowered body: currently the def is
+       left lazy (hard-errors) rather than risk mis-rewriting a shadowed use.
+       A minor self-imposed limitation; needs scope-aware auto-force. Low
+       value (shadowing a param inside a lazy body is rare).
+    4. call-by-need / memoization: a NON-GOAL under the chosen call-by-name
+       semantics (see below) -- it would break the inline == thunk
+       equivalence and only helps params reused within a body.
 
 v1 status (implemented):
   - ~lazy_func~ / ~lazy_proc~ keywords parse to ~FuncType.LazyFunc~ /
@@ -100,32 +142,13 @@ v1 status (implemented):
     bodies and their short-circuit, decisive short-circuit proofs where an
     unused side-effecting argument must not run, and a throwing call in a lazy
     and/or argument that must compile and short-circuit). Negative:
-    test/typer_errors.til (terr_bad_lazy, a ~while~-loop body) checks the
-    non-inlinable hard error.
+    test/typer_errors.til (terr_bad_lazy) checks a residual hard-error case.
 
-Remaining (not yet done):
-  - The thunk fallback (Design 2 below) for the genuinely-non-inlinable cases
-    that statement-inlining does not cover: loops, early returns inside
-    control flow, and FIRST-CLASS lazy callables (storing/passing one as a
-    value). It would lower by wrapping each arg in a ~() -> T~ closure at the
-    call site, forcing on use. Type-directed, in the typer/desugarer:
-    free-variable analysis (none exists yet -- captures are explicit, so it
-    must be written), synthesized capturing closures per arg, auto-force at
-    param uses, and thunk ownership. Additive: every existing lazy func
-    inlines, so the thunk path only activates for the bodies that currently
-    error -- it cannot regress the build. Staged: (1) free-variable analysis,
-    (2) thunk synthesis at non-inlinable call sites + the def becoming a real
-    closure-taking function, (3) auto-force, (4) ownership/lifetime.
-
-Remaining (not yet done):
-  - General declared-variadic lazy callables (~lazy_func(xs: ..Bool)~): the
-    N-ary fold special-cases binary associative callables; a true variadic
-    lazy param needs the thunk-array (Design 2) or compile-time unroll
-    (Design 1). An ordinary ~Array(Bool)~ would eagerly evaluate every
-    operand and destroy short-circuiting.
-  - call-by-need (memoize a reused argument once) vs call-by-name (re-evaluate
-    on each use). Call-by-need would break the inline == thunk equivalence and
-    only helps params reused within a body.
+(The "Remaining" list above -- variadic, first-class, shadowing, call-by-need
+-- supersedes the older notes that follow. The thunk fallback that those notes
+described as "not yet done" is now MERGED for the synchronous fixed-arity case;
+see the Status summary. The Design discussion below is kept for the variadic /
+first-class work that is still blocked on its prerequisites.)
 
 Introduce ~lazy_func~ and ~lazy_proc~ as new callable kinds (alongside
   ~func~/~proc~ and ~ext_func~/~ext_proc~). When you call a lazy callable,
