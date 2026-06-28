@@ -9,6 +9,77 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
   the copy. Closing #245 unlocks freeing those Values, which feeds
   back into the per-test compiler-leak baseline below.
 
+  *** 2026-06-28 ASAN status after the first-class cleanup pass
+
+  Recent leak-reduction work changed the ASAN baseline shape:
+
+  - ~test/first_class.til~ is no longer useful as the merge-time leak
+    sentinel: ~bin/til_asan interpret test/first_class.til~ now reports
+    ~TIL_TRUE_LEAK=0~, and translate is also clean.
+  - ~examples/merge_commit.til~ now uses ~test/hashmaps.til~ for both
+    interpret and translate ASAN probes. In the focused scan below,
+    ~test/hashmaps.til~ is the largest remaining pure leak:
+    ~10870 bytes / 71 allocations~ in interpret; translate reports
+    ~TIL_TRUE_LEAK=0~.
+  - ~test/strings.til~ also reports ~TIL_TRUE_LEAK=0~ in both interpret
+    and translate on this master.
+
+  Things fixed in the recent leak passes:
+
+  - Constfolder no longer evaluates pure calls whose result type cannot be
+    represented as an Expr literal. That removed the large wasted-eval leak
+    class from compile-time folding.
+  - The ASAN leak probe now flushes and closes stdout before sampling
+    ~__sanitizer_get_current_allocated_bytes~, so libc's still-live stdio
+    buffer is not counted as a til leak.
+  - Interpreted container teardown now frees cached container buffers.
+  - Callable struct fields now free the discarded temporary closure after
+    cloning it into callable field storage; this took
+    ~test/first_class.til~ interpret from ~386 bytes / 14 allocations~ to
+    zero.
+
+  Fresh scan command:
+
+  - ~systemd-run --user --scope -p MemoryMax=64G bash -lc 'make test_asan_full' > tmp/test_asan_full.log 2>&1~
+
+  Result: ~make test_asan_full~ passes ~138/162~. The 24 failures split
+  into remaining leaks and non-leak ASAN correctness failures.
+
+  Remaining interpret leaks from focused reruns with
+  ~TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret <file>~:
+
+  | Test | Bytes | Allocs |
+  |------+-------+--------|
+  | ~test/hashmaps.til~ | 10870 | 71 |
+  | ~test/dyn_hashmaps.til~ | 10789 | 104 |
+  | ~test/lazy.til~ | 2705 | 98 |
+  | ~test/templ_vec.til~ | 1405 | 21 |
+  | ~test/asting.til~ | 800 | 4 |
+  | ~test/maps.til~ | 774 | 38 |
+  | ~test/eval_heap.til~ | 479 | 61 |
+  | ~test/closures_interp.til~ | 391 | 14 |
+  | ~test/kwargs.til~ | 264 | 24 |
+  | ~test/dyn_maps.til~ | 212 | 11 |
+  | ~test/dyn_arrays.til~ | 152 | 6 |
+  | ~test/own_fields.til~ | 120 | 6 |
+  | ~test/loops.til~ | 102 | 5 |
+  | ~test/dyn_sets.til~ | 96 | 2 |
+  | ~test/structs.til~ | 27 | 4 |
+  | ~test/vecs.til~ | 8 | 2 |
+  | ~test/arrays.til~ | 6 | 1 |
+
+  Other current ASAN failures from the same ~test_asan_full~ run:
+
+  | Test | Failure |
+  |------+---------|
+  | ~test/aliases.til~ | heap-buffer-overflow in ~callable_box_is~ |
+  | ~test/dynamic.til~ | heap-buffer-overflow in ~callable_box_is~ |
+  | ~test/errors.til~ | heap-buffer-overflow in ~callable_box_is~ |
+  | ~test/tuples.til~ | heap-buffer-overflow in ~callable_box_is~ |
+  | ~test/regression.til~ | heap-buffer-overflow in ~Value_Int32~ |
+  | ~test/enums.til~ | heap-buffer-overflow in ~src/c/ext.c:is_n~ |
+  | ~ffi_interp~ (~examples/ffi/ext_module.til~) | bad-free in ASAN malloc/free wrapper |
+
 Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
   no test is failing.  ~bin/til_asan~ (the ASAN-instrumented compiler)
   builds and the suite runs with ~--asan~ threaded through to every
