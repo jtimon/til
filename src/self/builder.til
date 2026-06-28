@@ -1389,7 +1389,6 @@ priv builder_reset_str_lit_pool := func(mut ctx: Context) {
     ctx.builder_str_lit_symbols = Map(Str, Str).new()
     ctx.builder_str_lit_values = Vec(Str).new()
     ctx.builder_str_lit_alias_symbols = Map(Str, Str).new()
-    ctx.builder_str_lit_alias_names = Vec(Str).new()
 }
 
 priv builder_register_str_lit := func(mut ctx: Context, s: Str) returns Str {
@@ -1402,10 +1401,12 @@ priv builder_register_str_lit := func(mut ctx: Context, s: Str) returns Str {
 
 priv builder_register_str_lit_alias := func(mut ctx: Context, name: Str, s: Str) {
     sym := builder_register_str_lit(ctx, s)
-    if ctx.builder_str_lit_alias_symbols.has(name).not() {
-        ctx.builder_str_lit_alias_symbols.set(name, own sym)
-        ctx.builder_str_lit_alias_names.push(own name.clone())
-    }
+    if ctx.builder_str_lit_alias_symbols.has(name).not() { ctx.builder_str_lit_alias_symbols.set(name, own sym) }
+}
+
+priv builder_c_ident_name := func(name: Str, ctx: Context) returns Str {
+    if ctx.builder_str_lit_alias_symbols.has(name) { return ctx.builder_str_lit_alias_symbols[name].clone() }
+    return name.clone()
 }
 
 priv builder_emit_str_lit_decl := proc(f: File, name: Str, s: Str) {
@@ -1502,12 +1503,7 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         ref sym : Str = ctx.builder_str_lit_symbols[val]
         builder_emit_str_lit_decl(f, sym, val)
     }
-    for j in 0..ctx.builder_str_lit_alias_names.len() {
-        ref alias : Str = ctx.builder_str_lit_alias_names[j]
-        ref target : Str = ctx.builder_str_lit_alias_symbols[alias]
-        f.write("#define ").write(alias).write(" ").write(target).write("\n")
-    }
-    if ctx.builder_str_lit_values.len().gt(0).or(ctx.builder_str_lit_alias_names.len().gt(0)) { f.write("\n") }
+    if ctx.builder_str_lit_values.len().gt(0) { f.write("\n") }
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
@@ -1713,7 +1709,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             // them in check_unused_locals, so we need a (void) guard to
             // keep C's -Wunused-variable quiet.
             if dd.name.starts_with("_").or(dd.name.starts_with("hoisted__")) {
-                emit_indent(f, depth); f.write("(void)").write(dd.name).write(";\n")
+                emit_indent(f, depth); f.write("(void)").write(builder_c_ident_name(dd.name, ctx)).write(";\n")
             }
         } else {
             ctype := resolve_decl_ctype(e.expr_til_type(), rhs.expr_til_type(), dd.explicit_type, ctx)
@@ -1769,7 +1765,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     // branch does the usual malloc round-trip so `free(own
                     // val)` still operates on a heap wrapper.
                     if dd.is_mut.not().and(ctx.builder_str_lit_alias_symbols.has(dd.name)) {
-                        f.write("(void)").write(dd.name).write(";\n")
+                        f.write("(void)").write(builder_c_ident_name(dd.name, ctx)).write(";\n")
                     } else {
                         if dd.is_mut.not() { f.write("static ") }
                         f.write(ctype).write(" ").write(dd.name).write(" = (Str){.c_str = (void *)\"")
@@ -1881,7 +1877,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         // guard for C. Any non-_-prefixed local that reaches here is
         // either used or a typer bug -- gcc surfacing it is fine.
         if dd.name.starts_with("_").or(dd.name.starts_with("hoisted__")) {
-            emit_indent(f, depth); f.write("(void)").write(dd.name).write(";\n")
+            emit_indent(f, depth); f.write("(void)").write(builder_c_ident_name(dd.name, ctx)).write(";\n")
         }
     }
     case:
@@ -1994,7 +1990,8 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                                 is_value_global(rv_name.ident_name(), ctx).not()).and(
                                 rv.expr_til_type().is(Type.Dynamic).not()) {
                                 ctype := emit_return_ctype(rv, ctx)
-                                f.write("{ ").write(ctype).write(" _ret = DEREF(").write(rv_name.ident_name()).write("); free(").write(rv_name.ident_name()).write(");\n")
+                                cname := builder_c_ident_name(rv_name.ident_name(), ctx)
+                                f.write("{ ").write(ctype).write(" _ret = DEREF(").write(cname).write("); free(").write(cname).write(");\n")
                                 for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                                 emit_indent(f, depth); f.write("return _ret; }\n")
                                 return
@@ -2038,7 +2035,8 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 if is_stack_local(rv_name.ident_name(), ctx).or(is_value_global(rv_name.ident_name(), ctx)) {
                     if is_shallow_ret.not() {
                         ctype := emit_return_ctype(rv, ctx)
-                        f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(rv_name.ident_name())
+                        cname := builder_c_ident_name(rv_name.ident_name(), ctx)
+                        f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(cname)
                         if ctype == "Str" { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
                         f.write(";\n")
                         for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
@@ -2330,7 +2328,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 case NodeType.Ident(rid):
                     if is_ref_local(rid.ident_name(), ctx) {
                         is_ref_rhs = true
-                        f.write("*").write(rid.ident_name())
+                        f.write("*").write(builder_c_ident_name(rid.ident_name(), ctx))
                     }
                 case:
                 }
@@ -2466,7 +2464,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // If the temp is a stack-local (Str value, not pointer),
                         // assign directly without dereference and free.
                         if is_stack_local(temp_name, ctx) {
-                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(temp_name).write("; }\n")
+                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_c_ident_name(temp_name, ctx)).write("; }\n")
                         } else {
                             f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); }\n")
                             ctx.swap_freed.add(own temp_name.clone())
@@ -2532,11 +2530,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                                 if e.children.len() >= 3 {
                                     switch e.children[2].node_type {
                                     case NodeType.Ident(cf_name):
-                                        f.write("(void)").write(cf_name.ident_name()).write("; ")
+                                        f.write("(void)").write(builder_c_ident_name(cf_name.ident_name(), ctx)).write("; ")
                                     case:
                                     }
                                 }
-                                f.write(del_ct).write("_delete(&").write(del_arg.ident_name()).write(", ").write(delete_call_free_lit(del_ct, false, ctx)).write(");\n"); return
+                                f.write(del_ct).write("_delete(&").write(builder_c_ident_name(del_arg.ident_name(), ctx)).write(", ").write(delete_call_free_lit(del_ct, false, ctx)).write(");\n"); return
                             }
                         }
                     case:
@@ -2837,10 +2835,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name()))
             } else {
-                f.write(ident.ident_name())
+                f.write(builder_c_ident_name(ident.ident_name(), ctx))
             }
         } else {
-            f.write(ident.ident_name())
+            f.write(builder_c_ident_name(ident.ident_name(), ctx))
         }
     case NodeType.FCall:
         ref callee : Expr = e.children[0]
@@ -3641,7 +3639,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 if existing.is_null().not() { ctype = existing.clone() } else { ctype = c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx) }
                 if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_name(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
                     f.write("&")
-                    f.write(ident.ident_name())
+                    f.write(builder_c_ident_name(ident.ident_name(), ctx))
                 } else {
                     f.write("({ ")
                     f.write(ctype)
@@ -3653,7 +3651,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 }
             } else {
                 f.write("&")
-                f.write(ident.ident_name())
+                f.write(builder_c_ident_name(ident.ident_name(), ctx))
             }
         } else {
             emit_expr(f, e, depth, ctx)
