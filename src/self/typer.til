@@ -3841,8 +3841,32 @@ priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_lo
     stmt.set_expr_til_type(Type.None)
 }
 
+// Issue #297: a FieldAccess receiver that is a bare type alias (USize,
+// UPtr, or a user `Foo := U8`) names a namespace through the alias. The
+// alias has no struct def of its own, so resolve it to the target type and
+// rewrite the receiver Ident to the target name (mirroring the method-call
+// callee path, which is why `USize.size()` already resolves). Rewriting the
+// name -- not just the til_type -- is what every downstream consumer needs:
+// the scavenger's usage marking and the interpreter's ns lookup both key on
+// the Ident name, while the builder reads the til_type; setting both keeps
+// them in agreement so the `<Type>_<NAME>` global is emitted and not pruned.
+priv resolve_fa_receiver_alias := func(scope: TypeScope, mut obj: Expr) {
+    switch obj.node_type {
+    case NodeType.Ident(rid):
+        ref resolved : Str = resolve_type_alias(scope, rid.ident_name())
+        if resolved.eq(rid.ident_name()).not() {
+            if scope.get_struct(resolved).is_null().not() {
+                obj.node_type = ident_node(resolved)
+                obj.set_expr_til_type(Type.Struct(resolved.clone()))
+            }
+        }
+    case:
+    }
+}
+
 priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, expr.children[0], in_func, ctx)
+    resolve_fa_receiver_alias(scope, expr.children[0])
     obj_sname := til_type_name(expr.children[0].expr_til_type())
     if obj_sname.len() > 0 {
         ref sdef : Expr = scope.get_struct(obj_sname)

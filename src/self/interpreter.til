@@ -776,12 +776,19 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                     sname = ei.enum_name
                 }
             case:
-                switch e.children[0].node_type {
-                case NodeType.Ident(ident):
-                    sname = ident.ident_name()
-                case:
-                    // Primitive receiver (LiteralNum I64, etc.).
-                    sname = til_type_name_c(e.children[0].expr_til_type())
+                // Issue #297: prefer the typer-set til_type (reliable, and
+                // for an alias receiver it already holds the resolved target
+                // struct name); fall back to the literal Ident name, then to
+                // til_type_name_c for primitive receivers (LiteralNum I64).
+                sname = til_type_name(e.children[0].expr_til_type())
+                if sname.len() == 0 {
+                    switch e.children[0].node_type {
+                    case NodeType.Ident(ident):
+                        sname = ident.ident_name()
+                    case:
+                        // Primitive receiver (LiteralNum I64, etc.).
+                        sname = til_type_name_c(e.children[0].expr_til_type())
+                    }
                 }
             }
             ref nsv : Value = ns_get(sname, fname.field_access_name(), ctx)

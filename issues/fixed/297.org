@@ -1,6 +1,40 @@
 # priority: low
 # category: bugs
-** OPEN #297 Namespace constant access through a type alias (USize.MAX) is broken
+** FIXED #297 Namespace constant access through a type alias (USize.MAX) is broken
+
+*** Post-mortem
+
+Root cause: a FieldAccess whose receiver is a type alias (USize, UPtr, or a
+user `Foo := U8`) was never resolved to its target type. The alias name has no
+struct def of its own, so every namespace lookup keyed on the receiver --
+the typer's `fa_is_ns`, the interpreter's `ns_get`, the scavenger's usage
+marking, and the builder's `<Type>_<NAME>` emit -- missed the member.
+
+The "suggested approach" in this issue underestimated one consumer: the
+scavenger (`scav_fa_is_ns` / the ns-usage walk in src/self/scavenger.til)
+keys on the receiver's bare *Ident name*, not its til_type. Annotating only
+`expr_til_type` (the first attempt) fixed the typer and interpreter but left
+the scavenger blind to `USize.MAX`, so it pruned `U32.MAX` from U32's
+namespace as dead -- the builder then found U32's def but with no MAX ns decl
+(`has_ns=false`), and emitted the instance-access `USize->MAX`.
+
+Fix: resolve the alias ONCE and centrally, in the typer's
+`infer_field_access_expr` (src/self/typer.til), via the new
+`resolve_fa_receiver_alias`. It rewrites the receiver Ident's *name* to the
+resolved target (mirroring the method-call callee path that already made
+`USize.size()` work) AND stamps its til_type with `Type.Struct(target)`.
+Rewriting the name keeps the name-keyed consumers (scavenger, interpreter)
+and the type-keyed consumer (builder) in agreement, so no per-emit-site
+patching was needed. The interpreter's FieldAccess ns path
+(src/self/interpreter.til) also now prefers the typer-set til_type over the
+literal Ident name for the namespace `sname`, matching the enum-receiver case
+just above it.
+
+Regression test: `test_alias_namespace_constants` in test/operators.til
+(runs in both interpret and compile): USize.MIN/MAX, UPtr.MIN/MAX,
+USize.size() (method-through-alias guard), and a user alias `MyByte := U8`
+with MyByte.MAX == 255 / MyByte.MIN == 0, including an alias-typed local
+initialized from the alias constant.
 
 Accessing a namespace DATA constant through a type alias does not work.
 The motivating case is the #264-follow-up MIN/MAX constants: U8/U16/.../I64/F32
