@@ -196,16 +196,16 @@ ranking is what matters).
 
   | function                                           | signal                         | suspected fix                                            |
   |----------------------------------------------------+--------------------------------+----------------------------------------------------------|
-  | and / Bool_eq / Str_eq                             | 30M / 34M / 6.6M calls         | reduce repeated predicate helper calls                   |
-  | Str_delete / Str_clone                             | 25.7M frees, 11.5M allocs, 143 MB | reduce temporary string churn; share refs/views/intern repeat idents |
-  | expr_uses_var / expr_transfers_own                 | 3.7M / 1.2M calls, 76s total   | memoize repeated AST ownership/use walks                 |
-  | Str_cmp / Vec__Str_unsafe_get                      | 19.3M / 12.4M calls            | keep compare/string scans on bulk unchecked paths        |
-  | Vec__Expr_unsafe_get / Vec__Expr_len               | 9.3M / 15.2M calls             | avoid repeated Vec bounds/length helper traffic in AST walks |
-  | priv___src_self_typer_til__fcall_has_own_arg       | 1.1M calls, 18 MB              | cache fcall ownership checks during typing               |
-  | Vec__Expr_clone / Expr_clone                       | 320K / 159K allocs, 59 MB      | cut Expr_clone in typer; share/borrow AST where ownership allows |
-  | Vec__Expr_new / Vec__Expr_push / Vec__Expr_push_take | 373K news, 42 MB push reallocs | reserve expression vectors at known-size sites           |
-  | Array__Str_new / Vec__Str_clone                    | 1.4M / 5.6K allocs, 32 MB      | avoid rebuilding string arrays/vectors in repeated lookups |
-  | Map__Str_Dynamic_has/get / TypeScope_get_struct    | 2.0M / 567K / 1.8M calls       | cache hot map/type-scope lookups or move them to HashMap paths |
+  | is_n / NodeType_is / is_null                       | 93M / 11M / 6.2M calls         | reduce enum-tag and null predicate helper traffic        |
+  | Str_delete / Str_clone                             | 29.8M frees, 13.6M allocs, 167 MB | reduce temporary string churn; share refs/views/intern repeat idents |
+  | and / Str_eq / TokenType_eq                        | 34M / 8.1M / 805K calls        | reduce repeated predicate/equality helper calls          |
+  | Str_cmp / ptr_add                                  | 22.5M / 16.8M calls            | keep compare/string scans on bulk unchecked pointer paths |
+  | expr_uses_var / expr_transfers_own                 | 4.2M / 1.6M calls, 92s total   | memoize repeated AST ownership/use walks                 |
+  | expr_til_type / TypeScope_get_struct / TypeScope_get_binding | 701K / 2.8M / 483K calls, 19 MB | cache hot type-scope and expression type queries         |
+  | priv___src_self_typer_til__fcall_has_own_arg       | 1.6M calls, 24 MB              | cache fcall ownership checks during typing               |
+  | Vec__Value_clone / Vec__Expr_clone / Expr_clone    | 318 / 323K / 161K allocs, 94 MB | cut large Vec/Expr clones; share/borrow where ownership allows |
+  | Vec__Expr_new / Vec__Expr_push / Vec__Expr_push_take | 385K news, 46 MB push reallocs | reserve expression vectors at known-size sites           |
+  | Array__Str_new / Vec__Str_clone                    | 1.5M / 5.6K allocs, 37 MB      | avoid rebuilding string arrays/vectors in repeated lookups |
 
 ** Status
 
