@@ -617,38 +617,15 @@ namespace:
 I64 : StructDef = struct {
 namespace:
     to_str := func(val: I64) returns Str {
-        if val == 0 {
-            buf : Dynamic = malloc(2)
-            memcpy(buf, 48, 1)
-            memset(ptr_add(buf, 1), 0, 1)
-            return Str(c_str = buf, count = 1, cap = 1)
-        }
-        mut is_neg := false
-        mut v := val
+        // Render via the magnitude in U64 so I64.MIN works: negating MIN
+        // overflows I64 (0 - MIN == MIN, the old digit loop then emitted
+        // just "-"), but its magnitude is U64.sub(0, (U64)val) in two's
+        // complement. U64.to_str handles the digits for the full range.
         if val < 0 {
-            is_neg = true
-            v = 0 - val
+            mag : U64 = U64.sub(0, val.cast(U64))
+            return format("-", mag.to_str())
         }
-        mut ndigits : U64 = 0
-        mut tmp := v
-        while tmp > 0 {
-            ndigits++
-            tmp = tmp / 10
-        }
-        mut total := ndigits
-        if is_neg { total++ }
-        buf : Dynamic = malloc(total + 1)
-        if is_neg {
-            memcpy(buf, 45, 1)
-        }
-        mut i := total - 1
-        while v > 0 {
-            memcpy(ptr_add(buf, i), v.mod(10).add(48).to_u8(), 1)
-            v = v / 10
-            i--
-        }
-        memset(ptr_add(buf, total), 0, 1)
-        return Str(c_str = buf, count = total, cap = total)
+        return val.cast(U64).to_str()
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
     to_i8 := ext_func(shallow val: I64) returns shallow I8 {}

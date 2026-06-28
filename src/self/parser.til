@@ -1202,9 +1202,11 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
         }
     }
     expect_token(p, TokenType.RBrace)
-    // #264 follow-up: the discriminant must hold one tag per variant. The
-    // limit is the type's MAX (default U8 -> 255); a U64 tag has no
-    // practical limit. Recommend the next wider unsigned type.
+    // #264 follow-up: every tag VALUE must fit the (unsigned) discriminant,
+    // not just the variant count -- explicit `= N` values can exceed it or
+    // go negative. The upper limit is the type's MAX (default U8 -> 255);
+    // a U64 tag has no I64-representable upper bound. Recommend the next
+    // wider unsigned type when the value is too large.
     mut ttn := "U8"
     if edd.tag_type.len() > 0 { ttn = edd.tag_type }
     mut tag_limit : I64 = 0
@@ -1213,10 +1215,22 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     if ttn == "U8"  { tag_limit = U8.MAX.to_i64();  has_limit = true; next_bigger = "U16" }
     if ttn == "U16" { tag_limit = U16.MAX.to_i64(); has_limit = true; next_bigger = "U32" }
     if ttn == "U32" { tag_limit = U32.MAX.to_i64(); has_limit = true; next_bigger = "U64" }
-    if has_limit.and(variant_idx.gt(tag_limit)) {
+    mut max_tag : I64 = 0
+    mut min_tag : I64 = 0
+    for tv : I64 in edd.tag_values {
+        if tv.gt(max_tag) { max_tag = tv }
+        if tv.lt(min_tag) { min_tag = tv }
+    }
+    if min_tag.lt(0) {
         panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-            ": enum(", ttn, ") can have at most ", tag_limit.to_str(),
-            " variants, use something bigger like enum(", next_bigger, ") instead")
+            ": enum(", ttn, ") tag value ", min_tag.to_str(),
+            " is negative, but the discriminant is unsigned")
+    }
+    if has_limit.and(max_tag.gt(tag_limit)) {
+        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
+            ": enum(", ttn, ") tag value ", max_tag.to_str(),
+            " exceeds the maximum ", tag_limit.to_str(),
+            ", use something bigger like enum(", next_bigger, ") instead")
     }
     p.pending_doc = saved_doc.clone()
     return def
