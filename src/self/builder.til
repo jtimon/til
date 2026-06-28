@@ -2937,6 +2937,33 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     f.write(")(")
                     emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
                     f.write(")->count)")
+                } else if sname.starts_with("Vec__").and(mname.field_access_name() == "unsafe_get") {
+                    // Peephole: inline Vec.unsafe_get as pointer arithmetic into
+                    // the backing buffer -- a hot accessor (~1.4B calls
+                    // translating the self-host). The result cast uses the
+                    // element's C type (c_type_name). The sizeof STRIDE must be
+                    // til's T.size() (the Vec's element width): an aggregate
+                    // occupies its whole struct (its name); every other element
+                    // its til_type_to_c width (Dynamic -> "void *" = 8, FuncPtr
+                    // -> "TilClosure *", primitives). Crucially the stride is NOT
+                    // sizeof(c_type_name): for Dynamic that yields "void" whose
+                    // sizeof is 1, not the 8-byte pointer slot the Vec stores.
+                    // Stays a real func (interp + reflective dispatch call it),
+                    // so both modes agree; same approach as Vec.len.
+                    f.write("((")
+                    f.write(c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx))
+                    f.write(" *)((")
+                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                    f.write(")->data + (")
+                    emit_deref(f, e.children[2], depth, ctx)
+                    f.write(") * sizeof(")
+                    stride_name := til_type_name(e.expr_til_type())
+                    if stride_name.len() > 0 {
+                        f.write(stride_name)
+                    } else {
+                        f.write(til_type_to_c(e.expr_til_type()))
+                    }
+                    f.write(")))")
                 } else if (sname == "Bool").and(mname.field_access_name() == "eq") {
                     // Peephole: inline Bool.eq as native `==` -- a hot ext_func
                     // call (1.8B in the --prof profile). Bool stays an ext_func
