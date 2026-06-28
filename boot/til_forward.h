@@ -338,6 +338,7 @@ typedef struct Cell Cell;
 typedef struct Binding Binding;
 typedef struct HeapBinding HeapBinding;
 typedef struct Scope Scope;
+typedef struct InterpSession InterpSession;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
@@ -1082,6 +1083,13 @@ typedef struct HeapBinding {
     Bool is_borrowed;
     Bool moved_out;
 } HeapBinding;
+
+
+typedef struct InterpSession {
+    Scope *global;
+    Bool core_evaluated;
+    U32 user_argc;
+} InterpSession;
 
 
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
@@ -3822,6 +3830,9 @@ U32 HeapBinding_size(void);
 Scope * Scope_clone(Scope * self);
 void Scope_delete(Scope * self, Bool call_free);
 U32 Scope_size(void);
+InterpSession * InterpSession_clone(InterpSession * self);
+void InterpSession_delete(InterpSession * self, Bool call_free);
+U32 InterpSession_size(void);
 Expr * lookup_interp_type_def(Str * name, Context * ctx);
 Value val_none(void);
 Value priv___src_self_interpreter_til__val_u8(I64 v);
@@ -3941,6 +3952,19 @@ void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration 
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
+void interp_session_start(InterpSession * session, Vec__Str * user_argv);
+void interp_session_free(InterpSession * session);
+void priv___src_self_interpreter_til__interp_reset_control_flow(Context * ctx);
+I32 interp_session_prepare_context(InterpSession * session, LoadedProgram * lp, Str * fwd_path);
+void interp_session_finish_context(LoadedProgram * lp);
+void interp_session_eval_core_once(InterpSession * session, LoadedProgram * lp);
+void interp_session_eval_user_units(InterpSession * session, LoadedProgram * lp);
+void priv___src_self_interpreter_til__interp_body_slice(Expr * program, U32 start_idx, U32 count, Expr * out);
+void priv___src_self_interpreter_til__interp_body_slice_clear(Expr * body);
+void priv___src_self_interpreter_til__interp_eval_program_slice(InterpSession * session, LoadedProgram * lp, Expr * program, U32 start_idx, U32 count);
+U32 priv___src_self_interpreter_til__interp_first_stmt_at_line(Expr * program, U32 min_line);
+void priv___src_self_interpreter_til__interp_eval_exact_line(InterpSession * session, LoadedProgram * lp, Expr * program, U32 line);
+void interp_session_eval_current_root(InterpSession * session, LoadedProgram * lp, U32 block_start_line, Bool eval_doc_line);
 I32 priv___src_self_interpreter_til__interpret_units(LoadedProgram * lp, Vec__Str * user_argv, Str * fwd_path);
 I32 cmd_interpret(LoadedProgram * lp, Vec__Str * user_argv);
 priv___src_self_interpreter_til__ExtStr * priv___src_self_interpreter_til__ExtStr_clone(priv___src_self_interpreter_til__ExtStr * self);
@@ -4368,7 +4392,8 @@ U64 nng_cv_hash(nng_cv * self, HashFn hasher);
 U32 nng_cv_size(void);
 Str * repl_read_line(Str * mode_name);
 I32 repl_typecheck(LoadedProgram * lp);
-Str * repl_capture_interpret(LoadedProgram * lp, Str * out_path);
+Str * repl_capture_eval_current(InterpSession * session, LoadedProgram * lp, Str * out_path, U32 block_start_line, Bool eval_doc_line);
+U32 repl_source_line_count(Str * s);
 Bool repl_parse_allows_wrap(Expr * peek_ast);
 Bool repl_ast_has_help_call(Expr * e);
 Bool repl_ast_updates_doc_cache(Expr * e);

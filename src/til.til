@@ -56,12 +56,33 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     return type_program_errors(lp, false)
 }
 
-repl_capture_interpret := proc(lp: LoadedProgram, out_path: Str) returns Str {
-    user_argv := Vec(Str).new()
+repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool) returns Str {
+    mut interpret_fwd_path := ""
+    mut result : I32 = 0
     stdio_capture_begin(out_path)
-    _ := cmd_interpret(lp, user_argv)
+    if lp.link_c_paths.len() > 0 {
+        system_cmd("mkdir -p tmp")
+        interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
+        result = build_forward_header_lp(interpret_fwd_path, lp)
+    }
+    if result == 0 { result = interp_session_prepare_context(session, lp, interpret_fwd_path) }
+    if result == 0 {
+        interp_session_eval_core_once(session, lp)
+        interp_session_eval_current_root(session, lp, block_start_line, eval_doc_line)
+        interp_session_finish_context(lp)
+    }
     stdio_capture_end()
     return File.readfile(out_path)
+}
+
+repl_source_line_count := func(s: Str) returns U32 {
+    if s.len() == 0 { return 0 }
+    mut lines : U32 = 1
+    for i in 0..s.len() {
+        ref ch : I8 = s.unsafe_get(i)
+        if ch.eq('\n') { lines++ }
+    }
+    return lines
 }
 
 // Decide whether the user's input is syntactically eligible for Python-style
@@ -165,13 +186,8 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
 // If a `mode X` statement is entered, sets next_mode_out = X so the caller
 // can restart the session in the new mode.
 //
-// Strategy: keep the REPL's accumulated source as a Str. Each time the user
-// types a block, append it to the buffer and re-run the whole program via
-// the standard pipeline (tokenize -> parse -> init_declarations -> type_check
-// -> constfolder -> interpret). This means side effects (println, etc.) from
-// earlier inputs replay on every iteration, but declarative state (variable
-// definitions) is recomputed correctly. It's the simplest approach that
-// stays fully consistent with the rest of the compiler.
+// Strategy: keep the accumulated source for load/type/prepare, but keep one
+// interpreter session alive and evaluate only the current accepted input.
 run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec(Str)) {
     mut mode_str := mode_name_in.clone()
     if mode_str.len() == 0 { mode_str = "script" }
@@ -185,15 +201,15 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
-    // Full output produced by the last successful run. Used to compute the
-    // delta so we only show new output each turn.
-    mut prev_out := ""
     mut user_info_cache := ""
     mut user_docs_cache := ""
     mut user_docs_dirty := false
 
     // Keep block Strs alive so parsed AST views don't dangle.
     source_keep := Vec(Str).new()
+    user_argv := Vec(Str).new()
+    mut session := InterpSession()
+    interp_session_start(session, user_argv)
 
     system_cmd("mkdir -p tmp")
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
@@ -217,12 +233,13 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         peek_ast := parse(peek_tokens, kept, "<repl>", peek_mode_out, repl_anon_type_counter)
         if peek_mode_out.len() > 0 {
             next_mode_out = peek_mode_out.clone()
+            interp_session_free(session)
             return
         }
         _discard := peek_ast.children.len()
 
         mut block_eff := block.clone()
-        mut full_out := ""
+        mut turn_out := ""
         mut ran_ok := false
         current_has_help := repl_ast_has_help_call(peek_ast)
         need_docs := docs_active.or(current_has_help)
@@ -234,6 +251,9 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         if need_docs {
             doc_line = build_doc_init_line_cache_files(core_info_cache_path, core_docs_cache_path, user_info_cache, user_docs_cache)
         }
+        mut block_start_line : U32 = 2
+        if doc_line.len() > 0 { block_start_line++ }
+        block_start_line = block_start_line + repl_source_line_count(accum)
 
         if repl_parse_allows_wrap(peek_ast) {
             block_eff = format("println((", block, ").to_str())")
@@ -251,11 +271,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             stdio_capture_end()
             if run_errs == 0 {
                 finish_prepare_program(run_lp)
-                full_out = repl_capture_interpret(run_lp, out_path)
+                turn_out = repl_capture_eval_current(session, run_lp, out_path, block_start_line, current_has_help)
                 ran_ok = true
             }
-            ffi_cleanup(run_lp.ctx)
-            if ran_ok.not() { block_eff = block.clone() }
+            if ran_ok.not() {
+                block_eff = block.clone()
+            }
         }
 
         if ran_ok.not() {
@@ -272,33 +293,15 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if typer_errs == 0 {
                 finish_init_and_type_program(typed_lp)
                 finish_prepare_program(typed_lp)
-                full_out = repl_capture_interpret(typed_lp, out_path)
+                turn_out = repl_capture_eval_current(session, typed_lp, out_path, block_start_line, current_has_help)
                 ran_ok = true
             }
-            ffi_cleanup(typed_lp.ctx)
         }
 
         if ran_ok {
             if current_has_help { docs_active = true }
             if repl_ast_updates_doc_cache(peek_ast) { user_docs_dirty = true }
-            // Print only the delta vs the previous run's output. Since the
-            // combined program is re-run from scratch each turn, prior side
-            // effects (println output, etc.) replay; we hide them by
-            // comparing against prev_out.
-            mut new_chunk := ""
-            if prev_out.len() < full_out.len() {
-                prefix_match := full_out.starts_with(prev_out)
-                if prefix_match {
-                    start_idx : USize = prev_out.len()
-                    new_chunk = full_out.substr(start_idx, full_out.len() - start_idx)
-                } else {
-                    new_chunk = full_out.clone()
-                }
-            } else if prev_out.len().eq(full_out.len()).not() {
-                new_chunk = full_out.clone()
-            }
-            if new_chunk.len() > 0 { print_single(new_chunk) }
-            prev_out = full_out.clone()
+            if turn_out.len() > 0 { print_single(turn_out) }
 
             // Only commit good lines to accumulated source. If typecheck
             // failed, drop the line so it doesn't pollute future turns
@@ -307,6 +310,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             accum = accum.format(block_eff)
         }
     }
+    interp_session_free(session)
 }
 
 // Outer REPL driver: restarts the session when a `mode X` statement is entered.

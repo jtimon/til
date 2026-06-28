@@ -491,6 +491,12 @@ Scope := struct {
     box_owned_callables := Vec(DynPtrBox).new()
 }
 
+InterpSession := struct {
+    ref global : Scope = NULL
+    core_evaluated := false
+    user_argc : U32 = 0
+}
+
 // Return-value / control-flow state and namespace fields now live on
 // Context (has_return, has_break, has_continue, return_value,
 // ns_fields, ns_keys, ns_inited), reached in the eval functions via
@@ -3876,18 +3882,34 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
     }
 }
 
-// Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
-// ASTs stored in lp.ctx.imported, but preserves the original overall
-// registration/eval ordering.
-priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_path: Str) returns I32 {
-    // Ensure codegen_lp() is available throughout interpretation so
-    // interpreter helpers can read shared Context fields (#177/#178).
-    ref mut c : Context = lp.ctx
+interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
+    session.global = scope_new_boxed(NULL)
+    session.core_evaluated = false
+    session.user_argc = 0
+    if user_argv.is_null().not() { session.user_argc = user_argv.len() }
+}
+
+interp_session_free := func(mut session: InterpSession) {
+    if session.global.is_null().not() { scope_free(own session.global) }
+    session.global = NULL
+    session.core_evaluated = false
+    session.user_argc = 0
+}
+
+priv interp_reset_control_flow := func(mut ctx: Context) {
+    if ctx.has_return {
+        free_temp_arg_value(ctx.return_value)
+        memcpy(ctx.return_value, val_none(), Value.size().cast(U64))
+    }
+    ctx.has_return = false
+    ctx.has_break = false
+    ctx.has_continue = false
+    ctx.constfold_aborted = false
+}
+
+interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
     // Ensure builtin dispatch table is initialized deterministically.
     if lp.ctx.dispatch_inited.not() { dispatch_init(lp.ctx) }
-
-    mut user_argc : U32 = 0
-    if user_argv.is_null().not() { user_argc = user_argv.len() }
 
     // FFI init: reset, load the shared lib, then scan per-file ASTs.
     ffi_reset(lp.ctx)
@@ -3907,69 +3929,152 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         ffi_init_scan_program(iu.ast, lp.ctx)
     }
 
-    global := scope_new(NULL)
-
-    // 1) Pre-register func/struct/enum definitions
+    // Refresh definition pointers and namespace state against this turn's AST.
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            interpret_register_defs(global, iu.ast)
+        for u2 : ProgramUnit in lp.core_units {
+            ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
+            interpret_register_defs(session.global, iu2.ast)
         }
     }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        interpret_register_defs(global, iu.ast)
+    for u3 : ProgramUnit in lp.units {
+        ref iu3 : ImportUnit = lp.ctx.imported[u3.path]
+        interpret_register_defs(session.global, iu3.ast)
     }
 
-    // 2) Pre-register type aliases
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            interpret_register_aliases(global, iu.ast)
+        for u4 : ProgramUnit in lp.core_units {
+            ref iu4 : ImportUnit = lp.ctx.imported[u4.path]
+            interpret_register_aliases(session.global, iu4.ast)
         }
     }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        interpret_register_aliases(global, iu.ast)
+    for u5 : ProgramUnit in lp.units {
+        ref iu5 : ImportUnit = lp.ctx.imported[u5.path]
+        interpret_register_aliases(session.global, iu5.ast)
     }
 
-    // 3) Initialize namespace fields
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            interpreter_init_ns(lp.ctx, global, iu.ast)
+        for u6 : ProgramUnit in lp.core_units {
+            ref iu6 : ImportUnit = lp.ctx.imported[u6.path]
+            interpreter_init_ns(lp.ctx, session.global, iu6.ast)
         }
     }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        interpreter_init_ns(lp.ctx, global, iu.ast)
+    for u7 : ProgramUnit in lp.units {
+        ref iu7 : ImportUnit = lp.ctx.imported[u7.path]
+        interpreter_init_ns(lp.ctx, session.global, iu7.ast)
     }
 
-    // 4) Copy namespace entries for type aliases
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            interpret_copy_alias_ns(iu.ast, global, lp.ctx)
+        for u8 : ProgramUnit in lp.core_units {
+            ref iu8 : ImportUnit = lp.ctx.imported[u8.path]
+            interpret_copy_alias_ns(iu8.ast, session.global, lp.ctx)
         }
     }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        interpret_copy_alias_ns(iu.ast, global, lp.ctx)
+    for u9 : ProgramUnit in lp.units {
+        ref iu9 : ImportUnit = lp.ctx.imported[u9.path]
+        interpret_copy_alias_ns(iu9.ast, session.global, lp.ctx)
     }
+    return 0
+}
 
-    // 5) Evaluate top-level declarations
+interp_session_finish_context := proc(mut lp: LoadedProgram) {
+    interpreter_free_ns(lp.ctx)
+    ffi_cleanup(lp.ctx)
+}
+
+interp_session_eval_core_once := proc(mut session: InterpSession, mut lp: LoadedProgram) {
+    if session.core_evaluated { return }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
-            eval_body(global, iu.ast, lp.ctx)
+            eval_body(session.global, iu.ast, lp.ctx)
         }
     }
+    session.core_evaluated = true
+    interp_reset_control_flow(lp.ctx)
+}
+
+interp_session_eval_user_units := proc(session: InterpSession, mut lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
-        eval_body(global, iu.ast, lp.ctx)
+        eval_body(session.global, iu.ast, lp.ctx)
     }
+    interp_reset_control_flow(lp.ctx)
+}
+
+priv interp_body_slice := func(mut program: Expr, start_idx: USize, count: USize, mut out: Expr) {
+    free(own out.children.data)
+    out.children.data = ptr_add(program.children.data, start_idx.mul(Expr.size()).cast(U64))
+    out.children.count = count
+    out.children.cap = count
+}
+
+priv interp_body_slice_clear := func(mut body: Expr) {
+    body.children.data = NULL
+    body.children.count = 0
+    body.children.cap = 0
+}
+
+priv interp_eval_program_slice := proc(session: InterpSession, mut lp: LoadedProgram, mut program: Expr, start_idx: USize, count: USize) {
+    if count == 0 { return }
+    mut body := Expr.new(NodeType.Body, 0, 0)
+    interp_body_slice(program, start_idx, count, body)
+    eval_body(session.global, body, lp.ctx)
+    interp_body_slice_clear(body)
+}
+
+priv interp_first_stmt_at_line := func(program: Expr, min_line: U32) returns USize {
+    mut i : USize = 0
+    while i < program.children.len() {
+        if program.children[i].line >= min_line { return i }
+        i++
+    }
+    return program.children.len()
+}
+
+priv interp_eval_exact_line := proc(session: InterpSession, mut lp: LoadedProgram, mut program: Expr, line: U32) {
+    mut start : USize = program.children.len()
+    mut count : USize = 0
+    mut i : USize = 0
+    while i < program.children.len() {
+        if program.children[i].line == line {
+            if count == 0 { start = i }
+            count++
+        } else if count > 0 {
+            break
+        }
+        i++
+    }
+    if count == 0 { panic("REPL doc init line missing") }
+    interp_eval_program_slice(session, lp, program, start, count)
+}
+
+interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool) {
+    ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+    ref iu : ImportUnit = lp.ctx.imported[root.path]
+    if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, 2) }
+    start_idx := interp_first_stmt_at_line(iu.ast, block_start_line)
+    interp_eval_program_slice(session, lp, iu.ast, start_idx, iu.ast.children.len().sub(start_idx))
+    interp_reset_control_flow(lp.ctx)
+}
+
+// Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
+// ASTs stored in lp.ctx.imported, but preserves the original overall
+// registration/eval ordering.
+priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_path: Str) returns I32 {
+    // Ensure codegen_lp() is available throughout interpretation so
+    // interpreter helpers can read shared Context fields (#177/#178).
+    ref mut c : Context = lp.ctx
+    mut session := InterpSession()
+    interp_session_start(session, user_argv)
+    start_rc := interp_session_prepare_context(session, lp, fwd_path)
+    if start_rc.eq(0).not() {
+        interp_session_free(session)
+        return start_rc
+    }
+    interp_session_eval_core_once(session, lp)
+    interp_session_eval_user_units(session, lp)
 
     // Run tests (scan per-file user ASTs).  Picks up both top-level
     // test() decls and test() decls inside struct/enum namespaces so
@@ -3987,7 +4092,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
                                 test_count++
-                                test_scope := scope_new(global)
+                                test_scope := scope_new(session.global)
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 reclone_return(c)
@@ -4015,7 +4120,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
-                                    test_scope := scope_new(global)
+                                    test_scope := scope_new(session.global)
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     reclone_return(c)
@@ -4043,7 +4148,6 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             eprint_single(test_count.to_str())
             eprint_single(" tests passed\n")
         }
-        ffi_cleanup(lp.ctx)
         if pass_count.eq(test_count).not() { exit(1) }
     }
 
@@ -4051,7 +4155,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
     if lp.run_tests.not() { if lp.cur_mode.is_null().not() { if lp.cur_mode.needs_main {
-        ref main_cell : Cell = scope_get(global, "main")
+        ref main_cell : Cell = scope_get(session.global, "main")
         if main_cell.is_null().or(main_cell.val.is(Value.Func).not()) {
             eprint_single(lp.path)
             eprint_single(": error: this mode requires a 'main' proc\n")
@@ -4065,26 +4169,26 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 nparam := fd.params.len()
                 vi := fd.variadic_index
                 ref body : Expr = func_def.children[0]
-                main_scope := scope_new(global)
+                main_scope := scope_new(session.global)
 
                 if nparam > 0 {
                     mut fixed := nparam
                     if vi >= 0 {
                         fixed = nparam - 1
-                        if user_argc < fixed {
+                        if session.user_argc < fixed {
                             eprint_single("error: main expects at least ")
                             eprint_single(fixed.to_str())
                             eprint_single(" argument(s), got ")
-                            eprint_single(user_argc.to_str())
+                            eprint_single(session.user_argc.to_str())
                             eprint_single("\n")
                             exit(1)
                         }
                     } else {
-                        if user_argc.eq(nparam).not() {
+                        if session.user_argc.eq(nparam).not() {
                             eprint_single("error: main expects ")
                             eprint_single(nparam.to_str())
                             eprint_single(" argument(s), got ")
-                            eprint_single(user_argc.to_str())
+                            eprint_single(session.user_argc.to_str())
                             eprint_single("\n")
                             exit(1)
                         }
@@ -4093,7 +4197,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     for pi in 0..nparam {
                         ref param : Declaration = fd.params[pi]
                         if pi.to_i64() == vi.cast(I64) {
-                            va_count := user_argc - fixed
+                            va_count := session.user_argc - fixed
                             arr := build_argv_array(user_argv, argi.cast(U32), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
                             argi = argi + va_count.cast(I32)
@@ -4103,9 +4207,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             argi++
                         }
                     }
-                } else if user_argc > 0 {
+                } else if session.user_argc > 0 {
                     eprint_single("error: main expects no arguments, got ")
-                    eprint_single(user_argc.to_str())
+                    eprint_single(session.user_argc.to_str())
                     eprint_single("\n")
                     exit(1)
                 }
@@ -4120,9 +4224,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         }
     } } }
 
-    interpreter_free_ns(lp.ctx)
-    scope_free(own global)
-    ffi_cleanup(lp.ctx)
+    interp_session_finish_context(lp)
+    interp_session_free(session)
     return 0
 }
 
