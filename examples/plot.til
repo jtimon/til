@@ -4,7 +4,7 @@ mode cli
 // Usage: plot <csv_path> <svg_output_path> [last_n]
 //
 // CSV format (header + data rows):
-//   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total
+//   commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms
 
 NL := "\n"
 Q := "\""
@@ -27,6 +27,7 @@ INTERP_COLOR := "#0072B2"
 COMPILE_COLOR := "#CC79A7"
 RUN_COLOR := "#D55E00"
 WALL_COLOR := "#009E73"
+SELF_COLOR := "#984EA3"
 MEM_INTE_COLOR := "#56B4E9"
 MEM_COMP_COLOR := "#E69F00"
 MEM_RUN_COLOR := "#C44E52"
@@ -44,6 +45,7 @@ Row := struct {
     const compile_ms := 0
     const run_ms := 0
     const wall_ms := 0
+    const self_ms := 0
     const mem_inte := 0
     const mem_comp := 0
     const mem_run := 0
@@ -74,6 +76,7 @@ parse_csv := func(content: Str) returns Vec(Row) {
         mut c11 := "0"
         mut c12 := "0"
         mut c13 := "0"
+        mut c14 := "0"
         if cols.len().eq(11) {
             // Older history stored a single memory column; treat it as mem_total.
             ref c10r : Str = cols[10]
@@ -95,6 +98,10 @@ parse_csv := func(content: Str) returns Vec(Row) {
                 ref c13r : Str = cols[13]
                 c13 = c13r.clone()
             }
+            if cols.len().gt(14) {
+                ref c14r : Str = cols[14]
+                c14 = c14r.clone()
+            }
         }
         rows.push(own Row(
             commit = c0.clone(),
@@ -102,6 +109,7 @@ parse_csv := func(content: Str) returns Vec(Row) {
             compile_ms = c2.to_i64(),
             run_ms = c3.to_i64(),
             wall_ms = c7.to_i64(),
+            self_ms = c14.to_i64(),
             mem_inte = c10.to_i64(),
             mem_comp = c11.to_i64(),
             mem_run = c12.to_i64(),
@@ -136,6 +144,7 @@ build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
         if series.eq("compile") { val = row.compile_ms }
         if series.eq("run") { val = row.run_ms }
         if series.eq("wall") { val = row.wall_ms }
+        if series.eq("self") { val = row.self_ms }
         if series.eq("mem-inte") { val = row.mem_inte }
         if series.eq("mem-comp") { val = row.mem_comp }
         if series.eq("mem-run") { val = row.mem_run }
@@ -181,6 +190,7 @@ series_has_data := func(rows: Vec(Row), series: Str) returns Bool {
         if series.eq("compile") { val = row.compile_ms }
         if series.eq("run") { val = row.run_ms }
         if series.eq("wall") { val = row.wall_ms }
+        if series.eq("self") { val = row.self_ms }
         if series.eq("mem-inte") { val = row.mem_inte }
         if series.eq("mem-comp") { val = row.mem_comp }
         if series.eq("mem-run") { val = row.mem_run }
@@ -203,6 +213,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
         y_max = max_val(y_max, row.compile_ms)
         y_max = max_val(y_max, row.run_ms)
         y_max = max_val(y_max, row.wall_ms)
+        y_max = max_val(y_max, row.self_ms)
         mem_max = max_val(mem_max, row.mem_inte)
         mem_max = max_val(mem_max, row.mem_comp)
         mem_max = max_val(mem_max, row.mem_run)
@@ -275,11 +286,13 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
     has_compile := series_has_data(rows, "compile")
     has_run := series_has_data(rows, "run")
     has_wall := series_has_data(rows, "wall")
+    has_self := series_has_data(rows, "self")
     if rows.len().gt(0) {
         if has_interp { svg = format(svg, svg_polyline(build_points(rows, "interp", y_max), INTERP_COLOR)) }
         if has_compile { svg = format(svg, svg_polyline(build_points(rows, "compile", y_max), COMPILE_COLOR)) }
         if has_run { svg = format(svg, svg_polyline(build_points(rows, "run", y_max), RUN_COLOR)) }
         if has_wall { svg = format(svg, svg_polyline(build_points(rows, "wall", y_max), WALL_COLOR)) }
+        if has_self { svg = format(svg, svg_polyline(build_points(rows, "self", y_max), SELF_COLOR)) }
         if has_mem_inte { svg = format(svg, svg_polyline(build_points(rows, "mem-inte", mem_max), MEM_INTE_COLOR)) }
         if has_mem_comp { svg = format(svg, svg_polyline(build_points(rows, "mem-comp", mem_max), MEM_COMP_COLOR)) }
         if has_mem_run { svg = format(svg, svg_polyline(build_points(rows, "mem-run", mem_max), MEM_RUN_COLOR)) }
@@ -294,6 +307,7 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
             if has_compile { svg = format(svg, svg_circle(x, y_px(row.compile_ms, y_max), 3, COMPILE_COLOR)) }
             if has_run { svg = format(svg, svg_circle(x, y_px(row.run_ms, y_max), 3, RUN_COLOR)) }
             if has_wall { svg = format(svg, svg_circle(x, y_px(row.wall_ms, y_max), 3, WALL_COLOR)) }
+            if has_self { svg = format(svg, svg_circle(x, y_px(row.self_ms, y_max), 3, SELF_COLOR)) }
             if has_mem_inte { svg = format(svg, svg_circle(x, y_px(row.mem_inte, mem_max), 3, MEM_INTE_COLOR)) }
             if has_mem_comp { svg = format(svg, svg_circle(x, y_px(row.mem_comp, mem_max), 3, MEM_COMP_COLOR)) }
             if has_mem_run { svg = format(svg, svg_circle(x, y_px(row.mem_run, mem_max), 3, MEM_RUN_COLOR)) }
@@ -339,6 +353,11 @@ generate_svg := func(rows: Vec(Row), show_x_labels: Bool = true, show_y_labels: 
         svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, WALL_COLOR, "wall"))
         lx_pos = lx_pos.add(65)
     }
+    if has_self {
+        svg = format(svg, svg_circle(lx_pos, ly, 4, SELF_COLOR))
+        svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, SELF_COLOR, "self"))
+        lx_pos = lx_pos.add(65)
+    }
     if has_mem_inte {
         svg = format(svg, svg_circle(lx_pos, ly, 4, MEM_INTE_COLOR))
         svg = format(svg, svg_text(lx_pos.add(8), ly.add(4), "start", 12, MEM_INTE_COLOR, "mem-inte"))
@@ -377,7 +396,8 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
                 ref r : Row = all_rows[i]
                 rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
                                   compile_ms = r.compile_ms, run_ms = r.run_ms,
-                                  wall_ms = r.wall_ms, mem_inte = r.mem_inte,
+                                  wall_ms = r.wall_ms, self_ms = r.self_ms,
+                                  mem_inte = r.mem_inte,
                                   mem_comp = r.mem_comp, mem_run = r.mem_run,
                                   mem_total = r.mem_total))
                 i++

@@ -212,7 +212,7 @@ add_cli_pair := func(tests: Vec(Test), name: Str, file: Str,
 
 // --- Blind parallel runner ---
 
-run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
+run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64, mut suite_end_ms: I64) {
     mut next : USize = 0
     mut active : USize = 0
 
@@ -278,6 +278,11 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64) {
                     }
 
                     print_test_result(t)
+
+                    // Suite wall excludes the self-translate benchmark: record
+                    // when each non-"self" test finishes; the last one marks the
+                    // end of the real suite (self runs in parallel past it).
+                    if t.category != "self" { suite_end_ms = clock_ms() }
 
                     if status != 0 {
                         runner_lines := runner_out.split(NL)
@@ -360,6 +365,17 @@ main := proc(args: ..Str) {
     tests := Vec(Test).new()
     mut flags := mode_flags(en_interp, en_run, asan_flag)
     if til_bin != TIL { flags = format(" --til-bin ", til_bin, flags) }
+
+    // Self-translate: bin/til translate src/til.til -- the compiler translating
+    // its own source, the largest input it handles and the single slowest job.
+    // Registered FIRST so run_all_parallel spawns it in the first batch; it then
+    // holds one of the j parallel slots for the whole run (usually the long
+    // pole). Its time is collected via the "self" category into self_ms and is
+    // deliberately EXCLUDED from wall_ms (run_all_parallel marks the suite end
+    // from the last non-"self" test), so the benchmark does not inflate wall.
+    // Exit must be 0: the compiler has to be able to translate itself.
+    add_single(tests, "self_translate", "self", 0, "",
+        format(til_bin, " translate src/til.til"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
@@ -746,7 +762,8 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
 
     // === Run all tests in parallel ===
-    run_all_parallel(tests, j, fail)
+    mut suite_end_ms := 0
+    run_all_parallel(tests, j, fail, suite_end_ms)
 
     // --- Accumulate totals ---
 
@@ -788,6 +805,7 @@ main := proc(args: ..Str) {
     mut cli_ms := 0
     mut build_ms := 0
     mut build_mem := 0
+    mut self_ms := 0
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
@@ -799,6 +817,7 @@ main := proc(args: ..Str) {
             if t.category == "ffi" { ffi_ms = ffi_ms + t.ms }
             if t.category == "typer" { typer_ms = typer_ms + t.ms }
             if t.category == "cli" { cli_ms = cli_ms + t.ms }
+            if t.category == "self" { self_ms = self_ms + t.ms }
             if t.category == "build" {
                 build_ms = build_ms + t.ms
                 build_mem = build_mem + t.mem
@@ -810,9 +829,9 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total", NL,
-        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000", NL,
-        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000", NL)
+    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms", NL,
+        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000,5200", NL,
+        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000,5100", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
@@ -822,8 +841,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline") < 8 {
-        println("FAIL: plot.til expected 8 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline") < 9 {
+        println("FAIL: plot.til expected 9 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -842,6 +861,11 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
+    if count_matches(plot_svg, ">self<") == 0 {
+        println("FAIL: plot.til missing legend label self")
+        plot_ok = 0
+        fail = 1
+    }
     plot_ms := clock_ms() - plot_start
 
     // --- Summary ---
@@ -849,7 +873,11 @@ main := proc(args: ..Str) {
     total_passed := both_passed.add(other_passed) + plot_ok.to_usize()
     total_tests := both_total.add(other_total) + 1
 
-    wall_ms := clock_ms() - wall_start
+    // Wall excludes the self-translate benchmark: suite_end_ms is when the last
+    // non-"self" test finished, so self_ms stands on its own without inflating
+    // wall (self runs in parallel and is usually the long pole).
+    wall_ms := suite_end_ms - wall_start
+
     println("")
     println("=== Summary ===")
     if en_interp == 1 { println("interp:       ", ms_to_str(total_interp_ms)) }
@@ -862,6 +890,7 @@ main := proc(args: ..Str) {
     println("CLI tests:    ", ms_to_str(cli_ms))
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
+    println("Self-translate: ", ms_to_str(self_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
@@ -908,7 +937,8 @@ main := proc(args: ..Str) {
             total_mem_inte.to_str(), ",",
             total_mem_comp.to_str(), ",",
             total_mem_run.to_str(), ",",
-            total_mem_total.to_str())
+            total_mem_total.to_str(), ",",
+            self_ms.to_str())
 
         totals_path := "doc/totals.csv"
         existing := File.readfile(totals_path)

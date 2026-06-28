@@ -1,0 +1,41 @@
+# priority: low
+# category: cleanups
+** FIXED #298 Track `bin/til translate til.til` time in totals.csv
+
+  POST-MORTEM
+  Added a ~self_ms~ column to ~doc/totals.csv~ recording how long the
+  current self-hosted compiler takes to translate its own source
+  (~bin/til translate src/til.til~) -- the largest program it processes
+  and, today, the single slowest job in a run: ~900s on this CI box
+  (interp ~850s / compile ~695s); on the ~1.6x-faster dev box that scales
+  to roughly ~560s (interp ~520s / compile ~440s). It lands just above
+  interp -- same order of magnitude -- so NO scaler was needed; the new
+  series shares the existing left (ms) axis with inte/comp/run/wall.
+
+  It is integrated as just another test in ~src/tests.til~: an ~add_single~
+  job in a new "self" category, registered FIRST so run_all_parallel spawns
+  it in the first batch and it holds one of the j parallel slots. Its own
+  time is collected from the "self" category into ~self_ms~ and is
+  deliberately EXCLUDED from ~wall_ms~: run_all_parallel marks the suite-end
+  time from the last non-"self" test to finish, so the benchmark runs in
+  parallel without inflating wall. Exit must be 0: the compiler has to be
+  able to translate itself, so a failure fails the suite like any other test.
+
+  ~self_ms~ is appended as the FINAL csv column so the index-based parser in
+  ~examples/plot.til~ keeps reading older (shorter) rows unchanged -- they
+  report 0 for ~self_ms~, exactly as the pre-memory rows do for the mem
+  columns. ~examples/plot.til~ gained a "self" series end to end: struct
+  field, parser column 14, ~y_max~, polyline, dots, legend, and the ~last_n~
+  row copy (so the 10-point totals chart keeps the field).
+
+  Regression: the plot self-test in ~src/tests.til~ feeds a 15-column csv,
+  expects 9 polylines (was 8), and checks the ">self<" legend label.
+
+  Files: ~src/tests.til~, ~examples/plot.til~, ~doc/totals.csv~ (header).
+
+We want to start tracking how long ~bin/til translate src/til.til~ takes,
+because it is slow (minutes, not seconds) and we expect to bring it down as
+the typer / binder / codegen get faster. ~doc/totals.csv~ is the per-commit
+record that already tracks interp / compile / run / wall + memory, so the
+self-translate time belongs right there next to them, drawn as one more
+line in ~img/totals.svg~.
