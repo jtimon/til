@@ -18,7 +18,7 @@ ext_func free(own elem: Dynamic)
 :END:
 
 #+begin_src til
-ext_func til_closure_delete(closure: Fn)
+ext_func til_closure_delete(closure: Dynamic)
 #+end_src
 
 * til_closure_slot_delete

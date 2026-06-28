@@ -121,6 +121,26 @@ ext_proc copy_file(src: Str, dst: Str) returns shallow I32
 ext_proc copy_tree(src: Str, dst: Str) returns shallow I32
 #+end_src
 
+* stdio_capture_begin
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.stdio_capture_begin
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc stdio_capture_begin(path: Str)
+#+end_src
+
+* stdio_capture_end
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.stdio_capture_end
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc stdio_capture_end()
+#+end_src
+
 * wait_cmd
 :PROPERTIES:
 :CUSTOM_ID: til.src.std.sys.wait_cmd

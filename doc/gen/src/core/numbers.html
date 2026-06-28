@@ -13,10 +13,17 @@ a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);b
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
 </style>
+<script src="../../search.js" defer></script>
 </head>
 <body>
 <main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/core/numbers.til</h1>
 <article class="doc-entry" id="til.src.core.numbers.U8">
@@ -69,6 +76,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U8.mul for the wrapping variant.
     func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Minimum representable value.
+    MIN : U8
+    /// Maximum representable value.
+    MAX : U8
     func hash(shallow self: U8, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -118,6 +129,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U16.mul for the wrapping variant.
     func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Minimum representable value.
+    MIN : U16
+    /// Maximum representable value.
+    MAX : U16
     func hash(shallow self: U16, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -173,6 +188,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U32.mul for the wrapping variant.
     func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Minimum representable value.
+    MIN : U32
+    /// Maximum representable value.
+    MAX : U32
     func hash(shallow self: U32, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -229,6 +248,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U64.mul for the wrapping variant.
     func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Minimum representable value.
+    MIN : U64
+    /// Maximum representable value.
+    MAX : U64
     func hash(shallow self: U64, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -275,6 +298,10 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I8, shallow call_free: Bool)
     func size() returns shallow U32
+    /// Minimum representable value.
+    MIN : I8
+    /// Maximum representable value.
+    MAX : I8
     func hash(shallow self: I8, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -329,6 +356,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I16.mul for the wrapping variant.
     func safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+    /// Minimum representable value.
+    MIN : I16
+    /// Maximum representable value.
+    MAX : I16
     func hash(shallow self: I16, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -386,6 +417,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I32.mul for the wrapping variant.
     func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Minimum representable value.
+    MIN : I32
+    /// Maximum representable value.
+    MAX : I32
     func hash(shallow self: I32, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -453,6 +488,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I64.mul for the wrapping variant.
     func safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+    /// Minimum representable value.
+    MIN : I64
+    /// Maximum representable value.
+    MAX : I64
     func hash(shallow self: I64, hasher: HashFn) returns shallow U64
 }
 </code></pre>
@@ -489,6 +528,10 @@ namespace:
     /// Reuses the DivideByZero type defined below.
     /// Use F32.div for the silent (NaN/Inf) variant.
     func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
+    /// Minimum representable value.
+    MIN : F32
+    /// Maximum representable value.
+    MAX : F32
     func hash(shallow self: F32, hasher: HashFn) returns shallow U64
 }
 </code></pre>

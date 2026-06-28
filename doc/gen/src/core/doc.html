@@ -13,10 +13,17 @@ a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);b
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
 </style>
+<script src="../../search.js" defer></script>
 </head>
 <body>
 <main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/core/doc.til</h1>
 <article class="doc-entry" id="til.src.core.doc.__til_docs_blob__">
@@ -49,6 +56,29 @@ help(name) for lookup.</p>
 the runtime. Not intended for direct user calls.</p>
 </div>
 <pre><code class="language-til">func __doc_init__(info_data: Str, docs_data: Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.doc.doc_cache_read_unescape">
+<h2>doc_cache_read_unescape</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_proc doc_cache_read_unescape(path: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.doc.doc_cache_lookup">
+<h2>doc_cache_lookup</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func doc_cache_lookup(blob: Str, name: Str) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.doc.doc_init_cache_files">
+<h2>doc_init_cache_files</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Runtime doc init for the REPL. The core cache files contain escaped string
+literal payloads, so unescape them once after reading instead of injecting
+the whole cache as source on every help() replay.</p>
+</div>
+<pre><code class="language-til">proc doc_init_cache_files(info_path: Str, docs_path: Str, user_info_data: Str, user_docs_data: Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.doc.__doc_lookup__">

@@ -71,14 +71,54 @@ proc repl_read_line(mode_name: Str) returns Str
 proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 #+end_src
 
-* repl_should_wrap
+* repl_capture_interpret
 :PROPERTIES:
-:CUSTOM_ID: til.src.til.repl_should_wrap
+:CUSTOM_ID: til.src.til.repl_capture_interpret
 :group: CLI
 :END:
 
 #+begin_src til
-func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
+proc repl_capture_interpret(lp: LoadedProgram, out_path: Str) returns Str
+#+end_src
+
+* repl_parse_allows_wrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_parse_allows_wrap
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
+#+end_src
+
+* repl_ast_has_help_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_ast_has_help_call
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_ast_has_help_call(e: Expr) returns shallow Bool
+#+end_src
+
+* repl_ast_updates_doc_cache
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_ast_updates_doc_cache
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_ast_updates_doc_cache(e: Expr) returns shallow Bool
+#+end_src
+
+* repl_refresh_user_doc_cache
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_refresh_user_doc_cache
+:group: CLI
+:END:
+
+#+begin_src til
+proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
 #+end_src
 
 * run_repl_session

@@ -59,6 +59,7 @@
 *** Custom:Str
 *** Primitive:Primitive
 *** FuncPtrSig:Str
+*** Body
 ** FuncType: EnumDef
 *** Func
 *** Proc
@@ -128,6 +129,7 @@
 *** payload_consts := Vec(Bool).new()
 *** implements_name := ""
 *** tag_type := ""
+*** tag_values := Vec(I64).new()
 ** FieldLayout: StructDef
 *** offset : USize = 0
 *** size : USize = 0
@@ -166,6 +168,7 @@
 *** result_temp := ""
 ** CaptureBlockData: StructDef
 *** captures := Vec(Declaration).new()
+*** closure_name := ""
 ** NodeType: EnumDef
 *** Body
 *** Literal:Literal
@@ -194,6 +197,7 @@
 *** RestPattern
 *** CaptureBlock:CaptureBlockData
 *** Loc
+*** BodyValue:CaptureBlockData
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec(Expr).new()
@@ -428,9 +432,16 @@
 *** ref name : Str = NULL
 *** ref cell : Cell = NULL
 *** cell_is_local := false
+** HeapBinding: StructDef
+*** til_type := Type.Unknown
+*** own_type := OwnType.Shallow
+*** is_local := false
+*** is_borrowed := false
+*** moved_out := false
 ** Scope: StructDef
 *** bindings := Map(Str, Binding).new()
 *** heap_index := Map(Str, Dynamic).new()
+*** heap_bindings := Map(Str, HeapBinding).new()
 *** ref parent : Scope = NULL
 *** payload_aliases := Map(Str, Str).new()
 *** ref_primitive_ptrs := Map(Str, Dynamic).new()

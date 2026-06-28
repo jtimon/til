@@ -65,6 +65,7 @@ enum Type {
     Custom: Str
     Primitive: Primitive
     FuncPtrSig: Str
+    Body
 namespace:
     ext_func Unknown() returns Type
     ext_func None() returns Type
@@ -78,6 +79,7 @@ namespace:
     ext_func Custom(own val: Str) returns Type
     ext_func Primitive(own val: Primitive) returns Type
     ext_func FuncPtrSig(own val: Str) returns Type
+    ext_func Body() returns Type
     func is(self: Type, other: Type) returns shallow Bool
     func eq(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)
@@ -501,6 +503,7 @@ struct EnumDef {
     mut payload_consts : Vec__Bool
     mut implements_name : Str
     mut tag_type : Str
+    mut tag_values : Vec__I64
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
@@ -731,6 +734,7 @@ scope-restriction check. Child 0 is the Body.
 #+begin_src til
 struct CaptureBlockData {
     mut captures : Vec__Declaration
+    mut closure_name : Str
 namespace:
     func eq(a: CaptureBlockData, b: CaptureBlockData) returns shallow Bool
     func to_str(_self: CaptureBlockData) returns Str
@@ -778,6 +782,7 @@ enum NodeType {
     RestPattern
     CaptureBlock: CaptureBlockData
     Loc
+    BodyValue: CaptureBlockData
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -813,6 +818,7 @@ namespace:
     ext_func RestPattern() returns NodeType
     ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
     ext_func Loc() returns NodeType
+    ext_func BodyValue(own val: CaptureBlockData) returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
@@ -1144,6 +1150,82 @@ namespace:
 }
 #+end_src
 
+* Vec__I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__I64
+:group: Core
+:END:
+
+#+begin_src til
+struct Vec__I64 {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__I64
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__I64
+    func len(self: Vec__I64) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__I64)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__I64, own val: I64)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__I64, own other: Vec__I64)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__I64, mut other: Vec__I64)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__I64, i: U32) returns ref I64
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__I64, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I64
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__I64) returns shallow I64
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__I64, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow U32
+}
+#+end_src
+
 * Vec__FieldLayout
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.Vec__FieldLayout
@@ -1368,82 +1450,6 @@ namespace:
     func delete(own self: Vec__Expr, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Expr) returns Vec__Expr
-    func size() returns shallow U32
-}
-#+end_src
-
-* Vec__I64
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.ast.Vec__I64
-:group: Core
-:END:
-
-#+begin_src til
-struct Vec__I64 {
-    own mut data : U8
-    mut count : U32
-    mut cap : U32
-namespace:
-    /// Create a new empty Vec for elements of type T.
-    func new() returns Vec__I64
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
-    func with_capacity(shallow n: U32) returns Vec__I64
-    func len(self: Vec__I64) returns shallow U32
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__I64)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__I64, own val: I64)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__I64, own other: Vec__I64)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__I64, mut other: Vec__I64)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__I64, i: U32) returns ref I64
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__I64, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I64
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__I64) returns shallow I64
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: U32)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__I64, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__I64) returns Vec__I64
     func size() returns shallow U32
 }
 #+end_src

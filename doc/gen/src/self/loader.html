@@ -13,10 +13,17 @@ a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);b
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
 </style>
+<script src="../../search.js" defer></script>
 </head>
 <body>
 <main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/loader.til</h1>
 <article class="doc-entry" id="til.src.self.loader.realpath_str">
@@ -168,6 +175,12 @@ namespace:
 <pre><code class="language-til">func build_doc_init_line_cached(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.loader.build_doc_init_line_cache_files">
+<h2>build_doc_init_line_cache_files</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func build_doc_init_line_cache_files(core_info_path: Str, core_docs_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.loader.ReplCoreDocCache">
 <h2>ReplCoreDocCache</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -196,10 +209,34 @@ namespace:
 <pre><code class="language-til">lazy_stmt_temp_counter is a I64
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.loader.type_program_errors">
+<h2>type_program_errors</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.loader.finish_init_and_type_program">
+<h2>finish_init_and_type_program</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc finish_init_and_type_program(mut lp: LoadedProgram)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.loader.init_and_type_program_errors">
+<h2>init_and_type_program_errors</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc init_and_type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.loader.init_and_type_program">
 <h2>init_and_type_program</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.loader.finish_prepare_program">
+<h2>finish_prepare_program</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">proc finish_prepare_program(mut lp: LoadedProgram)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.prepare_program">

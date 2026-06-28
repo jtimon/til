@@ -222,6 +222,16 @@ func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
 func build_doc_init_line_cached(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
 #+end_src
 
+* build_doc_init_line_cache_files
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.build_doc_init_line_cache_files
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func build_doc_init_line_cache_files(core_info_path: Str, core_docs_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
+#+end_src
+
 * ReplCoreDocCache
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.loader.ReplCoreDocCache
@@ -262,6 +272,36 @@ func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
 lazy_stmt_temp_counter is a I64
 #+end_src
 
+* type_program_errors
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.type_program_errors
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+#+end_src
+
+* finish_init_and_type_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.finish_init_and_type_program
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc finish_init_and_type_program(mut lp: LoadedProgram)
+#+end_src
+
+* init_and_type_program_errors
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.init_and_type_program_errors
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_and_type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+#+end_src
+
 * init_and_type_program
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.loader.init_and_type_program
@@ -270,6 +310,16 @@ lazy_stmt_temp_counter is a I64
 
 #+begin_src til
 proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
+#+end_src
+
+* finish_prepare_program
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.finish_prepare_program
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc finish_prepare_program(mut lp: LoadedProgram)
 #+end_src
 
 * prepare_program

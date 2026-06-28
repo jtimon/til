@@ -212,7 +212,7 @@ test_asan_full: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
 
-# --- Doc generator (regenerates doc/gen/ org+HTML, REPL doc cache, and UML docs) ---
+# --- Doc generator (regenerates doc/gen/ org+HTML+search, REPL doc cache, and UML docs) ---
 #
 # Run on demand, not from `make test` -- doc gen on src/til.til runs the
 # full init+typer pipeline and adds ~1 minute of wall time. Includes

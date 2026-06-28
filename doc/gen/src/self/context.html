@@ -13,10 +13,17 @@ a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);b
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
+.doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
 </style>
+<script src="../../search.js" defer></script>
 </head>
 <body>
 <main>
+<section class="doc-search" aria-label="Documentation search">
+<label for="til-doc-search">Search docs</label>
+<input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
+<ol id="til-doc-search-results" class="doc-search-results"></ol>
+</section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/context.til</h1>
 <article class="doc-entry" id="til.src.self.context.TypeBinding">
@@ -401,19 +408,25 @@ namespace:
 <article class="doc-entry" id="til.src.self.context.enum_variant_tag">
 <h2>enum_variant_tag</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
+<pre><code class="language-til">func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.enum_variant_index">
+<h2>enum_variant_index</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func enum_variant_index(enum_def: Expr, variant_name: Str) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.enum_variant_type">
 <h2>enum_variant_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
+<pre><code class="language-til">func enum_variant_type(enum_def: Expr, shallow idx: I32) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.enum_variant_payload_const">
 <h2>enum_variant_payload_const</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
+<pre><code class="language-til">func enum_variant_payload_const(enum_def: Expr, shallow idx: I32) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.context.Map__Str_TypeBinding">

@@ -41,6 +41,16 @@ func closure_value_name(name: Str) returns Str
 proc emit_fcall_closure_call(f: File, e: Expr, callee: Expr, sig: Expr, shallow depth: I32, ctx: Context)
 #+end_src
 
+* emit_body_closure_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.emit_body_closure_call
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc emit_body_closure_call(f: File, callee: Expr, shallow depth: I32, ctx: Context)
+#+end_src
+
 * emit_capturing_closure_value
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.builder.emit_capturing_closure_value

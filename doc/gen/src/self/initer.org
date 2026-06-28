@@ -11,6 +11,16 @@
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
 #+end_src
 
+* register_funcsig_alias_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.register_funcsig_alias_for_stmt
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func register_funcsig_alias_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
+#+end_src
+
 * gen_struct_size_method_for_stmt
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.gen_struct_size_method_for_stmt

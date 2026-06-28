@@ -570,6 +570,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U8.mul for the wrapping variant.
     func safe_mul(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
+    /// Minimum representable value.
+    MIN : U8
+    /// Maximum representable value.
+    MAX : U8
     func hash(shallow self: U8, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -615,6 +619,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U16.mul for the wrapping variant.
     func safe_mul(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
+    /// Minimum representable value.
+    MIN : U16
+    /// Maximum representable value.
+    MAX : U16
     func hash(shallow self: U16, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -666,6 +674,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U32.mul for the wrapping variant.
     func safe_mul(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
+    /// Minimum representable value.
+    MIN : U32
+    /// Maximum representable value.
+    MAX : U32
     func hash(shallow self: U32, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -718,6 +730,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on unsigned wrap.
     /// Use U64.mul for the wrapping variant.
     func safe_mul(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
+    /// Minimum representable value.
+    MIN : U64
+    /// Maximum representable value.
+    MAX : U64
     func hash(shallow self: U64, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -760,6 +776,10 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I8, shallow call_free: Bool)
     func size() returns shallow U32
+    /// Minimum representable value.
+    MIN : I8
+    /// Maximum representable value.
+    MAX : I8
     func hash(shallow self: I8, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -810,6 +830,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I16.mul for the wrapping variant.
     func safe_mul(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
+    /// Minimum representable value.
+    MIN : I16
+    /// Maximum representable value.
+    MAX : I16
     func hash(shallow self: I16, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -863,6 +887,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I32.mul for the wrapping variant.
     func safe_mul(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
+    /// Minimum representable value.
+    MIN : I32
+    /// Maximum representable value.
+    MAX : I32
     func hash(shallow self: I32, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -926,6 +954,10 @@ namespace:
     /// Multiplication that throws IntegerOverflow on signed wrap.
     /// Use I64.mul for the wrapping variant.
     func safe_mul(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I64
+    /// Minimum representable value.
+    MIN : I64
+    /// Maximum representable value.
+    MAX : I64
     func hash(shallow self: I64, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -958,6 +990,10 @@ namespace:
     /// Reuses the DivideByZero type defined below.
     /// Use F32.div for the silent (NaN/Inf) variant.
     func safe_div(shallow a: F32, shallow b: F32, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow F32
+    /// Minimum representable value.
+    MIN : F32
+    /// Maximum representable value.
+    MAX : F32
     func hash(shallow self: F32, hasher: HashFn) returns shallow U64
 }
 #+end_src
@@ -1089,6 +1125,7 @@ enum Type {
     Custom: Str
     Primitive: Primitive
     FuncPtrSig: Str
+    Body
 namespace:
     ext_func Unknown() returns Type
     ext_func None() returns Type
@@ -1102,6 +1139,7 @@ namespace:
     ext_func Custom(own val: Str) returns Type
     ext_func Primitive(own val: Primitive) returns Type
     ext_func FuncPtrSig(own val: Str) returns Type
+    ext_func Body() returns Type
     func is(self: Type, other: Type) returns shallow Bool
     func eq(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)
@@ -1384,6 +1422,7 @@ struct EnumDef {
     mut payload_consts : Vec__Bool
     mut implements_name : Str
     mut tag_type : Str
+    mut tag_values : Vec__I64
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
@@ -1539,6 +1578,7 @@ namespace:
 #+begin_src til
 struct CaptureBlockData {
     mut captures : Vec__Declaration
+    mut closure_name : Str
 namespace:
     func eq(a: CaptureBlockData, b: CaptureBlockData) returns shallow Bool
     func to_str(_self: CaptureBlockData) returns Str
@@ -1579,6 +1619,7 @@ enum NodeType {
     RestPattern
     CaptureBlock: CaptureBlockData
     Loc
+    BodyValue: CaptureBlockData
 namespace:
     func is_literal_str(self: NodeType) returns shallow Bool
     func is_literal_num(self: NodeType) returns shallow Bool
@@ -1614,6 +1655,7 @@ namespace:
     ext_func RestPattern() returns NodeType
     ext_func CaptureBlock(own val: CaptureBlockData) returns NodeType
     ext_func Loc() returns NodeType
+    ext_func BodyValue(own val: CaptureBlockData) returns NodeType
     func is(self: NodeType, other: NodeType) returns shallow Bool
     func eq(self: NodeType, other: NodeType) returns shallow Bool
     func delete(own self: NodeType, shallow call_free: Bool)
@@ -1843,6 +1885,77 @@ namespace:
 }
 #+end_src
 
+** [[file:src/core/ast.org::#til.src.core.ast.Vec__I64][Vec__I64]]
+#+begin_src til
+struct Vec__I64 {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__I64
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__I64
+    func len(self: Vec__I64) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__I64)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__I64, own val: I64)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__I64, own other: Vec__I64)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__I64, mut other: Vec__I64)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__I64, i: U32) returns ref I64
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__I64, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I64
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__I64) returns shallow I64
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__I64, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/core/ast.org::#til.src.core.ast.Vec__FieldLayout][Vec__FieldLayout]]
 #+begin_src til
 struct Vec__FieldLayout {
@@ -2056,77 +2169,6 @@ namespace:
 }
 #+end_src
 
-** [[file:src/core/ast.org::#til.src.core.ast.Vec__I64][Vec__I64]]
-#+begin_src til
-struct Vec__I64 {
-    own mut data : U8
-    mut count : U32
-    mut cap : U32
-namespace:
-    /// Create a new empty Vec for elements of type T.
-    func new() returns Vec__I64
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
-    func with_capacity(shallow n: U32) returns Vec__I64
-    func len(self: Vec__I64) returns shallow U32
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__I64)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__I64, own val: I64)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__I64, own other: Vec__I64)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__I64, mut other: Vec__I64)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__I64, i: U32) returns ref I64
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__I64, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I64
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__I64) returns shallow I64
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__I64, shallow n: U32) returns Vec__I64
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__I64, shallow i: U32, own val: I64)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__I64, shallow i: U32, own val: I64, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: U32)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__I64, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__I64) returns Vec__I64
-    func size() returns shallow U32
-}
-#+end_src
-
 ** [[file:src/core/array.org::#til.src.core.array.array][array]]
 #+begin_src til
 ext_func array(T: Type, elements: ..Dynamic) returns Array
@@ -2155,6 +2197,21 @@ __til_info_blob__ is a Str
 ** [[file:src/core/doc.org::#til.src.core.doc.__doc_init__][__doc_init__]]
 #+begin_src til
 func __doc_init__(info_data: Str, docs_data: Str)
+#+end_src
+
+** [[file:src/core/doc.org::#til.src.core.doc.doc_cache_read_unescape][doc_cache_read_unescape]]
+#+begin_src til
+ext_proc doc_cache_read_unescape(path: Str) returns Str
+#+end_src
+
+** [[file:src/core/doc.org::#til.src.core.doc.doc_cache_lookup][doc_cache_lookup]]
+#+begin_src til
+ext_func doc_cache_lookup(blob: Str, name: Str) returns Str
+#+end_src
+
+** [[file:src/core/doc.org::#til.src.core.doc.doc_init_cache_files][doc_init_cache_files]]
+#+begin_src til
+proc doc_init_cache_files(info_path: Str, docs_path: Str, user_info_data: Str, user_docs_data: Str)
 #+end_src
 
 ** [[file:src/core/doc.org::#til.src.core.doc.__doc_lookup__][__doc_lookup__]]
@@ -2562,7 +2619,7 @@ ext_func free(own elem: Dynamic)
 
 ** [[file:src/core/mem.org::#til.src.core.mem.til_closure_delete][til_closure_delete]]
 #+begin_src til
-ext_func til_closure_delete(closure: Fn)
+ext_func til_closure_delete(closure: Dynamic)
 #+end_src
 
 ** [[file:src/core/mem.org::#til.src.core.mem.til_closure_slot_delete][til_closure_slot_delete]]
@@ -2805,6 +2862,16 @@ ext_proc copy_file(src: Str, dst: Str) returns shallow I32
 ** [[file:src/std/sys.org::#til.src.std.sys.copy_tree][copy_tree]]
 #+begin_src til
 ext_proc copy_tree(src: Str, dst: Str) returns shallow I32
+#+end_src
+
+** [[file:src/std/sys.org::#til.src.std.sys.stdio_capture_begin][stdio_capture_begin]]
+#+begin_src til
+ext_proc stdio_capture_begin(path: Str)
+#+end_src
+
+** [[file:src/std/sys.org::#til.src.std.sys.stdio_capture_end][stdio_capture_end]]
+#+begin_src til
+ext_proc stdio_capture_end()
 #+end_src
 
 ** [[file:src/std/sys.org::#til.src.std.sys.wait_cmd][wait_cmd]]
@@ -3628,17 +3695,22 @@ func enum_tag_size(enum_def: Expr) returns shallow U32
 
 ** [[file:src/self/context.org::#til.src.self.context.enum_variant_tag][enum_variant_tag]]
 #+begin_src til
-func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
+func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I64
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.enum_variant_index][enum_variant_index]]
+#+begin_src til
+func enum_variant_index(enum_def: Expr, variant_name: Str) returns shallow I32
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.enum_variant_type][enum_variant_type]]
 #+begin_src til
-func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
+func enum_variant_type(enum_def: Expr, shallow idx: I32) returns Str
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.enum_variant_payload_const][enum_variant_payload_const]]
 #+begin_src til
-func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
+func enum_variant_payload_const(enum_def: Expr, shallow idx: I32) returns shallow Bool
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Map__Str_TypeBinding][Map__Str_TypeBinding]]
@@ -4724,6 +4796,11 @@ namespace:
 func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut variant_types: Vec__Str, mut has_payloads: Bool)
 #+end_src
 
+** [[file:src/self/initer.org::#til.src.self.initer.register_funcsig_alias_for_stmt][register_funcsig_alias_for_stmt]]
+#+begin_src til
+func register_funcsig_alias_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
+#+end_src
+
 ** [[file:src/self/initer.org::#til.src.self.initer.gen_struct_size_method_for_stmt][gen_struct_size_method_for_stmt]]
 #+begin_src til
 func gen_struct_size_method_for_stmt(stmt: Expr, ctx: Context)
@@ -5585,6 +5662,11 @@ func build_doc_init_line(packed_info: Str, packed_docs: Str) returns Str
 func build_doc_init_line_cached(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
 #+end_src
 
+** [[file:src/self/loader.org::#til.src.self.loader.build_doc_init_line_cache_files][build_doc_init_line_cache_files]]
+#+begin_src til
+func build_doc_init_line_cache_files(core_info_path: Str, core_docs_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str
+#+end_src
+
 ** [[file:src/self/loader.org::#til.src.self.loader.ReplCoreDocCache][ReplCoreDocCache]]
 #+begin_src til
 struct ReplCoreDocCache {
@@ -5610,9 +5692,29 @@ func build_repl_core_doc_cache(lp: LoadedProgram) returns ReplCoreDocCache
 lazy_stmt_temp_counter is a I64
 #+end_src
 
+** [[file:src/self/loader.org::#til.src.self.loader.type_program_errors][type_program_errors]]
+#+begin_src til
+proc type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+#+end_src
+
+** [[file:src/self/loader.org::#til.src.self.loader.finish_init_and_type_program][finish_init_and_type_program]]
+#+begin_src til
+proc finish_init_and_type_program(mut lp: LoadedProgram)
+#+end_src
+
+** [[file:src/self/loader.org::#til.src.self.loader.init_and_type_program_errors][init_and_type_program_errors]]
+#+begin_src til
+proc init_and_type_program_errors(mut lp: LoadedProgram, shallow run_tests: Bool) returns shallow I32
+#+end_src
+
 ** [[file:src/self/loader.org::#til.src.self.loader.init_and_type_program][init_and_type_program]]
 #+begin_src til
 proc init_and_type_program(mut lp: LoadedProgram, shallow run_tests: Bool)
+#+end_src
+
+** [[file:src/self/loader.org::#til.src.self.loader.finish_prepare_program][finish_prepare_program]]
+#+begin_src til
+proc finish_prepare_program(mut lp: LoadedProgram)
 #+end_src
 
 ** [[file:src/self/loader.org::#til.src.self.loader.prepare_program][prepare_program]]
@@ -6054,6 +6156,11 @@ func closure_value_name(name: Str) returns Str
 ** [[file:src/self/builder.org::#til.src.self.builder.emit_fcall_closure_call][emit_fcall_closure_call]]
 #+begin_src til
 proc emit_fcall_closure_call(f: File, e: Expr, callee: Expr, sig: Expr, shallow depth: I32, ctx: Context)
+#+end_src
+
+** [[file:src/self/builder.org::#til.src.self.builder.emit_body_closure_call][emit_body_closure_call]]
+#+begin_src til
+proc emit_body_closure_call(f: File, callee: Expr, shallow depth: I32, ctx: Context)
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.emit_capturing_closure_value][emit_capturing_closure_value]]
@@ -6599,11 +6706,28 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.HeapBinding][HeapBinding]]
+#+begin_src til
+struct HeapBinding {
+    mut til_type : Type
+    mut own_type : OwnType
+    mut is_local : Bool
+    mut is_borrowed : Bool
+    mut moved_out : Bool
+namespace:
+    func clone(self: HeapBinding) returns HeapBinding
+    func delete(own self: HeapBinding, shallow call_free: Bool)
+    func hash(self: HeapBinding, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.Scope][Scope]]
 #+begin_src til
 struct Scope {
     mut bindings : Map__Str_Binding
     mut heap_index : Map__Str_Dynamic
+    mut heap_bindings : Map__Str_HeapBinding
     ref mut parent : Scope
     mut payload_aliases : Map__Str_Str
     mut ref_primitive_ptrs : Map__Str_Dynamic
@@ -6651,9 +6775,24 @@ func scope_new(parent: Scope) returns Scope
 func scope_lookup_offset(mut s: Scope, name: Str) returns ref Dynamic
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_lookup_heap_binding][scope_lookup_heap_binding]]
+#+begin_src til
+func scope_lookup_heap_binding(mut s: Scope, name: Str) returns ref HeapBinding
+#+end_src
+
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_insert_offset][scope_insert_offset]]
 #+begin_src til
 func scope_insert_offset(mut s: Scope, name: Str, own ptr: Dynamic)
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_set_heap_owned][scope_set_heap_owned]]
+#+begin_src til
+func scope_set_heap_owned(mut s: Scope, name: Str, own ptr: Dynamic, shallow til_type: Type, own_type: OwnType, shallow is_local: Bool, shallow is_borrowed: Bool)
+#+end_src
+
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_set_heap_moved][scope_set_heap_moved]]
+#+begin_src til
+func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
 #+end_src
 
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.scope_set_owned][scope_set_owned]]
@@ -6843,6 +6982,33 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.Map__Str_HeapBinding][Map__Str_HeapBinding]]
+#+begin_src til
+struct Map__Str_HeapBinding {
+    mut keys : Vec__Str
+    mut values : Vec__HeapBinding
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_HeapBinding
+    func len(self: Map__Str_HeapBinding) returns shallow U32
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_HeapBinding)
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_HeapBinding, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref HeapBinding
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
+    func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
+    func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
+    func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/self/interpreter.org::#til.src.self.interpreter.Vec__DynPtrBox][Vec__DynPtrBox]]
 #+begin_src til
 struct Vec__DynPtrBox {
@@ -6985,6 +7151,77 @@ namespace:
 }
 #+end_src
 
+** [[file:src/self/interpreter.org::#til.src.self.interpreter.Vec__HeapBinding][Vec__HeapBinding]]
+#+begin_src til
+struct Vec__HeapBinding {
+    own mut data : U8
+    mut count : U32
+    mut cap : U32
+namespace:
+    /// Create a new empty Vec for elements of type T.
+    func new() returns Vec__HeapBinding
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
+    /// in push/append never starts from zero (n=0 behaves like new()).
+    func with_capacity(shallow n: U32) returns Vec__HeapBinding
+    func len(self: Vec__HeapBinding) returns shallow U32
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__HeapBinding)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__HeapBinding, own val: HeapBinding)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__HeapBinding, mut other: Vec__HeapBinding)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__HeapBinding, i: U32) returns ref HeapBinding
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__HeapBinding, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref HeapBinding
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__HeapBinding) returns HeapBinding
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__HeapBinding, shallow n: U32) returns Vec__HeapBinding
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__HeapBinding, shallow i: U32, own val: HeapBinding)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__HeapBinding, shallow i: U32, own val: HeapBinding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, shallow i: U32)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__HeapBinding, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
+    func size() returns shallow U32
+}
+#+end_src
+
 ** [[file:src/self/binder.org::#til.src.self.binder.generate_bindings][generate_bindings]]
 #+begin_src til
 proc generate_bindings(in_path: Str, out_path: Str)
@@ -7027,9 +7264,29 @@ proc repl_read_line(mode_name: Str) returns Str
 proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 #+end_src
 
-** [[file:src/til.org::#til.src.til.repl_should_wrap][repl_should_wrap]]
+** [[file:src/til.org::#til.src.til.repl_capture_interpret][repl_capture_interpret]]
 #+begin_src til
-func repl_should_wrap(peek_ast: Expr, typed_ast: Expr) returns shallow Bool
+proc repl_capture_interpret(lp: LoadedProgram, out_path: Str) returns Str
+#+end_src
+
+** [[file:src/til.org::#til.src.til.repl_parse_allows_wrap][repl_parse_allows_wrap]]
+#+begin_src til
+func repl_parse_allows_wrap(peek_ast: Expr) returns shallow Bool
+#+end_src
+
+** [[file:src/til.org::#til.src.til.repl_ast_has_help_call][repl_ast_has_help_call]]
+#+begin_src til
+func repl_ast_has_help_call(e: Expr) returns shallow Bool
+#+end_src
+
+** [[file:src/til.org::#til.src.til.repl_ast_updates_doc_cache][repl_ast_updates_doc_cache]]
+#+begin_src til
+func repl_ast_updates_doc_cache(e: Expr) returns shallow Bool
+#+end_src
+
+** [[file:src/til.org::#til.src.til.repl_refresh_user_doc_cache][repl_refresh_user_doc_cache]]
+#+begin_src til
+proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
 #+end_src
 
 ** [[file:src/til.org::#til.src.til.run_repl_session][run_repl_session]]

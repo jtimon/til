@@ -42,6 +42,40 @@ the runtime. Not intended for direct user calls.
 func __doc_init__(info_data: Str, docs_data: Str)
 #+end_src
 
+* doc_cache_read_unescape
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.doc_cache_read_unescape
+:group: Core
+:END:
+
+#+begin_src til
+ext_proc doc_cache_read_unescape(path: Str) returns Str
+#+end_src
+
+* doc_cache_lookup
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.doc_cache_lookup
+:group: Core
+:END:
+
+#+begin_src til
+ext_func doc_cache_lookup(blob: Str, name: Str) returns Str
+#+end_src
+
+* doc_init_cache_files
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.doc.doc_init_cache_files
+:group: Core
+:END:
+
+Runtime doc init for the REPL. The core cache files contain escaped string
+literal payloads, so unescape them once after reading instead of injecting
+the whole cache as source on every help() replay.
+
+#+begin_src til
+proc doc_init_cache_files(info_path: Str, docs_path: Str, user_info_data: Str, user_docs_data: Str)
+#+end_src
+
 * __doc_lookup__
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.doc.__doc_lookup__

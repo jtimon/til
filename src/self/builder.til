@@ -8218,6 +8218,15 @@ priv doc_html_escape := func(s: Str) returns Str {
     return out
 }
 
+priv doc_js_escape := func(s: Str) returns Str {
+    mut out := s.replace("\\", "\\\\")
+    out = out.replace("\"", "\\\"")
+    out = out.replace("\n", "\\n")
+    out = out.replace("\r", "\\r")
+    out = out.replace("\t", "\\t")
+    return out
+}
+
 priv doc_html_path := func(org_path: Str) returns Str {
     if org_path.ends_with(".org").not() { panic("doc HTML path source is not .org: ", org_path) }
     return format(org_path.strip_suffix(".org"), ".html")
@@ -8236,6 +8245,10 @@ priv doc_html_relative_prefix := func(from_page: Str) returns Str {
 
 priv doc_html_href := func(from_page: Str, to_org_page: Str, anchor: Str) returns Str {
     return format(doc_html_relative_prefix(from_page), doc_html_path(to_org_page), "#", anchor)
+}
+
+priv doc_search_href := func(e: DocEntry) returns Str {
+    return format(doc_html_path(e.page), "#", e.id)
 }
 
 priv append_doc_html_file_link := func(mut out: Str, content: Str, current_page: Str, loc: Str) {
@@ -8335,7 +8348,7 @@ priv append_doc_html_meta := func(mut out: Str, e: DocEntry, include_group: Bool
     }
 }
 
-priv append_doc_html_head := func(mut out: Str, title: Str) {
+priv append_doc_html_head := func(mut out: Str, title: Str, current_page: Str) {
     out.push_str("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
     out.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
     out.push_str("<title>")
@@ -8350,7 +8363,11 @@ priv append_doc_html_head := func(mut out: Str, title: Str) {
     out.push_str("h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}\n")
     out.push_str(".meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}\n")
     out.push_str(".doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}\n")
-    out.push_str("</style>\n</head>\n<body>\n<main>\n")
+    out.push_str(".doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}\n")
+    out.push_str("</style>\n<script src=\"")
+    out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "search.js")))
+    out.push_str("\" defer></script>\n</head>\n<body>\n<main>\n")
+    out.push_str("<section class=\"doc-search\" aria-label=\"Documentation search\">\n<label for=\"til-doc-search\">Search docs</label>\n<input id=\"til-doc-search\" type=\"search\" placeholder=\"Type a name or phrase\" autocomplete=\"off\">\n<ol id=\"til-doc-search-results\" class=\"doc-search-results\"></ol>\n</section>\n")
 }
 
 priv append_doc_html_tail := func(mut out: Str) {
@@ -8402,7 +8419,7 @@ priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog) returns S
     }
 
     mut out := Str.with_capacity(total)
-    append_doc_html_head(out, title)
+    append_doc_html_head(out, title, current_page)
     out.push_str("<nav><a href=\"")
     out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "index.html")))
     out.push_str("\">Index</a></nav>\n")
@@ -8443,9 +8460,9 @@ priv format_doc_index_html := func(catalog: DocCatalog) returns Str {
     }
 
     mut out := Str.with_capacity(total)
-    append_doc_html_head(out, "til documentation index")
-    out.push_str("<h1>til documentation index</h1>\n")
     current_page := "index.html"
+    append_doc_html_head(out, "til documentation index", current_page)
+    out.push_str("<h1>til documentation index</h1>\n")
     for group : Str in groups {
         out.push_str("<section>\n<h2>")
         out.push_str(doc_html_escape(group))
@@ -8465,6 +8482,87 @@ priv format_doc_index_html := func(catalog: DocCatalog) returns Str {
     }
     append_doc_html_tail(out)
     return out
+}
+
+priv doc_search_entry_capacity := func(e: DocEntry) returns USize {
+    return e.name.len()
+        .add(e.group.len())
+        .add(e.page.len())
+        .add(e.id.len())
+        .add(e.body.len())
+        .add(e.info.len())
+        .mul(12)
+        + 512
+}
+
+priv append_doc_search_js_entry := func(mut out: Str, e: DocEntry) {
+    out.push_str("  {name:\"")
+    out.push_str(doc_js_escape(e.name))
+    out.push_str("\",group:\"")
+    out.push_str(doc_js_escape(e.group))
+    out.push_str("\",href:\"")
+    out.push_str(doc_js_escape(doc_search_href(e)))
+    out.push_str("\",body:\"")
+    out.push_str(doc_js_escape(e.body))
+    out.push_str("\",info:\"")
+    out.push_str(doc_js_escape(e.info))
+    out.push_str("\"},\n")
+}
+
+priv format_doc_search_js := func(catalog: DocCatalog) returns Str {
+    mut total : USize = 8192
+    for e : DocEntry in catalog.entries { total = total + doc_search_entry_capacity(e) }
+
+    mut out := Str.with_capacity(total)
+    out.push_str("\"use strict\";\n")
+    out.push_str("window.tilDocSearchEntries = [\n")
+    for e : DocEntry in catalog.entries { append_doc_search_js_entry(out, e) }
+    out.push_str("];\n")
+    out.push_str("(function(){\n")
+    out.push_str("var script=document.currentScript;\n")
+    out.push_str("var base=script&&script.src?script.src.replace(/search\\.js(?:[?#].*)?$/,''):'';\n")
+    out.push_str("function ready(fn){if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fn);}else{fn();}}\n")
+    out.push_str("ready(function(){\n")
+    out.push_str("var input=document.getElementById('til-doc-search');\n")
+    out.push_str("var list=document.getElementById('til-doc-search-results');\n")
+    out.push_str("if(!input||!list){return;}\n")
+    out.push_str("function textFor(e){return(e.name+' '+e.group+' '+e.body+' '+e.info).toLowerCase();}\n")
+    out.push_str("function clear(){while(list.firstChild){list.removeChild(list.firstChild);}}\n")
+    out.push_str("function render(){\n")
+    out.push_str("var q=input.value.trim().toLowerCase();\n")
+    out.push_str("clear();\n")
+    out.push_str("if(!q){return;}\n")
+    out.push_str("var terms=q.split(/\\s+/);\n")
+    out.push_str("var shown=0;\n")
+    out.push_str("for(var i=0;i<window.tilDocSearchEntries.length&&shown<20;i++){\n")
+    out.push_str("var e=window.tilDocSearchEntries[i];\n")
+    out.push_str("var text=textFor(e);\n")
+    out.push_str("var ok=true;\n")
+    out.push_str("for(var j=0;j<terms.length;j++){if(text.indexOf(terms[j])<0){ok=false;break;}}\n")
+    out.push_str("if(!ok){continue;}\n")
+    out.push_str("var li=document.createElement('li');\n")
+    out.push_str("var a=document.createElement('a');\n")
+    out.push_str("a.href=base+e.href;\n")
+    out.push_str("a.textContent=e.name;\n")
+    out.push_str("li.appendChild(a);\n")
+    out.push_str("if(e.group){var g=document.createElement('span');g.className='doc-search-group';g.textContent=' '+e.group;li.appendChild(g);}\n")
+    out.push_str("list.appendChild(li);\n")
+    out.push_str("shown++;\n")
+    out.push_str("}\n")
+    out.push_str("if(shown===0){var empty=document.createElement('li');empty.textContent='No matches';list.appendChild(empty);}\n")
+    out.push_str("}\n")
+    out.push_str("input.addEventListener('input',render);\n")
+    out.push_str("});\n")
+    out.push_str("}());\n")
+    return out
+}
+
+priv emit_doc_search := proc(catalog: DocCatalog) {
+    out := "doc/gen/search.js"
+    ensure_parent_dir(out)
+    page := format_doc_search_js(catalog)
+    File.writefile(out, page)
+    println(format("Generated: ", out))
 }
 
 priv emit_doc_index := proc(catalog: DocCatalog) {
@@ -8527,6 +8625,7 @@ cmd_doc := proc(lp: LoadedProgram) returns I32 {
     }
     for u : ProgramUnit in lp.units { emit_unit_doc(u, catalog) }
     emit_doc_index(catalog)
+    emit_doc_search(catalog)
     return 0
 }
 

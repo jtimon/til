@@ -523,7 +523,17 @@ func enum_tag_size(enum_def: Expr) returns shallow U32
 :END:
 
 #+begin_src til
-func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
+func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I64
+#+end_src
+
+* enum_variant_index
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.enum_variant_index
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func enum_variant_index(enum_def: Expr, variant_name: Str) returns shallow I32
 #+end_src
 
 * enum_variant_type
@@ -533,7 +543,7 @@ func enum_variant_tag(enum_def: Expr, variant_name: Str) returns shallow I32
 :END:
 
 #+begin_src til
-func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
+func enum_variant_type(enum_def: Expr, shallow idx: I32) returns Str
 #+end_src
 
 * enum_variant_payload_const
@@ -543,7 +553,7 @@ func enum_variant_type(enum_def: Expr, shallow tag: I32) returns Str
 :END:
 
 #+begin_src til
-func enum_variant_payload_const(enum_def: Expr, shallow tag: I32) returns shallow Bool
+func enum_variant_payload_const(enum_def: Expr, shallow idx: I32) returns shallow Bool
 #+end_src
 
 * Map__Str_TypeBinding
