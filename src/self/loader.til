@@ -2433,48 +2433,70 @@ priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
 // it to a plain top-level function -- exactly like any other non-capturing
 // lambda. The typer's #54 closure-escape checks then gate any captured local
 // that would escape its defining call (first-class / infinite uses await #54).
-priv lazy_wrap_thunk_call := func(mut call: Expr, fdef: Expr, scope: TypeScope) {
+// Build a thunk closure `func() returns ret_type [caps] { return <eff> }` over
+// the (owned) effective argument expression `eff`. `caps` is eff's enclosing-
+// local free variables; a no-capture thunk is lifted to a plain top-level
+// lambda, a capturing one reuses the #54 machinery.
+priv lazy_make_thunk := func(own eff: Expr, ret_type: Str, scope: TypeScope) returns Expr {
+    line := eff.line
+    col := eff.col
+    mut caps := Vec(Declaration).new()
+    mut bound := Set(Str).new()
+    lazy_thunk_collect_captures(eff, scope, bound, caps)
+    mut cfd := FunctionDef()
+    cfd.func_type = FuncType.Func
+    cfd.return_type = ret_type.clone()
+    cfd.variadic_index = -1
+    cfd.kwargs_index = -1
+    cfd.captures = caps
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own eff)
+    mut cbody := Expr.new(NodeType.Body, line, col)
+    cbody.add_child(own ret)
+    mut clos := Expr.new(NodeType.FuncDef(cfd), line, col)
+    clos.add_child(own cbody)
+    return clos
+}
+
+// Build a fresh BARE call `name(thunk(eff_0), thunk(eff_1), ...)` to a thunk-
+// lowered def, wrapping each effective argument in a thunk closure. Both bare
+// `f(a, b)` and UFCS `a.f(b)` calls reduce to the same bare form (the receiver
+// is effective arg 0), so a thunk -- which is not a UFCS receiver -- is never
+// left in receiver position. `ret_type` per param is recovered from its
+// `_Fn_ret_<T>` explicit_type. Mirrors lazy_build_fold's bare-normalization.
+priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method: Bool, scope: TypeScope) returns Expr {
+    line := call.line
+    col := call.col
+    mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    nc.add_child(own Expr.new(ident_node(name), line, col))
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         for j in 0..fd.params.len() {
-            arg_idx := j + 1
             ref param : Declaration = fd.params[j]
             ret_type := param.explicit_type.strip_prefix("_Fn_ret_")
-            ref a : Expr = call.children[arg_idx]
-            line := a.line
-            col := a.col
-            mut caps := Vec(Declaration).new()
-            mut bound := Set(Str).new()
-            lazy_thunk_collect_captures(a, scope, bound, caps)
-            mut cfd := FunctionDef()
-            cfd.func_type = FuncType.Func
-            cfd.return_type = ret_type.clone()
-            cfd.variadic_index = -1
-            cfd.kwargs_index = -1
-            cfd.captures = caps
-            mut ret := Expr.new(NodeType.Return, line, col)
-            ret.add_child(own a.clone())
-            mut cbody := Expr.new(NodeType.Body, line, col)
-            cbody.add_child(own ret)
-            mut clos := Expr.new(NodeType.FuncDef(cfd), line, col)
-            clos.add_child(own cbody)
-            call.children[arg_idx] = clos
+            nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope))
         }
     case:
     }
+    return nc
 }
 
-// Walk all exprs; for every bare-Ident FCall naming a thunk-lowered def with
-// matching (non-variadic, exact) arity, wrap its arguments in thunk closures.
+// Walk all exprs; for every FCall (bare `f(a, b)` or UFCS `a.f(b)`) naming a
+// thunk-lowered def with matching (non-variadic, exact) effective arity, rebuild
+// it as a bare call with each effective argument wrapped in a thunk closure.
 priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), depth: I32) {
     if depth > 256 { return }
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
             mut lname := ""
+            mut is_method := false
             switch c.children[0].node_type {
             case NodeType.Ident(idn): lname = idn.ident_name()
-            case:                                  // bare-name calls only
+            case NodeType.FieldAccess(fa):
+                lname = fa.field_access_name()
+                is_method = true
+            case:
             }
             if lname.len().gt(0).and(lowered.has(lname)) {
                 ref fdef : Expr = scope.lookup_func(lname)
@@ -2484,13 +2506,17 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     case NodeType.FuncDef(fd): nparams = fd.params.len()
                     case:
                     }
-                    if c.children.len().sub(1).eq(nparams) {
-                        lazy_wrap_thunk_call(c, fdef, scope)
+                    // Effective args: bare `f(a, b)` has children.len()-1 args;
+                    // UFCS `a.f(b)` adds the receiver, so children.len().
+                    mut eff_count : USize = c.children.len().sub(1)
+                    if is_method { eff_count = c.children.len() }
+                    if eff_count.eq(nparams) {
+                        e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
                     }
                 }
             }
         }
-        lazy_wrap_thunk_calls(c, scope, lowered, depth + 1)
+        lazy_wrap_thunk_calls(e.children[i], scope, lowered, depth + 1)
     }
 }
 

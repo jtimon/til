@@ -298,6 +298,27 @@ test_thunk_mixed_arg_short_circuits := test() {
     assert_eq(I64, eval_count, 0)
 }
 
+test_thunk_ufcs_method := test() {
+    # UFCS method syntax on a thunk-lowered lazy func: `a.both(b)` reduces to
+    # the same bare thunk call (receiver is effective arg 0) and still
+    # short-circuits.
+    expect(true.both(true), "true.both(true)")
+    expect(true.both(false).not(), "true.both(false)")
+    expect(false.both(true).not(), "false.both(true)")
+    # false literal receiver -> loop returns before the arg thunk is forced.
+    eval_count = 0
+    r := false.both(bump())
+    expect(r.not(), "false.both(bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+    # captured-local receiver: the receiver thunk captures `x`, still
+    # short-circuits before the arg thunk runs.
+    x := false
+    eval_count = 0
+    r2 := x.both(bump())
+    expect(r2.not(), "x.both(bump()) captures receiver and short-circuits")
+    assert_eq(I64, eval_count, 0)
+}
+
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
 #     (a side-effecting expression). ---
 
