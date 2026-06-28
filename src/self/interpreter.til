@@ -2002,11 +2002,26 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     eval_body(call_scope, body, ctx)
     mut result := val_none()
     if c.has_return {
-        result = c.return_value.clone()
-        materialize_str_result(result)
-        // #286: reclaim the old return payload (no-op on a borrow into
-        // call_scope, which scope_free reclaims; frees an owned return).
-        free_temp_arg_value(c.return_value)
+        // #286: the box model's implicit clone-on-return is what materialises a
+        // returned value into caller-owned storage before scope_free reclaims
+        // call_scope. A BORROWED return (`return x` / `return self.field`, a
+        // view into call_scope produced by borrow_value / read_field) must
+        // still be deep-cloned so the caller gets an independent copy. But an
+        // OWNED (non-borrowed) return owns its payload and aliases no live
+        // binding -- borrow_value flags every Ident/field return borrowed, so a
+        // non-borrowed return can only be a fresh owned temp -- so MOVE it to
+        // the caller instead of cloning then freeing the original. This is the
+        // raw-heap "returns move, they do not copy" step toward dropping the
+        // interpreter's implicit clones. materialize_str_result still runs to
+        // copy a cap-encoded Str view (get_char et al.) into owned bytes.
+        if value_is_borrowed(c.return_value) {
+            result = c.return_value.clone()
+            materialize_str_result(result)
+            free_temp_arg_value(c.return_value)
+        } else {
+            memcpy(result, c.return_value, Value.size().cast(U64))
+            materialize_str_result(result)
+        }
         memcpy(c.return_value, val_none(), Value.size().cast(U64))
         c.has_return = false
     }
@@ -2743,6 +2758,14 @@ priv free_temp_arg_value := func(shallow v: Value) {
 // move-out idiom).
 priv reclone_return := func(mut ctx: Context) {
     if ctx.has_return.not() { return }
+    // #286: an OWNED (non-borrowed) return value is heap-allocated independently
+    // of the block scope torn down next, so it already survives scope_free --
+    // only a BORROWED return (a view into a binding in the about-to-be-freed
+    // block) must be materialised here. Re-cloning an owned return at every
+    // block boundary was pure churn that also orphaned each previous clone --
+    // the dominant interpret leak this guard now removes structurally, the dual
+    // of the owned-return MOVE in eval_user_func_call.
+    if value_is_borrowed(ctx.return_value).not() { return }
     moved := ctx.return_value.clone()
     free_temp_arg_value(ctx.return_value)
     memcpy(ctx.return_value, moved, Value.size().cast(U64))
@@ -3818,14 +3841,10 @@ priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context
     ref old_owned_ref : Dynamic = deref(ptr)
     if old_owned_ref.is_null() { return }
     old_owned : Dynamic = old_owned_ref
-    if struct_name == "Str" {
-        ref old_str : Str = to_ptr(old_owned)
-        if str_owns_c_str(old_str) {
-            if old_str.c_str.is_null().not() { free(own old_str.c_str) }
-        }
-    } else {
-        struct_deep_free(struct_name, old_owned, ctx)
-    }
+    // #286 Stage 2: deep-free the slot's CONTENTS through the canonical
+    // heap_drop (Str c_str special case / struct_deep_free), then free the
+    // owning block. Was an inline duplicate of heap_drop's Str/else split.
+    heap_drop(struct_name, old_owned, ctx)
     EvalHeap.heap_free(own old_owned)
 }
 
