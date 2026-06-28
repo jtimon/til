@@ -80,6 +80,18 @@ namespace:
         return a.count.cmp(b.count)
     }
 
+    /// Equality with a length-mismatch early-out and a same-buffer
+    /// shortcut before the byte compare. Otherwise eq auto-derives from
+    /// cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+    /// the lengths already differ; this rejects the common different-length
+    /// case (distinct identifiers) without touching the bytes, and
+    /// short-circuits interned / identical buffers.
+    eq := func(a: Str, b: Str) returns Bool {
+        if a.count != b.count { return false }
+        if a.c_str.ptr_eq(b.c_str) { return true }
+        return memcmp(a.c_str, b.c_str, a.count) == 0
+    }
+
     /// Create an empty Str pre-allocated for up to `n` bytes.
     with_capacity := func(n: USize) returns Str {
         if n == 0 { return "" }
