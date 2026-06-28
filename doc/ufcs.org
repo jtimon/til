@@ -1,0 +1,50 @@
+* UFCS
+
+  UFCS is usually short for Uniform Function Call Syntax. Some D material
+  expands it as Universal Function Call Syntax. The idea is the same: a call
+  whose first argument is the receiver can be written with method-call syntax.
+
+  In the usual examples, these are equivalent:
+
+  #+begin_src til
+  add(a, b)
+  a.add(b)
+  #+end_src
+
+  This is useful when the returned value feeds the next call, because the code
+  reads left-to-right:
+
+  #+begin_src til
+  a.add(b).add(c)
+  #+end_src
+
+** Til Shape
+
+  Til resolves method-call syntax through namespaces and first-argument
+  rewriting, not by attaching methods directly to objects. A type or namespace
+  can define functions that take the receiver as their first argument, and call
+  sites can use dot syntax when resolution finds the right function.
+
+** Builder Output
+
+  ~File.write~ writes one string and returns ~ref File~, so chains like this
+  work:
+
+  #+begin_src til
+  f.write("a").write(b).write("c")
+  #+end_src
+
+  Prefer ~tfwrite~ when the pieces are plain strings:
+
+  #+begin_src til
+  f.tfwrite("a", b, "c")
+  #+end_src
+
+  ~tfwrite~ is just ~write(format(...))~ with the noisy wrapper removed. The
+  natural name ~fwrite~ is avoided for now because generated C top-level names
+  currently collide with stdio's ~fwrite~. Do not
+  force it across procedural emitters such as ~emit_expr~, ~emit_deref~, or
+  ~emit_as_ptr~; those calls are output logic, not just string pieces.
+
+  In short: use UFCS where it expresses a real pipeline, and use ~tfwrite~ for
+  adjacent string assembly.

@@ -2350,6 +2350,7 @@ void File_close(File * self);
 void File_delete(File * self, Bool call_free);
 File * File_clone(File * self);
 U32 File_size(void);
+File * tfwrite(File * f, Array__Str * parts);
 Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);

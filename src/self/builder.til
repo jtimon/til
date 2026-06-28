@@ -1207,8 +1207,7 @@ priv fcall_has_inline_capturing_func_arg := func(e: Expr) returns Bool {
 }
 
 priv emit_til_closure_cleanup := proc(f: File, name: Str) {
-    f.write("if (").write(name).write(" && ").write(name).write("->drop) { ")
-    f.write(name).write("->drop(").write(name).write("->env); free(").write(name).write("); }")
+    f.tfwrite("if (", name, " && ", name, "->drop) { ", name, "->drop(", name, "->env); free(", name, "); }")
 }
 
 priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32, ctx: Context, wrap_inline_closures: Bool) {
@@ -1261,8 +1260,8 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
         }
     }
     ret_ctype := fcall_return_ctype(e, ctx)
-    if ret_ctype.len() > 0 { f.write(ret_ctype).write(" til_closure_result = ") }
-    f.write(cname).write("(")
+    if ret_ctype.len() > 0 { f.tfwrite(ret_ctype, " til_closure_result = ") }
+    f.tfwrite(cname, "(")
     emit_user_fcall_args(f, e, source_name, depth, ctx, true)
     f.write("); ")
     for i2 in 1..e.children.len() {
@@ -1672,8 +1671,8 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         // unset). Same gate the non-FuncPtr branch below uses.
         is_global_fp := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
         if is_global_fp { f.write(dd.name).write(" = ") }
-        else if is_typedef { f.write(ct).write(" ").write(dd.name).write(" = ") }
-        else { f.write(ct).write(dd.name).write(" = ") }
+        else if is_typedef { f.tfwrite(ct, " ", dd.name, " = ") }
+        else { f.tfwrite(ct, dd.name, " = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if e.expr_til_type().is(Type.Body).and(dd.own_type.is(OwnType.Ref).not()) {
         is_global_body := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
@@ -1681,11 +1680,11 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         else { f.write("TilClosure *").write(dd.name).write(" = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
     } else if rhs.node_type.is(NodeType.FuncDef) {
-        f.write("/* TODO: nested func ").write(dd.name).write(" */\n")
+        f.tfwrite("/* TODO: nested func ", dd.name, " */\n")
     } else if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
         f.write("/* ")
         if rhs.node_type.is(NodeType.EnumDef) { f.write("enum") } else { f.write("struct") }
-        f.write(" ").write(dd.name).write(" defined above */\n")
+        f.tfwrite(" ", dd.name, " defined above */\n")
     } else if e.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) {
         // REM Type alias -- no-op
     } else {
@@ -1702,7 +1701,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
             ctype := resolve_decl_ctype(e.expr_til_type(), rhs.expr_til_type(), dd.explicit_type, ctx)
             if is_rg { f.write(dd.name).write(" = ") }
-            else { f.write(ctype).write(" *").write(dd.name).write(" = ") }
+            else { f.tfwrite(ctype, " *", dd.name, " = ") }
             emit_as_ptr(f, rhs, depth, false, ctx); f.write(";\n")
             // `_x` Ref decls (e.g. switch-case payload binds named `_s`)
             // are til's deliberately-unused convention; the typer skips
@@ -1716,7 +1715,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
             if e.expr_til_type().is(Type.Dynamic) {
                 if is_global { f.write(dd.name).write(" = ") }
-                else { tc := til_type_to_c(e.expr_til_type()); f.write(tc).write(" ").write(dd.name).write(" = ") }
+                else { tc := til_type_to_c(e.expr_til_type()); f.tfwrite(tc, " ", dd.name, " = ") }
                 emit_deref(f, rhs, depth, ctx); f.write(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.is(OwnType.Own).not())
@@ -1737,7 +1736,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 }
                 if is_ctor {
                     if is_global {
-                        f.write("memset(&").write(dd.name).write(", 0, sizeof(").write(ctype).write("));\n")
+                        f.tfwrite("memset(&", dd.name, ", 0, sizeof(", ctype, "));\n")
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     } else if is_pod_struct(rhs_sname, ctx).and(pod_ctor_args_are_safe(rhs, ctx)) {
                         // POD struct ctor: emit as a stack value
@@ -4569,15 +4568,15 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                         if fwd_sdd.c_tag == "@anon" {
                             // anonymous ext_struct: no forward decl possible
                         } else if fwd_sdd.c_tag.len() > 0 {
-                            f.write("typedef struct ").write(fwd_sdd.c_tag).write(" ").write(dd.name).write(";\n")
+                            f.tfwrite("typedef struct ", fwd_sdd.c_tag, " ", dd.name, ";\n")
                         } else {
-                            f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")
+                            f.tfwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                         }
                     case NodeType.EnumDef(fwd_edd):
                         f.write("typedef enum {\n")
                         for j in 0..fwd_edd.variants.len() {
                             if j > 0 { f.write(",\n") }
-                            f.write("    ").write(dd.name).write("_TAG_").write(fwd_edd.variants[j])
+                            f.tfwrite("    ", dd.name, "_TAG_", fwd_edd.variants[j])
                             // Stage C (#264 follow-up): emit an explicit tag value when
                             // it differs from the auto-number (index). GCC widens the
                             // enum's underlying type for >int values (no -Wpedantic).
@@ -4586,8 +4585,8 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                                 if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
                             }
                         }
-                        f.write("\n} ").write(dd.name).write("_tag;\n")
-                        f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")
+                        f.tfwrite("\n} ", dd.name, "_tag;\n")
+                        f.tfwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                     case:
                     }
                 case:
@@ -4609,22 +4608,22 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     if fwd_sdd.c_tag == "@anon" {
                         // anonymous ext_struct: no forward decl possible
                     } else if fwd_sdd.c_tag.len() > 0 {
-                        f.write("typedef struct ").write(fwd_sdd.c_tag).write(" ").write(dd.name).write(";\n")
+                        f.tfwrite("typedef struct ", fwd_sdd.c_tag, " ", dd.name, ";\n")
                     } else {
-                        f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")
+                        f.tfwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                     }
                 case NodeType.EnumDef(fwd_edd):
                     f.write("typedef enum {\n")
                     for j in 0..fwd_edd.variants.len() {
                         if j > 0 { f.write(",\n") }
-                        f.write("    ").write(dd.name).write("_TAG_").write(fwd_edd.variants[j])
+                        f.tfwrite("    ", dd.name, "_TAG_", fwd_edd.variants[j])
                         if j < fwd_edd.tag_values.len() {
                             ref tvj : I64 = fwd_edd.tag_values[j]
                             if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
                         }
                     }
-                    f.write("\n} ").write(dd.name).write("_tag;\n")
-                    f.write("typedef struct ").write(dd.name).write(" ").write(dd.name).write(";\n")
+                    f.tfwrite("\n} ", dd.name, "_tag;\n")
+                    f.tfwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                 case:
                 }
             case:
@@ -4664,7 +4663,7 @@ priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
     if builder_ns_has_func(enum_def, "eq").not() { return }
     mut eq_ret := "Bool *"
     if builder_ns_func_returns_shallow(enum_def, "eq") { eq_ret = "Bool" }
-    f.write(eq_ret).write(" ").write(enum_name).write("_eq(").write(enum_name).write(" *, ").write(enum_name).write(" *);\n")
+    f.tfwrite(eq_ret, " ", enum_name, "_eq(", enum_name, " *, ", enum_name, " *);\n")
 }
 
 priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {

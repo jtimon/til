@@ -143,3 +143,9 @@ namespace:
         if call_free { free(own self) }
     }
 }
+
+/// Temporary File-write formatter. The natural name `fwrite` conflicts with
+/// C stdio while generated C keeps unmangled top-level names.
+tfwrite := proc(f: File, parts: ..Str) returns ref File {
+    return f.write(format(..parts))
+}
