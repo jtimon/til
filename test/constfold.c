@@ -4752,7 +4752,7 @@ U32 NodeType_size(void) {
 
 
 void Expr_delete(Expr * self, Bool call_free) {
-    Bool hoisted__Bool_3782 = is_null(self);
+    Bool hoisted__Bool_3782 = ((Bool)((UPtr)(self) == 0));
     (void)hoisted__Bool_3782;
     if (hoisted__Bool_3782) {
         return;

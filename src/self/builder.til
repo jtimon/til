@@ -3208,6 +3208,21 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(" *)(")
                 emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
                 f.write("))->tag))")
+            } else if name.ident_name() == "is_null" {
+                // Peephole: inline is_null(p) -- defined as p.ptr_eq(NULL) -- as
+                // a direct null test, dropping the is_null and its nested ptr_eq
+                // call (6.2M --prof calls). The Dynamic arg emits as the pointer
+                // value (emit_as_ptr), exactly as the real call passes it. The
+                // test is `(UPtr)p == 0` rather than `p == NULL`: for a value
+                // arg emit_as_ptr yields `&local`, and `&local == NULL` trips
+                // gcc -Waddress (always false); the integer compare is the same
+                // result without the diagnostic. is_null stays a real func (the
+                // interpreter runs its body), so both modes agree.
+                f.write("((")
+                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(")((UPtr)(")
+                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                f.write(") == 0))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
