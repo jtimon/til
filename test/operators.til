@@ -304,3 +304,25 @@ test_numeric_min_max := test() {
     expect(F32.MAX.gt(3.0e38), "F32.MAX large")
     expect(F32.MIN.lt(-3.0e38), "F32.MIN small")
 }
+
+// #297: namespace constants reached through a type alias. USize / UPtr are
+// the target-width aliases (USize := U32, UPtr := U64, retargeted per
+// platform), so the exact MAX is target-dependent -- check MIN and the
+// MAX > 0 / size > 0 relationships rather than a fixed width.
+MyByte := U8
+
+test_alias_namespace_constants := test() {
+    // Core target-width aliases.
+    assert_eq(Str, USize.MIN.to_str(), "0")
+    expect(USize.MAX.gt(0), "USize.MAX > 0")
+    assert_eq(Str, UPtr.MIN.to_str(), "0")
+    expect(UPtr.MAX.gt(0), "UPtr.MAX > 0")
+    // Method dispatch through an alias still resolves (guard #297 regression).
+    expect(USize.size().gt(0), "USize.size() > 0")
+    // User-defined alias to a fixed-width type: exact constants.
+    assert_eq(Str, MyByte.MAX.to_str(), "255")
+    assert_eq(Str, MyByte.MIN.to_str(), "0")
+    // Alias constant used to initialize an alias-typed local.
+    m : MyByte = MyByte.MAX
+    assert_eq(Str, m.to_str(), "255")
+}

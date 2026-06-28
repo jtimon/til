@@ -2971,6 +2971,7 @@ void priv___src_self_typer_til__box_return_value(TypeScope * scope, Expr * stmt,
 Bool priv___src_self_typer_til__fcall_has_injected_err_arg(Expr * e);
 void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+void priv___src_self_typer_til__resolve_fa_receiver_alias(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__mark_field_assign_root_written(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__infer_field_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);

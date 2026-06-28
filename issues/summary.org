@@ -7,7 +7,6 @@
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
 ** Low
 *** [[./open/266.org][#266]] Flaky build_checkers (xvfb-run tmpdir cleanup race in parallel GUI suite)
-*** [[./open/297.org][#297]] Namespace constant access through a type alias (USize.MAX) is broken
 * Cleanups
 ** High
 *** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
