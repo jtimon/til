@@ -9,7 +9,28 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
   the copy. Closing #245 unlocks freeing those Values, which feeds
   back into the per-test compiler-leak baseline below.
 
-  *** 2026-06-28 ASAN status after the first-class cleanup pass
+  *** 2026-06-28 ASAN status after the owned pointer delete-slot fix
+
+  The merge-time interpreter sentinel moved again because
+  ~test/hashmaps.til~ now reports ~TIL_TRUE_LEAK=0~ after the owned
+  pointer delete-slot fix.
+
+  Focused probes on this master:
+
+  - ~bin/til_asan interpret test/hashmaps.til~ reports
+    ~TIL_TRUE_LEAK=0~.
+  - ~bin/til_asan interpret test/dyn_hashmaps.til~ is the current
+    largest checked pure interpreter leak: tests pass ~12/12~, then LSAN
+    reports ~10789 bytes / 104 allocations~. ~examples/merge_commit.til~
+    now uses this as the interpreter ASAN probe.
+  - ~bin/til_asan translate test/dyn_hashmaps.til~ and
+    ~bin/til_asan translate src/tests.til~ both report ~TIL_TRUE_LEAK=0~.
+    ~translate src/til.til~ currently fails with a non-leak ASAN
+    heap-use-after-free, tracked separately in [[./299.org][#299]], so the
+    translate merge probe stays on ~test/hashmaps.til~ until there is a
+    leak-only translate target.
+
+  *** Previous 2026-06-28 ASAN status after the first-class cleanup pass
 
   Recent leak-reduction work changed the ASAN baseline shape:
 

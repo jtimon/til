@@ -1,0 +1,32 @@
+# priority: high
+# category: bugs
+** OPEN #299 Fix ASAN translate src/til.til heap-use-after-free
+
+~bin/til_asan translate src/til.til~ aborts with a non-leak ASAN failure
+before leak checking can complete.
+
+*** Repro
+
+    ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/til.til > tmp/asan_translate_til.log 2>&1
+
+*** Current failure
+
+ASAN reports a heap-use-after-free in the constfolder while converting an
+interpreted value back into source form:
+
+    SUMMARY: AddressSanitizer: heap-use-after-free gen/til/til.c:209760 in priv___src_self_constfolder_til__needs_source_escape
+
+The freed allocation path is:
+
+    Value_delete -> StructInstance_delete -> struct_deep_free
+
+The allocation path is:
+
+    Str_clone -> heap_clone -> StructInstance_clone -> Value_clone -> write_field
+
+*** Notes
+
+This was found while looking for a new merge-time translate leak sentinel after
+#109's ~test/hashmaps.til~ baseline fell to zero. Keep this separate from
+[[./109.org][#109]], which tracks leaks; this bug is a correctness failure that
+prevents the leak probe from reaching teardown.
