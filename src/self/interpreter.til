@@ -1688,6 +1688,40 @@ priv free_struct_contents_keep_outer := func(si: StructInstance) {
     }
 }
 
+// True iff a struct delete body does anything beyond the auto-generated shape
+// (per-field `self.f.delete(...)` cleanup plus a final `free(own self)`):
+//   - an Assign / FieldAssign (a side effect, e.g. a `delete_count` counter), or
+//   - a direct `free(own self.field)` (a hand-written own-raw-field free that
+//     struct_deep_free deliberately does NOT perform).
+// Either means the delete was hand-written and must run its own body. An
+// auto-generated delete has none of these, even after the typer desugars its
+// body into temporaries (Decl + method-call FCalls), so it returns false and is
+// safe to replace with the cache-driven deep teardown. Recurses through the
+// desugared temporaries and the `if call_free` arm.
+priv delete_body_has_custom_logic := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Assign:
+        return true
+    case NodeType.FieldAssign:
+        return true
+    case NodeType.FCall:
+        if e.children.len() >= 2 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(fid):
+                if fid.ident_name() == "free" {
+                    if e.children[1].node_type.is(NodeType.FieldAccess) { return true }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if delete_body_has_custom_logic(c) { return true }
+    }
+    return false
+}
+
 priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
     ref callee_expr : Expr = e.children[0]
@@ -1745,6 +1779,18 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     if rsi.struct_name == "DynVec" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
                     if container_elem_type(rsi.struct_name).len() > 0 { do_intercept = true }
+                    // A monomorphized generic struct (name contains "__") whose
+                    // auto-generated delete lost fd_ag.auto_generated (above)
+                    // across cross-unit type-macro expansion: detect it from the
+                    // body instead. Running that body in the interpreter leaks --
+                    // its `self.f.delete(...)` calls dispatch on the borrowed
+                    // `self` view and no-op, so nested ownership (a HashMap's
+                    // keys/values/buckets/nexts Vec buffers) is never reclaimed
+                    // and `free(own self)` only frees the top block. Restricted to
+                    // generic monos and to bodies with no custom logic, so a
+                    // hand-written delete (DeleteCustom's counter, a manual
+                    // own-field free) is left to run.
+                    if rsi.struct_name.contains("__").and(delete_body_has_custom_logic(func_def).not()) { do_intercept = true }
                 case:
                 }
                 if do_intercept {

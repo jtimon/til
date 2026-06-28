@@ -3858,6 +3858,7 @@ void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Con
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
 void priv___src_self_interpreter_til__materialize_str_result(Value * v);
 void priv___src_self_interpreter_til__free_struct_contents_keep_outer(StructInstance * si);
+Bool priv___src_self_interpreter_til__delete_body_has_custom_logic(Expr * e);
 Value priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx);
 Value priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, Value * callable, Context * ctx);
 Value priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx);
