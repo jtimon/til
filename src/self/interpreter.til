@@ -3626,6 +3626,7 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             write_ptr(ptr, deref(fv))
         case Value.Closure:
             write_ptr(ptr, callable_box_new(val))
+            free_temp_arg_value(val)
         case Value.Ref(pv):
             ref stored_ref : Dynamic = deref(pv)
             if dd.own_type.is(OwnType.Own) { write_ptr(ptr, callable_storage_clone(stored_ref)) }
