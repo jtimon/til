@@ -686,15 +686,13 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
     return gc
 }
 
-// #264: the tag comparison primitive. A 4-byte (default U32) tag uses the
-// type-erased `is(a, b)`, which reads the tag as a 4-byte int. A pinned tag
-// of a different width (U8/U16/U64) instead uses `is_n(a, b, size)` so the
-// runtime reads exactly `size` bytes -- a plain `is` would over-read a
-// 1- or 2-byte enum struct. tag_size comes from enum_tag_size(enum_def).
+// #264: the tag comparison primitive -- `is_n(a, b, size)`, where size is the
+// tag width from enum_tag_size(enum_def). The interpreter FFIs is_n and reads
+// exactly `size` bytes; the C backend inlines it to a width-correct
+// ((E*)a)->tag == ((E*)b)->tag compare (see builder.til). The old 4-byte-only
+// `is` builtin was folded into this -- is_n's typed tag read handles any width.
 make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size: USize, line: U32, col: U32) returns Expr {
-    mut builtin := "is"
-    if tag_size != 4 { builtin = "is_n" }
-    mut iv := Expr.new(ident_node(builtin), line, col)
+    mut iv := Expr.new(ident_node("is_n"), line, col)
     mut arg_id := Expr.new(ident_node(arg_name), line, col)
     mut et := Expr.new(ident_node(ename), line, col)
     mut vr := Expr.new(field_access_node(vname), line, col)
@@ -703,10 +701,8 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     is_call.add_child(own iv)
     is_call.add_child(own arg_id)
     is_call.add_child(own vr)
-    if tag_size != 4 {
-        mut sz_lit := Expr.new(literal_num_node(tag_size.to_str()), line, col)
-        is_call.add_child(own sz_lit)
-    }
+    mut sz_lit := Expr.new(literal_num_node(tag_size.to_str()), line, col)
+    is_call.add_child(own sz_lit)
     return is_call
 }
 

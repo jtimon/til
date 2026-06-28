@@ -2642,11 +2642,9 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         payload_type = enum_variant_type(enum_def, vt_idx)
                                     }
                                     if payload_type.len() > 0 {
-                                        // #264: width-correct tag comparison.
+                                        // #264: width-correct tag comparison via is_n.
                                         sw_tag_sz := enum_tag_size(enum_def)
-                                        mut sw_builtin := "is"
-                                        if sw_tag_sz != 4 { sw_builtin = "is_n" }
-                                        mut iv_id := Expr.new(ident_node(sw_builtin), sw_line, sw_col)
+                                        mut iv_id := Expr.new(ident_node("is_n"), sw_line, sw_col)
                                         mut sw_id := sw_ref.clone()
                                         mut vtype_id := Expr.new(ident_node(type_name), sw_line, sw_col)
                                         mut vref := Expr.new(field_access_node(variant_name), sw_line, sw_col)
@@ -2655,10 +2653,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         condition.add_child(own iv_id)
                                         condition.add_child(own sw_id)
                                         condition.add_child(own vref)
-                                        if sw_tag_sz != 4 {
-                                            mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
-                                            condition.add_child(own sw_sz_lit)
-                                        }
+                                        mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                                        condition.add_child(own sw_sz_lit)
 
                                         mut sw_id2 := sw_ref.clone()
                                         // #211: payload binding inherits the matched value's
@@ -2748,11 +2744,9 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                     }
                                     if payload_type3.len() > 0 {
                                         // outer condition: sw_ref.is(Type.Variant)
-                                        // #264: width-correct tag comparison.
+                                        // #264: width-correct tag comparison via is_n.
                                         sw_tag_sz3 := enum_tag_size(enum_def3)
-                                        mut sw_builtin3 := "is"
-                                        if sw_tag_sz3 != 4 { sw_builtin3 = "is_n" }
-                                        mut iv_id3 := Expr.new(ident_node(sw_builtin3), sw_line, sw_col)
+                                        mut iv_id3 := Expr.new(ident_node("is_n"), sw_line, sw_col)
                                         mut sw_id3 := sw_ref.clone()
                                         mut vtype_id3 := Expr.new(ident_node(type_name3), sw_line, sw_col)
                                         mut vref3 := Expr.new(field_access_node(variant_name3), sw_line, sw_col)
@@ -2761,10 +2755,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         outer_cond3.add_child(own iv_id3)
                                         outer_cond3.add_child(own sw_id3)
                                         outer_cond3.add_child(own vref3)
-                                        if sw_tag_sz3 != 4 {
-                                            mut sw_sz_lit3 := Expr.new(literal_num_node(sw_tag_sz3.to_str()), sw_line, sw_col)
-                                            outer_cond3.add_child(own sw_sz_lit3)
-                                        }
+                                        mut sw_sz_lit3 := Expr.new(literal_num_node(sw_tag_sz3.to_str()), sw_line, sw_col)
+                                        outer_cond3.add_child(own sw_sz_lit3)
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
@@ -2817,11 +2809,9 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             // tag-only comparison and never recurses through a
                             // user-defined eq (which is itself often defined as a
                             // switch -- e.g. Value.eq).
-                            // #264: width-correct tag comparison.
+                            // #264: width-correct tag comparison via is_n.
                             sw_tag_sz := enum_tag_size(enum_def)
-                            mut sw_builtin := "is"
-                            if sw_tag_sz != 4 { sw_builtin = "is_n" }
-                            mut iv_id := Expr.new(ident_node(sw_builtin), sw_line, sw_col)
+                            mut iv_id := Expr.new(ident_node("is_n"), sw_line, sw_col)
                             mut sw_id := sw_ref.clone()
                             mut vtype_id := Expr.new(ident_node(type_name), sw_line, sw_col)
                             mut vref := Expr.new(field_access_node(variant_name), sw_line, sw_col)
@@ -2830,10 +2820,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             condition.add_child(own iv_id)
                             condition.add_child(own sw_id)
                             condition.add_child(own vref)
-                            if sw_tag_sz != 4 {
-                                mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
-                                condition.add_child(own sw_sz_lit)
-                            }
+                            mut sw_sz_lit := Expr.new(literal_num_node(sw_tag_sz.to_str()), sw_line, sw_col)
+                            condition.add_child(own sw_sz_lit)
                             has_condition = true
                         }
                     }

@@ -179,7 +179,6 @@ void write_u32(void *dest, U32 val);
 void write_u64(void *dest, U64 val);
 void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
-Bool is(void *self, void *other);
 Bool is_n(void *self, void *other, USize size);
 void *get_payload(void *self);
 

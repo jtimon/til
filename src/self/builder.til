@@ -3182,21 +3182,6 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
-            } else if name.ident_name() == "is" {
-                // Peephole: inline the `is` enum-tag check as ext.c's
-                // `*(I32*)a == *(I32*)b` -- the hottest discriminant (4.4B
-                // calls translating the self-host) without a function call.
-                // `is` stays an ext_func (the interpreter FFIs it, so both
-                // modes agree); is_n (non-4-byte tags) inlines just below.
-                // Gated by name like the other flat builtins (memset/cast).
-                core_ret_c := til_type_name_c(e.expr_til_type())
-                f.write("((")
-                f.write(core_ret_c)
-                f.write(")(*(I32*)(")
-                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write(") == *(I32*)(")
-                emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
-                f.write(")))")
             } else if name.ident_name() == "is_n" {
                 // Peephole: inline `is_n`, the variable-width enum-tag check,
                 // by reading each operand's `tag` field through its enum C
@@ -3205,10 +3190,11 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // (U8/U16/U32/U64) makes the compare width-correct with no size
                 // arg -- which is why this works where reading the size literal
                 // does not (a normalization pass hoists it into a temp, so by
-                // here children[3] is an Ident). #264 made U8 the default tag,
-                // so most `.is(Variant)` checks lower here -- the #1 --prof CPU
-                // entry (93M calls). is_n stays an ext_func (the interpreter
-                // FFIs it, reading the same offset-0 tag), so both modes agree.
+                // here children[3] is an Ident). is_n is the sole tag-check
+                // primitive (the old 4-byte-only `is` folded into it, since the
+                // typed tag read handles any width) -- the #1 --prof CPU entry
+                // (93M calls). is_n stays an ext_func (the interpreter FFIs it,
+                // reading the same offset-0 tag), so both modes agree.
                 isn_ret_c := til_type_name_c(e.expr_til_type())
                 enum_c := til_type_name(e.children[1].expr_til_type())
                 f.write("((")

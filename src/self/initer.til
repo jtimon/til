@@ -602,21 +602,17 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
 
 priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
-    // #264: pick `is` (4-byte tag) or `is_n` (width-correct) for the tag.
+    // #264: width-correct tag comparison via is_n(self, other, tag_size).
     tag_sz := enum_tag_size(enum_def)
-    mut builtin := "is"
-    if tag_sz != 4 { builtin = "is_n" }
-    mut is_id := Expr.new(ident_node(builtin), line, col)
+    mut is_id := Expr.new(ident_node("is_n"), line, col)
     mut self_id := Expr.new(ident_node("self"), line, col)
     mut other_id := Expr.new(ident_node("other"), line, col)
     mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
     is_call.add_child(own is_id)
     is_call.add_child(own self_id)
     is_call.add_child(own other_id)
-    if tag_sz != 4 {
-        mut sz_lit := Expr.new(literal_num_node(tag_sz.to_str()), line, col)
-        is_call.add_child(own sz_lit)
-    }
+    mut sz_lit := Expr.new(literal_num_node(tag_sz.to_str()), line, col)
+    is_call.add_child(own sz_lit)
     mut ret := Expr.new(NodeType.Return, line, col)
     ret.add_child(own is_call)
     func_body.add_child(own ret)

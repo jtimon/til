@@ -521,7 +521,6 @@ void write_f32(void *dest, F32 val) { *(F32 *)dest = val; }
 void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
-Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 /* #264: compare enum tags of a chosen width without over-reading a struct
  * narrower than 4 bytes (enum(U8)/enum(U16)) or under-reading a wider one
  * (enum(U64)). */

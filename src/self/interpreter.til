@@ -291,7 +291,7 @@ EnumInstance := struct {
     is_str := false
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
-        return a.is(b)
+        return a.enum_name == b.enum_name
     }
     to_str := func(self: EnumInstance) returns Str {
         expect(self.enum_name.is_null().not(), "self.enum_name is null")
