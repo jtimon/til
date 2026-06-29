@@ -1,0 +1,80 @@
+# priority: high
+# category: bugs
+** FIXED #299 Fix non-leak ASAN failures in test_asan_full
+
+Post-mortem (2026-06-28): #299 is the umbrella for every ~test_asan_full~
+test that fails AddressSanitizer for a reason OTHER than a leak
+(heap-buffer-overflow, heap-use-after-free, bad-free), so that
+[[../open/109.org][#109]] can stay leak-only. All four documented non-leak
+failures are fixed; each was verified individually with
+~ASAN_OPTIONS=detect_leaks=0 bin/til_asan <cmd>~ (the human's
+~make test_asan_full~ at merge is the final gate for any undocumented one).
+
+*** Fixes
+
+1. ~test/enums.til~ + ~test/regression.til~ -- no-payload enum tag width
+   (heap-buffer-overflow in ~src/c/ext.c:is_n~ and in ~Value_Int32~ via
+   ~reinterpret_ptr_value~). Root cause: a no-payload enum's discriminant
+   was read/stored as a fixed 4-byte I32 regardless of the declared tag
+   width (1/2/4/8 bytes, #264). For a U64 enum the cached variant value
+   was narrowed to a 4-byte Int32 box at ns-registration, then the
+   auto-generated ~is~/~eq~ passed ~enum_tag_size~ (=8) to ~is_n~, which
+   read 8 bytes off the 4-byte box. For a default (U8) enum read back
+   through a Map slot (~bug150~), ~reinterpret_ptr_value~ read a fixed I32
+   (4 bytes) off a 1-byte region. Fix: a width-aware ~read_enum_tag_value~
+   helper (reads exactly ~enum_tag_size~ bytes; boxes a U64 tag as the full
+   8-byte ~Value.Int~) at both reinterpret sites, plus a ~enum_tag_size <= 4~
+   guard on the ns-registration narrowing. Regression tests:
+   ~test/enums.til::test_enum_u64_high_value~ and
+   ~test/regression.til::bug150~ (both already cover the shapes; now
+   ASAN-clean).
+
+2. ~ffi_interp~ (~examples/ffi/ext_module.til~) -- ~link_c~ FFI allocator
+   mismatch (bad-free in the ASAN free wrapper). Root cause: ~bin/til_asan~
+   compiled the user ~.so~ WITHOUT ~-fsanitize=address~, so an
+   interpreter-side ~calloc~ (e.g. ~Array.new~ for a variadic ~println~)
+   that libffi routes through the non-ASAN ~.so~'s libc allocator returned
+   brk-heap memory, which the interpreter's ASAN ~free~ then rejected as a
+   bad-free. Any variadic call in a ~link_c~ program tripped it. Fix: a new
+   ~til_built_with_asan~ ext_proc (C ~__SANITIZE_ADDRESS__~ probe) gates
+   ~-fsanitize=address -fno-omit-frame-pointer~ onto the FFI ~.so~ compile
+   in ~ffi_init_user_so~, so the whole process shares one allocator. It is
+   an ext_PROC, not an ext_func, on purpose: as a func the constfolder
+   folds it at build time, and bin/til_asan is built by the non-ASAN
+   bin/til, so the fold would bake in ~false~ and the flag would never
+   reach the compile.
+
+3. ~translate src/til.til~ -- constfolder heap-use-after-free in
+   ~needs_source_escape~ (the original framing of this issue). Root cause:
+   when the constfolder eval'd ~EnumType.Variant(own struct)~,
+   ~enum_method_dispatch~ byte-copied the WHOLE struct payload
+   (~psz = ctx_total_size~) into the enum's own buffer, sharing every
+   inlined nested heap pointer (a nested Str's c_str). The own-arg cleanup
+   in ~eval_call~ then did ~oc.val = val_none()~, whose deep
+   ~struct_deep_free~ recursed and freed those shared pointers; the enum
+   (carried up as the fold result) dangled, and ~value_to_expr~ ->
+   ~str_to_source_form~ -> ~needs_source_escape~ read the freed c_str. The
+   old ~is_str = false~ hack only neutralized a DIRECT Str own arg (whose
+   c_str ~val_enum_flat~ moves out). Fix: free only the now-redundant
+   wrapper buffer (the bytes already live in the enum's own copy) via a
+   shallow ~EvalHeap.heap_free(own osi.data)~ and leave the shared inlined
+   pointers for the enum to own.
+
+4. ~test/aliases|dynamic|errors|tuples.til~ -- ~callable_box_is~
+   heap-buffer-overflow. Already fixed on master before this issue's work;
+   re-verified ASAN-clean here.
+
+*** Repro (original, now clean)
+
+    ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=0 bin/til_asan translate src/til.til
+
+Was: ~SUMMARY: AddressSanitizer: heap-use-after-free ... in needs_source_escape~.
+Now: no ASAN error.
+
+*** Notes
+
+Found while looking for a merge-time leak-only translate sentinel after
+#109's ~test/hashmaps.til~ baseline fell to zero. With the non-leak
+translate failure gone, ~translate src/til.til~ is a candidate leak-only
+translate probe -- but the leak side of that belongs to
+[[../open/109.org][#109]].

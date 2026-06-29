@@ -1393,6 +1393,26 @@ I32 process_id(void) {
 #endif
 }
 
+/* #299: true iff this binary was compiled with AddressSanitizer. The
+ * interpreter uses it to compile a link_c() FFI library with the SAME
+ * sanitizer flags as itself: under bin/til_asan the user .so must share the
+ * ASAN allocator, otherwise an interpreter-side malloc/calloc that libffi
+ * routes to the (non-ASAN) user .so's libc allocator gets freed by the
+ * interpreter's ASAN free() -- a spurious bad-free. */
+Bool til_built_with_asan(void) {
+#if defined(__SANITIZE_ADDRESS__)
+    return 1;
+#elif defined(__has_feature)
+# if __has_feature(address_sanitizer)
+    return 1;
+# else
+    return 0;
+# endif
+#else
+    return 0;
+#endif
+}
+
 Str *til_str_left(const Str *s, U64 n) {
     if (!s || n == 0) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     USize len = (USize)s->count;

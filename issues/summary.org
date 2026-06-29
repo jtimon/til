@@ -2,7 +2,6 @@
 ** High
 *** [[./open/109.org][#109]] Fix memory leaks (make test_asan clean)
 *** [[./open/128.org][#128]] Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
-*** [[./open/299.org][#299]] Fix ASAN translate src/til.til heap-use-after-free
 ** Medium
 *** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
 ** Low

@@ -621,6 +621,21 @@ priv val_enum_simple := func(enum_name: Str, etag: I64, total_enum_size: USize, 
     return val_enum_flat(enum_name, etag, NULL, 0, total_enum_size, false, false, ctx)
 }
 
+// #264: read a no-payload enum's discriminant from `p` at the enum's actual
+// tag width (1/2/4/8 bytes) and box it. Reading a fixed I32 over-reads a
+// 1/2-byte tag (e.g. the default U8 enum behind a Map slot -- bug150) and
+// truncates an 8-byte one. The boxed width must also cover what the auto-
+// generated is/eq pass to is_n (= enum_tag_size): a U64 tag stays a full
+// 8-byte Value.Int so is_n(8) does not over-read the box.
+priv read_enum_tag_value := func(p: Dynamic, tdef: Expr) returns Value {
+    tag_w := enum_tag_size(tdef)
+    if tag_w == 1 { ref t : U8 = p;  return Value.Int32(t.cast(U32).cast(I32)) }
+    if tag_w == 2 { ref t : U16 = p; return Value.Int32(t.cast(U32).cast(I32)) }
+    if tag_w == 8 { ref t : I64 = p; return Value.Int(t) }
+    ref t : I32 = p
+    return Value.Int32(t)
+}
+
 priv elem_size_for_type := func(type_name: Str) returns USize {
     if type_name == "I64"  { return I64.size() }
     if type_name == "U8"   { return U8.size() }
@@ -955,8 +970,7 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                     }
                     return val_enum_flat(type_name, inline_etag.cast(I64), ptr_add(p, ENUM_PAYLOAD_OFFSET.cast(U64)), inline_psz, total_size, enum_variant_is_str(type_name, inline_etag, ctx), false, ctx)
                 }
-                ref etag : I32 = p
-                return Value.Int32(etag)
+                return read_enum_tag_value(p, tdef)
             }
             if tdef.node_type.is(NodeType.StructDef) {
                 return make_struct_value(type_name, p, true, ctx)
@@ -2064,16 +2078,29 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                                         case NodeType.Ident(oa_ident):
                                             ref oc : Cell = scope_get(scope, oa_ident.ident_name())
                                             if oc.is_null().not() {
-                                                // enum_method_dispatch copied this own arg's
-                                                // payload bytes into eresult, sharing a Str
-                                                // payload's c_str (Issue #109). Clear is_str so
-                                                // the cell's deep delete frees only the wrapper,
-                                                // not the c_str eresult now owns (else UAF).
+                                                // enum_method_dispatch byte-copied this own arg's
+                                                // WHOLE payload (psz = ctx_total_size) into
+                                                // eresult's own buffer, sharing every inlined
+                                                // nested heap pointer -- a nested Str's c_str, not
+                                                // just a top-level one (Issue #109/#299). A deep
+                                                // delete of oc.val recurses through struct_deep_free
+                                                // and frees those shared pointers, dangling eresult
+                                                // (a heap-use-after-free read in the constfolder's
+                                                // value_to_expr / needs_source_escape). Clearing the
+                                                // top is_str only covered a DIRECT Str arg, whose
+                                                // c_str val_enum_flat already moved out. Free only
+                                                // this now-redundant wrapper buffer (the bytes live
+                                                // in eresult's copy) and leave the shared inlined
+                                                // pointers for eresult to own.
                                                 switch oc.val {
-                                                case Value.Struct(osi): osi.is_str = false
+                                                case Value.Struct(osi):
+                                                    if osi.borrowed.not().and(osi.data.is_null().not()) {
+                                                        EvalHeap.heap_free(own osi.data)
+                                                    }
+                                                    memcpy(oc.val, val_none(), Value.size().cast(U64))
                                                 case:
+                                                    oc.val = val_none()
                                                 }
-                                                oc.val = val_none()
                                             }
                                         case:
                                             UNREACHABLE()
@@ -3508,10 +3535,19 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                 mut fval := eval_expr(global, nsd.default_value, ctx)
                 if sdef.node_type.is(NodeType.EnumDef) {
                     if enum_has_payloads(sdef).not() {
-                        switch fval {
-                        case Value.Int(iv):
-                            fval = val_i32(iv)
-                        case:
+                        // #264: narrow the cached variant value to a 4-byte
+                        // Int32 box ONLY when the tag actually fits in 4 bytes.
+                        // A U64-tagged no-payload enum must stay Value.Int (8
+                        // bytes): the auto-generated is/eq pass enum_tag_size
+                        // (=8) to is_n, which then reads 8 bytes from this cached
+                        // operand. Narrowing it to a 4-byte Int32 box made is_n
+                        // over-read past the allocation (heap-buffer-overflow).
+                        if enum_tag_size(sdef) <= 4 {
+                            switch fval {
+                            case Value.Int(iv):
+                                fval = val_i32(iv)
+                            case:
+                            }
                         }
                     }
                 }
@@ -3709,8 +3745,7 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
                 ref vtag : I32 = ptr
                 return make_enum_value(ftype, to_ptr(ptr), total_size, true, enum_variant_is_str(ftype, vtag, ctx), ctx)
             }
-            ref itag : I32 = ptr
-            return Value.Int32(itag)
+            return read_enum_tag_value(ptr, edef)
         }
     }
     // Inline struct
@@ -4413,6 +4448,11 @@ ffi_last_error := ext_proc() returns Str {}
 stderr_print := ext_proc(msg: Str) returns shallow I32 {}
 unlink_path := ext_proc(path: Str) {}
 process_id := ext_proc() returns shallow I32 {}
+// ext_proc, NOT ext_func: this reads a build-time property of the RUNNING
+// binary, so it must be evaluated at runtime. As an ext_func the constfolder
+// folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
+// bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
+til_built_with_asan := ext_proc() returns shallow Bool {}
 
 priv ffi_dlsym := func(name: Str) returns ref U8 {
     ref fn : U8 = ffi_user_symbol(name)
@@ -4467,7 +4507,14 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     if link_flags.is_null().not() {
         lf = link_flags
     }
-    cmd := format("cc -Wall -Wextra -shared -fPIC -I", ext_dir,
+    // #299: match the interpreter's own sanitizer. Under bin/til_asan the user
+    // .so must be ASAN-instrumented too, so its libc allocator IS the ASAN
+    // allocator -- otherwise an interpreter-side calloc that libffi routes to
+    // this .so's (non-ASAN) calloc returns brk-heap memory that the
+    // interpreter's ASAN free() then rejects as a bad-free.
+    mut san := ""
+    if til_built_with_asan() { san = " -fsanitize=address -fno-omit-frame-pointer" }
+    cmd := format("cc -Wall -Wextra -shared -fPIC", san, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf)

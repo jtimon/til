@@ -3853,6 +3853,7 @@ void priv___src_self_interpreter_til__enum_clone_str_payload(void * data);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data);
 Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I64 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I64 etag, U32 total_enum_size, Context * ctx);
+Value * priv___src_self_interpreter_til__read_enum_tag_value(void * p, Expr * tdef);
 U32 priv___src_self_interpreter_til__elem_size_for_type(Str * type_name);
 Value priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 void * priv___src_self_interpreter_til__value_ptr_view(Value * v);
