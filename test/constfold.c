@@ -1505,7 +1505,7 @@ U32 Str_size(void) {
 Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_584 = Str_eq(a, b);
     (void)hoisted__Bool_584;
-    Bool hoisted__Bool_585 = not(hoisted__Bool_584);
+    Bool hoisted__Bool_585 = ((Bool)(!(hoisted__Bool_584)));
     (void)hoisted__Bool_585;
     return hoisted__Bool_585;
 }
@@ -5627,7 +5627,7 @@ void UNREACHABLE(Str * loc) {
 }
 
 void assert(Bool cond, Str * loc) {
-    Bool hoisted__Bool_7660 = not(cond);
+    Bool hoisted__Bool_7660 = ((Bool)(!(cond)));
     (void)hoisted__Bool_7660;
     if (hoisted__Bool_7660) {
         U32 hoisted__U32_7656 = 1;
@@ -6166,7 +6166,7 @@ void test_enum_fold(void) {
     Str_delete(&_til_str_lit_199, (Bool){0});
     Bool hoisted__Bool_8680 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_8680;
-    Bool hoisted__Bool_8681 = not(hoisted__Bool_8680);
+    Bool hoisted__Bool_8681 = ((Bool)(!(hoisted__Bool_8680)));
     (void)hoisted__Bool_8681;
     (void)_til_str_lit_200;
     (void)_til_str_lit_200;
@@ -6280,7 +6280,7 @@ void test_enum_payload_fold(void) {
     Str_delete(&_til_str_lit_203, (Bool){0});
     Bool hoisted__Bool_8753 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
     (void)hoisted__Bool_8753;
-    Bool hoisted__Bool_8754 = not(hoisted__Bool_8753);
+    Bool hoisted__Bool_8754 = ((Bool)(!(hoisted__Bool_8753)));
     (void)hoisted__Bool_8754;
     (void)_til_str_lit_204;
     (void)_til_str_lit_204;
@@ -6299,7 +6299,7 @@ void test_enum_return_fold(void) {
     Str_delete(&_til_str_lit_205, (Bool){0});
     Bool hoisted__Bool_8758 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_8758;
-    Bool hoisted__Bool_8759 = not(hoisted__Bool_8758);
+    Bool hoisted__Bool_8759 = ((Bool)(!(hoisted__Bool_8758)));
     (void)hoisted__Bool_8759;
     (void)_til_str_lit_206;
     (void)_til_str_lit_206;
@@ -6317,7 +6317,7 @@ void test_enum_payload_return_fold(void) {
     Str_delete(&_til_str_lit_207, (Bool){0});
     Bool hoisted__Bool_8765 = Token_is(t, &(Token){.tag = Token_TAG_Eof});
     (void)hoisted__Bool_8765;
-    Bool hoisted__Bool_8766 = not(hoisted__Bool_8765);
+    Bool hoisted__Bool_8766 = ((Bool)(!(hoisted__Bool_8765)));
     (void)hoisted__Bool_8766;
     (void)_til_str_lit_208;
     (void)_til_str_lit_208;

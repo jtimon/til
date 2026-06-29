@@ -9,7 +9,7 @@ and := lazy_func(a: Bool, b: Bool) returns Bool {
 or := lazy_func(a: Bool, b: Bool) returns Bool {
     return match a { case true: true case: b }
 }
-not := ext_func(shallow a: Bool) returns shallow Bool {}
+not := core_func(shallow a: Bool) returns shallow Bool {}
 
 /// Boolean value: true or false.
 Bool : StructDef = struct {

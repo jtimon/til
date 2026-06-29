@@ -3236,6 +3236,16 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(")((UPtr)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
                 f.write(") == 0))")
+            } else if name.ident_name() == "not" {
+                // #288 follow-up: Bool.not is now a core_func -- lower it to
+                // native `!` inline instead of a real call (~9.4M --prof). The
+                // interpreter keeps evaluating it via the registered h_Bool_not
+                // handler, so both modes agree; same name-gated shape as `is`.
+                f.write("((")
+                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(")(!(")
+                emit_deref(f, e.children[1], depth, ctx)
+                f.write(")))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
