@@ -26,9 +26,10 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
   - ~bin/til_asan translate test/dyn_hashmaps.til~ and
     ~bin/til_asan translate src/tests.til~ both report ~TIL_TRUE_LEAK=0~.
     ~translate src/til.til~ used to fail with a non-leak ASAN
-    heap-use-after-free; that is now fixed under [[../fixed/299.org][#299]],
-    so ~translate src/til.til~ runs to teardown and is a candidate
-    leak-only translate probe (its leak side belongs here in #109).
+    heap-use-after-free; that specific failure is fixed under
+    [[../fixed/299.org][#299]] (the umbrella for ALL non-leak ASAN failures,
+    now FIXED), so ~translate src/til.til~ runs to teardown and is a
+    candidate leak-only translate probe (its leak side belongs here in #109).
 
   *** Previous 2026-06-28 ASAN status after the first-class cleanup pass
 
@@ -90,11 +91,13 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
   | ~test/arrays.til~ | 6 | 1 |
 
   Non-leak ASAN failures (heap-buffer-overflow / heap-use-after-free /
-  bad-free) are tracked separately in [[../fixed/299.org][#299]] (now FIXED),
-  so this issue stays leak-only. The non-leak failures that used to be
+  bad-free) are tracked in [[../fixed/299.org][#299]] (umbrella, FIXED), NOT
+  here, so this issue stays leak-only. The non-leak failures that used to be
   listed here -- ~callable_box_is~ / ~Value_Int32~ / ~is_n~ overflows, the
-  ~ffi_interp~ bad-free, and the ~translate src/til.til~ use-after-free --
-  are all resolved there; only the leaks below remain for #109.
+  ~ffi_interp~ bad-free, the ~translate src/til.til~ use-after-free -- are
+  all fixed there, and ~make test_asan_full~ now has ZERO non-leak failures
+  (every remaining failure is a leak). Only the leaks below remain for #109.
+  Any future non-leak failure re-opens #299, not this.
 
 Status (2026-05): ~make test_asan_full~ now passes *117/117* tests --
   no test is failing.  ~bin/til_asan~ (the ASAN-instrumented compiler)

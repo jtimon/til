@@ -2,13 +2,20 @@
 # category: bugs
 ** FIXED #299 Fix non-leak ASAN failures in test_asan_full
 
-Post-mortem (2026-06-28): #299 is the umbrella for every ~test_asan_full~
+Post-mortem (2026-06-29): #299 is the umbrella for every ~test_asan_full~
 test that fails AddressSanitizer for a reason OTHER than a leak
-(heap-buffer-overflow, heap-use-after-free, bad-free), so that
-[[../open/109.org][#109]] can stay leak-only. All four documented non-leak
-failures are fixed; each was verified individually with
-~ASAN_OPTIONS=detect_leaks=0 bin/til_asan <cmd>~ (the human's
-~make test_asan_full~ at merge is the final gate for any undocumented one).
+(heap-buffer-overflow, heap-use-after-free, bad-free, stack/global
+overflow, ...), so that [[../open/109.org][#109]] stays leak-only. All such
+failures are fixed AND the whole suite was confirmed non-leak-clean: on
+master 1760943 ~make test_asan_full~ = 144/164, and every one of the 20
+failures is a LEAK (#109), not a non-leak error -- see "Verification".
+
+History: originally filed for just the ~translate src/til.til~ use-after-
+free, then correctly re-scoped to the whole non-leak category. It was
+closed after the first batch of fixes, briefly re-opened to confirm the
+umbrella really covered ALL non-leak failures (not only the four documented
+up front), and closed again once ~test_asan_full~ was verified to have zero
+non-leak failures.
 
 *** Fixes
 
@@ -24,10 +31,8 @@ failures are fixed; each was verified individually with
    (4 bytes) off a 1-byte region. Fix: a width-aware ~read_enum_tag_value~
    helper (reads exactly ~enum_tag_size~ bytes; boxes a U64 tag as the full
    8-byte ~Value.Int~) at both reinterpret sites, plus a ~enum_tag_size <= 4~
-   guard on the ns-registration narrowing. Regression tests:
-   ~test/enums.til::test_enum_u64_high_value~ and
-   ~test/regression.til::bug150~ (both already cover the shapes; now
-   ASAN-clean).
+   guard on the ns-registration narrowing. Regression:
+   ~test/enums.til::test_enum_u64_high_value~, ~test/regression.til::bug150~.
 
 2. ~ffi_interp~ (~examples/ffi/ext_module.til~) -- ~link_c~ FFI allocator
    mismatch (bad-free in the ASAN free wrapper). Root cause: ~bin/til_asan~
@@ -61,20 +66,31 @@ failures are fixed; each was verified individually with
    pointers for the enum to own.
 
 4. ~test/aliases|dynamic|errors|tuples.til~ -- ~callable_box_is~
-   heap-buffer-overflow. Already fixed on master before this issue's work;
-   re-verified ASAN-clean here.
+   heap-buffer-overflow. Already fixed on master before this issue's work.
 
-*** Repro (original, now clean)
+*** Verification (master 1760943)
 
-    ulimit -d unlimited && ASAN_OPTIONS=detect_leaks=0 bin/til_asan translate src/til.til
+~make test_asan_full~ redirects each spawned test's output to ~/dev/null~
+(see ~test_runner.til~), so its log only has PASS/FAIL -- the ASAN text is
+NOT in it -- and it runs every interpret/translate under the default
+~detect_leaks=1~, so a FAIL can be a leak OR a non-leak error. Classify by
+re-running the failing test directly:
 
-Was: ~SUMMARY: AddressSanitizer: heap-use-after-free ... in needs_source_escape~.
-Now: no ASAN error.
+    ulimit -d unlimited
+    ASAN_OPTIONS=detect_leaks=0 bin/til_asan <interpret|translate> <file>   # non-leak only
+    ASAN_OPTIONS=detect_leaks=1 bin/til_asan <interpret|translate> <file>   # +leaks
 
-*** Notes
+Clean under ~detect_leaks=0~ but aborting under ~detect_leaks=1~ = a LEAK
+(#109). A non-leak abort under ~detect_leaks=0~ = a #299 item.
 
-Found while looking for a merge-time leak-only translate sentinel after
-#109's ~test/hashmaps.til~ baseline fell to zero. With the non-leak
-translate failure gone, ~translate src/til.til~ is a candidate leak-only
-translate probe -- but the leak side of that belongs to
-[[../open/109.org][#109]].
+~make test_asan_full~ = 144/164. All 20 failures classified this way exit 0
+with NO non-leak ASAN error under ~detect_leaks=0~, aborting only on a
+LeakSanitizer block under ~detect_leaks=1~ -- i.e. all 20 are LEAKS in #109:
+
+  interpret: kwargs, dyn_hashmaps, enums, lazy, dynamic, dyn_maps, asting,
+  structs, eval_heap, templ_vec, tuples, errors, closures, regression,
+  dyn_sets, own_fields, dyn_arrays; plus ffi_interp, closures_interp,
+  self_translate (translate src/til.til, compiler-side leak).
+
+Zero non-leak failures remain. If a new non-leak ASAN failure surfaces in
+~test_asan_full~ later, re-open this and fix it here (NOT in #109).
