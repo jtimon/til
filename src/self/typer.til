@@ -1546,6 +1546,22 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     }
     infer_expr(scope, obj, in_func, ctx)
 
+    // A function pointer is a pointer-sized value, but a funcsig is not a
+    // struct, so it has no `size` metatype method of its own. Route a funcptr
+    // type-token's `.size()` through Dynamic (the universal 8-byte pointer,
+    // src/core/dyn.til), which reports pointer size. (`clone`/`delete` need
+    // funcptr-typed results / true no-op delete -- not Dynamic's, which frees
+    // -- so they are handled separately as the Array-of-funcptr work lands.)
+    if obj.expr_til_type().is_funcptr().and(method.eq("size")) {
+        switch obj.node_type {
+        case NodeType.Ident:
+            mut dyn_recv := Expr.new(ident_node("Dynamic"), obj.line, obj.col)
+            dyn_recv.set_expr_til_type(Type.Struct("Dynamic"))
+            fa.children[0] = dyn_recv
+        case:
+        }
+    }
+
     mut obj_is_type := false
     switch obj.node_type {
     case NodeType.Ident(oit_id):
