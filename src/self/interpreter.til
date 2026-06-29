@@ -3915,6 +3915,17 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut cloned := val.clone()
         switch cloned {
         case Value.Struct(csi):
+            // Reclaim the previous inline field's nested heap before
+            // overwriting. A reassignment over an inline (Shallow) struct field
+            // -- e.g. DynHashMap's `m.keys = DynVec.new_type_name(...)` replacing
+            // the `DynVec.new(Dynamic)` default written at construction -- would
+            // otherwise orphan the old field's buffers (the `own` field case
+            // above frees its old slot; this one did not). Cloned first so a
+            // self-assign `s.f = s.f` reads val before the old is freed;
+            // struct_deep_free reads ctx.struct_layouts (AST-independent) and
+            // no-ops on the zeroed field of the first write at construction.
+            ref old_field_name : Str = stable_type_name(dd.explicit_type, ctx)
+            struct_deep_free(old_field_name, ptr, ctx)
             memcpy(ptr, csi.data, fsz.cast(U64))
             free(own csi.data)
             csi.data = NULL
