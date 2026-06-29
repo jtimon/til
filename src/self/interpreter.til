@@ -4070,8 +4070,21 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             // self-assign `s.f = s.f` reads val before the old is freed;
             // struct_deep_free reads ctx.struct_layouts (AST-independent) and
             // no-ops on the zeroed field of the first write at construction.
-            ref old_field_name : Str = stable_type_name(dd.explicit_type, ctx)
-            struct_deep_free(old_field_name, ptr, ctx)
+            if csi.is_str {
+                // Inline Str field reassignment: free the OLD c_str directly.
+                // struct_deep_free can't -- an inferred Str field's explicit_type
+                // is empty (no layout -> no-op), and a Str's c_str is the is_str
+                // special case, not a struct field it would walk. str_owns_c_str
+                // is false on the zeroed first-write field and on borrowed views,
+                // so this no-ops at construction and never frees a foreign view.
+                ref old_str : Str = ptr
+                if str_owns_c_str(old_str) {
+                    if old_str.c_str.is_null().not() { free(own old_str.c_str) }
+                }
+            } else {
+                ref old_field_name : Str = stable_type_name(dd.explicit_type, ctx)
+                struct_deep_free(old_field_name, ptr, ctx)
+            }
             memcpy(ptr, csi.data, fsz.cast(U64))
             free(own csi.data)
             csi.data = NULL
