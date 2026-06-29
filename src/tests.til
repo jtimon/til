@@ -883,6 +883,7 @@ main := proc(args: ..Str) {
     mut build_ms := 0
     mut build_mem := 0
     mut self_ms := 0
+    mut self_mem := 0
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
@@ -894,7 +895,10 @@ main := proc(args: ..Str) {
             if t.category == "ffi" { ffi_ms = ffi_ms + t.ms }
             if t.category == "typer" { typer_ms = typer_ms + t.ms }
             if t.category == "cli" { cli_ms = cli_ms + t.ms }
-            if t.category == "self" { self_ms = self_ms + t.ms }
+            if t.category == "self" {
+                self_ms = self_ms + t.ms
+                self_mem = self_mem + t.mem
+            }
             if t.category == "build" {
                 build_ms = build_ms + t.ms
                 build_mem = build_mem + t.mem
@@ -906,9 +910,9 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms", NL,
-        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000,5200", NL,
-        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000,5100", NL)
+    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem", NL,
+        "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,500000,900000,300000,1700000,5200,600000", NL,
+        "def5678,1890,3900,1510,190,1680,1950,4500,32,32,520000,880000,320000,1720000,5100,620000", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := File.readfile("tmp/_test_plot.svg")
@@ -918,8 +922,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline") < 9 {
-        println("FAIL: plot.til expected 9 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline") < 10 {
+        println("FAIL: plot.til expected 10 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -940,6 +944,11 @@ main := proc(args: ..Str) {
     }
     if count_matches(plot_svg, ">self<") == 0 {
         println("FAIL: plot.til missing legend label self")
+        plot_ok = 0
+        fail = 1
+    }
+    if count_matches(plot_svg, ">self-mem<") == 0 {
+        println("FAIL: plot.til missing legend label self-mem")
         plot_ok = 0
         fail = 1
     }
@@ -1015,39 +1024,30 @@ main := proc(args: ..Str) {
             total_mem_comp.to_str(), ",",
             total_mem_run.to_str(), ",",
             total_mem_total.to_str(), ",",
-            self_ms.to_str())
+            self_ms.to_str(), ",",
+            self_mem.to_str())
 
         totals_path := "doc/totals.csv"
+        // tests.til owns the header so the column set (incl self_ms / self_mem)
+        // always matches the data and survives the merge's `git restore
+        // doc/totals.csv`: the file is auto-generated and discarded, so the
+        // header only persists if it is regenerated here.
+        header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_ms,self_mem"
         existing := File.readfile(totals_path)
-        mut totals_content := ""
+        mut totals_content := format(header, NL)
         lines := existing.split(NL)
-        mut last_data_idx := lines.len() - 1
-        while last_data_idx > 0 {
-            ref last_line : Str = lines[last_data_idx]
-            if last_line.len() > 0 { break }
-            last_data_idx--
-        }
-        if last_data_idx > 0 {
-            ref last_data : Str = lines[last_data_idx]
-            last_commit := last_data.substr(0, last_data.find(",").to_usize())
-            if last_commit == commit {
-                mut li : USize = 0
-                while li < last_data_idx {
-                    ref ln : Str = lines[li]
+        // Keep existing data rows (skip the old header at line 0 and blanks),
+        // dropping any row for the current commit so a re-run replaces it.
+        mut li : USize = 1
+        while li < lines.len() {
+            ref ln : Str = lines[li]
+            if ln.len() > 0 {
+                row_commit := ln.substr(0, ln.find(",").to_usize())
+                if row_commit != commit {
                     totals_content = format(totals_content, ln, NL)
-                    li++
-                }
-            } else {
-                totals_content = existing
-                if existing.substr(existing.len() - 1, 1) != NL {
-                    totals_content = format(totals_content, NL)
                 }
             }
-        } else {
-            totals_content = existing
-            if existing.len().gt(0).and(existing.substr(existing.len() - 1, 1).neq(NL)) {
-                totals_content = format(totals_content, NL)
-            }
+            li++
         }
         totals_content = format(totals_content, totals_line, NL)
         File.writefile(totals_path, totals_content)
