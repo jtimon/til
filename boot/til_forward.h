@@ -2012,6 +2012,7 @@ U32 Str_to_usize(Str * self);
 F32 Str_to_f32(Str * self);
 Vec__Str * Str_split(Str * self, Str * delim);
 U32 Str_size(void);
+Bool Str_neq(Str * a, Str * b);
 I64 digit_value(I8 ch);
 U32 c_str_len(void * s);
 OutOfBounds * OutOfBounds_clone(OutOfBounds * self);

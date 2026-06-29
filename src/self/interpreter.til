@@ -1715,16 +1715,21 @@ priv free_struct_contents_keep_outer := func(si: StructInstance) {
     }
 }
 
-// True iff a struct delete body does anything beyond the auto-generated shape
-// (per-field `self.f.delete(...)` cleanup plus a final `free(own self)`):
-//   - an Assign / FieldAssign (a side effect, e.g. a `delete_count` counter), or
-//   - a direct `free(own self.field)` (a hand-written own-raw-field free that
-//     struct_deep_free deliberately does NOT perform).
-// Either means the delete was hand-written and must run its own body. An
-// auto-generated delete has none of these, even after the typer desugars its
-// body into temporaries (Decl + method-call FCalls), so it returns false and is
-// safe to replace with the cache-driven deep teardown. Recurses through the
-// desugared temporaries and the `if call_free` arm.
+// True iff a struct delete body does anything beyond PURE FIELD CLEANUP, in
+// which case the interpreter must run the body rather than substitute the
+// cache-driven deep teardown (struct_deep_free reclaims memory but cannot
+// reproduce side effects). Pure field cleanup -- what an auto-generated delete,
+// and a hand-written one like DynHashMap's, does -- is zero or more
+// `<field>.delete(...)` / `til_closure_delete(...)` calls plus a final
+// `free(own self)`. Anything else is custom:
+//   - an Assign / FieldAssign (a side effect, e.g. DeleteCustom's counter);
+//   - a `free(own self.field)` (a manual own-raw-field free struct_deep_free
+//     does NOT perform);
+//   - any other call: a method that is not `.delete(...)` (e.g. File.delete's
+//     `File.close(self)`, which flushes/closes a fd), or a free function other
+//     than `free` / `til_closure_delete`.
+// Survives the typer's desugaring (Decl temporaries + method-call FCalls) and
+// recurses into call arguments and the `if call_free` arm.
 priv delete_body_has_custom_logic := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Assign:
@@ -1732,13 +1737,26 @@ priv delete_body_has_custom_logic := func(e: Expr) returns Bool {
     case NodeType.FieldAssign:
         return true
     case NodeType.FCall:
-        if e.children.len() >= 2 {
+        if e.children.len() >= 1 {
             switch e.children[0].node_type {
             case NodeType.Ident(fid):
-                if fid.ident_name() == "free" {
-                    if e.children[1].node_type.is(NodeType.FieldAccess) { return true }
+                ref cname : Str = fid.ident_name()
+                if cname == "free" {
+                    // free(own self) is cleanup; free(own self.field) is a manual
+                    // own-raw-field free struct_deep_free would skip.
+                    if e.children.len() >= 2 {
+                        if e.children[1].node_type.is(NodeType.FieldAccess) { return true }
+                    }
+                } else if cname == "til_closure_delete" {
+                } else if cname.ends_with("_delete") {
+                } else {
+                    return true
                 }
+            case NodeType.FieldAccess(fa):
+                // Only `<receiver>.delete(...)` is field cleanup.
+                if fa.field_access_name() != "delete" { return true }
             case:
+                return true
             }
         }
     case:
@@ -1866,18 +1884,22 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     if rsi.struct_name == "DynVec" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
                     if container_elem_type(rsi.struct_name).len() > 0 { do_intercept = true }
-                    // A monomorphized generic struct (name contains "__") whose
-                    // auto-generated delete lost fd_ag.auto_generated (above)
-                    // across cross-unit type-macro expansion: detect it from the
-                    // body instead. Running that body in the interpreter leaks --
-                    // its `self.f.delete(...)` calls dispatch on the borrowed
-                    // `self` view and no-op, so nested ownership (a HashMap's
-                    // keys/values/buckets/nexts Vec buffers) is never reclaimed
-                    // and `free(own self)` only frees the top block. Restricted to
-                    // generic monos and to bodies with no custom logic, so a
-                    // hand-written delete (DeleteCustom's counter, a manual
-                    // own-field free) is left to run.
-                    if rsi.struct_name.contains("__").and(delete_body_has_custom_logic(func_def).not()) { do_intercept = true }
+                    // A delete whose body is pure field cleanup -- no Assign/
+                    // FieldAssign side effect and no manual `free(own self.x)` --
+                    // is safe to replace with the cache-driven deep teardown:
+                    // struct_deep_free reclaims exactly what the field deletes
+                    // would, and never less. The interpreter cannot run those
+                    // bodies correctly anyway -- a `self.f.delete(...)` or a
+                    // `Type.delete(own self.f)` dispatches on the borrowed
+                    // self/field view and no-ops (read_field hands an own field
+                    // back as a borrowed Ref), so a HashMap's Vec or a
+                    // DynHashMap's DynVec buffers leak and `free(own self)` frees
+                    // only the top block. fd_ag.auto_generated catches the common
+                    // case but is lost on monomorphized generics; the body shape
+                    // is the robust signal (no fragile name sniffing). A
+                    // hand-written delete with side effects (DeleteCustom's
+                    // counter) or an own-raw-field free keeps running its body.
+                    if delete_body_has_custom_logic(func_def).not() { do_intercept = true }
                 case:
                 }
                 if do_intercept {
