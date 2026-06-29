@@ -1911,6 +1911,14 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
                 if do_intercept {
                     if call_free {
+                        // #286 Stage 3: a peeled plain struct's payload is owned
+                        // by its heap_bindings marker, not the borrowed Cell.val
+                        // view -- free_temp_arg_value below no-ops on the view, so
+                        // reclaim the marker's payload here (heap_drop + heap_free)
+                        // before nulling the cell. Mirrors scope_free's reclaim;
+                        // the marker is flagged moved_out so scope_free won't
+                        // double-reclaim.
+                        scope_reclaim_peeled_at_binding(caller_scope, recv_id.ident_name())
                         free_temp_arg_value(recv_cell.val)
                         memcpy(recv_cell.val, val_none(), Value.size().cast(U64))
                     } else {
@@ -3136,6 +3144,89 @@ priv scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dy
     return NULL
 }
 
+// #286 Stage 3: peel a freshly-bound owned plain struct so scope teardown
+// reclaims it via the canonical heap_drop. A heap_bindings marker records the
+// peel; Cell.val keeps a borrowed view so the box's own free no-ops. Skips Str /
+// containers, custom-delete/clone structs (their box teardown has user
+// semantics heap_drop can't replicate), the global scope, and borrowed/layout-
+// less values. valaddr is the cell ADDRESS (Cell.val is at offset 0).
+priv struct_has_custom_teardown := func(struct_name: Str, ctx: Context) returns Bool {
+    ref tdef : Expr = lookup_interp_type_def(struct_name, ctx)
+    if tdef.is_null() { return true }
+    switch tdef.node_type {
+    case NodeType.StructDef(sdd):
+        // Methods live in ns_decls. A user-defined delete whose body has custom
+        // logic (Assign / FieldAssign / a non-field-cleanup call -- the same
+        // signal master's interception uses) must keep its box teardown, so do
+        // NOT peel such a struct. Auto-generated / pure-field-cleanup deletes are
+        // equivalent to heap_drop, so peeling is safe there.
+        for d : Declaration in sdd.ns_decls {
+            if d.name == "delete" {
+                if delete_body_has_custom_logic(d.default_value) { return true }
+            }
+        }
+    case:
+        return true
+    }
+    return false
+}
+
+priv scope_peel_owned_aggregate := func(mut s: Scope, shallow name: Str, valaddr: Dynamic) {
+    if s.parent.is_null() { return }
+    ref cv : Value = valaddr
+    switch cv {
+    case Value.Struct(si):
+        if si.borrowed { return }
+        if si.data.is_null() { return }
+        if si.layout.is_null() { return }
+        if si.is_str { return }
+        if si.is_str_container { return }
+        if container_elem_type(si.struct_name()).len() > 0 { return }
+        if si.ctx.is_null() { return }
+        if struct_has_custom_teardown(si.struct_name(), si.ctx) { return }
+        marker := HeapBinding(til_type = Type.Unknown, own_type = OwnType.Own, is_local = true,
+                              is_borrowed = false, moved_out = false)
+        s.heap_bindings.set(name, own marker)
+        si.borrowed = true
+    case:
+    }
+}
+
+priv scope_reclaim_peeled := func(mut s: Scope, shallow name: Str, valaddr: Dynamic) {
+    if s.heap_bindings.has(name).not() { return }
+    ref mut hb : HeapBinding = s.heap_bindings[name]
+    if hb.moved_out { return }
+    hb.moved_out = true
+    ref cv : Value = valaddr
+    switch cv {
+    case Value.Struct(si):
+        if si.data.is_null() { return }
+        if si.borrowed.not() { return }
+        heap_drop(si.struct_name(), si.data, si.ctx)
+        EvalHeap.heap_free(own si.data)
+    case:
+    }
+}
+
+// #286 Stage 3: reclaim a peeled struct from the explicit-delete intercept.
+// The receiver may be bound in a parent scope, so walk inner->outer for the
+// nearest scope that actually holds `name`'s binding (mirroring scope_get),
+// then reclaim that scope's peel marker against the cell's view.
+// scope_reclaim_peeled marks the marker moved_out, so scope_free will not
+// reclaim it a second time.
+priv scope_reclaim_peeled_at_binding := func(mut s: Scope, shallow name: Str) {
+    ref mut cur : Scope = s
+    while true {
+        if cur.is_null() { return }
+        if cur.bindings.has(name) {
+            ref b : Binding = cur.bindings[name]
+            scope_reclaim_peeled(cur, name, b.cell)
+            return
+        }
+        cur = cur.parent
+    }
+}
+
 scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     // The cell takes ownership of val's payload (memcpy of the Value bytes,
     // including the .data pointer). val is a pointer to the caller's local,
@@ -3152,6 +3243,9 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
         // honours the borrowed flag and the CAP_VIEW guard, so an owned view
         // Str keeps its borrowed c_str. A borrowed binding shares the source
         // cell, so never deep-free it: keep the shallow release there.
+        // #286 Stage 3: reclaim a previously-peeled payload (pass b.cell, the
+        // cell ADDRESS, never b.cell.val which moves the Value).
+        scope_reclaim_peeled(s, name, b.cell)
         if b.cell_is_local {
             free_temp_arg_value(b.cell.val)
         } else {
@@ -3159,6 +3253,7 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
         }
         memcpy(b.cell.val, val, Value.size().cast(U64))
         memcpy(val, val_none(), Value.size().cast(U64))
+        if b.cell_is_local { scope_peel_owned_aggregate(s, name, b.cell) }
         return
     }
     cell : Dynamic = malloc(Cell.size().cast(U64))
@@ -3172,6 +3267,8 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     local_flag := true
     memcpy(ptr_add(v, 16), local_flag, Bool.size().cast(U64))
     s.bindings.set(name, own v)
+    // #286 Stage 3: move plain-struct ownership to a heap_bindings marker.
+    scope_peel_owned_aggregate(s, name, cell)
 }
 
 priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
@@ -3183,8 +3280,13 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {
     s.bindings.set(name, own v)
 }
 scope_free := func(own s: Scope) {
-    for b in s.bindings.values {
+    // #286 Stage 3: iterate by index to pass the stable bindings MAP KEY to
+    // scope_reclaim_peeled, and b.cell (the cell ADDRESS, not b.cell.val).
+    for i in 0..s.bindings.keys.count {
+        ref kname : Str = s.bindings.keys.unsafe_get(i)
+        ref b : Binding = s.bindings.values.unsafe_get(i)
         if b.cell_is_local {
+            scope_reclaim_peeled(s, kname, b.cell)
             // Issue #275: deep teardown for ALL scopes -- reclaim every
             // non-borrowed Struct/Str/Enum payload. Block/if/while/catch cells
             // skipped by an early return/break (whose scope-exit AST deletes
