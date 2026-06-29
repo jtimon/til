@@ -383,7 +383,7 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
         name = format(name, return_type)
     }
 
-    // Build synthetic func_def (bodyless — same as named FuncSig types)
+    // Build synthetic func_def (bodyless -- same as named FuncSig types)
     mut fd := FunctionDef()
     if return_type.len() > 0 { fd.func_type = FuncType.Func }
     else { fd.func_type = FuncType.Proc }
@@ -1841,7 +1841,7 @@ priv parse_binop := proc(mut p: Parser, min_prec: I64) returns Expr {
 // parse_expression: top-level expression (binary operators + range)
 priv parse_expression := proc(mut p: Parser) returns Expr {
     mut e := parse_binop(p, 1)
-    // Range expression: e..rhs → Range.new(e, rhs)
+    // Range expression: e..rhs -> Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
         dt_line := peek_line(p)
         dt_col := peek_col(p)
@@ -2019,7 +2019,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             last_col = peek_col(p)
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
-                // More dots — intermediate access
+                // More dots -- intermediate access
                 mut access := Expr.new(field_access_node(last_field), last_line, last_col)
                 access.add_child(own obj.clone())
                 obj = access

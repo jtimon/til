@@ -247,7 +247,7 @@ remove_group := func(mut board: Array(I64), mut visited: Array(I64), mut stk: Ve
 }
 
 // Try placing a stone on tmp_board (copy of board). Returns captures, or -1 if illegal.
-// Does NOT modify board — caller must copy tmp to board if legal.
+// Does NOT modify board -- caller must copy tmp to board if legal.
 // ko_board is the board state from before the last move (for ko detection).
 try_place := func(mut tmp: Array(I64), mut visited: Array(I64), mut lib_seen: Array(I64),
                    mut stk: Vec(I64), idx: I64, size: I64, color: I64,
@@ -329,7 +329,7 @@ try_place := func(mut tmp: Array(I64), mut visited: Array(I64), mut lib_seen: Ar
     clear_arr(lib_seen, total)
     own_libs := count_liberties(tmp, visited, lib_seen, stk, idx, size, color)
     if own_libs.eq(0) {
-        // Suicide — undo placement (caller's tmp is now dirty, but that's OK
+        // Suicide -- undo placement (caller's tmp is now dirty, but that's OK
         // because caller will discard it)
         return -1
     }

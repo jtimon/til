@@ -2,7 +2,7 @@ mode lib
 
 // Alpha-beta pruning with function pointer callbacks.
 // Games pass their own h and nexts via AlphaBeta struct.
-// Board is a generic data blob — each game defines its own layout.
+// Board is a generic data blob -- each game defines its own layout.
 
 AB_INF := 100000
 MAX_BOARD := 8192

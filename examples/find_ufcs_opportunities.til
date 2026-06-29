@@ -63,7 +63,8 @@ main := proc(args: ..Str) {
         src := File.readfile(fp)
         tokens := tokenize(src, fp)
         mut mode_out := ""
-        root := parse(tokens, fp, mode_out)
+        mut anon_type_counter : I64 = 0
+        root := parse(tokens, src, fp, mode_out, anon_type_counter)
         walk(root, fp)
     }
     println("Total: ", count.to_str())

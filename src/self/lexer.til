@@ -1,7 +1,7 @@
 mode lib
 
 // --- TokenType enum ---
-// Matches lexer.h TokenType (TOK_* → PascalCase)
+// Matches lexer.h TokenType (TOK_* -> PascalCase)
 
 TokenType := enum {
     Eof,

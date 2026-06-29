@@ -2,7 +2,7 @@ mode cli
 
 import("std/sys")
 
-// test_runner.til — runs tests and reports structured results for tests.til.
+// test_runner.til -- runs tests and reports structured results for tests.til.
 //
 // Usage:
 //   test_runner both <file> [-no-interp] [-no-run] [-no-match] [--til-bin <path>]

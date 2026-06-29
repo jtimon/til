@@ -563,7 +563,7 @@ main := proc(args: ..Str) {
     // doc_block_comments imports the lexer and builds Tokens (U32 fields),
     // so it runs compile-only like the lexing tests below (issue #182).
     add_both(tests, "test/doc_block_comments.til", mode_flags(0, en_run, asan_flag))
-    // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64→U32
+    // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64->U32
     // (interpreter doesn't handle U32 struct fields correctly)
     // add_both(tests, "test/lexing.til", flags)
     // add_both(tests, "test/parsing.til", flags)
@@ -990,7 +990,7 @@ main := proc(args: ..Str) {
     run("git rev-parse --short HEAD > tmp/_commit_hash")
     commit := File.readfile("tmp/_commit_hash").replace(NL, "")
 
-    // gen/benchmark.csv — both tests only (not tracked)
+    // gen/benchmark.csv -- both tests only (not tracked)
     run("mkdir -p gen")
     mut bench := Str.with_capacity(32768)
     bench.push_str("commit,file,interp_ms,compile_ms,run_ms,interp_ok,compile_ok,run_ok")
@@ -1011,7 +1011,7 @@ main := proc(args: ..Str) {
     }
     File.writefile("gen/benchmark.csv", bench)
 
-    // doc/totals.csv — all test totals (skip on failure)
+    // doc/totals.csv -- all test totals (skip on failure)
     if fail == 0 {
         total_mem_total := total_mem_inte.add(total_mem_comp).add(total_mem_run) + build_mem
         totals_line := format(commit, ",",

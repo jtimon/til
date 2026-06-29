@@ -708,7 +708,7 @@ chess_next_boards : NextBoardsFn = (b) {
         }
         i++
     }
-    // Empty result for checkmate/stalemate — heuristic handles via in_check
+    // Empty result for checkmate/stalemate -- heuristic handles via in_check
     return result
 }
 

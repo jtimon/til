@@ -1,6 +1,6 @@
 mode gui
 
-// Font comparison — click to cycle through fonts
+// Font comparison -- click to cycle through fonts
 
 FONTS := array(Str,
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
