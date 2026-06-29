@@ -112,7 +112,11 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             }
         } else if struct_name == "DynVec" {
             clone_dyn_vec_buffer(data, dst_data, ctx)
-        } else if container_elem_type(struct_name).len() > 0 {
+        } else if struct_name == "DynArray" {
+            clone_dyn_array_buffer(data, dst_data, ctx)
+        } else if struct_name == "DynSet" {
+            clone_dyn_set_buffer(data, dst_data, ctx)
+        } else if container_elem_type(struct_name, ctx).len() > 0 {
             clone_container_buffer(struct_name, data, dst_data, ctx)
         } else if struct_def_shallow_safe(sdef_data, ctx) {
         } else {
@@ -246,7 +250,7 @@ namespace:
     }
     clone := func(self: StructInstance) returns StructInstance {
         dst_data : Dynamic = heap_clone(self.struct_name, self.data, self.ctx)
-        is_str_container := self.is_str_container.or(container_elem_type(self.struct_name) == "Str")
+        is_str_container := self.is_str_container.or(container_elem_type(self.struct_name, self.ctx) == "Str")
         return StructInstance(struct_name = self.struct_name, is_str = self.is_str, is_str_container = is_str_container, ctx = self.ctx, data = dst_data, borrowed = false)
     }
     delete := func(own self: StructInstance, call_free: Bool = true) {
@@ -989,6 +993,15 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
 // Check if call should be skipped because first own param is None/borrowed/pointer-like.
 // Returns true if call should be skipped (caller returns val_none).
 priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns Bool {
+    mut is_delete_call := false
+    switch e.children[0].node_type {
+    case NodeType.FieldAccess(del_fn):
+        if del_fn.field_access_name() == "delete" { is_delete_call = true }
+    case NodeType.Ident(del_ident):
+        if del_ident.ident_name().ends_with("_delete") { is_delete_call = true }
+    case:
+    }
+    if is_delete_call.not() { return false }
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len() == 0 { return false }
@@ -1777,7 +1790,7 @@ priv interp_concrete_expr_type_name := func(e: Expr) returns Str {
     return ""
 }
 
-priv delete_ptr_receiver_type := func(e: Expr) returns Str {
+priv delete_ptr_receiver_type := func(e: Expr, ctx: Context) returns Str {
     direct_type := interp_concrete_expr_type_name(e)
     if direct_type.len().gt(0) { return direct_type }
     switch e.node_type {
@@ -1788,13 +1801,13 @@ priv delete_ptr_receiver_type := func(e: Expr) returns Str {
             case NodeType.Ident(fn_id): callee_name = fn_id.ident_name()
             case:
             }
-            if callee_name == "ptr_add" { return delete_ptr_receiver_type(e.children[1]) }
+            if callee_name == "ptr_add" { return delete_ptr_receiver_type(e.children[1], ctx) }
         }
     case NodeType.FieldAccess(fa):
         if fa.field_access_name() == "data" {
             if e.children.len().gt(0) {
                 container_type := interp_concrete_expr_type_name(e.children[0])
-                elem_type := container_elem_type(container_type)
+                elem_type := container_elem_type(container_type, ctx)
                 if elem_type.len().gt(0) { return elem_type }
             }
         }
@@ -1856,7 +1869,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
             ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
             if recv_cell.is_null().not() {
                 if call_free.not().and(get_own_arg(e, 1)).and(is_value_ptr(recv_cell.val)) {
-                    mut recv_type0 := delete_ptr_receiver_type(e.children[1])
+                    mut recv_type0 := delete_ptr_receiver_type(e.children[1], ctx)
                     switch func_def.node_type {
                     case NodeType.FuncDef(fd_del0):
                         if recv_type0.len().eq(0).and(fd_del0.params.len().gt(0)) { recv_type0 = fd_del0.params[0].explicit_type }
@@ -1882,8 +1895,13 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 case Value.Struct(rsi):
                     if rsi.struct_name == "Str" { do_intercept = true }
                     if rsi.struct_name == "DynVec" { do_intercept = true }
+                    if rsi.struct_name == "DynArray" { do_intercept = true }
+                    if rsi.struct_name == "DynSet" { do_intercept = true }
+                    if rsi.struct_name == "DynMap" { do_intercept = true }
+                    if rsi.struct_name == "DynHashMap" { do_intercept = true }
+                    if rsi.struct_name == "Expr" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
-                    if container_elem_type(rsi.struct_name).len() > 0 { do_intercept = true }
+                    if container_elem_type(rsi.struct_name, ctx).len() > 0 { do_intercept = true }
                     // A delete whose body is pure field cleanup -- no Assign/
                     // FieldAssign side effect and no manual `free(own self.x)` --
                     // is safe to replace with the cache-driven deep teardown:
@@ -1925,7 +1943,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
             }
             if call_free3.not().and(get_own_arg(e, 1)) {
-                mut recv_type := delete_ptr_receiver_type(e.children[1])
+                mut recv_type := delete_ptr_receiver_type(e.children[1], ctx)
                 switch func_def.node_type {
                 case NodeType.FuncDef(fd_del):
                     if recv_type.len().eq(0).and(fd_del.params.len().gt(0)) { recv_type = fd_del.params[0].explicit_type }
@@ -1981,7 +1999,9 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 if is_value_ptr(arg).and(param.explicit_type.len().gt(0)) {
                     arg = reinterpret_ptr_value(arg, param.explicit_type, caller_scope, ctx, false)
                 }
-                arg = widen_numeric(arg, param.explicit_type, ctx)
+                if value_is_callable(arg).not() {
+                    arg = widen_numeric(arg, param.explicit_type, ctx)
+                }
                 if param.explicit_type.eq("Dynamic").and(is_value_ptr(arg).not()) {
                     arg = box_scalar_to_dynamic(call_scope, arg, param.own_type.is(OwnType.Own).not())
                 }
@@ -1995,11 +2015,13 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     eval_body(call_scope, body, ctx)
     mut result := val_none()
     if c.has_return {
-        result = c.return_value.clone()
+        if value_is_borrowed(c.return_value) {
+            result = c.return_value.clone()
+            free_temp_arg_value(c.return_value)
+        } else {
+            result = shallow_copy_value(c.return_value)
+        }
         materialize_str_result(result)
-        // #286: reclaim the old return payload (no-op on a borrow into
-        // call_scope, which scope_free reclaims; frees an owned return).
-        free_temp_arg_value(c.return_value)
         memcpy(c.return_value, val_none(), Value.size().cast(U64))
         c.has_return = false
     }
@@ -2040,7 +2062,9 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         fn_val := eval_expr(scope, callee_expr, ctx)
         switch fn_val {
         case Value.Closure:
-            return eval_callable_call(scope, e, fn_val, ctx)
+            result := eval_callable_call(scope, e, fn_val, ctx)
+            free_temp_arg_value(fn_val)
+            return result
         case Value.Func(fn_ptr):
         ref func_def : Expr = deref(fn_ptr)
 
@@ -2321,7 +2345,9 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             interp_error(e, "function-pointer call: callee did not evaluate to a function", ctx)
             exit(1)
         }
-        return eval_callable_call(scope, e, cast_val, ctx)
+        result := eval_callable_call(scope, e, cast_val, ctx)
+        free_temp_arg_value(cast_val)
+        return result
     case:
         UNREACHABLE()
         return val_none()
@@ -2381,9 +2407,10 @@ priv free_value_full := func(shallow v: Value) {
     free_value(v)
     switch v {
     case Value.Dynamic(slot):
-        ref box : DynPtrBox = slot
-        if box.p.is_null().not() {
-            free(own box.p)
+        ref raw_ptr : Dynamic = deref(slot)
+        if raw_ptr.is_null().not() {
+            mut owned_ptr : Dynamic = raw_ptr
+            free(own owned_ptr)
         }
     case:
     }
@@ -2397,7 +2424,7 @@ priv free_value_full := func(shallow v: Value) {
 
 // Element type of a monomorphized container ("Array__Str" -> "Str",
 // "Vec__I64" -> "I64"); "" for a non-container struct name.
-priv container_elem_type := func(struct_name: Str) returns Str {
+priv container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
     array_prefix := "Array__"
     if struct_name.starts_with(array_prefix) {
         return struct_name.substr(array_prefix.count, struct_name.count - array_prefix.count)
@@ -2409,6 +2436,21 @@ priv container_elem_type := func(struct_name: Str) returns Str {
     set_prefix := "Set__"
     if struct_name.starts_with(set_prefix) {
         return struct_name.substr(set_prefix.count, struct_name.count - set_prefix.count)
+    }
+    sep := struct_name.find("__")
+    if sep >= 0 {
+        data_fl := ctx_field_layout(struct_name, "data", ctx)
+        count_fl := ctx_field_layout(struct_name, "count", ctx)
+        cap_fl := ctx_field_layout(struct_name, "cap", ctx)
+        if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
+            if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.not()).and(data_fl.is_funcptr.not()) {
+                start := sep.add(2).to_usize()
+                rest := struct_name.substr(start, struct_name.count.sub(start))
+                next_sep := rest.find("__")
+                if next_sep >= 0 { return rest.substr(0, next_sep.to_usize()) }
+                return rest
+            }
+        }
     }
     return ""
 }
@@ -2475,6 +2517,9 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
             if str_owns_c_str(s) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
+        } else if elem_type == "Tuple" {
+            free_tuple_data(slot, ctx)
+            struct_deep_free(elem_type, slot, ctx)
         } else {
             struct_deep_free(elem_type, slot, ctx)
         }
@@ -2517,6 +2562,24 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
     }
 }
 
+priv free_tuple_data := func(data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("Tuple", "data", ctx)
+    type_names_fl := ctx_field_layout("Tuple", "type_names", ctx)
+    type_sizes_fl := ctx_field_layout("Tuple", "type_sizes", ctx)
+    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
+    if hdr.p.is_null() { return }
+    ref type_names : Vec(Str) = ptr_add(data, type_names_fl.offset.cast(U64))
+    ref type_sizes : Vec(USize) = ptr_add(data, type_sizes_fl.offset.cast(U64))
+    mut offset : USize = 0
+    for i in 0..type_names.len() {
+        ref elem_type : Str = type_names[i]
+        ref elem_size : USize = type_sizes[i]
+        container_elem_deep_free(elem_type, ptr_add(hdr.p, offset.cast(U64)), ctx)
+        offset = offset + elem_size
+    }
+    free(own hdr.p)
+}
+
 // #286: cache-driven deep free of a struct value's nested heap. Reads
 // ctx.struct_layouts (a name-keyed cache that outlives the AST) instead of the
 // dangling struct_def, so it is safe at scope teardown. Frees own struct
@@ -2527,6 +2590,17 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
 priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
     if data.is_null() { return }
     if ctx.struct_layouts.has(struct_name).not() { return }
+    if struct_name == "Expr" {
+        node_fl := ctx_field_layout("Expr", "node_type", ctx)
+        if node_fl.size.eq(0) { panic("struct_deep_free Expr missing node_type layout") }
+        NodeType.delete(own ptr_add(data, node_fl.offset.cast(U64)), false)
+        children_fl := ctx_field_layout("Expr", "children", ctx)
+        if children_fl.size.eq(0).or(children_fl.struct_name.len().eq(0)) {
+            panic("struct_deep_free Expr missing children layout")
+        }
+        struct_deep_free(children_fl.struct_name, ptr_add(data, children_fl.offset.cast(U64)), ctx)
+        return
+    }
     ref sl : StructLayout = ctx.struct_layouts[struct_name]
     for i in 0..sl.fields.len() {
         ref fl : FieldLayout = sl.fields[i]
@@ -2570,13 +2644,17 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
     }
     if struct_name == "DynVec" {
         free_dyn_vec_buffer(data, ctx)
-    } else if container_elem_type(struct_name).len() > 0 {
+    } else if struct_name == "DynArray" {
+        free_dyn_array_buffer(data, ctx)
+    } else if struct_name == "DynSet" {
+        free_dyn_set_buffer(data, ctx)
+    } else if container_elem_type(struct_name, ctx).len() > 0 {
         free_container_data(struct_name, data, ctx)
     }
 }
 
 priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
-    elem_type := container_elem_type(struct_name)
+    elem_type := container_elem_type(struct_name, ctx)
     if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
     data_fl := ctx_field_layout(struct_name, "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
@@ -2604,7 +2682,7 @@ priv free_container_str_data_cached := func(data: Dynamic) {
 }
 
 priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
-    elem_type := container_elem_type(struct_name)
+    elem_type := container_elem_type(struct_name, ctx)
     if elem_type.len() == 0 { panic("clone_container_buffer: not a container: ", struct_name) }
     data_fl := ctx_field_layout(struct_name, "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
@@ -2644,6 +2722,34 @@ priv dyn_vec_elem_kind := func(data: Dynamic, ctx: Context) returns USize {
     return n.clone()
 }
 
+priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Context) returns Str {
+    fl := ctx_field_layout(struct_name, "elem_delete", ctx)
+    ref stored : Dynamic = deref(ptr_add(data, fl.offset.cast(U64)))
+    mut stored_func : Dynamic = stored
+    if callable_box_is(stored) {
+        stored_value := callable_storage_read(stored)
+        switch stored_value {
+        case Value.Func(sfp): stored_func = deref(sfp)
+        case:
+            panic("erased elem_delete callable box is not a function")
+        }
+    }
+    delete_suffix := ".delete"
+    for qn, nsv in ctx.ns_fields {
+        if qn.ends_with(delete_suffix).not() { continue }
+        switch nsv {
+        case Value.Func(fp):
+            ref expected : Dynamic = deref(fp)
+            if stored_func.ptr_eq(expected).or(stored_func.ptr_eq(fp)) {
+                return qn.substr(0, qn.count - delete_suffix.count)
+            }
+        case:
+        }
+    }
+    panic("erased elem_delete type not found for ", struct_name)
+    return ""
+}
+
 priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
     data_fl := ctx_field_layout("DynVec", "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
@@ -2655,6 +2761,47 @@ priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
         for i in 0..count {
             ref stored : Dynamic = deref(ptr_add(hdr.p, i.mul(elem_size).cast(U64)))
             if stored.is_null().not() { callable_storage_free(stored) }
+        }
+    } else if elem_kind == ELEM_BOXED {
+        elem_type := erased_elem_delete_type("DynVec", data, ctx)
+        if elem_type.len() > 0 {
+            for i in 0..count {
+                container_elem_deep_free(elem_type, ptr_add(hdr.p, i.mul(elem_size).cast(U64)), ctx)
+            }
+        }
+    }
+    EvalHeap.heap_free(own hdr.p)
+}
+
+priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynArray", "data", ctx)
+    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
+    if hdr.p.is_null() { return }
+    cap_fl := ctx_field_layout("DynArray", "cap", ctx)
+    elem_size_fl := ctx_field_layout("DynArray", "elem_size", ctx)
+    ref cap : USize = ptr_add(data, cap_fl.offset.cast(U64))
+    ref elem_size : USize = ptr_add(data, elem_size_fl.offset.cast(U64))
+    elem_type := erased_elem_delete_type("DynArray", data, ctx)
+    if elem_type.len() > 0 {
+        for i in 0..cap {
+            container_elem_deep_free(elem_type, ptr_add(hdr.p, i.mul(elem_size).cast(U64)), ctx)
+        }
+    }
+    EvalHeap.heap_free(own hdr.p)
+}
+
+priv free_dyn_set_buffer := func(data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynSet", "data", ctx)
+    ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
+    if hdr.p.is_null() { return }
+    count_fl := ctx_field_layout("DynSet", "count", ctx)
+    elem_size_fl := ctx_field_layout("DynSet", "elem_size", ctx)
+    ref count : USize = ptr_add(data, count_fl.offset.cast(U64))
+    ref elem_size : USize = ptr_add(data, elem_size_fl.offset.cast(U64))
+    elem_type := erased_elem_delete_type("DynSet", data, ctx)
+    if elem_type.len() > 0 {
+        for i in 0..count {
+            container_elem_deep_free(elem_type, ptr_add(hdr.p, i.mul(elem_size).cast(U64)), ctx)
         }
     }
     EvalHeap.heap_free(own hdr.p)
@@ -2677,6 +2824,57 @@ priv clone_dyn_vec_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Con
         }
     } else {
         memcpy(new_buf, src_hdr.p, cap.mul(elem_size).cast(U64))
+        if elem_kind == ELEM_BOXED {
+            elem_type := erased_elem_delete_type("DynVec", src_data, ctx)
+            if elem_type.len() > 0 {
+                for i in 0..count {
+                    elem_off := i.mul(elem_size).cast(U64)
+                    container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), elem_size, ctx)
+                }
+            }
+        }
+    }
+    write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
+}
+
+priv clone_dyn_array_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynArray", "data", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
+    if src_hdr.p.is_null() { return }
+    cap_fl := ctx_field_layout("DynArray", "cap", ctx)
+    elem_size_fl := ctx_field_layout("DynArray", "elem_size", ctx)
+    ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
+    ref elem_size : USize = ptr_add(src_data, elem_size_fl.offset.cast(U64))
+    new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(elem_size))
+    memcpy(new_buf, src_hdr.p, cap.mul(elem_size).cast(U64))
+    elem_type := erased_elem_delete_type("DynArray", src_data, ctx)
+    if elem_type.len() > 0 {
+        for i in 0..cap {
+            elem_off := i.mul(elem_size).cast(U64)
+            container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), elem_size, ctx)
+        }
+    }
+    write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
+}
+
+priv clone_dyn_set_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("DynSet", "data", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
+    if src_hdr.p.is_null() { return }
+    cap_fl := ctx_field_layout("DynSet", "cap", ctx)
+    count_fl := ctx_field_layout("DynSet", "count", ctx)
+    elem_size_fl := ctx_field_layout("DynSet", "elem_size", ctx)
+    ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
+    ref count : USize = ptr_add(src_data, count_fl.offset.cast(U64))
+    ref elem_size : USize = ptr_add(src_data, elem_size_fl.offset.cast(U64))
+    new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(elem_size))
+    memcpy(new_buf, src_hdr.p, count.mul(elem_size).cast(U64))
+    elem_type := erased_elem_delete_type("DynSet", src_data, ctx)
+    if elem_type.len() > 0 {
+        for i in 0..count {
+            elem_off := i.mul(elem_size).cast(U64)
+            container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), elem_size, ctx)
+        }
     }
     write_ptr(ptr_add(dst_data, data_fl.offset.cast(U64)), new_buf)
 }
@@ -2809,7 +3007,7 @@ priv borrow_value := func(v: Value) returns shallow Value {
 // via the cell's Value.Dynamic, because plenty of other paths put
 // borrowed Value.Dynamic into local cells and freeing those would
 // also double-free.
-priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_free: Bool) returns Value {
+priv box_scalar_to_dynamic := func(mut call_scope: Scope, mut v: Value, track_for_free: Bool) returns Value {
     mut dp : Dynamic = 0
     switch v {
     case Value.Int(p):     dp = malloc(8); memcpy(dp, p, 8)
@@ -2838,7 +3036,11 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, v: Value, track_for_fr
     // shallow_copy_value): the caller's cell still owns the payload, so the
     // callee's cell must not free it. An unflagged copy made two non-borrowed
     // owners -> double-free once scope teardown frees both (auto.til).
-    case: return borrow_value(v)
+    case:
+        if track_for_free { return borrow_value(v) }
+        moved := shallow_copy_value(v)
+        memcpy(v, val_none(), Value.size().cast(U64))
+        return moved
     }
     r := Value.Dynamic(dp)
     if track_for_free {
@@ -2859,7 +3061,7 @@ priv make_struct_value := func(sname: Str, data: Dynamic, borrowed: Bool, ctx: C
         // Issue #239: cache whether this is a Str value while sname is valid,
         // so the deep delete need not read the (possibly-freed) struct_name.
         payload.is_str = stable_sname == "Str"
-        payload.is_str_container = container_elem_type(stable_sname) == "Str"
+        payload.is_str_container = container_elem_type(stable_sname, ctx) == "Str"
         payload.ctx = ctx
         payload.data = data
         payload.borrowed = borrowed
@@ -3804,6 +4006,17 @@ priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context
     EvalHeap.heap_free(own old_owned)
 }
 
+priv free_inline_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
+    if struct_name == "Str" {
+        ref old_str : Str = to_ptr(ptr)
+        if str_owns_c_str(old_str) {
+            if old_str.c_str.is_null().not() { free(own old_str.c_str) }
+        }
+    } else {
+        struct_deep_free(struct_name, ptr, ctx)
+    }
+}
+
 priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
     ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     fsz := field_size
@@ -3915,17 +4128,10 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut cloned := val.clone()
         switch cloned {
         case Value.Struct(csi):
-            // Reclaim the previous inline field's nested heap before
-            // overwriting. A reassignment over an inline (Shallow) struct field
-            // -- e.g. DynHashMap's `m.keys = DynVec.new_type_name(...)` replacing
-            // the `DynVec.new(Dynamic)` default written at construction -- would
-            // otherwise orphan the old field's buffers (the `own` field case
-            // above frees its old slot; this one did not). Cloned first so a
-            // self-assign `s.f = s.f` reads val before the old is freed;
-            // struct_deep_free reads ctx.struct_layouts (AST-independent) and
-            // no-ops on the zeroed field of the first write at construction.
-            ref old_field_name : Str = stable_type_name(dd.explicit_type, ctx)
-            struct_deep_free(old_field_name, ptr, ctx)
+            if wf_nested.is_null().not() {
+                ref inline_struct_name : Str = stable_type_name(dd.explicit_type, ctx)
+                free_inline_struct_slot(ptr, inline_struct_name, ctx)
+            }
             memcpy(ptr, csi.data, fsz.cast(U64))
             free(own csi.data)
             csi.data = NULL
@@ -5598,12 +5804,29 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         // only when the Str owns the buffer (cap < CAP_VIEW guard) -- so this is
         // single-owner-correct. Null the c_str slot (Str's first field) so a
         // later teardown of the same Str sees NULL and cannot double-free.
-        base := eval_expr(s, e.children[1].children[0], ctx)
+        ref field_base_expr : Expr = e.children[1].children[0]
+        base := eval_expr(s, field_base_expr, ctx)
         mut free_owned_cstr := false
+        mut free_owned_raw_field := false
+        mut raw_field_slot : Dynamic = 0
         switch base {
         case Value.Struct(bsi):
-            if bsi.struct_name.eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
+            mut base_struct_name := til_type_name(field_base_expr.expr_til_type())
+            if base_struct_name.len() == 0 { base_struct_name = bsi.struct_name }
+            if base_struct_name.eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
                 free_owned_cstr = true
+            } else {
+                ref base_def : Expr = lookup_interp_type_def(base_struct_name, bsi.ctx)
+                if base_def.is_null().not() {
+                    ref fd : Declaration = find_field_decl(base_def, fa.field_access_name())
+                    if fd.is_null().not() {
+                        if fd.own_type.is(OwnType.Own).and(field_nested_def(fd, ctx).is_null()).and(decl_is_funcsig(fd, ctx).not()) {
+                            raw_fl := ctx_field_layout(base_struct_name, fa.field_access_name(), ctx)
+                            raw_field_slot = ptr_add(bsi.data, raw_fl.offset.cast(U64))
+                            free_owned_raw_field = true
+                        }
+                    }
+                }
             }
         case:
         }
@@ -5611,14 +5834,27 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         if free_owned_cstr {
             switch val {
             case Value.Ref(rp):
-                if rp.is_null().not() {
-                    mut owned_ptr : Dynamic = rp
+                ref cstr_ptr : Dynamic = deref(rp)
+                if cstr_ptr.is_null().not() {
+                    mut owned_ptr : Dynamic = cstr_ptr
                     free(own owned_ptr)
                     switch base {
                     case Value.Struct(bsi2):
                         if bsi2.data.is_null().not() { write_ptr(bsi2.data, NULL) }
                     case:
                     }
+                }
+            case:
+                free_value_full(val)
+            }
+        } else if free_owned_raw_field {
+            switch val {
+            case Value.Ref(rp):
+                ref raw_ptr : Dynamic = deref(rp)
+                if raw_ptr.is_null().not() {
+                    mut owned_ptr : Dynamic = raw_ptr
+                    free(own owned_ptr)
+                    write_ptr(raw_field_slot, NULL)
                 }
             case:
                 free_value_full(val)
