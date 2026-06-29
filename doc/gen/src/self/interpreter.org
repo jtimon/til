@@ -696,6 +696,16 @@ ext_proc unlink_path(path: Str)
 ext_proc process_id() returns shallow I32
 #+end_src
 
+* til_built_with_asan
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.til_built_with_asan
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_proc til_built_with_asan() returns shallow Bool
+#+end_src
+
 * ffi_init_struct_defs_append
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.ffi_init_struct_defs_append
@@ -724,6 +734,16 @@ proc ffi_init_scan_program(program: Expr, ctx: Context)
 
 #+begin_src til
 proc ffi_cleanup(ctx: Context)
+#+end_src
+
+* Vec__USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Vec__USize
+:group: Compiler tools
+:END:
+
+#+begin_src til
+Vec__USize
 #+end_src
 
 * Map__Str_Binding

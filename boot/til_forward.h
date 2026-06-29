@@ -1910,7 +1910,7 @@ typedef struct Context {
     BuilderFuncScratch builder_func;
     Map__Str_Str builder_str_lit_symbols;
     Vec__Str builder_str_lit_values;
-    Map__Str_Str builder_str_lit_alias_symbols;
+    Map__Str_Str builder_str_lit_ident_symbols;
     Set__Str swap_freed;
     Expr *current_fdef;
     Expr *cached_str_def;
@@ -3521,11 +3521,11 @@ void priv___src_self_builder_til__emit_user_fcall_with_inline_closure_cleanup(Fi
 void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
 void priv___src_self_builder_til__builder_reset_func_scratch(Context * ctx);
-Bool priv___src_self_builder_til__builder_is_file_static_str_lit_name(Str * name);
+Bool priv___src_self_builder_til__builder_is_hoisted_str_lit_ident(Str * name);
 void priv___src_self_builder_til__builder_reset_str_lit_pool(Context * ctx);
 Str * priv___src_self_builder_til__builder_register_str_lit(Context * ctx, Str * s);
-void priv___src_self_builder_til__builder_register_str_lit_alias(Context * ctx, Str * name, Str * s);
-Str * priv___src_self_builder_til__builder_c_ident_name(Str * name, Context * ctx);
+void priv___src_self_builder_til__builder_register_str_lit_ident(Context * ctx, Str * name, Str * s);
+Str * priv___src_self_builder_til__builder_resolve_c_ident_name(Str * name, Context * ctx);
 void priv___src_self_builder_til__builder_emit_str_lit_decl(File * f, Str * name, Str * s);
 void priv___src_self_builder_til__builder_register_str_lits_for_expr(Expr * e, Context * ctx);
 void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedProgram * lp);

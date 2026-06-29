@@ -87,15 +87,12 @@ this unblocks recursive POD struct clone-skip (~Line_clone~ becomes a
 single C compound-literal expression), which feeds back into the
 builder's POD-ctor optimisation chain.
 
-** Per-literal malloc in dyn_type_to_str returns
+** Pooled literal wrappers in dyn_type_to_str returns
 
-Tracked as [[../issues/open/210.org][#210]].
+Fixed as [[../issues/fixed/210.org][#210]].
 
-~emit_dyn_type_to_str_body~ in src/self/builder.til emits ~17 malloc'd
-Str wrappers (one per Type variant) for the literal-name returns, even
-though the literal data is static.  The wrapper can't be made static
-without either reworking the ~swap~-based ~mut Str~ lowering (so
-~Str.delete~ can skip free for ~cap == CAP_LIT~) or splitting the
-function's heterogeneous return (static literals vs owned ~Str_clone~
-type names).  See #210 for the full analysis; shares the ~mut Str~/
-~swap~ machinery with #209.
+~dyn_type_to_str~ still returns an owned ~Str~, so payload names carried
+inside runtime ~Type~ values continue to use ~Str_clone~.  Literal Type
+names now go through the builder's file-scope ~_til_str_lit_N~ pool, so
+the generated code shares one static wrapper per unique literal instead
+of emitting one wrapper expression per return site.

@@ -515,7 +515,7 @@ Context := struct {
     builder_func := BuilderFuncScratch()
     builder_str_lit_symbols := Map(Str, Str).new()
     builder_str_lit_values := Vec(Str).new()
-    builder_str_lit_alias_symbols := Map(Str, Str).new()
+    builder_str_lit_ident_symbols := Map(Str, Str).new()
     swap_freed := Set(Str).new()
     ref current_fdef : Expr = NULL
 

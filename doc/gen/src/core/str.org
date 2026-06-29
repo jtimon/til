@@ -30,7 +30,7 @@ CAP_VIEW is a U32
 Concatenate multiple strings into one.
 
 #+begin_src til :doctest
-assert_eq(Str, format("a", "b", "c"), "abc")
+assert_eq(Str, "abc", format("a", "b", "c"))
 #+end_src
 
 #+begin_src til
@@ -78,6 +78,13 @@ namespace:
     /// Lexicographic comparison. Returns 0 if equal, negative if a < b,
     /// positive if a > b.
     func cmp(a: Str, b: Str) returns shallow I64
+    /// Equality with a length-mismatch early-out and a same-buffer
+    /// shortcut before the byte compare. Otherwise eq auto-derives from
+    /// cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+    /// the lengths already differ; this rejects the common different-length
+    /// case (distinct identifiers) without touching the bytes, and
+    /// short-circuits interned / identical buffers.
+    func eq(a: Str, b: Str) returns shallow Bool
     /// Create an empty Str pre-allocated for up to `n` bytes.
     func with_capacity(shallow n: U32) returns Str
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
@@ -162,7 +169,6 @@ namespace:
     /// Split the string on `delim`, returning a Vec of Str clones.
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns shallow U32
-    func eq(a: Str, b: Str) returns shallow Bool
     func lt(a: Str, b: Str) returns shallow Bool
     func gt(a: Str, b: Str) returns shallow Bool
     func neq(a: Str, b: Str) returns shallow Bool

@@ -97,6 +97,13 @@ namespace:
     /// Lexicographic comparison. Returns 0 if equal, negative if a &lt; b,
     /// positive if a &gt; b.
     func cmp(a: Str, b: Str) returns shallow I64
+    /// Equality with a length-mismatch early-out and a same-buffer
+    /// shortcut before the byte compare. Otherwise eq auto-derives from
+    /// cmp as `cmp(a,b) == 0`, which memcmps the common prefix even when
+    /// the lengths already differ; this rejects the common different-length
+    /// case (distinct identifiers) without touching the bytes, and
+    /// short-circuits interned / identical buffers.
+    func eq(a: Str, b: Str) returns shallow Bool
     /// Create an empty Str pre-allocated for up to `n` bytes.
     func with_capacity(shallow n: U32) returns Str
     /// Wrap a NUL-terminated C string as a non-owning Str view (no copy).
@@ -181,7 +188,6 @@ namespace:
     /// Split the string on `delim`, returning a Vec of Str clones.
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns shallow U32
-    func eq(a: Str, b: Str) returns shallow Bool
     func lt(a: Str, b: Str) returns shallow Bool
     func gt(a: Str, b: Str) returns shallow Bool
     func neq(a: Str, b: Str) returns shallow Bool
@@ -1302,11 +1308,11 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.ident_name">ident_name</a>
-<pre><code class="language-til">func ident_name(id: IdentData) returns Str
+<pre><code class="language-til">func ident_name(id: IdentData) returns ref Str
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.field_access_name">field_access_name</a>
-<pre><code class="language-til">func field_access_name(fa: FieldAccessData) returns Str
+<pre><code class="language-til">func field_access_name(fa: FieldAccessData) returns ref Str
 </code></pre>
 </li>
 <li><a href="src/core/ast.html#til.src.core.ast.set_own_arg">set_own_arg</a>
@@ -2462,6 +2468,10 @@ namespace:
 }
 </code></pre>
 </li>
+<li><a href="src/core/io.html#til.src.core.io.tfwrite">tfwrite</a>
+<pre><code class="language-til">proc tfwrite(f: File, parts: ..Str) returns ref File
+</code></pre>
+</li>
 <li><a href="src/core/mem.html#til.src.core.mem.free">free</a>
 <pre><code class="language-til">ext_func free(own elem: Dynamic)
 </code></pre>
@@ -3320,7 +3330,7 @@ namespace:
     mut builder_func : BuilderFuncScratch
     mut builder_str_lit_symbols : Map__Str_Str
     mut builder_str_lit_values : Vec__Str
-    mut builder_str_lit_alias_symbols : Map__Str_Str
+    mut builder_str_lit_ident_symbols : Map__Str_Str
     mut swap_freed : Set__Str
     ref mut current_fdef : Expr
     ref mut cached_str_def : Expr
@@ -6478,6 +6488,10 @@ namespace:
 <pre><code class="language-til">ext_proc process_id() returns shallow I32
 </code></pre>
 </li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a>
+<pre><code class="language-til">ext_proc til_built_with_asan() returns shallow Bool
+</code></pre>
+</li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a>
 <pre><code class="language-til">func ffi_init_struct_defs_append(program: Expr, ctx: Context)
 </code></pre>
@@ -6488,6 +6502,10 @@ namespace:
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a>
 <pre><code class="language-til">proc ffi_cleanup(ctx: Context)
+</code></pre>
+</li>
+<li><a href="src/self/interpreter.html#til.src.self.interpreter.Vec__USize">Vec__USize</a>
+<pre><code class="language-til">Vec__USize
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.Map__Str_Binding">Map__Str_Binding</a>

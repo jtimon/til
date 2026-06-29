@@ -413,7 +413,7 @@ func literal_num_text(n: LiteralNumData) returns Str
 :END:
 
 #+begin_src til
-func ident_name(id: IdentData) returns Str
+func ident_name(id: IdentData) returns ref Str
 #+end_src
 
 * field_access_name
@@ -423,7 +423,7 @@ func ident_name(id: IdentData) returns Str
 :END:
 
 #+begin_src til
-func field_access_name(fa: FieldAccessData) returns Str
+func field_access_name(fa: FieldAccessData) returns ref Str
 #+end_src
 
 * set_own_arg
