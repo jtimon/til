@@ -1425,7 +1425,7 @@ void Str_push_str(Str * self, Str * s) {
     (void)hoisted__v_180;
     (void)hoisted__v_180;
     memcpy(hoisted__v_180, s->c_str, s->count);
-    self->count = U32_clone(&new_len);
+    self->count = (new_len);
     void *hoisted__v_181 = ptr_add(self->c_str, new_len);
     (void)hoisted__v_181;
     (void)hoisted__v_181;
@@ -1696,7 +1696,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_790);
+                U32 i = (_rc_U32_790);
                 U32_inc(&_rc_U32_790);
                 U32 hoisted__U32_792 = 16;
                 (void)hoisted__U32_792;
@@ -1719,7 +1719,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_790);
+                U32 i = (_rc_U32_790);
                 U32_dec(&_rc_U32_790);
                 U32 hoisted__U32_798 = 16;
                 (void)hoisted__U32_798;
@@ -1765,7 +1765,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_804);
+                U32 i = (_rc_U32_804);
                 U32_inc(&_rc_U32_804);
                 U32 hoisted__U32_806 = 16;
                 (void)hoisted__U32_806;
@@ -1806,7 +1806,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_804);
+                U32 i = (_rc_U32_804);
                 U32_dec(&_rc_U32_804);
                 U32 hoisted__U32_819 = 16;
                 (void)hoisted__U32_819;
@@ -1889,7 +1889,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_852);
+                U32 i = (_rc_U32_852);
                 U32_inc(&_rc_U32_852);
                 U32 hoisted__U32_854 = 16;
                 (void)hoisted__U32_854;
@@ -1912,7 +1912,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_852);
+                U32 i = (_rc_U32_852);
                 U32_dec(&_rc_U32_852);
                 U32 hoisted__U32_860 = 16;
                 (void)hoisted__U32_860;
@@ -1965,7 +1965,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1108);
+                U32 i = (_rc_U32_1108);
                 U32_inc(&_rc_U32_1108);
                 U32 hoisted__U32_1110 = 16;
                 (void)hoisted__U32_1110;
@@ -2006,7 +2006,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_1108);
+                U32 i = (_rc_U32_1108);
                 U32_dec(&_rc_U32_1108);
                 U32 hoisted__U32_1123 = 16;
                 (void)hoisted__U32_1123;
@@ -2300,7 +2300,7 @@ Bool and(Bool a, Bool b) {
         Bool hoisted__Bool_2153 = ((Bool)(a == hoisted__Bool_2152));
         (void)hoisted__Bool_2153;
         if (hoisted__Bool_2153) {
-            Bool hoisted__Bool_2150 = Bool_clone(&b);
+            Bool hoisted__Bool_2150 = (b);
             (void)hoisted__Bool_2150;
             _m_Bool_2149 = hoisted__Bool_2150;
         } else {
@@ -4795,7 +4795,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5040);
+                U32 i = (_rc_U32_5040);
                 U32_inc(&_rc_U32_5040);
                 U32 hoisted__U32_5042 = 1;
                 (void)hoisted__U32_5042;
@@ -4818,7 +4818,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5040);
+                U32 i = (_rc_U32_5040);
                 U32_dec(&_rc_U32_5040);
                 U32 hoisted__U32_5048 = 1;
                 (void)hoisted__U32_5048;
@@ -4871,7 +4871,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5296);
+                U32 i = (_rc_U32_5296);
                 U32_inc(&_rc_U32_5296);
                 U32 hoisted__U32_5298 = 1;
                 (void)hoisted__U32_5298;
@@ -4880,7 +4880,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 U64 hoisted__U64_5300 = (U64)(hoisted__U32_5299);
                 (void)hoisted__U64_5300;
                 Bool *src = ptr_add(self->data, hoisted__U64_5300);
-                Bool cloned = Bool_clone(src);
+                Bool cloned = (DEREF(src));
                 U32 hoisted__U32_5301 = 1;
                 (void)hoisted__U32_5301;
                 U32 hoisted__U32_5302 = ((U32)(i * hoisted__U32_5301));
@@ -4911,7 +4911,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5296);
+                U32 i = (_rc_U32_5296);
                 U32_dec(&_rc_U32_5296);
                 U32 hoisted__U32_5311 = 1;
                 (void)hoisted__U32_5311;
@@ -4920,7 +4920,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 U64 hoisted__U64_5313 = (U64)(hoisted__U32_5312);
                 (void)hoisted__U64_5313;
                 Bool *src = ptr_add(self->data, hoisted__U64_5313);
-                Bool cloned = Bool_clone(src);
+                Bool cloned = (DEREF(src));
                 U32 hoisted__U32_5314 = 1;
                 (void)hoisted__U32_5314;
                 U32 hoisted__U32_5315 = ((U32)(i * hoisted__U32_5314));
@@ -4994,7 +4994,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5344);
+                U32 i = (_rc_U32_5344);
                 U32_inc(&_rc_U32_5344);
                 U32 hoisted__U32_5346 = 8;
                 (void)hoisted__U32_5346;
@@ -5017,7 +5017,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5344);
+                U32 i = (_rc_U32_5344);
                 U32_dec(&_rc_U32_5344);
                 U32 hoisted__U32_5352 = 8;
                 (void)hoisted__U32_5352;
@@ -5070,7 +5070,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5600);
+                U32 i = (_rc_U32_5600);
                 U32_inc(&_rc_U32_5600);
                 U32 hoisted__U32_5602 = 8;
                 (void)hoisted__U32_5602;
@@ -5079,7 +5079,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 U64 hoisted__U64_5604 = (U64)(hoisted__U32_5603);
                 (void)hoisted__U64_5604;
                 I64 *src = ptr_add(self->data, hoisted__U64_5604);
-                I64 cloned = I64_clone(src);
+                I64 cloned = (DEREF(src));
                 U32 hoisted__U32_5605 = 8;
                 (void)hoisted__U32_5605;
                 U32 hoisted__U32_5606 = ((U32)(i * hoisted__U32_5605));
@@ -5110,7 +5110,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5600);
+                U32 i = (_rc_U32_5600);
                 U32_dec(&_rc_U32_5600);
                 U32 hoisted__U32_5615 = 8;
                 (void)hoisted__U32_5615;
@@ -5119,7 +5119,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 U64 hoisted__U64_5617 = (U64)(hoisted__U32_5616);
                 (void)hoisted__U64_5617;
                 I64 *src = ptr_add(self->data, hoisted__U64_5617);
-                I64 cloned = I64_clone(src);
+                I64 cloned = (DEREF(src));
                 U32 hoisted__U32_5618 = 8;
                 (void)hoisted__U32_5618;
                 U32 hoisted__U32_5619 = ((U32)(i * hoisted__U32_5618));
@@ -5193,7 +5193,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5952);
+                U32 i = (_rc_U32_5952);
                 U32_inc(&_rc_U32_5952);
                 U32 hoisted__U32_5954 = 104;
                 (void)hoisted__U32_5954;
@@ -5216,7 +5216,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_5952);
+                U32 i = (_rc_U32_5952);
                 U32_dec(&_rc_U32_5952);
                 U32 hoisted__U32_5960 = 104;
                 (void)hoisted__U32_5960;
@@ -5269,7 +5269,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6208);
+                U32 i = (_rc_U32_6208);
                 U32_inc(&_rc_U32_6208);
                 U32 hoisted__U32_6210 = 104;
                 (void)hoisted__U32_6210;
@@ -5310,7 +5310,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6208);
+                U32 i = (_rc_U32_6208);
                 U32_dec(&_rc_U32_6208);
                 U32 hoisted__U32_6223 = 104;
                 (void)hoisted__U32_6223;
@@ -5394,7 +5394,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6256);
+                U32 i = (_rc_U32_6256);
                 U32_inc(&_rc_U32_6256);
                 U32 hoisted__U32_6258 = 160;
                 (void)hoisted__U32_6258;
@@ -5417,7 +5417,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6256);
+                U32 i = (_rc_U32_6256);
                 U32_dec(&_rc_U32_6256);
                 U32 hoisted__U32_6264 = 160;
                 (void)hoisted__U32_6264;
@@ -5470,7 +5470,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6512);
+                U32 i = (_rc_U32_6512);
                 U32_inc(&_rc_U32_6512);
                 U32 hoisted__U32_6514 = 160;
                 (void)hoisted__U32_6514;
@@ -5511,7 +5511,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 } else {
                     break;
                 }
-                U32 i = U32_clone(&_rc_U32_6512);
+                U32 i = (_rc_U32_6512);
                 U32_dec(&_rc_U32_6512);
                 U32 hoisted__U32_6527 = 160;
                 (void)hoisted__U32_6527;

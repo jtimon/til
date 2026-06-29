@@ -2973,6 +2973,20 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     f.write(" == ")
                     emit_deref(f, e.children[2], depth, ctx)
                     f.write("))")
+                } else if (mname.field_access_name() == "clone").and(is_primitive(e.expr_til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
+                    // Peephole: a value primitive's clone is a value copy --
+                    // emit the value directly instead of a <Prim>_clone() call
+                    // (13.6M U32_clone + 9M Bool_clone in --prof). Done in the
+                    // builder so the clone node stays in the AST and the
+                    // ownership/liveness analysis is untouched. Gated on a
+                    // non-pointer arg: an `own U8`/`own I8` field (Str.c_str,
+                    // Vec.data, DynPtrBox.p) is typed Primitive but is a heap
+                    // buffer pointer whose clone deep-copies, so those keep the
+                    // real <Prim>_clone call. <Prim>_clone stays a real func
+                    // (interp + reflective dispatch), so both modes agree.
+                    f.write("(")
+                    emit_deref(f, e.children[1], depth, ctx)
+                    f.write(")")
                 } else {
                     f.write(sname)
                     f.write("_")
