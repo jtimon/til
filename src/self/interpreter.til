@@ -1822,6 +1822,30 @@ priv delete_ptr_receiver_type_known := func(type_name: Str, ctx: Context) return
     return lookup_interp_type_def(type_name, ctx).is_null().not()
 }
 
+// The element type a funcptr-dispatched delete takes ownership of, or "" when
+// func_def is not a delete-contract method. The delete contract throughout the
+// codebase is `func(own self: T, call_free: Bool = true)`: an owned receiver
+// plus a call_free flag. A container's type-erased element delete funcptr
+// (DynVec.elem_delete = T.delete) matches this shape; dispatched on a raw slot
+// with call_free=false it must free the element in place exactly as the
+// container's own teardown does (container_elem_deep_free).
+priv funcptr_delete_recv_type := func(func_def: Expr) returns Str {
+    switch func_def.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.params.len() < 2 { return "" }
+        if fd.params[0].own_type.is(OwnType.Own).not() { return "" }
+        for pi in 1..fd.params.len() {
+            // .clone(): explicit_type's c_str belongs to the AST. Returning it
+            // by value would let the caller's owned local free the AST buffer at
+            // scope end, corrupting the param and dangling later reads.
+            if fd.params[pi].name == "call_free" { return fd.params[0].explicit_type.clone() }
+        }
+        return ""
+    case:
+        return ""
+    }
+}
+
 priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context) returns shallow Value {
     ref mut c : Context = ctx
     ref callee_expr : Expr = e.children[0]
@@ -1830,6 +1854,40 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         exit(1)
     }
     ref body : Expr = func_def.children[0]
+
+    // Funcptr-dispatched element delete: a container's type-erased elem_delete
+    // funcptr (= T.delete) called on a raw element slot with call_free=false,
+    // e.g. DynHashMap.set()'s overwrite arm freeing the OLD value before
+    // memcpy'ing the new one over it:
+    //   self.values.elem_delete(ptr_add(self.values.data, off), false)
+    // Through a funcptr the callee is the field name ("elem_delete", not
+    // "delete") and carries no call-site `own`, so the del_method interception
+    // below misses it. The normal bind path then COPIES the slot Str
+    // (reinterpret_ptr_value yields an independent owned copy); Str.delete frees
+    // the COPY and the original buffer leaks. Route to the cache-driven
+    // per-element deep free using the resolved delete's `own self` param type --
+    // identical to the container's own teardown, no copy, no double free.
+    if callee_expr.node_type.is(NodeType.FieldAccess).and(callee_expr.expr_til_type().is_funcptr()) {
+        fp_recv_type := funcptr_delete_recv_type(func_def)
+        if fp_recv_type.len().gt(0).and(e.children.len().gt(2)) {
+            mut fp_call_free := true
+            switch eval_expr(caller_scope, e.children[2], ctx) {
+            case Value.Boolean(cfb_fp): fp_call_free = cfb_fp
+            case:
+            }
+            if fp_call_free.not().and(delete_ptr_receiver_type_known(fp_recv_type, ctx)) {
+                recv_ptr_val := eval_expr(caller_scope, e.children[1], ctx)
+                if is_value_ptr(recv_ptr_val) {
+                    ref recv_ptr_slot : Dynamic = val_to_ptr(recv_ptr_val)
+                    ref recv_ptr : Dynamic = deref(recv_ptr_slot)
+                    if recv_ptr.is_null() { panic("delete pointer receiver is null") }
+                    container_elem_deep_free(fp_recv_type, recv_ptr, ctx)
+                    memset(recv_ptr, 0, container_elem_size(fp_recv_type, ctx).cast(U64))
+                    return val_none()
+                }
+            }
+        }
+    }
 
     // Issue #275: bypass an auto-generated struct delete's body and run the
     // deep Value teardown directly. The generated body is
