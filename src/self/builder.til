@@ -2924,69 +2924,6 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         emit_deref(f, e.children[2], depth, ctx)
                         f.write("))")
                     }
-                } else if sname.starts_with("Vec__").and(mname.field_access_name() == "len") {
-                    // Peephole: inline Vec.len as a direct count-field read --
-                    // a hot accessor (1.3B calls translating the self-host).
-                    // Vec.len stays a real func (the interpreter calls it, so
-                    // both modes agree); same approach as the Bool.eq inline.
-                    f.write("((")
-                    f.write(til_type_name_c(e.expr_til_type()))
-                    f.write(")(")
-                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                    f.write(")->count)")
-                } else if sname.starts_with("Vec__").and(mname.field_access_name() == "unsafe_get") {
-                    // Peephole: inline Vec.unsafe_get as pointer arithmetic into
-                    // the backing buffer -- a hot accessor (~1.4B calls
-                    // translating the self-host). The result cast uses the
-                    // element's C type (c_type_name). The sizeof STRIDE must be
-                    // til's T.size() (the Vec's element width): an aggregate
-                    // occupies its whole struct (its name); every other element
-                    // its til_type_to_c width (Dynamic -> "void *" = 8, FuncPtr
-                    // -> "TilClosure *", primitives). Crucially the stride is NOT
-                    // sizeof(c_type_name): for Dynamic that yields "void" whose
-                    // sizeof is 1, not the 8-byte pointer slot the Vec stores.
-                    // Stays a real func (interp + reflective dispatch call it),
-                    // so both modes agree; same approach as Vec.len.
-                    f.write("((")
-                    f.write(c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx))
-                    f.write(" *)((")
-                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                    f.write(")->data + (")
-                    emit_deref(f, e.children[2], depth, ctx)
-                    f.write(") * sizeof(")
-                    stride_name := til_type_name(e.expr_til_type())
-                    if stride_name.len() > 0 {
-                        f.write(stride_name)
-                    } else {
-                        f.write(til_type_to_c(e.expr_til_type()))
-                    }
-                    f.write(")))")
-                } else if (sname == "Bool").and(mname.field_access_name() == "eq") {
-                    // Peephole: inline Bool.eq as native `==` -- a hot ext_func
-                    // call (1.8B in the --prof profile). Bool stays an ext_func
-                    // (the interpreter FFIs it, so both modes agree); same
-                    // approach as the `is` inline.
-                    f.write("((")
-                    f.write(til_type_name_c(e.expr_til_type()))
-                    f.write(")(")
-                    emit_deref(f, e.children[1], depth, ctx)
-                    f.write(" == ")
-                    emit_deref(f, e.children[2], depth, ctx)
-                    f.write("))")
-                } else if (mname.field_access_name() == "clone").and(is_primitive(e.expr_til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
-                    // Peephole: a value primitive's clone is a value copy --
-                    // emit the value directly instead of a <Prim>_clone() call
-                    // (13.6M U32_clone + 9M Bool_clone in --prof). Done in the
-                    // builder so the clone node stays in the AST and the
-                    // ownership/liveness analysis is untouched. Gated on a
-                    // non-pointer arg: an `own U8`/`own I8` field (Str.c_str,
-                    // Vec.data, DynPtrBox.p) is typed Primitive but is a heap
-                    // buffer pointer whose clone deep-copies, so those keep the
-                    // real <Prim>_clone call. <Prim>_clone stays a real func
-                    // (interp + reflective dispatch), so both modes agree.
-                    f.write("(")
-                    emit_deref(f, e.children[1], depth, ctx)
-                    f.write(")")
                 } else {
                     f.write(sname)
                     f.write("_")
@@ -3195,47 +3132,6 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
-            } else if name.ident_name() == "is_n" {
-                // Peephole: inline `is_n`, the variable-width enum-tag check,
-                // by reading each operand's `tag` field through its enum C
-                // struct: ((E*)a)->tag == ((E*)b)->tag. Every enum is a struct
-                // with `tag` at offset 0, and the field's declared width
-                // (U8/U16/U32/U64) makes the compare width-correct with no size
-                // arg -- which is why this works where reading the size literal
-                // does not (a normalization pass hoists it into a temp, so by
-                // here children[3] is an Ident). is_n is the sole tag-check
-                // primitive (the old 4-byte-only `is` folded into it, since the
-                // typed tag read handles any width) -- the #1 --prof CPU entry
-                // (93M calls). is_n stays an ext_func (the interpreter FFIs it,
-                // reading the same offset-0 tag), so both modes agree.
-                isn_ret_c := til_type_name_c(e.expr_til_type())
-                enum_c := til_type_name(e.children[1].expr_til_type())
-                f.write("((")
-                f.write(isn_ret_c)
-                f.write(")(((")
-                f.write(enum_c)
-                f.write(" *)(")
-                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write("))->tag == ((")
-                f.write(enum_c)
-                f.write(" *)(")
-                emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
-                f.write("))->tag))")
-            } else if name.ident_name() == "is_null" {
-                // Peephole: inline is_null(p) -- defined as p.ptr_eq(NULL) -- as
-                // a direct null test, dropping the is_null and its nested ptr_eq
-                // call (6.2M --prof calls). The Dynamic arg emits as the pointer
-                // value (emit_as_ptr), exactly as the real call passes it. The
-                // test is `(UPtr)p == 0` rather than `p == NULL`: for a value
-                // arg emit_as_ptr yields `&local`, and `&local == NULL` trips
-                // gcc -Waddress (always false); the integer compare is the same
-                // result without the diagnostic. is_null stays a real func (the
-                // interpreter runs its body), so both modes agree.
-                f.write("((")
-                f.write(til_type_name_c(e.expr_til_type()))
-                f.write(")((UPtr)(")
-                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write(") == 0))")
             } else if name.ident_name() == "not" {
                 // #288 follow-up: Bool.not is now a core_func -- lower it to
                 // native `!` inline instead of a real call (~9.4M --prof). The
