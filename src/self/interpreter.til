@@ -499,6 +499,7 @@ InterpSession := struct {
     ref global : Scope = NULL
     core_evaluated := false
     user_argc : U32 = 0
+    retained_programs := Vec(DynPtrBox).new()
 }
 
 // Return-value / control-flow state and namespace fields now live on
@@ -4339,14 +4340,37 @@ interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
     session.global = scope_new_boxed(NULL)
     session.core_evaluated = false
     session.user_argc = 0
+    session.retained_programs = Vec(DynPtrBox).new()
     if user_argv.is_null().not() { session.user_argc = user_argv.len() }
 }
 
 interp_session_free := func(mut session: InterpSession) {
     if session.global.is_null().not() { scope_free(own session.global) }
     session.global = NULL
+    for box : DynPtrBox in session.retained_programs {
+        if box.p.is_null().not() {
+            LoadedProgram.delete(own to_ptr(box.p), true)
+        }
+    }
+    free(own session.retained_programs.data)
+    memset(session.retained_programs, 0, Vec(DynPtrBox).size().cast(U64))
     session.core_evaluated = false
     session.user_argc = 0
+}
+
+interp_program_to_heap := func(own lp: LoadedProgram) returns Dynamic {
+    raw : Dynamic = malloc(LoadedProgram.size().cast(U64))
+    memcpy(raw, lp, LoadedProgram.size().cast(U64))
+    memset(lp, 0, LoadedProgram.size().cast(U64))
+    return raw
+}
+
+interp_program_free := func(raw: Dynamic) {
+    LoadedProgram.delete(own to_ptr(raw), true)
+}
+
+interp_session_retain_program := func(mut session: InterpSession, raw: Dynamic) {
+    session.retained_programs.push(own DynPtrBox(p = raw))
 }
 
 priv interp_reset_control_flow := func(mut ctx: Context) {

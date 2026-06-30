@@ -248,6 +248,23 @@ LoadedProgram := struct {
     include_flags := ""
     link_c_paths := ""
     run_tests := false
+namespace:
+    delete := func(own self: LoadedProgram, call_free: Bool = true) {
+        if self.is_null() { return }
+        if self.core_units.is_null().not() { own self.core_units.delete(true) }
+        if self.units.is_null().not() { own self.units.delete(true) }
+        own self.mode_files.delete(false)
+        Target.delete(own self.target, false)
+        Mode.delete(own self.cur_mode, false)
+        Context.delete(own self.ctx, false)
+        Str.delete(own self.mode_str, false)
+        Str.delete(own self.path, false)
+        Str.delete(own self.ext_c_path, false)
+        Str.delete(own self.link_flags, false)
+        Str.delete(own self.include_flags, false)
+        Str.delete(own self.link_c_paths, false)
+        if call_free { free(own self) }
+    }
 }
 
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {

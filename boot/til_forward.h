@@ -1085,13 +1085,6 @@ typedef struct HeapBinding {
 } HeapBinding;
 
 
-typedef struct InterpSession {
-    Scope *global;
-    Bool core_evaluated;
-    U32 user_argc;
-} InterpSession;
-
-
 typedef struct priv___src_self_interpreter_til__DynPtrBox {
     U8 *p;
 } priv___src_self_interpreter_til__DynPtrBox;
@@ -1774,6 +1767,14 @@ typedef struct Map__Str_DeclRef {
 typedef struct DocCatalog {
     Vec__DocEntry entries;
 } DocCatalog;
+
+
+typedef struct InterpSession {
+    Scope *global;
+    Bool core_evaluated;
+    U32 user_argc;
+    Vec__DynPtrBox retained_programs;
+} InterpSession;
 
 
 typedef struct Map__Str_Binding {
@@ -3322,8 +3323,8 @@ Vec__Str * priv___src_self_loader_til__resolve_import_disps(Vec__Str * import_pa
 void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec__Str * paths);
 Vec__Str * priv___src_self_loader_til__extract_imports(Expr * body, Str * path);
 I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * base_dir, Set__Str * resolved_set, Vec__Expr * stack, Vec__ProgramUnit * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
-LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool call_free);
+LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 U32 LoadedProgram_size(void);
 void priv___src_self_loader_til__retarget_alias_binding(TypeScope * scope, Str * alias_name, Str * target_name);
 void retarget_loaded_aliases(LoadedProgram * lp);
@@ -3973,6 +3974,9 @@ void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global,
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
 void interp_session_start(InterpSession * session, Vec__Str * user_argv);
 void interp_session_free(InterpSession * session);
+void * interp_program_to_heap(LoadedProgram * lp);
+void interp_program_free(void * raw);
+void interp_session_retain_program(InterpSession * session, void * raw);
 void priv___src_self_interpreter_til__interp_reset_control_flow(Context * ctx);
 I32 interp_session_prepare_context(InterpSession * session, LoadedProgram * lp, Str * fwd_path);
 void interp_session_finish_context(LoadedProgram * lp);
@@ -4413,6 +4417,8 @@ Str * repl_read_line(Str * mode_name);
 I32 repl_typecheck(LoadedProgram * lp);
 Str * repl_capture_eval_current(InterpSession * session, LoadedProgram * lp, Str * out_path, U32 block_start_line, Bool eval_doc_line);
 U32 repl_source_line_count(Str * s);
+Bool repl_ast_has_loader_directive(Expr * e);
+LoadedProgram * repl_lp_from_template_source(LoadedProgram * lp, Str * path, Str * source, I64 * anon_type_counter);
 Bool repl_parse_allows_wrap(Expr * peek_ast);
 Bool repl_ast_has_help_call(Expr * e);
 Bool repl_ast_updates_doc_cache(Expr * e);
