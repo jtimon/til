@@ -1640,6 +1640,9 @@ void *__wrap_realloc(void *ptr, size_t size) {
 // ASAN baseline. The weak decl lets non-sanitizer builds link (symbol is NULL
 // there, and the address check skips the call).
 __attribute__((weak)) unsigned long __sanitizer_get_current_allocated_bytes(void);
+// glibc's "release every internal allocation" entry point (what mtrace and
+// valgrind drive). Weak so non-glibc builds link with it NULL.
+__attribute__((weak)) void __libc_freeres(void);
 static void til_leak_probe(void) __attribute__((destructor));
 static void til_leak_probe(void) {
     if (!getenv("TIL_LEAK_PROBE")) return;
@@ -1651,6 +1654,18 @@ static void til_leak_probe(void) {
     // floor; interpret writes to stderr.)
     fflush(NULL);
     fclose(stdout);
+    // Same reasoning, one layer deeper: glibc keeps process-lifetime internal
+    // allocations live until ITS exit teardown, which runs AFTER this
+    // destructor. The dominant one is the dynamic loader's _dl_find_object
+    // mapping segment (~2.3KB), allocated by dlopen the first time any FFI .so
+    // is loaded and kept for the whole process by glibc's lock-free design --
+    // so dlclose (ffi_cleanup already does it) does not reclaim it, and it is
+    // reachable via ld.so globals (LSAN never flags it) yet inflates the raw
+    // allocated-bytes count below. __libc_freeres releases it (and the rest of
+    // glibc's internal state) so TIL_TRUE_LEAK reflects only til-owned memory.
+    // It frees ONLY glibc-internal allocations, never til's, so real til leaks
+    // still count. stderr is unbuffered, so the print below survives it.
+    if (&__libc_freeres) __libc_freeres();
     if (&__sanitizer_get_current_allocated_bytes)
         fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
 }
