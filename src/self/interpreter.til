@@ -80,8 +80,9 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
     return true
 }
 
-priv str_owns_c_str := func(shallow s: Str) returns Bool {
-    return s.count.gt(0).and(s.c_str.is_null().not()).and(s.cap.lt(CAP_VIEW))
+priv str_owns_c_str := func(s_base: Dynamic, ctx: Context) returns Bool {
+    ref s : Str = to_ptr(s_base)
+    return s.count.gt(0).and(s.c_str.is_null().not()).and(str_cap_at(s_base, ctx).lt(CAP_VIEW))
 }
 
 // #286 commit 2: byte-level deep-CLONE of a struct value at `data` of type
@@ -103,11 +104,10 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         memcpy(dst_data, data, sz.cast(U64))
         if struct_name == "Str" {
             ref s : Str = to_ptr(data)
-            if str_owns_c_str(s) {
+            if str_owns_c_str(to_ptr(s), ctx) {
                 cloned_str := s.clone()
                 write_ptr(dst_data, cloned_str.c_str)
-                ref mut dst_cap : U32 = ptr_add(dst_data, 12)
-                dst_cap = s.count.clone()
+                str_write_cap_at(dst_data, s.count, ctx)
                 memset(cloned_str, 0, Str.size().cast(U64))
             }
         } else if struct_name == "DynVec" {
@@ -152,11 +152,10 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 }
                 if ftype == "Str" {
                     ref s : Str = ptr_add(data, foff.cast(U64))
-                    if str_owns_c_str(s) {
+                    if str_owns_c_str(to_ptr(s), ctx) {
                         cloned_str := s.clone()
                         write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
-                        ref mut dst_cap : U32 = ptr_add(ptr_add(dst_data, foff.cast(U64)), 12)
-                        dst_cap = s.count.clone()
+                        str_write_cap_at(ptr_add(dst_data, foff.cast(U64)), s.count, ctx)
                         memset(cloned_str, 0, Str.size().cast(U64))
                     }
                     continue
@@ -268,11 +267,11 @@ namespace:
                 // dangling struct_def -- safe at scope teardown, no #239 UAF.
                 if self.is_str {
                     ref s_str : Str = to_ptr(self.data)
-                    if str_owns_c_str(s_str) {
+                    if str_owns_c_str(to_ptr(s_str), self.ctx) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 } else if self.is_str_container {
-                    free_container_str_data_cached(self.data)
+                    free_container_str_data_cached(self.data, self.ctx)
                 } else if self.ctx.is_null().not() {
                     struct_deep_free(self.struct_name, self.data, self.ctx)
                 }
@@ -293,6 +292,9 @@ EnumInstance := struct {
     // copies it. Without it the payload c_str was shared with the source Str,
     // leaking (shallow scopes) or dangling (deep scopes) once the source died.
     is_str := false
+    // #192: reference to the running Context so clone/delete can read the
+    // Str-payload `cap` field at the ctx layout offset (target-dependent).
+    ref ctx : Context = NULL
 namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns Bool {
         return a.enum_name == b.enum_name
@@ -303,15 +305,15 @@ namespace:
     }
     clone := func(self: EnumInstance) returns EnumInstance {
         if self.data.is_null() {
-            return EnumInstance(enum_name = self.enum_name,
+            return EnumInstance(ctx = self.ctx, enum_name = self.enum_name,
                                 data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
         }
         pdata : Dynamic = EvalHeap.heap_alloc(self.data_size)
         memcpy(pdata, self.data, self.data_size.cast(U64))
         // Issue #272: the memcpy shared the Str-payload c_str; deep-copy it so
         // the clone owns an independent buffer (mirrors StructInstance.clone).
-        if self.is_str { enum_clone_str_payload(pdata) }
-        return EnumInstance(enum_name = self.enum_name,
+        if self.is_str { enum_clone_str_payload(pdata, self.ctx) }
+        return EnumInstance(ctx = self.ctx, enum_name = self.enum_name,
                             data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
@@ -323,7 +325,7 @@ namespace:
         // -- never freed here, never read here.
         if self.data.is_null().not().and(self.borrowed.not()) {
             // Issue #272: free the owned Str-payload c_str before the buffer.
-            if self.is_str { enum_free_str_payload(self.data) }
+            if self.is_str { enum_free_str_payload(self.data, self.ctx) }
             EvalHeap.heap_free(own self.data)
         }
         if call_free { free(own self) }
@@ -498,7 +500,11 @@ Scope := struct {
 InterpSession := struct {
     ref global : Scope = NULL
     core_evaluated := false
-    user_argc : U32 = 0
+    // #192: USize, not U32 -- user_argc is a count compared/combined with
+    // nparam/fixed (USize) and assigned from user_argv.len() (USize). At U32
+    // that matched only because USize was U32; target-dependent USize makes the
+    // width mismatch a hard type error on 64-bit.
+    user_argc : USize = 0
     retained_programs := Vec(DynPtrBox).new()
 }
 
@@ -548,7 +554,7 @@ ENUM_PAYLOAD_OFFSET : USize = 8
 
 priv make_enum_value := func(enum_name: Str, data: Dynamic, data_size: USize, borrowed: Bool, is_str: Bool, ctx: Context) returns shallow Value {
     ref stable_enum_name : Str = stable_type_name(enum_name, ctx)
-    return Value.Enum(EnumInstance(enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
+    return Value.Enum(EnumInstance(ctx = ctx, enum_name = stable_enum_name, data = data, data_size = data_size, borrowed = borrowed, is_str = is_str))
 }
 
 // Issue #272: does enum `enum_name`'s variant `etag` carry a Str payload?
@@ -568,9 +574,9 @@ priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) return
 // Issue #272: the enum's Str payload (at ENUM_PAYLOAD_OFFSET) holds a c_str
 // pointer that, post-memcpy, aliases the source Str. Replace it with an
 // owned deep copy so the enum no longer shares the source's buffer.
-priv enum_clone_str_payload := func(data: Dynamic) {
+priv enum_clone_str_payload := func(data: Dynamic, ctx: Context) {
     ref pstr : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
-    if str_owns_c_str(pstr) {
+    if str_owns_c_str(to_ptr(pstr), ctx) {
         new_buf : Dynamic = EvalHeap.heap_alloc(pstr.count.add(1))
         memcpy(new_buf, pstr.c_str, pstr.count.cast(U64))
         memset(ptr_add(new_buf, pstr.count.cast(U64)), 0, 1)
@@ -581,9 +587,9 @@ priv enum_clone_str_payload := func(data: Dynamic) {
 }
 
 // Free the owned Str-payload c_str (set up by enum_clone_str_payload).
-priv enum_free_str_payload := func(data: Dynamic) {
+priv enum_free_str_payload := func(data: Dynamic, ctx: Context) {
     ref s_str : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
-    if str_owns_c_str(s_str) {
+    if str_owns_c_str(to_ptr(s_str), ctx) {
         free(own s_str.c_str)
     }
 }
@@ -615,7 +621,7 @@ priv val_enum_flat := func(enum_name: Str, etag: I64, payload_data: Dynamic, pay
                 //   else (reading an enum out of a pointer): CLONE, so the
                 //   borrowed source and this enum each own an independent c_str.
                 if move_src { write_ptr(payload_data, NULL) }
-                else        { enum_clone_str_payload(data) }
+                else        { enum_clone_str_payload(data, ctx) }
             }
         }
     }
@@ -641,7 +647,7 @@ priv read_enum_tag_value := func(p: Dynamic, tdef: Expr) returns Value {
     return Value.Int32(t)
 }
 
-priv elem_size_for_type := func(type_name: Str) returns USize {
+priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
     if type_name == "I64"  { return I64.size() }
     if type_name == "U8"   { return U8.size() }
     if type_name == "I16"  { return I16.size() }
@@ -649,7 +655,9 @@ priv elem_size_for_type := func(type_name: Str) returns USize {
     if type_name == "I32"  { return I32.size() }
     if type_name == "U32"  { return U32.size() }
     if type_name == "Bool" { return Bool.size() }
-    if type_name == "Str"  { return Str.size() }
+    // #192: Str's size is target-dependent (its count/cap are USize); read it
+    // from ctx so a U32-built til_boot folding U64 core uses the source width.
+    if type_name == "Str"  { return ctx_total_size(ctx.cached_str_name, ctx) }
     return 8
 }
 
@@ -669,7 +677,11 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns shallow
     if type_name == "I32" { return Value.Int32(s.to_i32()) }
     if type_name == "U32" { return Value.Uint32(s.to_u32()) }
     if type_name == "U64" { return Value.Uint64(s.to_u64()) }
-    if type_name == "USize" { return Value.Uint32(s.to_u32()) }
+    if type_name == "USize" {
+        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
+        if usize_name == "U32" { return Value.Uint32(s.to_u32()) }
+        return Value.Uint64(s.to_u64())
+    }
     if type_name == "UPtr" { return Value.Uint64(s.to_u64()) }
     if type_name == "F32" { return Value.Float(s.to_f32()) }
     if type_name == "Bool" {
@@ -927,7 +939,12 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
         if type_name == "I32" { ref v : I32 = p; return Value.Int32(v) }
         if type_name == "U32" { ref v : U32 = p; return Value.Uint32(v) }
         if type_name == "U64" { ref v : U64 = p; return Value.Uint64(v) }
-        if type_name == "USize" { ref v : U32 = p; return Value.Uint32(v) }
+        if type_name == "USize" {
+            ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
+            if usize_name == "U32" { ref v : U32 = p; return Value.Uint32(v) }
+            ref v : U64 = p
+            return Value.Uint64(v)
+        }
         if type_name == "UPtr" {
             ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
             if uptr_name == "U32" { ref v : U32 = p; return Value.Uint32(v) }
@@ -1136,7 +1153,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     }
     ref enum_def : Expr = lookup_type_def_helper(sname, scope, ctx)
     mut has_default := false
-    mut default_idx : U32 = 0
+    mut default_idx : USize = 0
     for ci in 1..stmt.children.len() {
         ref cn : Expr = stmt.children[ci]
         if cn.children.len() == 1 {
@@ -1455,7 +1472,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             if payload_alias.len() > 0 {
                 pipe_pos := payload_alias.find("|")
                 if pipe_pos >= 0 {
-                    pipe_u := pipe_pos.to_u32()
+                    pipe_u := pipe_pos.to_usize()
                     enum_var_name := payload_alias.substr(0, pipe_u)
                     type_name := payload_alias.substr(pipe_u + 1, payload_alias.len().sub(pipe_u) - 1)
                     ref enum_cell : Cell = scope_get(scope, enum_var_name)
@@ -1494,7 +1511,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                     // owns its own copy of the bytes.
                                     mut sz : USize = 0
                                     if type_name == "Str" {
-                                        sz = Str.size()
+                                        sz = ctx_total_size(ctx.cached_str_name, ctx)
                                     } else {
                                         ref tdef : Expr = lookup_interp_type_def(type_name, ctx)
                                         if tdef.is_null().not() {
@@ -1513,7 +1530,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         // cap == CAP_LIT and are skipped.
                                         if type_name == "Str" {
                                             ref old_str : Str = to_ptr(dest)
-                                            if str_owns_c_str(old_str) {
+                                            if str_owns_c_str(to_ptr(old_str), ctx) {
                                                 if old_str.c_str.is_null().not() { free(own old_str.c_str) }
                                             }
                                         }
@@ -1697,13 +1714,12 @@ priv materialize_str_result := func(mut v: Value) {
     case Value.Struct(si):
         if si.is_str {
             ref s : Str = to_ptr(si.data)
-            if s.count.gt(0).and(s.cap.gte(CAP_VIEW)) {
+            if s.count.gt(0).and(str_cap_at(si.data, si.ctx).gte(CAP_VIEW)) {
                 copy : Dynamic = EvalHeap.heap_alloc(s.count.add(1))
                 memcpy(copy, s.c_str, s.count.cast(U64))
                 memset(ptr_add(copy, s.count.cast(U64)), 0, 1)
                 write_ptr(si.data, copy)
-                ref mut dst_cap : U32 = ptr_add(si.data, 12)
-                dst_cap = s.count.clone()
+                str_write_cap_at(si.data, s.count, si.ctx)
             }
         }
     case:
@@ -1714,12 +1730,12 @@ priv free_struct_contents_keep_outer := func(si: StructInstance) {
     if si.data.is_null() { return }
     if si.is_str {
         ref s_str : Str = to_ptr(si.data)
-        if str_owns_c_str(s_str) {
+        if str_owns_c_str(to_ptr(s_str), si.ctx) {
             if s_str.c_str.is_null().not() { free(own s_str.c_str) }
         }
-        memset(si.data, 0, Str.size().cast(U64))
+        memset(si.data, 0, ctx_total_size(si.ctx.cached_str_name, si.ctx).cast(U64))
     } else if si.is_str_container {
-        free_container_str_data_cached(si.data)
+        free_container_str_data_cached(si.data, si.ctx)
         if si.ctx.is_null().not() {
             memset(si.data, 0, ctx_total_size(si.struct_name, si.ctx).cast(U64))
         }
@@ -2368,7 +2384,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 }
                 switch inst {
                 case Value.Struct(si_inst):
-                    mut arg_idx : U32 = 1
+                    mut arg_idx : USize = 1
                     for fdd : Declaration in sdd.fields {
                         cur_idx := arg_idx
                         ref arg : Expr = e.children[cur_idx]
@@ -2448,13 +2464,13 @@ priv free_value := func(shallow v: Value) {
     case Value.Struct(si):
         if si.borrowed.not() {
             if si.data.is_null().not() {
-                if si.is_str_container { free_container_str_data_cached(si.data) }
+                if si.is_str_container { free_container_str_data_cached(si.data, si.ctx) }
                 EvalHeap.heap_free(own si.data)
             }
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) {
-            if ei.is_str { enum_free_str_payload(ei.data) }
+            if ei.is_str { enum_free_str_payload(ei.data, ei.ctx) }
             EvalHeap.heap_free(own ei.data)
         }
     case Value.Closure(cl):
@@ -2603,7 +2619,7 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
     case NodeType.StructDef:
         if elem_type == "Str" {
             ref s : Str = slot
-            if str_owns_c_str(s) {
+            if str_owns_c_str(to_ptr(s), ctx) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
         } else if elem_type == "Tuple" {
@@ -2615,7 +2631,7 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
     case NodeType.EnumDef:
         if enum_has_payloads(elem_def) {
             ref tag : I32 = slot
-            if enum_variant_is_str(elem_type, tag, ctx) { enum_free_str_payload(slot) }
+            if enum_variant_is_str(elem_type, tag, ctx) { enum_free_str_payload(slot, ctx) }
         }
     case:
         panic("container element is not a struct or enum: ", elem_type)
@@ -2644,7 +2660,7 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
         memcpy(dst, src, elem_size.cast(U64))
         if enum_has_payloads(elem_def) {
             ref tag : I32 = dst
-            if enum_variant_is_str(elem_type, tag, ctx) { enum_clone_str_payload(dst) }
+            if enum_variant_is_str(elem_type, tag, ctx) { enum_clone_str_payload(dst, ctx) }
         }
     case:
         panic("container element is not a struct or enum: ", elem_type)
@@ -2709,7 +2725,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
                         // c_str (that is the is_str special case, not a struct
                         // field). Free it here before the buffer.
                         ref os : Str = to_ptr(own_hdr.p)
-                        if str_owns_c_str(os) {
+                        if str_owns_c_str(to_ptr(os), ctx) {
                             if os.c_str.is_null().not() { free(own os.c_str) }
                         }
                     } else {
@@ -2722,7 +2738,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
         }
         if fl.is_str {
             ref s : Str = ptr_add(data, foff.cast(U64))
-            if str_owns_c_str(s) {
+            if str_owns_c_str(to_ptr(s), ctx) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
             continue
@@ -2756,14 +2772,14 @@ priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) 
     EvalHeap.heap_free(own hdr.p)
 }
 
-priv free_container_str_data_cached := func(data: Dynamic) {
+priv free_container_str_data_cached := func(data: Dynamic, ctx: Context) {
     ref hdr : DynPtrBox = data
     if hdr.p.is_null() { return }
     ref n : USize = ptr_add(data, 8)
-    esz := Str.size()
+    esz := ctx_total_size(ctx.cached_str_name, ctx)
     for i in 0..n {
         ref s : Str = ptr_add(hdr.p, i.mul(esz).cast(U64))
-        if str_owns_c_str(s) {
+        if str_owns_c_str(to_ptr(s), ctx) {
             if s.c_str.is_null().not() { free(own s.c_str) }
         }
     }
@@ -2978,11 +2994,11 @@ priv free_temp_arg_value := func(shallow v: Value) {
                 // reclamation without the dangling struct_def ref.
                 if si.is_str {
                     ref s_str : Str = to_ptr(si.data)
-                    if str_owns_c_str(s_str) {
+                    if str_owns_c_str(to_ptr(s_str), si.ctx) {
                         if s_str.c_str.is_null().not() { free(own s_str.c_str) }
                     }
                 } else if si.is_str_container {
-                    free_container_str_data_cached(si.data)
+                    free_container_str_data_cached(si.data, si.ctx)
                 } else if si.ctx.is_null().not() {
                     struct_deep_free(si.struct_name, si.data, si.ctx)
                 }
@@ -2991,7 +3007,7 @@ priv free_temp_arg_value := func(shallow v: Value) {
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) {
-            if ei.is_str { enum_free_str_payload(ei.data) }
+            if ei.is_str { enum_free_str_payload(ei.data, ei.ctx) }
             EvalHeap.heap_free(own ei.data)
         }
     case Value.Closure(cl):
@@ -3217,7 +3233,11 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
         return Value.Int(ival)
     }
     if ptype == "U64" { return Value.Uint64(uval) }
-    if ptype == "USize" { return Value.Uint32(uval.to_u32()) }
+    if ptype == "USize" {
+        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
+        if usize_name == "U32" { return Value.Uint32(uval.to_u32()) }
+        return Value.Uint64(uval)
+    }
     if ptype == "UPtr" {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name == "U32" { return Value.Uint32(uval.to_u32()) }
@@ -3769,8 +3789,8 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     }
 }
 
-priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type: Str, ctx: Context) returns shallow Value {
-    esz := elem_size_for_type(elem_type)
+priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_type: Str, ctx: Context) returns shallow Value {
+    esz := elem_size_for_type(elem_type, ctx)
     mut alloc_count := count
     if alloc_count == 0 { alloc_count = 1 }
     data : Dynamic = EvalHeap.heap_alloc(alloc_count.mul(esz))
@@ -3789,7 +3809,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: U32, count: U32, elem_type
     write_ptr(ptr_add(inst_data, ba_data_fl.offset.cast(U64)), data)
     ref ba_cap_d : Declaration = find_field_decl(array_def, "cap")
     ba_cap_fl := ctx_field_layout(array_canon_name, "cap", ctx)
-    write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, Value.Uint32(count), ctx)
+    write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, Value.Uint64(count.to_u64()), ctx)
     return make_struct_value(array_canon_name, to_ptr(inst_data), false, ctx)
 }
 
@@ -3899,27 +3919,61 @@ priv interpreter_free_ns := func(mut ctx: Context) {
     ctx.ns_inited = false
 }
 
+// #192: write the count/cap USize fields of a freshly-malloc'd Str instance
+// using the CTX layout (offset + size), not a hardcoded width. This keeps the
+// compile-time interpreter (constfolder) correct when the compiler it runs
+// inside was built at a different USize width than the source it compiles:
+// the bytes are laid out the same way struct_deep_free later reads them.
+priv str_write_count_cap := func(inst_data: Dynamic, count_val: USize, cap_val: USize, ctx: Context) {
+    count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
+    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref count_d : Declaration = find_field_decl(ctx.cached_str_def, "count")
+    ref cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
+    write_field(inst_data, count_d, count_fl.offset, count_fl.size, Value.Uint64(count_val.to_u64()), ctx)
+    write_field(inst_data, cap_d, cap_fl.offset, cap_fl.size, Value.Uint64(cap_val.to_u64()), ctx)
+}
+
+// #192: write just the `cap` field of a Str instance at `str_base`, at the
+// ctx layout offset/width. Used by the deep-clone paths that force cap=count
+// to claim ownership of a freshly cloned c_str.
+priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
+    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
+    write_field(str_base, cap_d, cap_fl.offset, cap_fl.size, Value.Uint64(cap_val.to_u64()), ctx)
+}
+
+// #192: read a Str instance's `cap` field at the ctx layout offset. The Str
+// type the compiler is built with may put cap at a different offset than the
+// source it compiles (cap@12 for U32, cap@16 for U64), so the compiled
+// `str.cap` access reads the wrong bytes when folding cross-width core. Read
+// it at the ctx offset instead (low bytes carry the value / the CAP_VIEW /
+// CAP_LIT sentinels, which fit in 32 bits).
+str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
+    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref c : USize = ptr_add(str_base, cap_fl.offset.cast(U64))
+    val : USize = c
+    return val
+}
+
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
+    inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(ctx.cached_str_name, ctx))
     if len == 0 {
         // Empty string: no owned buffer to allocate. Point at the shared ""
         // literal (cap=CAP_LIT) so teardown frees nothing. Avoids a 1-byte
         // malloc per empty string that the count==0 free guards skip and leak
         // (the dominant make_str_value leak, mostly from constfolder folds).
         write_ptr(inst_data, "".c_str)
-        write_u32(ptr_add(inst_data, 8), 0)
-        write_u32(ptr_add(inst_data, 12), CAP_LIT)
+        str_write_count_cap(inst_data, 0, CAP_LIT, ctx)
         return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
     }
     copy : Dynamic = EvalHeap.heap_alloc(len.add(1))
     memcpy(copy, data, len.cast(U64))
     memset(ptr_add(copy, len.cast(U64)), 0, 1)
     write_ptr(inst_data, copy)
-    write_u32(ptr_add(inst_data, 8), len)
     // cap = count so Str.delete frees the malloc'd buffer (was CAP_LIT,
     // which left the buffer alive forever -- a per-call leak that
     // multiplied with every Str-typed constfolder fold).
-    write_u32(ptr_add(inst_data, 12), len)
+    str_write_count_cap(inst_data, len, len, ctx)
     return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 
@@ -3929,18 +3983,16 @@ make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow 
 // Used by constfolder to track LiteralStr Decls without copying the buffer:
 // the LiteralStr's c_str is stable for the entire constfolder lifetime.
 make_str_value_view := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
+    inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(ctx.cached_str_name, ctx))
     write_ptr(inst_data, data)
-    write_u32(ptr_add(inst_data, 8), len)
-    memcpy(ptr_add(inst_data, 12), CAP_VIEW, U32.size().cast(U64))
+    str_write_count_cap(inst_data, len, CAP_VIEW, ctx)
     return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 
 priv make_str_value_own := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
-    inst_data : Dynamic = EvalHeap.heap_alloc(Str.size())
+    inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(ctx.cached_str_name, ctx))
     write_ptr(inst_data, data)
-    write_u32(ptr_add(inst_data, 8), len)
-    write_u32(ptr_add(inst_data, 12), len)
+    str_write_count_cap(inst_data, len, len, ctx)
     return make_struct_value(ctx.cached_str_name, inst_data, false, ctx)
 }
 str_view := func(shallow v: Value) returns shallow Str {
@@ -4034,7 +4086,12 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     if ftype == "I32" { ref v : I32 = ptr; return Value.Int32(v) }
     if ftype == "U32" { ref v : U32 = ptr; return Value.Uint32(v) }
     if ftype == "U64" { ref v : U64 = ptr; return Value.Uint64(v) }
-    if ftype == "USize" { ref v : U32 = ptr; return Value.Uint32(v) }
+    if ftype == "USize" {
+        ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
+        if usize_name == "U32" { ref v : U32 = ptr; return Value.Uint32(v) }
+        ref v : U64 = ptr
+        return Value.Uint64(v)
+    }
     if ftype == "UPtr" {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name == "U32" { ref v : U32 = ptr; return Value.Uint32(v) }
@@ -4086,7 +4143,7 @@ priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context
     old_owned : Dynamic = old_owned_ref
     if struct_name == "Str" {
         ref old_str : Str = to_ptr(old_owned)
-        if str_owns_c_str(old_str) {
+        if str_owns_c_str(to_ptr(old_str), ctx) {
             if old_str.c_str.is_null().not() { free(own old_str.c_str) }
         }
     } else {
@@ -4098,7 +4155,7 @@ priv free_owned_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context
 priv free_inline_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Context) {
     if struct_name == "Str" {
         ref old_str : Str = to_ptr(ptr)
-        if str_owns_c_str(old_str) {
+        if str_owns_c_str(to_ptr(old_str), ctx) {
             if old_str.c_str.is_null().not() { free(own old_str.c_str) }
         }
     } else {
@@ -4675,9 +4732,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         ref param : Declaration = fd.params[pi]
                         if pi.to_i64() == vi.cast(I64) {
                             va_count := session.user_argc - fixed
-                            arr := build_argv_array(user_argv, argi.cast(U32), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
+                            arr := build_argv_array(user_argv, argi.to_usize(), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
-                            argi = argi + va_count.cast(I32)
+                            argi = argi + va_count.to_i32()
                         } else {
                             v := parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
                             scope_set_owned(main_scope, param.name, v)
@@ -5286,7 +5343,7 @@ priv h_dyn_fn := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Boo
 priv h_dyn_size_of := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     sz := get_elem_size(s, type_name, e, ctx)
-    r = Value.Uint32(sz)
+    r = Value.Uint64(sz.to_u64())
     return true
 }
 
@@ -6262,7 +6319,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
 
     // child 3 is arity literal, actual args start at child 4
     ref arity_expr : Expr = e.children[3]
-    mut nargs : U32 = 0
+    mut nargs : USize = 0
     switch arity_expr.node_type {
     case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
@@ -6622,7 +6679,9 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
                 // the struct and the c_str together at teardown. Force cap=count
                 // so delete reclaims the c_str (mirrors make_str_value_own;
                 // ExtStr and Str share the {ptr, count, cap} layout).
-                write_u32(ptr_add(raw_ptr, 12), sp.count)
+                es_cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+                ref es_cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
+                write_field(raw_ptr, es_cap_d, es_cap_fl.offset, es_cap_fl.size, Value.Uint64(sp.count.to_u64()), ctx)
                 result = make_struct_value(ctx.cached_str_name, raw_ptr, false, ctx)
             }
         } else if rtype == "Dynamic" {

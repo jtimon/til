@@ -57,7 +57,7 @@ forward_header_path := func(path: Str) returns Str {
     slash := path.rfind("/")
     dot := path.rfind(".")
     if dot > slash {
-        return format(path.substr(0, dot.to_u32()), "_forward.h")
+        return format(path.substr(0, dot.to_usize()), "_forward.h")
     }
     return format(path, "_forward.h")
 }
@@ -267,6 +267,56 @@ namespace:
     }
 }
 
+// #192: find the RHS type name of a top-level `alias_name := <Ident>` decl in
+// a parsed file body. Used to make USize/UPtr resolution SOURCE-DRIVEN: the
+// width comes from src/core/usize.til (read fresh from the parsed AST every
+// build) rather than a value baked into target_usize_name and thus into
+// boot/til.c. Without this, flipping the source alias and the boot-baked width
+// can never happen in one commit (a one-build lag), because the C ABI in
+// ext.h has no such lag and the two would disagree at pass 1.
+priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
+    if ast.is_null() { return "" }
+    for i in 0..ast.children.len() {
+        ref stmt : Expr = ast.children[i]
+        mut is_match := false
+        switch stmt.node_type {
+        case NodeType.Decl(d):
+            if d.name == name { is_match = true }
+        case:
+        }
+        if is_match {
+            if stmt.children.len() > 0 {
+                switch stmt.children[0].node_type {
+                // #192: clone -- ident_name() borrows the parsed AST node's name
+                // Str (its bytes live in the Expr tree). Returning it as-is hands
+                // the caller a view it then frees, freeing into the AST buffer
+                // (ASAN: "free on address which was not malloc()-ed"). The clone
+                // is an owned heap Str the caller can free safely.
+                case NodeType.Ident(tn): return tn.ident_name().clone()
+                case:
+                }
+            }
+        }
+    }
+    return ""
+}
+
+// Resolve the target-width primitive name for a source-level int alias
+// (USize/UPtr). 32-bit targets are always U32. On 64-bit, read the width
+// from the source alias decl (lag-free); fall back to the baked
+// target_*_name only if the source decl can't be found.
+priv target_int_alias_name := func(lp: LoadedProgram, alias_name: Str, target_fallback: Str) returns Str {
+    if target_uptr_name(lp.target) == "U32" { return "U32" }
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            rhs := find_alias_rhs_in_ast(iu.ast, alias_name)
+            if rhs.len() > 0 { return rhs }
+        }
+    }
+    return target_fallback
+}
+
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
     ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
     if alias_binding.is_null() { return }
@@ -286,8 +336,8 @@ priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, targe
 }
 
 retarget_loaded_aliases := func(lp: LoadedProgram) {
-    retarget_alias_binding(lp.ctx.scope, "UPtr", target_uptr_name(lp.target))
-    retarget_alias_binding(lp.ctx.scope, "USize", target_usize_name(lp.target))
+    retarget_alias_binding(lp.ctx.scope, "UPtr", target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+    retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)))
 }
 
 // Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
@@ -338,7 +388,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     if has_fold {
         // Issue #191: core constants registered after the defs walk so they
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).
-        constfolder_register_core_constants(global)
+        constfolder_register_core_constants(global, lp.ctx.target_usize_pname)
 
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
@@ -392,20 +442,20 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
 // from merged views, then filter each file's canonical AST in ctx.imported.
 priv DeclRef := struct {
     path := ""
-    idx : U32 = 0
+    idx : USize = 0
 }
 
 priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns ref Expr {
     dot := name.find(".")
     if dot < 0 { return NULL }
-    type_part := name.substr(0, dot.to_u32())
+    type_part := name.substr(0, dot.to_usize())
     if top.has(type_part).not() { return NULL }
     ref dr : DeclRef = top[type_part]
     ref iu : ImportUnit = ctx.imported[dr.path]
     ref tdecl : Expr = iu.ast.children[dr.idx]
     if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
     if is_struct_or_enum(tdecl).not() { return NULL }
-    dot_u := dot.to_u32()
+    dot_u := dot.to_usize()
     method_part := name.substr(dot_u + 1, name.len().sub(dot_u) - 1)
     ref ns : Vec(Declaration) = def_ns_decls(tdecl.children[0])
     for nsd : Declaration in ns {
@@ -554,7 +604,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
 
     // 3) BFS
     mut visited := Set(Str).new()
-    mut cursor : U32 = 0
+    mut cursor : USize = 0
     while cursor < worklist.len() {
         name := Str.clone(worklist[cursor])
         cursor++
@@ -1745,7 +1795,7 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
     mut old := Vec(Expr).new()
     old.move_from(iu.ast.children)
     mut new_ch := Vec(Expr).new()
-    mut imp_idx : U32 = 0
+    mut imp_idx : USize = 0
 
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
@@ -2161,7 +2211,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) retu
     ref body : Expr = fdef.children[0]
     split := lazy_body_split_point(body)
     if split < 0 { return NULL }
-    sp : USize = split.cast(USize)
+    sp : USize = split.to_usize()
     mut ret_type := ""
     switch fdef.node_type {
     case NodeType.FuncDef(fd): ret_type = fd.return_type.clone()
@@ -2632,7 +2682,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // init/typer resolution, so every position resolves them uniformly
     // to the per-target primitive. lp.target is final here (after any
     // --target override).
-    context_register_target_int_alias_types(lp.ctx, target_usize_name(lp.target), target_uptr_name(lp.target))
+    context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
 
     // Desugar namespace and selective imports BEFORE init_file runs,
     // so the initer sees the generated Decls and populates the scope.

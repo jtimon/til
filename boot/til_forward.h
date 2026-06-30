@@ -1026,6 +1026,7 @@ typedef struct EnumInstance {
     U32 data_size;
     Bool borrowed;
     Bool is_str;
+    Context *ctx;
 } EnumInstance;
 
 
@@ -3288,7 +3289,7 @@ void priv___src_self_constfolder_til__fold_subtree(Scope * scope, Expr * e, Cont
 void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
-void constfolder_register_core_constants(Scope * global);
+void constfolder_register_core_constants(Scope * global, Str * usize_name);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
@@ -3326,6 +3327,8 @@ I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * b
 void LoadedProgram_delete(LoadedProgram * self, Bool call_free);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 U32 LoadedProgram_size(void);
+Str * priv___src_self_loader_til__find_alias_rhs_in_ast(Expr * ast, Str * name);
+Str * priv___src_self_loader_til__target_int_alias_name(LoadedProgram * lp, Str * alias_name, Str * target_fallback);
 void priv___src_self_loader_til__retarget_alias_binding(TypeScope * scope, Str * alias_name, Str * target_name);
 void retarget_loaded_aliases(LoadedProgram * lp);
 void priv___src_self_loader_til__constfolder_imported(LoadedProgram * lp);
@@ -3489,6 +3492,7 @@ Str * priv___src_self_builder_til__til_type_to_c(Type t);
 void priv___src_self_builder_til__seed_primitive_names(Set__Str * emitted);
 Str * priv___src_self_builder_til__extern_decl_ctype(Type t, Type rhs_t, Context * ctx);
 Str * priv___src_self_builder_til__resolve_decl_ctype(Type t, Type rhs_t, Str * explicit, Context * ctx);
+Str * priv___src_self_builder_til__field_emit_ctype(Declaration * dd);
 Str * priv___src_self_builder_til__c_type_name(Type t, Str * struct_name, Context * ctx);
 Str * priv___src_self_builder_til__func_to_c(Str * name);
 Str * priv___src_self_builder_til__type_name_to_c(Str * name, Context * ctx);
@@ -3787,7 +3791,7 @@ Expr * priv___src_self_interpreter_til__field_nested_def(Declaration * dd, Conte
 Bool priv___src_self_interpreter_til__decl_is_funcsig(Declaration * dd, Context * ctx);
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
-Bool priv___src_self_interpreter_til__str_owns_c_str(Str s);
+Bool priv___src_self_interpreter_til__str_owns_c_str(void * s_base, Context * ctx);
 void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
@@ -3851,12 +3855,12 @@ Value priv___src_self_interpreter_til__val_i32(I64 v);
 Value priv___src_self_interpreter_til__val_u32(I64 v);
 Value priv___src_self_interpreter_til__make_enum_value(Str * enum_name, void * data, U32 data_size, Bool borrowed, Bool is_str, Context * ctx);
 Bool priv___src_self_interpreter_til__enum_variant_is_str(Str * enum_name, I32 etag, Context * ctx);
-void priv___src_self_interpreter_til__enum_clone_str_payload(void * data);
-void priv___src_self_interpreter_til__enum_free_str_payload(void * data);
+void priv___src_self_interpreter_til__enum_clone_str_payload(void * data, Context * ctx);
+void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I64 etag, void * payload_data, U32 payload_size, U32 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I64 etag, U32 total_enum_size, Context * ctx);
 Value * priv___src_self_interpreter_til__read_enum_tag_value(void * p, Expr * tdef);
-U32 priv___src_self_interpreter_til__elem_size_for_type(Str * type_name);
+U32 priv___src_self_interpreter_til__elem_size_for_type(Str * type_name, Context * ctx);
 Value priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 void * priv___src_self_interpreter_til__value_ptr_view(Value * v);
 Bool priv___src_self_interpreter_til__is_value_ptr(Value * v);
@@ -3902,7 +3906,7 @@ void priv___src_self_interpreter_til__container_elem_clone_into(Str * elem_type,
 void priv___src_self_interpreter_til__free_tuple_data(void * data, Context * ctx);
 void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_data(Str * struct_name, void * data, Context * ctx);
-void priv___src_self_interpreter_til__free_container_str_data_cached(void * data);
+void priv___src_self_interpreter_til__free_container_str_data_cached(void * data, Context * ctx);
 void priv___src_self_interpreter_til__clone_container_buffer(Str * struct_name, void * src_data, void * dst_data, Context * ctx);
 U32 priv___src_self_interpreter_til__dyn_vec_count(void * data, Context * ctx);
 U32 priv___src_self_interpreter_til__dyn_vec_cap(void * data, Context * ctx);
@@ -3960,6 +3964,9 @@ Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
 Value * ns_get(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, Value val, Context * ctx);
 void priv___src_self_interpreter_til__interpreter_free_ns(Context * ctx);
+void priv___src_self_interpreter_til__str_write_count_cap(void * inst_data, U32 count_val, U32 cap_val, Context * ctx);
+void priv___src_self_interpreter_til__str_write_cap_at(void * str_base, U32 cap_val, Context * ctx);
+U32 str_cap_at(void * str_base, Context * ctx);
 Value make_str_value(void * data, U32 len, Context * ctx);
 Value make_str_value_view(void * data, U32 len, Context * ctx);
 Value priv___src_self_interpreter_til__make_str_value_own(void * data, U32 len, Context * ctx);

@@ -287,8 +287,8 @@ namespace:
     ends_with := func(self: IdentData, suffix: Str) returns Bool { return self.name.ends_with(suffix) }
     replace := func(self: IdentData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
     strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
-    unsafe_get := func(self: IdentData, i: U32) returns ref I8 { return self.name.unsafe_get(i) }
-    get := func(self: IdentData, i: U32) returns ref I8 { return self.name.get(i) }
+    unsafe_get := func(self: IdentData, i: USize) returns ref I8 { return self.name.unsafe_get(i) }
+    get := func(self: IdentData, i: USize) returns ref I8 { return self.name.get(i) }
 }
 
 FieldAccessData := struct {
@@ -1101,7 +1101,7 @@ lazy_body_split_point := func(body: Expr) returns I32 {
     if k == 0 { return -1 }
     if k >= n { return -1 }
     if lazy_stmts_inlinable(body, k).not() { return -1 }
-    return k.cast(I32)
+    return k.to_i32()
 }
 
 lazy_body_stmt_inlinable := func(body: Expr) returns Bool {

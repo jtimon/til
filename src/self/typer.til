@@ -693,14 +693,14 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
             if ftb_fd.is_null().or(ftb_fd.children.len().neq(0)) { continue }
             fa.set_expr_til_type(Type.FuncPtr)
             ref sig : Expr = ftb_fd
-            mut nargs : U32 = e.children.len()
+            mut nargs : USize = e.children.len()
             nargs--
             switch sig.node_type {
             case NodeType.FuncDef(sig_fdef):
                 if nargs != sig_fdef.params.len() {
                     e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
                 }
-                mut ai : U32 = 0
+                mut ai : USize = 0
                 while ai < nargs {
                     if ai >= sig_fdef.params.len() { break }
                     infer_expr(scope, e.children[ai + 1], in_func, ctx)
@@ -743,27 +743,27 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
     case NodeType.FuncDef(fdef_data):
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
-        mut fvc : U32 = 0
+        mut fvc : USize = 0
         if fvi >= 0 {
             fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
         }
-        mut fkc : U32 = 0
+        mut fkc : USize = 0
         if fkwi >= 0 {
             fkc = fcall_kwargs_count(e)
         }
-        mut ci : U32 = 1
-        mut pi : U32 = 0
+        mut ci : USize = 1
+        mut pi : USize = 0
         while pi < fdef_data.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.cast(I32) == fvi {
+                if pi.to_i32() == fvi {
                     ci = ci + fvc
                     pi++
                     continue
                 }
             }
             if fkwi >= 0 {
-                if pi.cast(I32) == fkwi {
+                if pi.to_i32() == fkwi {
                     ci = ci + fkc
                     pi++
                     continue
@@ -893,7 +893,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 mut slot : I32 = -1
                 for j in 0..nfields {
                     if ctor_sdd.fields[j].name == aname {
-                        slot = j.cast(I32)
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -902,10 +902,10 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                     arg.type_error(msg, ctx)
                 }
                 if slot >= 0 {
-                    ref ctor_fld : Declaration = ctor_sdd.fields[slot.cast(U32)]
+                    ref ctor_fld : Declaration = ctor_sdd.fields[slot.to_usize()]
                     check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
                     if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
-                    ref slot_arg : CtorArg = field_vals[slot.cast(U32)]
+                    ref slot_arg : CtorArg = field_vals[slot.to_usize()]
                     if slot_arg.is(CtorArg.Filled) {
                         msg := format("duplicate argument for field '", aname, "'")
                         arg.type_error(msg, ctx)
@@ -925,12 +925,12 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                             if fld_cname.len().gt(0).and(fld_cname.eq(fld_tn).not()).and(type_implements_iface(fld_cname, fld_tn, scope)) {
                                 mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col)
                                 infer_expr(scope, fld_box, in_func, ctx)
-                                field_vals[slot.cast(U32)] = CtorArg.Filled(fld_box)
+                                field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
                             } else {
-                                field_vals[slot.cast(U32)] = CtorArg.Filled(arg.children[0].clone())
+                                field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
                             }
                         } else {
-                            field_vals[slot.cast(U32)] = CtorArg.Filled(arg.children[0].clone())
+                            field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
                         }
                     }
                 }
@@ -1121,20 +1121,20 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
     case NodeType.FuncDef(fdef_data):
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
-        mut fvc : U32 = 0
+        mut fvc : USize = 0
         if fvi >= 0 {
             fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
         }
-        mut fkc : U32 = 0
+        mut fkc : USize = 0
         if fkwi >= 0 {
             fkc = fcall_kwargs_count(e)
         }
-        mut ci : U32 = 1
-        mut pi : U32 = 0
+        mut ci : USize = 1
+        mut pi : USize = 0
         while pi < fdef_data.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.cast(I32) == fvi {
+                if pi.to_i32() == fvi {
                     ref vparam : Declaration = fdef_data.params[pi]
                     vptype := type_from_name(vparam.explicit_type, scope, ctx)
                     for vk in 0..fvc {
@@ -1147,7 +1147,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 }
             }
             if fkwi >= 0 {
-                if pi.cast(I32) == fkwi {
+                if pi.to_i32() == fkwi {
                     ci = ci + fkc
                     pi++
                     continue
@@ -1183,7 +1183,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
         while pi < fdef_data.params.len() {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.cast(I32) == fvi {
+                if pi.to_i32() == fvi {
                     ref vparam : Declaration = fdef_data.params[pi]
                     ref vptype_name : Str = vparam.explicit_type
                     mut is_splat := false
@@ -1223,7 +1223,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
                 }
             }
             if fkwi >= 0 {
-                if pi.cast(I32) == fkwi {
+                if pi.to_i32() == fkwi {
                     ci = ci + fkc
                     pi++
                     continue
@@ -1336,12 +1336,12 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                     ref sig : Expr = cb_func_def
                     switch sig.node_type {
                     case NodeType.FuncDef(sig_fdef):
-                        mut nargs : U32 = e.children.len()
+                        mut nargs : USize = e.children.len()
                         nargs--
                         if nargs != sig_fdef.params.len() {
                             e.type_error(format("function pointer '", name, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
                         }
-                        mut ai : U32 = 0
+                        mut ai : USize = 0
                         while ai < nargs {
                             if ai >= sig_fdef.params.len() { break }
                             ref arg : Expr = e.children[ai + 1]
@@ -1566,7 +1566,13 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         // directly instead of surfacing as a generic "no method". Skip
         // namespace calls like `Str.to_str(x)` (handled by the
         // obj_is_type branch), which dispatch on the explicit type.
-        if has_type_name.and(is_self_conversion_method(method, type_name)) {
+        // #192: to_u64/to_u32 are the target-dependent widths -- a USize/UPtr
+        // value needs `.to_u64()` on 64-bit and `.to_u32()` on 32-bit for the
+        // same source to typecheck on both, so a self-conversion to either is
+        // portable, not a mistake. Exempt them (mirrors the .cast(U64)/.cast(U32)
+        // exemption below). The lint still catches every other self-conversion.
+        conv_w := method.eq("to_u64").or(method.eq("to_u32"))
+        if has_type_name.and(is_self_conversion_method(method, type_name)).and(conv_w.not()) {
             e.type_error(format(
                 "redundant self-conversion: '", method,
                 "' would convert ", type_name, " to itself; ",
@@ -1582,7 +1588,14 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         if has_type_name.and(method.eq("cast")).and(e.children.len().eq(2)) {
             switch e.children[1].node_type {
             case NodeType.Ident(cast_id_data):
-                if cast_id_data.ident_name() == type_name {
+                // #192: USize/UPtr are target-dependent (U32 on 32-bit,
+                // U64 on 64-bit). A `.cast(U64)`/`.cast(U32)` on such a
+                // value is redundant on one target but a needed widening on
+                // the other, so it must stay for portability. Don't flag
+                // self-casts to these widths; the lint still catches
+                // pointless self-casts of every other type.
+                cast_w := cast_id_data.ident_name().eq("U64").or(cast_id_data.ident_name().eq("U32"))
+                if cast_id_data.ident_name().eq(type_name).and(cast_w.not()) {
                     e.type_error(format(
                         "redundant self-cast: 'cast(", type_name,
                         ")' would reinterpret ", type_name,
@@ -1803,7 +1816,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         for _ in 0..nparam {
             new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
-        mut pos_idx : U32 = 0
+        mut pos_idx : USize = 0
         mut seen_named := false
         for i in 1..e.children.len() {
             ref arg : Expr = e.children[i]
@@ -1816,7 +1829,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                     if j.cast(I32) == fkwi { continue }
                     ref param : Declaration = ns_fdef.params[j]
                     if param.name == aname {
-                        slot = j.cast(I32)
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -1827,11 +1840,11 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                         arg.type_error(format("no parameter '", aname, "'"), ctx)
                     }
                 } else {
-                    ref slot_arg : Expr = new_args[slot.cast(U32)]
+                    ref slot_arg : Expr = new_args[slot.to_usize()]
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        new_args[slot.cast(U32)] = arg.children[0].clone()
+                        new_args[slot.to_usize()] = arg.children[0].clone()
                     }
                 }
             case:
@@ -3460,7 +3473,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                     expr.type_error(format("redundant 'shallow' on primitive parameter '", param.name, "': primitives are passed by value automatically (issue #223); drop it"), ctx)
                 }
             }
-            if i.cast(I32) == fdef.variadic_index {
+            if i.to_i32() == fdef.variadic_index {
                 // Regular til funcs get a callee-side auto-cleanup
                 // (Array.delete at scope exit) so the caller can transfer
                 // ownership cleanly. ext_func/ext_proc bodies are
@@ -3472,7 +3485,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 va_type := variadic_array_type_name(scope, param.explicit_type)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type)
-            } else if i.cast(I32) == fdef.kwargs_index {
+            } else if i.to_i32() == fdef.kwargs_index {
                 // Same rationale as variadic above.
                 is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
@@ -3546,8 +3559,8 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             for lpi in 0..fdef.params.len() {
                 ref lpp : Declaration = fdef.params[lpi]
                 mut lptn := lpp.explicit_type.clone()
-                if lpi.cast(I32) == fdef.variadic_index { lptn = variadic_array_type_name(scope, lpp.explicit_type) }
-                if lpi.cast(I32) == fdef.kwargs_index { lptn = "KwargsMap" }
+                if lpi.to_i32() == fdef.variadic_index { lptn = variadic_array_type_name(scope, lpp.explicit_type) }
+                if lpi.to_i32() == fdef.kwargs_index { lptn = "KwargsMap" }
                 if lptn.len() == 0 { continue }
                 ctx.lowering_param_types.set(lpp.name, own lptn)
             }
@@ -5039,7 +5052,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     stmt.set_expr_til_type(Type.None)
 }
 
-infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
+infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     // Issue #244: a Match at statement position is either the lowering's
     // result-temp-tagged form (desugar it like a switch) or a bare user
     // `match` whose value is discarded (an error pointing at switch).
@@ -5204,7 +5217,7 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
 // themselves before tearing the scope down.
 infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     body.set_expr_til_type(Type.None)
-    mut i : U32 = 0
+    mut i : USize = 0
     while i < body.children.len() {
         if scope.parent.is_null().and(in_func.eq(0)).and(in_type_body.eq(0)) {
             context_set_mode_from_path(ctx, ctx.path)
@@ -5219,7 +5232,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I
 
 priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     body.set_expr_til_type(Type.None)
-    mut i : U32 = 0
+    mut i : USize = 0
     while i < body.children.len() {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         // Issue #158: record foldable macro/func names as we walk the final
@@ -5739,6 +5752,8 @@ priv can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) retur
         switch to {
         case Type.Primitive(Primitive.U32):
             return is_integral_numeric_type(from)
+        case Type.Primitive(Primitive.U64):
+            return is_integral_numeric_type(from)
         case: return false
         }
     }
@@ -6105,15 +6120,15 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                         mut fd_idx : I32 = -1
                                         if field_name.is_empty() {
                                             // Positional: arg position ci-1 maps to field index.
-                                            fd_idx = ci.sub(1).cast(I32)
+                                            fd_idx = ci.sub(1).to_i32()
                                         } else {
                                             for fi in 0..tsv_sdd.fields.len() {
-                                                if tsv_sdd.fields[fi].name == field_name { fd_idx = fi.cast(I32); break }
+                                                if tsv_sdd.fields[fi].name == field_name { fd_idx = fi.to_i32(); break }
                                             }
                                         }
                                         if fd_idx < 0 { continue }
-                                        if fd_idx.cast(U32) >= tsv_sdd.fields.len() { continue }
-                                        ref fld_decl : Declaration = tsv_sdd.fields[fd_idx.cast(U32)]
+                                        if fd_idx.to_usize() >= tsv_sdd.fields.len() { continue }
+                                        ref fld_decl : Declaration = tsv_sdd.fields[fd_idx.to_usize()]
                                         if fld_decl.own_type.is(OwnType.Shallow).not() { continue }
                                         if type_ctor_consumes(fld_decl.til_type) {
                                             return true
@@ -6612,7 +6627,7 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
 priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I32 {
     for csi in 0..coverage.sub_names.len() {
         ref n : Str = coverage.sub_names[csi]
-        if n == variant_name { return csi.cast(I32) }
+        if n == variant_name { return csi.to_i32() }
     }
     return -1
 }
@@ -6645,7 +6660,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                 if type_name == expected_type_name {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx >= 0 {
-                        ref sub : CoverageNode = coverage.sub_nodes[idx.cast(U32)]
+                        ref sub : CoverageNode = coverage.sub_nodes[idx.to_usize()]
                         return sub.fully_covered
                     }
                 }
@@ -6673,7 +6688,7 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                         if type_name2 == expected_type_name {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2 >= 0 {
-                                ref sub2 : CoverageNode = coverage.sub_nodes[idx2.cast(U32)]
+                                ref sub2 : CoverageNode = coverage.sub_nodes[idx2.to_usize()]
                                 if sub2.fully_covered { return true }
                                 ref inner_pat : Expr = pattern.children[1]
                                 if inner_pat.node_type.is(NodeType.Ident) {
@@ -6730,7 +6745,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                 if type_name == expected_type_name {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx >= 0 {
-                        ref mut sub : CoverageNode = coverage.sub_nodes[idx.cast(U32)]
+                        ref mut sub : CoverageNode = coverage.sub_nodes[idx.to_usize()]
                         sub.fully_covered = true
                     }
                 }
@@ -6760,7 +6775,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                         if type_name2 == expected_type_name {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2 >= 0 {
-                                ref mut sub2 : CoverageNode = coverage.sub_nodes[idx2.cast(U32)]
+                                ref mut sub2 : CoverageNode = coverage.sub_nodes[idx2.to_usize()]
                                 ref inner_pat : Expr = pattern.children[1]
                                 if inner_pat.node_type.is(NodeType.Ident) {
                                     // Whole-payload binding -> covers all sub-variants.
@@ -6870,7 +6885,7 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
 // switch helper, infers the bindings, then infers the value expression.
 priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
     arm_scope := TypeScope(parent = scope)
-    mut body_idx : U32 = 0
+    mut body_idx : USize = 0
     mut has_pattern := false
     if case_node.children.len() == 1 {
         body_idx = 0                 // default `case:` -- child(0) is the Body
@@ -6889,7 +6904,7 @@ priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr,
     mut t := Type.Unknown
     if trial.children.len() > 0 {
         last_idx := trial.children.len() - 1
-        mut k : U32 = 0
+        mut k : USize = 0
         while k < last_idx {
             infer_body_stmt(arm_scope, trial, k, in_func, 0, 0, 0, ctx)
             k++
@@ -6907,7 +6922,7 @@ priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr,
 // in place by an Ident referencing its result temp. Returns the number of
 // statements inserted, so the caller can advance past them to type-check the
 // now-match-free statement.
-priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns U32 {
+priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns USize {
     mut pre := Vec(Expr).new()
     ref mut stmt : Expr = body.children[stmt_idx]
     replace_matches_rec(scope, stmt, in_func, in_loop, returns_ref, ctx, pre)
@@ -6932,7 +6947,7 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
     case NodeType.Case:      return
     case:
     }
-    mut ci : U32 = 0
+    mut ci : USize = 0
     while ci < node.children.len() {
         if node.children[ci].node_type.is(NodeType.Match) {
             infer_match_expr(scope, node.children[ci], in_func, ctx)
@@ -7056,11 +7071,11 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     mut has_default := false
     mut default_line : U32 = 0
     mut default_col : U32 = 0
-    mut last_case_idx : U32 = 0
+    mut last_case_idx : USize = 0
     mut has_last_case := false
     for ci in 1..stmt.children.len() {
         ref mut cn : Expr = stmt.children[ci]
-        mut body_idx : U32 = 1
+        mut body_idx : USize = 1
         if cn.children.len() == 1 {
             body_idx = 0
             has_default = true
@@ -7118,7 +7133,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     stmt.set_expr_til_type(Type.None)
 }
 
-priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
+priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
     sw_line := stmt.line
@@ -7141,7 +7156,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
         }
         for tci in 1..stmt.children.len() {
             ref tcase : Expr = stmt.children[tci]
-            mut tbody_idx : U32 = 1
+            mut tbody_idx : USize = 1
             if tcase.children.len() == 1 { tbody_idx = 0 }
             else if tcase.children.len() == 3 { tbody_idx = 2 }
             ref tvbody : Expr = tcase.children[tbody_idx]
@@ -7254,7 +7269,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
             continue
         }
         mut has_guard := false
-        mut body_idx : U32 = 1
+        mut body_idx : USize = 1
         if case_node.children.len() == 3 {
             has_guard = true
             body_idx = 2
@@ -7415,7 +7430,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, 
     return true
 }
 
-priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
     if iter.node_type.is(NodeType.FCall).not() { return false }
@@ -7526,7 +7541,7 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
     return true
 }
 
-priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut iter : Expr = stmt.children[0]
 
@@ -7863,7 +7878,7 @@ priv collection_elem_type_of := func(scope: TypeScope, col_type_name: Str) retur
 // so the interpreter aliases each slot -- a `for k, mut v` write must
 // persist into the map. Returns false for the single-variable form
 // (name2 empty), leaving the other for-in desugars to handle it.
-priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U32, in_func: I32, ctx: Context) returns Bool {
+priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
 
     mut var_name := ""

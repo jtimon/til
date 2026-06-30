@@ -1896,13 +1896,29 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     }
                 }
 
-                ref ab : TypeBinding = scope.get_binding(ftype)
-                if ab.is_null().not() {
-                    if ab.is_type_alias {
-                        if ab.alias_target.is_empty().not() {
-                            ftype = ab.alias_target
-                            fd.explicit_type = ftype
-                            fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                // #192: USize/UPtr are target-dependent aliases. KEEP the
+                // alias name on fd.explicit_type so the C emitter spells the
+                // field with the USize/UPtr typedef -- ext.h's typedef is the
+                // single source of truth for the field's ABI width, so a field
+                // stays consistent no matter which compiler (til_boot or
+                // bin/til) emits it. Resolve only a LOCAL copy through the
+                // per-target authority for the layout size/align math, and set
+                // til_type to the resolved primitive so typechecking sees the
+                // right width. Other aliases resolve to their target as before.
+                if ftype.eq("USize").or(ftype.eq("UPtr")) {
+                    mut resolved := scope_target_usize_pname(scope).clone()
+                    if ftype.eq("UPtr") { resolved = scope_target_uptr_pname(scope).clone() }
+                    fd.til_type = til_type_from_explicit_type(resolved)
+                    ftype = resolved
+                } else {
+                    ref ab : TypeBinding = scope.get_binding(ftype)
+                    if ab.is_null().not() {
+                        if ab.is_type_alias {
+                            if ab.alias_target.is_empty().not() {
+                                ftype = ab.alias_target
+                                fd.explicit_type = ftype
+                                fd.til_type = til_type_from_explicit_type(fd.explicit_type)
+                            }
                         }
                     }
                 }
@@ -2001,7 +2017,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
         mut max_payload_size : USize = 0
         mut max_payload_align : USize = tag_size
         for vi in 0..edd.variants.len() {
-            vt := enum_variant_type(enum_def, vi.cast(I32))
+            vt := enum_variant_type(enum_def, vi.to_i32())
             if vt.len() == 0 { continue }
             mut psz : USize = 0
             mut palign : USize = 0
@@ -3750,10 +3766,10 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // funcsig) and bucket each remaining Decl's index for post-walk work.
     // Enum non-clone methods need scope to be populated before they can
     // generate eq/delete/to_str, so we delay them until after the walk.
-    enum_idxs := Vec(U32).new()
-    alias_idxs := Vec(U32).new()
-    func_idxs := Vec(U32).new()
-    value_idxs := Vec(U32).new()
+    enum_idxs := Vec(USize).new()
+    alias_idxs := Vec(USize).new()
+    func_idxs := Vec(USize).new()
+    value_idxs := Vec(USize).new()
     // Issue #93: nested struct/enum/func definitions inside a FuncDef
     // body are lifted to the program top level (with names mangled
     // `<parent>_<orig>`) inline during this walk. The lifted decls are
@@ -3861,16 +3877,16 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     }
 
     // All type names are now in scope. Process the collected lists.
-    for ei : U32 in enum_idxs {
+    for ei : USize in enum_idxs {
         gen_enum_nonclone_methods_for_stmt(program.children[ei], scope)
     }
-    for ai : U32 in alias_idxs {
+    for ai : USize in alias_idxs {
         register_type_alias_for_stmt(ctx, program.children[ai], scope)
     }
-    for fi : U32 in func_idxs {
+    for fi : USize in func_idxs {
         register_function_def_for_stmt(ctx, program.children[fi], scope)
     }
-    for vi : U32 in value_idxs {
+    for vi : USize in value_idxs {
         register_top_level_value_for_stmt(ctx, program.children[vi], scope)
     }
 
@@ -4164,10 +4180,10 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // Single AST walk: bucket struct and enum decls for post-walk work,
     // and bucket func/value decls in case global generation steps added
     // new ones (size/derived methods) that need to be registered.
-    struct_idxs := Vec(U32).new()
-    enum_idxs := Vec(U32).new()
-    func_idxs := Vec(U32).new()
-    value_idxs := Vec(U32).new()
+    struct_idxs := Vec(USize).new()
+    enum_idxs := Vec(USize).new()
+    func_idxs := Vec(USize).new()
+    value_idxs := Vec(USize).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
@@ -4190,23 +4206,23 @@ init_declarations_global := func(ctx: Context, program: Expr, scope: TypeScope) 
     // missing-clone for enums. Layout computation, size methodgen
     // and cmp/unity methodgen all moved to type_decls_file (the
     // typer's first sweep) as part of #147 step 3-4 / #174 work.
-    for si : U32 in struct_idxs {
+    for si : USize in struct_idxs {
         gen_interface_box_fields_for_stmt(program.children[si])
         gen_interface_clone_delete_for_stmt(program.children[si])
         gen_struct_clone_delete_for_stmt(program.children[si], scope, ctx)
         gen_implements_defaults_for_stmt(program.children[si], scope)
     }
-    for ei : U32 in enum_idxs {
+    for ei : USize in enum_idxs {
         gen_missing_enum_clone_for_stmt(program.children[ei], scope)
         gen_implements_defaults_for_stmt(program.children[ei], scope)
     }
     // Re-register function/value decls -- new ones may have been generated
     // above (size methods etc) but those go into ns_decls, not program.children.
     // Still re-register here to mirror the original ordering.
-    for fi : U32 in func_idxs {
+    for fi : USize in func_idxs {
         register_function_def_for_stmt(ctx, program.children[fi], scope)
     }
-    for vi : U32 in value_idxs {
+    for vi : USize in value_idxs {
         register_top_level_value_for_stmt(ctx, program.children[vi], scope)
     }
 

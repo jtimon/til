@@ -136,7 +136,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             switch s.node_type {
             case NodeType.Decl(dd):
                 if dd.name == b.name {
-                    decl_idx = j.cast(I32)
+                    decl_idx = j.to_i32()
                     break
                 }
             case:
@@ -145,7 +145,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if decl_idx == -1 {
             for j in 0..body.children.len() {
                 if expr_contains_decl(body.children[j], b.name) {
-                    decl_idx = j.cast(I32)
+                    decl_idx = j.to_i32()
                     break
                 }
             }
@@ -161,11 +161,11 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             ref stmt : Expr = body.children[j]
             if is_compile_directive(stmt) { continue }
             if expr_uses_var(stmt, b.name) {
-                last_use = j.cast(I32)
+                last_use = j.to_i32()
             }
             if own_transfer == -1 {
                 if expr_transfers_own(stmt, b.name, scope, ctx) {
-                    own_transfer = j.cast(I32)
+                    own_transfer = j.to_i32()
                 }
             }
         }
@@ -215,7 +215,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // return, and which the typer otherwise leaves at Own for
         // Struct-returning FCalls).
         if decl_idx >= 0 {
-            ref li_stmt : Expr = body.children[decl_idx.cast(U32)]
+            ref li_stmt : Expr = body.children[decl_idx.to_usize()]
             if li_stmt.node_type.is(NodeType.Decl).and(li_stmt.children.len().gt(0)) {
                 ref li_rhs : Expr = li_stmt.children[0]
                 if li_rhs.node_type.is_literal_str() {
@@ -306,7 +306,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
             // src). Without aliasing analysis we can't pin a tighter bound,
             // so keep src alive through scope exit.
-            body_last := body.children.len().sub(1).cast(I32)
+            body_last := body.children.len().sub(1).to_i32()
             for local : LocalInfo in locals {
                 if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
                     local.last_use = body_last
@@ -328,7 +328,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             if stmt.children.len() > 0 {
                 switch stmt.children[0].node_type {
                 case NodeType.FuncDef(fd):
-                    mut closure_last : I32 = i.cast(I32)
+                    mut closure_last : I32 = i.to_i32()
                     for local : LocalInfo in locals {
                         if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
                             closure_last = local.last_use
@@ -344,7 +344,7 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
                         }
                     }
                 case NodeType.BodyValue(bd):
-                    mut closure_last : I32 = i.cast(I32)
+                    mut closure_last : I32 = i.to_i32()
                     for local : LocalInfo in locals {
                         if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
                             closure_last = local.last_use
@@ -368,10 +368,10 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
             mut ref_last : I32 = -1
             for j in i.add(1)..body.children.len() {
                 if expr_uses_var(body.children[j], dd_name) {
-                    ref_last = j.cast(I32)
+                    ref_last = j.to_i32()
                 }
             }
-            if ref_last == -1 { ref_last = i.cast(I32) }
+            if ref_last == -1 { ref_last = i.to_i32() }
             for local : LocalInfo in locals {
                 if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
                     ref_last = local.last_use
@@ -452,7 +452,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
         for j in 0..body.children.len() {
             if is_compile_directive(body.children[j]) { continue }
             for t : Str in tainted {
-                if expr_uses_var(body.children[j], t) { view_last = j.cast(I32) }
+                if expr_uses_var(body.children[j], t) { view_last = j.to_i32() }
             }
         }
         if view_last > local.last_use { local.last_use = view_last }
@@ -546,7 +546,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     body.children.move_from(new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: U32) {
+priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() {
@@ -570,10 +570,10 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         // uses.
         if local.own_transfer >= 0 {
             if local.decl_index < 0 { continue }
-            if local.own_transfer <= stmt_idx.cast(I32) { continue }
+            if local.own_transfer <= stmt_idx.to_i32() { continue }
         }
-        if local.decl_index < stmt_idx.cast(I32) {
-            if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
+        if local.decl_index < stmt_idx.to_i32() {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
                 live_vec.push(own local.clone())
             }
         }
@@ -612,7 +612,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: U32, mut new_ch: Vec(Expr)) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -631,10 +631,10 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         // Body-declared locals only; own params keep the full stand-down.
         if local.own_transfer >= 0 {
             if local.decl_index < 0 { continue }
-            if local.own_transfer <= stmt_idx.cast(I32) { continue }
+            if local.own_transfer <= stmt_idx.to_i32() { continue }
         }
-        if local.decl_index < stmt_idx.cast(I32) {
-            if local.last_use.gte(stmt_idx.cast(I32)).or(local.last_use.eq(-1)) {
+        if local.decl_index < stmt_idx.to_i32() {
+            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
                 if type_to_name(local.type).len() > 0 {
                     del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                     if del.is_null().not() { new_ch.push(own del) }
@@ -647,7 +647,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
     }
 }
 
-priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: U32, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
+priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -670,7 +670,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
             if local.is_heap.and(is_aggregate(local.type)) {
-                if local.own_transfer == stmt_idx.cast(I32) {
+                if local.own_transfer == stmt_idx.to_i32() {
                     if type_to_name(local.type).len() > 0 {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
@@ -689,7 +689,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             }
             continue
         }
-        if local.last_use == stmt_idx.cast(I32) {
+        if local.last_use == stmt_idx.to_i32() {
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
             // the local's contents would then be deleted by the normal
@@ -788,7 +788,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                 if del.is_null().not() { new_ch.push(own del) }
             }
         }
-        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.cast(I32))) {
+        if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if type_to_name(local.type).len() > 0 {
                 del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
@@ -829,7 +829,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
 priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals: Vec(LocalInfo)) {
     for local : LocalInfo in locals {
         if local.decl_index < 0 { continue }
-        ref stmt : Expr = body.children[local.decl_index.cast(U32)]
+        ref stmt : Expr = body.children[local.decl_index.to_usize()]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         // Skip LiteralStr-RHS decls (temp or user-visible): the builder
         // emits these as stack-allocated compound-literal Str values, so
@@ -863,7 +863,7 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
         // out cleanly.
         if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(is_struct) {
             if local.last_use >= 0 {
-                ref last_stmt : Expr = body.children[local.last_use.cast(U32)]
+                ref last_stmt : Expr = body.children[local.last_use.to_usize()]
                 if last_stmt.node_type.is(NodeType.Return) {
                     if last_stmt.children.len() > 0 {
                         switch last_stmt.children[0].node_type {
@@ -964,8 +964,8 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         if is_aggregate(local.type).not() { continue }
         if type_to_name(local.type).len() == 0 { continue }
         if local.last_use > local.own_transfer { continue }
-        if local.own_transfer >= body.children.len().cast(I32) { continue }
-        ref tstmt : Expr = body.children[local.own_transfer.cast(U32)]
+        if local.own_transfer >= body.children.len().to_i32() { continue }
+        ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
         if tstmt.node_type.is(NodeType.If).not() { continue }
         sink_nontransfer_paths(tstmt, local, scope, ctx)
     }

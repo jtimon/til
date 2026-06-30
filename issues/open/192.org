@@ -163,3 +163,125 @@ With the source already width-clean, widen in one shot:
 Sweep any remaining container sizes still routed through ~UPtr~ or
 explicit ~to_u64()~ and put them back on ~USize~; remove now-dead
 width-bridging helpers. Plain ~make test~.
+
+*** Progress 2026-06-24: revised plan -- emit the USize/UPtr typedef name
+
+The 958-error spike from the 2026-06-05 analysis predated the per-target
+authority routing (~ctx.target_usize_pname~ / ~scope_target_usize_pname~
+in ~context.til~ / ~typer.til~ / ~initer.til~ / ~loader.til~), which
+already makes ~type_from_name~, ~resolve_type_alias~, ~primitive_type_info~
+and the USize/UPtr ~TypeBinding~ resolve to the loader-stamped target
+width. With that routing in place the flip type-checks cleanly; the only
+remaining blocker is the *C ABI*: ~til_boot~ (built from master) emits
+struct fields with the *resolved concrete* type (~U32 cap~) while a flipped
+~ext.h~ typedefs ~USize~ as ~U64~, so ~TIL_CAP_LIT ((USize)-1)~ and every
+size assignment overflow at the C-compile of pass 1. Two-pass cannot help:
+pass 1 itself fails to compile.
+
+Root cause: the struct-field emitter resolved the alias away. Fix
+(approach used here): make ~ext.h~'s ~USize~/~UPtr~ typedef the single
+source of truth for the field ABI by emitting the *alias name* for those
+fields, exactly as function params already do (~param_ctype~ ->
+~type_name_to_c_value(explicit_type)~ already spells ~USize~/~UPtr~).
+
+Split into:
+
+**** Commit A -- emit-side preparation (plain ~make test~, ~USize~ stays ~U32~)
+
+- ~src/self/initer.til~ ~compute_struct_layout~: keep ~USize~/~UPtr~ on the
+  field's ~explicit_type~ (do NOT overwrite it with the resolved concrete
+  primitive); resolve only a local copy through the authority for the
+  size/align math, and set ~til_type~ to the resolved primitive for
+  type-checking.
+- ~src/self/builder.til~ ~field_emit_ctype~: emit ~USize~/~UPtr~ (the
+  typedef name) for those fields in ~emit_struct_typedef~ instead of the
+  concrete primitive from ~til_type~.
+Width-neutral at ~USize == U32~ (the typedef is ~U32~, so the emitted C is
+byte-identical). Must land before the flip so ~til_boot~ bakes the
+alias-name emission in.
+
+**** Commit B -- the flip (~Two-pass:~ commit), after Commit A merges
+
+- ~src/c/ext.h~: ~USize~ typedef target-driven (mirror ~UPtr~'s
+  ~#if UINTPTR_MAX==0xffffffff~ block).
+- ~src/core/usize.til~: ~USize := U64~.
+- ~src/self/targets.til~: ~target_usize_name~ -> ~U64~ on 64-bit.
+- ~src/self/context.til~: ~TypeScope~/~Context~ ~target_usize_pname~ default
+  -> ~U64~ (loader still retargets to ~U32~ on 32-bit).
+- ~src/self/typer.til~: ~can_implicit_usize_coerce~ gains a ~U64~ arm.
+- ~src/self/interpreter.til~ + ~src/self/constfolder.til~: USize scalar/FFI
+  decode and the ~CAP_LIT~ sentinel become alias-aware (target width).
+
+*** Progress 2026-06-24 (cont.): full type-sweep done; constfold blocker found
+
+With commits A (emit-prep) and the source-driven resolution merged into
+~til_boot~, the flip was applied and the entire self-compiler width sweep
+completed: every bare-~U32~ index/length/count/offset local, param, loop
+var, and ~Vec(U32)~-of-indices was widened to ~USize~, and ~usize.cast(I32)~
+/ ~i32.cast(U32)~-as-index idioms were converted to ~.to_i32()~ /
+~.to_usize()~. Result: ~bin/til_boot build~ reaches ZERO type errors on the
+flipped source (down from 655). The full sweep is preserved on this branch
+as a WIP commit (does NOT build -- see below).
+
+REMAINING BLOCKER (architectural, not mechanical): ~bin/til_boot~ (built at
+~USize == U32~ from the prep commits) SEGFAULTS while compiling the
+~USize == U64~ source, before emitting any C. gdb backtrace:
+
+  free(mem=0x36)  <- free_container_str_data
+  <- struct_deep_free  <- free_temp_arg_value  <- scope_free
+  <- constfolder fold_subtree ...  <- constfolder_imported  <- prepare_program
+
+The compile-time constfold INTERPRETER inside ~til_boot~ tears down ~Str~
+Values using the SOURCE's field offsets (~ctx_field_layout~ -> ~U64~: c_str@0,
+count@8, cap@16) while the Value data was built by ~til_boot~'s own
+hardcoded ~U32~ ~make_str_value~ (count@8, cap@12, 16-byte). Reading the
+~c_str~ at the wrong offset yields garbage (0x36) that ~free~ then crashes
+on. In other words, ~til_boot~'s compile-time interpreter is COUPLED to the
+source's ~USize~ width, but ~til_boot~ itself was built at the old width, so
+it cannot interpret core code of the new width -- and constfolding runs core
+code at compile time on every build.
+
+So the flip needs ANOTHER preparation step before it can pass pass 1:
+decouple the constfold interpreter's runtime layout from the source's
+emitted-code width (make the interpreter's ~Str~/~Vec~/~Array~ layout
+helpers -- ~make_str_value~ et al -- compute offsets/sizes the same way the
+struct-walk teardown does, i.e. from ONE consistent layout source, so a
+~U32~-built ~til_boot~ can fold ~U64~ core code without corruption). This is
+an interpreter refactor of unknown tail length (the segfault is only the
+first hardcoded-layout site); it is the real remaining work for #192.
+
+*** Progress 2026-06-24 (cont. 2): width-agnostic Str builders landed
+
+The prep stack is now five commits, all GREEN and width-neutral at
+~USize == U32~ (~make test~ passes; the only failing test is the known
+~build_checkers~ / ~build_popcorn~ GUI-under-xvfb timing flake, which
+passes on re-run):
+
+  1. don't flag ~.cast(U64)~/~.cast(U32)~ self-casts as redundant
+  2. emit ~USize~/~UPtr~ typedef name for struct fields (ext.h is the ABI
+     source of truth)
+  3. resolve ~USize~/~UPtr~ width from the source alias (lag-free)
+  4. width-agnostic interpreter + full ~USize~/~UPtr~ cleanup (the whole
+     sweep: every bare-~U32~ index/count/len widened; ~make_str_value~ /
+     ~make_str_value_view~ / ~make_str_value_own~ + the FFI ExtStr-adopt
+     path made ctx-driven via ~str_write_count_cap~; ~to_u32~/~to_u64~
+     self-conversion lint exemption; ~can_implicit_usize_coerce~ U64 arm;
+     CAP_LIT/CAP_VIEW width-aware)
+
+THE FLIP ITSELF is now four tiny switches (verified to reach 0 type errors
+on top of the prep):
+
+  - ~src/core/usize.til~: ~import("u64")~; ~USize := U64~
+  - ~src/c/ext.h~: ~USize~ typedef target-driven (mirror UPtr's
+    ~#if UINTPTR_MAX==0xffffffff~ block)
+  - ~src/self/targets.til~: ~target_usize_name~ -> ~U64~ on 64-bit
+  - ~src/self/context.til~: ~target_usize_pname~ defaults -> ~U64~ (x2)
+  - plus ~ffi_prep_cif(... np.to_u32() ...)~ in ~src/self/interpreter.til~
+
+REMAINING: even with the prep, ~til_boot~'s constfold still segfaults on
+pass 1 -- the SECOND hardcoded-layout site surfaced (now freeing
+~0xFFFFFFFE~ = CAP_VIEW, implicating the view/struct-literal Str path).
+The interpreter has MORE compile-time Str/struct layout spots that each
+only reveal themselves after a full ~til_boot~ rebuild. Finishing #192 =
+hunting that tail to zero (make every compile-time Str/struct write
+ctx-driven), then landing the four switches as a ~Two-pass:~ commit.

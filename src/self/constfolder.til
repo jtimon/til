@@ -69,9 +69,9 @@ priv from_source_form := func(s: Str) returns Str {
     if has_bs.not() { return s }
     n := s.len()
     mut out := ""
-    mut i : U32 = 0
-    one : U32 = 1
-    two : U32 = 2
+    mut i : USize = 0
+    one : USize = 1
+    two : USize = 2
     while i < n {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
@@ -152,8 +152,8 @@ priv str_to_source_form := func(s: Str) returns Str {
             hi : U8 = ub / 16
             lo : U8 = ub % 16
             hex := "0123456789abcdef"
-            out = format(out, hex.substr(hi.cast(U32), 1))
-            out = format(out, hex.substr(lo.cast(U32), 1))
+            out = format(out, hex.substr(hi.to_usize(), 1))
+            out = format(out, hex.substr(lo.to_usize(), 1))
             out = format(out, "\"\"")
             continue
         }
@@ -329,7 +329,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             // (format/concat) sizes exactly -- cap == count -- so it folds.
             // Don't fold the builder; leave the call for runtime.
             ref str_hdr : Str = to_ptr(si.data)
-            if str_hdr.cap.lt(CAP_VIEW).and(str_hdr.cap.gt(str_hdr.count)) {
+            if str_cap_at(to_ptr(si.data), ctx).lt(CAP_VIEW).and(str_cap_at(to_ptr(si.data), ctx).gt(str_hdr.count)) {
                 return NULL
             }
             sv := str_view(val)
@@ -1639,11 +1639,26 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Cont
 
 // Issue #191: core constants macro bodies may need. Registered after the
 // defs walk so they win over any like-named definition.
-// CAP_VIEW = -2 as USize (U32) = 0xFFFFFFFE = 4294967294
-// CAP_LIT  = -1 as USize (U32) = 0xFFFFFFFF = 4294967295
-constfolder_register_core_constants := func(mut global: Scope) {
-    cap_view_val := Value.Uint32(4294967294)
-    scope_set_owned(global, "CAP_VIEW", cap_view_val)
-    cap_lit_val := Value.Uint32(4294967295)
-    scope_set_owned(global, "CAP_LIT", cap_lit_val)
+// CAP_VIEW = -2 as USize, CAP_LIT = -1 as USize. #192: USize is
+// target-dependent (U32 on 32-bit, U64 on 64-bit), so the interpreter
+// sentinels must match the resolved width -- they are compared against
+// Str.cap, which the interpreter decodes at the USize width. Build the
+// U64 forms with bnot to avoid out-of-I64-range literals.
+// 32-bit: CAP_VIEW = 0xFFFFFFFE = 4294967294, CAP_LIT = 0xFFFFFFFF = 4294967295.
+constfolder_register_core_constants := func(mut global: Scope, usize_name: Str) {
+    if usize_name == "U64" {
+        mut lit64 : U64 = 0
+        lit64 = lit64.bnot()       // -1 as U64
+        mut view64 : U64 = 1
+        view64 = view64.bnot()     // -2 as U64
+        cap_view_val := Value.Uint64(view64)
+        scope_set_owned(global, "CAP_VIEW", cap_view_val)
+        cap_lit_val := Value.Uint64(lit64)
+        scope_set_owned(global, "CAP_LIT", cap_lit_val)
+    } else {
+        cap_view_val := Value.Uint32(4294967294)
+        scope_set_owned(global, "CAP_VIEW", cap_view_val)
+        cap_lit_val := Value.Uint32(4294967295)
+        scope_set_owned(global, "CAP_LIT", cap_lit_val)
+    }
 }

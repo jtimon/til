@@ -21,7 +21,7 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
         nparam := fdef_data.params.len()
         vi := fdef_data.variadic_index
         kwi := fdef_data.kwargs_index
-        mut fixed_count : U32 = nparam
+        mut fixed_count : USize = nparam
         if vi >= 0 {
             fixed_count = vi.cast(U32)
         }
@@ -33,7 +33,7 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
         for _ in 0..nparam {
             new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
         }
-        mut pos_idx : U32 = 0
+        mut pos_idx : USize = 0
         mut seen_named := false
         for i in 1..e.children.len() {
             ref arg : Expr = e.children[i]
@@ -42,11 +42,11 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                 seen_named = true
                 mut slot : I32 = -1
                 for j in 0..nparam {
-                    if j.cast(I32) == vi { continue }
-                    if j.cast(I32) == kwi { continue }
+                    if j.to_i32() == vi { continue }
+                    if j.to_i32() == kwi { continue }
                     ref param : Declaration = fdef_data.params[j]
                     if param.name == aname {
-                        slot = j.cast(I32)
+                        slot = j.to_i32()
                         break
                     }
                 }
@@ -57,11 +57,11 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                         arg.type_error(format("'", name, "' has no parameter '", aname, "'"), ctx)
                     }
                 } else {
-                    ref slot_arg : Expr = new_args[slot.cast(U32)]
+                    ref slot_arg : Expr = new_args[slot.to_usize()]
                     if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
                         arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                     } else {
-                        new_args[slot.cast(U32)] = arg.children[0].clone()
+                        new_args[slot.to_usize()] = arg.children[0].clone()
                     }
                 }
             case:
@@ -81,8 +81,8 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
             }
         }
         for i in 0..nparam {
-            if i.cast(I32) == vi { continue }
-            if i.cast(I32) == kwi { continue }
+            if i.to_i32() == vi { continue }
+            if i.to_i32() == kwi { continue }
             ref slot_arg : Expr = new_args[i]
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = fdef_data.params[i]
@@ -93,7 +93,7 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
                 }
             }
         }
-        mut max_pos : U32 = nparam
+        mut max_pos : USize = nparam
         if kwi >= 0 {
             max_pos--
         }
@@ -109,12 +109,12 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
         ref callee : Expr = e.children[0]
         new_ch.push(own callee.clone())
         for i in 0..nparam {
-            if i.cast(I32) == vi {
+            if i.to_i32() == vi {
                 va_count := va_args.len()
                 for vai in 0..va_count {
                     new_ch.push_take(va_args, vai)
                 }
-            } else if i.cast(I32) == kwi {
+            } else if i.to_i32() == kwi {
                 kw_count := kw_args.len()
                 for kwi2 in 0..kw_count {
                     new_ch.push_take(kw_args, kwi2)
@@ -2172,12 +2172,12 @@ priv process_throw_catch_in_body := proc(
                         }
                     }
                     ctx.throw_used_local_names.add(own idn.name.clone())
-                    mut scan_decl : I32 = new_ch.len().cast(I32)
+                    mut scan_decl : I32 = new_ch.len().to_i32()
                     if scan_decl > 0 {
                         scan_decl--
                     }
                     while scan_decl >= 0 {
-                        ref prior_stmt : Expr = new_ch[scan_decl.cast(U32)]
+                        ref prior_stmt : Expr = new_ch[scan_decl.to_usize()]
                         switch prior_stmt.node_type {
                         case NodeType.Decl(prior_dd):
                             if prior_dd.name == idn.name.clone() {
@@ -2465,7 +2465,7 @@ stmt_contains_match := func(e: Expr) returns Bool {
 
 // Insert `pre`'s statements into body.children just before index `idx`,
 // preserving order. Mirrors the rebuild used by body_pre_passes.
-splice_stmts_before := func(mut body: Expr, idx: U32, mut pre: Vec(Expr)) {
+splice_stmts_before := func(mut body: Expr, idx: USize, mut pre: Vec(Expr)) {
     if pre.len() == 0 { return }
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -2933,7 +2933,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
     return condition
 }
 
-replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
+replace_switch_stmt_with_block := func(mut body: Expr, stmt_idx: USize, own block: Expr) {
     body.children[stmt_idx] = block
 }
 
@@ -3170,7 +3170,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     body.children.move_from(new_ch)
 }
 
-replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: U32, own block: Expr) {
+replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: USize, own block: Expr) {
     body.children[stmt_idx] = block
 }
 
@@ -3393,7 +3393,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     return set_call
 }
 
-priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: U32, ctx: Context) returns Expr {
+priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vc: USize, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     mut new_call := make_ns_call(array_type, "new", Type.Struct(array_type.clone()), fcall)
 
@@ -3512,7 +3512,7 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     new_ch.push(own eo)
 }
 
-priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: U32, ctx: Context) returns Expr {
+priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: USize, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     // Issue #225: the variadic-arg collector fills its temp Array with the
     // throwing `set`. This desugar runs after throws-lowering, so the call
@@ -3531,7 +3531,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     idx.set_expr_til_type(usize_type(scope, ctx))
     set_call.add_child(own idx)
 
-    ref val_in : Expr = fcall.children[vi.add(j.cast(I32)).to_usize()]
+    ref val_in : Expr = fcall.children[vi.add(j.to_i32()).to_usize()]
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
         tname := type_to_name(val_in.expr_til_type())
@@ -3599,7 +3599,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     return vec_decl
 }
 
-priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: U32, ctx: Context) returns Expr {
+priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: Str, vec_name: Str, j: USize, ctx: Context) returns Expr {
     vec_type := format("Vec__", elem_type)
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 
@@ -3652,7 +3652,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             // call raw rather than panic from inside the desugar.
             elem_type := array_vec_elem_type_name(fcall)
             if elem_type.len() == 0 { return false }
-            count : U32 = fcall.children.len() - 2
+            count : USize = fcall.children.len() - 2
             if cn_str == "vec" {
                 vec_name := format("_vec_", ctx.coll_counter.to_str())
                 ctx.coll_counter++
@@ -3710,7 +3710,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len() == 0 { return false }
-            count : U32 = rhs.children.len() - 2
+            count : USize = rhs.children.len() - 2
             mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
             vec_type := format("Vec__", elem_type)
             vec_decl.set_expr_til_type(Type.Struct(vec_type.clone()))
@@ -3731,7 +3731,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             if rhs.children.len() < 2 { return false }
             elem_type := array_vec_elem_type_name(rhs)
             if elem_type.len() == 0 { return false }
-            count : U32 = rhs.children.len() - 2
+            count : USize = rhs.children.len() - 2
             array_type := variadic_array_type_name(scope, elem_type)
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
             arr_decl.set_expr_til_type(Type.Struct(array_type.clone()))
@@ -4011,7 +4011,7 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
                 scope.set(kw_name, Type.Struct("KwargsMap"), false, ctx.path, e.line, e.col, false, OwnType.Shallow)
                 new_ch.push(own kw_decl)
                 for j in 0..kc {
-                    ref named_arg : Expr = e.children[ki.add(j.cast(I32)).to_usize()]
+                    ref named_arg : Expr = e.children[ki.add(j.to_i32()).to_usize()]
                     mut setter := build_kwargs_map_set(e, scope, kw_name, named_arg, ctx)
                     new_ch.push(own setter)
                 }
@@ -4245,7 +4245,7 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
 // Used by the hoist pass to mark the hoisted-temp arg Own independently
 // of the per-call own_arg bit (which the auto-own pass may not have
 // reached on a synthesized/hoisted call).
-priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: U32, scope: TypeScope) returns Bool {
+priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScope) returns Bool {
     if expr.node_type.is(NodeType.FCall).not() { return false }
     if expr.children.len() < 2 { return false }
     ref callee : Expr = expr.children[0]
@@ -4551,7 +4551,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         mut va_inserted := false
         mut new_own : U64 = 0
         for j in 0..old_args.len() {
-            if j.cast(I32).gte(vi).and(j.cast(I32).lt(vi + vc.cast(I32))) {
+            if j.to_i32().gte(vi).and(j.to_i32().lt(vi + vc.to_i32())) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(ident_node(va_name), line, col)
                     va_id.set_expr_til_type(Type.Struct(array_type.clone()))
@@ -4563,7 +4563,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
                 }
                 continue
             }
-            if j.cast(I32).eq(vi).and(va_inserted.not()) {
+            if j.to_i32().eq(vi).and(va_inserted.not()) {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
                 va_id.set_expr_til_type(Type.Struct(array_type.clone()))
                 mut bit : U64 = 1
@@ -4828,7 +4828,7 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
 // there.
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
     if fdef_data.kwargs_index < 0 { return -1 }
-    return fdef_data.params.len().cast(I32)
+    return fdef_data.params.len().to_i32()
 }
 
 priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
@@ -4900,7 +4900,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         }
         mut fcall_new_ch := Vec(Expr).new()
         for j in 0..old_args.len() {
-            ji := j.cast(I32)
+            ji := j.to_i32()
             if ji == vi {
                 fcall_new_ch.push(own splat)
             } else {
@@ -4928,8 +4928,8 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
         mut new_own : U64 = 0
 
         for j in 0..old_args.len() {
-            ji := j.cast(I32)
-            if ji.gte(ki).and(ji.lt(ki + kc.cast(I32))) {
+            ji := j.to_i32()
+            if ji.gte(ki).and(ji.lt(ki + kc.to_i32())) {
                 if kw_inserted.not() {
                     mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
                     kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
