@@ -181,33 +181,24 @@ test_to_f32 := test() {
 test_split := test() {
     parts := "a,b,c".split(",")
     assert_eq(USize, parts.len(), 3)
-    ref p0 : Str = parts[0]
-    ref p1 : Str = parts[1]
-    ref p2 : Str = parts[2]
-    assert_eq(Str, p0, "a")
-    assert_eq(Str, p1, "b")
-    assert_eq(Str, p2, "c")
+    assert_eq(Str, parts[0], "a")
+    assert_eq(Str, parts[1], "b")
+    assert_eq(Str, parts[2], "c")
 
     parts2 := "hello".split(",")
     assert_eq(USize, parts2.len(), 1)
-    ref q0 : Str = parts2[0]
-    assert_eq(Str, q0, "hello")
+    assert_eq(Str, parts2[0], "hello")
 
     parts3 := "a::b".split("::")
     assert_eq(USize, parts3.len(), 2)
-    ref r0 : Str = parts3[0]
-    ref r1 : Str = parts3[1]
-    assert_eq(Str, r0, "a")
-    assert_eq(Str, r1, "b")
+    assert_eq(Str, parts3[0], "a")
+    assert_eq(Str, parts3[1], "b")
 
     parts4 := ",a,".split(",")
     assert_eq(USize, parts4.len(), 3)
-    ref s0 : Str = parts4[0]
-    ref s1 : Str = parts4[1]
-    ref s2 : Str = parts4[2]
-    assert_eq(Str, s0, "")
-    assert_eq(Str, s1, "a")
-    assert_eq(Str, s2, "")
+    assert_eq(Str, parts4[0], "")
+    assert_eq(Str, parts4[1], "a")
+    assert_eq(Str, parts4[2], "")
 }
 
 test_substr_view := test() {

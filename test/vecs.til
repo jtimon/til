@@ -29,10 +29,8 @@ test_vec_grow := test() {
     v.push(own 8)
 
     assert_eq(USize, v.len(), 8)
-    ref first : I64 = v[0]
-    ref last : I64 = v[7]
-    assert_eq(I64, first, 1)
-    assert_eq(I64, last, 8)
+    assert_eq(I64, v[0], 1)
+    assert_eq(I64, v[7], 8)
 }
 
 test_vec_strings := test() {
@@ -65,8 +63,7 @@ test_vec_set := test() {
 
     // set first element
     v.set(0, own 42)!
-    ref d : I64 = v[0]
-    assert_eq(I64, d, 42)
+    assert_eq(I64, v[0], 42)
 }
 
 test_vec_set_str := test() {
@@ -239,14 +236,10 @@ test_vec_append := test() {
     a.append(own b)
 
     assert_eq(USize, a.len(), 4)
-    ref a0 : I64 = a[0]
-    ref a1 : I64 = a[1]
-    ref a2 : I64 = a[2]
-    ref a3 : I64 = a[3]
-    assert_eq(I64, a0, 1)
-    assert_eq(I64, a1, 2)
-    assert_eq(I64, a2, 3)
-    assert_eq(I64, a3, 4)
+    assert_eq(I64, a[0], 1)
+    assert_eq(I64, a[1], 2)
+    assert_eq(I64, a[2], 3)
+    assert_eq(I64, a[3], 4)
 }
 
 test_vec_append_str := test() {
@@ -286,8 +279,7 @@ test_vec_for_in := test() {
     mut sum : I64 = 0
     mut idx : USize = 0
     for x : I64 in v {
-        ref expect_x : I64 = v[idx]
-        assert_eq(I64, x, expect_x)
+        assert_eq(I64, x, v[idx])
         sum = sum.add(x)
         idx = idx.add(1)
     }
@@ -318,12 +310,8 @@ test_vec_take_prefix_append_roundtrip := test() {
     prefix.append(own v)
 
     assert_eq(USize, prefix.len(), 4)
-    ref p0 : I64 = prefix[0]
-    ref p1 : I64 = prefix[1]
-    ref p2 : I64 = prefix[2]
-    ref p3 : I64 = prefix[3]
-    assert_eq(I64, p0, 5)
-    assert_eq(I64, p1, 6)
-    assert_eq(I64, p2, 7)
-    assert_eq(I64, p3, 8)
+    assert_eq(I64, prefix[0], 5)
+    assert_eq(I64, prefix[1], 6)
+    assert_eq(I64, prefix[2], 7)
+    assert_eq(I64, prefix[3], 8)
 }

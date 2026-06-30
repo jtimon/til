@@ -69,11 +69,6 @@ parse_csv := func(content: Str) returns Vec(Row) {
             i++
             continue
         }
-        ref c0 : Str = cols[0]
-        ref c1 : Str = cols[1]
-        ref c2 : Str = cols[2]
-        ref c3 : Str = cols[3]
-        ref c7 : Str = cols[7]
         mut c10 := "0"
         mut c11 := "0"
         mut c12 := "0"
@@ -90,32 +85,27 @@ parse_csv := func(content: Str) returns Vec(Row) {
                 c10 = c10r.clone()
             }
             if cols.len().gt(11) {
-                ref c11r : Str = cols[11]
-                c11 = c11r.clone()
+                c11 = cols[11].clone()
             }
             if cols.len().gt(12) {
-                ref c12r : Str = cols[12]
-                c12 = c12r.clone()
+                c12 = cols[12].clone()
             }
             if cols.len().gt(13) {
-                ref c13r : Str = cols[13]
-                c13 = c13r.clone()
+                c13 = cols[13].clone()
             }
             if cols.len().gt(14) {
-                ref c14r : Str = cols[14]
-                c14 = c14r.clone()
+                c14 = cols[14].clone()
             }
             if cols.len().gt(15) {
-                ref c15r : Str = cols[15]
-                c15 = c15r.clone()
+                c15 = cols[15].clone()
             }
         }
         rows.push(own Row(
-            commit = c0.clone(),
-            interp_ms = c1.to_i64(),
-            compile_ms = c2.to_i64(),
-            run_ms = c3.to_i64(),
-            wall_ms = c7.to_i64(),
+            commit = cols[0].clone(),
+            interp_ms = cols[1].to_i64(),
+            compile_ms = cols[2].to_i64(),
+            run_ms = cols[3].to_i64(),
+            wall_ms = cols[7].to_i64(),
             self_ms = c14.to_i64(),
             mem_inte = c10.to_i64(),
             mem_comp = c11.to_i64(),

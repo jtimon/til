@@ -8,9 +8,7 @@ WordBag := struct {
     eq := func(a: WordBag, b: WordBag) returns Bool {
         if a.items.len().neq(b.items.len()) { return false }
         for i in 0..a.items.len() {
-            ref av : Str = a.items[i]
-            ref bv : Str = b.items[i]
-            if av.eq(bv).not() { return false }
+            if a.items[i].eq(b.items[i]).not() { return false }
         }
         return true
     }
@@ -44,10 +42,8 @@ test_vec_payload_clone := test() {
         bag1.items.set(0, own "x")!
         switch b2 {
         case PayloadBox.Bag(bag2):
-            ref s1 : Str = bag1.items[0]
-            ref s2 : Str = bag2.items[0]
-            assert_eq(Str, s1, "x")
-            assert_eq(Str, s2, "a")
+            assert_eq(Str, bag1.items[0], "x")
+            assert_eq(Str, bag2.items[0], "a")
             assert_eq(USize, bag2.items.len(), 2)
         case:
             UNREACHABLE()

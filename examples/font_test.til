@@ -88,8 +88,7 @@ main := proc() {
     }
 
     for i in 0..NUM_FONTS {
-        ref uf : Font = fonts[i]
-        UnloadFont(uf)
+        UnloadFont(fonts[i])
     }
     CloseWindow()
 }

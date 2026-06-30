@@ -116,8 +116,7 @@ bug239 := test() {
     box := Bug239Box(leaf = Bug239Leaf(n = 7),
                      tag = Bug239Tag.Leaf(Bug239Leaf(n = 9)))
 
-    ref leaf_ref : Bug239Leaf = box.leaf
-    assert_eq(Str, leaf_ref.to_str(), "7")
+    assert_eq(Str, box.leaf.to_str(), "7")
 
     switch box.tag {
     case Bug239Tag.Leaf(payload):

@@ -847,19 +847,14 @@ test_enum_variant_primitives := test() {
 test_enum_def_of := test() {
     def := enum_def_of("Shape56")
     assert_eq(USize, def.variants.len(), 3)
-    ref v0 : Str = def.variants[0]
-    assert_eq(Str, "Circle", v0)
-    ref v1 : Str = def.variants[1]
-    assert_eq(Str, "Square", v1)
-    ref v2 : Str = def.variants[2]
-    assert_eq(Str, "Label", v2)
+    assert_eq(Str, "Circle", def.variants[0])
+    assert_eq(Str, "Square", def.variants[1])
+    assert_eq(Str, "Label", def.variants[2])
     ref def_pts : Map(I64, Str) = def.payload_types
     expect(def_pts.has(0), "Circle has payload")
     expect(def_pts.has(1).not(), "Square no payload")
-    ref p0 : Str = def_pts[0]
-    assert_eq(Str, "I64", p0)
-    ref p2 : Str = def_pts[2]
-    assert_eq(Str, "Str", p2)
+    assert_eq(Str, "I64", def_pts[0])
+    assert_eq(Str, "Str", def_pts[2])
 }
 
 // --- FuncSig introspection primitives (issue #58) ---
@@ -891,8 +886,7 @@ test_func_sig_of := test() {
     assert_eq(USize, sig.params.len(), 2)
     ref p0 : Declaration = sig.params[0]
     assert_eq(Str, "I64", p0.explicit_type)
-    ref p1 : Declaration = sig.params[1]
-    assert_eq(Str, "I64", p1.explicit_type)
+    assert_eq(Str, "I64", sig.params[1].explicit_type)
     assert_eq(Str, "I64", sig.return_type)
     assert_eq(USize, sig.throw_types.len(), 0)
 }

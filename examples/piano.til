@@ -105,8 +105,7 @@ main := proc() {
 
         // -- Input: reset key_down, then set from keyboard + mouse --
         for i in 0..NUM_KEYS {
-            ref kc : I32 = PIANO_KEYCODES[i]
-            if IsKeyDown(kc) {
+            if IsKeyDown(PIANO_KEYCODES[i]) {
                 key_down[i] = 1
             } else {
                 key_down[i] = 0
@@ -198,8 +197,7 @@ main := proc() {
         if song_playing {
             ref note_ms : I64 = HAPPY_BIRTHDAY_DURATIONS[song_idx]
             if song_timer.lt(note_ms) {
-                ref note_code : I32 = HAPPY_BIRTHDAY_FREQ_NOTES[song_idx]
-                key_idx := note_code - PIANO_C3_FREQ_OFFSET.cast(I32)
+                key_idx := HAPPY_BIRTHDAY_FREQ_NOTES[song_idx] - PIANO_C3_FREQ_OFFSET.cast(I32)
                 key_down[key_idx.to_usize()] = 1
             }
             song_timer = song_timer + dt
@@ -275,11 +273,9 @@ main := proc() {
             ny := i.cast(I32) * note_h
             mut ib : I32 = 0
             if hextave_display {
-                ref hib : I32 = FIVE_IS_BLACK[i.mod(FIVE_CYCLE)]
-                ib = hib.clone()
+                ib = FIVE_IS_BLACK[i.mod(FIVE_CYCLE)].clone()
             } else {
-                ref sib : I32 = IS_BLACK[i.mod(12)]
-                ib = sib.clone()
+                ib = IS_BLACK[i.mod(12)].clone()
             }
             if ib == 1 {
                 DrawRectangle(0, ny, WINDOW_WIDTH, note_h, GRID_BLACK)
@@ -299,11 +295,10 @@ main := proc() {
         for j in 0..ev_count.to_u32() {
             idx := (ev_head - ev_count + j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
             ref en : I32 = ev_note[idx.to_usize()]
-            ref es : I64 = ev_start[idx.to_usize()]
             ref ee : I64 = ev_end[idx.to_usize()]
 
             // x positions (time -> x, scrolling left)
-            mut x_right : I32 = WINDOW_WIDTH - ((timer - es) * SCROLL_SPEED.cast(I64) / 1000).to_i32()
+            mut x_right : I32 = WINDOW_WIDTH - ((timer - ev_start[idx.to_usize()]) * SCROLL_SPEED.cast(I64) / 1000).to_i32()
             mut x_left : I32 = WINDOW_WIDTH
             if ee >= 0 {
                 x_left = WINDOW_WIDTH - ((timer - ee) * SCROLL_SPEED.cast(I64) / 1000).to_i32()

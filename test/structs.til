@@ -338,12 +338,9 @@ test_vec_in_struct := test() {
     c.items.push(own 20)
     c.items.push(own 30)
     assert_eq(USize, c.items.len(), 3)
-    ref e0 : I64 = c.items[0]
-    ref e1 : I64 = c.items[1]
-    ref e2 : I64 = c.items[2]
-    assert_eq(I64, e0, 10)
-    assert_eq(I64, e1, 20)
-    assert_eq(I64, e2, 30)
+    assert_eq(I64, c.items[0], 10)
+    assert_eq(I64, c.items[1], 20)
+    assert_eq(I64, c.items[2], 30)
 }
 
 test_nested_struct_field_mutation := test() {

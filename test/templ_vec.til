@@ -123,8 +123,7 @@ test_templvec_i64_set := test() {
     v.push(own 1)
     v.push(own 2)
     v.set(1, own 99)
-    ref y : I64 = v[1]
-    assert_eq(I64, y, 99)
+    assert_eq(I64, v[1], 99)
 }
 
 test_templvec_i64_grow := test() {
@@ -148,9 +147,7 @@ test_templvec_i64_equiv_vec := test() {
     }
     assert_eq(USize, tv.len(), cv.len())
     for i in 0..10 {
-        ref t : I64 = tv[i.to_usize()]
-        ref c : I64 = cv[i.to_usize()]
-        assert_eq(I64, t, c)
+        assert_eq(I64, tv[i.to_usize()], cv[i.to_usize()])
     }
 }
 
@@ -182,10 +179,8 @@ test_templvec_str_clone_independent := test() {
     v.push(own format("two", ""))
     mut w := v.clone()
     w.set(0, own format("ONE", ""))
-    ref vo : Str = v[0]
-    ref wo : Str = w[0]
-    assert_eq(Str, vo, "one")
-    assert_eq(Str, wo, "ONE")
+    assert_eq(Str, v[0], "one")
+    assert_eq(Str, w[0], "ONE")
 }
 
 // --- Bool ---

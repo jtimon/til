@@ -72,8 +72,7 @@ main := proc() {
                             while placed < NUM_MINES {
                                 pos := GetRandomValue(0, TOTAL - 1)
                                 pos_u : USize = pos.to_usize()
-                                ref m : I32 = mines[pos_u]
-                                if m == 0 {
+                                if mines[pos_u] == 0 {
                                     // Check not near first click
                                     px := pos % COLS
                                     py := pos / COLS
@@ -91,8 +90,7 @@ main := proc() {
                             mut ci : I32 = 0
                             while ci < TOTAL {
                                 ci_u : USize = ci.to_usize()
-                                ref cm : I32 = mines[ci_u]
-                                if cm == 0 {
+                                if mines[ci_u] == 0 {
                                     cx := ci % COLS
                                     cy := ci / COLS
                                     mut cnt : I32 = 0
@@ -103,8 +101,7 @@ main := proc() {
                                             if nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS {
                                                 ni := ny * COLS + nx
                                                 ni_u : USize = ni.to_usize()
-                                                ref nm : I32 = mines[ni_u]
-                                                if nm == 1 {
+                                                if mines[ni_u] == 1 {
                                                     cnt = cnt + 1
                                                 }
                                             }
@@ -119,15 +116,13 @@ main := proc() {
                         }
 
                         // Check mine
-                        ref is_mine : I32 = mines[idx_u]
-                        if is_mine == 1 {
+                        if mines[idx_u] == 1 {
                             game_over = true
                             // Reveal all mines
                             mut ri2 : I32 = 0
                             while ri2 < TOTAL {
                                 ri2_u : USize = ri2.to_usize()
-                                ref rm : I32 = mines[ri2_u]
-                                if rm == 1 {
+                                if mines[ri2_u] == 1 {
                                     state[ri2_u] = 1
                                 }
                                 ri2++
@@ -142,11 +137,9 @@ main := proc() {
                                 stack.count = stack.count - 1
 
                                 cur_u : USize = cur.to_usize()
-                                ref cur_st : I32 = state[cur_u]
-                                if cur_st == 0 {
+                                if state[cur_u] == 0 {
                                     state[cur_u] = 1
-                                    ref cur_cnt : I32 = counts[cur_u]
-                                    if cur_cnt == 0 {
+                                    if counts[cur_u] == 0 {
                                         // Push all neighbors
                                         cur_x := cur % COLS
                                         cur_y := cur / COLS
@@ -157,8 +150,7 @@ main := proc() {
                                                 if px >= 0 && px < COLS && py >= 0 && py < ROWS {
                                                     ni := py * COLS + px
                                                     ni_u : USize = ni.to_usize()
-                                                    ref ns : I32 = state[ni_u]
-                                                    if ns == 0 {
+                                                    if state[ni_u] == 0 {
                                                         stack.push(own ni)
                                                     }
                                                 }
@@ -241,8 +233,7 @@ main := proc() {
                     DrawText("F".c_str, px + 9, py + 5, 20, YELLOW)
                 } else {
                     // Revealed
-                    ref dm : I32 = mines[di_u]
-                    if dm == 1 {
+                    if mines[di_u] == 1 {
                         // Mine
                         DrawRectangle(px + 1, py + 1, CELL - 2, CELL - 2, GRID_REVEALED)
                         DrawCircle(px + CELL / 2, py + CELL / 2, 8, RED)

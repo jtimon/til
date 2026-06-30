@@ -254,8 +254,7 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y < lines.len().cast(I32) - 1 {
                     // Merge with next line
-                    ref next_line : Str = lines[(cursor_y + 1).cast(U32)]
-                    merged := format(cur_line, next_line)
+                    merged := format(cur_line, lines[(cursor_y + 1).cast(U32)])
 
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0

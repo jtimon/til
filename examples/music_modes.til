@@ -94,10 +94,8 @@ LANGS := array(Array__Str, LANG_PT, LANG_ES, LANG_EN)
 
 seven_triad_type := func(mut sc_chrom: Array(I32), ti: USize) returns U32 {
     ref root_c : I32 = sc_chrom[ti]
-    ref third_c : I32 = sc_chrom[(ti + 2) % SEVEN_NATURAL_COUNT]
-    ref fifth_c : I32 = sc_chrom[(ti + 4) % SEVEN_NATURAL_COUNT]
-    i3 := (third_c - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
-    i5 := (fifth_c - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
+    i3 := (sc_chrom[(ti + 2) % SEVEN_NATURAL_COUNT] - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
+    i5 := (sc_chrom[(ti + 4) % SEVEN_NATURAL_COUNT] - root_c + SEVEN_CYCLE) % SEVEN_CYCLE
     if i3.eq(3).and(i5.eq(7)) { return 1 }
     if i3.eq(3).and(i5.eq(6)) { return 2 }
     if i3.eq(4).and(i5.eq(8)) { return 3 }
@@ -244,9 +242,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         label = format(nn_base, nn_acc)
         if dni.lt(SEVEN_NATURAL_COUNT) {
             ref trt2 : USize = sc_triad[dni]
-            ref tsuf : Str = TRIAD_SUFFIXES[trt2]
-            ref chord_base : Str = LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()]
-            chord := format(chord_base, nn_acc, tsuf)
+            chord := format(LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()], nn_acc, TRIAD_SUFFIXES[trt2])
             if use_letters {
                 label = chord
             } else {
@@ -261,8 +257,7 @@ recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode
                               note_count: USize,
                               mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_span: Array(I32),
                               mut sc_acc: Array(I32), mut sc_freq: Array(I64), mut sc_triad: Array(U32)) {
-    ref nat_c : I32 = NATURALS[sel_diatonic]
-    root_chromatic := (nat_c + sel_accidental + SEVEN_CYCLE) % SEVEN_CYCLE
+    root_chromatic := (NATURALS[sel_diatonic] + sel_accidental + SEVEN_CYCLE) % SEVEN_CYCLE
     mut chrom_total := root_chromatic
     mut diat_pos := sel_diatonic.cast(I32)
     mut diat_oct : I32 = 0
@@ -274,8 +269,7 @@ recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode
         sc_diat[k] = diat_pos.clone()
         sc_span[k] = diat_oct.clone()
 
-        ref nat_ref : I32 = NATURALS[diat_pos.to_usize()]
-        mut acc := chrom_mod - nat_ref
+        mut acc := chrom_mod - NATURALS[diat_pos.to_usize()]
         if acc.gt(6) { acc = acc - SEVEN_CYCLE }
         if acc.lt(-6) { acc = acc + SEVEN_CYCLE }
         sc_acc[k] = acc
@@ -563,16 +557,12 @@ main := proc() {
 
             // Click on pentagram notes.
             for ci : USize in 0..note_count {
-                ref cd : I32 = sc_diat[ci]
-                ref co : I32 = sc_span[ci]
                 cnx := note_x(ci, note_count)
-                cny := staff_y(five_system, cd, co)
+                cny := staff_y(five_system, sc_diat[ci], sc_span[ci])
                 hit := NOTE_R * 3
                 if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
-                    ref cf : I64 = sc_freq[ci]
-                    play_note(cf, clicked_note, clicked_timer, ci.cast(I32))
-                    ref cc : I32 = sc_chrom[ci]
-                    piano_active_idx = scale_piano_key(cc)
+                    play_note(sc_freq[ci], clicked_note, clicked_timer, ci.cast(I32))
+                    piano_active_idx = scale_piano_key(sc_chrom[ci])
                     piano_active_timer = 300
                 }
             }
@@ -640,8 +630,7 @@ main := proc() {
 
         // Input: keyboard piano keys matching examples/piano.til C4..B5.
         for ki : USize in 0..PIANO_C4_KEY_COUNT {
-            ref kc : I32 = PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]
-            if IsKeyPressed(kc) {
+            if IsKeyPressed(PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]) {
                 ref freq : I64 = music_modes_key_freq(use_nathex, ki)
                 play_freq(freq)
                 highlight_scale_for_key(ki.cast(I32), note_count, sc_chrom, clicked_note, clicked_timer)
@@ -675,10 +664,8 @@ main := proc() {
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(note_count) {
-                    ref pf : I64 = sc_freq[play_idx]
-                    play_note(pf, clicked_note, clicked_timer, play_idx.cast(I32))
-                    ref pc : I32 = sc_chrom[play_idx]
-                    piano_active_idx = scale_piano_key(pc)
+                    play_note(sc_freq[play_idx], clicked_note, clicked_timer, play_idx.cast(I32))
+                    piano_active_idx = scale_piano_key(sc_chrom[play_idx])
                     piano_active_timer = 300
                     play_idx = play_idx + 1
                 } else {

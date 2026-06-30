@@ -99,12 +99,10 @@ main := proc(args: ..Str) {
     mut iters := ITERS
     mut target := TARGET.clone()
     if args.len().gte(1) {
-        ref a0 : Str = args[0]
-        iters = a0.to_i64()
+        iters = args[0].to_i64()
     }
     if args.len().gte(2) {
-        ref a1 : Str = args[1]
-        target = a1.clone()
+        target = args[1].clone()
     }
     if iters.lt(1) { iters = 1 }
 

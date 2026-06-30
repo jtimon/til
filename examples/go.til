@@ -55,9 +55,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64), total: I64) {
 boards_equal := func(mut a: Array(I64), mut b: Array(I64), total: I64) returns Bool {
     mut i := 0
     while i.lt(total) {
-        ref va : I64 = a[i.to_u32()]
-        ref vb : I64 = b[i.to_u32()]
-        if va.neq(vb) { return false }
+        if a[i.to_u32()].neq(b[i.to_u32()]) { return false }
         i++
     }
     return true
@@ -697,8 +695,7 @@ main := proc() {
 
                 mut sq := 0
                 while sq.lt(total) {
-                    ref ap : I64 = board[sq.to_u32()]
-                    if ap.eq(0) {
+                    if board[sq.to_u32()].eq(0) {
                         copy_board(tmp_board, board, total)
                         cap := try_place(tmp_board, visited, lib_seen, stk, sq, board_size, ai_color, ko_board, has_ko)
                         if cap.gte(0) {
@@ -909,8 +906,7 @@ main := proc() {
                     hrow := (my + half) / cell_size
                     if hrow >= 0 && hrow < board_size.to_i32() && hcol >= 0 && hcol < board_size.to_i32() {
                         hidx := (hrow * board_size.to_i32() + hcol).cast(I64)
-                        ref hp : I64 = board[hidx.to_u32()]
-                        if hp.eq(0) {
+                        if board[hidx.to_u32()].eq(0) {
                             hx := board_px + hcol * cell_size
                             hy := board_py + hrow * cell_size
                             if turn == 1 {
@@ -942,8 +938,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS[bi.cast(U32)]
-            DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(COLOR_LABELS[bi.cast(U32)].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Mode radio
@@ -959,8 +954,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS[bi.cast(U32)]
-            DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(MODE_LABELS[bi.cast(U32)].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Size radio
@@ -976,8 +970,7 @@ main := proc() {
                 sb = 155
             }
             DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, Color(r = sr.to_u8(), g = sg.to_u8(), b = sb.to_u8(), a = 255))
-            ref slabel : Str = SIZE_LABELS[bi.cast(U32)]
-            DrawText(slabel.c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(SIZE_LABELS[bi.cast(U32)].c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)

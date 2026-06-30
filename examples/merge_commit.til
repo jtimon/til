@@ -221,8 +221,7 @@ split_by_pipe := func(s: Str) returns Vec(Str) {
 main := proc(args: ..Str) {
     mut hash := "HEAD"
     if args.len().gte(1) {
-        ref arg0 : Str = args[0]
-        hash = arg0.clone()
+        hash = args[0].clone()
     }
 
     // ---- Step 2: capture commit message + stat ----

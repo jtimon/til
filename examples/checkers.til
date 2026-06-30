@@ -122,9 +122,7 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
                 mid_c := c.add(dc)
                 mid_idx := mid_r.mul(8).add(mid_c)
                 land_idx := land_r.mul(8).add(land_c)
-                ref mid_p : I64 = board[mid_idx.to_u32()]
-                ref land_p : I64 = board[land_idx.to_u32()]
-                if is_opp(mid_p, side).and(land_p.eq(0)) {
+                if is_opp(board[mid_idx.to_u32()], side).and(board[land_idx.to_u32()].eq(0)) {
                     moves[count.to_u32()] = land_idx.clone()
                     jumped[count.to_u32()] = mid_idx.clone()
                     count++
@@ -478,10 +476,8 @@ main := proc() {
                             }
                             mj++
                         }
-                        ref bd : I64 = tmp_moves[best_j.to_u32()]
-                        ref bj : I64 = tmp_jumped[best_j.to_u32()]
-                        bd_val := bd.clone()
-                        bj_val := bj.clone()
+                        bd_val := tmp_moves[best_j.to_u32()].clone()
+                        bj_val := tmp_jumped[best_j.to_u32()].clone()
 
                         ref orig : I64 = board[multi_jump_idx.to_u32()]
                         orig_val := orig.clone()
@@ -528,17 +524,14 @@ main := proc() {
 
                     mut sq := 0
                     while sq.lt(64) {
-                        ref ap : I64 = board[sq.to_u32()]
-                        if is_side(ap, ai_side) {
+                        if is_side(board[sq.to_u32()], ai_side) {
                             if ai_must_cap {
                                 mc := gen_captures(board, sq, ai_side, tmp_moves, tmp_jumped)
                                 mut mj := 0
                                 while mj.lt(mc) {
-                                    ref md : I64 = tmp_moves[mj.to_u32()]
-                                    ref jd : I64 = tmp_jumped[mj.to_u32()]
                                     ai_pieces[ai_total.to_u32()] = sq.clone()
-                                    ai_dests[ai_total.to_u32()] = md.clone()
-                                    ai_jumps[ai_total.to_u32()] = jd.clone()
+                                    ai_dests[ai_total.to_u32()] = tmp_moves[mj.to_u32()].clone()
+                                    ai_jumps[ai_total.to_u32()] = tmp_jumped[mj.to_u32()].clone()
                                     ai_total++
                                     mj++
                                 }
@@ -564,12 +557,9 @@ main := proc() {
 
                         mut mi := 0
                         while mi.lt(ai_total) {
-                            ref from_sq : I64 = ai_pieces[mi.to_u32()]
-                            ref to_sq : I64 = ai_dests[mi.to_u32()]
-                            ref jmp_sq : I64 = ai_jumps[mi.to_u32()]
-                            from_val := from_sq.clone()
-                            to_val := to_sq.clone()
-                            jmp_val := jmp_sq.clone()
+                            from_val := ai_pieces[mi.to_u32()].clone()
+                            to_val := ai_dests[mi.to_u32()].clone()
+                            jmp_val := ai_jumps[mi.to_u32()].clone()
 
                             mut child := Array(I64).new(64)
                             copy_board(child, board)
@@ -586,12 +576,9 @@ main := proc() {
                             mi++
                         }
 
-                        ref best_from : I64 = ai_pieces[best_idx.to_u32()]
-                        ref best_to : I64 = ai_dests[best_idx.to_u32()]
-                        ref best_jmp : I64 = ai_jumps[best_idx.to_u32()]
-                        from_val := best_from.clone()
-                        to_val := best_to.clone()
-                        jmp_val := best_jmp.clone()
+                        from_val := ai_pieces[best_idx.to_u32()].clone()
+                        to_val := ai_dests[best_idx.to_u32()].clone()
+                        jmp_val := ai_jumps[best_idx.to_u32()].clone()
 
                         ref orig : I64 = board[from_val.to_u32()]
                         orig_val := orig.clone()
@@ -850,8 +837,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            ref clabel : Str = COLOR_LABELS[bi.cast(U32)]
-            DrawText(clabel.c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(COLOR_LABELS[bi.cast(U32)].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Mode radio
@@ -867,8 +853,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            ref mlabel : Str = MODE_LABELS[bi.cast(U32)]
-            DrawText(mlabel.c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(MODE_LABELS[bi.cast(U32)].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)

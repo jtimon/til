@@ -30,8 +30,7 @@ walk := proc(e: Expr, path: Str) {
     switch e.node_type {
     case NodeType.FCall(_):
         if e.children.len().gt(1) {
-            ref callee : Expr = e.children[0]
-            switch callee.node_type {
+            switch e.children[0].node_type {
             case NodeType.Ident(id):
                 if is_target(id.name) {
                     if e.children.len().gt(2) {

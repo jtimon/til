@@ -152,8 +152,7 @@ fret_marker_style := func(use_nathex: Bool, use_microtones: Bool, step: I32) ret
     }
 
     for marker : USize in 0..9 {
-        ref marker_fret : I32 = FRET_MARKERS[marker]
-        if fret.eq(marker_fret) {
+        if fret.eq(FRET_MARKERS[marker]) {
             if fret.eq(12).or(fret.eq(24)) { return 2 }
             return 1
         }
