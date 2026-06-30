@@ -2265,17 +2265,47 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     // Ext function dispatch
     mut ext_result := val_none()
     if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
+        ref ext_cell : Cell = scope_get(scope, name.ident_name())
         for oi in 1..e.children.len() {
             if get_own_arg(e, oi) {
                 switch e.children[oi].node_type {
                 case NodeType.Ident(oa_ident):
                     ref oc : Cell = scope_get(scope, oa_ident.ident_name())
                     if oc.is_null().not() {
-                        // The ext_func took ownership of this own arg: its
-                        // data buffer was passed raw to C, which owns (and may
-                        // free) it. MOVE the cell to None WITHOUT deep-deleting
-                        // -- `oc.val = val_none()` would free the buffer C
-                        // already owns (double-free, e.g. `Pair.delete(own self)`).
+                        // An own arg whose CALLEE PARAM is `own` was genuinely
+                        // handed to C, which owns (and may free) its buffer:
+                        // MOVE the cell to None WITHOUT deep-deleting -- a deep
+                        // free here would double-free what C already owns (e.g.
+                        // an ext delete's `own self`).
+                        //
+                        // But a non-own param only BORROWS the arg. The variadic
+                        // `..T` lowering passes its synthesized marshalling array
+                        // `own` at the call site, yet a C variadic callee
+                        // (`I64 *sum_all(Array__I64 *args)`) never frees it -- so
+                        // nulling without freeing orphaned that array (an interpret
+                        // leak the compiled backend does not have, since it
+                        // reclaims the caller temp after the call). Deep-free it
+                        // here when the param is confirmed non-own; default to the
+                        // null-only path otherwise so an own param is never
+                        // double-freed.
+                        mut param_borrows := false
+                        if ext_cell.is_null().not() {
+                            switch ext_cell.val {
+                            case Value.Func(efp):
+                                ref efd : Expr = deref(efp)
+                                switch efd.node_type {
+                                case NodeType.FuncDef(efdef):
+                                    if oi.sub(1).lt(efdef.params.len()) {
+                                        if efdef.params[oi.sub(1)].own_type.is(OwnType.Own).not() {
+                                            param_borrows = true
+                                        }
+                                    }
+                                case:
+                                }
+                            case:
+                            }
+                        }
+                        if param_borrows { free_temp_arg_value(oc.val) }
                         memcpy(oc.val, val_none(), Value.size().cast(U64))
                     }
                 case:
