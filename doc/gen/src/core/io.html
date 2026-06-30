@@ -181,19 +181,10 @@ namespace:
     /// stack/value local). The garbager inserts this call right after the
     /// File's last use.
     func delete(own self: File, shallow call_free: Bool)
+    proc fwrite(self: File, parts: ..Str) returns ref File
     func clone(self: File) returns File
     func size() returns shallow U32
 }
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.tfwrite">
-<h2>tfwrite</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>Temporary File-write formatter. The natural name `fwrite` conflicts with
-C stdio while generated C keeps unmangled top-level names.</p>
-</div>
-<pre><code class="language-til">proc tfwrite(f: File, parts: ..Str) returns ref File
 </code></pre>
 </article>
 </main>

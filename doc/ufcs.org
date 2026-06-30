@@ -34,17 +34,16 @@
   f.write("a").write(b).write("c")
   #+end_src
 
-  Prefer ~tfwrite~ when the pieces are plain strings:
+  Prefer ~fwrite~ when the pieces are plain strings:
 
   #+begin_src til
-  f.tfwrite("a", b, "c")
+  f.fwrite("a", b, "c")
   #+end_src
 
-  ~tfwrite~ is just ~write(format(...))~ with the noisy wrapper removed. The
-  natural name ~fwrite~ is avoided for now because generated C top-level names
-  currently collide with stdio's ~fwrite~. Do not
-  force it across procedural emitters such as ~emit_expr~, ~emit_deref~, or
-  ~emit_as_ptr~; those calls are output logic, not just string pieces.
+  ~File.fwrite~ is just ~write(format(...))~ with the noisy wrapper removed.
+  Do not force it across procedural emitters such as ~emit_expr~,
+  ~emit_deref~, or ~emit_as_ptr~; those calls are output logic, not just string
+  pieces.
 
-  In short: use UFCS where it expresses a real pipeline, and use ~tfwrite~ for
+  In short: use UFCS where it expresses a real pipeline, and use ~fwrite~ for
   adjacent string assembly.

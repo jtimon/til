@@ -1004,7 +1004,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/core/bool.html#til.src.core.bool.not">not</a>
-<pre><code class="language-til">ext_func not(shallow a: Bool) returns shallow Bool
+<pre><code class="language-til">core_func not(shallow a: Bool) returns shallow Bool
 </code></pre>
 </li>
 <li><a href="src/core/bool.html#til.src.core.bool.Bool">Bool</a>
@@ -2463,13 +2463,10 @@ namespace:
     /// stack/value local). The garbager inserts this call right after the
     /// File's last use.
     func delete(own self: File, shallow call_free: Bool)
+    proc fwrite(self: File, parts: ..Str) returns ref File
     func clone(self: File) returns File
     func size() returns shallow U32
 }
-</code></pre>
-</li>
-<li><a href="src/core/io.html#til.src.core.io.tfwrite">tfwrite</a>
-<pre><code class="language-til">proc tfwrite(f: File, parts: ..Str) returns ref File
 </code></pre>
 </li>
 <li><a href="src/core/mem.html#til.src.core.mem.free">free</a>

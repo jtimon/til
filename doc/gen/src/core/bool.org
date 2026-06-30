@@ -28,7 +28,7 @@ func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
 :END:
 
 #+begin_src til
-ext_func not(shallow a: Bool) returns shallow Bool
+core_func not(shallow a: Bool) returns shallow Bool
 #+end_src
 
 * Bool

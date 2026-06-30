@@ -1049,7 +1049,7 @@ func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
 
 ** [[file:src/core/bool.org::#til.src.core.bool.not][not]]
 #+begin_src til
-ext_func not(shallow a: Bool) returns shallow Bool
+core_func not(shallow a: Bool) returns shallow Bool
 #+end_src
 
 ** [[file:src/core/bool.org::#til.src.core.bool.Bool][Bool]]
@@ -2609,14 +2609,10 @@ namespace:
     /// stack/value local). The garbager inserts this call right after the
     /// File's last use.
     func delete(own self: File, shallow call_free: Bool)
+    proc fwrite(self: File, parts: ..Str) returns ref File
     func clone(self: File) returns File
     func size() returns shallow U32
 }
-#+end_src
-
-** [[file:src/core/io.org::#til.src.core.io.tfwrite][tfwrite]]
-#+begin_src til
-proc tfwrite(f: File, parts: ..Str) returns ref File
 #+end_src
 
 ** [[file:src/core/mem.org::#til.src.core.mem.free][free]]

@@ -34,6 +34,15 @@ test_file_multiple_writes := test() {
     assert_eq(Str, content, "0 1 2 3 4 ")
 }
 
+test_file_fwrite := test() {
+    path := "tmp/_test_file_fwrite.txt"
+    f := File.new(path, true)
+    f.fwrite("x=", 3, ", y=", 4, "\n")
+
+    content := File.readfile(path)
+    assert_eq(Str, content, "x=3, y=4\n")
+}
+
 test_file_seek_tell_read := test() {
     path := "tmp/_test_file_cursor.txt"
     File.writefile(path, "hello world")

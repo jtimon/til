@@ -147,7 +147,3 @@ namespace:
         return self.write(format(..parts))
     }
 }
-
-tfwrite := proc(f: File, parts: ..Str) returns ref File {
-    return f.write(format(..parts))
-}
