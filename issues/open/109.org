@@ -9,6 +9,40 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
   the copy. Closing #245 unlocks freeing those Values, which feeds
   back into the per-test compiler-leak baseline below.
 
+  *** 2026-06-30 interpret channel clean; remaining ASAN failures are translate-only
+
+  All interpreted tests pass ~make test_asan_full~: every exit-0 interpret
+  run reports ~TIL_TRUE_LEAK=0~ (confirmed by a full sweep of ~test/*.til~
+  under ~bin/til_asan interpret~). The fixes that closed the channel, all
+  merged: free the variadic ~..T~ marshalling array after an ext call when
+  the callee param only borrows it; free an owned scalar FFI return buffer
+  after decode; free an orphaned FFIEntry on a duplicate ~ffi_register~; and
+  strip the glibc ~dlopen~ ~_dl_find_object~ floor from the leak probe with
+  ~__libc_freeres~ (the old ~ext_module.til~ sentinel's "2304 bytes / 0
+  allocs" was that glibc floor, not a til leak).
+
+  The interpret ASAN channel is removed from ~examples/merge_commit.til~ and
+  ~doc/bots/asan.org~ -- no real interpret leak remains to track (any exit-0
+  sentinel reads 0). Non-exit-0 interpret runs are NOT real leaks: the error
+  / typer-error tests ~exit(1)~ before teardown, leaving the whole loaded
+  program + core + std AST and registries un-freed (~50MB; ~4.9MB for the
+  smaller ~qualifier_*_error~ set) -- reachable via globals, so LSAN never
+  flags it and ~test_asan_full~ passes, and the OS reclaims it at exit. A few
+  normal tests fail under bare ~interpret~ (interp-unsupported feature /
+  failing assert) and exit(1) with a tiny residue (~enums_lifecycle~ 232B,
+  ~own_fields~ 168B, ~enums~ 94B, ~tuples~ 36B, ~regression~ 11B).
+
+  REMAINING (the ~make test_asan_full~ failures): the TRANSLATE / compile
+  channel. ~bin/til_asan translate src/til.til~ still leaks ~1258 bytes /
+  218 allocs~, so every compile / build test fails under the strict ASAN
+  compiler. Class: the constfolder's comptime struct-clone path --
+  ~write_field~ -> ~Value.clone~ -> ~StructInstance.clone~ -> ~heap_clone~ ->
+  ~Str_clone~ while ~try_eval_call~ / ~fold_subtree~ fold the compiler's own
+  source; the cloned ~Str~ fields of a comptime-built struct are not
+  reclaimed when the fold result is discarded. No minimal repro yet (direct-
+  and namespace-method folds reclaim cleanly), so it needs a GDB pass on the
+  ~src/til.til~ translate.
+
   *** 2026-06-28 ASAN status after the owned pointer delete-slot fix
 
   The merge-time interpreter sentinel moved again because
