@@ -1,0 +1,97 @@
+mode test
+
+// pure_func/pure_proc: the C backend inlines direct calls to the body, while
+// the interpreter just runs the body. These tests run in both interp and
+// compile mode, so they check that the inlined codegen and the interpreted
+// body agree. Coverage: value returns, a multi-statement body, a param used
+// twice (must be evaluated once), void mutation through `mut self`, namespace
+// methods, and a nested pure_func call whose `self` param must NOT capture the
+// caller's `self`.
+
+double := pure_func(a: I64) returns I64 { return a.mul(2) }
+add_self := pure_func(a: I64) returns I64 { return a.add(a) }
+sq_inc := pure_func(a: I64) returns I64 {
+    b := a.add(1)
+    return b.mul(b)
+}
+
+Counter := struct {
+    n := 0
+namespace:
+    get := pure_func(self: Counter) returns I64 { return self.n }
+    // Calls another pure_func taking `self`; the inner inline must bind its
+    // own `self` to a temp instead of capturing this method's `self`.
+    double_n := pure_func(self: Counter) returns I64 { return self.get().mul(2) }
+}
+
+Box := struct {
+    v := 0
+namespace:
+    bump := pure_func(mut self: Box) { self.v = self.v.add(10) }
+}
+
+Acc := struct {
+    n := 0
+namespace:
+    // Reassigns the whole `self` param -- the assignment target is a name in
+    // the node payload, not a child, so the inliner must substitute it there
+    // too (the inc/dec pattern: `self = self <op> ...`).
+    step := pure_func(mut self: Acc) { self = Acc(n = self.n.add(1)) }
+}
+
+Holder := struct {
+    acc := Acc()
+}
+
+// inc/dec are core_func once converted: the C backend lowers them to (i)++/(i)--
+// and the interpreter writes the result back into the receiver. This runs in
+// both modes, so the lowering and the interpreter write-back are checked to
+// agree.
+test_inc_dec := test() {
+    mut i : U32 = 5
+    i.inc()
+    assert_eq(U32, i, 6)
+    i.inc()
+    assert_eq(U32, i, 7)
+    i.dec()
+    assert_eq(U32, i, 6)
+}
+
+test_value_return := test() {
+    assert_eq(I64, double(5), 10)
+    assert_eq(I64, add_self(7), 14)
+    assert_eq(I64, sq_inc(4), 25)
+}
+
+test_namespace_method := test() {
+    c := Counter(n = 21)
+    assert_eq(I64, c.get(), 21)
+    assert_eq(I64, c.double_n(), 42)
+}
+
+test_void_mutation := test() {
+    mut b := Box(v = 5)
+    b.bump()
+    assert_eq(I64, b.v, 15)
+    b.bump()
+    assert_eq(I64, b.v, 25)
+}
+
+test_self_reassign := test() {
+    mut a := Acc(n = 5)
+    a.step()
+    assert_eq(I64, a.n, 6)
+    a.step()
+    assert_eq(I64, a.n, 7)
+}
+
+// Receiver is a field access, not a plain variable. The mutation still inlines
+// (the assignment targets the receiver lvalue `h.acc` directly) and must mutate
+// in place.
+test_complex_receiver := test() {
+    mut h := Holder(acc = Acc(n = 1))
+    h.acc.step()
+    assert_eq(I64, h.acc.n, 2)
+    h.acc.step()
+    assert_eq(I64, h.acc.n, 3)
+}

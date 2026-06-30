@@ -510,6 +510,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     ref kw : Token = advance(p)
     mut ft := FuncType.Func
+    mut is_inline := false
     switch kw.type {
     case TokenType.KwFunc: ft = FuncType.Func
     case TokenType.KwProc: ft = FuncType.Proc
@@ -521,6 +522,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     case TokenType.KwCoreProc: ft = FuncType.CoreProc
     case TokenType.KwLazyFunc: ft = FuncType.LazyFunc
     case TokenType.KwLazyProc: ft = FuncType.LazyProc
+    case TokenType.KwPureFunc: ft = FuncType.Func; is_inline = true
+    case TokenType.KwPureProc: ft = FuncType.Proc; is_inline = true
     case: panic("expected function keyword")
     }
 
@@ -550,6 +553,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // Shared `<...>` grammar with struct<T>/enum<T> via parse_generic_params.
     mut fd := FunctionDef()
     fd.func_type = ft
+    fd.is_inline = is_inline
     mut gparams := Vec(Declaration).new()
     if check(p, TokenType.Lt) {
         gparams = parse_generic_params(p)
@@ -1568,6 +1572,8 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     case TokenType.KwCoreProc: return parse_func_def(p)
     case TokenType.KwLazyFunc: return parse_func_def(p)
     case TokenType.KwLazyProc: return parse_func_def(p)
+    case TokenType.KwPureFunc: return parse_func_def(p)
+    case TokenType.KwPureProc: return parse_func_def(p)
     case TokenType.KwInterface: return parse_interface_def(p)
     case TokenType.KwStruct:
         mut sdef := parse_struct_def(p, "")

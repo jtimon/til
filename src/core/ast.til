@@ -201,6 +201,11 @@ FunctionDef := struct {
     // boilerplate references.
     auto_generated := false
     is_enum_variant_ctor := false
+    // pure_func/pure_proc: the C backend inlines direct calls to this
+    // function's body at the call site. It stays an ordinary func/proc in
+    // every other respect -- typed, interpreted, and emitted as a real C
+    // function -- so only the builder's call emission consults this flag.
+    is_inline := false
     // Issue #54: explicit capture list for closures, e.g.
     // `func(a: I64) returns I64 [scale] { ... }`. Each entry is a
     // Declaration carrying the captured name plus its modifier

@@ -6818,6 +6818,33 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
         return false
     }
 
+    // inc/dec: the only core ops that mutate the receiver in place instead of
+    // returning a value. Integer types only; the receiver's cell is written
+    // back. (add()/not() return a value; inc/dec write one back -- the sole
+    // difference, mirrored by the (recv)++ the C backend emits.)
+    if (op_str == "inc").or(op_str == "dec") {
+        mut delta : I64 = 1
+        if op_str == "dec" { delta = -1 }
+        ref recv : Expr = e.children[1]
+        cur := scalar_read_arg(scope, recv, type_str, ctx)
+        mut nv : I64 = 0
+        if cat == "u" { nv = value_to_u64(cur).cast(I64).add(delta) } else { nv = value_as_i64(cur).add(delta) }
+        switch recv.node_type {
+        case NodeType.Ident(ri):
+            ref cell : Cell = scope_get(scope, ri.ident_name())
+            if cell.is_null() {
+                interp_error(e, "inc/dec: receiver is not a live variable", ctx)
+                exit(1)
+            }
+            cell.val = scalar_build(type_str, nv)
+        case:
+            interp_error(e, "inc/dec: receiver must be a plain variable in interp mode", ctx)
+            exit(1)
+        }
+        result = val_none()
+        return true
+    }
+
     if scalar_is_binop(op_str) {
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)
         bv := scalar_read_arg(scope, e.children[2], type_str, ctx)

@@ -440,6 +440,108 @@ priv core_binop_to_c := func(op: Str) returns Str {
     return ""
 }
 
+// pure_func/pure_proc: true when the flat-named callee resolves to an
+// inline-flagged FuncDef. Such a call is emitted inline at the call site
+// (emit_inline_call) instead of as a C call; the function still exists as a
+// real C symbol for any indirect/reflective use.
+priv builder_callee_is_inline := func(name: Str, ctx: Context) returns Bool {
+    ref fdef : Expr = find_callee_fdef(name, ctx)
+    if fdef.is_null() { return false }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        return fd.is_inline
+    case:
+        return false
+    }
+}
+
+// Substitute the callee's params with the call's argument expressions inside a
+// (cloned) body node: every Ident naming a param becomes a clone of the
+// matching argument. A replaced argument is NOT re-descended -- its identifiers
+// belong to the caller's scope, not the callee's. Emitting the body with the
+// real arguments is what makes inlining correct: the backend resolves
+// pointer-ness and scope against the actual arguments, whereas binding params
+// to fresh locals would resolve the body's identifiers against the enclosing
+// function and pick `->` vs `.` wrong.
+priv inline_subst := proc(e: Expr, params: Vec(Declaration), call: Expr) {
+    for ci in 0..e.children.len() {
+        mut matched := false
+        switch e.children[ci].node_type {
+        case NodeType.Ident(id):
+            ref nm : Str = id.ident_name()
+            for pi in 0..params.len() {
+                if params[pi].name.eq(nm) {
+                    e.children[ci] = call.children[pi.add(1)].clone()
+                    matched = true
+                }
+            }
+        case:
+        }
+        if matched.not() {
+            inline_subst(e.children[ci], params, call)
+        }
+    }
+}
+
+// Emit a direct call to a pure_func/pure_proc as an inlined GCC statement
+// expression instead of a C call. Each body statement is cloned, its params
+// substituted with the argument expressions (inline_subst), then emitted in
+// place: a trailing `return EXPR` yields EXPR as the value of the statement
+// expression; other statements run for their effect. An early return (a
+// `return` before the last statement) is control flow a statement expression
+// cannot express, so it is a hard build error, never a silent fallback.
+priv emit_inline_call := proc(f: File, e: Expr, fdef: Expr, flat: Str, depth: I32, ctx: Context) {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        ref body : Expr = fdef.children[0]
+        ns := body.children.len()
+        f.write("({ ")
+        for si in 0..ns {
+            mut s := body.children[si].clone()
+            inline_subst(s, fd.params, e)
+            is_last := si.add(1).eq(ns)
+            switch s.node_type {
+            case NodeType.Return:
+                if is_last.not() {
+                    panic(__LOC__, ": pure_func inline: '", flat, "' has an early return")
+                }
+                if s.children.len().gt(0) {
+                    ref rv : Expr = s.children[0]
+                    if fd.return_own_type.is(OwnType.Ref) {
+                        emit_as_ptr(f, rv, depth, false, ctx)
+                    } else {
+                        emit_expr(f, rv, depth, ctx)
+                    }
+                    f.write("; ")
+                }
+            case NodeType.Assign(ad):
+                // A reassigned param (inc's `self = self + 1`): assign to the
+                // receiver lvalue. emit_deref of the argument yields a valid
+                // lvalue for any receiver -- a variable, a field, an index --
+                // so this inlines unconditionally, with no name-target limit.
+                mut pidx : I32 = -1
+                for pi in 0..fd.params.len() {
+                    if fd.params[pi].name.eq(ad.name) { pidx = pi.cast(I32) }
+                }
+                if pidx.gte(0) {
+                    f.write("(")
+                    emit_deref(f, e.children[pidx.cast(USize).add(1)], depth, ctx)
+                    f.write(") = (")
+                    emit_deref(f, s.children[0], depth, ctx)
+                    f.write("); ")
+                } else {
+                    emit_stmt(f, s, depth, ctx)
+                }
+            case:
+                emit_stmt(f, s, depth, ctx)
+            }
+        }
+        f.write("})")
+    case:
+        UNREACHABLE()
+    }
+}
+
 priv fa_struct_name := func(e: Expr) returns Str {
     if e.children.len() == 0 { return til_type_name(e.expr_til_type()) }
     ref obj : Expr = e.children[0]
@@ -2890,6 +2992,16 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         f.write(")(~(")
                         emit_deref(f, e.children[1], depth, ctx)
                         f.write(")))")
+                    } else if (core_op == "inc").or(core_op == "dec") {
+                        // inc/dec mutate the receiver in place: (recv)++ / (recv)--.
+                        // The receiver is any lvalue (a variable, a field, an
+                        // index); the post-increment value is discarded since
+                        // inc/dec return nothing, so there is no return cast.
+                        mut incdec := "++"
+                        if core_op == "dec" { incdec = "--" }
+                        f.write("((")
+                        emit_deref(f, e.children[1], depth, ctx)
+                        f.write(")").write(incdec).write(")")
                     } else if (core_op == "div").or(core_op == "mod") {
                         // #288 follow-up: div/mod keep ext.c's divide-by-zero
                         // guard -- they return 0 on a zero divisor (safe_div is
@@ -2924,6 +3036,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         emit_deref(f, e.children[2], depth, ctx)
                         f.write("))")
                     }
+                } else if builder_callee_is_inline(flat, ctx) {
+                    emit_inline_call(f, e, find_callee_fdef(flat, ctx), flat, depth, ctx)
                 } else {
                     f.write(sname)
                     f.write("_")
@@ -3142,6 +3256,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(")(!(")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(")))")
+            } else if builder_callee_is_inline(name.ident_name(), ctx) {
+                emit_inline_call(f, e, find_callee_fdef(name.ident_name(), ctx), name.ident_name(), depth, ctx)
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())

@@ -513,6 +513,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/aliases.til", flags)
     add_both(tests, "test/fn_ptr.til", flags)
     add_both(tests, "test/comparisons.til", flags)
+    add_both(tests, "test/pure_func.til", flags)
     add_both(tests, "test/vecs.til", flags)
     add_both(tests, "test/dyn_vecs.til", flags)
     add_both(tests, "test/eval_heap.til", flags)

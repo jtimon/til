@@ -41,6 +41,8 @@ TokenType := enum {
     KwLazyFunc, KwLazyProc,
     // #288: core_func/core_proc -- primitive intrinsics (see FuncType).
     KwCoreFunc, KwCoreProc,
+    // pure_func/pure_proc -- a func/proc the C backend inlines at call sites.
+    KwPureFunc, KwPureProc,
     KwReturns, KwThrows,
     KwIf, KwElse,
     KwWhile, KwFor, KwIn,
@@ -138,6 +140,8 @@ priv keyword_map := func() returns Map(Str, TokenType) {
     kw.set("ext_struct", own TokenType.KwExtStruct)
     kw.set("core_func", own TokenType.KwCoreFunc)
     kw.set("core_proc", own TokenType.KwCoreProc)
+    kw.set("pure_func", own TokenType.KwPureFunc)
+    kw.set("pure_proc", own TokenType.KwPureProc)
     kw.set("lazy_func", own TokenType.KwLazyFunc)
     kw.set("lazy_proc", own TokenType.KwLazyProc)
     kw.set("returns", own TokenType.KwReturns)

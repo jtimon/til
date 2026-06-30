@@ -196,6 +196,8 @@ typedef enum {
     TokenType_TAG_KwLazyProc,
     TokenType_TAG_KwCoreFunc,
     TokenType_TAG_KwCoreProc,
+    TokenType_TAG_KwPureFunc,
+    TokenType_TAG_KwPureProc,
     TokenType_TAG_KwReturns,
     TokenType_TAG_KwThrows,
     TokenType_TAG_KwIf,
@@ -1605,6 +1607,7 @@ typedef struct FunctionDef {
     Bool return_shallow_explicit;
     Bool auto_generated;
     Bool is_enum_variant_ctor;
+    Bool is_inline;
     Vec__Declaration captures;
     Str closure_name;
 } FunctionDef;
@@ -3468,6 +3471,9 @@ Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__builder_callee_is_core(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__core_binop_to_c(Str * op);
+Bool priv___src_self_builder_til__builder_callee_is_inline(Str * name, Context * ctx);
+void priv___src_self_builder_til__inline_subst(Expr * e, Vec__Declaration * params, Expr * call);
+void priv___src_self_builder_til__emit_inline_call(File * f, Expr * e, Expr * fdef, Str * flat, I32 depth, Context * ctx);
 Str * priv___src_self_builder_til__fa_struct_name(Expr * e);
 Bool priv___src_self_builder_til__builder_fa_is_ptr_with_fname(Str * sname, Str * fname, Context * ctx);
 Bool priv___src_self_builder_til__builder_fa_is_ptr(Expr * e, Context * ctx);
@@ -4486,6 +4492,8 @@ TokenType *TokenType_KwLazyFunc();
 TokenType *TokenType_KwLazyProc();
 TokenType *TokenType_KwCoreFunc();
 TokenType *TokenType_KwCoreProc();
+TokenType *TokenType_KwPureFunc();
+TokenType *TokenType_KwPureProc();
 TokenType *TokenType_KwReturns();
 TokenType *TokenType_KwThrows();
 TokenType *TokenType_KwIf();
