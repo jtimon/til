@@ -6604,6 +6604,17 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
         } else if rtype == "Dynamic" {
             result = Value.Dynamic(raw_ptr)
         } else if ffi_decode_scalar(rtype, raw_ptr, result, ctx) {
+            // A non-shallow `returns <scalar>` (C signature `T *f(...)`) hands
+            // back an OWNED malloc'd buffer holding the value. ffi_decode_scalar
+            // copied the scalar into `result`, so the buffer is ours to reclaim
+            // -- leaving it leaked one alloc per such call (sum_all / Pair_sum
+            // return I64*). The compiled backend frees it too. A `returns ref`
+            // scalar instead borrows a foreign pointer the runtime never
+            // malloc'd (e.g. into a C array), so never free that one.
+            if fe.return_is_ref.not().and(raw_ptr.is_null().not()) {
+                mut owned_ret : Dynamic = raw_ptr
+                free(own owned_ret)
+            }
         } else if ctx.ffi_struct_defs.has(fe.return_type) {
             // `returns ref T` hands back a borrowed pointer into foreign / C
             // memory; flag the wrapper borrowed so the garbager's deep delete
