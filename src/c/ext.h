@@ -13,10 +13,12 @@ typedef char I8;
 typedef unsigned char U8;
 typedef float F32;
 typedef bool Bool;
-typedef U32 USize;  // container sizes (count, cap, elem_size)
+// container sizes (count, cap, elem_size); target-driven like UPtr
 #if UINTPTR_MAX == 0xffffffff
+typedef U32 USize;
 typedef U32 UPtr;
 #else
+typedef U64 USize;
 typedef U64 UPtr;
 #endif
 typedef struct Str Str;

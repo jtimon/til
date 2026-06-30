@@ -1,6 +1,44 @@
 # priority: high
 # category: cleanups
-** WIP #192 USize should not be hardwired to U32
+** FIXED #192 USize should not be hardwired to U32
+
+*** Post-mortem (2026-06-24)
+
+USize is now target-dependent like UPtr: U64 on 64-bit, U32 on 32-bit.
+`make test_two_pass` is green (162/162) with the flip in.
+
+Root cause of why this was hard: USize is the width of every `Str`'s
+`count`/`cap`, and the compiler constant-folds core code *by interpreting
+it at compile time*. A til_boot built at U32 therefore had to manipulate
+U64 `Str` values in its own interpreter -- but it read `Str` fields through
+its OWN compiled `Str` type (cap@12 in a 16-byte struct), while the folded
+U64 values laid cap at offset 16 in a 24-byte struct. UPtr never hit this
+because it was born U64 and never migrated underneath a running compiler.
+
+What landed it, in two merged commits:
+1. Preparation (width-neutral at U32): emit the USize/UPtr typedef NAME for
+   struct fields (ext.h is the ABI source of truth); resolve the width from
+   the source alias (lag-free) so flipping usize.til + ext.h is consistent
+   in pass 1; make the interpreter's Str builders AND every compile-time
+   `cap` read ctx-driven (str_write_count_cap / str_write_cap_at /
+   str_cap_at / ctx_total_size) so a U32 til_boot folds U64 core without
+   corruption -- `count`@8 and `c_str`@0 are width-invariant, only `cap`'s
+   offset moves, so routing cap through ctx is the key; exempt
+   .cast(U64/U32) and .to_u64/to_u32 self-casts from the redundant-cast
+   lints (target-dependent values need them on one width); widen the whole
+   self-compiler's bare-U32 indices/counts/lengths to USize.
+2. The flip (Two-pass): usize.til USize:=U64; ext.h USize typedef
+   target-driven; target_usize_name -> U64 on 64-bit; context defaults ->
+   U64; ffi_prep_cif arg narrowed with np.to_u32(); size-assertion tests
+   updated (Str.size 16->24 etc.); the GUI examples + lib/music.til swept
+   off the legacy `.to_u32()`/`.cast(I32)` U32-era index/width idioms.
+
+Regression coverage: the existing test/vecs.til, test/dynamic.til,
+test/tuples.til, test/dyn_vecs.til size assertions now pin Str/Vec/DynVec
+at their U64 widths; the full two-pass build is the end-to-end check that a
+U32-built til_boot can produce and self-apply a U64 compiler.
+
+
 
 Current state mixes two separate problems:
 

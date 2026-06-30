@@ -103,20 +103,20 @@ main := proc(args: ..Str) {
             if IsKeyPressed(265) {
                 if cursor_y > 0 {
                     cursor_y = cursor_y - 1
-                    ref line : Str = lines[cursor_y.cast(U32)]
-                    if cursor_x > line.len().cast(I32) {
-                        cursor_x = line.len().cast(I32)
+                    ref line : Str = lines[cursor_y.to_usize()]
+                    if cursor_x > line.len().to_i32() {
+                        cursor_x = line.len().to_i32()
                     }
                 }
             }
         }
         if IsKeyPressed(264) {
             // Down
-            if cursor_y < lines.len().cast(I32) - 1 {
+            if cursor_y < lines.len().to_i32() - 1 {
                 cursor_y = cursor_y + 1
-                ref line : Str = lines[cursor_y.cast(U32)]
-                if cursor_x > line.len().cast(I32) {
-                    cursor_x = line.len().cast(I32)
+                ref line : Str = lines[cursor_y.to_usize()]
+                if cursor_x > line.len().to_i32() {
+                    cursor_x = line.len().to_i32()
                 }
             }
         }
@@ -127,18 +127,18 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y > 0 {
                     cursor_y = cursor_y - 1
-                    ref line : Str = lines[cursor_y.cast(U32)]
-                    cursor_x = line.len().cast(I32)
+                    ref line : Str = lines[cursor_y.to_usize()]
+                    cursor_x = line.len().to_i32()
                 }
             }
         }
         if IsKeyPressed(262) {
             // Right
-            ref cur_line : Str = lines[cursor_y.cast(U32)]
-            if cursor_x < cur_line.len().cast(I32) {
+            ref cur_line : Str = lines[cursor_y.to_usize()]
+            if cursor_x < cur_line.len().to_i32() {
                 cursor_x = cursor_x + 1
             } else {
-                if cursor_y < lines.len().cast(I32) - 1 {
+                if cursor_y < lines.len().to_i32() - 1 {
                     cursor_y = cursor_y + 1
                     cursor_x = 0
                 }
@@ -151,14 +151,14 @@ main := proc(args: ..Str) {
         }
         // End
         if IsKeyPressed(269) {
-            ref line : Str = lines[cursor_y.cast(U32)]
-            cursor_x = line.len().cast(I32)
+            ref line : Str = lines[cursor_y.to_usize()]
+            cursor_x = line.len().to_i32()
         }
 
         // Enter
         if IsKeyPressed(257) {
             if !ctrl {
-                ref cur_line : Str = lines[cursor_y.cast(U32)]
+                ref cur_line : Str = lines[cursor_y.to_usize()]
                 // Split line at cursor
                 before := cur_line.substr(0, cursor_x.to_usize()).clone()
                 after := cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()).clone()
@@ -167,7 +167,7 @@ main := proc(args: ..Str) {
                 mut new_lines := Vec(Str).new()
                 mut i : USize = 0
                 while i < lines.len() {
-                    if i == cursor_y.cast(U32) {
+                    if i == cursor_y.to_usize() {
                         new_lines.push(own before.clone())
                         new_lines.push(own after.clone())
                     } else {
@@ -186,12 +186,12 @@ main := proc(args: ..Str) {
         // Backspace
         if IsKeyPressed(259) {
             if cursor_x > 0 {
-                ref cur_line : Str = lines[cursor_y.cast(U32)]
+                ref cur_line : Str = lines[cursor_y.to_usize()]
                 new_line := format(cur_line.substr(0, cursor_x.to_usize() - 1), cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()))
                 mut new_lines := Vec(Str).new()
                 mut i : USize = 0
                 while i < lines.len() {
-                    if i == cursor_y.cast(U32) {
+                    if i == cursor_y.to_usize() {
                         new_lines.push(own new_line.clone())
                     } else {
                         ref l : Str = lines[i]
@@ -205,18 +205,18 @@ main := proc(args: ..Str) {
             } else {
                 if cursor_y > 0 {
                     // Merge with previous line
-                    ref prev_line : Str = lines[(cursor_y - 1).cast(U32)]
-                    ref cur_line : Str = lines[cursor_y.cast(U32)]
-                    new_x := prev_line.len().cast(I32)
+                    ref prev_line : Str = lines[(cursor_y - 1).to_usize()]
+                    ref cur_line : Str = lines[cursor_y.to_usize()]
+                    new_x := prev_line.len().to_i32()
                     merged := format(prev_line, cur_line)
 
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
                     while i < lines.len() {
-                        if i == (cursor_y - 1).cast(U32) {
+                        if i == (cursor_y - 1).to_usize() {
                             new_lines.push(own merged.clone())
                         } else {
-                            if i != cursor_y.cast(U32) {
+                            if i != cursor_y.to_usize() {
                                 ref l : Str = lines[i]
                                 new_lines.push(own l.clone())
                             }
@@ -233,15 +233,15 @@ main := proc(args: ..Str) {
 
         // Delete key
         if IsKeyPressed(261) {
-            ref cur_line : Str = lines[cursor_y.cast(U32)]
-            if cursor_x < cur_line.len().cast(I32) {
+            ref cur_line : Str = lines[cursor_y.to_usize()]
+            if cursor_x < cur_line.len().to_i32() {
                 cursor_x_u := cursor_x.to_usize()
                 next_x_u := cursor_x_u + 1
                 new_line := format(cur_line.substr(0, cursor_x_u), cur_line.substr(next_x_u, cur_line.len() - next_x_u))
                 mut new_lines := Vec(Str).new()
                 mut i : USize = 0
                 while i < lines.len() {
-                    if i == cursor_y.cast(U32) {
+                    if i == cursor_y.to_usize() {
                         new_lines.push(own new_line.clone())
                     } else {
                         ref l : Str = lines[i]
@@ -252,17 +252,17 @@ main := proc(args: ..Str) {
                 lines = new_lines
                 dirty = true
             } else {
-                if cursor_y < lines.len().cast(I32) - 1 {
+                if cursor_y < lines.len().to_i32() - 1 {
                     // Merge with next line
-                    merged := format(cur_line, lines[(cursor_y + 1).cast(U32)])
+                    merged := format(cur_line, lines[(cursor_y + 1).to_usize()])
 
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
                     while i < lines.len() {
-                        if i == cursor_y.cast(U32) {
+                        if i == cursor_y.to_usize() {
                             new_lines.push(own merged.clone())
                         } else {
-                            if i != (cursor_y + 1).cast(U32) {
+                            if i != (cursor_y + 1).to_usize() {
                                 ref l : Str = lines[i]
                                 new_lines.push(own l.clone())
                             }
@@ -282,12 +282,12 @@ main := proc(args: ..Str) {
                 if ch >= 32 && ch < 127 {
                     // Insert character at cursor
                     ch_str := Str.from_byte(ch.cast(I64).to_u8())
-                    ref cur_line : Str = lines[cursor_y.cast(U32)]
+                    ref cur_line : Str = lines[cursor_y.to_usize()]
                     new_line := format(cur_line.substr(0, cursor_x.to_usize()), ch_str, cur_line.substr(cursor_x.to_usize(), cur_line.len() - cursor_x.to_usize()))
                     mut new_lines := Vec(Str).new()
                     mut i : USize = 0
                     while i < lines.len() {
-                        if i == cursor_y.cast(U32) {
+                        if i == cursor_y.to_usize() {
                             new_lines.push(own new_line.clone())
                         } else {
                             ref l : Str = lines[i]
@@ -324,14 +324,14 @@ main := proc(args: ..Str) {
         mut row : I32 = 0
         while row < visible_lines {
             line_idx := scroll_y + row
-            if line_idx < lines.len().cast(I32) {
+            if line_idx < lines.len().to_i32() {
                 // Line number
                 lnum := (line_idx + 1).to_str()
-                DrawText(lnum.c_str, left_margin - lnum.len().cast(I32) * char_w - 4,
+                DrawText(lnum.c_str, left_margin - lnum.len().to_i32() * char_w - 4,
                          top_margin + row * line_h, font_size, Color(r = 80, g = 80, b = 100, a = 255))
 
                 // Line text
-                ref line : Str = lines[line_idx.cast(U32)]
+                ref line : Str = lines[line_idx.to_usize()]
                 if line.len() > 0 {
                     DrawText(line.c_str, left_margin, top_margin + row * line_h,
                              font_size, Color(r = 200, g = 200, b = 200, a = 255))

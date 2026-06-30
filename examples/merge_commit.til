@@ -255,7 +255,7 @@ main := proc(args: ..Str) {
     // ---- Step 5: full test suite ----
     print("Running: make clean && ", test_target, "\n")
     run(format(
-        "systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/build.log 2>&1 && ",
+        "bash -c 'make clean > tmp/build.log 2>&1 && ",
         test_target, " >> tmp/build.log 2>&1'"))
 
     build_log := File.readfile("tmp/build.log")

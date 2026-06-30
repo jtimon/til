@@ -35,7 +35,7 @@ BOARD_X : I32 = 150
 BOARD_Y : I32 = 220
 BOARD_W : I32 = WINDOW_WIDTH - BOARD_X - MARGIN
 BOARD_H : I32 = WINDOW_HEIGHT - BOARD_Y - 100
-STRING_H : I32 = BOARD_H / STRING_COUNT.cast(I32)
+STRING_H : I32 = BOARD_H / STRING_COUNT.to_i32()
 FONT : F32 = 20
 FONT_SM : F32 = 16
 FONT_MICRO : F32 = 12
@@ -122,7 +122,7 @@ fret_x := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
 hit_fret := func(use_nathex: Bool, use_microtones: Bool, x: I32) returns I32 {
     max_step := active_step_max(use_nathex, use_microtones)
     for step in 1..(max_step + 1).to_usize() {
-        step_i := step.cast(I32)
+        step_i := step.to_i32()
         if is_fret_step(use_nathex, use_microtones, step_i) {
             prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
             left := fret_x(use_nathex, use_microtones, prev_step)
@@ -196,8 +196,8 @@ micro_chromatic_note_label := func(use_letters: Bool, open_rel: I32, step: I32) 
 micro_five_note_label := func(open_rel: I32, step: I32) returns Str {
     q := open_rel * 2 + step
     lower_idx := q / 2
-    ref nn : Str = FIVE_NAMES[lower_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
-    hextave := lower_idx / FIVE_CYCLE.cast(I32) + 1
+    ref nn : Str = FIVE_NAMES[lower_idx.mod(FIVE_CYCLE.to_i32()).to_usize()]
+    hextave := lower_idx / FIVE_CYCLE.to_i32() + 1
     mut suffix := ""
     if !q.mod(2).eq(0) { suffix = "t" }
     return format(nn, suffix, hextave.to_str())
@@ -383,7 +383,7 @@ main := proc() {
                 if string_idx.lt(STRING_COUNT).and(fret.gt(0)).and(fret.lte(max_step)) {
                     freq := guitar_step_freq(all_fourths, use_nathex, use_microtones, string_idx, fret)
                     play_tone(freq, 450)
-                    active_string = string_idx.cast(I32)
+                    active_string = string_idx.to_i32()
                     active_fret = fret
                     active_timer = 450
                 }
@@ -399,7 +399,7 @@ main := proc() {
                 fret := song_fret_for_note(all_fourths, use_microtones, string_idx, note_step)
                 freq := guitar_step_freq(all_fourths, use_nathex, use_microtones, string_idx, fret)
                 play_tone(freq, note_ms)
-                active_string = string_idx.cast(I32)
+                active_string = string_idx.to_i32()
                 active_fret = fret
                 active_timer = note_ms.to_i32()
             }
@@ -455,7 +455,7 @@ main := proc() {
 
         // Physical fret positions. Fretted note N is between frets N-1 and N.
         for step : USize in 0..(max_step + 1).to_usize() {
-            step_i := step.cast(I32)
+            step_i := step.to_i32()
             if is_fret_step(use_nathex, use_microtones, step_i) {
                 x := fret_x(use_nathex, use_microtones, step_i)
                 DrawRectangle(x, BOARD_Y, 2, BOARD_H, FRET_COLOR)
@@ -463,7 +463,7 @@ main := proc() {
         }
 
         for step : USize in 1..(max_step + 1).to_usize() {
-            step_i := step.cast(I32)
+            step_i := step.to_i32()
             if is_fret_step(use_nathex, use_microtones, step_i) {
                 prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
                 left := fret_x(use_nathex, use_microtones, prev_step)
@@ -487,7 +487,7 @@ main := proc() {
         }
 
         for string_idx : USize in 0..STRING_COUNT {
-            sy := BOARD_Y + string_idx.cast(I32) * STRING_H + STRING_H / 2
+            sy := BOARD_Y + string_idx.to_i32() * STRING_H + STRING_H / 2
             DrawRectangle(BOARD_X, sy - 2, board_end - BOARD_X, 4, STRING_COLOR)
 
             open_rel := guitar_rel_note(all_fourths, string_idx, 0)
@@ -495,7 +495,7 @@ main := proc() {
             DrawTextEx(fnt, open_label.c_str, Vector2(x = MARGIN.to_f32(), y = (sy - 10).to_f32()), FONT_SM, 1, TEXT_COLOR)
 
             for step : USize in 1..(max_step + 1).to_usize() {
-                step_i := step.cast(I32)
+                step_i := step.to_i32()
                 if is_fret_step(use_nathex, use_microtones, step_i) {
                     prev_step := prev_fret_step(use_nathex, use_microtones, step_i)
                     left := fret_x(use_nathex, use_microtones, prev_step)
@@ -503,9 +503,9 @@ main := proc() {
                     cell_w := right - left
                     label := guitar_step_label(display_mode, all_fourths, use_microtones, string_idx, step_i)
                     lx := left + 4
-                    ly := BOARD_Y + string_idx.cast(I32) * STRING_H + 8
-                    if active_string.eq(string_idx.cast(I32)).and(active_fret.eq(step_i)) {
-                        DrawRectangle(left + 2, BOARD_Y + string_idx.cast(I32) * STRING_H + 2, cell_w - 4, STRING_H - 4, CELL_ACTIVE)
+                    ly := BOARD_Y + string_idx.to_i32() * STRING_H + 8
+                    if active_string.eq(string_idx.to_i32()).and(active_fret.eq(step_i)) {
+                        DrawRectangle(left + 2, BOARD_Y + string_idx.to_i32() * STRING_H + 2, cell_w - 4, STRING_H - 4, CELL_ACTIVE)
                     }
                     mut cell_font := FONT_SM
                     if use_microtones { cell_font = FONT_MICRO }

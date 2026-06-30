@@ -7020,7 +7020,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
                 rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }
         }
-        ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np, rtype, entry.arg_types)
+        ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np.to_u32(), rtype, entry.arg_types)
 
         // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
         // internally (ELEM_BOXED), so `name` can be passed directly; the

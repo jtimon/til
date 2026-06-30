@@ -1806,9 +1806,9 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         nparam := ns_fdef.params.len()
         fvi := ns_fdef.variadic_index
         fkwi := ns_fdef.kwargs_index
-        mut fixed_count : U32 = nparam
+        mut fixed_count : USize = nparam
         if fvi >= 0 {
-            fixed_count = fvi.cast(U32)
+            fixed_count = fvi.to_usize()
         }
         mut va_args := Vec(Expr).new()
         mut kw_args := Vec(Expr).new()
@@ -1825,8 +1825,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 seen_named = true
                 mut slot : I32 = -1
                 for j in 0..nparam {
-                    if j.cast(I32) == fvi { continue }
-                    if j.cast(I32) == fkwi { continue }
+                    if j.to_i32() == fvi { continue }
+                    if j.to_i32() == fkwi { continue }
                     ref param : Declaration = ns_fdef.params[j]
                     if param.name == aname {
                         slot = j.to_i32()
@@ -1864,8 +1864,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             }
         }
         for i in 0..nparam {
-            if i.cast(I32) == fvi { continue }
-            if i.cast(I32) == fkwi { continue }
+            if i.to_i32() == fvi { continue }
+            if i.to_i32() == fkwi { continue }
             ref slot_arg : Expr = new_args[i]
             if slot_arg.node_type.is(NodeType.NoDefaultArg) {
                 ref param : Declaration = ns_fdef.params[i]
@@ -1876,7 +1876,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 }
             }
         }
-        mut max_pos : U32 = nparam
+        mut max_pos : USize = nparam
         if fkwi >= 0 {
             max_pos--
         }
@@ -1890,12 +1890,12 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         new_ch.push(own callee.clone())
         mut missing_filled := false
         for i in 0..nparam {
-            if i.cast(I32) == fvi {
+            if i.to_i32() == fvi {
                 va_count := va_args.len()
                 for vai in 0..va_count {
                     new_ch.push_take(va_args, vai)
                 }
-            } else if i.cast(I32) == fkwi {
+            } else if i.to_i32() == fkwi {
                 kw_count := kw_args.len()
                 for kwi2 in 0..kw_count {
                     new_ch.push_take(kw_args, kwi2)
@@ -1934,20 +1934,20 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 infer_expr(scope, e.children[i], in_func, ctx)
             }
         }
-        mut ns_fvc : U32 = 0
+        mut ns_fvc : USize = 0
         if fvi >= 0 {
             ns_fvc = fcall_variadic_count(e, nparam, fkwi >= 0)
         }
-        mut ns_fkc : U32 = 0
+        mut ns_fkc : USize = 0
         if fkwi >= 0 {
             ns_fkc = fcall_kwargs_count(e)
         }
-        mut ci : U32 = 1
-        mut pi : U32 = 0
+        mut ci : USize = 1
+        mut pi : USize = 0
         while pi < nparam {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.cast(I32) == fvi {
+                if pi.to_i32() == fvi {
                     ref vparam : Declaration = ns_fdef.params[pi]
                     vptype := type_from_name(vparam.explicit_type, scope, ctx)
                     for vk in 0..ns_fvc {
@@ -1960,7 +1960,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 }
             }
             if fkwi >= 0 {
-                if pi.cast(I32) == fkwi {
+                if pi.to_i32() == fkwi {
                     ci = ci + ns_fkc
                     pi++
                     continue
@@ -1979,7 +1979,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         while pi < nparam {
             if ci >= e.children.len() { break }
             if fvi >= 0 {
-                if pi.cast(I32) == fvi {
+                if pi.to_i32() == fvi {
                     ref vparam2 : Declaration = ns_fdef.params[pi]
                     ref vptype_name : Str = vparam2.explicit_type
                     mut is_splat := false
@@ -2019,7 +2019,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 }
             }
             if fkwi >= 0 {
-                if pi.cast(I32) == fkwi {
+                if pi.to_i32() == fkwi {
                     ci = ci + ns_fkc
                     pi++
                     continue
@@ -2102,14 +2102,14 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             while pi < nparam {
                 if ci >= e.children.len() { break }
                 if fvi >= 0 {
-                    if pi.cast(I32) == fvi {
+                    if pi.to_i32() == fvi {
                         ci = ci + ns_fvc
                         pi++
                         continue
                     }
                 }
                 if fkwi >= 0 {
-                    if pi.cast(I32) == fkwi {
+                    if pi.to_i32() == fkwi {
                         ci = ci + ns_fkc
                         pi++
                         continue
@@ -2126,14 +2126,14 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             while pi < nparam {
                 if ci >= e.children.len() { break }
                 if fvi >= 0 {
-                    if pi.cast(I32) == fvi {
+                    if pi.to_i32() == fvi {
                         ci = ci + ns_fvc
                         pi++
                         continue
                     }
                 }
                 if fkwi >= 0 {
-                    if pi.cast(I32) == fkwi {
+                    if pi.to_i32() == fkwi {
                         ci = ci + ns_fkc
                         pi++
                         continue

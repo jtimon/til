@@ -132,15 +132,15 @@ FIVE_DIATONIC_BY_CHROM := array(I32, 0, 0, 1, 2, 2, 3, 3, 4)
 FIVE_ACC_BY_CHROM := array(I32, 0, 1, 0, 0, 1, 0, 1, 0)
 
 five_abs_note_name := func(chrom_idx: I32) returns Str {
-    ref nn : Str = FIVE_NAMES[chrom_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
-    hextave := chrom_idx / FIVE_CYCLE.cast(I32) + 2
+    ref nn : Str = FIVE_NAMES[chrom_idx.mod(FIVE_CYCLE.to_i32()).to_usize()]
+    hextave := chrom_idx / FIVE_CYCLE.to_i32() + 2
     return format(nn, hextave.to_str())
 }
 
 nathex_abs_note_name := func(key_idx: I32) returns Str {
-    table_idx := key_idx + NATHEX_PIANO_FREQ_OFFSET.cast(I32)
-    ref nn : Str = FIVE_NAMES[table_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
-    hextave := table_idx / FIVE_CYCLE.cast(I32) + 1
+    table_idx := key_idx + NATHEX_PIANO_FREQ_OFFSET.to_i32()
+    ref nn : Str = FIVE_NAMES[table_idx.mod(FIVE_CYCLE.to_i32()).to_usize()]
+    hextave := table_idx / FIVE_CYCLE.to_i32() + 1
     return format(nn, hextave.to_str())
 }
 
@@ -231,7 +231,7 @@ nathex_full_note_name := func(name_idx: I32, acc: I32, hextave: I32) returns Str
 }
 
 five_staff_pos := func(name_idx: I32, hextave: I32) returns I32 {
-    return name_idx - 2 + hextave * FIVE_NATURAL_COUNT.cast(I32)
+    return name_idx - 2 + hextave * FIVE_NATURAL_COUNT.to_i32()
 }
 
 five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode: USize,
@@ -239,23 +239,23 @@ five_recompute_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode:
                              mut sc_chrom: Array(I32), mut sc_diat: Array(I32), mut sc_hextave: Array(I32),
                              mut sc_acc: Array(I32), mut sc_freq: Array(I64)) {
     ref nat_c : I32 = FIVE_NATURALS[sel_diatonic]
-    root_chromatic := (nat_c + sel_accidental + FIVE_CYCLE.cast(I32)) % FIVE_CYCLE.cast(I32)
+    root_chromatic := (nat_c + sel_accidental + FIVE_CYCLE.to_i32()) % FIVE_CYCLE.to_i32()
     mut chrom_total := root_chromatic
-    root_diat := sel_diatonic.cast(I32)
+    root_diat := sel_diatonic.to_i32()
 
     for k : USize in 0..note_count {
-        diat_total := root_diat + k.cast(I32)
-        diat_pos := diat_total % FIVE_NATURAL_COUNT.cast(I32)
-        hextave := diat_total / FIVE_NATURAL_COUNT.cast(I32)
+        diat_total := root_diat + k.to_i32()
+        diat_pos := diat_total % FIVE_NATURAL_COUNT.to_i32()
+        hextave := diat_total / FIVE_NATURAL_COUNT.to_i32()
 
         sc_chrom[k] = chrom_total.clone()
         sc_diat[k] = diat_pos.clone()
         sc_hextave[k] = hextave.clone()
 
-        chrom_mod := chrom_total % FIVE_CYCLE.cast(I32)
+        chrom_mod := chrom_total % FIVE_CYCLE.to_i32()
         mut acc := chrom_mod - FIVE_NATURALS[diat_pos.to_usize()]
-        if acc.gt(4) { acc = acc - FIVE_CYCLE.cast(I32) }
-        if acc.lt(-4) { acc = acc + FIVE_CYCLE.cast(I32) }
+        if acc.gt(4) { acc = acc - FIVE_CYCLE.to_i32() }
+        if acc.lt(-4) { acc = acc + FIVE_CYCLE.to_i32() }
         sc_acc[k] = acc
 
         ref freq : I64 = music_modes_key_freq(use_nathex, chrom_total.to_usize())
@@ -288,8 +288,8 @@ freqs_solfege_note_name := func(freq_idx: I32) returns Str {
 }
 
 freqs_five_note_name := func(freq_idx: I32) returns Str {
-    ref nn : Str = FIVE_NAMES[freq_idx.mod(FIVE_CYCLE.cast(I32)).to_usize()]
-    hextave := freq_idx / FIVE_CYCLE.cast(I32) + 1
+    ref nn : Str = FIVE_NAMES[freq_idx.mod(FIVE_CYCLE.to_i32()).to_usize()]
+    hextave := freq_idx / FIVE_CYCLE.to_i32() + 1
     return format(nn, hextave.to_str())
 }
 
@@ -297,7 +297,7 @@ piano_note_label := func(display_mode: I32, key_idx: I32) returns Str {
     if display_mode.eq(DISPLAY_MODE_NATHEX) { return nathex_abs_note_name(key_idx) }
     if display_mode.eq(DISPLAY_MODE_HEXTAVES) { return five_abs_note_name(key_idx) }
     if display_mode.eq(DISPLAY_MODE_LETTERS) {
-        return freqs_letter_note_name(PIANO_C3_FREQ_OFFSET.cast(I32) + key_idx)
+        return freqs_letter_note_name(PIANO_C3_FREQ_OFFSET.to_i32() + key_idx)
     }
     return solfege_abs_note_name(key_idx)
 }

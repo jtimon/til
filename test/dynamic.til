@@ -54,7 +54,7 @@ test_kwargs_map_overwrite := test() {
     ref s : USize = dm.size_at("v")
     assert_eq(Str, v, "two")
     assert_eq(Str, t, "Str")
-    assert_eq(USize, s, 16)
+    assert_eq(USize, s, 24)
 }
 
 Foo := struct {
@@ -189,7 +189,7 @@ test_dyn_size_of := test() {
 
     assert_eq(USize, sz_i64, 8)
     assert_eq(USize, sz_u8, 1)
-    assert_eq(USize, sz_str, 16)
+    assert_eq(USize, sz_str, 24)
     assert_eq(USize, sz_dynamic, Dynamic.size())
 
     elem_type : Str = "I64"

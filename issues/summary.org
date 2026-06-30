@@ -22,7 +22,6 @@
 *** [[./open/172.org][#172]] Add test_runner regen mode for expected outputs
 *** [[./open/174.org][#174]] Container types create cyclic dependencies that block typer-time methodgen
 *** [[./open/183.org][#183]] Adding ~///~ comments to core lib files forces full rebuild+test
-*** [[./open/192.org][#192]] USize should not be hardwired to U32
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/286.org][#286]] Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model

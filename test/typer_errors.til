@@ -181,7 +181,7 @@ bad_vec_own : I64 = ref_vec[0]
 // #282 follow-up: a by-value return of a ref-returning ?-call is rejected the
 // same way as the Decl form above (previously it compiled and DEREF'd a null
 // ref on the throw path). Use `returns ref I64` or `.clone()` instead.
-bad_ret_ref_q := func(i: U32) returns I64 throws OutOfBounds {
+bad_ret_ref_q := func(i: USize) returns I64 throws OutOfBounds {
     return ref_vec.get(i)?
 }
 

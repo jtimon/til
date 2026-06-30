@@ -78,8 +78,8 @@ is_opp := func(piece: I64, side: I64) returns Bool {
 copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
     mut i := 0
     while i.lt(64) {
-        ref v : I64 = src[i.to_u32()]
-        dst[i.to_u32()] = v.clone()
+        ref v : I64 = src[i.to_usize()]
+        dst[i.to_usize()] = v.clone()
         i++
     }
 }
@@ -90,7 +90,7 @@ copy_board := func(mut dst: Array(I64), mut src: Array(I64)) {
 // jumped_arr stores the index of the jumped piece for each move
 gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
                       mut moves: Array(I64), mut jumped: Array(I64)) returns I64 {
-    ref piece : I64 = board[idx.to_u32()]
+    ref piece : I64 = board[idx.to_usize()]
     r := idx.div(8)
     c := idx.mod(8)
     mut count := 0
@@ -102,8 +102,8 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
 
     mut di := 0
     while di.lt(4) {
-        ref dr : I64 = DIAG_R[di.to_u32()]
-        ref dc : I64 = DIAG_C[di.to_u32()]
+        ref dr : I64 = DIAG_R[di.to_usize()]
+        ref dc : I64 = DIAG_C[di.to_usize()]
 
         mut allowed := false
         if is_king(piece) {
@@ -122,9 +122,9 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
                 mid_c := c.add(dc)
                 mid_idx := mid_r.mul(8).add(mid_c)
                 land_idx := land_r.mul(8).add(land_c)
-                if is_opp(board[mid_idx.to_u32()], side).and(board[land_idx.to_u32()].eq(0)) {
-                    moves[count.to_u32()] = land_idx.clone()
-                    jumped[count.to_u32()] = mid_idx.clone()
+                if is_opp(board[mid_idx.to_usize()], side).and(board[land_idx.to_usize()].eq(0)) {
+                    moves[count.to_usize()] = land_idx.clone()
+                    jumped[count.to_usize()] = mid_idx.clone()
                     count++
                 }
             }
@@ -138,7 +138,7 @@ gen_captures := func(mut board: Array(I64), idx: I64, side: I64,
 // Generate non-capture moves for piece at idx
 gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
                           mut moves: Array(I64)) returns I64 {
-    ref piece : I64 = board[idx.to_u32()]
+    ref piece : I64 = board[idx.to_usize()]
     r := idx.div(8)
     c := idx.mod(8)
     mut count := 0
@@ -148,8 +148,8 @@ gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
 
     mut di := 0
     while di.lt(4) {
-        ref dr : I64 = DIAG_R[di.to_u32()]
-        ref dc : I64 = DIAG_C[di.to_u32()]
+        ref dr : I64 = DIAG_R[di.to_usize()]
+        ref dc : I64 = DIAG_C[di.to_usize()]
 
         // Men can only move forward (not backward)
         mut allowed := false
@@ -165,9 +165,9 @@ gen_simple_moves := func(mut board: Array(I64), idx: I64, side: I64,
             nc := c.add(dc)
             if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
                 dest := nr.mul(8).add(nc)
-                ref dp : I64 = board[dest.to_u32()]
+                ref dp : I64 = board[dest.to_usize()]
                 if dp.eq(0) {
-                    moves[count.to_u32()] = dest.clone()
+                    moves[count.to_usize()] = dest.clone()
                     count++
                 }
             }
@@ -183,7 +183,7 @@ has_any_captures := func(mut board: Array(I64), side: I64,
                           mut moves: Array(I64), mut jumped: Array(I64)) returns Bool {
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board[i.to_u32()]
+        ref p : I64 = board[i.to_usize()]
         if is_side(p, side) {
             cc := gen_captures(board, i, side, moves, jumped)
             if cc.gt(0) { return true }
@@ -199,7 +199,7 @@ has_legal_moves := func(mut board: Array(I64), side: I64,
     if has_any_captures(board, side, moves, jumped) { return true }
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board[i.to_u32()]
+        ref p : I64 = board[i.to_usize()]
         if is_side(p, side) {
             mc := gen_simple_moves(board, i, side, moves)
             if mc.gt(0) { return true }
@@ -213,12 +213,12 @@ has_legal_moves := func(mut board: Array(I64), side: I64,
 // Promotes to king if reaching the back row
 // Returns the piece value after move (for king promotion tracking)
 execute_move := func(mut board: Array(I64), from: I64, to: I64, jumped_idx: I64) returns I64 {
-    ref p : I64 = board[from.to_u32()]
+    ref p : I64 = board[from.to_usize()]
     mut pv := p.clone()
-    board[from.to_u32()] = 0
+    board[from.to_usize()] = 0
 
     if jumped_idx.gte(0) {
-        board[jumped_idx.to_u32()] = 0
+        board[jumped_idx.to_usize()] = 0
     }
 
     // King promotion
@@ -230,7 +230,7 @@ execute_move := func(mut board: Array(I64), from: I64, to: I64, jumped_idx: I64)
         pv = 4
     }
 
-    board[to.to_u32()] = pv.clone()
+    board[to.to_usize()] = pv.clone()
     return pv
 }
 
@@ -248,7 +248,7 @@ board_set_i64 := func(mut b: Board, i: I64, val: I64) {
 checkers_pack := func(mut b: Board, mut cells: Array(I64), side: I64) {
     mut i := 0
     while i.lt(64) {
-        ref v : I64 = cells[i.to_u32()]
+        ref v : I64 = cells[i.to_usize()]
         board_set_i64(b, i, v)
         i++
     }
@@ -290,12 +290,12 @@ expand_jumps := func(mut cells: Array(I64), piece_pos: I64, side: I64,
     }
     mut j := 0
     while j.lt(mc) {
-        ref dest : I64 = tmp_m[j.to_u32()]
-        ref jmp : I64 = tmp_j[j.to_u32()]
+        ref dest : I64 = tmp_m[j.to_usize()]
+        ref jmp : I64 = tmp_j[j.to_usize()]
         mut child := Array(I64).new(64)
         copy_board(child, cells)
         new_piece := execute_move(child, piece_pos, dest, jmp)
-        ref orig : I64 = cells[piece_pos.to_u32()]
+        ref orig : I64 = cells[piece_pos.to_usize()]
         mut was_promoted := false
         if orig.eq(1).and(new_piece.eq(2)) { was_promoted = true }
         if orig.eq(3).and(new_piece.eq(4)) { was_promoted = true }
@@ -317,7 +317,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     mut cells := Array(I64).new(64)
     mut ci := 0
     while ci.lt(64) {
-        cells[ci.to_u32()] = board_get_i64(cb, ci).clone()
+        cells[ci.to_usize()] = board_get_i64(cb, ci).clone()
         ci++
     }
     side := checkers_unpack_side(cb)
@@ -327,7 +327,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     must_cap := has_any_captures(cells, side, tmp_m, tmp_j)
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = cells[i.to_u32()]
+        ref p : I64 = cells[i.to_usize()]
         if is_side(p, side) {
             if must_cap {
                 expand_jumps(cells, i, side, result, tmp_m, tmp_j)
@@ -335,7 +335,7 @@ checkers_next_boards : NextBoardsFn = (b) {
                 mc := gen_simple_moves(cells, i, side, tmp_m)
                 mut j := 0
                 while j.lt(mc) {
-                    ref dest : I64 = tmp_m[j.to_u32()]
+                    ref dest : I64 = tmp_m[j.to_usize()]
                     mut child := Array(I64).new(64)
                     copy_board(child, cells)
                     execute_move(child, i, dest, -1)
@@ -389,8 +389,8 @@ main := proc() {
     // Initialize default game
     mut init_i := 0
     while init_i.lt(64) {
-        ref init_p : I64 = INIT_BOARD[init_i.to_u32()]
-        board[init_i.to_u32()] = init_p.clone()
+        ref init_p : I64 = INIT_BOARD[init_i.to_usize()]
+        board[init_i.to_usize()] = init_p.clone()
         init_i++
     }
 
@@ -412,8 +412,8 @@ main := proc() {
                     ai.depth = sel_difficulty
                     mut ri := 0
                     while ri < 64 {
-                        ref init_p : I64 = INIT_BOARD[ri.to_u32()]
-                        board[ri.to_u32()] = init_p.clone()
+                        ref init_p : I64 = INIT_BOARD[ri.to_usize()]
+                        board[ri.to_usize()] = init_p.clone()
                         ri = ri + 1
                     }
                     turn = 1
@@ -462,8 +462,8 @@ main := proc() {
                         mut best_score := 0.sub(AB_INF)
                         mut mj := 0
                         while mj.lt(mc) {
-                            ref dest : I64 = tmp_moves[mj.to_u32()]
-                            ref jmp : I64 = tmp_jumped[mj.to_u32()]
+                            ref dest : I64 = tmp_moves[mj.to_usize()]
+                            ref jmp : I64 = tmp_jumped[mj.to_usize()]
                             mut child := Array(I64).new(64)
                             copy_board(child, board)
                             execute_move(child, multi_jump_idx, dest, jmp)
@@ -476,10 +476,10 @@ main := proc() {
                             }
                             mj++
                         }
-                        bd_val := tmp_moves[best_j.to_u32()].clone()
-                        bj_val := tmp_jumped[best_j.to_u32()].clone()
+                        bd_val := tmp_moves[best_j.to_usize()].clone()
+                        bj_val := tmp_jumped[best_j.to_usize()].clone()
 
-                        ref orig : I64 = board[multi_jump_idx.to_u32()]
+                        ref orig : I64 = board[multi_jump_idx.to_usize()]
                         orig_val := orig.clone()
                         new_piece := execute_move(board, multi_jump_idx, bd_val, bj_val)
                         if ai_side.eq(1) {
@@ -524,14 +524,14 @@ main := proc() {
 
                     mut sq := 0
                     while sq.lt(64) {
-                        if is_side(board[sq.to_u32()], ai_side) {
+                        if is_side(board[sq.to_usize()], ai_side) {
                             if ai_must_cap {
                                 mc := gen_captures(board, sq, ai_side, tmp_moves, tmp_jumped)
                                 mut mj := 0
                                 while mj.lt(mc) {
-                                    ai_pieces[ai_total.to_u32()] = sq.clone()
-                                    ai_dests[ai_total.to_u32()] = tmp_moves[mj.to_u32()].clone()
-                                    ai_jumps[ai_total.to_u32()] = tmp_jumped[mj.to_u32()].clone()
+                                    ai_pieces[ai_total.to_usize()] = sq.clone()
+                                    ai_dests[ai_total.to_usize()] = tmp_moves[mj.to_usize()].clone()
+                                    ai_jumps[ai_total.to_usize()] = tmp_jumped[mj.to_usize()].clone()
                                     ai_total++
                                     mj++
                                 }
@@ -539,10 +539,10 @@ main := proc() {
                                 mc := gen_simple_moves(board, sq, ai_side, tmp_moves)
                                 mut mj := 0
                                 while mj.lt(mc) {
-                                    ref md : I64 = tmp_moves[mj.to_u32()]
-                                    ai_pieces[ai_total.to_u32()] = sq.clone()
-                                    ai_dests[ai_total.to_u32()] = md.clone()
-                                    ai_jumps[ai_total.to_u32()] = -1
+                                    ref md : I64 = tmp_moves[mj.to_usize()]
+                                    ai_pieces[ai_total.to_usize()] = sq.clone()
+                                    ai_dests[ai_total.to_usize()] = md.clone()
+                                    ai_jumps[ai_total.to_usize()] = -1
                                     ai_total++
                                     mj++
                                 }
@@ -557,9 +557,9 @@ main := proc() {
 
                         mut mi := 0
                         while mi.lt(ai_total) {
-                            from_val := ai_pieces[mi.to_u32()].clone()
-                            to_val := ai_dests[mi.to_u32()].clone()
-                            jmp_val := ai_jumps[mi.to_u32()].clone()
+                            from_val := ai_pieces[mi.to_usize()].clone()
+                            to_val := ai_dests[mi.to_usize()].clone()
+                            jmp_val := ai_jumps[mi.to_usize()].clone()
 
                             mut child := Array(I64).new(64)
                             copy_board(child, board)
@@ -576,11 +576,11 @@ main := proc() {
                             mi++
                         }
 
-                        from_val := ai_pieces[best_idx.to_u32()].clone()
-                        to_val := ai_dests[best_idx.to_u32()].clone()
-                        jmp_val := ai_jumps[best_idx.to_u32()].clone()
+                        from_val := ai_pieces[best_idx.to_usize()].clone()
+                        to_val := ai_dests[best_idx.to_usize()].clone()
+                        jmp_val := ai_jumps[best_idx.to_usize()].clone()
 
-                        ref orig : I64 = board[from_val.to_u32()]
+                        ref orig : I64 = board[from_val.to_usize()]
                         orig_val := orig.clone()
                         new_piece := execute_move(board, from_val, to_val, jmp_val)
                         if jmp_val.gte(0) {
@@ -649,19 +649,19 @@ main := proc() {
                             mut is_valid := false
                             mut vi := 0
                             while vi.lt(valid_count) {
-                                ref vm : I64 = valid_moves[vi.to_u32()]
+                                ref vm : I64 = valid_moves[vi.to_usize()]
                                 if vm.eq(click_idx) { is_valid = true }
                                 vi++
                             }
                             if is_valid {
                                 mut ji := 0
                                 while ji.lt(valid_count) {
-                                    ref vm : I64 = valid_moves[ji.to_u32()]
+                                    ref vm : I64 = valid_moves[ji.to_usize()]
                                     if vm.eq(click_idx) {
-                                        ref jm : I64 = valid_jumped[ji.to_u32()]
+                                        ref jm : I64 = valid_jumped[ji.to_usize()]
                                         jmp_val := jm.clone()
 
-                                        ref orig : I64 = board[multi_jump_idx.to_u32()]
+                                        ref orig : I64 = board[multi_jump_idx.to_usize()]
                                         orig_val := orig.clone()
                                         new_piece := execute_move(board, multi_jump_idx, click_idx, jmp_val)
                                         if turn.eq(1) {
@@ -701,7 +701,7 @@ main := proc() {
                                 mut found_ji := -1
                                 mut vi := 0
                                 while vi.lt(valid_count) {
-                                    ref vm : I64 = valid_moves[vi.to_u32()]
+                                    ref vm : I64 = valid_moves[vi.to_usize()]
                                     if vm.eq(click_idx) {
                                         is_valid = true
                                         found_ji = vi
@@ -712,11 +712,11 @@ main := proc() {
                                 if is_valid {
                                     mut jmp_val := -1
                                     if must_capture {
-                                        ref jm : I64 = valid_jumped[found_ji.to_u32()]
+                                        ref jm : I64 = valid_jumped[found_ji.to_usize()]
                                         jmp_val = jm.clone()
                                     }
 
-                                    ref orig : I64 = board[selected.to_u32()]
+                                    ref orig : I64 = board[selected.to_usize()]
                                     orig_val := orig.clone()
                                     new_piece := execute_move(board, selected, click_idx, jmp_val)
                                     if jmp_val.gte(0) {
@@ -760,7 +760,7 @@ main := proc() {
                                         }
                                     }
                                 } else {
-                                    ref cp : I64 = board[click_idx.to_u32()]
+                                    ref cp : I64 = board[click_idx.to_usize()]
                                     if is_side(cp, turn) {
                                         selected = click_idx
                                         if must_capture {
@@ -774,7 +774,7 @@ main := proc() {
                                     }
                                 }
                             } else {
-                                ref cp : I64 = board[click_idx.to_u32()]
+                                ref cp : I64 = board[click_idx.to_usize()]
                                 if is_side(cp, turn) {
                                     selected = click_idx
                                     if must_capture {
@@ -837,7 +837,7 @@ main := proc() {
                 bb = 155
             }
             DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            DrawText(COLOR_LABELS[bi.cast(U32)].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(COLOR_LABELS[bi.to_usize()].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Mode radio
@@ -853,7 +853,7 @@ main := proc() {
                 mb = 155
             }
             DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            DrawText(MODE_LABELS[bi.cast(U32)].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawText(MODE_LABELS[bi.to_usize()].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
             bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)
@@ -908,9 +908,9 @@ main := proc() {
                 // Draw valid move indicators
                 mut vi := 0
                 while vi.lt(valid_count) {
-                    ref vm : I64 = valid_moves[vi.to_u32()]
+                    ref vm : I64 = valid_moves[vi.to_usize()]
                     if vm.eq(idx) {
-                        ref dp : I64 = board[idx.to_u32()]
+                        ref dp : I64 = board[idx.to_usize()]
                         if dp.eq(0) {
                             DrawCircle(px + CELL / 2, py + CELL / 2, 8, Color(r = 100, g = 100, b = 100, a = 128))
                         } else {
@@ -924,7 +924,7 @@ main := proc() {
                 }
 
                 // Draw piece
-                ref piece : I64 = board[idx.to_u32()]
+                ref piece : I64 = board[idx.to_usize()]
                 if piece.neq(0) {
                     cx := px + CELL / 2
                     cy := py + CELL / 2

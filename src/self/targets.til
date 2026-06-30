@@ -120,10 +120,8 @@ target_uptr_name := func(target: Target) returns Str {
 // truth, and so the next migration step only needs to flip the value
 // here once boot/* is ready to follow.
 target_usize_name := func(target: Target) returns Str {
-    // Intentional: keep at U32 on every target until the boot files have
-    // been regenerated against a target-driven USize. See issue #192.
     if target_is_32bit(target) { return "U32" }
-    return "U32"
+    return "U64"
 }
 
 // ---------- Target/Lang compatibility

@@ -132,9 +132,9 @@ test_vec_subscript_assign_oob := test() {
 test_vec_size := test() {
     assert_eq(USize, I64.size(), 8)
     assert_eq(USize, U8.size(), 1)
-    assert_eq(USize, Str.size(), 16)
+    assert_eq(USize, Str.size(), 24)
     assert_eq(USize, Bool.size(), 1)
-    assert_eq(USize, Vec(Str).size(), 16)
+    assert_eq(USize, Vec(Str).size(), 24)
 }
 
 test_vec_dynamic := test() {

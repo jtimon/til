@@ -26,7 +26,7 @@ SEVEN_FULL_WHITE_KEYS : USize = 15
 
 // -- Derived metrics --
 MARGIN : I32 = WINDOW_WIDTH / 48
-BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / SEVEN_NATURAL_COUNT.cast(I32)
+BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / SEVEN_NATURAL_COUNT.to_i32()
 SYSTEM_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / 3
 BTN_H : I32 = WINDOW_HEIGHT / 22
 GAP : I32 = WINDOW_HEIGHT / 60
@@ -59,7 +59,7 @@ LABEL_Y : I32 = STAFF_BASE_Y + STAFF_SP * 2 + NOTE_R + GAP
 
 // Piano roll
 PIANO_Y : I32 = LABEL_Y + WINDOW_HEIGHT / 45 + GAP
-FIVE_WHITE_W : I32 = STAFF_W / FIVE_WHITE_KEYS.cast(I32)
+FIVE_WHITE_W : I32 = STAFF_W / FIVE_WHITE_KEYS.to_i32()
 FIVE_BLACK_W : I32 = FIVE_WHITE_W / 2
 WHITE_H : I32 = WINDOW_HEIGHT / 8
 BLACK_H : I32 = WHITE_H * 2 / 3
@@ -162,12 +162,12 @@ active_root_count := func(use_five: Bool) returns USize {
 }
 
 note_x := func(dni: USize, note_count: USize) returns I32 {
-    dx := (WINDOW_WIDTH - NOTE_X0 * 2) / (note_count.cast(I32) - 1)
-    return NOTE_X0 + dni.cast(I32) * dx
+    dx := (WINDOW_WIDTH - NOTE_X0 * 2) / (note_count.to_i32() - 1)
+    return NOTE_X0 + dni.to_i32() * dx
 }
 
 staff_y := func(use_five: Bool, diat_idx: I32, span: I32) returns I32 {
-    mut staff_pos := diat_idx - 2 + span * SEVEN_NATURAL_COUNT.cast(I32)
+    mut staff_pos := diat_idx - 2 + span * SEVEN_NATURAL_COUNT.to_i32()
     if use_five { staff_pos = five_staff_pos(diat_idx, span) }
     return STAFF_BASE_Y - staff_pos * STAFF_SP
 }
@@ -186,7 +186,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
     dnx := note_x(dni, note_count)
     ref nd : I32 = sc_diat[dni]
     ref ns : I32 = sc_span[dni]
-    mut staff_pos := nd - 2 + ns * SEVEN_NATURAL_COUNT.cast(I32)
+    mut staff_pos := nd - 2 + ns * SEVEN_NATURAL_COUNT.to_i32()
     if five_system { staff_pos = five_staff_pos(nd, ns) }
     dny := staff_y(five_system, nd, ns)
 
@@ -218,7 +218,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
     if playing.and(play_idx.gt(dni)) {
         note_color = Color(r = 100, g = 100, b = 0, a = 255)
     }
-    if clicked_note.eq(dni.cast(I32)) {
+    if clicked_note.eq(dni.to_i32()) {
         note_color = CYAN
     }
 
@@ -241,8 +241,8 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         nn_acc := acc_text(na.cast(I64))
         label = format(nn_base, nn_acc)
         if dni.lt(SEVEN_NATURAL_COUNT) {
-            ref trt2 : USize = sc_triad[dni]
-            chord := format(LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()], nn_acc, TRIAD_SUFFIXES[trt2])
+            ref trt2 : U32 = sc_triad[dni]
+            chord := format(LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()], nn_acc, TRIAD_SUFFIXES[trt2.cast(USize)])
             if use_letters {
                 label = chord
             } else {
@@ -259,9 +259,9 @@ recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode
                               mut sc_acc: Array(I32), mut sc_freq: Array(I64), mut sc_triad: Array(U32)) {
     root_chromatic := (NATURALS[sel_diatonic] + sel_accidental + SEVEN_CYCLE) % SEVEN_CYCLE
     mut chrom_total := root_chromatic
-    mut diat_pos := sel_diatonic.cast(I32)
+    mut diat_pos := sel_diatonic.to_i32()
     mut diat_oct : I32 = 0
-    mut prev_diat := sel_diatonic.cast(I32)
+    mut prev_diat := sel_diatonic.to_i32()
 
     for k : USize in 0..note_count {
         chrom_mod := chrom_total % SEVEN_CYCLE
@@ -282,7 +282,7 @@ recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode
             ref step : I32 = SEVEN_MODE_INTERVALS[sel_mode * SEVEN_NATURAL_COUNT + step_idx]
             chrom_total = chrom_total + step
             prev_diat = diat_pos
-            diat_pos = (diat_pos + 1) % SEVEN_NATURAL_COUNT.cast(I32)
+            diat_pos = (diat_pos + 1) % SEVEN_NATURAL_COUNT.to_i32()
             if diat_pos.lt(prev_diat) {
                 diat_oct = diat_oct + 1
             }
@@ -317,7 +317,7 @@ highlight_scale_for_key := func(key_idx: I32, note_count: USize, mut sc_chrom: A
         ref chrom : I32 = sc_chrom[ci]
         scale_key_idx := scale_piano_key(chrom)
         if scale_key_idx.eq(key_idx) {
-            clicked_note = ci.cast(I32)
+            clicked_note = ci.to_i32()
             clicked_timer = 300
             break
         }
@@ -335,15 +335,15 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
     if active_five_system(use_five, use_nathex) {
         // C4-C6: 3 hextaves / 2 octaves from the first key to the final ca.
         for i : USize in 0..FIVE_WHITE_KEYS {
-            kx := STAFF_X + i.cast(I32) * FIVE_WHITE_W
+            kx := STAFF_X + i.to_i32() * FIVE_WHITE_W
             cycle := i / FIVE_NATURAL_COUNT
             ref nat : I32 = FIVE_NATURALS[i.mod(FIVE_NATURAL_COUNT)]
-            key_idx := cycle.cast(I32) * FIVE_CYCLE.cast(I32) + nat
+            key_idx := cycle.to_i32() * FIVE_CYCLE.to_i32() + nat
             mut k_color := KEY_WHITE
             if key_idx.eq(active_key_idx) { k_color = KEY_WHITE_PRESSED }
             DrawRectangle(kx, PIANO_Y, FIVE_WHITE_W - 2, WHITE_H, k_color)
             mut lbl := "ca7"
-            if key_idx.lt(PIANO_C4_KEY_COUNT.cast(I32)) {
+            if key_idx.lt(PIANO_C4_KEY_COUNT.to_i32()) {
                 ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
                 lbl = key_lbl.clone()
             }
@@ -354,8 +354,8 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
             for j : USize in 0..3 {
                 ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
                 ref bchrom : I32 = FIVE_BLACKS[j]
-                key_idx := cycle.cast(I32) * FIVE_CYCLE.cast(I32) + bchrom
-                bx := STAFF_X + (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
+                key_idx := cycle.to_i32() * FIVE_CYCLE.to_i32() + bchrom
+                bx := STAFF_X + (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
                 mut kb_color := KEY_BLACK
                 if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
                 DrawRectangle(bx, PIANO_Y, FIVE_BLACK_W, BLACK_H, kb_color)
@@ -366,20 +366,20 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
     } else {
         mut seven_white_keys := SEVEN_ONCE_WHITE_KEYS
         if full_span { seven_white_keys = SEVEN_FULL_WHITE_KEYS }
-        seven_white_w := STAFF_W / seven_white_keys.cast(I32)
+        seven_white_w := STAFF_W / seven_white_keys.to_i32()
         seven_black_w := seven_white_w / 2
 
         // Once: C4-B5. Full span: C4-C6, with final C mouse-only.
         for i : USize in 0..seven_white_keys {
-            kx := STAFF_X + i.cast(I32) * seven_white_w
+            kx := STAFF_X + i.to_i32() * seven_white_w
             ref nat : I32 = NATURALS[i.mod(SEVEN_NATURAL_COUNT)]
             key_oct := i / SEVEN_NATURAL_COUNT
-            key_idx := key_oct.cast(I32) * SEVEN_CYCLE + nat
+            key_idx := key_oct.to_i32() * SEVEN_CYCLE + nat
             mut k_color := KEY_WHITE
             if key_idx.eq(active_key_idx) { k_color = KEY_WHITE_PRESSED }
             DrawRectangle(kx, PIANO_Y, seven_white_w - 2, WHITE_H, k_color)
             mut lbl := "C6"
-            if key_idx.lt(PIANO_C4_KEY_COUNT.cast(I32)) {
+            if key_idx.lt(PIANO_C4_KEY_COUNT.to_i32()) {
                 ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
                 lbl = key_lbl.clone()
             }
@@ -390,8 +390,8 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
             for j : USize in 0..5 {
                 ref bpos : I32 = BLACK_KEY_POS[j]
                 ref bchrom : I32 = BLACK_CHROMS[j]
-                key_idx := oct.cast(I32) * SEVEN_CYCLE + bchrom
-                bx := STAFF_X + (oct.cast(I32) * SEVEN_NATURAL_COUNT.cast(I32) + bpos + 1) * seven_white_w - seven_black_w / 2
+                key_idx := oct.to_i32() * SEVEN_CYCLE + bchrom
+                bx := STAFF_X + (oct.to_i32() * SEVEN_NATURAL_COUNT.to_i32() + bpos + 1) * seven_white_w - seven_black_w / 2
                 mut kb_color := KEY_BLACK
                 if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
                 DrawRectangle(bx, PIANO_Y, seven_black_w, BLACK_H, kb_color)
@@ -561,7 +561,7 @@ main := proc() {
                 cny := staff_y(five_system, sc_diat[ci], sc_span[ci])
                 hit := NOTE_R * 3
                 if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
-                    play_note(sc_freq[ci], clicked_note, clicked_timer, ci.cast(I32))
+                    play_note(sc_freq[ci], clicked_note, clicked_timer, ci.to_i32())
                     piano_active_idx = scale_piano_key(sc_chrom[ci])
                     piano_active_timer = 300
                 }
@@ -571,48 +571,48 @@ main := proc() {
             if my.gte(PIANO_Y).and(my.lt(PIANO_Y + WHITE_H)).and(mx.gte(STAFF_X)) {
                 mut piano_key_idx : I32 = -1
                 if five_system {
-                    if mx.lt(STAFF_X + FIVE_WHITE_W * FIVE_WHITE_KEYS.cast(I32)) {
+                    if mx.lt(STAFF_X + FIVE_WHITE_W * FIVE_WHITE_KEYS.to_i32()) {
                         if my.lt(PIANO_Y + BLACK_H) {
                             for cycle : USize in 0..FIVE_DRAW_CYCLES {
                                 for j : USize in 0..3 {
                                     ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
                                     ref bchrom : I32 = FIVE_BLACKS[j]
-                                    bx := STAFF_X + (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
+                                    bx := STAFF_X + (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
                                     if mx.gte(bx).and(mx.lt(bx + FIVE_BLACK_W)) {
-                                        piano_key_idx = cycle.cast(I32) * FIVE_CYCLE.cast(I32) + bchrom
+                                        piano_key_idx = cycle.to_i32() * FIVE_CYCLE.to_i32() + bchrom
                                     }
                                 }
                             }
                         }
                         if piano_key_idx.lt(0) {
                             wk := (mx - STAFF_X) / FIVE_WHITE_W
-                            cycle := wk / FIVE_NATURAL_COUNT.cast(I32)
-                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.cast(I32)).to_usize()]
-                            piano_key_idx = cycle * FIVE_CYCLE.cast(I32) + nat
+                            cycle := wk / FIVE_NATURAL_COUNT.to_i32()
+                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.to_i32()).to_usize()]
+                            piano_key_idx = cycle * FIVE_CYCLE.to_i32() + nat
                         }
                     }
                 } else {
                     mut seven_white_keys := SEVEN_ONCE_WHITE_KEYS
                     if full_span { seven_white_keys = SEVEN_FULL_WHITE_KEYS }
-                    seven_white_w := STAFF_W / seven_white_keys.cast(I32)
+                    seven_white_w := STAFF_W / seven_white_keys.to_i32()
                     seven_black_w := seven_white_w / 2
-                    if mx.lt(STAFF_X + seven_white_w * seven_white_keys.cast(I32)) {
+                    if mx.lt(STAFF_X + seven_white_w * seven_white_keys.to_i32()) {
                         if my.lt(PIANO_Y + BLACK_H) {
                             for oct : USize in 0..2 {
                                 for j : USize in 0..5 {
                                     ref bpos : I32 = BLACK_KEY_POS[j]
                                     ref bchrom : I32 = BLACK_CHROMS[j]
-                                    bx := STAFF_X + (oct.cast(I32) * SEVEN_NATURAL_COUNT.cast(I32) + bpos + 1) * seven_white_w - seven_black_w / 2
+                                    bx := STAFF_X + (oct.to_i32() * SEVEN_NATURAL_COUNT.to_i32() + bpos + 1) * seven_white_w - seven_black_w / 2
                                     if mx.gte(bx).and(mx.lt(bx + seven_black_w)) {
-                                        piano_key_idx = oct.cast(I32) * SEVEN_CYCLE + bchrom
+                                        piano_key_idx = oct.to_i32() * SEVEN_CYCLE + bchrom
                                     }
                                 }
                             }
                         }
                         if piano_key_idx.lt(0) {
                             wk := (mx - STAFF_X) / seven_white_w
-                            oct := wk / SEVEN_NATURAL_COUNT.cast(I32)
-                            ref nat : I32 = NATURALS[wk.mod(SEVEN_NATURAL_COUNT.cast(I32)).to_usize()]
+                            oct := wk / SEVEN_NATURAL_COUNT.to_i32()
+                            ref nat : I32 = NATURALS[wk.mod(SEVEN_NATURAL_COUNT.to_i32()).to_usize()]
                             piano_key_idx = oct * SEVEN_CYCLE + nat
                         }
                     }
@@ -633,8 +633,8 @@ main := proc() {
             if IsKeyPressed(PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]) {
                 ref freq : I64 = music_modes_key_freq(use_nathex, ki)
                 play_freq(freq)
-                highlight_scale_for_key(ki.cast(I32), note_count, sc_chrom, clicked_note, clicked_timer)
-                piano_active_idx = ki.cast(I32)
+                highlight_scale_for_key(ki.to_i32(), note_count, sc_chrom, clicked_note, clicked_timer)
+                piano_active_idx = ki.to_i32()
                 piano_active_timer = 300
             }
         }
@@ -664,7 +664,7 @@ main := proc() {
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(note_count) {
-                    play_note(sc_freq[play_idx], clicked_note, clicked_timer, play_idx.cast(I32))
+                    play_note(sc_freq[play_idx], clicked_note, clicked_timer, play_idx.to_i32())
                     piano_active_idx = scale_piano_key(sc_chrom[play_idx])
                     piano_active_timer = 300
                     play_idx = play_idx + 1
@@ -680,7 +680,7 @@ main := proc() {
 
         // -- System buttons --
         for si : USize in 0..3 {
-            sx := MARGIN + si.cast(I32) * SYSTEM_BTN_W
+            sx := MARGIN + si.to_i32() * SYSTEM_BTN_W
             mut s_color := BTN_INACTIVE
             if si.eq(0).and(!five_system) { s_color = BTN_ACTIVE }
             if si.eq(1).and(use_five) { s_color = BTN_ACTIVE }
@@ -705,8 +705,8 @@ main := proc() {
         // -- Root buttons --
         for row : USize in 0..3 {
             for col : USize in 0..root_count {
-                bx := MARGIN + col.cast(I32) * BTN_W
-                by := NOTE_ROW_Y + row.cast(I32) * BTN_H
+                bx := MARGIN + col.to_i32() * BTN_W
+                by := NOTE_ROW_Y + row.to_i32() * BTN_H
                 mut b_color := BTN_INACTIVE
                 mut acc_match := 0
                 if row.eq(0) { acc_match = -1 }
@@ -732,7 +732,7 @@ main := proc() {
 
         // -- Mode buttons --
         for mi : USize in 0..root_count {
-            mbx := MARGIN + mi.cast(I32) * BTN_W
+            mbx := MARGIN + mi.to_i32() * BTN_W
             mby := MODE_ROW_Y
             mut mb_color := BTN_INACTIVE
             if mi.eq(sel_mode) { mb_color = BTN_ACTIVE }
@@ -753,7 +753,7 @@ main := proc() {
         mut lang_button_count : USize = 3
         if five_system { lang_button_count = 2 }
         for li : USize in 0..lang_button_count {
-            lx := MARGIN + li.cast(I32) * LANG_BTN_W
+            lx := MARGIN + li.to_i32() * LANG_BTN_W
             mut lr_color := Color(r = 40, g = 40, b = 40, a = 255)
             if five_system {
                 if li.eq(0).and(!sel_lang.eq(2)) { lr_color = BTN_ACTIVE }
@@ -775,7 +775,7 @@ main := proc() {
         // -- Note-label buttons, only for 7 Greek modes --
         if !five_system {
             for ni : USize in 0..2 {
-                nx := NOTE_LABEL_ROW_X + ni.cast(I32) * NOTE_LABEL_BTN_W
+                nx := NOTE_LABEL_ROW_X + ni.to_i32() * NOTE_LABEL_BTN_W
                 mut nr_color := Color(r = 40, g = 40, b = 40, a = 255)
                 if ni.eq(0).and(!use_letters) { nr_color = BTN_ACTIVE }
                 if ni.eq(1).and(use_letters) { nr_color = BTN_ACTIVE }
@@ -788,7 +788,7 @@ main := proc() {
 
         // -- Span buttons --
         for spi : USize in 0..2 {
-            spx := SPAN_ROW_X + spi.cast(I32) * SPAN_BTN_W
+            spx := SPAN_ROW_X + spi.to_i32() * SPAN_BTN_W
             mut sp_color := Color(r = 40, g = 40, b = 40, a = 255)
             if spi.eq(0).and(!full_span) { sp_color = BTN_ACTIVE }
             if spi.eq(1).and(full_span) { sp_color = BTN_ACTIVE }
@@ -800,13 +800,13 @@ main := proc() {
 
         // -- Pentagram --
         for sli : USize in 0..5 {
-            line_pos := sli.cast(I32) * 2
+            line_pos := sli.to_i32() * 2
             ly := STAFF_BASE_Y - line_pos * STAFF_SP
             DrawRectangle(STAFF_X, ly, STAFF_W, 2, GRAY)
         }
 
         for ri : USize in 0..9 {
-            ry := STAFF_BASE_Y - ri.cast(I32) * STAFF_SP
+            ry := STAFF_BASE_Y - ri.to_i32() * STAFF_SP
             rd := (ri + 2) % root_count
             ref rn : Str = active_note_name(five_system, use_letters, rd)
             DrawTextEx(fnt, rn.c_str, Vector2(x = (STAFF_X - MARGIN * 2).to_f32(), y = (ry - FONT_SM / 2).to_f32()), FONT_SM.to_f32(), 1, TICK_LABEL)

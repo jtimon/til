@@ -75,7 +75,7 @@ priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref E
 
 TypeScope := struct {
     bindings := Map(Str, TypeBinding).new()
-    target_usize_pname := "U32"
+    target_usize_pname := "U64"
     target_uptr_pname := "U64"
     // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
@@ -309,7 +309,7 @@ Context := struct {
     // through Context since Context already flows everywhere eval runs.
     // Eval does not use it yet -- commits 2-3 migrate values onto it.
     eval_heap := EvalHeap.new()
-    target_usize_pname := "U32"
+    target_usize_pname := "U64"
     target_uptr_pname := "U64"
     anon_type_counter : I64 = 0
     // Issue #54: true when the program is headed for the C backend

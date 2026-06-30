@@ -100,7 +100,7 @@ main := proc() {
         hextave_display := display_mode.eq(DISPLAY_MODE_HEXTAVES).or(nathex_display)
         mut white_key_count := STANDARD_WHITE_KEYS
         if hextave_display { white_key_count = HEXTAVE_WHITE_KEYS }
-        white_w := WINDOW_WIDTH / white_key_count.cast(I32)
+        white_w := WINDOW_WIDTH / white_key_count.to_i32()
         black_w := white_w * 3 / 5
 
         // -- Input: reset key_down, then set from keyboard + mouse --
@@ -152,8 +152,8 @@ main := proc() {
                             for j : USize in 0..3 {
                                 ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
                                 ref bchrom_off : I32 = FIVE_BLACKS[j]
-                                chrom := bchrom_off + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
-                                bx := (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * white_w - black_w / 2
+                                chrom := bchrom_off + cycle.to_i32() * FIVE_CYCLE.to_i32()
+                                bx := (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * white_w - black_w / 2
                                 if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + black_w {
                                     mouse_note = chrom
                                 }
@@ -164,8 +164,8 @@ main := proc() {
                             for j : USize in 0..5 {
                                 ref bpos : I32 = BLACK_KEY_POS[j]
                                 ref bchrom_off : I32 = BLACK_CHROMS[j]
-                                chrom := bchrom_off + oct.cast(I32) * 12
-                                bx := (oct.cast(I32) * 7 + bpos + 1) * white_w - black_w / 2
+                                chrom := bchrom_off + oct.to_i32() * 12
+                                bx := (oct.to_i32() * 7 + bpos + 1) * white_w - black_w / 2
                                 if chrom.to_usize() < NUM_KEYS && mx >= bx && mx < bx + black_w {
                                     mouse_note = chrom
                                 }
@@ -176,11 +176,11 @@ main := proc() {
                 // If no black key hit, check white keys
                 if mouse_note < 0 {
                     wk := mx / white_w
-                    if wk >= 0 && wk < white_key_count.cast(I32) {
+                    if wk >= 0 && wk < white_key_count.to_i32() {
                         if hextave_display {
-                            cycle := wk / FIVE_NATURAL_COUNT.cast(I32)
-                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.cast(I32)).to_usize()]
-                            mouse_note = nat + cycle * FIVE_CYCLE.cast(I32)
+                            cycle := wk / FIVE_NATURAL_COUNT.to_i32()
+                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.to_i32()).to_usize()]
+                            mouse_note = nat + cycle * FIVE_CYCLE.to_i32()
                         } else {
                             oct := wk / 7
                             ref nat : I32 = NATURALS[wk.mod(7).to_usize()]
@@ -197,7 +197,7 @@ main := proc() {
         if song_playing {
             ref note_ms : I64 = HAPPY_BIRTHDAY_DURATIONS[song_idx]
             if song_timer.lt(note_ms) {
-                key_idx := HAPPY_BIRTHDAY_FREQ_NOTES[song_idx] - PIANO_C3_FREQ_OFFSET.cast(I32)
+                key_idx := HAPPY_BIRTHDAY_FREQ_NOTES[song_idx] - PIANO_C3_FREQ_OFFSET.to_i32()
                 key_down[key_idx.to_usize()] = 1
             }
             song_timer = song_timer + dt
@@ -224,7 +224,7 @@ main := proc() {
                     PlaySound(s)
                 }
                 // Add note event
-                ev_note[ev_head.to_usize()] = i.cast(I32)
+                ev_note[ev_head.to_usize()] = i.to_i32()
                 t_val := timer
                 ev_start[ev_head.to_usize()] = t_val
                 ev_end[ev_head.to_usize()] = -1
@@ -244,7 +244,7 @@ main := proc() {
                     idx := (ev_head - 1 - j.to_i64() + MAX_NOTES.to_i64()) % MAX_NOTES.to_i64()
                     ref en : I32 = ev_note[idx.to_usize()]
                     ref ee : I64 = ev_end[idx.to_usize()]
-                    if en == i.cast(I32) && ee == -1 {
+                    if en == i.to_i32() && ee == -1 {
                         t_val := timer
                         ev_end[idx.to_usize()] = t_val
                         break
@@ -268,9 +268,9 @@ main := proc() {
         DrawRectangle(0, 0, WINDOW_WIDTH, ROLL_H, ROLL_BG)
 
         // Piano roll grid lines (one per note, horizontal)
-        note_h := ROLL_H / NUM_KEYS.cast(I32)
+        note_h := ROLL_H / NUM_KEYS.to_i32()
         for i in 0..NUM_KEYS {
-            ny := i.cast(I32) * note_h
+            ny := i.to_i32() * note_h
             mut ib : I32 = 0
             if hextave_display {
                 ib = FIVE_IS_BLACK[i.mod(FIVE_CYCLE)].clone()
@@ -317,7 +317,7 @@ main := proc() {
             // Color: teal with brightness per display cycle.
             mut note_color := Color(r = 0, g = 150, b = 155, a = 255)
             mut cycle : I32 = en / 12
-            if hextave_display { cycle = en / FIVE_CYCLE.cast(I32) }
+            if hextave_display { cycle = en / FIVE_CYCLE.to_i32() }
             if cycle == 1 { note_color = Color(r = 0, g = 165, b = 170, a = 255) }
             if cycle == 2 { note_color = Color(r = 0, g = 180, b = 185, a = 255) }
             if cycle == 3 { note_color = Color(r = 0, g = 195, b = 200, a = 255) }
@@ -328,8 +328,8 @@ main := proc() {
 
         // Note labels on left side of roll
         for i in 0..NUM_KEYS {
-            ny := ROLL_H - (i.cast(I32) + 1) * note_h
-            note_label := piano_note_label(display_mode, i.cast(I32))
+            ny := ROLL_H - (i.to_i32() + 1) * note_h
+            note_label := piano_note_label(display_mode, i.to_i32())
             DrawTextEx(fnt, note_label.c_str, Vector2(x = 4, y = ny.to_f32()), (note_h - 2).to_f32(), 1, LABEL_COLOR)
         }
 
@@ -337,10 +337,10 @@ main := proc() {
         if hextave_display {
             // Draw 23 white keys over the same 36-semitone sound range.
             for i : USize in 0..HEXTAVE_WHITE_KEYS {
-                kx := i.cast(I32) * white_w
+                kx := i.to_i32() * white_w
                 cycle := i / FIVE_NATURAL_COUNT
                 ref nat : I32 = FIVE_NATURALS[i.mod(FIVE_NATURAL_COUNT)]
-                chrom := nat + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
+                chrom := nat + cycle.to_i32() * FIVE_CYCLE.to_i32()
                 mut k_color := KEY_WHITE
                 if chrom.to_usize() < NUM_KEYS {
                     ref kd : I32 = key_down[chrom.to_usize()]
@@ -356,8 +356,8 @@ main := proc() {
                 for j : USize in 0..3 {
                     ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
                     ref bchrom_off : I32 = FIVE_BLACKS[j]
-                    chrom := bchrom_off + cycle.cast(I32) * FIVE_CYCLE.cast(I32)
-                    bx := (cycle.cast(I32) * FIVE_NATURAL_COUNT.cast(I32) + bpos + 1) * white_w - black_w / 2
+                    chrom := bchrom_off + cycle.to_i32() * FIVE_CYCLE.to_i32()
+                    bx := (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * white_w - black_w / 2
                     mut kb_color := KEY_BLACK
                     if chrom.to_usize() < NUM_KEYS {
                         ref kd : I32 = key_down[chrom.to_usize()]
@@ -373,10 +373,10 @@ main := proc() {
         } else {
             // Draw 21 white keys (3 octaves).
             for i : USize in 0..STANDARD_WHITE_KEYS {
-                kx := i.cast(I32) * white_w
+                kx := i.to_i32() * white_w
                 oct := i / 7
                 ref nat : I32 = NATURALS[i.mod(7)]
-                chrom := nat + oct.cast(I32) * 12
+                chrom := nat + oct.to_i32() * 12
                 mut k_color := KEY_WHITE
                 if chrom.to_usize() < NUM_KEYS {
                     ref kd : I32 = key_down[chrom.to_usize()]
@@ -392,8 +392,8 @@ main := proc() {
                 for j : USize in 0..5 {
                     ref bpos : I32 = BLACK_KEY_POS[j]
                     ref bchrom_off : I32 = BLACK_CHROMS[j]
-                    chrom := bchrom_off + oct.cast(I32) * 12
-                    bx := (oct.cast(I32) * 7 + bpos + 1) * white_w - black_w / 2
+                    chrom := bchrom_off + oct.to_i32() * 12
+                    bx := (oct.to_i32() * 7 + bpos + 1) * white_w - black_w / 2
                     mut kb_color := KEY_BLACK
                     if chrom.to_usize() < NUM_KEYS {
                         ref kd : I32 = key_down[chrom.to_usize()]
