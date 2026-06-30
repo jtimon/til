@@ -6967,6 +6967,20 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         // internally (ELEM_BOXED), so `name` can be passed directly; the
         // old clone+box dance here leaked both the box and the cloned Str.
         // The value box is a transient that Map.set consumes.
+        // Re-registering a name overwrites its FFIEntry, but the entry's cif /
+        // arg_types / param_shallows are `ref` raw C pointers Map.set's delete
+        // does NOT reclaim. ffi_init_scan_program scans every import unit in a
+        // loop and also descends into nested function bodies, so a name seen
+        // twice orphaned the previous entry's libffi cif + arg-type array --
+        // a translate-time leak ffi_cleanup never saw (the stale pointers had
+        // already left ffi_map). Free them first, exactly as ffi_cleanup does
+        // for each live entry.
+        if ctx.ffi_map.has(name) {
+            ref old_fe : FFIEntry = ctx.ffi_map[name]
+            free(own old_fe.param_shallows)
+            free(own old_fe.arg_types)
+            free(own old_fe.cif)
+        }
         val : Dynamic = malloc(FFIEntry.size().cast(U64))
         move(val, entry, FFIEntry.size().cast(U64))
         ctx.ffi_map.set(name, own val)
