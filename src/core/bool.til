@@ -9,6 +9,19 @@ and := lazy_func(a: Bool, b: Bool) returns Bool {
 or := lazy_func(a: Bool, b: Bool) returns Bool {
     return match a { case true: true case: b }
 }
+// Lisp-style N-ary and/or. `and`/`or` stay strictly binary (the operators
+// `&&`/`||` and `.and()`/`.or()`); `vand`/`vor` are the variadic forms.
+// Called with more than two operands they right-fold into nested binary calls
+// (`vand(a, b, c)` -> `vand(a, vand(b, c))`) which inline to short-circuit
+// matches, so each later operand is evaluated only if reached. The fold is
+// gated to these two names in the loader (lazy_try_fold_nary), so it never
+// silently overloads a user's own binary lazy_func.
+vand := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: b case: false }
+}
+vor := lazy_func(a: Bool, b: Bool) returns Bool {
+    return match a { case true: true case: b }
+}
 not := core_func(shallow a: Bool) returns shallow Bool {}
 
 /// Boolean value: true or false.

@@ -2019,6 +2019,10 @@ priv lazy_build_fold := func(call: Expr, is_method: Bool, lo: USize, hi: USize,
 // assumes the callable is associative (true for `and`/`or`); a non-associative
 // binary lazy callable should not be called with more than two args.
 priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: Str) {
+    // Only the dedicated variadic callables vand/vor right-fold; binary `and`/
+    // `or` (and any user binary lazy_func) stay strictly two-argument, so a
+    // 3+-arg call is an arity error rather than a silent associative fold.
+    if name.eq("vand").or(name.eq("vor")).not() { return }
     mut nparams : USize = 0
     mut variadic := false
     switch fdef.node_type {
