@@ -32,7 +32,7 @@ namespace:
         return Vec(T)(data = malloc(cap.mul(T.size()).cast(U64)), cap = cap)
     }
 
-    len := func(self: Vec(T)) returns USize { return self.count }
+    len := pure_func(self: Vec(T)) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
@@ -107,7 +107,7 @@ namespace:
     /// This is the unchecked core that `get` wraps; for-in uses it
     /// directly because its `_fi < len()` termination test already
     /// proves the index in bounds (issue #284).
-    unsafe_get := func(self: Vec(T), i: USize) returns ref T {
+    unsafe_get := pure_func(self: Vec(T), i: USize) returns ref T {
         return ptr_add(self.data, i.mul(T.size()).cast(U64))
     }
 

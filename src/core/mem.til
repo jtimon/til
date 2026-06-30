@@ -40,7 +40,7 @@ ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 // is_null used to live in ext.c; it's now a one-liner over ptr_eq so
 // the C-side primitive surface shrinks by one symbol.  Reached via
 // UFCS as `aaa.is_null()` on any Dynamic-typed value.
-is_null := func(p: Dynamic) returns Bool { return p.ptr_eq(NULL) }
+is_null := pure_func(p: Dynamic) returns Bool { return p.ptr_eq(NULL) }
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
