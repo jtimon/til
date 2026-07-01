@@ -3537,7 +3537,7 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     // A local decl of the same name already in `generics` wins.
     for gname, gdef in ctx.generic_funcs {
         if generics.has(gname) { continue }
-        generics.set(gname.clone(), own gdef.clone())
+        generics.set(gname, own gdef.clone())
     }
     if generics.len() == 0 { return }
 

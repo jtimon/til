@@ -175,6 +175,31 @@ test_combo_default_between_variadic_and_kwargs := test() {
     assert_eq(Str, combo_label("x", ..arr, label = "splat", bias = 100), "splat:160")
 }
 
+MethodCombo := struct {
+    base := 0
+
+    namespace:
+        combo := func(self: MethodCombo, items: ..I64, label: Str = "default", opts: ...) returns Str {
+            mut total := self.base
+            for n : I64 in items {
+                total = total.add(n)
+            }
+            if opts.has("bias") {
+                ref b : I64 = opts.get("bias")
+                total = total.add(b)
+            }
+            return label.clone().format(":", total.to_str())
+        }
+}
+
+test_method_combo_default_between_variadic_and_kwargs := test() {
+    box := MethodCombo(base = 0)
+    assert_eq(Str, box.combo(), "default:0")
+    assert_eq(Str, box.combo(1, 2, 3), "default:6")
+    assert_eq(Str, box.combo(1, 2, 3, bias = 100), "default:106")
+    assert_eq(Str, box.combo(1, 2, 3, label = "override", bias = 100), "override:106")
+}
+
 // --- merged from test/optional_args.til ---
 
 minus := func(a: I64, b: I64) returns I64 { return a.sub(b) }

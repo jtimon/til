@@ -3176,7 +3176,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 switch e.children[2].node_type {
                 case NodeType.Literal(Literal.Str(method)):
                     f.write("dyn_has_")
-                    f.write(method.clone())
+                    f.write(method)
                     f.write("(")
                     emit_as_ptr(f, e.children[1], depth, false, ctx)
                     f.write(")")

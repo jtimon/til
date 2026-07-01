@@ -735,12 +735,7 @@ is_clone_fcall := func(e: Expr) returns Bool {
     }
 }
 
-priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBinding, ctx: Context) {
-    if callee_bind.is_null() { return }
-    ref fdef : Expr = scope.lookup_func(callee_bind.name)
-    if fdef.is_null() { return }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fdef_data):
+priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_data: FunctionDef, ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
         mut fvc : USize = 0
@@ -828,8 +823,52 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: Typ
             ci++
             pi++
         }
+}
+
+priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBinding, ctx: Context) {
+    if callee_bind.is_null() { return }
+    ref fdef : Expr = scope.lookup_func(callee_bind.name)
+    if fdef.is_null() { return }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fdef_data):
+        validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
     case:
         UNREACHABLE()
+    }
+}
+
+priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionDef) {
+    fvi := fdef_data.variadic_index
+    fkwi := fdef_data.kwargs_index
+    mut fvc : USize = 0
+    if fvi >= 0 {
+        fvc = fcall_variadic_count(e, fdef_data.params.len(), fkwi >= 0)
+    }
+    mut fkc : USize = 0
+    if fkwi >= 0 {
+        fkc = fcall_kwargs_count(e)
+    }
+    mut ci : USize = 1
+    mut pi : USize = 0
+    while pi < fdef_data.params.len() {
+        if ci >= e.children.len() { break }
+        if fvi >= 0 {
+            if pi.to_i32() == fvi {
+                ci = ci + fvc
+                pi++
+                continue
+            }
+        }
+        if fkwi >= 0 {
+            if pi.to_i32() == fkwi {
+                ci = ci + fkc
+                pi++
+                continue
+            }
+        }
+        if fdef_data.params[pi].own_type.is(OwnType.Own) { set_own_arg(e, ci) }
+        ci++
+        pi++
     }
 }
 
@@ -1098,6 +1137,12 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     if funcptr_eq(arg.expr_til_type(), ptype) {
         type_matches = true
     }
+    if type_matches.not().and(is_aggregate(ptype)) {
+        arg_sname_for_match := til_type_name(arg.expr_til_type())
+        if arg_sname_for_match.len() > 0 {
+            if ptype_name.eq(arg_sname_for_match) { type_matches = true }
+        }
+    }
     if type_matches.not() {
         arg.type_error(format("argument type mismatch for '", param_name, "': expected ", ptype_name, ", got ", type_to_name(arg.expr_til_type())), ctx)
     } else if is_aggregate(ptype) {
@@ -1107,18 +1152,11 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
                 arg.type_error(format("argument type mismatch for '", param_name, "': expected ", ptype_name, ", got ", arg_sname), ctx)
             }
         }
-    }
 }
 
-priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, in_func: I32, ctx: Context) {
-    for i in 1..e.children.len() {
-        infer_expr(scope, e.children[i], in_func, ctx)
-    }
-    if callee_bind.is_null() { return }
-    ref fdef : Expr = scope.lookup_func(callee_bind.name)
-    if fdef.is_null() { return }
-    switch fdef.node_type {
-    case NodeType.FuncDef(fdef_data):
+}
+
+priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Expr, fdef_data: FunctionDef, in_func: I32, ctx: Context) {
         fvi := fdef_data.variadic_index
         fkwi := fdef_data.kwargs_index
         mut fvc : USize = 0
@@ -1277,6 +1315,18 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
             ci++
             pi++
         }
+}
+
+priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, in_func: I32, ctx: Context) {
+    for i in 1..e.children.len() {
+        infer_expr(scope, e.children[i], in_func, ctx)
+    }
+    if callee_bind.is_null() { return }
+    ref fdef : Expr = scope.lookup_func(callee_bind.name)
+    if fdef.is_null() { return }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fdef_data):
+        infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
     case:
         UNREACHABLE()
     }
@@ -1803,127 +1853,10 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     }
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
-        nparam := ns_fdef.params.len()
-        fvi := ns_fdef.variadic_index
-        fkwi := ns_fdef.kwargs_index
-        mut fixed_count : USize = nparam
-        if fvi >= 0 {
-            fixed_count = fvi.to_usize()
-        }
-        mut va_args := Vec(Expr).new()
-        mut kw_args := Vec(Expr).new()
-        mut new_args := Vec(Expr).with_capacity(nparam)
-        for _ in 0..nparam {
-            new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
-        }
-        mut pos_idx : USize = 0
-        mut seen_named := false
-        for i in 1..e.children.len() {
-            ref arg : Expr = e.children[i]
-            switch arg.node_type {
-            case NodeType.NamedArg(aname):
-                seen_named = true
-                mut slot : I32 = -1
-                for j in 0..nparam {
-                    if j.to_i32() == fvi { continue }
-                    if j.to_i32() == fkwi { continue }
-                    ref param : Declaration = ns_fdef.params[j]
-                    if param.name == aname {
-                        slot = j.to_i32()
-                        break
-                    }
-                }
-                if slot < 0 {
-                    if fkwi >= 0 {
-                        kw_args.push(own arg.clone())
-                    } else {
-                        arg.type_error(format("no parameter '", aname, "'"), ctx)
-                    }
-                } else {
-                    ref slot_arg : Expr = new_args[slot.to_usize()]
-                    if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
-                        arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
-                    } else {
-                        new_args[slot.to_usize()] = arg.children[0].clone()
-                    }
-                }
-            case:
-                if seen_named {
-                    arg.type_error("positional argument after named argument", ctx)
-                }
-                if fvi >= 0 {
-                    if pos_idx >= fixed_count {
-                        va_args.push(own arg.clone())
-                    } else if pos_idx < nparam {
-                        new_args[pos_idx] = arg.clone()
-                    }
-                } else if pos_idx < nparam {
-                    new_args[pos_idx] = arg.clone()
-                }
-                pos_idx++
-            }
-        }
-        for i in 0..nparam {
-            if i.to_i32() == fvi { continue }
-            if i.to_i32() == fkwi { continue }
-            ref slot_arg : Expr = new_args[i]
-            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
-                ref param : Declaration = ns_fdef.params[i]
-                if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args[i] = resolve_default_value(param.default_value, e, ctx)
-                } else {
-                    e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
-                }
-            }
-        }
-        mut max_pos : USize = nparam
-        if fkwi >= 0 {
-            max_pos--
-        }
-        if fvi < 0 {
-            if pos_idx > max_pos {
-                e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
-            }
-        }
-        mut new_ch := Vec(Expr).with_capacity(nparam + va_args.len() + kw_args.len() + 1)
-        ref callee : Expr = e.children[0]
-        new_ch.push(own callee.clone())
-        mut missing_filled := false
-        for i in 0..nparam {
-            if i.to_i32() == fvi {
-                va_count := va_args.len()
-                for vai in 0..va_count {
-                    new_ch.push_take(va_args, vai)
-                }
-            } else if i.to_i32() == fkwi {
-                kw_count := kw_args.len()
-                for kwi2 in 0..kw_count {
-                    new_ch.push_take(kw_args, kwi2)
-                }
-            } else {
-                ref slot_arg : Expr = new_args[i]
-                if slot_arg.node_type.is(NodeType.NoDefaultArg) {
-                    // Missing argument already diagnosed above; mark and
-                    // bail rather than panic so the typer can keep
-                    // reporting later errors in the same file.
-                    missing_filled = true
-                } else {
-                    new_ch.push_take(new_args, i)
-                }
-            }
-        }
-        if missing_filled {
-            // Treat as handled so the caller doesn't fall into its
-            // FieldAccess-vs-Ident UNREACHABLE -- the missing-args
-            // diagnostic was already emitted above.
+        if desugar_fcall_args_for_fdef(e, "", ns_fdef, ctx).not() {
+            // Missing-argument diagnostic was already emitted above.
             return true
         }
-        // (Issue #109) `e.children = new_ch` is a bitwise overwrite of
-        // the entire Vec struct, which would orphan the old children's
-        // data buffer + cloned elem_type Str.  Move-into-existing
-        // drops the old contents in place, resizes if needed, and
-        // bit-copies the new payload over.
-        e.children.move_from(new_ch)
         // After UFCS rewriting, e.children[1] is the original receiver
         // Expr that was already inferred at the top of this proc. Skip
         // it (and any already-typed positional arg) to avoid firing
@@ -1934,155 +1867,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 infer_expr(scope, e.children[i], in_func, ctx)
             }
         }
-        mut ns_fvc : USize = 0
-        if fvi >= 0 {
-            ns_fvc = fcall_variadic_count(e, nparam, fkwi >= 0)
-        }
-        mut ns_fkc : USize = 0
-        if fkwi >= 0 {
-            ns_fkc = fcall_kwargs_count(e)
-        }
-        mut ci : USize = 1
-        mut pi : USize = 0
-        while pi < nparam {
-            if ci >= e.children.len() { break }
-            if fvi >= 0 {
-                if pi.to_i32() == fvi {
-                    ref vparam : Declaration = ns_fdef.params[pi]
-                    vptype := type_from_name(vparam.explicit_type, scope, ctx)
-                    for vk in 0..ns_fvc {
-                        rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
-                        narrow_dynamic(e.children[ci + vk], vptype)
-                    }
-                    ci = ci + ns_fvc
-                    pi++
-                    continue
-                }
-            }
-            if fkwi >= 0 {
-                if pi.to_i32() == fkwi {
-                    ci = ci + ns_fkc
-                    pi++
-                    continue
-                }
-            }
-            ref param2 : Declaration = ns_fdef.params[pi]
-            ref ptype : Str = param2.explicit_type
-            ptype_t := type_from_name(ptype, scope, ctx)
-            rewrite_til_type_arg(scope, e, ci, ptype_t, in_func, ctx)
-            narrow_dynamic(e.children[ci], ptype_t)
-            ci++
-            pi++
-        }
-        ci = 1
-        pi = 0
-        while pi < nparam {
-            if ci >= e.children.len() { break }
-            if fvi >= 0 {
-                if pi.to_i32() == fvi {
-                    ref vparam2 : Declaration = ns_fdef.params[pi]
-                    ref vptype_name : Str = vparam2.explicit_type
-                    mut is_splat := false
-                    switch e.node_type {
-                    case NodeType.FCall(fcd_v):
-                        is_splat = fcd_v.is_splat
-                    case:
-                        UNREACHABLE()
-                    }
-                    if vptype_name.len().gt(0).and(is_splat.not()) {
-                        vptype := type_from_name(vptype_name, scope, ctx)
-                        if vptype.is(Type.Dynamic).not() {
-                            is_str_va := vptype_name == "Str"
-                            for vk in 0..ns_fvc {
-                                if is_str_va {
-                                    ref vk_arg : Expr = e.children[ci + vk]
-                                    if vk_arg.expr_til_type().is(vptype).not() {
-                                        if vk_arg.expr_til_type().is(Type.Dynamic).not().and(vk_arg.expr_til_type().is(Type.Unknown).not()) {
-                                            arg_tname := type_to_name(vk_arg.expr_til_type())
-                                            if arg_tname.len().gt(0).and(arg_tname.eq("Str").not()) {
-                                                if type_has_to_str(scope, arg_tname) {
-                                                    e.children[ci + vk] = make_to_str_call(arg_tname, vk_arg)
-                                                    continue
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                rewrite_til_type_arg(scope, e, ci + vk, vptype, in_func, ctx)
-                                validate_fcall_arg(e.children[ci + vk], vptype, vptype_name, vparam2.name, ctx)
-                            }
-                        }
-                    }
-                    ci = ci + ns_fvc
-                    pi++
-                    continue
-                }
-            }
-            if fkwi >= 0 {
-                if pi.to_i32() == fkwi {
-                    ci = ci + ns_fkc
-                    pi++
-                    continue
-                }
-            }
-            ref param3 : Declaration = ns_fdef.params[pi]
-            ref ptype_name : Str = param3.explicit_type
-            ref arg : Expr = e.children[ci]
-            if arg.expr_til_type().is(Type.Dynamic) {
-                ci++
-                pi++
-                continue
-            }
-            ptype := type_from_name(ptype_name, scope, ctx)
-            if ptype.is(Type.Dynamic) {
-                ci++
-                pi++
-                continue
-            }
-            switch arg.node_type {
-            case NodeType.Literal(Literal.Num(lit_str)):
-                if is_numeric_type(ptype) {
-                    if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                        arg.type_error(format(
-                            "integer literal ", lit_str.literal_num_text(), " out of range for ", til_type_name_c(ptype),
-                        ), ctx)
-                    }
-                    arg.set_expr_til_type(ptype)
-                    ci++
-                    pi++
-                    continue
-                }
-            case:
-            }
-            // Issue #224: no implicit widening of non-literal args; only
-            // the USize/UPtr coercion survives.
-            if can_implicit_usize_coerce(arg.expr_til_type(), ptype, ptype_name) {
-                arg.set_expr_til_type(ptype)
-                ci++
-                pi++
-                continue
-            }
-            if type_prefix(arg.expr_til_type()).eq(type_prefix(ptype)).not() {
-                ref param_name : Str = param3.name
-                arg.type_error(format(
-                    "argument type mismatch for '", param_name,
-                    "': expected ", ptype_name, ", got ", til_type_name_c(arg.expr_til_type()),
-                ), ctx)
-            } else if is_aggregate(ptype) {
-                arg_sname := til_type_name(arg.expr_til_type())
-                if arg_sname.len() > 0 {
-                    if ptype_name.eq(arg_sname).not() {
-                        ref param_name : Str = param3.name
-                        arg.type_error(format(
-                            "argument type mismatch for '", param_name,
-                            "': expected ", ptype_name, ", got ", arg_sname,
-                        ), ctx)
-                    }
-                }
-            }
-            ci++
-            pi++
-        }
+        infer_and_validate_fcall_args_for_fdef(scope, e, ns_fdef, in_func, ctx)
         if ufcs_desugared {
             // If bit 0 (callee) was set by the parser's 'own expr' handler,
             // propagate it to bit 1 (the UFCS self arg) and clear bit 0.
@@ -2097,112 +1882,9 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             }
         }
         if ns_fdef.is_enum_variant_ctor {
-            ci = 1
-            pi = 0
-            while pi < nparam {
-                if ci >= e.children.len() { break }
-                if fvi >= 0 {
-                    if pi.to_i32() == fvi {
-                        ci = ci + ns_fvc
-                        pi++
-                        continue
-                    }
-                }
-                if fkwi >= 0 {
-                    if pi.to_i32() == fkwi {
-                        ci = ci + ns_fkc
-                        pi++
-                        continue
-                    }
-                }
-                if ns_fdef.params[pi].own_type.is(OwnType.Own) { set_own_arg(e, ci) }
-                ci++
-                pi++
-            }
+            set_fcall_own_args_for_own_params(e, ns_fdef)
         }
-        if ns_fdef.params.len() > 0 {
-            ci = 1
-            pi = 0
-            while pi < nparam {
-                if ci >= e.children.len() { break }
-                if fvi >= 0 {
-                    if pi.to_i32() == fvi {
-                        ci = ci + ns_fvc
-                        pi++
-                        continue
-                    }
-                }
-                if fkwi >= 0 {
-                    if pi.to_i32() == fkwi {
-                        ci = ci + ns_fkc
-                        pi++
-                        continue
-                    }
-                }
-                ref pp : Declaration = ns_fdef.params[pi]
-                pown := pp.own_type.is(OwnType.Own)
-                ref arg : Expr = e.children[ci]
-                if pown {
-                    if get_own_arg(e, ci).not() {
-                        arg.type_error(format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"), ctx)
-                    }
-                    cap_name := closure_borrowed_capture_name(arg, scope)
-                    if cap_name.len() > 0 {
-                        arg.type_error(format("own argument closure borrows captured local '", cap_name,
-                            "'; capture it as 'own ", cap_name, "' or 'shallow ", cap_name,
-                            "' if the closure escapes"), ctx)
-                    }
-                } else if get_own_arg(e, ci) {
-                    arg.type_error(format("'own' on argument but parameter '", pp.name, "' is not 'own'"), ctx)
-                }
-                if pown {
-                    switch arg.node_type {
-                    case NodeType.Ident(an):
-                        sf_ab := scope.find(an.ident_name())
-                        switch sf_ab {
-                        case ScopeFind.Found(ab):
-                            if ab.own_type.is(OwnType.Ref) {
-                                arg.type_error("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy", ctx)
-                            }
-                        case:
-                        }
-                        // #164: see infer_and_validate_fcall_args -- own
-                        // arg consumes the binding, count as written.
-                        ref mut own_arg_b2 : TypeBinding = scope.get_binding(an.ident_name())
-                        if own_arg_b2.is_null().not() { own_arg_b2.written = true }
-                    case:
-                    }
-                }
-                if pown {
-                    if arg.node_type.is_literal_null() {
-                        arg.type_error("cannot pass null to 'own' parameter", ctx)
-                    }
-                }
-                if pp.own_type.is(OwnType.Shallow) {
-                    if arg.node_type.is_literal_null() {
-                        arg.type_error("cannot pass null to 'shallow' parameter", ctx)
-                    }
-                }
-                // #164: namespace-method arg passed to a `mut` (or Dynamic)
-                // param may be written through -- mirror the regular-call
-                // path in infer_and_validate_fcall_args.
-                pp_t := type_from_name(pp.explicit_type, scope, ctx)
-                if pp.is_mut.or(pp_t.is(Type.Dynamic)) {
-                    switch arg.node_type {
-                    case NodeType.Ident(an_w):
-                        ref mut mp_b : TypeBinding = scope.get_binding(an_w.ident_name())
-                        if mp_b.is_null().not() { mp_b.written = true }
-                    case NodeType.FieldAccess:
-                        if arg.children.len() > 0 {
-                            mark_field_assign_root_written(scope, arg.children[0])
-                        }
-                    case:
-                    }
-                }
-                ci++
-                pi++
-            }
-        }
+        validate_fcall_own_args_for_fdef(scope, e, ns_fdef, ctx)
         mut rt := Type.None
         if ns_fdef.return_type.len() > 0 {
             rt = type_from_name(ns_fdef.return_type, scope, ctx)

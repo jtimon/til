@@ -14,125 +14,131 @@ import("context")
 // desugarer helpers through the merged program scope -- no import of
 // typer is needed (see doc/pipeline.org).
 
+desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, ctx: Context) returns Bool {
+    nparam := fdef_data.params.len()
+    vi := fdef_data.variadic_index
+    kwi := fdef_data.kwargs_index
+    mut fixed_count : USize = nparam
+    if vi >= 0 {
+        fixed_count = vi.to_usize()
+    }
+    mut va_args := Vec(Expr).new()
+    mut kw_args := Vec(Expr).new()
+    // new_args is filled with exactly nparam placeholders below; pre-size
+    // it so that fill does zero reallocs (Vec grow-realloc churn).
+    mut new_args := Vec(Expr).with_capacity(nparam)
+    for _ in 0..nparam {
+        new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
+    }
+    mut pos_idx : USize = 0
+    mut seen_named := false
+    for i in 1..e.children.len() {
+        ref arg : Expr = e.children[i]
+        switch arg.node_type {
+        case NodeType.NamedArg(aname):
+            seen_named = true
+            mut slot : I32 = -1
+            for j in 0..nparam {
+                if j.to_i32() == vi { continue }
+                if j.to_i32() == kwi { continue }
+                ref param : Declaration = fdef_data.params[j]
+                if param.name == aname {
+                    slot = j.to_i32()
+                    break
+                }
+            }
+            if slot < 0 {
+                if kwi >= 0 {
+                    kw_args.push(own arg.clone())
+                } else {
+                    if display_name.len() > 0 {
+                        arg.type_error(format("'", display_name, "' has no parameter '", aname, "'"), ctx)
+                    } else {
+                        arg.type_error(format("no parameter '", aname, "'"), ctx)
+                    }
+                }
+            } else {
+                ref slot_arg : Expr = new_args[slot.to_usize()]
+                if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
+                    arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
+                } else {
+                    new_args[slot.to_usize()] = arg.children[0].clone()
+                }
+            }
+        case:
+            if seen_named {
+                arg.type_error("positional argument after named argument", ctx)
+            }
+            if vi >= 0 {
+                if pos_idx >= fixed_count {
+                    va_args.push(own arg.clone())
+                } else if pos_idx < nparam {
+                    new_args[pos_idx] = arg.clone()
+                }
+            } else if pos_idx < nparam {
+                new_args[pos_idx] = arg.clone()
+            }
+            pos_idx++
+        }
+    }
+    for i in 0..nparam {
+        if i.to_i32() == vi { continue }
+        if i.to_i32() == kwi { continue }
+        ref slot_arg : Expr = new_args[i]
+        if slot_arg.node_type.is(NodeType.NoDefaultArg) {
+            ref param : Declaration = fdef_data.params[i]
+            if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
+                new_args[i] = resolve_default_value(param.default_value, e, ctx)
+            } else {
+                e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
+            }
+        }
+    }
+    mut max_pos : USize = nparam
+    if kwi >= 0 {
+        max_pos--
+    }
+    if vi < 0 {
+        if pos_idx > max_pos {
+            e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
+        }
+    }
+    // Rebuilt call args: callee + (per-param) one arg, or the expanded
+    // variadic / kwargs runs. Over-estimate the capacity (never under) so
+    // the fill below reallocs zero times on the hot per-call path.
+    mut new_ch := Vec(Expr).with_capacity(nparam + va_args.len() + kw_args.len() + 1)
+    ref callee : Expr = e.children[0]
+    new_ch.push(own callee.clone())
+    for i in 0..nparam {
+        if i.to_i32() == vi {
+            va_count := va_args.len()
+            for vai in 0..va_count {
+                new_ch.push_take(va_args, vai)
+            }
+        } else if i.to_i32() == kwi {
+            kw_count := kw_args.len()
+            for kwi2 in 0..kw_count {
+                new_ch.push_take(kw_args, kwi2)
+            }
+        } else {
+            ref slot_arg : Expr = new_args[i]
+            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
+                // Missing-argument case: diagnostic already emitted above.
+                return false
+            } else {
+                new_ch.push_take(new_args, i)
+            }
+        }
+    }
+    e.children.move_from(new_ch)
+    return true
+}
+
 desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
     ref fdef : Expr = scope.lookup_func(callee_bind.name)
     switch fdef.node_type {
     case NodeType.FuncDef(fdef_data):
-        nparam := fdef_data.params.len()
-        vi := fdef_data.variadic_index
-        kwi := fdef_data.kwargs_index
-        mut fixed_count : USize = nparam
-        if vi >= 0 {
-            fixed_count = vi.cast(U32)
-        }
-        mut va_args := Vec(Expr).new()
-        mut kw_args := Vec(Expr).new()
-        // new_args is filled with exactly nparam placeholders below; pre-size
-        // it so that fill does zero reallocs (Vec grow-realloc churn).
-        mut new_args := Vec(Expr).with_capacity(nparam)
-        for _ in 0..nparam {
-            new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
-        }
-        mut pos_idx : USize = 0
-        mut seen_named := false
-        for i in 1..e.children.len() {
-            ref arg : Expr = e.children[i]
-            switch arg.node_type {
-            case NodeType.NamedArg(aname):
-                seen_named = true
-                mut slot : I32 = -1
-                for j in 0..nparam {
-                    if j.to_i32() == vi { continue }
-                    if j.to_i32() == kwi { continue }
-                    ref param : Declaration = fdef_data.params[j]
-                    if param.name == aname {
-                        slot = j.to_i32()
-                        break
-                    }
-                }
-                if slot < 0 {
-                    if kwi >= 0 {
-                        kw_args.push(own arg.clone())
-                    } else {
-                        arg.type_error(format("'", name, "' has no parameter '", aname, "'"), ctx)
-                    }
-                } else {
-                    ref slot_arg : Expr = new_args[slot.to_usize()]
-                    if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
-                        arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
-                    } else {
-                        new_args[slot.to_usize()] = arg.children[0].clone()
-                    }
-                }
-            case:
-                if seen_named {
-                    arg.type_error("positional argument after named argument", ctx)
-                }
-                if vi >= 0 {
-                    if pos_idx >= fixed_count {
-                        va_args.push(own arg.clone())
-                    } else if pos_idx < nparam {
-                        new_args[pos_idx] = arg.clone()
-                    }
-                } else if pos_idx < nparam {
-                    new_args[pos_idx] = arg.clone()
-                }
-                pos_idx++
-            }
-        }
-        for i in 0..nparam {
-            if i.to_i32() == vi { continue }
-            if i.to_i32() == kwi { continue }
-            ref slot_arg : Expr = new_args[i]
-            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
-                ref param : Declaration = fdef_data.params[i]
-                if param.default_value.node_type.is(NodeType.NoDefaultArg).not() {
-                    new_args[i] = resolve_default_value(param.default_value, e, ctx)
-                } else {
-                    e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
-                }
-            }
-        }
-        mut max_pos : USize = nparam
-        if kwi >= 0 {
-            max_pos--
-        }
-        if vi < 0 {
-            if pos_idx > max_pos {
-                e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
-            }
-        }
-        // Rebuilt call args: callee + (per-param) one arg, or the expanded
-        // variadic / kwargs runs. Over-estimate the capacity (never under) so
-        // the fill below reallocs zero times on the hot per-call path.
-        mut new_ch := Vec(Expr).with_capacity(nparam + va_args.len() + kw_args.len() + 1)
-        ref callee : Expr = e.children[0]
-        new_ch.push(own callee.clone())
-        for i in 0..nparam {
-            if i.to_i32() == vi {
-                va_count := va_args.len()
-                for vai in 0..va_count {
-                    new_ch.push_take(va_args, vai)
-                }
-            } else if i.to_i32() == kwi {
-                kw_count := kw_args.len()
-                for kwi2 in 0..kw_count {
-                    new_ch.push_take(kw_args, kwi2)
-                }
-            } else {
-                ref slot_arg : Expr = new_args[i]
-                if slot_arg.node_type.is(NodeType.NoDefaultArg) {
-                    // Missing-argument case: diagnostic already emitted
-                    // above. Bail out of the arg desugar rather than
-                    // panic so the typer can keep reporting later
-                    // errors in the same file.
-                    return
-                } else {
-                    new_ch.push_take(new_args, i)
-                }
-            }
-        }
-        e.children.move_from(new_ch)
+        _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
     case:
         UNREACHABLE()
     }
@@ -2180,7 +2186,7 @@ priv process_throw_catch_in_body := proc(
                         ref prior_stmt : Expr = new_ch[scan_decl.to_usize()]
                         switch prior_stmt.node_type {
                         case NodeType.Decl(prior_dd):
-                            if prior_dd.name == idn.name.clone() {
+                            if prior_dd.name == idn.name {
                                 prior_dd.used = true
                                 if tn.len() == 0 {
                                     if prior_dd.explicit_type.len() > 0 {
@@ -2212,7 +2218,7 @@ priv process_throw_catch_in_body := proc(
                     for nstmt : Expr in new_ch {
                         switch nstmt.node_type {
                         case NodeType.Decl(ndd):
-                            if ndd.name == idn.name.clone() { ndd.used = true }
+                            if ndd.name == idn.name { ndd.used = true }
                         case:
                         }
                     }

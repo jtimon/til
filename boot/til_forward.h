@@ -2918,13 +2918,16 @@ void priv___src_self_typer_til__check_ref_assign_owned_rhs(Expr * stmt, Str * ta
 void priv___src_self_typer_til__check_ref_local_null_init(Expr * stmt, Context * ctx);
 Bool priv___src_self_typer_til__infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
 Bool is_clone_fcall(Expr * e);
+void priv___src_self_typer_til__validate_fcall_own_args_for_fdef(TypeScope * scope, Expr * e, FunctionDef * fdef_data, Context * ctx);
 void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, Context * ctx);
+void priv___src_self_typer_til__set_fcall_own_args_for_own_params(Expr * e, FunctionDef * fdef_data);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall_impl(TypeScope * scope, Expr * sdef, Expr * e, Str * name, I32 in_func, Context * ctx);
 Expr * resolve_default_value(Expr * default_value, Expr * call_expr, Context * ctx);
 Bool priv___src_self_typer_til__name_is_interface(Str * name, TypeScope * scope);
 Bool priv___src_self_typer_til__type_implements_iface(Str * cname, Str * iface, TypeScope * scope);
 void priv___src_self_typer_til__validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name, Context * ctx);
+void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(TypeScope * scope, Expr * e, FunctionDef * fdef_data, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__is_self_conversion_method(Str * method, Str * type_name);
@@ -3093,6 +3096,7 @@ priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNod
 void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
 Vec__CoverageNode * Vec__CoverageNode_clone(Vec__CoverageNode * self);
 U64 Vec__CoverageNode_size(void);
+Bool desugar_fcall_args_for_fdef(Expr * e, Str * display_name, FunctionDef * fdef_data, Context * ctx);
 void desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_desugarer_til__typer_is_lambda_target(Expr * e);
 I64 priv___src_self_desugarer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, I64 * counter);

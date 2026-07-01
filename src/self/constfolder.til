@@ -394,7 +394,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             return NULL
         }
     case Value.Boolean(b):
-        e := Expr.new(NodeType.Literal(Literal.Bool(b.clone())), src.line, src.col)
+        e := Expr.new(NodeType.Literal(Literal.Bool(b)), src.line, src.col)
         return e
     case:
         return NULL
