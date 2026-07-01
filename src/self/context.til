@@ -530,6 +530,19 @@ Context := struct {
     ref cached_vec_def : Expr = NULL
     ref cached_vec_name : Str = NULL
 
+    // #192: cached Str count/cap field layout (target-width offset + size).
+    // The width-aware str_count_at / str_cap_at read these on the fold hot
+    // path (every Str clone/free); reading them straight from the cache
+    // avoids a ctx_field_layout map lookup + field scan + struct_name.clone()
+    // per access. Populated once in interpreter_init_ns (struct_layouts is
+    // built by the typer beforehand); readers fall back to ctx_field_layout
+    // until the flag is set.
+    str_count_offset : USize = 0
+    str_count_size : USize = 0
+    str_cap_offset : USize = 0
+    str_cap_size : USize = 0
+    str_layout_ready := false
+
     // Interpreter type-def registry: maps every struct/enum name to its
     // AST def Expr. Populated by interpreter_init_ns, read via
     // lookup_interp_type_def. This is the rstil-style "external type

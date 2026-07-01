@@ -1921,6 +1921,11 @@ typedef struct Context {
     Str *cached_array_name;
     Expr *cached_vec_def;
     Str *cached_vec_name;
+    USize str_count_offset;
+    USize str_count_size;
+    USize str_cap_offset;
+    USize str_cap_size;
+    Bool str_layout_ready;
     Map__Str_Dynamic interp_type_defs;
     Map__Str_Dynamic dispatch_map;
     Bool dispatch_inited;

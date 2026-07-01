@@ -3991,6 +3991,23 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
         case:
         }
     }
+    // #192: cache the Str count/cap field layout for the width-aware readers
+    // (str_count_at / str_cap_at) once struct_layouts["Str"] is available.
+    // The typer built struct_layouts before folding, so the lookup resolves
+    // here; doing it once avoids a ctx_field_layout call per Str clone/free.
+    if ctx.str_layout_ready.not() {
+        if ctx.cached_str_name.is_null().not() {
+            if ctx.struct_layouts.has(ctx.cached_str_name) {
+                count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
+                cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+                ctx.str_count_offset = count_fl.offset
+                ctx.str_count_size = count_fl.size
+                ctx.str_cap_offset = cap_fl.offset
+                ctx.str_cap_size = cap_fl.size
+                ctx.str_layout_ready = true
+            }
+        }
+    }
 }
 
 priv ns_qname := func(sname: Str, fname: Str) returns Str {
@@ -4051,6 +4068,9 @@ priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
 // it at the ctx offset instead (low bytes carry the value / the CAP_VIEW /
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
+    if ctx.str_layout_ready {
+        return str_usize_field_at(str_base, ctx.str_cap_offset, ctx.str_cap_size)
+    }
     cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
     return str_usize_field_at(str_base, cap_fl.offset, cap_fl.size)
 }
@@ -4062,6 +4082,9 @@ str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // count@8 AND the neighbouring cap@12, so count comes back with cap in its
 // high word -- a garbage huge value that crashes the buffer clone's memcpy.
 str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
+    if ctx.str_layout_ready {
+        return str_usize_field_at(str_base, ctx.str_count_offset, ctx.str_count_size)
+    }
     count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
     return str_usize_field_at(str_base, count_fl.offset, count_fl.size)
 }
