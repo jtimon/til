@@ -1049,6 +1049,15 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
                 if enum_has_payloads(tdef) {
                     total_size : USize = ctx_total_size(type_name, ctx)
                     ref inline_etag : I32 = p
+                    if borrow {
+                        // A `ref` binding VIEWS the enum at p -- no owned copy to
+                        // leak, and the always-deep teardown skips a borrowed
+                        // enum (mirrors the Str/Struct borrow cases above).
+                        // val_enum_flat below instead ALLOCATES a fresh
+                        // EnumInstance and CLONES a Str payload; the ref decl
+                        // then force-marks the result borrowed, leaking both.
+                        return make_enum_value(type_name, p, total_size, true, enum_variant_is_str(type_name, inline_etag, ctx), ctx)
+                    }
                     mut inline_psz : USize = 0
                     if total_size >= ENUM_PAYLOAD_OFFSET {
                         inline_psz = total_size - ENUM_PAYLOAD_OFFSET
@@ -1607,7 +1616,14 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                             case:
                                             }
                                         } else {
+                                            // new_val OWNS its buffer; dest now holds a copy of
+                                            // the bytes (adopting any nested c_str / struct heap),
+                                            // so reclaim the now-redundant source wrapper and null
+                                            // it. The writeback nulls new_val's box below, which
+                                            // would otherwise orphan this block.
                                             memcpy(dest, si.data, sz.cast(U64))
+                                            EvalHeap.heap_free(own si.data)
+                                            si.data = NULL
                                         }
                                     }
                                 case Value.Enum(new_ei):
@@ -1619,6 +1635,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                         mut copy_sz := ctx_total_size(type_name, ctx)
                                         if new_ei.data_size < copy_sz { copy_sz = new_ei.data_size }
                                         if copy_sz > 0 { memcpy(dest, new_ei.data, copy_sz.cast(U64)) }
+                                        // dest holds a copy of the nested-enum bytes; reclaim an
+                                        // OWNED source EnumInstance buffer so the box-null below
+                                        // does not orphan it. A borrowed RHS keeps its buffer.
+                                        if new_ei.borrowed.not() {
+                                            EvalHeap.heap_free(own new_ei.data)
+                                            new_ei.data = NULL
+                                        }
                                     }
                                 case:
                                 }

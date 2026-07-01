@@ -5,4 +5,4 @@ Updated by examples/merge_commit.til.
 
 | Channel   | Bytes    | Allocs   | Delta           |
 |-----------+----------+----------+-----------------|
-| interp-enums | 88   | 5    | 0.0% / 0.0%     |
+| interp-enums | 0   | 0    | -100.0% / -100.0%     |
