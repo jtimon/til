@@ -2,6 +2,31 @@
 # category: bugs
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
+  *** 2026-07-01 enums sentinel fixed; sentinel moved to tuples
+
+  The ~test/enums.til~ interp leak from the note below (~88 bytes / 5 allocs~)
+  is fixed (~Interpreter: fix enum ref-binding and mut-payload writeback
+  leaks~): reinterpret_ptr_value now returns a borrowed enum VIEW for a `ref`
+  binding instead of allocating a fresh EnumInstance + cloning its Str payload,
+  and the mut-payload writeback (~case E.V(p): p = <new>~) frees the owned
+  source Struct/Enum/Str buffer after copying it into the inline payload slot.
+  ~bin/til_asan interpret test/enums.til~ now reports ~TIL_TRUE_LEAK=0~;
+  ~test/own_fields.til~ is also ~0~ now.
+
+  A fresh ~make test_asan_full~ passes ~161/164~. The remaining failures:
+
+  | Test | Phase | Result |
+  |------+-------+--------|
+  | ~test/tuples.til~ | interp | leak: ~TIL_TRUE_LEAK=36~, 6 allocs |
+  | ~test/regression.til~ | interp | leak: ~TIL_TRUE_LEAK=11~, 1 alloc |
+  | ~test/structs.til~ | compile | non-leak ASAN heap-use-after-free in ~Str_len~ via ~ctx_field_layout~ during ~Context_delete~ (a #299-class non-leak failure, not a leak) |
+
+  The merge-time ASAN sentinel moved to the largest remaining real leak:
+
+  - Channel: ~interp-tuples~.
+  - Command: ~TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/tuples.til~.
+  - Baseline: ~36 bytes / 6 allocs~.
+
   *** 2026-07-01 translate sentinel clean; remaining ASAN failures
 
   The translate leak tracked in the 2026-06-30 note is fixed. The

@@ -286,11 +286,11 @@ main := proc(args: ..Str) {
 
     // The full translate sentinel is clean. Track the largest remaining
     // test_asan_full leak until the full ASAN suite is clean.
-    asan_channel := "interp-enums"
-    asan_cmd := "ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/enums.til"
+    asan_channel := "interp-tuples"
+    asan_cmd := "ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/tuples.til"
     mut trans_status : I64 = 0
     trans_summary := capture_status(asan_cmd, trans_status)
-    File.writefile("tmp/asan_interp_enums.log", trans_summary)
+    File.writefile("tmp/asan_interp_tuples.log", trans_summary)
     require_asan_output_ok(asan_channel, trans_status, trans_summary)
 
     mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
