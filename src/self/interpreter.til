@@ -310,9 +310,9 @@ namespace:
         }
         pdata : Dynamic = EvalHeap.heap_alloc(self.data_size)
         memcpy(pdata, self.data, self.data_size.cast(U64))
-        // Issue #272: the memcpy shared the Str-payload c_str; deep-copy it so
-        // the clone owns an independent buffer (mirrors StructInstance.clone).
-        if self.is_str { enum_clone_str_payload(pdata, self.ctx) }
+        // Issue #272/#109: the memcpy shared nested payload ownership; deep-
+        // copy payload structs/enums so the clone owns independent heap.
+        enum_payload_deep_clone(self.enum_name, pdata, self.ctx)
         return EnumInstance(ctx = self.ctx, enum_name = self.enum_name,
                             data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
     }
@@ -324,8 +324,8 @@ namespace:
         // is where the payload is reclaimed. enum_name is a ref (Issue #239)
         // -- never freed here, never read here.
         if self.data.is_null().not().and(self.borrowed.not()) {
-            // Issue #272: free the owned Str-payload c_str before the buffer.
-            if self.is_str { enum_free_str_payload(self.data, self.ctx) }
+            // Issue #272/#109: free nested payload ownership before the buffer.
+            enum_payload_deep_free(self.enum_name, self.data, self.ctx)
             EvalHeap.heap_free(own self.data)
         }
         if call_free { free(own self) }
@@ -594,6 +594,67 @@ priv enum_free_str_payload := func(data: Dynamic, ctx: Context) {
     }
 }
 
+priv enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
+    tag_w := enum_tag_size(enum_def)
+    if tag_w == 1 { ref t : U8 = data; return t.cast(U64).cast(I64) }
+    if tag_w == 2 { ref t : U16 = data; return t.cast(U64).cast(I64) }
+    if tag_w == 8 { ref t : I64 = data; return t.clone() }
+    ref t : I32 = data
+    return t.cast(I64)
+}
+
+priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) returns ref Str {
+    ref edef : Expr = lookup_interp_type_def(enum_name, ctx)
+    if edef.is_null() { return NULL }
+    switch edef.node_type {
+    case NodeType.EnumDef(edd):
+        tag_key := enum_data_tag_key(data, edef)
+        if edd.payload_types.has(tag_key) { return edd.payload_types[tag_key] }
+    case:
+    }
+    return NULL
+}
+
+priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
+    ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
+    if payload_type.is_null() { return }
+    if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
+    resolved := type_from_name_init(payload_type, ctx.scope)
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
+    ref payload_def : Expr = lookup_interp_type_def(payload_type, ctx)
+    if payload_def.is_null() { panic("enum payload has no registered type def: ", payload_type) }
+    ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
+    switch payload_def.node_type {
+    case NodeType.StructDef:
+        struct_deep_free(payload_type, payload_data, ctx)
+    case NodeType.EnumDef:
+        enum_payload_deep_free(payload_type, payload_data, ctx)
+    case:
+        panic("enum payload is not a struct or enum: ", payload_type)
+    }
+}
+
+priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context) {
+    ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
+    if payload_type.is_null() { return }
+    if payload_type == "Str" { enum_clone_str_payload(data, ctx); return }
+    resolved := type_from_name_init(payload_type, ctx.scope)
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
+    ref payload_def : Expr = lookup_interp_type_def(payload_type, ctx)
+    if payload_def.is_null() { panic("enum payload has no registered type def: ", payload_type) }
+    ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
+    switch payload_def.node_type {
+    case NodeType.StructDef:
+        cloned_payload : Dynamic = heap_clone(payload_type, payload_data, ctx)
+        memcpy(payload_data, cloned_payload, ctx_total_size(payload_type, ctx).cast(U64))
+        EvalHeap.heap_free(own cloned_payload)
+    case NodeType.EnumDef:
+        enum_payload_deep_clone(payload_type, payload_data, ctx)
+    case:
+        panic("enum payload is not a struct or enum: ", payload_type)
+    }
+}
+
 priv val_enum_flat := func(enum_name: Str, etag: I64, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
     mut alloc_size : USize = total_enum_size
     if alloc_size < 8 {
@@ -622,6 +683,8 @@ priv val_enum_flat := func(enum_name: Str, etag: I64, payload_data: Dynamic, pay
                 //   borrowed source and this enum each own an independent c_str.
                 if move_src { write_ptr(payload_data, NULL) }
                 else        { enum_clone_str_payload(data, ctx) }
+            } else if move_src.not() {
+                enum_payload_deep_clone(enum_name, data, ctx)
             }
         }
     }
@@ -2630,8 +2693,7 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
         }
     case NodeType.EnumDef:
         if enum_has_payloads(elem_def) {
-            ref tag : I32 = slot
-            if enum_variant_is_str(elem_type, tag, ctx) { enum_free_str_payload(slot, ctx) }
+            enum_payload_deep_free(elem_type, slot, ctx)
         }
     case:
         panic("container element is not a struct or enum: ", elem_type)
@@ -2659,8 +2721,7 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
     case NodeType.EnumDef:
         memcpy(dst, src, elem_size.cast(U64))
         if enum_has_payloads(elem_def) {
-            ref tag : I32 = dst
-            if enum_variant_is_str(elem_type, tag, ctx) { enum_clone_str_payload(dst, ctx) }
+            enum_payload_deep_clone(elem_type, dst, ctx)
         }
     case:
         panic("container element is not a struct or enum: ", elem_type)
@@ -2689,9 +2750,8 @@ priv free_tuple_data := func(data: Dynamic, ctx: Context) {
 // ctx.struct_layouts (a name-keyed cache that outlives the AST) instead of the
 // dangling struct_def, so it is safe at scope teardown. Frees own struct
 // fields' blocks (recursing first), Str fields' c_strs, recurses into inline
-// nested structs, and reclaims container data buffers. Enum
-// fields and own non-struct pointers stay shallow (their construction can
-// share a pointer, so freeing here would risk a double-free).
+// nested structs, and reclaims container data buffers. Own enum fields use a
+// heap wrapper owned by the field, so teardown frees both wrapper and payload.
 priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
     if data.is_null() { return }
     if ctx.struct_layouts.has(struct_name).not() { return }
@@ -2717,7 +2777,9 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
             continue
         }
         if fl.own_type.is(OwnType.Own) {
-            if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
+            if fl.is_enum {
+                free_owned_enum_slot(ptr_add(data, foff.cast(U64)))
+            } else if fl.struct_name.len().gt(0) {
                 ref own_hdr : DynPtrBox = ptr_add(data, foff.cast(U64))
                 if own_hdr.p.is_null().not() {
                     if fl.struct_name == "Str" {
@@ -3007,7 +3069,7 @@ priv free_temp_arg_value := func(shallow v: Value) {
         }
     case Value.Enum(ei):
         if ei.data.is_null().not().and(ei.borrowed.not()) {
-            if ei.is_str { enum_free_str_payload(ei.data, ei.ctx) }
+            enum_payload_deep_free(ei.enum_name, ei.data, ei.ctx)
             EvalHeap.heap_free(own ei.data)
         }
     case Value.Closure(cl):
@@ -4163,6 +4225,18 @@ priv free_inline_struct_slot := func(ptr: Dynamic, struct_name: Str, ctx: Contex
     }
 }
 
+priv free_owned_enum_slot := func(ptr: Dynamic) {
+    ref old_ei_ref : Dynamic = deref(ptr)
+    if old_ei_ref.is_null() { return }
+    old_ei_ptr : Dynamic = old_ei_ref
+    ref old_ei : EnumInstance = to_ptr(old_ei_ptr)
+    if old_ei.data.is_null().not() {
+        enum_payload_deep_free(old_ei.enum_name, old_ei.data, old_ei.ctx)
+        EvalHeap.heap_free(own old_ei.data)
+    }
+    EvalHeap.heap_free(own old_ei_ptr)
+}
+
 priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, val: Value, ctx: Context) {
     ref ptr : Dynamic = ptr_add(inst_data, field_offset.cast(U64))
     fsz := field_size
@@ -4287,11 +4361,13 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         mut total : USize = ei.data_size
         if total < 8 { total = 8 }
         if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+            if dd.own_type.is(OwnType.Own) { free_owned_enum_slot(ptr) }
             heap_ei : Dynamic = EvalHeap.heap_alloc(EnumInstance.size())
             memcpy(heap_ei, ei, EnumInstance.size().cast(U64))
             // Deep-copy the data buffer
             new_data : Dynamic = EvalHeap.heap_alloc(total)
             memcpy(new_data, ei.data, total.cast(U64))
+            enum_payload_deep_clone(ei.enum_name, new_data, ei.ctx)
             // Write data pointer into the heap EnumInstance. After dropping the
             // dead enum_def field, EnumInstance is { enum_name(0..8),
             // data(8..16), data_size(16..) } so the data slot is at offset 8.
@@ -4808,14 +4884,8 @@ FFITypePtrBox := struct {
 
 // Reset all FFI state so a fresh scan can run.
 ffi_reset := proc(ctx: Context) {
-    if ctx.ffi_loaded {
+    if ctx.ffi_loaded.or(ctx.ffi_map_inited).or(ctx.ffi_type_cache_inited) {
         ffi_cleanup(ctx)
-        ctx.ffi_map_inited = false
-    } else if ctx.ffi_map_inited {
-        // Reset to a fresh empty map (instead of deleting it) so the
-        // Context that owns ffi_map only ever auto-deletes a live map.
-        ctx.ffi_map = Map(Str, FFIEntry).new()
-        ctx.ffi_map_inited = false
     }
     // Always ensure struct defs map exists.
     ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
@@ -7155,8 +7225,8 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     return 0
 }
 ffi_cleanup := proc(ctx: Context) {
-    ffi_close_user_so()
-    if ctx.ffi_loaded {
+    if ctx.ffi_loaded { ffi_close_user_so() }
+    if ctx.ffi_map_inited {
         for fe : FFIEntry in ctx.ffi_map.values {
             free(own fe.param_shallows)
             free(own fe.arg_types)
@@ -7167,8 +7237,9 @@ ffi_cleanup := proc(ctx: Context) {
         // rather than double-freeing what we just tore down.
         ctx.ffi_map = Map(Str, FFIEntry).new()
         ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
-        ctx.ffi_loaded = false
+        ctx.ffi_map_inited = false
     }
+    ctx.ffi_loaded = false
     if ctx.ffi_type_cache_inited {
         for box : FFITypePtrBox in ctx.ffi_type_cache {
             if box.ptr.is_null().not() {

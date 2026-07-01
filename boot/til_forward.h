@@ -3860,6 +3860,10 @@ Value priv___src_self_interpreter_til__make_enum_value(Str * enum_name, void * d
 Bool priv___src_self_interpreter_til__enum_variant_is_str(Str * enum_name, I32 etag, Context * ctx);
 void priv___src_self_interpreter_til__enum_clone_str_payload(void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context * ctx);
+I64 priv___src_self_interpreter_til__enum_data_tag_key(void * data, Expr * enum_def);
+Str * priv___src_self_interpreter_til__enum_payload_type_ref(Str * enum_name, void * data, Context * ctx);
+void priv___src_self_interpreter_til__enum_payload_deep_free(Str * enum_name, void * data, Context * ctx);
+void priv___src_self_interpreter_til__enum_payload_deep_clone(Str * enum_name, void * data, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_flat(Str * enum_name, I64 etag, void * payload_data, U64 payload_size, U64 total_enum_size, Bool str_payload, Bool move_src, Context * ctx);
 Value priv___src_self_interpreter_til__val_enum_simple(Str * enum_name, I64 etag, U64 total_enum_size, Context * ctx);
 Value * priv___src_self_interpreter_til__read_enum_tag_value(void * p, Expr * tdef);
@@ -3978,6 +3982,7 @@ Declaration * priv___src_self_interpreter_til__find_field_decl(Expr * struct_def
 Value read_field(void * inst_data, Declaration * dd, U64 field_offset, Context * ctx);
 void priv___src_self_interpreter_til__free_owned_struct_slot(void * ptr, Str * struct_name, Context * ctx);
 void priv___src_self_interpreter_til__free_inline_struct_slot(void * ptr, Str * struct_name, Context * ctx);
+void priv___src_self_interpreter_til__free_owned_enum_slot(void * ptr);
 void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration * dd, U64 field_offset, U64 field_size, Value * val, Context * ctx);
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog);
 void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog);

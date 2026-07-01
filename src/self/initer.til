@@ -1819,6 +1819,24 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 switch callee.node_type {
                                 case NodeType.Ident(ft):
                                     ftype = Str.clone(ft.ident_name())
+                                case NodeType.FieldAccess:
+                                    if callee.children.len() > 0 {
+                                        ref type_node : Expr = callee.children[0]
+                                        switch type_node.node_type {
+                                        case NodeType.Ident(ft):
+                                            ftype = Str.clone(ft.ident_name())
+                                        case:
+                                        }
+                                    }
+                                case:
+                                }
+                            }
+                        } else if def_val.node_type.is(NodeType.FieldAccess) {
+                            if def_val.children.len() > 0 {
+                                ref type_node : Expr = def_val.children[0]
+                                switch type_node.node_type {
+                                case NodeType.Ident(ft):
+                                    ftype = Str.clone(ft.ident_name())
                                 case:
                                 }
                             }
