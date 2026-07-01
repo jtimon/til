@@ -82,7 +82,7 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
 
 priv str_owns_c_str := func(s_base: Dynamic, ctx: Context) returns Bool {
     ref s : Str = to_ptr(s_base)
-    return s.count.gt(0).and(s.c_str.is_null().not()).and(str_cap_at(s_base, ctx).lt(CAP_VIEW))
+    return str_count_at(s_base, ctx).gt(0).and(s.c_str.is_null().not()).and(str_cap_at(s_base, ctx).lt(CAP_VIEW))
 }
 
 // #286 commit 2: byte-level deep-CLONE of a struct value at `data` of type
@@ -103,12 +103,18 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         dst_data : Dynamic = EvalHeap.heap_alloc(sz)
         memcpy(dst_data, data, sz.cast(U64))
         if struct_name == "Str" {
-            ref s : Str = to_ptr(data)
-            if str_owns_c_str(to_ptr(s), ctx) {
-                cloned_str := s.clone()
-                write_ptr(dst_data, cloned_str.c_str)
-                str_write_cap_at(dst_data, s.count, ctx)
-                memset(cloned_str, 0, Str.size().cast(U64))
+            if str_owns_c_str(data, ctx) {
+                // #192: clone the c_str buffer reading count at the CTX width,
+                // not via the host `s.clone()` (Str_clone reads count at the
+                // host Str width, grabbing cap into count's high word when the
+                // target USize is narrower -> garbage count -> memcpy crash).
+                cnt := str_count_at(data, ctx)
+                ref src_buf : Dynamic = deref(data)
+                new_buf : Dynamic = EvalHeap.heap_alloc(cnt.add(1))
+                memcpy(new_buf, src_buf, cnt.cast(U64))
+                memset(ptr_add(new_buf, cnt.cast(U64)), 0, 1)
+                write_ptr(dst_data, new_buf)
+                str_write_cap_at(dst_data, cnt, ctx)
             }
         } else if struct_name == "DynVec" {
             clone_dyn_vec_buffer(data, dst_data, ctx)
@@ -151,12 +157,18 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                     continue
                 }
                 if ftype == "Str" {
-                    ref s : Str = ptr_add(data, foff.cast(U64))
-                    if str_owns_c_str(to_ptr(s), ctx) {
-                        cloned_str := s.clone()
-                        write_ptr(ptr_add(dst_data, foff.cast(U64)), cloned_str.c_str)
-                        str_write_cap_at(ptr_add(dst_data, foff.cast(U64)), s.count, ctx)
-                        memset(cloned_str, 0, Str.size().cast(U64))
+                    ref fbase : Dynamic = ptr_add(data, foff.cast(U64))
+                    if str_owns_c_str(fbase, ctx) {
+                        // #192: width-correct c_str clone -- see the top-level
+                        // Str case above.
+                        cnt := str_count_at(fbase, ctx)
+                        ref src_buf : Dynamic = deref(fbase)
+                        new_buf : Dynamic = EvalHeap.heap_alloc(cnt.add(1))
+                        memcpy(new_buf, src_buf, cnt.cast(U64))
+                        memset(ptr_add(new_buf, cnt.cast(U64)), 0, 1)
+                        ref dbase : Dynamic = ptr_add(dst_data, foff.cast(U64))
+                        write_ptr(dbase, new_buf)
+                        str_write_cap_at(dbase, cnt, ctx)
                     }
                     continue
                 }
@@ -576,10 +588,13 @@ priv enum_variant_is_str := func(enum_name: Str, etag: I32, ctx: Context) return
 // owned deep copy so the enum no longer shares the source's buffer.
 priv enum_clone_str_payload := func(data: Dynamic, ctx: Context) {
     ref pstr : Str = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
-    if str_owns_c_str(to_ptr(pstr), ctx) {
-        new_buf : Dynamic = EvalHeap.heap_alloc(pstr.count.add(1))
-        memcpy(new_buf, pstr.c_str, pstr.count.cast(U64))
-        memset(ptr_add(new_buf, pstr.count.cast(U64)), 0, 1)
+    ref pbase : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64))
+    if str_owns_c_str(pbase, ctx) {
+        // #192: count read at the CTX width (see heap_clone's Str case).
+        pcnt := str_count_at(pbase, ctx)
+        new_buf : Dynamic = EvalHeap.heap_alloc(pcnt.add(1))
+        memcpy(new_buf, pstr.c_str, pcnt.cast(U64))
+        memset(ptr_add(new_buf, pcnt.cast(U64)), 0, 1)
         // The Str's c_str is the first field (offset 0); write the owned copy
         // directly. A `ref mut pstr; pstr.c_str = ...` did not write through.
         write_ptr(ptr_add(data, ENUM_PAYLOAD_OFFSET.cast(U64)), new_buf)
@@ -1035,7 +1050,8 @@ priv reinterpret_ptr_value := func(val: Value, type_name: Str, scope: Scope, ctx
             // (arg = widen_numeric(arg)) or scope_set_owned would free the
             // source's c_str and dangle it. Copying yields an independent
             // owned Str.
-            return make_str_value(sp.c_str, sp.count, ctx)
+            // #192: count at CTX width (p is a target-layout Str).
+            return make_str_value(sp.c_str, str_count_at(p, ctx), ctx)
         }
         ref tdef : Expr = lookup_type_def_helper(type_name, scope, ctx)
         if tdef.is_null().not() {
@@ -1800,12 +1816,13 @@ priv materialize_str_result := func(mut v: Value) {
     case Value.Struct(si):
         if si.is_str {
             ref s : Str = to_ptr(si.data)
-            if s.count.gt(0).and(str_cap_at(si.data, si.ctx).gte(CAP_VIEW)) {
-                copy : Dynamic = EvalHeap.heap_alloc(s.count.add(1))
-                memcpy(copy, s.c_str, s.count.cast(U64))
-                memset(ptr_add(copy, s.count.cast(U64)), 0, 1)
+            cnt := str_count_at(si.data, si.ctx)
+            if cnt.gt(0).and(str_cap_at(si.data, si.ctx).gte(CAP_VIEW)) {
+                copy : Dynamic = EvalHeap.heap_alloc(cnt.add(1))
+                memcpy(copy, s.c_str, cnt.cast(U64))
+                memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
                 write_ptr(si.data, copy)
-                str_write_cap_at(si.data, s.count, si.ctx)
+                str_write_cap_at(si.data, cnt, si.ctx)
             }
         }
     case:
@@ -4035,9 +4052,36 @@ priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
     cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
-    ref c : USize = ptr_add(str_base, cap_fl.offset.cast(U64))
-    val : USize = c
-    return val
+    return str_usize_field_at(str_base, cap_fl.offset, cap_fl.size)
+}
+
+// #192: read a Str's `count` field at the CTX layout, honouring the TARGET
+// width -- the mirror of str_cap_at for the count offset. `ref s : Str;
+// s.count` reads count at the HOST Str width (8 bytes on a U64-built
+// compiler); when the target USize is narrower (U32), those 8 bytes span
+// count@8 AND the neighbouring cap@12, so count comes back with cap in its
+// high word -- a garbage huge value that crashes the buffer clone's memcpy.
+str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
+    count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
+    return str_usize_field_at(str_base, count_fl.offset, count_fl.size)
+}
+
+// #192: read a USize-typed field (Str count/cap) at exactly the CTX field
+// width. `ref v : USize` would read the host USize width; a U64 host
+// cross-compiling a U32 target must read only the 4 target bytes (and a U32
+// host building a U64 target must read all 8), else the high word picks up
+// the neighbouring field / out-of-bounds bytes. Mirrors read_field's USize
+// branch.
+priv str_usize_field_at := func(str_base: Dynamic, offset: USize, size: USize) returns USize {
+    ref p : Dynamic = ptr_add(str_base, offset.cast(U64))
+    // #192: SIGN-extend the narrow field. cap carries the CAP_VIEW/CAP_LIT
+    // sentinels (host -2/-1 = 0xFF..FE/FF); a U32 target stores only their low
+    // 32 bits (0xFFFFFFFE/FF). I32.to_usize sign-extends ((USize)(int32)) so
+    // those map back to the full-width host sentinels, while real small
+    // counts/caps (high bit clear) are unchanged.
+    if size == 4 { ref v : I32 = p; return v.to_usize() }
+    ref v : U64 = p
+    return v.to_usize()
 }
 
 make_str_value := func(data: Dynamic, len: USize, ctx: Context) returns shallow Value {
@@ -4092,7 +4136,9 @@ str_view := func(shallow v: Value) returns shallow Str {
     switch v {
     case Value.Struct(si):
         ref s : Str = to_ptr(si.data)
-        result = Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
+        // #192: count at the CTX width -- si.data is laid out at the target
+        // Str width, which may be narrower than the host Str struct.
+        result = Str(c_str = s.c_str, count = str_count_at(si.data, si.ctx), cap = CAP_VIEW)
     case:
         UNREACHABLE()
     }
@@ -5845,7 +5891,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
         }
         if tag == enum_variant_tag(til_type_def, "Struct") {
             ref payload : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
-            r = make_str_value(payload.c_str, payload.count, ctx)
+            r = make_str_value(payload.c_str, str_count_at(ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), ctx), ctx)
             return true
         }
         if tag == enum_variant_tag(til_type_def, "StructDef") {
@@ -5854,7 +5900,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
         }
         if tag == enum_variant_tag(til_type_def, "Enum") {
             ref payload2 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
-            r = make_str_value(payload2.c_str, payload2.count, ctx)
+            r = make_str_value(payload2.c_str, str_count_at(ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), ctx), ctx)
             return true
         }
         if tag == enum_variant_tag(til_type_def, "EnumDef") {
@@ -5879,7 +5925,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) re
         }
         if tag == enum_variant_tag(til_type_def, "Custom") {
             ref payload3 : Str = ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64))
-            r = make_str_value(payload3.c_str, payload3.count, ctx)
+            r = make_str_value(payload3.c_str, str_count_at(ptr_add(ei.data, ENUM_PAYLOAD_OFFSET.cast(U64)), ctx), ctx)
             return true
         }
         if tag == enum_variant_tag(til_type_def, "Primitive") {

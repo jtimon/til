@@ -3974,6 +3974,8 @@ void priv___src_self_interpreter_til__interpreter_free_ns(Context * ctx);
 void priv___src_self_interpreter_til__str_write_count_cap(void * inst_data, U64 count_val, U64 cap_val, Context * ctx);
 void priv___src_self_interpreter_til__str_write_cap_at(void * str_base, U64 cap_val, Context * ctx);
 U64 str_cap_at(void * str_base, Context * ctx);
+U64 str_count_at(void * str_base, Context * ctx);
+U64 priv___src_self_interpreter_til__str_usize_field_at(void * str_base, U64 offset, U64 size);
 Value make_str_value(void * data, U64 len, Context * ctx);
 Value make_str_value_view(void * data, U64 len, Context * ctx);
 Value priv___src_self_interpreter_til__make_str_value_own(void * data, U64 len, Context * ctx);
