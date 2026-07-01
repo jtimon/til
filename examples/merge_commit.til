@@ -284,15 +284,14 @@ main := proc(args: ..Str) {
         exit(1)
     }
 
-    // The interpret channel is dropped: a full sweep of the test corpus
-    // confirmed every exit-0 interpret run reports TIL_TRUE_LEAK=0, so there is
-    // no interpret leak left to track (the former ext_module.til sentinel only
-    // measured the glibc dlopen floor, now removed in the leak probe). Only the
-    // translate channel still carries real til leaks.
+    // The full translate sentinel is clean. Track the largest remaining
+    // test_asan_full leak until the full ASAN suite is clean.
+    asan_channel := "interp-enums"
+    asan_cmd := "ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/enums.til"
     mut trans_status : I64 = 0
-    trans_summary := capture_status("ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate src/til.til", trans_status)
-    File.writefile("tmp/asan_translate.log", trans_summary)
-    require_asan_output_ok("translate", trans_status, trans_summary)
+    trans_summary := capture_status(asan_cmd, trans_status)
+    File.writefile("tmp/asan_interp_enums.log", trans_summary)
+    require_asan_output_ok(asan_channel, trans_status, trans_summary)
 
     mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
     parse_asan_summary(trans_summary, trans_bytes, trans_allocs)
@@ -310,11 +309,11 @@ main := proc(args: ..Str) {
     mut old_trans_allocs : I64 = trans_allocs
 
     asan_org := File.readfile("doc/bots/asan.org")
-    old_trans_bytes = asan_org_value(asan_org, "translate", 2, old_trans_bytes)
-    old_trans_allocs = asan_org_value(asan_org, "translate", 3, old_trans_allocs)
+    old_trans_bytes = asan_org_value(asan_org, asan_channel, 2, old_trans_bytes)
+    old_trans_allocs = asan_org_value(asan_org, asan_channel, 3, old_trans_allocs)
 
     print("=== ASAN delta ===\n")
-    print("  translate: ", old_trans_bytes.to_str(), " -> ", trans_bytes.to_str(),
+    print("  ", asan_channel, ": ", old_trans_bytes.to_str(), " -> ", trans_bytes.to_str(),
           " bytes (", delta_str(old_trans_bytes, trans_bytes), ", ",
           pct_str(old_trans_bytes, trans_bytes), "), ",
           old_trans_allocs.to_str(), " -> ", trans_allocs.to_str(),
@@ -331,7 +330,7 @@ main := proc(args: ..Str) {
                "Updated by examples/merge_commit.til.\n\n",
                "| Channel   | Bytes    | Allocs   | Delta           |\n",
                "|-----------+----------+----------+-----------------|\n",
-               "| translate | ", trans_bytes.to_str(), "   | ", trans_allocs.to_str(), "    | ",
+               "| ", asan_channel, " | ", trans_bytes.to_str(), "   | ", trans_allocs.to_str(), "    | ",
                tb_pct, " / ", ta_pct, "     |\n"))
 
     // ---- Step 7: commit ----

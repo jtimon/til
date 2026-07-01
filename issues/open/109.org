@@ -2,6 +2,43 @@
 # category: bugs
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
+  *** 2026-07-01 translate sentinel clean; remaining ASAN failures
+
+  The translate leak tracked in the 2026-06-30 note is fixed. The
+  ~Interpreter: close translate ASAN leaks~ commit taught own/ref struct-field
+  layout inference to recognize enum defaults, frees owned enum fields on
+  overwrite and teardown, deep-clones/deep-frees enum payload structs/enums,
+  and cleans up initialized FFI entries even when no user shared object was
+  loaded. Focused probes now report:
+
+  - ~bin/til_asan translate src/til.til~: ~TIL_TRUE_LEAK=0~.
+  - ~bin/til_asan translate src/self/interpreter.til~: ~TIL_TRUE_LEAK=0~.
+  - ~bin/til_asan interpret test/own_fields.til~: ~TIL_TRUE_LEAK=0~.
+
+  After rebasing the worktree onto master, a fresh
+  ~make test_asan_full~ run still fails, passing ~160/164~ tests. The remaining
+  failures from focused reruns are:
+
+  | Test | Phase | Result |
+  |------+-------+--------|
+  | ~test/enums.til~ | interp | leak: ~TIL_TRUE_LEAK=88~, 5 allocs |
+  | ~test/tuples.til~ | interp | leak: ~TIL_TRUE_LEAK=36~, 6 allocs |
+  | ~test/regression.til~ | interp | leak: ~TIL_TRUE_LEAK=11~, 1 alloc |
+  | ~test/structs.til~ | compile | non-leak ASAN heap-use-after-free in ~Str_len~ via ~ctx_field_layout~ during ~Context_delete~ |
+
+  Since the full suite is not clean yet, keep ~doc/bots/asan.org~ and the ASAN
+  section of ~examples/merge_commit.til~. The merge-time ASAN sentinel moved to
+  the largest remaining real leak:
+
+  - Channel: ~interp-enums~.
+  - Command: ~TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/enums.til~.
+  - Baseline: ~88 bytes / 5 allocs~.
+
+  Once ~make test_asan_full~ fully passes, remove ~doc/bots/asan.org~ and the
+  ASAN baseline code from ~examples/merge_commit.til~, change the Makefile so
+  ~make test~ runs the current full ASAN path instead of the lighter
+  ~test_asan~ path, then move this issue to fixed with a post-mortem.
+
 Related: [[./245.org][#245]] catalogs an ownership-model gap on
   ~StructInstance~ / ~EnumInstance~ that's suspected to mask a
   subset of the leaks tracked here -- some Values today can't be
