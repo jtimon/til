@@ -3911,6 +3911,7 @@ U64 priv___src_self_interpreter_til__container_capacity(Str * struct_name, void 
 void priv___src_self_interpreter_til__container_elem_deep_free(Str * elem_type, void * slot, Context * ctx);
 void priv___src_self_interpreter_til__container_elem_clone_into(Str * elem_type, void * dst, void * src, U64 elem_size, Context * ctx);
 void priv___src_self_interpreter_til__free_tuple_data(void * data, Context * ctx);
+void priv___src_self_interpreter_til__clone_tuple_buffer(void * src_tuple, void * dst_tuple, Context * ctx);
 void priv___src_self_interpreter_til__struct_deep_free(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_data(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_container_str_data_cached(void * data, Context * ctx);

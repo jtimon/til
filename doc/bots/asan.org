@@ -5,4 +5,4 @@ Updated by examples/merge_commit.til.
 
 | Channel   | Bytes    | Allocs   | Delta           |
 |-----------+----------+----------+-----------------|
-| interp-tuples | 36   | 6    | 0.0% / 0.0%     |
+| interp-tuples | 0   | 0    | -100.0% / -100.0%     |
