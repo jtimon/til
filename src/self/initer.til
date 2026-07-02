@@ -1813,7 +1813,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 if ftype.len() == 0 {
                     if fd.default_value.is_null().not() {
                         ref def_val : Expr = fd.default_value
-                        if def_val.node_type.is(NodeType.FCall) {
+                        if til_type_name(def_val.expr_til_type()).len() > 0 { ftype = til_type_name(def_val.expr_til_type()) }
+                        else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len() > 0 {
                                 ref callee : Expr = def_val.children[0]
                                 switch callee.node_type {
@@ -1828,6 +1829,15 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                         case:
                                         }
                                     }
+                                case:
+                                }
+                            }
+                        } else if def_val.node_type.is(NodeType.FieldAccess) {
+                            if def_val.children.len() > 0 {
+                                ref type_node : Expr = def_val.children[0]
+                                switch type_node.node_type {
+                                case NodeType.Ident(ft):
+                                    ftype = Str.clone(ft.ident_name())
                                 case:
                                 }
                             }

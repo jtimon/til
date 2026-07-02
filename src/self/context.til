@@ -319,6 +319,21 @@ Context := struct {
     // runs (default false = interpret).
     compile_mode := false
 
+    // Value-owning runtime tables must delete before imported ASTs: their
+    // Struct/Enum payloads carry type/layout refs into those ASTs.
+    constfolder_foldables := Map(Str, FuncType).new()
+    constfolder_known := Map(Str, Value).new()
+    constfolder_assigned := Set(Str).new()
+    has_return := false
+    has_break := false
+    has_continue := false
+    return_value := Value.None
+    constfold_active := false
+    constfold_aborted := false
+    ns_fields := Map(Str, Value).new()
+    ns_keys := Vec(Dynamic).new()
+    ns_inited := false
+
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map(Str, ImportUnit).new()
     // Issue #271: init has two states now. Seeded means file-level
@@ -364,37 +379,6 @@ Context := struct {
     // fills the AST fields. Readers still use the AST fields for now; they
     // migrate to this map in step 4.
     struct_layouts := Map(Str, StructLayout).new()
-
-    // Constfolder state moved off module globals. The same Context crosses
-    // imported files and later phases, so these tables live here directly
-    // rather than as a separate module-global side store.
-    constfolder_foldables := Map(Str, FuncType).new()
-    constfolder_known := Map(Str, Value).new()
-    // Names that are the target of an assignment somewhere (so their value
-    // is not a compile-time constant -- a mut local reassigned in a loop is
-    // NOT foldable). Guards the scope-read fold in try_eval_call.
-    constfolder_assigned := Set(Str).new()
-
-    // Interpreter runtime state, moved off module globals (same
-    // direct-on-Context approach as the constfolder tables above). The
-    // control-flow flags and return slot drive eval_body /
-    // eval_user_func; ns_fields/ns_keys hold static struct fields keyed
-    // `<Type>.<field>`; ns_inited guards their one-time (re)creation.
-    has_return := false
-    has_break := false
-    has_continue := false
-    return_value := Value.None
-    // Set while the const-folder is evaluating a candidate call through the
-    // interpreter (try_eval_call). When active, a `panic`/`exit`/`TODO`/
-    // `UNREACHABLE` reached at fold time does NOT print+exit the build;
-    // instead it sets constfold_aborted and unwinds like an early return, so
-    // the const-folder can leave the call for runtime (or, for a macro,
-    // report it). This is til's analogue of rstil's catchable throw result.
-    constfold_active := false
-    constfold_aborted := false
-    ns_fields := Map(Str, Value).new()
-    ns_keys := Vec(Dynamic).new()
-    ns_inited := false
 
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept

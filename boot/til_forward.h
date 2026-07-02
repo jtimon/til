@@ -240,12 +240,12 @@ typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Map__Str_Mode Map__Str_Mode;
-typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
-typedef struct Map__Str_Expr Map__Str_Expr;
-typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Map__Str_Value Map__Str_Value;
 typedef struct Vec__Dynamic Vec__Dynamic;
+typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
+typedef struct Map__Str_Expr Map__Str_Expr;
+typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
@@ -253,10 +253,10 @@ typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__Mode Vec__Mode;
-typedef struct Vec__ImportUnit Vec__ImportUnit;
-typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__Value Vec__Value;
+typedef struct Vec__ImportUnit Vec__ImportUnit;
+typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
@@ -730,17 +730,17 @@ struct ScopeFind {
     } data;
 };
 
-typedef struct Map__Str_Expr {
-    Vec__Str keys;
-    Vec__Expr values;
-} Map__Str_Expr;
-
-
 typedef struct Vec__Dynamic {
     U8 *data;
     USize count;
     USize cap;
 } Vec__Dynamic;
+
+
+typedef struct Map__Str_Expr {
+    Vec__Str keys;
+    Vec__Expr values;
+} Map__Str_Expr;
 
 
 typedef struct Map__Str_Dynamic {
@@ -770,20 +770,6 @@ typedef struct Vec__Mode {
 } Vec__Mode;
 
 
-typedef struct Vec__ImportUnit {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__ImportUnit;
-
-
-typedef struct Vec__StructLayout {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__StructLayout;
-
-
 typedef struct Vec__FuncType {
     U8 *data;
     USize count;
@@ -796,6 +782,20 @@ typedef struct Vec__Value {
     USize count;
     USize cap;
 } Vec__Value;
+
+
+typedef struct Vec__ImportUnit {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__ImportUnit;
+
+
+typedef struct Vec__StructLayout {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__StructLayout;
 
 
 typedef struct Vec__call_Vec_Str {
@@ -1703,18 +1703,6 @@ typedef struct Map__Str_Mode {
 } Map__Str_Mode;
 
 
-typedef struct Map__Str_ImportUnit {
-    Vec__Str keys;
-    Vec__ImportUnit values;
-} Map__Str_ImportUnit;
-
-
-typedef struct Map__Str_StructLayout {
-    Vec__Str keys;
-    Vec__StructLayout values;
-} Map__Str_StructLayout;
-
-
 typedef struct Map__Str_FuncType {
     Vec__Str keys;
     Vec__FuncType values;
@@ -1725,6 +1713,18 @@ typedef struct Map__Str_Value {
     Vec__Str keys;
     Vec__Value values;
 } Map__Str_Value;
+
+
+typedef struct Map__Str_ImportUnit {
+    Vec__Str keys;
+    Vec__ImportUnit values;
+} Map__Str_ImportUnit;
+
+
+typedef struct Map__Str_StructLayout {
+    Vec__Str keys;
+    Vec__StructLayout values;
+} Map__Str_StructLayout;
 
 
 typedef struct Map__Str_call_Vec_Str {
@@ -1855,18 +1855,6 @@ typedef struct Context {
     Str target_uptr_pname;
     I64 anon_type_counter;
     Bool compile_mode;
-    Map__Str_ImportUnit imported;
-    Set__Str imports_init_seed_done;
-    Set__Str imports_init_active;
-    Set__Str imports_init_done;
-    Set__Str imports_typer_decls_done;
-    Set__Str imports_typer_bodies_done;
-    Set__Str type_gen_synths;
-    Map__Str_Expr generic_funcs;
-    Set__Str generic_func_synths;
-    TypeScope scope;
-    Bool is_repl;
-    Map__Str_StructLayout struct_layouts;
     Map__Str_FuncType constfolder_foldables;
     Map__Str_Value constfolder_known;
     Set__Str constfolder_assigned;
@@ -1879,6 +1867,18 @@ typedef struct Context {
     Map__Str_Value ns_fields;
     Vec__Dynamic ns_keys;
     Bool ns_inited;
+    Map__Str_ImportUnit imported;
+    Set__Str imports_init_seed_done;
+    Set__Str imports_init_active;
+    Set__Str imports_init_done;
+    Set__Str imports_typer_decls_done;
+    Set__Str imports_typer_bodies_done;
+    Set__Str type_gen_synths;
+    Map__Str_Expr generic_funcs;
+    Set__Str generic_func_synths;
+    TypeScope scope;
+    Bool is_repl;
+    Map__Str_StructLayout struct_layouts;
     Bool typing_namespace_member;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
@@ -1967,6 +1967,7 @@ typedef struct Scope {
     Map__Str_Dynamic ref_primitive_ptrs;
     Vec__DynPtrBox box_owned_dynamics;
     Vec__DynPtrBox box_owned_callables;
+    Bool is_call_scope;
 } Scope;
 
 
@@ -2581,31 +2582,6 @@ void Map__Str_Mode_delete(Map__Str_Mode * self, Bool call_free);
 Map__Str_Mode * Map__Str_Mode_clone(Map__Str_Mode * self);
 U64 Map__Str_Mode_hash(Map__Str_Mode * self, HashFn hasher);
 U64 Map__Str_Mode_size(void);
-Map__Str_ImportUnit * Map__Str_ImportUnit_new(void);
-Bool Map__Str_ImportUnit_has(Map__Str_ImportUnit * self, Str * key);
-ImportUnit * Map__Str_ImportUnit_get(Map__Str_ImportUnit * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
-void Map__Str_ImportUnit_set(Map__Str_ImportUnit * self, Str * key, ImportUnit * val);
-void Map__Str_ImportUnit_delete(Map__Str_ImportUnit * self, Bool call_free);
-Map__Str_ImportUnit * Map__Str_ImportUnit_clone(Map__Str_ImportUnit * self);
-U64 Map__Str_ImportUnit_hash(Map__Str_ImportUnit * self, HashFn hasher);
-U64 Map__Str_ImportUnit_size(void);
-Map__Str_Expr * Map__Str_Expr_new(void);
-U64 Map__Str_Expr_len(Map__Str_Expr * self);
-Bool Map__Str_Expr_has(Map__Str_Expr * self, Str * key);
-Expr * Map__Str_Expr_get(Map__Str_Expr * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
-void Map__Str_Expr_set(Map__Str_Expr * self, Str * key, Expr * val);
-void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
-Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
-U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
-U64 Map__Str_Expr_size(void);
-Map__Str_StructLayout * Map__Str_StructLayout_new(void);
-Bool Map__Str_StructLayout_has(Map__Str_StructLayout * self, Str * key);
-StructLayout * Map__Str_StructLayout_get(Map__Str_StructLayout * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
-void Map__Str_StructLayout_set(Map__Str_StructLayout * self, Str * key, StructLayout * val);
-void Map__Str_StructLayout_delete(Map__Str_StructLayout * self, Bool call_free);
-Map__Str_StructLayout * Map__Str_StructLayout_clone(Map__Str_StructLayout * self);
-U64 Map__Str_StructLayout_hash(Map__Str_StructLayout * self, HashFn hasher);
-U64 Map__Str_StructLayout_size(void);
 Map__Str_FuncType * Map__Str_FuncType_new(void);
 U64 Map__Str_FuncType_len(Map__Str_FuncType * self);
 Bool Map__Str_FuncType_has(Map__Str_FuncType * self, Str * key);
@@ -2634,6 +2610,31 @@ void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, U64 i, void * val);
 void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
 Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
 U64 Vec__Dynamic_size(void);
+Map__Str_ImportUnit * Map__Str_ImportUnit_new(void);
+Bool Map__Str_ImportUnit_has(Map__Str_ImportUnit * self, Str * key);
+ImportUnit * Map__Str_ImportUnit_get(Map__Str_ImportUnit * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
+void Map__Str_ImportUnit_set(Map__Str_ImportUnit * self, Str * key, ImportUnit * val);
+void Map__Str_ImportUnit_delete(Map__Str_ImportUnit * self, Bool call_free);
+Map__Str_ImportUnit * Map__Str_ImportUnit_clone(Map__Str_ImportUnit * self);
+U64 Map__Str_ImportUnit_hash(Map__Str_ImportUnit * self, HashFn hasher);
+U64 Map__Str_ImportUnit_size(void);
+Map__Str_Expr * Map__Str_Expr_new(void);
+U64 Map__Str_Expr_len(Map__Str_Expr * self);
+Bool Map__Str_Expr_has(Map__Str_Expr * self, Str * key);
+Expr * Map__Str_Expr_get(Map__Str_Expr * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
+void Map__Str_Expr_set(Map__Str_Expr * self, Str * key, Expr * val);
+void Map__Str_Expr_delete(Map__Str_Expr * self, Bool call_free);
+Map__Str_Expr * Map__Str_Expr_clone(Map__Str_Expr * self);
+U64 Map__Str_Expr_hash(Map__Str_Expr * self, HashFn hasher);
+U64 Map__Str_Expr_size(void);
+Map__Str_StructLayout * Map__Str_StructLayout_new(void);
+Bool Map__Str_StructLayout_has(Map__Str_StructLayout * self, Str * key);
+StructLayout * Map__Str_StructLayout_get(Map__Str_StructLayout * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
+void Map__Str_StructLayout_set(Map__Str_StructLayout * self, Str * key, StructLayout * val);
+void Map__Str_StructLayout_delete(Map__Str_StructLayout * self, Bool call_free);
+Map__Str_StructLayout * Map__Str_StructLayout_clone(Map__Str_StructLayout * self);
+U64 Map__Str_StructLayout_hash(Map__Str_StructLayout * self, HashFn hasher);
+U64 Map__Str_StructLayout_size(void);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_new(void);
 Bool Map__Str_call_Vec_Str_has(Map__Str_call_Vec_Str * self, Str * key);
 Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
@@ -2689,20 +2690,6 @@ void Vec__Mode_unsafe_set(Vec__Mode * self, U64 i, Mode * val);
 void Vec__Mode_delete(Vec__Mode * self, Bool call_free);
 Vec__Mode * Vec__Mode_clone(Vec__Mode * self);
 U64 Vec__Mode_size(void);
-Vec__ImportUnit * Vec__ImportUnit_new(void);
-void Vec__ImportUnit_clear(Vec__ImportUnit * self);
-ImportUnit * Vec__ImportUnit_unsafe_get(Vec__ImportUnit * self, U64 * i);
-void Vec__ImportUnit_unsafe_set(Vec__ImportUnit * self, U64 i, ImportUnit * val);
-void Vec__ImportUnit_delete(Vec__ImportUnit * self, Bool call_free);
-Vec__ImportUnit * Vec__ImportUnit_clone(Vec__ImportUnit * self);
-U64 Vec__ImportUnit_size(void);
-Vec__StructLayout * Vec__StructLayout_new(void);
-void Vec__StructLayout_clear(Vec__StructLayout * self);
-StructLayout * Vec__StructLayout_unsafe_get(Vec__StructLayout * self, U64 * i);
-void Vec__StructLayout_unsafe_set(Vec__StructLayout * self, U64 i, StructLayout * val);
-void Vec__StructLayout_delete(Vec__StructLayout * self, Bool call_free);
-Vec__StructLayout * Vec__StructLayout_clone(Vec__StructLayout * self);
-U64 Vec__StructLayout_size(void);
 Vec__FuncType * Vec__FuncType_new(void);
 void Vec__FuncType_clear(Vec__FuncType * self);
 FuncType * Vec__FuncType_unsafe_get(Vec__FuncType * self, U64 * i);
@@ -2719,6 +2706,20 @@ void Vec__Value_unsafe_set(Vec__Value * self, U64 i, Value * val);
 void Vec__Value_delete(Vec__Value * self, Bool call_free);
 Vec__Value * Vec__Value_clone(Vec__Value * self);
 U64 Vec__Value_size(void);
+Vec__ImportUnit * Vec__ImportUnit_new(void);
+void Vec__ImportUnit_clear(Vec__ImportUnit * self);
+ImportUnit * Vec__ImportUnit_unsafe_get(Vec__ImportUnit * self, U64 * i);
+void Vec__ImportUnit_unsafe_set(Vec__ImportUnit * self, U64 i, ImportUnit * val);
+void Vec__ImportUnit_delete(Vec__ImportUnit * self, Bool call_free);
+Vec__ImportUnit * Vec__ImportUnit_clone(Vec__ImportUnit * self);
+U64 Vec__ImportUnit_size(void);
+Vec__StructLayout * Vec__StructLayout_new(void);
+void Vec__StructLayout_clear(Vec__StructLayout * self);
+StructLayout * Vec__StructLayout_unsafe_get(Vec__StructLayout * self, U64 * i);
+void Vec__StructLayout_unsafe_set(Vec__StructLayout * self, U64 i, StructLayout * val);
+void Vec__StructLayout_delete(Vec__StructLayout * self, Bool call_free);
+Vec__StructLayout * Vec__StructLayout_clone(Vec__StructLayout * self);
+U64 Vec__StructLayout_size(void);
 Vec__call_Vec_Str * Vec__call_Vec_Str_new(void);
 void Vec__call_Vec_Str_clear(Vec__call_Vec_Str * self);
 Vec__Str * Vec__call_Vec_Str_unsafe_get(Vec__call_Vec_Str * self, U64 * i);
@@ -3795,6 +3796,9 @@ Bool priv___src_self_interpreter_til__decl_is_funcsig(Declaration * dd, Context 
 Str * priv___src_self_interpreter_til__stable_type_name(Str * name, Context * ctx);
 Bool priv___src_self_interpreter_til__struct_def_shallow_safe(StructDef * sdef_data, Context * ctx);
 Bool priv___src_self_interpreter_til__str_owns_c_str(void * s_base, Context * ctx);
+Bool priv___src_self_interpreter_til__str_has_owned_storage(void * ptr, Context * ctx);
+void priv___src_self_interpreter_til__free_str_owned_storage(void * ptr, Context * ctx);
+void priv___src_self_interpreter_til__clone_str_storage_into(void * dst, void * src, Context * ctx);
 void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * data, Context * ctx);
 Str * StructInstance_to_str(StructInstance * self);
 StructInstance * StructInstance_clone(StructInstance * self);
@@ -3857,6 +3861,9 @@ Value priv___src_self_interpreter_til__val_u16(I64 v);
 Value priv___src_self_interpreter_til__val_i32(I64 v);
 Value priv___src_self_interpreter_til__val_u32(I64 v);
 Value priv___src_self_interpreter_til__make_enum_value(Str * enum_name, void * data, U64 data_size, Bool borrowed, Bool is_str, Context * ctx);
+I32 priv___src_self_interpreter_til__enum_variant_index_for_tag_key(Str * enum_name, I64 etag, Context * ctx);
+I32 priv___src_self_interpreter_til__enum_variant_index_for_tag(Str * enum_name, I32 etag, Context * ctx);
+Str * priv___src_self_interpreter_til__enum_payload_type_for_tag(Str * enum_name, I32 etag, Context * ctx);
 Bool priv___src_self_interpreter_til__enum_variant_is_str(Str * enum_name, I32 etag, Context * ctx);
 void priv___src_self_interpreter_til__enum_clone_str_payload(void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context * ctx);
@@ -3928,6 +3935,7 @@ void priv___src_self_interpreter_til__clone_dyn_vec_buffer(void * src_data, void
 void priv___src_self_interpreter_til__clone_dyn_array_buffer(void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__clone_dyn_set_buffer(void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
+void priv___src_self_interpreter_til__free_owned_value(Value v);
 void priv___src_self_interpreter_til__reclone_return(Context * ctx);
 void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
 Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
@@ -3938,6 +3946,7 @@ Value priv___src_self_interpreter_til__make_struct_value(Str * sname, void * dat
 Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
 Cell * scope_get(Scope * s, Str * name);
+Cell * priv___src_self_interpreter_til__scope_get_return_move_cell(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 Scope * priv___src_self_interpreter_til__scope_new_boxed(Scope * parent);
 Str * priv___src_self_interpreter_til__scope_get_payload_alias(Scope * s, Str * name);
