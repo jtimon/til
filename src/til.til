@@ -678,6 +678,18 @@ main := proc(args: ..Str) {
         result = 1
     }
 
+    // #299: the constfolder/interpreter Value caches (ns_fields,
+    // constfolder_known) hold Str/struct Values whose deep delete reads the
+    // AST-derived Str layout (str_owns_c_str -> ctx_field_layout ->
+    // cached_str_name / struct_layouts). Context's auto-delete frees those
+    // caches AFTER the AST (imported) and the layout cache (struct_layouts), so
+    // their teardown would read freed memory (a Context_delete
+    // heap-use-after-free, seen building programs whose typer inlined lazy
+    // calls). Reclaim them HERE, while everything they reference is still alive.
+    // The interpret path already does this via interp_session_finish_context;
+    // build/translate/run did not, so do it for every command.
+    interpreter_free_ns(lp.ctx)
+    constfolder_clear_known(lp.ctx)
     ffi_cleanup(lp.ctx)
     lexer_cleanup()
     if result != 0 { exit(result.cast(I64)) }

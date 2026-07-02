@@ -2,6 +2,38 @@
 # category: bugs
 ** FIXED #299 Fix non-leak ASAN failures in test_asan_full
 
+Follow-up (2026-07-02): a new non-leak failure surfaced and was fixed HERE
+(per the standing instruction at the end of this file), no re-open.
+~bin/til_asan build test/structs.til~ aborted with a ~heap-use-after-free~
+in ~Str_len~ (via ~ctx_field_layout~ <- ~str_count_at~ <- ~str_owns_c_str~
+<- ~StructInstance.delete~) during ~Context_delete~.
+
+Root cause: Context's auto-generated delete frees fields in declaration
+order, so the AST (~imported~, a ~Map(Str, ImportUnit)~) and the layout
+cache (~struct_layouts~) are reclaimed BEFORE the constfolder/interpreter
+Value caches (~ns_fields~, ~constfolder_known~), which are declared after
+them. Tearing down a cached Str Value runs ~StructInstance.delete~ ->
+~str_owns_c_str~ -> ~str_count_at~ -> ~ctx_field_layout(ctx.cached_str_name,
+...)~. ~cached_str_name~ is a borrowed ~ref~ into the AST (and, for a
+program whose typer inlined lazy calls, into the ~lazy_stmt_inline_body~
+~Vec(Expr)~ buffer that ~ImportUnit.delete~ already freed), so the layout
+lookup read freed memory. The interpret path avoids this by clearing
+~ns_fields~ via ~interp_session_finish_context~; the build/translate/run
+paths had no equivalent, and ~constfolder_known~ was cleared only at the
+START of ~prepare_program~ (~constfolder_reset_state~), never at the end.
+
+Fix: reclaim both Value caches at the end of ~run~ in ~src/til.til~ (after
+the command dispatch, before the ~LoadedProgram~ is torn down) for EVERY
+command -- ~interpreter_free_ns(lp.ctx)~ + ~constfolder_clear_known(lp.ctx)~
+-- while the AST, ~struct_layouts~ and ~cached_str_name~ they reference are
+still alive. ~interpreter_free_ns~ was made non-priv for this. Both clears
+are idempotent (an ~ns_inited~ guard and ~Map.clear~ on an empty map), so
+the interpret path (which already clears ~ns_fields~) is unaffected.
+Verified: ~bin/til_asan build test/structs.til~ plus interpret/translate/
+build of structs/tuples/kwargs are non-leak-clean (~detect_leaks=0~);
+~make test~ 164/164. Regression coverage: the ~test_asan_full~ compile
+phase (~--til-bin bin/til_asan~) exercises this exact path.
+
 Post-mortem (2026-06-29): #299 is the umbrella for every ~test_asan_full~
 test that fails AddressSanitizer for a reason OTHER than a leak
 (heap-buffer-overflow, heap-use-after-free, bad-free, stack/global

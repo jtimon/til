@@ -3971,7 +3971,7 @@ void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
 Value * ns_get(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, Value val, Context * ctx);
-void priv___src_self_interpreter_til__interpreter_free_ns(Context * ctx);
+void interpreter_free_ns(Context * ctx);
 void priv___src_self_interpreter_til__str_write_count_cap(void * inst_data, U64 count_val, U64 cap_val, Context * ctx);
 void priv___src_self_interpreter_til__str_write_cap_at(void * str_base, U64 cap_val, Context * ctx);
 U64 str_cap_at(void * str_base, Context * ctx);

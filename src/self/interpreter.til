@@ -4069,7 +4069,7 @@ priv ns_set := func(sname: Str, fname: Str, shallow val: Value, mut ctx: Context
     c.ns_fields.set(qn, own vcopy)
 }
 
-priv interpreter_free_ns := func(mut ctx: Context) {
+interpreter_free_ns := func(mut ctx: Context) {
     if ctx.ns_inited.not() { return }
     own ctx.ns_fields.delete(false)
     memset(ctx.ns_fields, 0, Map(Str, Value).size().cast(U64))
