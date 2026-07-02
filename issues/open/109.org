@@ -2,6 +2,37 @@
 # category: bugs
 ** OPEN #109 Fix memory leaks (make test_asan clean)
 
+  *** 2026-07-02 tuples sentinel fixed; Tuple deep clone/free symmetry
+
+  The ~test/tuples.til~ interp leak (~36 bytes / 6 allocs~, the Str element
+  c_strs) is fixed. Root cause: a Tuple packs heterogeneous element VALUES into
+  its ~own data: U8~ buffer, so only ~Tuple.delete~'s runtime-dispatched
+  ~dyn_call(T.delete, elem_ptr)~ loop reaches an element's nested heap (a Str's
+  c_str). The interpreter cannot run that body correctly -- ~dyn_call~ dispatches
+  ~Str.delete~ on a BORROWED element view, which no-ops -- so the c_strs leaked
+  (the #275 borrowed-view-delete class of bug). Symmetrically, the generic
+  ~heap_clone~ field walk left the packed buffer SHARED (a primitive field has no
+  nested_def), so a cloned Tuple aliased the original's element buffer.
+
+  The fix makes the cache-driven teardown the single Tuple path, in matched
+  pieces so free and clone stay balanced:
+
+  - ~struct_deep_free("Tuple")~ calls ~free_tuple_data~ (frees each element by
+    its parallel type metadata, plus the packed buffer) before its field loop
+    reclaims the type_names/type_sizes Vecs; the duplicate ~free_tuple_data~
+    call in ~container_elem_deep_free~ is removed (it would double-free).
+  - The ~del_method~ interception now routes ~Tuple.delete~ to that deep
+    teardown (like the other containers) instead of running its
+    uninterpretable ~dyn_call~ body.
+  - ~heap_clone("Tuple")~ deep-clones the packed buffer via a new
+    ~clone_tuple_buffer~ (symmetric to ~free_tuple_data~), so a cloned Tuple
+    owns an independent element buffer.
+
+  ~bin/til_asan interpret test/tuples.til~ now reports ~TIL_TRUE_LEAK=0~; the
+  Tuple users ~test/kwargs.til~ and ~test/dynamic.til~ stay ~0~. Full suite
+  ~make test~ passes ~164/164~. The largest remaining real leak is
+  ~test/regression.til~ (~11 bytes / 1 alloc~).
+
   *** 2026-07-01 enums sentinel fixed; sentinel moved to tuples
 
   The ~test/enums.til~ interp leak from the note below (~88 bytes / 5 allocs~)

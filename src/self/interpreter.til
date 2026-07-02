@@ -224,6 +224,12 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 }
             }
         }
+        if struct_name == "Tuple" {
+            // The field walk above cloned type_names/type_sizes but left the
+            // packed `own data: U8` element buffer aliased to src. Give dst its
+            // own deep copy so free_tuple_data can reclaim it independently.
+            clone_tuple_buffer(data, dst_data, ctx)
+        }
         return dst_data
     case:
         UNREACHABLE()
@@ -2077,6 +2083,15 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     if rsi.struct_name == "DynSet" { do_intercept = true }
                     if rsi.struct_name == "DynMap" { do_intercept = true }
                     if rsi.struct_name == "DynHashMap" { do_intercept = true }
+                    // Tuple.delete's body has custom logic (manual free(own
+                    // self.data), type_names.clear()) so delete_body_has_custom_logic
+                    // below keeps it from the generic pure-cleanup intercept, yet
+                    // its per-element `dyn_call(T.delete, elem_ptr)` dispatches on a
+                    // BORROWED element view and no-ops -- the element c_strs leak.
+                    // struct_deep_free -> free_tuple_data reclaims them (plus the
+                    // packed data buffer and the type_names/type_sizes Vecs)
+                    // correctly, exactly what the body intends, so intercept it.
+                    if rsi.struct_name == "Tuple" { do_intercept = true }
                     if rsi.struct_name == "Expr" { do_intercept = true }
                     if rsi.is_str_container { do_intercept = true }
                     if container_elem_type(rsi.struct_name, ctx).len() > 0 { do_intercept = true }
@@ -2725,10 +2740,10 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
             if str_owns_c_str(to_ptr(s), ctx) {
                 if s.c_str.is_null().not() { free(own s.c_str) }
             }
-        } else if elem_type == "Tuple" {
-            free_tuple_data(slot, ctx)
-            struct_deep_free(elem_type, slot, ctx)
         } else {
+            // Tuple included: struct_deep_free("Tuple") frees the packed
+            // element heap + data buffer itself, so no separate free_tuple_data
+            // call is needed here (a second one would double-free).
             struct_deep_free(elem_type, slot, ctx)
         }
     case NodeType.EnumDef:
@@ -2786,6 +2801,37 @@ priv free_tuple_data := func(data: Dynamic, ctx: Context) {
     free(own hdr.p)
 }
 
+// Symmetric to free_tuple_data: heap_clone's generic field walk deep-clones a
+// Tuple's type_names/type_sizes Vecs but leaves the packed `own data: U8`
+// buffer SHARED -- a primitive field has no nested_def, so the walk's own-field
+// branch skips it and dst keeps src's data pointer (the shallow struct memcpy).
+// Without this, a cloned Tuple aliases the original's element buffer, so freeing
+// either (free_tuple_data) dangles the other. Allocate a fresh buffer and
+// deep-copy each heterogeneous element by its parallel type metadata (mirroring
+// Tuple.clone's dyn_call loop), then repoint dst's data field at it.
+priv clone_tuple_buffer := func(src_tuple: Dynamic, dst_tuple: Dynamic, ctx: Context) {
+    data_fl := ctx_field_layout("Tuple", "data", ctx)
+    names_fl := ctx_field_layout("Tuple", "type_names", ctx)
+    sizes_fl := ctx_field_layout("Tuple", "type_sizes", ctx)
+    cap_fl := ctx_field_layout("Tuple", "cap", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_tuple, data_fl.offset.cast(U64))
+    if src_hdr.p.is_null() { return }
+    ref cap : USize = ptr_add(src_tuple, cap_fl.offset.cast(U64))
+    ref names : Vec(Str) = ptr_add(src_tuple, names_fl.offset.cast(U64))
+    ref sizes : Vec(USize) = ptr_add(src_tuple, sizes_fl.offset.cast(U64))
+    mut alloc_cap := cap.clone()
+    if alloc_cap == 0 { alloc_cap = 8 }
+    new_buf : Dynamic = malloc(alloc_cap.cast(U64))
+    mut off : USize = 0
+    for i in 0..names.len() {
+        ref tn : Str = names[i]
+        ref ts : USize = sizes[i]
+        container_elem_clone_into(tn, ptr_add(new_buf, off.cast(U64)), ptr_add(src_hdr.p, off.cast(U64)), ts.clone(), ctx)
+        off = off + ts
+    }
+    write_ptr(ptr_add(dst_tuple, data_fl.offset.cast(U64)), new_buf)
+}
+
 // #286: cache-driven deep free of a struct value's nested heap. Reads
 // ctx.struct_layouts (a name-keyed cache that outlives the AST) instead of the
 // dangling struct_def, so it is safe at scope teardown. Frees own struct
@@ -2805,6 +2851,17 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
         }
         struct_deep_free(children_fl.struct_name, ptr_add(data, children_fl.offset.cast(U64)), ctx)
         return
+    }
+    if struct_name == "Tuple" {
+        // Free the packed heterogeneous element heap + the `own data: U8`
+        // buffer BEFORE the field loop reclaims the type_names/type_sizes
+        // metadata that walk reads. Both standalone owned Tuples (reached via
+        // free_temp_arg_value) and Tuples nested in a container (reached via
+        // container_elem_deep_free) funnel through here, so this is the single
+        // Tuple teardown path -- the cache walk never runs Tuple.delete's
+        // custom dyn_call body, and the type-erased U8 buffer is invisible to
+        // a generic field walk.
+        free_tuple_data(data, ctx)
     }
     ref sl : StructLayout = ctx.struct_layouts[struct_name]
     for i in 0..sl.fields.len() {
