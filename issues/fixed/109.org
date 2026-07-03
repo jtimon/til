@@ -1,6 +1,30 @@
 # priority: high
 # category: bugs
-** OPEN #109 Fix memory leaks (make test_asan clean)
+** FIXED #109 Fix memory leaks (make test_asan clean)
+
+  *** Post-mortem
+
+  Root cause: the remaining full-ASAN failures were separate ownership gaps in
+  the interpreter's runtime Value model. Discarded aggregate call results were
+  not always reclaimed; borrowed/owned Struct and Enum values were copied across
+  scopes, returns, payload writebacks, FFI calls, and container/Tuple storage
+  without a single consistent deep free/clone contract; and Context teardown
+  deleted imported AST/layout data before Value-owning runtime tables finished
+  freeing payloads that still needed those layouts.
+
+  The final fix made owned Value teardown explicit with ~free_owned_value~,
+  moved return identifiers out of local cells when safe, freed discarded call
+  and FFI argument Values immediately, deep-cloned/deep-freed enum payloads and
+  Tuple/container buffers through layout/type metadata, kept Str cloning
+  target-width-correct, and moved Context Value-owning tables before ~imported~
+  so they delete first. After the rebase, a duplicate Tuple buffer-free path was
+  removed; it was a merge artifact that caused a double-free in Tuple users.
+
+  Regression test: focused ASAN probes for ~test/enums.til~,
+  ~test/tuples.til~, ~test/dynamic.til~, ~test/kwargs.til~, and
+  ~bin/til_asan translate src/til.til~ all report ~TIL_TRUE_LEAK=0~. The strict
+  full suite ~make test_asan_full~ passed, and ~make test~ is now wired to that
+  full-ASAN path.
 
   *** 2026-07-02 tuples sentinel fixed; Tuple deep clone/free symmetry
 

@@ -84,8 +84,8 @@ code) violate the intended layering. The principles, as stated by Jorge:
      remove free_value/cleanup special cases.
   4. CFG-based liveness in garbager; fold sink_conditional_transfer_
      deletes, early-exit-before-transfer, extend_*_lifetimes into it.
-  5. Builder/interpreter compensation removal, guarded by ASAN baseline
-     (doc/bots/asan.org) at every step.
+  5. Builder/interpreter compensation removal, guarded by the full ASAN
+     `make test` suite at every step.
 
 *** Progress (step 3, in flight)
 

@@ -19,106 +19,6 @@ capture := proc(cmd: Str) returns Str {
     return content
 }
 
-capture_status := proc(cmd: Str, mut status: I64) returns Str {
-    mk := run("mkdir -p tmp >/dev/null 2>&1")
-    if mk.lt(0) { }
-    tmpf := format("tmp/_mc_", clock_ms().to_str())
-    pid := spawn_cmd(format(cmd, " > ", tmpf, " 2>&1"))
-    status = wait_cmd(pid)
-    content := File.readfile(tmpf)
-    return content
-}
-
-asan_fail := proc(channel: Str, msg: Str, output: Str) {
-    eprint_single(format("ASAN ", channel, ": FAILED: ", msg, "\n"))
-    eprint_single(output)
-    exit(1)
-}
-
-require_asan_output_ok := proc(channel: Str, status: I64, output: Str) {
-    if status.neq(0) {
-        if output.find("ERROR: LeakSanitizer: detected memory leaks").eq(-1) {
-            asan_fail(channel, format("non-leak sanitizer error, exit ", status.to_str()), output)
-        }
-        if output.find("SUMMARY:").eq(-1) {
-            asan_fail(channel, "LeakSanitizer exit without SUMMARY", output)
-        }
-    }
-    if parse_true_leak(output).lt(0) {
-        asan_fail(channel, "missing TIL_TRUE_LEAK probe output", output)
-    }
-}
-
-parse_asan_summary := func(summary: Str, mut bytes: I64, mut allocs: I64) {
-    sum_start := summary.find("SUMMARY:")
-    if sum_start.eq(-1) { return }
-    // Narrow to the single SUMMARY line; ASAN dumps can be megabytes
-    // long, and walking the full string byte-by-byte via substr(idx, 1)
-    // is quadratic.
-    sum_start_u := sum_start.to_usize()
-    rest := summary.len().sub(sum_start_u)
-    nl_off := summary.substr(sum_start_u, rest).find("\n")
-    mut line_len : USize = rest
-    if nl_off.neq(-1) { line_len = nl_off.to_usize() }
-    tail := summary.substr(sum_start_u, line_len)
-
-    byte_pos := tail.find(" byte(s)")
-    if byte_pos.eq(-1) { return }
-    mut bstart : I64 = byte_pos.sub(1)
-    while bstart.gte(0) {
-        if tail.unsafe_get(bstart.to_usize()).eq(' ') { break }
-        bstart--
-    }
-    num_str := tail.substr(bstart.add(1).to_usize(), byte_pos.sub(bstart).sub(1).to_usize())
-    bytes = num_str.to_i64()
-
-    alloc_pos := tail.find(" allocation(s)")
-    if alloc_pos.eq(-1) { return }
-    bstart = alloc_pos.sub(1)
-    while bstart.gte(0) {
-        if tail.unsafe_get(bstart.to_usize()).eq(' ') { break }
-        bstart--
-    }
-    num_str2 := tail.substr(bstart.add(1).to_usize(), alloc_pos.sub(bstart).sub(1).to_usize())
-    allocs = num_str2.to_i64()
-}
-
-// Parse the TIL_TRUE_LEAK=<bytes> line printed by the leak probe in
-// src/c/ext.c (live-allocated bytes after teardown = the true leak).
-// Returns -1 if absent (e.g. a non-sanitizer binary).
-parse_true_leak := func(summary: Str) returns I64 {
-    key := "TIL_TRUE_LEAK="
-    pos := summary.find(key)
-    if pos.eq(-1) { return -1 }
-    start := pos.to_usize().add(key.len())
-    rest := summary.len().sub(start)
-    nl_off := summary.substr(start, rest).find("\n")
-    mut num_len : USize = rest
-    if nl_off.neq(-1) { num_len = nl_off.to_usize() }
-    return summary.substr(start, num_len).to_i64()
-}
-
-pct_str := func(old_val: I64, new_val: I64) returns Str {
-    if old_val.eq(0) { return "0.0%" }
-    delta := new_val.sub(old_val)
-    mut pct_x10 := delta.mul(1000).div(old_val)
-    mut sign := ""
-    if pct_x10.lt(0) {
-        sign = "-"
-        pct_x10 = pct_x10.neg()
-    }
-    whole := pct_x10.div(10)
-    frac := pct_x10.mod(10)
-    return format(sign, whole.to_str(), ".", frac.to_str(), "%")
-}
-
-delta_str := func(old_val: I64, new_val: I64) returns Str {
-    delta := new_val.sub(old_val)
-    mut sign := ""
-    if delta.gte(0) { sign = "+" }
-    return format(sign, delta.to_str())
-}
-
 count_subject_end := func(s: Str) returns USize {
     nl := s.find("\n")
     if nl.eq(-1) { return s.len() }
@@ -184,40 +84,6 @@ trim_quotes := func(s: Str) returns Str {
     return s.substr(start, end.sub(start)).clone()
 }
 
-
-// Parse the org table from doc/bots/asan.org.
-// Lines like: | translate | 1258   | 218    | 0.0% / 0.0%   |
-asan_org_value := func(content: Str, channel: Str, cell_idx: USize, fallback: I64) returns I64 {
-    lines := content.split("\n")
-    for line : Str in lines {
-        if line.starts_with(format("| ", channel, " | ")) {
-            cells := split_by_pipe(line)
-            if cells.len().gt(cell_idx) {
-                ref cell : Str = cells[cell_idx]
-                return trim_spaces(cell).to_i64()
-            }
-        }
-    }
-    return fallback
-}
-
-split_by_pipe := func(s: Str) returns Vec(Str) {
-    mut out := Vec(Str).new()
-    mut start : USize = 0
-    while start.lt(s.len()) {
-        rest := s.substr(start, s.len().sub(start))
-        pipe := rest.find("|")
-        if pipe.eq(-1) {
-            out.push(own rest.clone())
-            break
-        }
-        cell := rest.substr(0, pipe.to_usize())
-        out.push(own cell.clone())
-        start = start.add(pipe.to_usize()).add(1)
-    }
-    return out
-}
-
 main := proc(args: ..Str) {
     mut hash := "HEAD"
     if args.len().gte(1) {
@@ -276,64 +142,7 @@ main := proc(args: ..Str) {
     }
     print("Tests: PASSED\n")
 
-    // ---- Step 6: ASAN leak check ----
-    asan_build_ec := run("make bin/til_asan > tmp/asan_build.log 2>&1")
-    if asan_build_ec.neq(0) {
-        eprint_single("ASAN build: FAILED\n")
-        eprint_single(File.readfile("tmp/asan_build.log"))
-        exit(1)
-    }
-
-    // The full translate sentinel is clean. Track the largest remaining
-    // test_asan_full leak until the full ASAN suite is clean.
-    asan_channel := "interp-regression"
-    asan_cmd := "ulimit -d unlimited && TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/regression.til"
-    mut trans_status : I64 = 0
-    trans_summary := capture_status(asan_cmd, trans_status)
-    File.writefile("tmp/asan_interp_regression.log", trans_summary)
-    require_asan_output_ok(asan_channel, trans_status, trans_summary)
-
-    mut trans_bytes : I64 = 0; mut trans_allocs : I64 = 0
-    parse_asan_summary(trans_summary, trans_bytes, trans_allocs)
-    // Bytes column tracks the TRUE leak (live heap after teardown) from the
-    // TIL_LEAK_PROBE destructor, not LeakSanitizer's "bytes leaked" -- the
-    // latter is config-dependent and under-reports here by orders of
-    // magnitude (inter-leak false-reachability). Allocs stay from the LSAN
-    // summary (no config-independent count is available). Missing probe output
-    // is fatal above: otherwise a failed sanitizer run can masquerade as 0.
-    trans_true := parse_true_leak(trans_summary)
-    if trans_true.gte(0) { trans_bytes = trans_true }
-
-    // Read baseline from doc/bots/asan.org; fall back to current values.
-    mut old_trans_bytes : I64 = trans_bytes
-    mut old_trans_allocs : I64 = trans_allocs
-
-    asan_org := File.readfile("doc/bots/asan.org")
-    old_trans_bytes = asan_org_value(asan_org, asan_channel, 2, old_trans_bytes)
-    old_trans_allocs = asan_org_value(asan_org, asan_channel, 3, old_trans_allocs)
-
-    print("=== ASAN delta ===\n")
-    print("  ", asan_channel, ": ", old_trans_bytes.to_str(), " -> ", trans_bytes.to_str(),
-          " bytes (", delta_str(old_trans_bytes, trans_bytes), ", ",
-          pct_str(old_trans_bytes, trans_bytes), "), ",
-          old_trans_allocs.to_str(), " -> ", trans_allocs.to_str(),
-          " allocs (", delta_str(old_trans_allocs, trans_allocs), ", ",
-          pct_str(old_trans_allocs, trans_allocs), ")\n")
-
-    // Rewrite doc/bots/asan.org with the new baseline.
-    tb_pct := pct_str(old_trans_bytes, trans_bytes)
-    ta_pct := pct_str(old_trans_allocs, trans_allocs)
-
-    File.writefile("doc/bots/asan.org",
-        format("* ASAN baseline\n\n",
-               "Last known good from the previous processed commit.\n",
-               "Updated by examples/merge_commit.til.\n\n",
-               "| Channel   | Bytes    | Allocs   | Delta           |\n",
-               "|-----------+----------+----------+-----------------|\n",
-               "| ", asan_channel, " | ", trans_bytes.to_str(), "   | ", trans_allocs.to_str(), "    | ",
-               tb_pct, " / ", ta_pct, "     |\n"))
-
-    // ---- Step 7: commit ----
+    // ---- Step 6: commit ----
     run("git add -A")
     ec := run(format("git commit -F tmp/commit_msg.txt > tmp/commit.log 2>&1"))
     if ec.neq(0) {

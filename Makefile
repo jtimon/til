@@ -170,15 +170,15 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 
 # --- Test suite ---
 
-test: bin/til bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
+test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
-# test_fast: like `test` but without --asan. Compiled test/example binaries
-# run without ASAN instrumentation, so the suite is faster (~120s vs ~210s)
-# at the cost of not catching leaks / heap errors in compiled programs.
-# Use for quick iteration; `make test` (with --asan) remains the default
-# before committing.
+# test_fast: like `test` but without ASAN. It uses the regular compiler and
+# compiled test/example binaries run without sanitizer instrumentation, so the
+# suite is faster at the cost of not catching compiler or program leaks / heap
+# errors. Use for quick iteration; `make test` remains the default before
+# committing.
 test_fast: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
@@ -195,19 +195,12 @@ test_two_pass:
 	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
-# test_asan: alias for `test` -- the default suite now passes --asan to
-# every `til build` / `til run` / `til test` invocation, so compiled test
-# and example binaries always run ASAN-instrumented. Compiler still uses
-# the regular bin/til so its known leaks aren't reported; see
-# test_asan_full for the bin/til_asan variant.
+# ASAN target names are kept as aliases for scripts and muscle memory. The
+# default `test` target is now the strict full-ASAN suite: it runs the suite via
+# bin/til_asan and passes --asan through to compiled binaries.
 test_asan: test
 
-# test_asan_full: do both -- run the suite via the ASAN-instrumented compiler
-# (bin/til_asan) AND pass --asan through so compiled binaries are sanitized too.
-# Maximally strict. Compiler leaks will fail the run, as well as use-after-free
-# and heap-buffer-overflow from either side.
-test_asan_full: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
+test_asan_full: test
 
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
@@ -334,8 +327,8 @@ bin/%.html: examples/%.til bin/til $(RAYLIB_WASM_LIB)
 
 help:
 	echo "make                Build bin/til + regenerate boot/"
-	echo "make test           Build + run tests (with --asan on compiled binaries)"
-	echo "make test_fast      Build + run tests (no --asan; faster, less strict)"
+	echo "make test           Build + run full ASAN tests"
+	echo "make test_fast      Build + run tests without ASAN"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
 	echo "make build_wasm     Build browser WASM examples"

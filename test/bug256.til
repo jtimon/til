@@ -12,10 +12,9 @@ mode test
 // Before the fix the clone was hoisted into a temp, hiding it from the
 // garbager, so codegen emitted `Node_clone(val)` + `Node_delete(val)`: a deep
 // copy whose Str_clone of the literal label leaked whenever the surrounding
-// value was retained (the #252 compiler-AST regression). The compiler-level
-// ASAN baseline in doc/bots/asan.org tracks the leak; this test guards the
-// behavior and (under `make test`'s --asan) the move's use-after-free / double
-// -free failure modes.
+// value was retained (the #252 compiler-AST regression). This test guards the
+// behavior and, under `make test`'s full ASAN run, the move's use-after-free /
+// double-free failure modes.
 
 Node := struct {
     own label : Str = ""

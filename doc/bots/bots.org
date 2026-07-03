@@ -314,11 +314,8 @@ due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
     ulimit -d unlimited && bin/til_asan translate test/strings.til > tmp/asan.log 2>&1
     grep "SUMMARY" tmp/asan.log
 
-Remote sessions must NOT update the ASAN baseline recorded in
-`doc/bots/asan.org`. The baseline is updated automatically by the merge script
-run by the human. A remote session may report its own ASAN numbers for context,
-but should not edit the baseline table or treat small deltas as a blocker --
-the merger decides whether to accept them.
+Remote sessions may report ASAN numbers for context, but the full ASAN suite is
+now part of `make test`; do not maintain a separate leak baseline.
 
 - NEVER edit boot/ files. Fix .til or src/c/ sources instead.
 - Use `tmp/` dir for ad-hoc test files.
