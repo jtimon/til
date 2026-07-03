@@ -1263,10 +1263,12 @@ Str * format(Array__Str * parts) {
     }
     Array__Str_delete(parts, 1);
     return out;
+    __builtin_unreachable();
 }
 
 U64 Str_len(Str * self) {
     return self->count;
+    __builtin_unreachable();
 }
 
 I64 Str_cmp(Str * a, Str * b) {
@@ -1300,6 +1302,7 @@ I64 Str_cmp(Str * a, Str * b) {
     I64 hoisted__I64_147 = U64_cmp(a->count, b->count);
     (void)hoisted__I64_147;
     return hoisted__I64_147;
+    __builtin_unreachable();
 }
 
 Bool Str_eq(Str * a, Str * b) {
@@ -1326,6 +1329,7 @@ Bool Str_eq(Str * a, Str * b) {
     Bool hoisted__Bool_154 = ((Bool)(hoisted__I32_152 == hoisted__I32_153));
     (void)hoisted__Bool_154;
     return hoisted__Bool_154;
+    __builtin_unreachable();
 }
 
 Str * Str_with_capacity(U64 n) {
@@ -1357,6 +1361,7 @@ Str * Str_with_capacity(U64 n) {
     hoisted__Str_163->cap = n;
     (void)hoisted__Str_163;
     return hoisted__Str_163;
+    __builtin_unreachable();
 }
 
 void Str_push_str(Str * self, Str * s) {
@@ -1466,12 +1471,14 @@ Str * Str_clone(Str * val) {
     hoisted__Str_192->cap = val->count;
     (void)hoisted__Str_192;
     return hoisted__Str_192;
+    __builtin_unreachable();
 }
 
 Str * Str_to_str(Str * self) {
     Str *hoisted__Str_193 = Str_clone(self);
     (void)hoisted__Str_193;
     return hoisted__Str_193;
+    __builtin_unreachable();
 }
 
 void Str_delete(Str * self, Bool call_free) {
@@ -1493,12 +1500,14 @@ U64 Str_hash(Str * self, HashFn hasher) {
     U64 hoisted__U64_391 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I8 *, U64))til_closure->call)(til_closure->env, self->c_str, self->count); });
     (void)hoisted__U64_391;
     return hoisted__U64_391;
+    __builtin_unreachable();
 }
 
 U64 Str_size(void) {
     U64 hoisted__U64_575 = 24ULL;
     (void)hoisted__U64_575;
     return hoisted__U64_575;
+    __builtin_unreachable();
 }
 
 Bool Str_neq(Str * a, Str * b) {
@@ -1507,6 +1516,7 @@ Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_585 = ((Bool)(!(hoisted__Bool_584)));
     (void)hoisted__Bool_585;
     return hoisted__Bool_585;
+    __builtin_unreachable();
 }
 
 OutOfBounds * OutOfBounds_clone(OutOfBounds * self) {
@@ -1514,6 +1524,7 @@ OutOfBounds * OutOfBounds_clone(OutOfBounds * self) {
     { Str *_ca = Str_clone(&self->msg); hoisted__OutOfBounds_676->msg = *_ca; free(_ca); }
     (void)hoisted__OutOfBounds_676;
     return hoisted__OutOfBounds_676;
+    __builtin_unreachable();
 }
 
 void OutOfBounds_delete(OutOfBounds * self, Bool call_free) {
@@ -1531,12 +1542,14 @@ U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher) {
     U64 hoisted__U64_679 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, OutOfBounds *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_678); });
     (void)hoisted__U64_679;
     return hoisted__U64_679;
+    __builtin_unreachable();
 }
 
 U64 OutOfBounds_size(void) {
     U64 hoisted__U64_698 = 24ULL;
     (void)hoisted__U64_698;
     return hoisted__U64_698;
+    __builtin_unreachable();
 }
 
 Array__Str * Array__Str_new(U64 cap) {
@@ -1553,10 +1566,12 @@ Array__Str * Array__Str_new(U64 cap) {
     hoisted__Array__Str_726->cap = cap;
     (void)hoisted__Array__Str_726;
     return hoisted__Array__Str_726;
+    __builtin_unreachable();
 }
 
 U64 Array__Str_len(Array__Str * self) {
     return self->cap;
+    __builtin_unreachable();
 }
 
 Str * Array__Str_unsafe_get(Array__Str * self, U64 * i) {
@@ -1570,6 +1585,7 @@ Str * Array__Str_unsafe_get(Array__Str * self, U64 * i) {
     (void)hoisted__v_730;
     (void)hoisted__v_730;
     return hoisted__v_730;
+    __builtin_unreachable();
 }
 
 void Array__Str_unsafe_set(Array__Str * self, U64 i, Str * val) {
@@ -1845,12 +1861,14 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     hoisted__Array__Str_835->cap = self->cap;
     (void)hoisted__Array__Str_835;
     return hoisted__Array__Str_835;
+    __builtin_unreachable();
 }
 
 U64 Array__Str_size(void) {
     U64 hoisted__U64_836 = 16ULL;
     (void)hoisted__U64_836;
     return hoisted__U64_836;
+    __builtin_unreachable();
 }
 
 Vec__Str * Vec__Str_new(void) {
@@ -1870,6 +1888,7 @@ Vec__Str * Vec__Str_new(void) {
     hoisted__Vec__Str_842->cap = hoisted__I64_841;
     (void)hoisted__Vec__Str_842;
     return hoisted__Vec__Str_842;
+    __builtin_unreachable();
 }
 
 void Vec__Str_clear(Vec__Str * self) {
@@ -2046,18 +2065,21 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
     hoisted__Vec__Str_1139->cap = self->cap;
     (void)hoisted__Vec__Str_1139;
     return hoisted__Vec__Str_1139;
+    __builtin_unreachable();
 }
 
 U64 Vec__Str_size(void) {
     U64 hoisted__U64_1140 = 24ULL;
     (void)hoisted__U64_1140;
     return hoisted__U64_1140;
+    __builtin_unreachable();
 }
 
 U64 Dynamic_size(void) {
     U64 hoisted__U64_1143 = 8ULL;
     (void)hoisted__U64_1143;
     return hoisted__U64_1143;
+    __builtin_unreachable();
 }
 
 void * Dynamic_clone(void * self) {
@@ -2072,6 +2094,7 @@ void * Dynamic_clone(void * self) {
     (void)hoisted__U64_1147;
     memcpy(out, self, hoisted__U64_1147);
     return out;
+    __builtin_unreachable();
 }
 
 void Dynamic_delete(void * self, Bool call_free) {
@@ -2090,6 +2113,7 @@ U64 U8_size(void) {
     U64 hoisted__U64_1163 = 1ULL;
     (void)hoisted__U64_1163;
     return hoisted__U64_1163;
+    __builtin_unreachable();
 }
 
 U64 U8_hash(U8 self, HashFn hasher) {
@@ -2098,6 +2122,7 @@ U64 U8_hash(U8 self, HashFn hasher) {
     U64 hoisted__U64_1249 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U8 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1248); });
     (void)hoisted__U64_1249;
     return hoisted__U64_1249;
+    __builtin_unreachable();
 }
 
 void U32_delete(U32 * self, Bool call_free) {
@@ -2110,6 +2135,7 @@ U64 U32_size(void) {
     U64 hoisted__U64_1361 = 4ULL;
     (void)hoisted__U64_1361;
     return hoisted__U64_1361;
+    __builtin_unreachable();
 }
 
 U64 U32_hash(U32 self, HashFn hasher) {
@@ -2118,6 +2144,7 @@ U64 U32_hash(U32 self, HashFn hasher) {
     U64 hoisted__U64_1447 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1446); });
     (void)hoisted__U64_1447;
     return hoisted__U64_1447;
+    __builtin_unreachable();
 }
 
 Str * U64_to_str(U64 val) {
@@ -2125,6 +2152,7 @@ Str * U64_to_str(U64 val) {
     Str *hoisted__Str_1448 = U64_to_str_ext(val);
     (void)hoisted__Str_1448;
     return hoisted__Str_1448;
+    __builtin_unreachable();
 }
 
 void U64_inc(U64 * self) {
@@ -2153,6 +2181,7 @@ U64 U64_size(void) {
     U64 hoisted__U64_1457 = 8ULL;
     (void)hoisted__U64_1457;
     return hoisted__U64_1457;
+    __builtin_unreachable();
 }
 
 U64 U64_hash(U64 self, HashFn hasher) {
@@ -2161,6 +2190,7 @@ U64 U64_hash(U64 self, HashFn hasher) {
     U64 hoisted__U64_1543 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U64 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1542); });
     (void)hoisted__U64_1543;
     return hoisted__U64_1543;
+    __builtin_unreachable();
 }
 
 void I8_delete(I8 * self, Bool call_free) {
@@ -2173,6 +2203,7 @@ U64 I8_size(void) {
     U64 hoisted__U64_1564 = 1ULL;
     (void)hoisted__U64_1564;
     return hoisted__U64_1564;
+    __builtin_unreachable();
 }
 
 U64 I8_hash(I8 self, HashFn hasher) {
@@ -2181,6 +2212,7 @@ U64 I8_hash(I8 self, HashFn hasher) {
     U64 hoisted__U64_1566 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I8 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1565); });
     (void)hoisted__U64_1566;
     return hoisted__U64_1566;
+    __builtin_unreachable();
 }
 
 void I32_delete(I32 * self, Bool call_free) {
@@ -2193,6 +2225,7 @@ U64 I32_size(void) {
     U64 hoisted__U64_1751 = 4ULL;
     (void)hoisted__U64_1751;
     return hoisted__U64_1751;
+    __builtin_unreachable();
 }
 
 U64 I32_hash(I32 self, HashFn hasher) {
@@ -2201,6 +2234,7 @@ U64 I32_hash(I32 self, HashFn hasher) {
     U64 hoisted__U64_1894 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1893); });
     (void)hoisted__U64_1894;
     return hoisted__U64_1894;
+    __builtin_unreachable();
 }
 
 Str * I64_to_str(I64 val) {
@@ -2250,6 +2284,7 @@ Str * I64_to_str(I64 val) {
     Str *hoisted__Str_1908 = U64_to_str(hoisted__U64_1907);
     (void)hoisted__Str_1908;
     return hoisted__Str_1908;
+    __builtin_unreachable();
 }
 
 void I64_delete(I64 * self, Bool call_free) {
@@ -2262,6 +2297,7 @@ U64 I64_size(void) {
     U64 hoisted__U64_1926 = 8ULL;
     (void)hoisted__U64_1926;
     return hoisted__U64_1926;
+    __builtin_unreachable();
 }
 
 U64 I64_hash(I64 self, HashFn hasher) {
@@ -2270,6 +2306,7 @@ U64 I64_hash(I64 self, HashFn hasher) {
     U64 hoisted__U64_2085 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I64 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2084); });
     (void)hoisted__U64_2085;
     return hoisted__U64_2085;
+    __builtin_unreachable();
 }
 
 void F32_delete(F32 * self, Bool call_free) {
@@ -2282,6 +2319,7 @@ U64 F32_size(void) {
     U64 hoisted__U64_2087 = 4ULL;
     (void)hoisted__U64_2087;
     return hoisted__U64_2087;
+    __builtin_unreachable();
 }
 
 U64 F32_hash(F32 self, HashFn hasher) {
@@ -2290,6 +2328,7 @@ U64 F32_hash(F32 self, HashFn hasher) {
     U64 hoisted__U64_2106 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, F32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2105); });
     (void)hoisted__U64_2106;
     return hoisted__U64_2106;
+    __builtin_unreachable();
 }
 
 Bool and(Bool a, Bool b) {
@@ -2311,6 +2350,7 @@ Bool and(Bool a, Bool b) {
         }
     }
     return _m_Bool_2153;
+    __builtin_unreachable();
 }
 
 I64 Bool_cmp(Bool a, Bool b) {
@@ -2330,6 +2370,7 @@ I64 Bool_cmp(Bool a, Bool b) {
     I64 hoisted__I64_2168 = 1;
     (void)hoisted__I64_2168;
     return hoisted__I64_2168;
+    __builtin_unreachable();
 }
 
 void Bool_delete(Bool * self, Bool call_free) {
@@ -2342,6 +2383,7 @@ U64 Bool_size(void) {
     U64 hoisted__U64_2169 = 1ULL;
     (void)hoisted__U64_2169;
     return hoisted__U64_2169;
+    __builtin_unreachable();
 }
 
 U64 Bool_hash(Bool self, HashFn hasher) {
@@ -2350,6 +2392,7 @@ U64 Bool_hash(Bool self, HashFn hasher) {
     U64 hoisted__U64_2171 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Bool *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2170); });
     (void)hoisted__U64_2171;
     return hoisted__U64_2171;
+    __builtin_unreachable();
 }
 
 Primitive *Primitive_I16() {
@@ -2526,6 +2569,7 @@ Bool Primitive_eq(Primitive * self, Primitive * other) {
     Bool hoisted__Bool_2228 = 0;
     (void)hoisted__Bool_2228;
     return hoisted__Bool_2228;
+    __builtin_unreachable();
 }
 
 void Primitive_delete(Primitive * self, Bool call_free) {
@@ -2601,12 +2645,14 @@ Primitive * Primitive_clone(Primitive * self) {
     Str_delete(&hoisted__Str_2260, (Bool){0});
     { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I16;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 Primitive_size(void) {
     U64 hoisted__U64_2261 = 1ULL;
     (void)hoisted__U64_2261;
     return hoisted__U64_2261;
+    __builtin_unreachable();
 }
 
 
@@ -2885,12 +2931,14 @@ Type * Type_clone(Type * self) {
     }
     { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Body;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 Type_size(void) {
     U64 hoisted__U64_2476 = 32ULL;
     (void)hoisted__U64_2476;
     return hoisted__U64_2476;
+    __builtin_unreachable();
 }
 
 
@@ -3068,6 +3116,7 @@ Bool FuncType_eq(FuncType * self, FuncType * other) {
     Bool hoisted__Bool_2644 = 0;
     (void)hoisted__Bool_2644;
     return hoisted__Bool_2644;
+    __builtin_unreachable();
 }
 
 void FuncType_delete(FuncType * self, Bool call_free) {
@@ -3143,12 +3192,14 @@ FuncType * FuncType_clone(FuncType * self) {
     Str_delete(&hoisted__Str_2676, (Bool){0});
     { FuncType *_r = malloc(sizeof(FuncType)); _r->tag = FuncType_TAG_Func;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 FuncType_size(void) {
     U64 hoisted__U64_2677 = 1ULL;
     (void)hoisted__U64_2677;
     return hoisted__U64_2677;
+    __builtin_unreachable();
 }
 
 
@@ -3207,6 +3258,7 @@ Bool OwnType_eq(OwnType * self, OwnType * other) {
     Bool hoisted__Bool_2692 = 0;
     (void)hoisted__Bool_2692;
     return hoisted__Bool_2692;
+    __builtin_unreachable();
 }
 
 void OwnType_delete(OwnType * self, Bool call_free) {
@@ -3240,12 +3292,14 @@ OwnType * OwnType_clone(OwnType * self) {
     Str_delete(&hoisted__Str_2703, (Bool){0});
     { OwnType *_r = malloc(sizeof(OwnType)); _r->tag = OwnType_TAG_Own;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 OwnType_size(void) {
     U64 hoisted__U64_2704 = 1ULL;
     (void)hoisted__U64_2704;
     return hoisted__U64_2704;
+    __builtin_unreachable();
 }
 
 
@@ -3266,6 +3320,7 @@ Declaration * Declaration_clone(Declaration * self) {
     { Str *_ca = Str_clone(&self->orig_name); hoisted__Declaration_2707->orig_name = *_ca; free(_ca); }
     (void)hoisted__Declaration_2707;
     return hoisted__Declaration_2707;
+    __builtin_unreachable();
 }
 
 void Declaration_delete(Declaration * self, Bool call_free) {
@@ -3311,6 +3366,7 @@ U64 Declaration_size(void) {
     U64 hoisted__U64_2719 = 144ULL;
     (void)hoisted__U64_2719;
     return hoisted__U64_2719;
+    __builtin_unreachable();
 }
 
 FunctionDef * FunctionDef_clone(FunctionDef * self) {
@@ -3329,6 +3385,7 @@ FunctionDef * FunctionDef_clone(FunctionDef * self) {
     { Str *_ca = Str_clone(&self->closure_name); hoisted__FunctionDef_2721->closure_name = *_ca; free(_ca); }
     (void)hoisted__FunctionDef_2721;
     return hoisted__FunctionDef_2721;
+    __builtin_unreachable();
 }
 
 void FunctionDef_delete(FunctionDef * self, Bool call_free) {
@@ -3379,12 +3436,14 @@ U64 FunctionDef_hash(FunctionDef * self, HashFn hasher) {
     U64 hoisted__U64_2735 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FunctionDef *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2734); });
     (void)hoisted__U64_2735;
     return hoisted__U64_2735;
+    __builtin_unreachable();
 }
 
 U64 FunctionDef_size(void) {
     U64 hoisted__U64_2736 = 144ULL;
     (void)hoisted__U64_2736;
     return hoisted__U64_2736;
+    __builtin_unreachable();
 }
 
 FCallData * FCallData_clone(FCallData * self) {
@@ -3397,6 +3456,7 @@ FCallData * FCallData_clone(FCallData * self) {
     { Type *_ca = Type_clone(&self->til_type); hoisted__FCallData_2739->til_type = *_ca; free(_ca); }
     (void)hoisted__FCallData_2739;
     return hoisted__FCallData_2739;
+    __builtin_unreachable();
 }
 
 void FCallData_delete(FCallData * self, Bool call_free) {
@@ -3429,12 +3489,14 @@ U64 FCallData_hash(FCallData * self, HashFn hasher) {
     U64 hoisted__U64_2747 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FCallData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2746); });
     (void)hoisted__U64_2747;
     return hoisted__U64_2747;
+    __builtin_unreachable();
 }
 
 U64 FCallData_size(void) {
     U64 hoisted__U64_2748 = 56ULL;
     (void)hoisted__U64_2748;
     return hoisted__U64_2748;
+    __builtin_unreachable();
 }
 
 LiteralNumData * LiteralNumData_clone(LiteralNumData * self) {
@@ -3443,6 +3505,7 @@ LiteralNumData * LiteralNumData_clone(LiteralNumData * self) {
     { Type *_ca = Type_clone(&self->til_type); hoisted__LiteralNumData_2760->til_type = *_ca; free(_ca); }
     (void)hoisted__LiteralNumData_2760;
     return hoisted__LiteralNumData_2760;
+    __builtin_unreachable();
 }
 
 void LiteralNumData_delete(LiteralNumData * self, Bool call_free) {
@@ -3463,12 +3526,14 @@ U64 LiteralNumData_hash(LiteralNumData * self, HashFn hasher) {
     U64 hoisted__U64_2764 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, LiteralNumData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2763); });
     (void)hoisted__U64_2764;
     return hoisted__U64_2764;
+    __builtin_unreachable();
 }
 
 U64 LiteralNumData_size(void) {
     U64 hoisted__U64_2765 = 56ULL;
     (void)hoisted__U64_2765;
     return hoisted__U64_2765;
+    __builtin_unreachable();
 }
 
 IdentData * IdentData_clone(IdentData * self) {
@@ -3477,6 +3542,7 @@ IdentData * IdentData_clone(IdentData * self) {
     { Type *_ca = Type_clone(&self->til_type); hoisted__IdentData_2775->til_type = *_ca; free(_ca); }
     (void)hoisted__IdentData_2775;
     return hoisted__IdentData_2775;
+    __builtin_unreachable();
 }
 
 void IdentData_delete(IdentData * self, Bool call_free) {
@@ -3497,12 +3563,14 @@ U64 IdentData_hash(IdentData * self, HashFn hasher) {
     U64 hoisted__U64_2779 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, IdentData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2778); });
     (void)hoisted__U64_2779;
     return hoisted__U64_2779;
+    __builtin_unreachable();
 }
 
 U64 IdentData_size(void) {
     U64 hoisted__U64_2780 = 56ULL;
     (void)hoisted__U64_2780;
     return hoisted__U64_2780;
+    __builtin_unreachable();
 }
 
 FieldAccessData * FieldAccessData_clone(FieldAccessData * self) {
@@ -3511,6 +3579,7 @@ FieldAccessData * FieldAccessData_clone(FieldAccessData * self) {
     { Type *_ca = Type_clone(&self->til_type); hoisted__FieldAccessData_2786->til_type = *_ca; free(_ca); }
     (void)hoisted__FieldAccessData_2786;
     return hoisted__FieldAccessData_2786;
+    __builtin_unreachable();
 }
 
 void FieldAccessData_delete(FieldAccessData * self, Bool call_free) {
@@ -3531,12 +3600,14 @@ U64 FieldAccessData_hash(FieldAccessData * self, HashFn hasher) {
     U64 hoisted__U64_2790 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAccessData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2789); });
     (void)hoisted__U64_2790;
     return hoisted__U64_2790;
+    __builtin_unreachable();
 }
 
 U64 FieldAccessData_size(void) {
     U64 hoisted__U64_2791 = 56ULL;
     (void)hoisted__U64_2791;
     return hoisted__U64_2791;
+    __builtin_unreachable();
 }
 
 StructDef * StructDef_clone(StructDef * self) {
@@ -3549,6 +3620,7 @@ StructDef * StructDef_clone(StructDef * self) {
     { Str *_ca = Str_clone(&self->implements_name); hoisted__StructDef_2870->implements_name = *_ca; free(_ca); }
     (void)hoisted__StructDef_2870;
     return hoisted__StructDef_2870;
+    __builtin_unreachable();
 }
 
 void StructDef_delete(StructDef * self, Bool call_free) {
@@ -3581,12 +3653,14 @@ U64 StructDef_hash(StructDef * self, HashFn hasher) {
     U64 hoisted__U64_2878 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, StructDef *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2877); });
     (void)hoisted__U64_2878;
     return hoisted__U64_2878;
+    __builtin_unreachable();
 }
 
 U64 StructDef_size(void) {
     U64 hoisted__U64_2879 = 104ULL;
     (void)hoisted__U64_2879;
     return hoisted__U64_2879;
+    __builtin_unreachable();
 }
 
 EnumDef * EnumDef_clone(EnumDef * self) {
@@ -3600,6 +3674,7 @@ EnumDef * EnumDef_clone(EnumDef * self) {
     { Vec__I64 *_ca = Vec__I64_clone(&self->tag_values); hoisted__EnumDef_2884->tag_values = *_ca; free(_ca); }
     (void)hoisted__EnumDef_2884;
     return hoisted__EnumDef_2884;
+    __builtin_unreachable();
 }
 
 void EnumDef_delete(EnumDef * self, Bool call_free) {
@@ -3635,12 +3710,14 @@ U64 EnumDef_hash(EnumDef * self, HashFn hasher) {
     U64 hoisted__U64_2893 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, EnumDef *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_2892); });
     (void)hoisted__U64_2893;
     return hoisted__U64_2893;
+    __builtin_unreachable();
 }
 
 U64 EnumDef_size(void) {
     U64 hoisted__U64_2894 = 192ULL;
     (void)hoisted__U64_2894;
     return hoisted__U64_2894;
+    __builtin_unreachable();
 }
 
 AssignData * AssignData_clone(AssignData * self) {
@@ -3651,6 +3728,7 @@ AssignData * AssignData_clone(AssignData * self) {
     hoisted__AssignData_2995->swap_replace = self->swap_replace;
     (void)hoisted__AssignData_2995;
     return hoisted__AssignData_2995;
+    __builtin_unreachable();
 }
 
 void AssignData_delete(AssignData * self, Bool call_free) {
@@ -3677,12 +3755,14 @@ U64 AssignData_hash(AssignData * self, HashFn hasher) {
     U64 hoisted__U64_3001 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, AssignData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3000); });
     (void)hoisted__U64_3001;
     return hoisted__U64_3001;
+    __builtin_unreachable();
 }
 
 U64 AssignData_size(void) {
     U64 hoisted__U64_3002 = 32ULL;
     (void)hoisted__U64_3002;
     return hoisted__U64_3002;
+    __builtin_unreachable();
 }
 
 FieldAssignData * FieldAssignData_clone(FieldAssignData * self) {
@@ -3691,6 +3771,7 @@ FieldAssignData * FieldAssignData_clone(FieldAssignData * self) {
     hoisted__FieldAssignData_3004->save_old_delete = self->save_old_delete;
     (void)hoisted__FieldAssignData_3004;
     return hoisted__FieldAssignData_3004;
+    __builtin_unreachable();
 }
 
 void FieldAssignData_delete(FieldAssignData * self, Bool call_free) {
@@ -3711,12 +3792,14 @@ U64 FieldAssignData_hash(FieldAssignData * self, HashFn hasher) {
     U64 hoisted__U64_3008 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, FieldAssignData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3007); });
     (void)hoisted__U64_3008;
     return hoisted__U64_3008;
+    __builtin_unreachable();
 }
 
 U64 FieldAssignData_size(void) {
     U64 hoisted__U64_3009 = 32ULL;
     (void)hoisted__U64_3009;
     return hoisted__U64_3009;
+    __builtin_unreachable();
 }
 
 ForInData * ForInData_clone(ForInData * self) {
@@ -3728,6 +3811,7 @@ ForInData * ForInData_clone(ForInData * self) {
     hoisted__ForInData_3011->is_mut2 = self->is_mut2;
     (void)hoisted__ForInData_3011;
     return hoisted__ForInData_3011;
+    __builtin_unreachable();
 }
 
 void ForInData_delete(ForInData * self, Bool call_free) {
@@ -3757,12 +3841,14 @@ U64 ForInData_hash(ForInData * self, HashFn hasher) {
     U64 hoisted__U64_3018 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, ForInData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3017); });
     (void)hoisted__U64_3018;
     return hoisted__U64_3018;
+    __builtin_unreachable();
 }
 
 U64 ForInData_size(void) {
     U64 hoisted__U64_3019 = 96ULL;
     (void)hoisted__U64_3019;
     return hoisted__U64_3019;
+    __builtin_unreachable();
 }
 
 Literal *Literal_Str(Str * val) {
@@ -3904,12 +3990,14 @@ Literal * Literal_clone(Literal * self) {
     }
     { Literal *_r = malloc(sizeof(Literal)); _r->tag = Literal_TAG_SetLit;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 Literal_size(void) {
     U64 hoisted__U64_3132 = 64ULL;
     (void)hoisted__U64_3132;
     return hoisted__U64_3132;
+    __builtin_unreachable();
 }
 
 
@@ -3919,6 +4007,7 @@ MatchData * MatchData_clone(MatchData * self) {
     { Str *_ca = Str_clone(&self->result_temp); hoisted__MatchData_3135->result_temp = *_ca; free(_ca); }
     (void)hoisted__MatchData_3135;
     return hoisted__MatchData_3135;
+    __builtin_unreachable();
 }
 
 void MatchData_delete(MatchData * self, Bool call_free) {
@@ -3939,12 +4028,14 @@ U64 MatchData_hash(MatchData * self, HashFn hasher) {
     U64 hoisted__U64_3139 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, MatchData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3138); });
     (void)hoisted__U64_3139;
     return hoisted__U64_3139;
+    __builtin_unreachable();
 }
 
 U64 MatchData_size(void) {
     U64 hoisted__U64_3140 = 56ULL;
     (void)hoisted__U64_3140;
     return hoisted__U64_3140;
+    __builtin_unreachable();
 }
 
 CaptureBlockData * CaptureBlockData_clone(CaptureBlockData * self) {
@@ -3953,6 +4044,7 @@ CaptureBlockData * CaptureBlockData_clone(CaptureBlockData * self) {
     { Str *_ca = Str_clone(&self->closure_name); hoisted__CaptureBlockData_3145->closure_name = *_ca; free(_ca); }
     (void)hoisted__CaptureBlockData_3145;
     return hoisted__CaptureBlockData_3145;
+    __builtin_unreachable();
 }
 
 void CaptureBlockData_delete(CaptureBlockData * self, Bool call_free) {
@@ -3973,12 +4065,14 @@ U64 CaptureBlockData_hash(CaptureBlockData * self, HashFn hasher) {
     U64 hoisted__U64_3149 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CaptureBlockData *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3148); });
     (void)hoisted__U64_3149;
     return hoisted__U64_3149;
+    __builtin_unreachable();
 }
 
 U64 CaptureBlockData_size(void) {
     U64 hoisted__U64_3150 = 48ULL;
     (void)hoisted__U64_3150;
     return hoisted__U64_3150;
+    __builtin_unreachable();
 }
 
 NodeType *NodeType_Body() {
@@ -4660,12 +4754,14 @@ NodeType * NodeType_clone(NodeType * self) {
     NodeType *hoisted__NodeType_3759 = NodeType_BodyValue(hoisted__CaptureBlockData_3758);
     (void)hoisted__NodeType_3759;
     return hoisted__NodeType_3759;
+    __builtin_unreachable();
 }
 
 U64 NodeType_size(void) {
     U64 hoisted__U64_3760 = 200ULL;
     (void)hoisted__U64_3760;
     return hoisted__U64_3760;
+    __builtin_unreachable();
 }
 
 
@@ -4693,6 +4789,7 @@ Expr * Expr_new(NodeType * data, U32 line, U32 col) {
     hoisted__Expr_3812->col = col;
     (void)hoisted__Expr_3812;
     return hoisted__Expr_3812;
+    __builtin_unreachable();
 }
 
 Expr * Expr_clone(Expr * self) {
@@ -4703,6 +4800,7 @@ Expr * Expr_clone(Expr * self) {
     hoisted__Expr_3821->col = self->col;
     (void)hoisted__Expr_3821;
     return hoisted__Expr_3821;
+    __builtin_unreachable();
 }
 
 U64 Expr_hash(Expr * self, HashFn hasher) {
@@ -4711,12 +4809,14 @@ U64 Expr_hash(Expr * self, HashFn hasher) {
     U64 hoisted__U64_3823 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Expr *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_3822); });
     (void)hoisted__U64_3823;
     return hoisted__U64_3823;
+    __builtin_unreachable();
 }
 
 U64 Expr_size(void) {
     U64 hoisted__U64_3824 = 232ULL;
     (void)hoisted__U64_3824;
     return hoisted__U64_3824;
+    __builtin_unreachable();
 }
 
 Map__I64_Str * Map__I64_Str_new(void) {
@@ -4725,6 +4825,7 @@ Map__I64_Str * Map__I64_Str_new(void) {
     { Vec__Str *_ca = Vec__Str_new(); hoisted__Map__I64_Str_4910->values = *_ca; free(_ca); }
     (void)hoisted__Map__I64_Str_4910;
     return hoisted__Map__I64_Str_4910;
+    __builtin_unreachable();
 }
 
 void Map__I64_Str_delete(Map__I64_Str * self, Bool call_free) {
@@ -4745,6 +4846,7 @@ Map__I64_Str * Map__I64_Str_clone(Map__I64_Str * self) {
     { Vec__Str *_ca = Vec__Str_clone(&self->values); hoisted__Map__I64_Str_5025->values = *_ca; free(_ca); }
     (void)hoisted__Map__I64_Str_5025;
     return hoisted__Map__I64_Str_5025;
+    __builtin_unreachable();
 }
 
 U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher) {
@@ -4753,12 +4855,14 @@ U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher) {
     U64 hoisted__U64_5027 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Map__I64_Str *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_5026); });
     (void)hoisted__U64_5027;
     return hoisted__U64_5027;
+    __builtin_unreachable();
 }
 
 U64 Map__I64_Str_size(void) {
     U64 hoisted__U64_5028 = 48ULL;
     (void)hoisted__U64_5028;
     return hoisted__U64_5028;
+    __builtin_unreachable();
 }
 
 Vec__Bool * Vec__Bool_new(void) {
@@ -4778,6 +4882,7 @@ Vec__Bool * Vec__Bool_new(void) {
     hoisted__Vec__Bool_5034->cap = hoisted__I64_5033;
     (void)hoisted__Vec__Bool_5034;
     return hoisted__Vec__Bool_5034;
+    __builtin_unreachable();
 }
 
 void Vec__Bool_clear(Vec__Bool * self) {
@@ -4952,12 +5057,14 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
     hoisted__Vec__Bool_5331->cap = self->cap;
     (void)hoisted__Vec__Bool_5331;
     return hoisted__Vec__Bool_5331;
+    __builtin_unreachable();
 }
 
 U64 Vec__Bool_size(void) {
     U64 hoisted__U64_5332 = 24ULL;
     (void)hoisted__U64_5332;
     return hoisted__U64_5332;
+    __builtin_unreachable();
 }
 
 Vec__I64 * Vec__I64_new(void) {
@@ -4977,6 +5084,7 @@ Vec__I64 * Vec__I64_new(void) {
     hoisted__Vec__I64_5338->cap = hoisted__I64_5337;
     (void)hoisted__Vec__I64_5338;
     return hoisted__Vec__I64_5338;
+    __builtin_unreachable();
 }
 
 void Vec__I64_clear(Vec__I64 * self) {
@@ -5151,12 +5259,14 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
     hoisted__Vec__I64_5635->cap = self->cap;
     (void)hoisted__Vec__I64_5635;
     return hoisted__Vec__I64_5635;
+    __builtin_unreachable();
 }
 
 U64 Vec__I64_size(void) {
     U64 hoisted__U64_5636 = 24ULL;
     (void)hoisted__U64_5636;
     return hoisted__U64_5636;
+    __builtin_unreachable();
 }
 
 Vec__Declaration * Vec__Declaration_new(void) {
@@ -5176,6 +5286,7 @@ Vec__Declaration * Vec__Declaration_new(void) {
     hoisted__Vec__Declaration_5946->cap = hoisted__I64_5945;
     (void)hoisted__Vec__Declaration_5946;
     return hoisted__Vec__Declaration_5946;
+    __builtin_unreachable();
 }
 
 void Vec__Declaration_clear(Vec__Declaration * self) {
@@ -5352,12 +5463,14 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
     hoisted__Vec__Declaration_6243->cap = self->cap;
     (void)hoisted__Vec__Declaration_6243;
     return hoisted__Vec__Declaration_6243;
+    __builtin_unreachable();
 }
 
 U64 Vec__Declaration_size(void) {
     U64 hoisted__U64_6244 = 24ULL;
     (void)hoisted__U64_6244;
     return hoisted__U64_6244;
+    __builtin_unreachable();
 }
 
 Vec__Expr * Vec__Expr_new(void) {
@@ -5377,6 +5490,7 @@ Vec__Expr * Vec__Expr_new(void) {
     hoisted__Vec__Expr_6250->cap = hoisted__I64_6249;
     (void)hoisted__Vec__Expr_6250;
     return hoisted__Vec__Expr_6250;
+    __builtin_unreachable();
 }
 
 void Vec__Expr_clear(Vec__Expr * self) {
@@ -5553,12 +5667,14 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
     hoisted__Vec__Expr_6547->cap = self->cap;
     (void)hoisted__Vec__Expr_6547;
     return hoisted__Vec__Expr_6547;
+    __builtin_unreachable();
 }
 
 U64 Vec__Expr_size(void) {
     U64 hoisted__U64_6548 = 24ULL;
     (void)hoisted__U64_6548;
     return hoisted__U64_6548;
+    __builtin_unreachable();
 }
 
 void panic(Array__Str * parts, Str * loc) {
@@ -5686,6 +5802,7 @@ Bool is_null(void * p) {
     Bool hoisted__Bool_7715 = ptr_eq(p, NULL);
     (void)hoisted__Bool_7715;
     return hoisted__Bool_7715;
+    __builtin_unreachable();
 }
 
 void swap(void * a, void * b, U64 size) {
@@ -5701,6 +5818,7 @@ Range * Range_clone(Range * val) {
     (void)hoisted__Range_7724;
     { Range *_r = malloc(sizeof(Range)); *_r = hoisted__Range_7724;
     return _r; }
+    __builtin_unreachable();
 }
 
 void Range_delete(Range * self, Bool call_free) {
@@ -5715,12 +5833,14 @@ U64 Range_hash(Range * self, HashFn hasher) {
     U64 hoisted__U64_7726 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_7725); });
     (void)hoisted__U64_7726;
     return hoisted__U64_7726;
+    __builtin_unreachable();
 }
 
 U64 Range_size(void) {
     U64 hoisted__U64_7757 = 16ULL;
     (void)hoisted__U64_7757;
     return hoisted__U64_7757;
+    __builtin_unreachable();
 }
 
 void test_simple_add(void) {
@@ -5886,6 +6006,7 @@ CfVec2 * CfVec2_clone(CfVec2 * self) {
     (void)hoisted__CfVec2_8505;
     { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_8505;
     return _r; }
+    __builtin_unreachable();
 }
 
 void CfVec2_delete(CfVec2 * self, Bool call_free) {
@@ -5900,12 +6021,14 @@ U64 CfVec2_hash(CfVec2 * self, HashFn hasher) {
     U64 hoisted__U64_8507 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec2 *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_8506); });
     (void)hoisted__U64_8507;
     return hoisted__U64_8507;
+    __builtin_unreachable();
 }
 
 U64 CfVec2_size(void) {
     U64 hoisted__U64_8538 = 16ULL;
     (void)hoisted__U64_8538;
     return hoisted__U64_8538;
+    __builtin_unreachable();
 }
 
 void test_struct_fold_simple(void) {
@@ -5947,6 +6070,7 @@ CfRect * CfRect_clone(CfRect * self) {
     (void)hoisted__CfRect_8554;
     { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_8554;
     return _r; }
+    __builtin_unreachable();
 }
 
 void CfRect_delete(CfRect * self, Bool call_free) {
@@ -5961,12 +6085,14 @@ U64 CfRect_hash(CfRect * self, HashFn hasher) {
     U64 hoisted__U64_8556 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfRect *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_8555); });
     (void)hoisted__U64_8556;
     return hoisted__U64_8556;
+    __builtin_unreachable();
 }
 
 U64 CfRect_size(void) {
     U64 hoisted__U64_8587 = 32ULL;
     (void)hoisted__U64_8587;
     return hoisted__U64_8587;
+    __builtin_unreachable();
 }
 
 void test_struct_fold_nested(void) {
@@ -6003,6 +6129,7 @@ CfVec3f * CfVec3f_clone(CfVec3f * self) {
     (void)hoisted__CfVec3f_8597;
     { CfVec3f *_r = malloc(sizeof(CfVec3f)); *_r = hoisted__CfVec3f_8597;
     return _r; }
+    __builtin_unreachable();
 }
 
 void CfVec3f_delete(CfVec3f * self, Bool call_free) {
@@ -6017,12 +6144,14 @@ U64 CfVec3f_hash(CfVec3f * self, HashFn hasher) {
     U64 hoisted__U64_8599 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec3f *, U64))til_closure->call)(til_closure->env, self, hoisted__U64_8598); });
     (void)hoisted__U64_8599;
     return hoisted__U64_8599;
+    __builtin_unreachable();
 }
 
 U64 CfVec3f_size(void) {
     U64 hoisted__U64_8642 = 12ULL;
     (void)hoisted__U64_8642;
     return hoisted__U64_8642;
+    __builtin_unreachable();
 }
 
 void test_struct_fold_f32(void) {
@@ -6115,6 +6244,7 @@ Bool Color_eq(Color * self, Color * other) {
     Bool hoisted__Bool_8669 = 0;
     (void)hoisted__Bool_8669;
     return hoisted__Bool_8669;
+    __builtin_unreachable();
 }
 
 void Color_delete(Color * self, Bool call_free) {
@@ -6148,12 +6278,14 @@ Color * Color_clone(Color * self) {
     Str_delete(&hoisted__Str_8680, (Bool){0});
     { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 Color_size(void) {
     U64 hoisted__U64_8681 = 1ULL;
     (void)hoisted__U64_8681;
     return hoisted__U64_8681;
+    __builtin_unreachable();
 }
 
 
@@ -6199,6 +6331,7 @@ Bool Token_is(Token * self, Token * other) {
     Bool hoisted__Bool_8688 = ((Bool)(((Token *)(self))->tag == ((Token *)(other))->tag));
     (void)hoisted__Bool_8688;
     return hoisted__Bool_8688;
+    __builtin_unreachable();
 }
 
 void Token_delete(Token * self, Bool call_free) {
@@ -6262,12 +6395,14 @@ Token * Token_clone(Token * self) {
     }
     { Token *_r = malloc(sizeof(Token)); _r->tag = Token_TAG_Eof;
     return _r; }
+    __builtin_unreachable();
 }
 
 U64 Token_size(void) {
     U64 hoisted__U64_8753 = 32ULL;
     (void)hoisted__U64_8753;
     return hoisted__U64_8753;
+    __builtin_unreachable();
 }
 
 

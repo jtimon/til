@@ -3888,6 +3888,63 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
     f.write(ind).write(ttype).write(" *").write(var).write(" = ").write(expr).write(";\n")
 }
 
+// True if executing `e` can never fall through to the statement that would
+// follow it: it always returns, or every branch of it does. A non-void
+// function whose body diverges gets a trailing `__builtin_unreachable()`
+// (see emit_diverge_terminator) so GCC's -Wreturn-type stays quiet under
+// ASAN -- `-fsanitize=address` mutates the CFG enough that GCC can no longer
+// prove an exhaustive switch/if never falls off the end of a non-void
+// function, and mis-fires "control reaches end of non-void function".
+// The check is SOUND (only true when control genuinely cannot reach the end),
+// so a genuinely missing return is never hidden: such a body does NOT diverge,
+// no terminator is emitted, and GCC's -Werror=return-type still fires on it --
+// til's only all-paths-return safety net.
+priv body_diverges := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Return:
+        return true
+    case NodeType.Body:
+        // A block never falls through iff one of its statements diverges: the
+        // garbager appends an owned-local cleanup after the real terminator,
+        // so "any child diverges" is what marks the block as non-falling.
+        for c : Expr in e.children {
+            if body_diverges(c) { return true }
+        }
+        return false
+    case NodeType.If:
+        // Needs an else branch (children[2]) AND both branches diverging.
+        if e.children.len() <= 2 { return false }
+        return body_diverges(e.children[1]).and(body_diverges(e.children[2]))
+    case NodeType.Switch:
+        // C-exhaustive (a `default:`, emitted for the `case:` wildcard) and
+        // every arm diverges. Without a default GCC treats the switch as able
+        // to fall off its end, so the default is required to claim divergence.
+        mut has_default := false
+        for ci in 1..e.children.len() {
+            ref cn : Expr = e.children[ci]
+            if cn.children.len() == 1 {
+                has_default = true
+                if body_diverges(cn.children[0]).not() { return false }
+            } else {
+                if body_diverges(cn.children[1]).not() { return false }
+            }
+        }
+        return has_default
+    case:
+        return false
+    }
+}
+
+// Emit the trailing `__builtin_unreachable()` for a non-void function whose
+// body never falls through (see body_diverges). No-op for void functions
+// (they may legally fall off the end) and for bodies that can fall through
+// (leaving GCC's -Werror=return-type to catch a genuinely missing return).
+priv emit_diverge_terminator := proc(f: File, ret: Str, body: Expr) {
+    if ret.eq("void").not().and(body_diverges(body)) {
+        f.write("    __builtin_unreachable();\n")
+    }
+}
+
 priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
@@ -4015,6 +4072,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.in_func_def = false
+        emit_diverge_terminator(f, ret, body)
         f.write("}\n")
     }
     case:
@@ -4078,6 +4136,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.in_func_def = saved_in_func_def
         lp.ctx.current_fdef = saved_current_fdef
         lp.ctx.builder_func = saved_builder_func
+        emit_diverge_terminator(f, ret, closure_expr.children[0])
         f.write("}\n\n")
     case NodeType.BodyValue(bd):
         if bd.closure_name.len().eq(0) { return }
@@ -5366,22 +5425,18 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
     extra := toolchain_extra_args(target, compiler)
 
-    // ASAN: keep -Werror but demote return-type to a non-fatal warning,
-    // then add the sanitizer flags. The generated C compiles clean under
-    // -Wall -Wextra -Werror without ASAN, but -fsanitize=address inserts
-    // __asan_* hooks that mutate the CFG enough that GCC can no longer
-    // prove some exhaustive if/else chains never fall off the end of a
-    // non-void function, so it mis-fires -Werror=return-type. Issue #240:
-    // -Wno-error=return-type suppresses just that false positive instead
-    // of disabling the whole -Wall set like the old -Wno-all band-aid;
-    // every other -Wall/-Wextra warning stays a hard error. Non-ASAN
-    // builds keep -Werror=return-type as a real error -- til has no
-    // all-paths-return check of its own, so that is the only safety net
-    // for a genuinely missing return.
-    mut werr := " -Werror"
+    // ASAN builds run under the same full -Werror as non-ASAN. Historically
+    // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
+    // that GCC could no longer prove an exhaustive switch/if never falls off
+    // the end of a non-void function, mis-firing -Werror=return-type (issue
+    // #240 demoted just that check with -Wno-error=return-type). The emitter
+    // now closes every diverging non-void body with __builtin_unreachable()
+    // (see body_diverges / emit_diverge_terminator), so GCC no longer needs
+    // to prove it and the false positive is gone -- return-type is a real
+    // error again under ASAN too, still catching a genuinely missing return.
+    werr := " -Werror"
     mut asan_flags := ""
     if asan {
-        werr = " -Werror -Wno-error=return-type"
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
 
@@ -5471,17 +5526,17 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         extra = " -Wall -Wextra -Wno-sometimes-uninitialized -Wno-self-assign -Wno-uninitialized -Wno-unused-function -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
     }
 
-    // ASAN: keep -Werror but demote return-type to a non-fatal warning,
-    // then add the sanitizer flags. Single cc invocation here, so the
-    // flags work for compile and link in one go. -fsanitize=address
-    // mutates the CFG enough that GCC mis-fires -Werror=return-type on
-    // exhaustive non-void functions; Issue #240 narrows the suppression
-    // to -Wno-error=return-type (see compile_lib) so the rest of -Wall
-    // /-Wextra stays a hard error rather than the old blunt -Wno-all.
-    mut werr := " -Werror"
+    // ASAN builds run under the same full -Werror as non-ASAN (single cc
+    // invocation, so the flags cover compile and link in one go).
+    // -fsanitize=address used to mutate the CFG enough that GCC mis-fired
+    // -Werror=return-type on exhaustive non-void functions (issue #240
+    // demoted it with -Wno-error=return-type). The emitter now terminates
+    // every diverging non-void body with __builtin_unreachable() (see
+    // body_diverges / emit_diverge_terminator), so the false positive is
+    // gone and return-type stays a hard error under ASAN too.
+    werr := " -Werror"
     mut asan_flags := ""
     if asan {
-        werr = " -Werror -Wno-error=return-type"
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
 
