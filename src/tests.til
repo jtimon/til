@@ -922,8 +922,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline") < 10 {
-        println("FAIL: plot.til expected 10 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline") < 9 {
+        println("FAIL: plot.til expected 9 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -937,8 +937,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "mem-total") == 0 {
-        println("FAIL: plot.til missing legend label mem-total")
+    if count_matches(plot_svg, "mem-total") != 0 {
+        println("FAIL: plot.til should not draw mem-total legend")
         plot_ok = 0
         fail = 1
     }
