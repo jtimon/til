@@ -1215,7 +1215,7 @@ Str * format(Array__Str * parts) {
         U64 _fi_USize_115 = 0ULL;
         (void)_fi_USize_115;
         while (1) {
-            U64 hoisted__U64_117 = Array__Str_len(_fc_Array__Str_115);
+            U64 hoisted__U64_117 = (_fc_Array__Str_115->cap);
             (void)hoisted__U64_117;
             Bool _wcond_Bool_116 = ((Bool)(_fi_USize_115 < hoisted__U64_117));
             (void)_wcond_Bool_116;
@@ -1229,7 +1229,7 @@ Str * format(Array__Str * parts) {
             U64 hoisted__U64_119 = ((U64)(_fi_USize_115 + hoisted__U64_118));
             (void)hoisted__U64_119;
             _fi_USize_115 = hoisted__U64_119;
-            U64 hoisted__U64_120 = Str_len(s);
+            U64 hoisted__U64_120 = (s->count);
             (void)hoisted__U64_120;
             U64 hoisted__U64_121 = ((U64)(total + hoisted__U64_120));
             (void)hoisted__U64_121;
@@ -1244,7 +1244,7 @@ Str * format(Array__Str * parts) {
         U64 _fi_USize_122 = 0ULL;
         (void)_fi_USize_122;
         while (1) {
-            U64 hoisted__U64_124 = Array__Str_len(_fc_Array__Str_122);
+            U64 hoisted__U64_124 = (_fc_Array__Str_122->cap);
             (void)hoisted__U64_124;
             Bool _wcond_Bool_123 = ((Bool)(_fi_USize_122 < hoisted__U64_124));
             (void)_wcond_Bool_123;
@@ -5661,7 +5661,7 @@ void println(Array__Str * parts) {
         U64 _fi_USize_7674 = 0ULL;
         (void)_fi_USize_7674;
         while (1) {
-            U64 hoisted__U64_7676 = Array__Str_len(_fc_Array__Str_7674);
+            U64 hoisted__U64_7676 = (_fc_Array__Str_7674->cap);
             (void)hoisted__U64_7676;
             Bool _wcond_Bool_7675 = ((Bool)(_fi_USize_7674 < hoisted__U64_7676));
             (void)_wcond_Bool_7675;

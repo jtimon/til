@@ -1,0 +1,37 @@
+# priority: medium
+# category: optimizations
+** FIXED #300 Generalize the len/unsafe_get accessor inline to any type
+
+Fixed here (created directly in fixed/): the C backend inlined `Vec.len` and
+`Vec.unsafe_get` at their call sites, but only for `Vec` -- the branches were
+gated on `sname.starts_with("Vec__")` and emitted Vec's field layout directly
+(`->count`, `->data + i * sizeof(...)`). A `for x in c` loop desugars to
+`c.len()` (the loop bound) and `c.unsafe_get(i)` (the element) once per
+iteration, so any OTHER container ranged over by a for-in paid a real call per
+iteration, and the optimization was tied to one concrete container's memory
+layout instead of the accessor contract.
+
+Root cause: the inline was written as a container-specific peephole
+(`Vec__`-name-gated, Vec-field-hardcoded) rather than as a property of the
+`len`/`unsafe_get` accessors themselves.
+
+Fix: replace the two `Vec__`-gated branches in the namespace-method call path
+with a general accessor inline (src/self/builder.til):
+
+- `builder_is_inline_accessor(mname, flat, ctx)` -- true when the call is to a
+  method named `len` or `unsafe_get` whose callee is a plain `func` with a
+  single `return EXPR` body (any type qualifies).
+- `emit_inline_accessor(...)` -- splices that accessor's own return expression,
+  with the params substituted by the call's argument expressions
+  (`inline_subst`), as a value or a ref return per the accessor's `return_own`.
+
+So the inline now keys on the accessor method and its (trivial) body, for ANY
+type, and reads "from whatever the implementation is" instead of hardcoding
+Vec's fields. The interpreter is unchanged -- it runs the accessor body as a
+normal func -- so interp and compile modes agree. `len`/`unsafe_get` stay plain
+`func` in src/core; no keyword or core_func is involved (there is deliberately
+no user-facing "inline my function" keyword -- see doc/functions.org).
+
+Regression test: the self-host translate exercises for-in over `Vec` on nearly
+every line (`len`/`unsafe_get` are among the hottest accessors), plus
+test/vecs.til and test/loops.til; `make test_two_pass` stays green.

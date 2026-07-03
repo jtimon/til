@@ -404,6 +404,78 @@ priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
     return deref(slot)
 }
 
+// --- len/unsafe_get accessor inlining (issue #300) ---
+// A `for x in c` loop desugars to c.len() (the loop bound) and c.unsafe_get(i)
+// (the element) every iteration, so a real call to those accessors is
+// per-iteration overhead on every container. These helpers inline such an
+// accessor's OWN body at the call site, for ANY type -- keyed on the accessor
+// method with a trivial single-`return EXPR` body, not on the container type
+// (this replaces the old Vec-hardcoded peephole). The interpreter is untouched:
+// it runs the accessor body as a normal func, so both modes agree.
+
+// Substitute the callee's params with the call's argument expressions inside a
+// (cloned) body node: every Ident naming a param becomes a clone of the
+// matching argument. A replaced argument is not re-descended.
+priv inline_subst := proc(e: Expr, params: Vec(Declaration), call: Expr) {
+    for ci in 0..e.children.len() {
+        mut matched := false
+        switch e.children[ci].node_type {
+        case NodeType.Ident(id):
+            ref nm : Str = id.ident_name()
+            for pi in 0..params.len() {
+                if params[pi].name.eq(nm) {
+                    e.children[ci] = call.children[pi.add(1)].clone()
+                    matched = true
+                }
+            }
+        case:
+        }
+        if matched.not() {
+            inline_subst(e.children[ci], params, call)
+        }
+    }
+}
+
+// True when a `len`/`unsafe_get` accessor call is inlinable: the callee resolves
+// to a plain func whose body is a single `return EXPR`. Any type qualifies.
+priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
+    if mname.eq("len").or(mname.eq("unsafe_get")).not() { return false }
+    ref fdef : Expr = find_callee_fdef(flat, ctx)
+    if fdef.is_null() { return false }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.func_type.is(FuncType.Func).not() { return false }
+        if fdef.children.len() == 0 { return false }
+        ref body : Expr = fdef.children[0]
+        if body.children.len() != 1 { return false }
+        ref stmt : Expr = body.children[0]
+        return stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0))
+    case:
+        return false
+    }
+}
+
+// Emit an inlinable accessor call by splicing its (param-substituted) return
+// expression -- a value or a ref return depending on the accessor's return_own.
+priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx: Context) {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        ref body : Expr = fdef.children[0]
+        mut ret := body.children[0].clone()
+        inline_subst(ret, fd.params, e)
+        ref rv : Expr = ret.children[0]
+        f.write("(")
+        if fd.return_own_type.is(OwnType.Ref) {
+            emit_as_ptr(f, rv, depth, false, ctx)
+        } else {
+            emit_expr(f, rv, depth, ctx)
+        }
+        f.write(")")
+    case:
+        UNREACHABLE()
+    }
+}
+
 // #288 Stage 3: true when the flat-named callee resolves to a core_func /
 // core_proc -- a primitive intrinsic the C backend lowers to a native
 // operator instead of a call (no emitted symbol).
@@ -2935,43 +3007,14 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         emit_deref(f, e.children[2], depth, ctx)
                         f.write("))")
                     }
-                } else if sname.starts_with("Vec__").and(mname.field_access_name() == "len") {
-                    // Peephole: inline Vec.len as a direct count-field read --
-                    // a hot accessor (1.3B calls translating the self-host).
-                    // Vec.len stays a real func (the interpreter calls it, so
-                    // both modes agree); same approach as the Bool.eq inline.
-                    f.write("((")
-                    f.write(til_type_name_c(e.expr_til_type()))
-                    f.write(")(")
-                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                    f.write(")->count)")
-                } else if sname.starts_with("Vec__").and(mname.field_access_name() == "unsafe_get") {
-                    // Peephole: inline Vec.unsafe_get as pointer arithmetic into
-                    // the backing buffer -- a hot accessor (~1.4B calls
-                    // translating the self-host). The result cast uses the
-                    // element's C type (c_type_name). The sizeof STRIDE must be
-                    // til's T.size() (the Vec's element width): an aggregate
-                    // occupies its whole struct (its name); every other element
-                    // its til_type_to_c width (Dynamic -> "void *" = 8, FuncPtr
-                    // -> "TilClosure *", primitives). Crucially the stride is NOT
-                    // sizeof(c_type_name): for Dynamic that yields "void" whose
-                    // sizeof is 1, not the 8-byte pointer slot the Vec stores.
-                    // Stays a real func (interp + reflective dispatch call it),
-                    // so both modes agree; same approach as Vec.len.
-                    f.write("((")
-                    f.write(c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx))
-                    f.write(" *)((")
-                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                    f.write(")->data + (")
-                    emit_deref(f, e.children[2], depth, ctx)
-                    f.write(") * sizeof(")
-                    stride_name := til_type_name(e.expr_til_type())
-                    if stride_name.len() > 0 {
-                        f.write(stride_name)
-                    } else {
-                        f.write(til_type_to_c(e.expr_til_type()))
-                    }
-                    f.write(")))")
+                } else if builder_is_inline_accessor(mname.field_access_name(), flat, ctx) {
+                    // Generalized len/unsafe_get inline (issue #300): splice the
+                    // accessor's own body for ANY type, not just Vec, since a
+                    // `for x in c` loop desugars to c.len()/c.unsafe_get(i) and
+                    // must not pay a call per iteration on any container. Keyed
+                    // on the accessor method (single-return-expr body), not the
+                    // container type -- no longer Vec-hardcoded.
+                    emit_inline_accessor(f, e, find_callee_fdef(flat, ctx), depth, ctx)
                 } else if (sname == "Bool").and(mname.field_access_name() == "eq") {
                     // Peephole: inline Bool.eq as native `==` -- a hot ext_func
                     // call (1.8B in the --prof profile). Bool stays an ext_func
