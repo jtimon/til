@@ -75,6 +75,25 @@ repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProg
     return File.readfile(out_path)
 }
 
+repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: USize, count: USize) returns Str {
+    mut interpret_fwd_path := ""
+    mut result : I32 = 0
+    stdio_capture_begin(out_path)
+    if lp.link_c_paths.len() > 0 {
+        system_cmd("mkdir -p tmp")
+        interpret_fwd_path = format("tmp/ffi_", clock_ms().to_str(), "_forward.h")
+        result = build_forward_header_lp(interpret_fwd_path, lp)
+    }
+    if result == 0 { result = interp_session_prepare_context(session, lp, interpret_fwd_path) }
+    if result == 0 {
+        interp_session_eval_core_once(session, lp)
+        interp_session_eval_current_tail(session, lp, start_idx, count)
+        interp_session_finish_context(lp)
+    }
+    stdio_capture_end()
+    return File.readfile(out_path)
+}
+
 repl_source_line_count := func(s: Str) returns U32 {
     if s.len() == 0 { return 0 }
     mut lines : U32 = 1
@@ -105,17 +124,60 @@ repl_ast_has_loader_directive := func(e: Expr) returns Bool {
     return false
 }
 
-repl_lp_from_template_source := proc(mut lp: LoadedProgram, path: Str, source: Str, mut anon_type_counter: I64) returns LoadedProgram {
+repl_ast_has_lazy_def := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.func_type.is(FuncType.LazyFunc).or(fd.func_type.is(FuncType.LazyProc)) { return true }
+    case:
+    }
+    for child : Expr in e.children {
+        if repl_ast_has_lazy_def(child) { return true }
+    }
+    return false
+}
+
+repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.FCall:
+        if e.children.len() > 0 {
+            ref callee : Expr = e.children[0]
+            switch callee.node_type {
+            case NodeType.Ident(name):
+                ref cname : Str = name.ident_name()
+                if cname.eq("println").or(cname.eq("print")).or(cname.eq("format"))
+                    .or(cname.eq("panic")).or(cname.eq("TODO")).or(cname.eq("expect"))
+                    .or(cname.eq("array")).or(cname.eq("vec")) { return true }
+            case:
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children {
+        if repl_ast_has_known_variadic_call(child) { return true }
+    }
+    return false
+}
+
+repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64) returns Expr {
     tokens := tokenize(source, path)
     mut mode_out := ""
-    ast := parse(tokens, source, path, mode_out, anon_type_counter)
-    ref iu : ImportUnit = lp.ctx.imported[path]
-    iu.ast.take_children(ast)
-    return lp
+    return parse(tokens, source, path, mode_out, anon_type_counter)
+}
+
+repl_peek_needs_expr_wrap := func(block: Str, tokens: Vec(Token)) returns Bool {
+    if block.trim().starts_with("mode ") { return false }
+    if tokens.len() < 2 { return false }
+    if tokens[0].type.is(TokenType.Ident).not() { return false }
+    ref nt : Token = tokens[1]
+    if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)).or(nt.type.is(TokenType.Eq)) { return false }
+    if nt.type.is(TokenType.Dot).or(nt.type.is(TokenType.LParen)).or(nt.type.is(TokenType.LBracket)) { return false }
+    if nt.type.is(TokenType.PlusPlus).or(nt.type.is(TokenType.MinusMinus)) { return false }
+    return true
 }
 
 // Decide whether the user's input is syntactically eligible for Python-style
-// auto-echo by wrapping with `println((...).to_str())`. Statement-level forms
+// auto-echo by storing `(...).to_str()` in a private temp and printing it.
+// Statement-level forms
 // never wrap; expression-like forms try the wrapper and fall back to the raw
 // input if the wrapped source does not typecheck.
 repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
@@ -226,8 +288,6 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     ext_c_path := bin_dir.format("/src/c/ext.c")
     core_info_cache_path := bin_dir.format("/", REPL_CORE_INFO_CACHE)
     core_docs_cache_path := bin_dir.format("/", REPL_CORE_DOCS_CACHE)
-    mut docs_active := false
-
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
     mut user_info_cache := ""
@@ -242,9 +302,16 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
     out_path := format("tmp/repl_", process_id().to_str(), ".out")
     File.writefile(tmp_path, format("mode ", mode_str, "\n"))
-    template_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+    mut cached_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+    cached_errors := repl_init_cached_program(cached_lp)
+    if cached_errors > 0 { panic("REPL cached base program failed to typecheck") }
+    mut committed_raw : Dynamic = interp_program_to_heap(own cached_lp)
+    interp_session_retain_program(session, committed_raw)
     mut repl_has_loader_directives := false
+    mut repl_has_lazy_defs := false
+    mut repl_has_full_state := false
     mut repl_anon_type_counter : I64 = 0
+    mut repl_echo_counter : I64 = 0
 
     while true {
         block := repl_read_line(mode_str)
@@ -256,9 +323,14 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         // Peek at the line to detect a `mode X` directive. If the user
         // entered one, return so the outer driver can restart the session
         // in the new mode (discarding prior declarations).
-        peek_tokens := tokenize(block, "<repl>")
+        mut peek_source := block.clone()
+        mut peek_tokens := tokenize(peek_source, "<repl>")
+        if repl_peek_needs_expr_wrap(block, peek_tokens) {
+            peek_source = format("(", block, ")")
+            peek_tokens = tokenize(peek_source, "<repl>")
+        }
         mut peek_mode_out := ""
-        peek_ast := parse(peek_tokens, block, "<repl>", peek_mode_out, repl_anon_type_counter)
+        peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter)
         if peek_mode_out.len() > 0 {
             next_mode_out = peek_mode_out.clone()
             interp_session_free(session)
@@ -271,7 +343,9 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut ran_ok := false
         current_has_help := repl_ast_has_help_call(peek_ast)
         current_has_loader_directive := repl_ast_has_loader_directive(peek_ast)
-        need_docs := docs_active.or(current_has_help)
+        current_has_lazy_def := repl_ast_has_lazy_def(peek_ast)
+        current_has_known_variadic_call := repl_ast_has_known_variadic_call(peek_ast)
+        need_docs := current_has_help
         if current_has_help.and(user_docs_dirty) {
             repl_refresh_user_doc_cache(mode_str, accum, tmp_path, bin_dir, cwd, ext_c_path, extra_modes, user_info_cache, user_docs_cache)
             user_docs_dirty = false
@@ -283,10 +357,13 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut block_start_line : U32 = 2
         if doc_line.len() > 0 { block_start_line++ }
         block_start_line = block_start_line + repl_source_line_count(accum)
-        use_full_load := repl_has_loader_directives.or(current_has_loader_directive)
+        use_full_load := repl_has_loader_directives.or(current_has_loader_directive).or(repl_has_lazy_defs).or(current_has_lazy_def).or(repl_has_full_state).or(current_has_known_variadic_call)
+        commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast))
 
         if repl_parse_allows_wrap(peek_ast) {
-            block_eff = format("println((", block, ").to_str())")
+            echo_name := format("repl_auto_echo_", repl_echo_counter.to_str())
+            repl_echo_counter++
+            block_eff = format("priv ", echo_name, " := (", block, ").to_str()\nprint_single(", echo_name, ")\nprint_single(\"\\n\")")
             mut trial_counter := repl_anon_type_counter
             mut combined := ""
             combined = combined.format("mode ", mode_str, "\n")
@@ -299,17 +376,45 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 File.writefile(tmp_path, combined)
                 run_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
             } else {
-                run_lp = repl_lp_from_template_source(template_lp.clone(), tmp_path, combined, trial_counter)
+                ref committed_lp : LoadedProgram = to_ptr(committed_raw)
+                run_lp = repl_clone_loaded_program(committed_lp)
             }
             run_raw : Dynamic = interp_program_to_heap(own run_lp)
             ref mut run_heap : LoadedProgram = to_ptr(run_raw)
             stdio_capture_begin(out_path)
-            run_errs := init_and_type_program_errors(run_heap, false)
+            mut run_errs : I32 = 0
+            mut run_tail_start : USize = 0
+            mut run_tail_count : USize = 0
+            if use_full_load {
+                run_errs = init_and_type_program_errors(run_heap, false)
+            } else {
+                mut delta_source := ""
+                delta_source = delta_source.format("mode ", mode_str, "\n")
+                delta_source = delta_source.format(doc_line)
+                delta_source = delta_source.format(block_eff)
+                mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter)
+                ref run_root : ProgramUnit = run_heap.units[run_heap.units.len() - 1]
+                ref run_iu : ImportUnit = run_heap.ctx.imported[run_root.path]
+                run_errs = repl_type_delta_program(run_heap, delta)
+                if run_errs == 0 {
+                    repl_prepare_delta_program(run_heap, delta)
+                    run_tail_start = run_iu.ast.children.len()
+                    run_iu.ast.take_children(delta)
+                    run_tail_count = run_iu.ast.children.len().sub(run_tail_start)
+                }
+            }
             stdio_capture_end()
             if run_errs == 0 {
-                finish_prepare_program(run_heap)
-                turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, current_has_help)
+                if use_full_load {
+                    finish_prepare_program(run_heap)
+                    turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, current_has_help)
+                } else {
+                    mut eval_start := run_tail_start
+                    if doc_line.len() > 0 { if current_has_help.not() { eval_start++ } }
+                    turn_out = repl_capture_eval_tail(session, run_heap, out_path, eval_start, run_tail_start.add(run_tail_count).sub(eval_start))
+                }
                 interp_session_retain_program(session, run_raw)
+                if commit_compiler_state { committed_raw = run_raw }
                 ran_ok = true
                 repl_anon_type_counter = trial_counter
             } else {
@@ -333,16 +438,44 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 File.writefile(tmp_path, combined2)
                 typed_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
             } else {
-                typed_lp = repl_lp_from_template_source(template_lp.clone(), tmp_path, combined2, trial_counter2)
+                ref committed_lp2 : LoadedProgram = to_ptr(committed_raw)
+                typed_lp = repl_clone_loaded_program(committed_lp2)
             }
             typed_raw : Dynamic = interp_program_to_heap(own typed_lp)
             ref mut typed_heap : LoadedProgram = to_ptr(typed_raw)
-            typer_errs := repl_typecheck(typed_heap)
+            mut typer_errs : I32 = 0
+            mut typed_tail_start : USize = 0
+            mut typed_tail_count : USize = 0
+            if use_full_load {
+                typer_errs = repl_typecheck(typed_heap)
+            } else {
+                mut delta_source2 := ""
+                delta_source2 = delta_source2.format("mode ", mode_str, "\n")
+                delta_source2 = delta_source2.format(doc_line)
+                delta_source2 = delta_source2.format(block_eff)
+                mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2)
+                ref typed_root : ProgramUnit = typed_heap.units[typed_heap.units.len() - 1]
+                ref typed_iu : ImportUnit = typed_heap.ctx.imported[typed_root.path]
+                typer_errs = repl_type_delta_program(typed_heap, delta2)
+                if typer_errs == 0 {
+                    repl_prepare_delta_program(typed_heap, delta2)
+                    typed_tail_start = typed_iu.ast.children.len()
+                    typed_iu.ast.take_children(delta2)
+                    typed_tail_count = typed_iu.ast.children.len().sub(typed_tail_start)
+                }
+            }
             if typer_errs == 0 {
-                finish_init_and_type_program(typed_heap)
-                finish_prepare_program(typed_heap)
-                turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, current_has_help)
+                if use_full_load {
+                    finish_init_and_type_program(typed_heap)
+                    finish_prepare_program(typed_heap)
+                    turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, current_has_help)
+                } else {
+                    mut eval_start2 := typed_tail_start
+                    if doc_line.len() > 0 { if current_has_help.not() { eval_start2++ } }
+                    turn_out = repl_capture_eval_tail(session, typed_heap, out_path, eval_start2, typed_tail_start.add(typed_tail_count).sub(eval_start2))
+                }
                 interp_session_retain_program(session, typed_raw)
+                if commit_compiler_state { committed_raw = typed_raw }
                 ran_ok = true
                 repl_anon_type_counter = trial_counter2
             } else {
@@ -351,7 +484,6 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         }
 
         if ran_ok {
-            if current_has_help { docs_active = true }
             if repl_ast_updates_doc_cache(peek_ast) { user_docs_dirty = true }
             if turn_out.len() > 0 { print_single(turn_out) }
 
@@ -361,6 +493,8 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if accum.len() > 0 { accum = accum.format("\n") }
             accum = accum.format(block_eff)
             repl_has_loader_directives = repl_has_loader_directives.or(current_has_loader_directive)
+            repl_has_lazy_defs = repl_has_lazy_defs.or(current_has_lazy_def)
+            repl_has_full_state = repl_has_full_state.or(current_has_known_variadic_call.and(repl_ast_updates_doc_cache(peek_ast)))
         }
     }
     interp_session_free(session)

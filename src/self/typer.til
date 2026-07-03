@@ -4893,6 +4893,10 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
     }
 }
 
+reregister_repl_scope_defs := func(body: Expr, scope: TypeScope) {
+    reregister_scope_defs(body, scope)
+}
+
 // Type-inference walk for a single body. Issue #204 step 3a: this
 // proc no longer runs the asap-destruction pass; the scope-management
 // sites that call infer_body invoke garbager_destroy_body(body, scope)
@@ -5019,6 +5023,50 @@ type_file := proc(path: Str, ctx: Context) returns I32 {
     mut total : I32 = 0
     total = total + type_decls_file(path, ctx)
     total = total + type_bodies_file(path, ctx)
+    return total
+}
+
+priv type_repl_delta_decls_from := proc(program: Expr, start_idx: USize, ctx: Context) returns I32 {
+    total : I32 = 0
+    mut i := start_idx
+    while i < program.children.len() {
+        ref stmt : Expr = program.children[i]
+        i++
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        ref rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.StructDef) {
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                compute_struct_layout(d.name, rhs, ctx.scope, ctx)
+            case:
+            }
+            gen_struct_size_method_for_stmt(stmt, ctx)
+        } else if rhs.node_type.is(NodeType.EnumDef) {
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                compute_enum_layout(d.name, rhs, ctx.scope, ctx)
+            case:
+            }
+            gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
+        } else {
+            continue
+        }
+        gen_cmp_derived_for_stmt(stmt)
+        gen_unity_derived_for_stmt(stmt)
+    }
+    return total
+}
+
+type_repl_delta := proc(path: Str, program: Expr, ctx: Context) returns I32 {
+    context_enter_file(ctx, path)
+    mut total : I32 = 0
+    total = total + type_repl_delta_decls_from(program, 0, ctx)
+    post_decl_start := program.children.len()
+    total = total + type_check_unit(path, program, ctx.scope, ctx)
+    total = total + type_repl_delta_decls_from(program, post_decl_start, ctx)
+    total = total + check_unused_priv_top_level(ctx.scope, ctx)
+    total = total + check_unused_priv_members_in_program(program, path, ctx)
     return total
 }
 

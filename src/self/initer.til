@@ -4353,6 +4353,15 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
     return 0
 }
 
+init_repl_delta := proc(path: Str, program: Expr, ctx: Context) returns I32 {
+    ref iu : ImportUnit = ctx.imported[path]
+    ctx.mode = iu.mode.clone()
+    mut errors : I32 = 0
+    errors = errors + init_declarations_unit(path, program, ctx.scope, ctx)
+    errors = errors + init_declarations_global(ctx, program, ctx.scope)
+    return errors
+}
+
 // sync_body_ns_to_payload: deleted -- all ns methods now go directly to ns_decls
 
 // True iff `variant_name` is a payload-less variant of `enum_def`.

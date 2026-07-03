@@ -317,6 +317,12 @@ priv target_int_alias_name := func(lp: LoadedProgram, alias_name: Str, target_fa
     return target_fallback
 }
 
+repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
+    cloned := src.clone()
+    repl_reregister_scope_defs_loaded(cloned)
+    return cloned
+}
+
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
     ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
     if alias_binding.is_null() { return }
@@ -436,6 +442,105 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
 
     scope_free(own global)
     constfolder_reset_state(lp.ctx)
+}
+
+priv repl_classify_foldables_program := func(ctx: Context, program: Expr) {
+    for stmt : Expr in program.children {
+        constfolder_classify_stmt(stmt, ctx)
+    }
+}
+
+priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            repl_classify_foldables_program(lp.ctx, lp.ctx.imported[u.path].ast)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        repl_classify_foldables_program(lp.ctx, lp.ctx.imported[u.path].ast)
+    }
+    for mf : Str in lp.mode_files {
+        repl_classify_foldables_program(lp.ctx, lp.ctx.imported[mf].ast)
+    }
+}
+
+priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            reregister_repl_scope_defs(lp.ctx.imported[u.path].ast, lp.ctx.scope)
+        }
+    }
+    for u2 : ProgramUnit in lp.units {
+        reregister_repl_scope_defs(lp.ctx.imported[u2.path].ast, lp.ctx.scope)
+    }
+    for mf : Str in lp.mode_files {
+        reregister_repl_scope_defs(lp.ctx.imported[mf].ast, lp.ctx.scope)
+    }
+}
+
+priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
+    constfolder_clear_known(lp.ctx)
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
+    }
+    populate_cached_aggregate_defs(lp.ctx, delta)
+
+    global := scope_new(NULL)
+    if lp.skip_core.not() {
+        for u2 : ProgramUnit in lp.core_units {
+            ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
+            constfolder_register_fold_scope(global, iu2.ast, lp.ctx)
+        }
+    }
+    for u3 : ProgramUnit in lp.units {
+        ref iu3 : ImportUnit = lp.ctx.imported[u3.path]
+        constfolder_register_fold_scope(global, iu3.ast, lp.ctx)
+    }
+    constfolder_register_fold_scope(global, delta, lp.ctx)
+
+    has_fold := lp.ctx.constfolder_foldables.len() > 0
+    if has_fold {
+        constfolder_register_core_constants(global, lp.ctx.target_usize_pname)
+
+        if lp.skip_core.not() {
+            for u4 : ProgramUnit in lp.core_units {
+                interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u4.path].ast)
+            }
+        }
+        for u5 : ProgramUnit in lp.units {
+            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u5.path].ast)
+        }
+        interpreter_init_ns(lp.ctx, global, delta)
+
+        ffi_reset(lp.ctx)
+        if lp.skip_core.not() {
+            for u6 : ProgramUnit in lp.core_units {
+                ref iu6 : ImportUnit = lp.ctx.imported[u6.path]
+                ffi_init_struct_defs_append(iu6.ast, lp.ctx)
+                ffi_init_scan_program(iu6.ast, lp.ctx)
+            }
+        }
+        for u7 : ProgramUnit in lp.units {
+            ref iu7 : ImportUnit = lp.ctx.imported[u7.path]
+            ffi_init_struct_defs_append(iu7.ast, lp.ctx)
+            ffi_init_scan_program(iu7.ast, lp.ctx)
+        }
+        ffi_init_struct_defs_append(delta, lp.ctx)
+        ffi_init_scan_program(delta, lp.ctx)
+        lp.ctx.ffi_loaded = true
+
+        ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+        context_enter_file(lp.ctx, root.path)
+        process_body(global, delta, lp.ctx, true)
+    }
+
+    scope_free(own global)
+    constfolder_clear_known(lp.ctx)
 }
 
 // Scavenge across per-file units (rstil-style): compute a single visited set
@@ -2823,6 +2928,50 @@ finish_prepare_program := proc(mut lp: LoadedProgram) {
             dce_program_bodies(lp.ctx.imported[u.path].ast)
         }
     }
+}
+
+repl_init_cached_program := proc(mut lp: LoadedProgram) returns I32 {
+    type_errors := type_program_errors(lp, false)
+    if type_errors > 0 { return type_errors }
+    finish_init_and_type_program(lp)
+    // The cached empty REPL base must keep core/user definitions alive for
+    // later deltas; full prepare would scavenge them as unused in the empty
+    // root and leave scope.func_defs pointing at deleted AST nodes.
+    constfolder_imported(lp)
+    repl_reregister_scope_defs_loaded(lp)
+    repl_classify_foldables_loaded(lp)
+    return 0
+}
+
+repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns I32 {
+    lp.run_tests = lp.cur_mode.run_tests
+    context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+    ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+    ref iu : ImportUnit = lp.ctx.imported[root.path]
+    lp.ctx.mode = iu.mode.clone()
+    context_enter_file(lp.ctx, root.path)
+
+    init_errors := init_repl_delta(root.path, delta, lp.ctx)
+    if init_errors > 0 { return init_errors }
+
+    retarget_loaded_aliases(lp)
+    normalize_scope_bindings(lp.ctx.scope)
+    lazy_stmt_inline_walk(delta, lp.ctx.scope, 0)
+    expand_lazy_in_expr(delta, lp.ctx.scope, 0)
+
+    type_errors := type_repl_delta(root.path, delta, lp.ctx)
+    if type_errors > 0 { return type_errors }
+    if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1) {
+        type_errors2 := type_repl_delta(root.path, delta, lp.ctx)
+        if type_errors2 > 0 { return type_errors2 }
+    }
+    garbager_destroy_body(lp.ctx, delta, lp.ctx.scope)
+    return 0
+}
+
+repl_prepare_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) {
+    constfolder_repl_delta(lp, delta)
+    dce_program_bodies(delta)
 }
 
 prepare_program := proc(mut lp: LoadedProgram, run_tests: Bool) {

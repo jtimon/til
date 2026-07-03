@@ -4037,10 +4037,18 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if stmt.children.len() == 0 { continue }
-            if stmt.children[0].node_type.is(NodeType.StructDef).not() { continue }
-            if dd.name == "Str"   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
-            if dd.name == "Array" { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
-            if dd.name == "Vec"   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
+            ref sdef : Expr = stmt.children[0]
+            if sdef.node_type.is(NodeType.StructDef).not() {
+                if sdef.node_type.is(NodeType.EnumDef).not() { continue }
+            }
+            if sdef.node_type.is(NodeType.StructDef) {
+                if dd.name == "Str"   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
+                if dd.name == "Array" { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
+                if dd.name == "Vec"   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
+            }
+            tdv : Dynamic = malloc(I64.size().cast(U64))
+            write_ptr(tdv, sdef)
+            ctx.interp_type_defs.set(dd.name, own tdv)
         case:
         }
     }
@@ -4847,6 +4855,13 @@ interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedP
     if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, 2) }
     start_idx := interp_first_stmt_at_line(iu.ast, block_start_line)
     interp_eval_program_slice(session, lp, iu.ast, start_idx, iu.ast.children.len().sub(start_idx))
+    interp_reset_control_flow(lp.ctx)
+}
+
+interp_session_eval_current_tail := proc(session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) {
+    ref root : ProgramUnit = lp.units[lp.units.len() - 1]
+    ref iu : ImportUnit = lp.ctx.imported[root.path]
+    interp_eval_program_slice(session, lp, iu.ast, start_idx, count)
     interp_reset_control_flow(lp.ctx)
 }
 
