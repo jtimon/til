@@ -3300,6 +3300,21 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(")(!(")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(")))")
+            } else if name.ident_name().eq("ptr_add").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // ptr_add core_func: lower to native pointer arithmetic inline
+                // instead of a call. The cast to void* mirrors ext.c's
+                // `void *ptr_add(...)` return, so the result still assigns to any
+                // typed pointer without -Wincompatible-pointer-types (a bare U8*
+                // would not convert). ext.c keeps the symbol for pass-1 til_boot,
+                // which predates this inline and emits a real call; the
+                // interpreter reaches ptr_add via the registered h_ptr_add
+                // handler, not FFI (a core_func is not FFI-registered), so both
+                // modes agree.
+                f.write("((void *)((U8 *)(")
+                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                f.write(") + (")
+                emit_deref(f, e.children[2], depth, ctx)
+                f.write(")))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())

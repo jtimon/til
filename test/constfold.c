@@ -1425,12 +1425,12 @@ void Str_push_str(Str * self, Str * s) {
         panic(_va_Array_4, &hoisted__Str_175);
         Str_delete(&hoisted__Str_175, (Bool){0});
     }
-    void *hoisted__v_180 = ptr_add(self->c_str, self->count);
+    void *hoisted__v_180 = ((void *)((U8 *)(self->c_str) + (self->count)));
     (void)hoisted__v_180;
     (void)hoisted__v_180;
     memcpy(hoisted__v_180, s->c_str, s->count);
     self->count = (new_len);
-    void *hoisted__v_181 = ptr_add(self->c_str, new_len);
+    void *hoisted__v_181 = ((void *)((U8 *)(self->c_str) + (new_len)));
     (void)hoisted__v_181;
     (void)hoisted__v_181;
     I32 hoisted__I32_182 = 0;
@@ -1457,7 +1457,7 @@ Str * Str_clone(Str * val) {
     (void)hoisted__U64_188;
     void * new_data = malloc(hoisted__U64_188);
     memcpy(new_data, val->c_str, val->count);
-    void *hoisted__v_189 = ptr_add(new_data, val->count);
+    void *hoisted__v_189 = ((void *)((U8 *)(new_data) + (val->count)));
     (void)hoisted__v_189;
     (void)hoisted__v_189;
     I32 hoisted__I32_190 = 0;
@@ -1581,7 +1581,7 @@ Str * Array__Str_unsafe_get(Array__Str * self, U64 * i) {
     (void)hoisted__U64_728;
     U64 hoisted__U64_729 = (U64)(hoisted__U64_728);
     (void)hoisted__U64_729;
-    void *hoisted__v_730 = ptr_add(self->data, hoisted__U64_729);
+    void *hoisted__v_730 = ((void *)((U8 *)(self->data) + (hoisted__U64_729)));
     (void)hoisted__v_730;
     (void)hoisted__v_730;
     return hoisted__v_730;
@@ -1719,7 +1719,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 (void)hoisted__U64_793;
                 U64 hoisted__U64_794 = (U64)(hoisted__U64_793);
                 (void)hoisted__U64_794;
-                Str *hoisted__Str_795 = ptr_add(self->data, hoisted__U64_794);
+                Str *hoisted__Str_795 = ((void *)((U8 *)(self->data) + (hoisted__U64_794)));
                 (void)hoisted__Str_795;
                 (void)hoisted__Str_795;
                 Bool hoisted__Bool_796 = 0;
@@ -1742,7 +1742,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                 (void)hoisted__U64_799;
                 U64 hoisted__U64_800 = (U64)(hoisted__U64_799);
                 (void)hoisted__U64_800;
-                Str *hoisted__Str_801 = ptr_add(self->data, hoisted__U64_800);
+                Str *hoisted__Str_801 = ((void *)((U8 *)(self->data) + (hoisted__U64_800)));
                 (void)hoisted__Str_801;
                 (void)hoisted__Str_801;
                 Bool hoisted__Bool_802 = 0;
@@ -1788,7 +1788,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 (void)hoisted__U64_807;
                 U64 hoisted__U64_808 = (U64)(hoisted__U64_807);
                 (void)hoisted__U64_808;
-                Str *src = ptr_add(self->data, hoisted__U64_808);
+                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U64_808)));
                 Str *cloned = Str_clone(src);
                 U64 hoisted__U64_809 = 24ULL;
                 (void)hoisted__U64_809;
@@ -1798,7 +1798,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 (void)hoisted__U64_811;
                 U64 hoisted__U64_812 = 24ULL;
                 (void)hoisted__U64_812;
-                void *hoisted__v_813 = ptr_add(new_data, hoisted__U64_811);
+                void *hoisted__v_813 = ((void *)((U8 *)(new_data) + (hoisted__U64_811)));
                 (void)hoisted__v_813;
                 (void)hoisted__v_813;
                 U64 hoisted__U64_814 = (U64)(hoisted__U64_812);
@@ -1829,7 +1829,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 (void)hoisted__U64_820;
                 U64 hoisted__U64_821 = (U64)(hoisted__U64_820);
                 (void)hoisted__U64_821;
-                Str *src = ptr_add(self->data, hoisted__U64_821);
+                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U64_821)));
                 Str *cloned = Str_clone(src);
                 U64 hoisted__U64_822 = 24ULL;
                 (void)hoisted__U64_822;
@@ -1839,7 +1839,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                 (void)hoisted__U64_824;
                 U64 hoisted__U64_825 = 24ULL;
                 (void)hoisted__U64_825;
-                void *hoisted__v_826 = ptr_add(new_data, hoisted__U64_824);
+                void *hoisted__v_826 = ((void *)((U8 *)(new_data) + (hoisted__U64_824)));
                 (void)hoisted__v_826;
                 (void)hoisted__v_826;
                 U64 hoisted__U64_827 = (U64)(hoisted__U64_825);
@@ -1915,7 +1915,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 (void)hoisted__U64_855;
                 U64 hoisted__U64_856 = (U64)(hoisted__U64_855);
                 (void)hoisted__U64_856;
-                Str *hoisted__Str_857 = ptr_add(self->data, hoisted__U64_856);
+                Str *hoisted__Str_857 = ((void *)((U8 *)(self->data) + (hoisted__U64_856)));
                 (void)hoisted__Str_857;
                 (void)hoisted__Str_857;
                 Bool hoisted__Bool_858 = 0;
@@ -1938,7 +1938,7 @@ void Vec__Str_clear(Vec__Str * self) {
                 (void)hoisted__U64_861;
                 U64 hoisted__U64_862 = (U64)(hoisted__U64_861);
                 (void)hoisted__U64_862;
-                Str *hoisted__Str_863 = ptr_add(self->data, hoisted__U64_862);
+                Str *hoisted__Str_863 = ((void *)((U8 *)(self->data) + (hoisted__U64_862)));
                 (void)hoisted__Str_863;
                 (void)hoisted__Str_863;
                 Bool hoisted__Bool_864 = 0;
@@ -1991,7 +1991,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 (void)hoisted__U64_1111;
                 U64 hoisted__U64_1112 = (U64)(hoisted__U64_1111);
                 (void)hoisted__U64_1112;
-                Str *src = ptr_add(self->data, hoisted__U64_1112);
+                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U64_1112)));
                 Str *cloned = Str_clone(src);
                 U64 hoisted__U64_1113 = 24ULL;
                 (void)hoisted__U64_1113;
@@ -2001,7 +2001,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 (void)hoisted__U64_1115;
                 U64 hoisted__U64_1116 = 24ULL;
                 (void)hoisted__U64_1116;
-                void *hoisted__v_1117 = ptr_add(new_data, hoisted__U64_1115);
+                void *hoisted__v_1117 = ((void *)((U8 *)(new_data) + (hoisted__U64_1115)));
                 (void)hoisted__v_1117;
                 (void)hoisted__v_1117;
                 U64 hoisted__U64_1118 = (U64)(hoisted__U64_1116);
@@ -2032,7 +2032,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 (void)hoisted__U64_1124;
                 U64 hoisted__U64_1125 = (U64)(hoisted__U64_1124);
                 (void)hoisted__U64_1125;
-                Str *src = ptr_add(self->data, hoisted__U64_1125);
+                Str *src = ((void *)((U8 *)(self->data) + (hoisted__U64_1125)));
                 Str *cloned = Str_clone(src);
                 U64 hoisted__U64_1126 = 24ULL;
                 (void)hoisted__U64_1126;
@@ -2042,7 +2042,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                 (void)hoisted__U64_1128;
                 U64 hoisted__U64_1129 = 24ULL;
                 (void)hoisted__U64_1129;
-                void *hoisted__v_1130 = ptr_add(new_data, hoisted__U64_1128);
+                void *hoisted__v_1130 = ((void *)((U8 *)(new_data) + (hoisted__U64_1128)));
                 (void)hoisted__v_1130;
                 (void)hoisted__v_1130;
                 U64 hoisted__U64_1131 = (U64)(hoisted__U64_1129);
@@ -4909,7 +4909,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 (void)hoisted__U64_5047;
                 U64 hoisted__U64_5048 = (U64)(hoisted__U64_5047);
                 (void)hoisted__U64_5048;
-                Bool *hoisted__Bool_5049 = ptr_add(self->data, hoisted__U64_5048);
+                Bool *hoisted__Bool_5049 = ((void *)((U8 *)(self->data) + (hoisted__U64_5048)));
                 (void)hoisted__Bool_5049;
                 (void)hoisted__Bool_5049;
                 Bool hoisted__Bool_5050 = 0;
@@ -4932,7 +4932,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                 (void)hoisted__U64_5053;
                 U64 hoisted__U64_5054 = (U64)(hoisted__U64_5053);
                 (void)hoisted__U64_5054;
-                Bool *hoisted__Bool_5055 = ptr_add(self->data, hoisted__U64_5054);
+                Bool *hoisted__Bool_5055 = ((void *)((U8 *)(self->data) + (hoisted__U64_5054)));
                 (void)hoisted__Bool_5055;
                 (void)hoisted__Bool_5055;
                 Bool hoisted__Bool_5056 = 0;
@@ -4985,7 +4985,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 (void)hoisted__U64_5303;
                 U64 hoisted__U64_5304 = (U64)(hoisted__U64_5303);
                 (void)hoisted__U64_5304;
-                Bool *src = ptr_add(self->data, hoisted__U64_5304);
+                Bool *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5304)));
                 Bool cloned = (DEREF(src));
                 U64 hoisted__U64_5305 = 1ULL;
                 (void)hoisted__U64_5305;
@@ -4995,7 +4995,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 (void)hoisted__U64_5307;
                 U64 hoisted__U64_5308 = 1ULL;
                 (void)hoisted__U64_5308;
-                void *hoisted__v_5309 = ptr_add(new_data, hoisted__U64_5307);
+                void *hoisted__v_5309 = ((void *)((U8 *)(new_data) + (hoisted__U64_5307)));
                 (void)hoisted__v_5309;
                 (void)hoisted__v_5309;
                 U64 hoisted__U64_5310 = (U64)(hoisted__U64_5308);
@@ -5025,7 +5025,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 (void)hoisted__U64_5316;
                 U64 hoisted__U64_5317 = (U64)(hoisted__U64_5316);
                 (void)hoisted__U64_5317;
-                Bool *src = ptr_add(self->data, hoisted__U64_5317);
+                Bool *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5317)));
                 Bool cloned = (DEREF(src));
                 U64 hoisted__U64_5318 = 1ULL;
                 (void)hoisted__U64_5318;
@@ -5035,7 +5035,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                 (void)hoisted__U64_5320;
                 U64 hoisted__U64_5321 = 1ULL;
                 (void)hoisted__U64_5321;
-                void *hoisted__v_5322 = ptr_add(new_data, hoisted__U64_5320);
+                void *hoisted__v_5322 = ((void *)((U8 *)(new_data) + (hoisted__U64_5320)));
                 (void)hoisted__v_5322;
                 (void)hoisted__v_5322;
                 U64 hoisted__U64_5323 = (U64)(hoisted__U64_5321);
@@ -5111,7 +5111,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 (void)hoisted__U64_5351;
                 U64 hoisted__U64_5352 = (U64)(hoisted__U64_5351);
                 (void)hoisted__U64_5352;
-                I64 *hoisted__I64_5353 = ptr_add(self->data, hoisted__U64_5352);
+                I64 *hoisted__I64_5353 = ((void *)((U8 *)(self->data) + (hoisted__U64_5352)));
                 (void)hoisted__I64_5353;
                 (void)hoisted__I64_5353;
                 Bool hoisted__Bool_5354 = 0;
@@ -5134,7 +5134,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                 (void)hoisted__U64_5357;
                 U64 hoisted__U64_5358 = (U64)(hoisted__U64_5357);
                 (void)hoisted__U64_5358;
-                I64 *hoisted__I64_5359 = ptr_add(self->data, hoisted__U64_5358);
+                I64 *hoisted__I64_5359 = ((void *)((U8 *)(self->data) + (hoisted__U64_5358)));
                 (void)hoisted__I64_5359;
                 (void)hoisted__I64_5359;
                 Bool hoisted__Bool_5360 = 0;
@@ -5187,7 +5187,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 (void)hoisted__U64_5607;
                 U64 hoisted__U64_5608 = (U64)(hoisted__U64_5607);
                 (void)hoisted__U64_5608;
-                I64 *src = ptr_add(self->data, hoisted__U64_5608);
+                I64 *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5608)));
                 I64 cloned = (DEREF(src));
                 U64 hoisted__U64_5609 = 8ULL;
                 (void)hoisted__U64_5609;
@@ -5197,7 +5197,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 (void)hoisted__U64_5611;
                 U64 hoisted__U64_5612 = 8ULL;
                 (void)hoisted__U64_5612;
-                void *hoisted__v_5613 = ptr_add(new_data, hoisted__U64_5611);
+                void *hoisted__v_5613 = ((void *)((U8 *)(new_data) + (hoisted__U64_5611)));
                 (void)hoisted__v_5613;
                 (void)hoisted__v_5613;
                 U64 hoisted__U64_5614 = (U64)(hoisted__U64_5612);
@@ -5227,7 +5227,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 (void)hoisted__U64_5620;
                 U64 hoisted__U64_5621 = (U64)(hoisted__U64_5620);
                 (void)hoisted__U64_5621;
-                I64 *src = ptr_add(self->data, hoisted__U64_5621);
+                I64 *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5621)));
                 I64 cloned = (DEREF(src));
                 U64 hoisted__U64_5622 = 8ULL;
                 (void)hoisted__U64_5622;
@@ -5237,7 +5237,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                 (void)hoisted__U64_5624;
                 U64 hoisted__U64_5625 = 8ULL;
                 (void)hoisted__U64_5625;
-                void *hoisted__v_5626 = ptr_add(new_data, hoisted__U64_5624);
+                void *hoisted__v_5626 = ((void *)((U8 *)(new_data) + (hoisted__U64_5624)));
                 (void)hoisted__v_5626;
                 (void)hoisted__v_5626;
                 U64 hoisted__U64_5627 = (U64)(hoisted__U64_5625);
@@ -5313,7 +5313,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 (void)hoisted__U64_5959;
                 U64 hoisted__U64_5960 = (U64)(hoisted__U64_5959);
                 (void)hoisted__U64_5960;
-                Declaration *hoisted__Declaration_5961 = ptr_add(self->data, hoisted__U64_5960);
+                Declaration *hoisted__Declaration_5961 = ((void *)((U8 *)(self->data) + (hoisted__U64_5960)));
                 (void)hoisted__Declaration_5961;
                 (void)hoisted__Declaration_5961;
                 Bool hoisted__Bool_5962 = 0;
@@ -5336,7 +5336,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                 (void)hoisted__U64_5965;
                 U64 hoisted__U64_5966 = (U64)(hoisted__U64_5965);
                 (void)hoisted__U64_5966;
-                Declaration *hoisted__Declaration_5967 = ptr_add(self->data, hoisted__U64_5966);
+                Declaration *hoisted__Declaration_5967 = ((void *)((U8 *)(self->data) + (hoisted__U64_5966)));
                 (void)hoisted__Declaration_5967;
                 (void)hoisted__Declaration_5967;
                 Bool hoisted__Bool_5968 = 0;
@@ -5389,7 +5389,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 (void)hoisted__U64_6215;
                 U64 hoisted__U64_6216 = (U64)(hoisted__U64_6215);
                 (void)hoisted__U64_6216;
-                Declaration *src = ptr_add(self->data, hoisted__U64_6216);
+                Declaration *src = ((void *)((U8 *)(self->data) + (hoisted__U64_6216)));
                 Declaration *cloned = Declaration_clone(src);
                 U64 hoisted__U64_6217 = 144ULL;
                 (void)hoisted__U64_6217;
@@ -5399,7 +5399,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 (void)hoisted__U64_6219;
                 U64 hoisted__U64_6220 = 144ULL;
                 (void)hoisted__U64_6220;
-                void *hoisted__v_6221 = ptr_add(new_data, hoisted__U64_6219);
+                void *hoisted__v_6221 = ((void *)((U8 *)(new_data) + (hoisted__U64_6219)));
                 (void)hoisted__v_6221;
                 (void)hoisted__v_6221;
                 U64 hoisted__U64_6222 = (U64)(hoisted__U64_6220);
@@ -5430,7 +5430,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 (void)hoisted__U64_6228;
                 U64 hoisted__U64_6229 = (U64)(hoisted__U64_6228);
                 (void)hoisted__U64_6229;
-                Declaration *src = ptr_add(self->data, hoisted__U64_6229);
+                Declaration *src = ((void *)((U8 *)(self->data) + (hoisted__U64_6229)));
                 Declaration *cloned = Declaration_clone(src);
                 U64 hoisted__U64_6230 = 144ULL;
                 (void)hoisted__U64_6230;
@@ -5440,7 +5440,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                 (void)hoisted__U64_6232;
                 U64 hoisted__U64_6233 = 144ULL;
                 (void)hoisted__U64_6233;
-                void *hoisted__v_6234 = ptr_add(new_data, hoisted__U64_6232);
+                void *hoisted__v_6234 = ((void *)((U8 *)(new_data) + (hoisted__U64_6232)));
                 (void)hoisted__v_6234;
                 (void)hoisted__v_6234;
                 U64 hoisted__U64_6235 = (U64)(hoisted__U64_6233);
@@ -5517,7 +5517,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 (void)hoisted__U64_6263;
                 U64 hoisted__U64_6264 = (U64)(hoisted__U64_6263);
                 (void)hoisted__U64_6264;
-                Expr *hoisted__Expr_6265 = ptr_add(self->data, hoisted__U64_6264);
+                Expr *hoisted__Expr_6265 = ((void *)((U8 *)(self->data) + (hoisted__U64_6264)));
                 (void)hoisted__Expr_6265;
                 (void)hoisted__Expr_6265;
                 Bool hoisted__Bool_6266 = 0;
@@ -5540,7 +5540,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                 (void)hoisted__U64_6269;
                 U64 hoisted__U64_6270 = (U64)(hoisted__U64_6269);
                 (void)hoisted__U64_6270;
-                Expr *hoisted__Expr_6271 = ptr_add(self->data, hoisted__U64_6270);
+                Expr *hoisted__Expr_6271 = ((void *)((U8 *)(self->data) + (hoisted__U64_6270)));
                 (void)hoisted__Expr_6271;
                 (void)hoisted__Expr_6271;
                 Bool hoisted__Bool_6272 = 0;
@@ -5593,7 +5593,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 (void)hoisted__U64_6519;
                 U64 hoisted__U64_6520 = (U64)(hoisted__U64_6519);
                 (void)hoisted__U64_6520;
-                Expr *src = ptr_add(self->data, hoisted__U64_6520);
+                Expr *src = ((void *)((U8 *)(self->data) + (hoisted__U64_6520)));
                 Expr *cloned = Expr_clone(src);
                 U64 hoisted__U64_6521 = 232ULL;
                 (void)hoisted__U64_6521;
@@ -5603,7 +5603,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 (void)hoisted__U64_6523;
                 U64 hoisted__U64_6524 = 232ULL;
                 (void)hoisted__U64_6524;
-                void *hoisted__v_6525 = ptr_add(new_data, hoisted__U64_6523);
+                void *hoisted__v_6525 = ((void *)((U8 *)(new_data) + (hoisted__U64_6523)));
                 (void)hoisted__v_6525;
                 (void)hoisted__v_6525;
                 U64 hoisted__U64_6526 = (U64)(hoisted__U64_6524);
@@ -5634,7 +5634,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 (void)hoisted__U64_6532;
                 U64 hoisted__U64_6533 = (U64)(hoisted__U64_6532);
                 (void)hoisted__U64_6533;
-                Expr *src = ptr_add(self->data, hoisted__U64_6533);
+                Expr *src = ((void *)((U8 *)(self->data) + (hoisted__U64_6533)));
                 Expr *cloned = Expr_clone(src);
                 U64 hoisted__U64_6534 = 232ULL;
                 (void)hoisted__U64_6534;
@@ -5644,7 +5644,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                 (void)hoisted__U64_6536;
                 U64 hoisted__U64_6537 = 232ULL;
                 (void)hoisted__U64_6537;
-                void *hoisted__v_6538 = ptr_add(new_data, hoisted__U64_6536);
+                void *hoisted__v_6538 = ((void *)((U8 *)(new_data) + (hoisted__U64_6536)));
                 (void)hoisted__v_6538;
                 (void)hoisted__v_6538;
                 U64 hoisted__U64_6539 = (U64)(hoisted__U64_6537);
