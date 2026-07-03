@@ -189,10 +189,11 @@ test_fast: bin/til bin/test_runner bin/plot bin/tests
 # header comment on the two_pass target).
 test_two_pass:
 	$(MAKE) two_pass
+	bin/til build --asan -o bin/til_asan src/til.til
 	bin/til build src/test_runner.til
 	bin/til build examples/plot.til
 	bin/til build src/tests.til
-	xvfb-run --auto-servernum bin/tests --asan $(if $(J),-j$(J))
+	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
 # ASAN target names are kept as aliases for scripts and muscle memory. The
