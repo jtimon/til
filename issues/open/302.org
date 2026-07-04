@@ -1,0 +1,477 @@
+# priority: high
+# category: cleanups
+** OPEN #302 Garbager rework: make the compile-time GC the single, complete ownership authority
+
+make test now runs the full ASAN suite and is leak-clean (e3134d5,
+fe53487), but a substantial share of that greenness was bought with
+compensation code OUTSIDE the garbager: manual frees and a shadow
+teardown layer in interpreter.til, re-derived storage decisions and
+inline fixups in builder.til, and a pile of special cases bolted onto
+garbager.til itself. This issue is the deep analysis of that state and
+the staged plan to fix the compile-time garbage collector system
+properly, so that:
+
+  - the garbager COMPUTES every lifetime decision once, correctly, on
+    a real control-flow model;
+  - the decisions are RECORDED explicitly in the typed AST;
+  - builder and interpreter EXECUTE those decisions and never
+    re-derive, guess, or compensate;
+  - manual memory survives only where doc/ownership.org sanctions it
+    (Dynamic islands, destructor bodies, the C bridge).
+
+This is the concrete design + staging for the garbager half of #272
+("single ownership authority", its suggested-staging steps 4-5), with
+the inventory refreshed against current master (e333e8a). The
+interpreter Value-model rewrite stays #286's plan; this issue defines
+the contract that runtime must execute, and the builder-side work here
+is independent of #286.
+
+*** How we got here (the band-aid trail)
+
+The 2026-06/07 leak-hunting arc (#109, #238, #239, #245, #250, #256,
+#272, #275, #286, #299 and the "Interpreter: ..." commit series
+capped by 8de7f0e) drove the suite to ASAN-clean one symptom at a
+time. Nearly every fix landed at the SITE of a symptom -- an
+interpreter dispatch path, a builder emission shape, one more garbager
+carve-out -- because the garbager's model could not express the
+lifetime rule actually being violated. doc/ownership.org's audit
+sections and #275 agree on the diagnosis: the fault is architectural,
+not a list of independent bugs. The fixes work, the suite is green;
+the debt is that three subsystems now each own a slice of "where
+values die", and every new language shape must be taught to all three
+in agreement. The trail's latest entry shows the symptom in
+miniature: two sessions fixed the #299 Context_delete use-after-free
+in parallel with two DIFFERENT mechanisms (explicit teardown clears
+in run() vs Context field order), both landed, and e333e8a then had
+to remove one of them.
+
+*** The garbager's output today (the undocumented contract)
+
+What the pass actually produces, and who consumes it:
+
+  1. Inserted destructor statements: `Type.delete(x, cf)` /
+     `free(own x)` FCall nodes (make_delete_call / make_free_call in
+     typer.til) at last use, before reassignment, and on exit edges.
+  2. Deletes attached as EXTRA CHILDREN of Return nodes ("evaluate
+     children[0], then run children[1..], then return").
+  3. save_old_delete flags on Assign/FieldAssign -- set from TWO
+     places (typer's infer_assign_stmt and garbager's
+     insert_assign_delete); the builder emits the old-value delete
+     inline, in stack and heap variants.
+  4. own_type promotion on Decl (promote_own_transferred_locals):
+     owned aggregate locals flip Shallow -> Own so codegen heap-boxes
+     them.
+  5. Clone-elision rewrites: at a dying local's last use,
+     `lhs = local.clone()` / `holder.f = T.clone(local)` is rewritten
+     back to bare `local` so codegen emits a move -- ownership
+     transfer expressed by silently EDITING an expression.
+  6. Wrapper frees after a Shallow-field value-copy transfer
+     (transfer_is_shallow_field_value_copy + make_free_call): the one
+     "half a transfer" shape (doc/ownership.org).
+
+Consumers: the builder re-derives about half of these decisions from
+scratch (D3/D4 below) and the interpreter bypasses or re-implements
+the other half (inventory below). Nothing checks that the three
+agree; the test corpus under ASAN is the only referee.
+
+*** Structural deficits (the root causes)
+
+**** D1. Statement-index liveness; no CFG
+
+LocalInfo is three I32 indexes into ONE body's children Vec:
+decl_index, last_use, own_transfer. Paths do not exist in this model.
+Every path-shaped bug became a bolted-on special case:
+
+  - sink_conditional_transfer_deletes + sink_nontransfer_paths:
+    transfer inside one if-branch, delete grafted into the others
+    (with Str and params excluded for separate reasons);
+  - the own_transfer <= stmt_idx pre-transfer rules duplicated in
+    insert_exit_deletes_into_stmt and insert_nested_exit_deletes: an
+    exit edge before the transfer stmt still owns the local;
+  - return_only threading through insert_exit_deletes so break/
+    continue edges are cleaned in loops but not across them.
+
+A single own_transfer index cannot represent two conditional
+transfers, a transfer inside a loop, or per-branch last uses; the
+current answers are "first transfer wins", "extend to scope end", or
+"skip". check_use_after_own_transfer compares indexes, so a use after
+transfer on a DIFFERENT path is a false error shape waiting to
+happen, and a use-before-transfer ordering bug on one path is
+invisible.
+
+**** D2. Name-string dataflow; no alias model
+
+Everything is expr_uses_var(stmt, name) textual matching. View/alias
+tracking is the collect_hoist_taint machinery (#238/#250): a binding
+participates iff its name starts_with("hoisted__"), so user-written
+views get no tracking at all, and compiler temps get transitive-taint
+OVER-extension (acknowledged in extend_hoist_view_lifetimes' header).
+alias_used_in_stmts re-walks Decl statements to catch `ref x := local`
+before an exit delete. extend_ref_local_lifetimes extends a
+FieldAssign borrow source to END OF BODY because "without aliasing
+analysis we can't pin a tighter bound" (its own comment).
+
+**** D3. The stack-vs-heap decision is made twice
+
+The garbager guesses is_heap per binding from RHS shapes (LiteralStr,
+fcall_returns_shallow, is_pod_enum_clone_wrap, funcptr captures,
+BodyValue) in collect_scope_locals + promote_own_transferred_locals.
+builder.til INDEPENDENTLY re-derives the same classification into
+ctx.builder_func.stack_locals / stack_local_types in emit_stmt_decl,
+with its own copies of the literal / shallow-return / POD-enum-clone /
+clone-of-stack-local shape checks (and its own names for the shared
+predicates: is_pod_enum_clone_call vs is_pod_enum_clone_wrap,
+fcall_is_shallow_return vs fcall_returns_shallow). Every mismatch is
+UB (free of a stack pointer) or a leak, and every new RHS shape must
+be taught to both sides. The builder then papers over residual
+disagreements at every consumption site:
+
+  - emit_as_ptr's `_oa` malloc-copy wrap (own arg fed from a stack
+    local);
+  - is_noop_delete_stmt (skip garbager deletes that are no-ops on
+    stack scalars / POD enums);
+  - the delete-arg rewrite to `&local` + call_free=false for stack
+    locals, re-deriving the call_free literal via delete_call_free_lit;
+  - return boxing of stack locals (`*_r = local`) plus cap laundering
+    `if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }`.
+
+**** D4. Decisions travel through fragile channels
+
+  - save_old_delete set by both typer and garbager (output 3 above);
+  - move-instead-of-clone expressed by rewriting `x.clone()` to bare
+    `x` (output 5), which downstream phases must then re-recognize as
+    a move (the #256 own-field vs value-field wrapper-free split; the
+    interpreter's scope_set_owned source-nulling);
+  - exit deletes ride as Return children, so every one of the ~8
+    return-emission shapes in builder.til must unpack "children[1..]
+    are cleanup", and body_diverges must know the garbager appends
+    cleanup after terminators;
+  - the Shallow-field wrapper free depends on re-detecting the ctor
+    shape at delete-insertion time (positional/named-arg field
+    resolution in transfer_is_shallow_field_value_copy);
+  - transfer detection (expr_transfers_own / fcall_has_own_arg) only
+    matches bare Ident args; ctor own-field detection resolves fields
+    positionally and via NamedArg by name -- each a small parser of
+    shapes the typer has already resolved once.
+
+**** D5. Owned temporaries exist only by hoisting convention
+
+The garbager sees named locals in scope.bindings; every owned
+intermediate value must have been lifted into a `hoisted__*` Decl by
+the typer's hoist passes to be visible. The contract is implicit: any
+expression shape the hoister misses is INVISIBLE to the ASAP pass and
+leaks silently (the f().field class recorded in #272), and the
+builder even hand-frees one shape itself (the "Asap fix" in the
+Return emission: a shallow return of a hoisted temp does DEREF +
+free() inline because insert_exit_deletes_into_stmt skips locals used
+in the return expr).
+
+**** D6. Global flags for shape carve-outs
+
+ctx.typer_in_main_func (the builder heap-allocates main's CLI params,
+so the garbager must delete Ref params there and only there),
+ctx.typer_in_shallow_return (keep the returned local Shallow so the
+value-copy return works), is_program_scope + the hoisted__ prefix
+carve-out at program scope. Each is global state threaded through
+Context to flip individual predicates deep inside the pass.
+
+*** Compensation inventory (what this plan retires, by file)
+
+**** garbager.til itself (1048 lines)
+
+Roughly 40% of the pass by volume is special cases: the hoist-taint
+trio (collect_hoist_taint, rhs_depends_on_var, var_aliases_target),
+extend_hoist_view_lifetimes, alias_used_in_stmts,
+extend_ref_local_lifetimes' whole-body extension,
+sink_conditional_transfer_deletes + sink_nontransfer_paths, the
+pre-transfer exit rules, the is_heap RHS-shape checks, the
+program-scope / hoisted__ / main-param / shallow-return carve-outs.
+All are correct-ish answers to real bugs; a real ownership dataflow
+subsumes them (mapping in the design section).
+
+**** typer.til
+
+  - save_old_delete decisions in infer_assign_stmt (3 sites) --
+    consolidate into the garbager;
+  - expr_transfers_own / fcall_has_own_arg /
+    transfer_is_shallow_field_value_copy shape-parsers (D4);
+  - the hoist passes as the garbager's implicit temp-provider (D5);
+  - make_delete_call / make_free_call / make_clone_call factories:
+    fine, keep (they are the vocabulary, not the problem);
+  - the "passing 'own' makes the asap pass skip X.delete" diagnostic
+    stays but should cite the new model.
+
+**** builder.til
+
+All of D3/D4's consumption-side fixups: stack_locals /
+stack_local_types re-derivation, is_noop_delete_stmt, emit_as_ptr's
+`_oa` box, the delete-arg &local + call_free rewrite, return boxing +
+CAP_LIT laundering, the FieldAssign save-old
+`if (_fa->cap != TIL_CAP_LIT) { free(_fa); }` test, swap_freed
+accounting (hoist_param_swap_assign's inline frees vs later garbager
+deletes), the Return-children unpacking in every return shape,
+body_diverges' knowledge of post-terminator cleanup, the "Asap fix"
+inline free. Plus the known seam bug from #272's inventory:
+`free(own p)` on a program-scope Dynamic local emits invalid C
+(`malloc(sizeof(void))` own-box).
+
+**** interpreter.til (the biggest pile: ~1800 lines of shadow memory management)
+
+The Value model itself is #275/#286 territory; the entries are listed
+here because every one is ALSO a garbager-contract violation --
+reclamation happening where the garbager did not put it:
+
+  - the delete-interception layer in eval_user_func_call: del_method
+    matching + delete_body_has_custom_logic body-shape sniffing +
+    funcptr_delete_recv_type, routing X.delete calls away from their
+    bodies into a cache-driven shadow destructor/clone tree
+    (struct_deep_free, container_elem_deep_free, free_tuple_data /
+    clone_tuple_buffer, free_dyn_vec/array/set_buffer + clones,
+    free_container_data, free_container_str_data_cached,
+    enum_payload_deep_free/deep_clone, free_str_owned_storage /
+    clone_str_storage_into, heap_clone, free_owned_value,
+    free_struct_contents_keep_outer) -- a reimplementation of every
+    destructor and clone the language already generates, keyed by
+    struct-name strings and layout caches;
+  - free_temp_arg_value / free_non_own_temp_args: arg temporaries
+    freed by hand because call scopes are runtime constructs the
+    compile-time pass never sees;
+  - eval_body's bare-FCall `discard` manual free (8de7f0e replaced
+    the garbager-visible `_ := call()` decl with a manual reclaim);
+  - reclone_return's block-boundary clone/free dance;
+  - scope_free's deep teardown of cell payloads (per #275 it should
+    only free interpreter bookkeeping: Cell/Binding/Scope mallocs);
+  - guard_own_param_skip; the borrowed=true forgeries at hand-off
+    sites (enum_method_dispatch, ext_dispatch_ffi's keep-alive Vec,
+    write_field's deep-copy, value_to_buf's clone); h_free's box-only
+    vs deep semantics split vs compiled free;
+  - the teardown-order coupling the Value model exports into
+    context.til: payload deletes read layout metadata through their
+    ctx ref (str_owns_c_str -> str_count_at -> ctx_field_layout), so
+    Context_delete only works because the Value-owning tables
+    (constfolder_known, ns_fields) are DECLARED before the imported
+    ASTs and the cached_str ref block -- the #299 use-after-free,
+    fixed by field order plus a load-bearing ORDERING comment
+    (e333e8a). Destructors that dereference sibling ref fields create
+    ordering edges the ownership model cannot see; once values are
+    raw bytes (#286) and deletes carry their type statically, the
+    edge disappears.
+
+**** constfolder.til
+
+Manual Map-buffer frees + memcpy move idiom in fold_subtree's
+known-map snapshot/restore; hand-balanced Value ownership around
+try_eval_call. Smaller, same pattern.
+
+*** Target design
+
+One pass, one model, one recorded output.
+
+**** Ownership dataflow on a real CFG
+
+Build a per-body CFG (if/else, while with break/continue back and
+exit edges, switch cases, early returns, catch). For each owned
+binding run a forward dataflow with this per-point state:
+
+    Uninit | Owned | Moved(site) | Borrowed-from(owner set)
+
+Transfers (own arg, own-field assign, own capture, value-copy into a
+Shallow field), borrows (ref decls, ref-field assigns, view-returning
+calls), uses, and reassignments are edges discovered on the typed AST
+by binding identity -- not name strings, not the hoisted__ prefix.
+Destructor insertion = at every CFG edge where a binding drops from
+Owned to dead (last use, scope exit, early exit, reassign), per path.
+That subsumes, with no special cases:
+
+  - sink_conditional_transfer_deletes: still-Owned on the
+    non-transfer path -> delete inserted on that path;
+  - the pre-transfer early-exit rules: an exit edge upstream of the
+    transfer node still sees Owned;
+  - check_use_after_own_transfer: use while Moved = error, now
+    path-sensitive instead of last_use > own_transfer;
+  - extend_ref_local_lifetimes / extend_hoist_view_lifetimes /
+    collect_hoist_taint / alias_used_in_stmts: borrow edges keep the
+    owner alive exactly as long as any borrower -- user-named views
+    included, over-taint gone;
+  - double transfer on one path = a new, currently-undetectable
+    error, reported at the second site.
+
+**** Explicit, recorded decisions (backends stop deciding)
+
+  - Declaration gets a storage decision set ONCE by the garbager:
+    heap-box vs stack-value (replaces both the garbager is_heap guess
+    and builder's stack_locals re-derivation; emit_stmt_decl consumes
+    it).
+  - Destructor statements carry their full contract when inserted:
+    receiver form (value vs pointer), call_free, arg_is_own. The
+    builder stops re-deriving call_free/receiver from stack_locals,
+    and no-op deletes are simply NOT INSERTED (is_noop_delete_stmt
+    dies).
+  - Moves become explicit: an Assign/FieldAssign/arg consuming a
+    dying local is MARKED as a move (a flag beside save_old_delete /
+    the own-arg bit) instead of the clone-call textual elision;
+    builder and interpreter implement "move" once each.
+  - save_old_delete is set in exactly one place (the garbager);
+    typer's three sites move in.
+  - Return nodes stop carrying delete children: the garbager hoists
+    the return operand into a temp Decl (returns become
+    `return <ident>`) and inserts exit deletes as ORDINARY statements
+    before the Return. The ~8 special return emissions in builder.til
+    collapse into the plain form.
+
+**** Enforced temp contract
+
+Keep the hoisting division of labor (the pass sees named locals), but
+make the contract CHECKED: after typing, an owned-aggregate-producing
+expression in a non-Decl position that no transfer consumes is an ICE
+("unhoisted owned temp at <loc>"), not a silent leak. That converts
+D5's invisible class into loud build errors and produces the real
+residual-shape list. If that list turns out long, the follow-up is to
+let the ownership pass insert temps itself; start with the check.
+
+**** Special cases normalized away
+
+  - main() CLI params: mark them own_type = Own at init time -- main
+    is never called from til code and the builder's argv prologue IS
+    their constructor. ctx.typer_in_main_func dies.
+  - shallow-return locals: "local whose only escape is the value-copy
+    at a shallow return" becomes an ordinary storage classification
+    on the CFG. ctx.typer_in_shallow_return dies.
+  - Str keeps its runtime cap tag (CAP_LIT / CAP_VIEW / owned), and
+    Str.delete remains the single place that reads it. Codegen stops
+    emitting its own cap tests and laundering; where the garbager
+    knows statically (literal RHS) it emits the right delete form,
+    where it cannot, the delete call is emitted and Str.delete
+    decides at runtime.
+
+*** Staged plan
+
+Each stage lands suite-green. Garbager-semantics stages are
+`Two-pass:` commits (the pass changes what C is emitted for the
+compiler's own sources; see doc/self.org "Two-pass build" and
+doc/ownership.org "How to verify"). Verification per stage is
+`make clean && make test` or `make clean && make test_two_pass`
+accordingly.
+
+Stage 0. Contract snapshot + audit tooling. [plain commit]
+  Write doc/garbager.org documenting today's exact outputs (the six
+  above) and the target contract. Add a debug dump (e.g. TIL_GC_AUDIT
+  env var) that prints, per body: bindings, storage decision,
+  insertion sites, transfers, borrows. Golden a handful of bodies in
+  a new test so stages 1-5 show their decision diffs in review
+  instead of only via ASAN.
+
+Stage 1. Single-source storage classification. [Two-pass]
+  The garbager computes the storage decision per binding (today's
+  is_heap logic, centralized) and RECORDS it on Declaration. The
+  builder consumes the recorded decision in emit_stmt_decl; during
+  transition it ASSERTS agreement with its old shape checks (loud
+  panic on mismatch), then the duplicated checks are deleted --
+  including the is_pod_enum_clone_call / is_pod_enum_clone_wrap and
+  fcall_is_shallow_return / fcall_returns_shallow twins. emit_as_ptr's
+  `_oa` box and is_noop_delete_stmt become dead or assert-only.
+
+Stage 2. Return normalization. [Two-pass]
+  Stop attaching deletes as Return children: hoist return operands to
+  temps, insert exit deletes as preceding statements. Builder return
+  emission collapses; the body_diverges caveat goes away. Also the
+  precondition for Stage 3 (Return becomes a CFG leaf, not a cleanup
+  carrier).
+
+Stage 3. The CFG ownership pass. [Two-pass, the big one]
+  Implement the dataflow above inside garbager.til, replacing
+  LocalInfo's three indexes. Keep insertion output identical on
+  straight-line bodies (checked via Stage 0 goldens); branchy bodies
+  become path-correct. Delete in the same or immediate follow-up
+  commit: sink_conditional_transfer_deletes + sink_nontransfer_paths,
+  the pre-transfer exit rules, index-based
+  check_use_after_own_transfer (becomes a dataflow diagnostic),
+  extend_ref_local_lifetimes, extend_hoist_view_lifetimes,
+  collect_hoist_taint, rhs_depends_on_var, var_aliases_target,
+  alias_used_in_stmts. Borrow edges come from binding identity plus
+  view-returning-call classification (returns ref / substr class),
+  not the hoisted__ prefix. Add the path regression tests (below).
+
+Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
+  Move markers replace the clone-elision rewrites; save_old_delete
+  decisions consolidate into the garbager; the Shallow-field
+  value-copy wrapper free becomes a decision recorded at the transfer
+  site instead of re-detected. Builder and interpreter implement the
+  move marker once (pointer move / scope_set_owned nulling). This is
+  also where #275's step-3 typer enforcement (no memcpy of managed
+  aggregate bytes) can land, since moves are now first-class.
+
+Stage 5. Temp-contract enforcement. [Two-pass]
+  The unhoisted-owned-temp ICE. Fix what it flushes out (the
+  f().field class) by extending hoist coverage or pass-owned temp
+  insertion. Also fix the program-scope `free(own p)` invalid-C seam
+  bug while in the area.
+
+Stage 6. Builder compensation removal. [Two-pass]
+  With 1-5 in, delete the remaining builder fixups: swap_freed
+  accounting, CAP laundering at return boxing, the FieldAssign cap
+  test, the "Asap fix" inline free. Any removal that breaks a test
+  exposes a REAL garbager gap: fix the gap in the pass, then delete
+  the fixup. Never the reverse order.
+
+Stage 7. Interpreter compensation removal -- rides #286.
+  Gated on #286's raw-bytes runtime (delete bodies must be executable
+  against real layouts before the interception layer can die). This
+  issue's stages make the AST contract complete and explicit so
+  #286's stages consume it; once #286 reaches its stage 6, the shadow
+  teardown/clone tree, the del_method interception,
+  free_temp_arg_value / free_non_own_temp_args, deep scope_free,
+  guard_own_param_skip and the borrowed forgeries reduce to #275's
+  two rules: interpret the garbager's delete/free/move, and free the
+  interpreter's own bookkeeping.
+
+*** Verification
+
+  - Every stage: `make clean && make test` (the full ASAN suite is
+    the standing gate); Two-pass stages: `make clean &&
+    make test_two_pass`.
+  - Leak probes stay at zero true leaks:
+      TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan interpret test/strings.til
+      TIL_LEAK_PROBE=1 ASAN_OPTIONS=detect_leaks=1 bin/til_asan translate test/strings.til
+  - New regression tests for the path cases the index model cannot
+    express (today each is either a special case or silently
+    conservative): transfer in one branch (then/else orders, nested
+    else-if), transfer inside a loop body, early return before AND
+    after a transfer, break/continue with live owned locals, a
+    user-named (non-hoisted) view outliving its statement, view of a
+    view, two locals conditionally transferred into the same own
+    field, use-after-move on one path only (must error), self-assign
+    `x = x.clone()` (must keep the clone).
+  - Stage 0's GC-audit goldens diff the pass's decisions directly, so
+    behavior changes are visible in review rather than only as ASAN
+    outcomes.
+
+*** Non-goals
+
+  - No runtime GC, no refcounting: the ASAP single-owner model stays
+    (doc/ownership.org, "Relation to Mojo").
+  - No qualifier surface changes: own/ref/shallow/mut semantics stay
+    as documented in doc/qualifiers.org.
+  - Not the interpreter Value/heap rewrite -- that is #286; this
+    issue fixes the contract it executes.
+  - Not the scavenger / EvalHeap designs.
+
+*** Relations
+
+  - #272 (WIP): the umbrella principles + violation inventory; this
+    issue is the detailed design and staging of its garbager half
+    (steps 4-5 of its suggested staging). Its step 3 (interpreter
+    move/borrow contract) continued into #275/#286.
+  - #275 (OPEN): interpreter manufactures double-ownership at
+    construction; its typer-enforcement step slots in after Stage 4.
+  - #286 (WIP): the interpreter raw-bytes runtime Stage 7 rides on.
+  - #158 (WIP): one pass per phase; the per-body scope cache it wants
+    on Context is what lets garbager_destroy_body's nine typer call
+    sites collapse into the single garbager_destroy phase walk
+    (#204's step 3b). Stage 3's CFG pass is where that lift becomes
+    natural.
+  - #238 / #250 (fixed): the hoist-taint machinery Stage 3 deletes.
+  - #239 / #245 (fixed): the stable_type_name borrow workaround whose
+    deep fix (#275 notes) is unblocked once moves are first-class.
+  - #109 / #299 (fixed): the leak/ASAN arcs that accumulated most of
+    the compensation this plan retires.

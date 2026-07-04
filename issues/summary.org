@@ -24,6 +24,7 @@
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/286.org][#286]] Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
+*** [[./open/302.org][#302]] Garbager rework: make the compile-time GC the single, complete ownership authority
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
