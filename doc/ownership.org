@@ -599,6 +599,18 @@ Each was a value that shared a heap buffer (a ~.data~ payload or a ~Str~
     deep delete -- the buffer was passed raw to C, which owns/frees it
     (~Pair.delete(own self)~ was a double-free).
 
+*** Current status (2026-07-03): the full-ASAN suite IS ~make test~
+
+Everything the forward-looking notes above aim at ("next step", the handoff
+plan, "then ~make test_asan_full~ leak-clean") has landed. Issue #109 is
+closed (see ~issues/fixed/109.org~ for the post-mortem) and the strict
+full-ASAN suite -- compiler run as ~bin/til_asan~ AND compiled binaries
+sanitized -- is now the DEFAULT ~make test~ (~test_asan~ / ~test_asan_full~
+remain as aliases; ~make test_two_pass~ goes through the same gate). Any new
+leak or heap error in either the compiler or a compiled test now fails the
+suite, so this document's remaining value is as the record of the ownership
+model and of how the interpreter's value-model fixes were found.
+
 ** Sources
 
   - Mojo, "Value destruction" (ASAP, last-use destruction, __del__):

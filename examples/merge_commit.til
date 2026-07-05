@@ -25,23 +25,6 @@ count_subject_end := func(s: Str) returns USize {
     return nl.to_usize()
 }
 
-vec_from_str_lines := func(s: Str) returns Vec(Str) {
-    mut out := Vec(Str).new()
-    mut start : USize = 0
-    while start.lt(s.len()) {
-        rest := s.substr(start, s.len().sub(start))
-        nl := rest.find("\n")
-        if nl.eq(-1) {
-            out.push(own rest.clone())
-            break
-        }
-        line := rest.substr(0, nl.to_usize())
-        out.push(own line.clone())
-        start = start.add(nl.to_usize()).add(1)
-    }
-    return out
-}
-
 trim_spaces := func(s: Str) returns Str {
     mut start : USize = 0; mut end : USize = s.len()
     while start.lt(end) {

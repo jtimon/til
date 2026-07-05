@@ -507,6 +507,13 @@ Context := struct {
     // interpret_register_defs by interpret_register_struct_defs and read
     // back by make_str_value / build_array_from_argv. These were the
     // remaining six module-scope ref-mut + NULL globals after #178.
+    // ORDERING: these are borrowed refs into the imported ASTs, and the Value
+    // teardown reads cached_str_name (str_owns_c_str -> str_count_at ->
+    // ctx_field_layout). They MUST stay declared after the Value-owning
+    // tables (constfolder_known / ns_fields) above; auto-delete runs in
+    // declaration order, and moving them earlier -- or the Value tables
+    // later than `imported` -- reintroduces the #299 Context_delete
+    // heap-use-after-free.
     ref cached_str_def : Expr = NULL
     ref cached_str_name : Str = NULL
     ref cached_array_def : Expr = NULL
