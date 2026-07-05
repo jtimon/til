@@ -1706,7 +1706,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                     break;
                 }
                 U64 i = (_rc_U64_790);
-                (_rc_U64_790 += 1);
+                (++_rc_U64_790);
                 U64 hoisted__U64_792 = 24ULL;
                 (void)hoisted__U64_792;
                 U64 hoisted__U64_793 = ((U64)(i * hoisted__U64_792));
@@ -1729,7 +1729,7 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
                     break;
                 }
                 U64 i = (_rc_U64_790);
-                (_rc_U64_790 -= 1);
+                (--_rc_U64_790);
                 U64 hoisted__U64_798 = 24ULL;
                 (void)hoisted__U64_798;
                 U64 hoisted__U64_799 = ((U64)(i * hoisted__U64_798));
@@ -1775,7 +1775,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_804);
-                (_rc_U64_804 += 1);
+                (++_rc_U64_804);
                 U64 hoisted__U64_806 = 24ULL;
                 (void)hoisted__U64_806;
                 U64 hoisted__U64_807 = ((U64)(i * hoisted__U64_806));
@@ -1816,7 +1816,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_804);
-                (_rc_U64_804 -= 1);
+                (--_rc_U64_804);
                 U64 hoisted__U64_819 = 24ULL;
                 (void)hoisted__U64_819;
                 U64 hoisted__U64_820 = ((U64)(i * hoisted__U64_819));
@@ -1902,7 +1902,7 @@ void Vec__Str_clear(Vec__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_852);
-                (_rc_U64_852 += 1);
+                (++_rc_U64_852);
                 U64 hoisted__U64_854 = 24ULL;
                 (void)hoisted__U64_854;
                 U64 hoisted__U64_855 = ((U64)(i * hoisted__U64_854));
@@ -1925,7 +1925,7 @@ void Vec__Str_clear(Vec__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_852);
-                (_rc_U64_852 -= 1);
+                (--_rc_U64_852);
                 U64 hoisted__U64_860 = 24ULL;
                 (void)hoisted__U64_860;
                 U64 hoisted__U64_861 = ((U64)(i * hoisted__U64_860));
@@ -1978,7 +1978,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_1108);
-                (_rc_U64_1108 += 1);
+                (++_rc_U64_1108);
                 U64 hoisted__U64_1110 = 24ULL;
                 (void)hoisted__U64_1110;
                 U64 hoisted__U64_1111 = ((U64)(i * hoisted__U64_1110));
@@ -2019,7 +2019,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
                     break;
                 }
                 U64 i = (_rc_U64_1108);
-                (_rc_U64_1108 -= 1);
+                (--_rc_U64_1108);
                 U64 hoisted__U64_1123 = 24ULL;
                 (void)hoisted__U64_1123;
                 U64 hoisted__U64_1124 = ((U64)(i * hoisted__U64_1123));
@@ -4880,7 +4880,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5012);
-                (_rc_U64_5012 += 1);
+                (++_rc_U64_5012);
                 U64 hoisted__U64_5014 = 1ULL;
                 (void)hoisted__U64_5014;
                 U64 hoisted__U64_5015 = ((U64)(i * hoisted__U64_5014));
@@ -4903,7 +4903,7 @@ void Vec__Bool_clear(Vec__Bool * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5012);
-                (_rc_U64_5012 -= 1);
+                (--_rc_U64_5012);
                 U64 hoisted__U64_5020 = 1ULL;
                 (void)hoisted__U64_5020;
                 U64 hoisted__U64_5021 = ((U64)(i * hoisted__U64_5020));
@@ -4956,7 +4956,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5268);
-                (_rc_U64_5268 += 1);
+                (++_rc_U64_5268);
                 U64 hoisted__U64_5270 = 1ULL;
                 (void)hoisted__U64_5270;
                 U64 hoisted__U64_5271 = ((U64)(i * hoisted__U64_5270));
@@ -4996,7 +4996,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5268);
-                (_rc_U64_5268 -= 1);
+                (--_rc_U64_5268);
                 U64 hoisted__U64_5283 = 1ULL;
                 (void)hoisted__U64_5283;
                 U64 hoisted__U64_5284 = ((U64)(i * hoisted__U64_5283));
@@ -5082,7 +5082,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5316);
-                (_rc_U64_5316 += 1);
+                (++_rc_U64_5316);
                 U64 hoisted__U64_5318 = 8ULL;
                 (void)hoisted__U64_5318;
                 U64 hoisted__U64_5319 = ((U64)(i * hoisted__U64_5318));
@@ -5105,7 +5105,7 @@ void Vec__I64_clear(Vec__I64 * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5316);
-                (_rc_U64_5316 -= 1);
+                (--_rc_U64_5316);
                 U64 hoisted__U64_5324 = 8ULL;
                 (void)hoisted__U64_5324;
                 U64 hoisted__U64_5325 = ((U64)(i * hoisted__U64_5324));
@@ -5158,7 +5158,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5572);
-                (_rc_U64_5572 += 1);
+                (++_rc_U64_5572);
                 U64 hoisted__U64_5574 = 8ULL;
                 (void)hoisted__U64_5574;
                 U64 hoisted__U64_5575 = ((U64)(i * hoisted__U64_5574));
@@ -5198,7 +5198,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5572);
-                (_rc_U64_5572 -= 1);
+                (--_rc_U64_5572);
                 U64 hoisted__U64_5587 = 8ULL;
                 (void)hoisted__U64_5587;
                 U64 hoisted__U64_5588 = ((U64)(i * hoisted__U64_5587));
@@ -5284,7 +5284,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5924);
-                (_rc_U64_5924 += 1);
+                (++_rc_U64_5924);
                 U64 hoisted__U64_5926 = 144ULL;
                 (void)hoisted__U64_5926;
                 U64 hoisted__U64_5927 = ((U64)(i * hoisted__U64_5926));
@@ -5307,7 +5307,7 @@ void Vec__Declaration_clear(Vec__Declaration * self) {
                     break;
                 }
                 U64 i = (_rc_U64_5924);
-                (_rc_U64_5924 -= 1);
+                (--_rc_U64_5924);
                 U64 hoisted__U64_5932 = 144ULL;
                 (void)hoisted__U64_5932;
                 U64 hoisted__U64_5933 = ((U64)(i * hoisted__U64_5932));
@@ -5360,7 +5360,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6180);
-                (_rc_U64_6180 += 1);
+                (++_rc_U64_6180);
                 U64 hoisted__U64_6182 = 144ULL;
                 (void)hoisted__U64_6182;
                 U64 hoisted__U64_6183 = ((U64)(i * hoisted__U64_6182));
@@ -5401,7 +5401,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6180);
-                (_rc_U64_6180 -= 1);
+                (--_rc_U64_6180);
                 U64 hoisted__U64_6195 = 144ULL;
                 (void)hoisted__U64_6195;
                 U64 hoisted__U64_6196 = ((U64)(i * hoisted__U64_6195));
@@ -5488,7 +5488,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6228);
-                (_rc_U64_6228 += 1);
+                (++_rc_U64_6228);
                 U64 hoisted__U64_6230 = 232ULL;
                 (void)hoisted__U64_6230;
                 U64 hoisted__U64_6231 = ((U64)(i * hoisted__U64_6230));
@@ -5511,7 +5511,7 @@ void Vec__Expr_clear(Vec__Expr * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6228);
-                (_rc_U64_6228 -= 1);
+                (--_rc_U64_6228);
                 U64 hoisted__U64_6236 = 232ULL;
                 (void)hoisted__U64_6236;
                 U64 hoisted__U64_6237 = ((U64)(i * hoisted__U64_6236));
@@ -5564,7 +5564,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6484);
-                (_rc_U64_6484 += 1);
+                (++_rc_U64_6484);
                 U64 hoisted__U64_6486 = 232ULL;
                 (void)hoisted__U64_6486;
                 U64 hoisted__U64_6487 = ((U64)(i * hoisted__U64_6486));
@@ -5605,7 +5605,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
                     break;
                 }
                 U64 i = (_rc_U64_6484);
-                (_rc_U64_6484 -= 1);
+                (--_rc_U64_6484);
                 U64 hoisted__U64_6499 = 232ULL;
                 (void)hoisted__U64_6499;
                 U64 hoisted__U64_6500 = ((U64)(i * hoisted__U64_6499));
