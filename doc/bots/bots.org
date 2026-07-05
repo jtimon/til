@@ -343,8 +343,7 @@ one at a time, per "Background vs Foreground" below. The full
 `make clean && make test` before committing til code applies to
 remote sessions exactly like local ones -- the smoke-only shortcut
 let a 13-test regression through once; it is dead. The human still
-runs the full suite and ASAN baseline at merge time; report exactly
-what you ran and saw.
+runs the full ASAN suite at merge time; report exactly what you ran and saw.
 
 ## Worktrees (local sessions)
 

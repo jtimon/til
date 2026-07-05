@@ -63,7 +63,7 @@
      a single Decl somewhere in ~src/core/~ (don't duplicate the
      struct).
    - ASAN: ~_err_<T>~ slots must be cleaned up when ~T~ owns a
-     heap string. Verify with ~make test_asan~ once
+     heap string. Verify with ~make test~ once
      ~ErrorWithMessage~-style types have an init that allocates.
 
    *** Why low priority

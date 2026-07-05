@@ -292,12 +292,13 @@
   lists all of them, the artifact paths that can be named directly, and
   the options.
 
-  - ~make test~ builds + runs all tests (uses xvfb-run). Commit includes boot/.
+  - ~make test~ builds + runs the full ASAN test suite (uses xvfb-run and
+    ~bin/til_asan~). Commit includes boot/.
   - ~make two_pass~ builds, then rebuilds with the freshly-built ~bin/til~
     so ~boot/til.c~ reflects the new compiler self-applied. Use for
     "Two-pass: "-prefixed commits.
   - ~make test_two_pass~ ~two_pass~ + run the full test suite.
-  - ~make test_asan~ builds + runs tests with ASAN leak detection (~--til-bin bin/til_asan~).
+  - ~make test_asan~ and ~make test_asan_full~ are aliases for ~make test~.
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
   - ~make test_regen~ rewrites the ~test/*.expected~ goldens from what the
     tests actually print. They are reviewed artifacts, not a cache: a

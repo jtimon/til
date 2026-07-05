@@ -177,8 +177,8 @@ builder emits whatever the AST says, verbatim.
    `free(&name)` on a stack pointer is still UB and must be suppressed.
 
 4. Once the pass covers all three, delete the builder special-case and
-   confirm `make clean && make test` (and `make test_asan_full`) stay
-   green. The builder's `is_noop_delete_stmt` filter (which drops
+   confirm `make clean && make test` stays green. The builder's
+   `is_noop_delete_stmt` filter (which drops
    stack-local PRIMITIVE deletes before indent) may also be foldable
    into the same AST realign -- audit it.
 
@@ -195,6 +195,6 @@ Touches the typer/scavenger cleanup machinery and the builder's
 hottest emit path; a wrong realign reintroduces double-frees or
 use-after-frees that only ASAN catches. Land incrementally (one case
 at a time: litstr is already done; do shallow-return next, then POD),
-each behind `make test_asan_full`, keeping the builder special-case as
-a fallback until the pass provably covers the case (verify by reading
-the emitted boot/til.c for the target function, e.g. `str_view`).
+each behind `make test`, keeping the builder special-case as a fallback
+until the pass provably covers the case (verify by reading the emitted
+boot/til.c for the target function, e.g. `str_view`).
