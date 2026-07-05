@@ -7237,6 +7237,35 @@ priv scalar_read_arg := proc(scope: Scope, arg: Expr, type_str: Str, ctx: Contex
     return reinterpret_ptr_value(eval_expr(scope, arg, ctx), type_str, scope, ctx, false)
 }
 
+// Step a mut-local scalar in place by delta (+1 for inc, -1 for dec) -- the
+// interp side of the inc/dec core_funcs. Reads the receiver's current scalar,
+// adds delta, and writes the new value back into its cell. The receiver is
+// always a plain mut-local Ident (a range-loop counter from the `for x in
+// a..b` desugaring, the only numeric inc/dec caller), so cell.val is the whole
+// write-back -- no ref-mut or payload-alias mirror needed. A non-Ident
+// receiver would be a compiler bug and fails loud. Integer-only (F32 has no
+// inc/dec, so a delta on it is meaningless).
+priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, cat: Str, delta: I64, mut result: Value, ctx: Context) returns Bool {
+    if (cat == "u").or(cat == "i") {
+        cur := scalar_read_arg(scope, e.children[1], type_str, ctx)
+        mut base : I64 = 0
+        if cat == "u" { base = value_to_u64(cur).cast(I64) } else { base = value_as_i64(cur) }
+        nv := base.add(delta)
+        switch e.children[1].node_type {
+        case NodeType.Ident(id):
+            ref cell : Cell = scope_get(scope, id.ident_name())
+            if cell.is_null() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name()) }
+            sv : Value = scalar_build(type_str, nv)
+            memcpy(cell.val, sv, Value.size().cast(U64))
+        case:
+            panic(__LOC__, ": inc/dec receiver is not an Ident")
+        }
+        result = val_none()
+        return true
+    }
+    return false
+}
+
 priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     // Cheap reject: every scalar primitive type name starts with U, I or F.
     // This skips the find/substr parse for the common non-scalar dispatch
@@ -7273,6 +7302,11 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
         if cat == "i" { result = scalar_build(type_str, value_as_i64(av).bnot()); return true }
         return false
     }
+
+    // inc/dec: the sole self-mutating core ops, one arm each (delta +1/-1);
+    // scalar_step_cell holds the shared read-compute-writeback.
+    if op_str == "inc" { return scalar_step_cell(scope, e, type_str, cat, 1, result, ctx) }
+    if op_str == "dec" { return scalar_step_cell(scope, e, type_str, cat, -1, result, ctx) }
 
     if scalar_is_binop(op_str) {
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)

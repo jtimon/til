@@ -4154,6 +4154,7 @@ Bool priv___src_self_interpreter_til__scalar_cmp_i64(Str * op, I64 a, I64 b);
 Bool priv___src_self_interpreter_til__scalar_cmp_f32(Str * op, F32 a, F32 b);
 Value priv___src_self_interpreter_til__scalar_build(Str * t, I64 v);
 Value priv___src_self_interpreter_til__scalar_read_arg(Scope * scope, Expr * arg, Str * type_str, Context * ctx);
+Bool priv___src_self_interpreter_til__scalar_step_cell(Scope * scope, Expr * e, Str * type_str, Str * cat, I64 delta, Value * result, Context * ctx);
 Bool priv___src_self_interpreter_til__scalar_core_op_eval(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
 Bool priv___src_self_interpreter_til__ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result, Context * ctx);
 void priv___src_self_interpreter_til__ffi_register(Str * name, void * fn, Expr * fdef, Context * ctx);
