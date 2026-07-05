@@ -7291,12 +7291,14 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
         return true
     }
 
-    // bnot: unary bitwise complement (integer only).
+    // bnot: unary bitwise complement (integer only -- F32 declares no bnot,
+    // so the signed path is the unconditional tail, same shape as the cmp
+    // arm; no dead cat guard).
     if op_str == "bnot" {
         av := scalar_read_arg(scope, e.children[1], type_str, ctx)
         if cat == "u" { result = scalar_build(type_str, value_to_u64(av).bnot().cast(I64)); return true }
-        if cat == "i" { result = scalar_build(type_str, value_as_i64(av).bnot()); return true }
-        return false
+        result = scalar_build(type_str, value_as_i64(av).bnot())
+        return true
     }
 
     // inc/dec: the sole self-mutating core ops, one arm each (delta +1/-1);

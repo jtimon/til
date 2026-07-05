@@ -145,10 +145,8 @@ Str *U64_to_str_ext(U64 v);
 U64 U64_clone(const U64 *v);
 
 // Bool ops (shallow params)
-Bool Bool_eq(Bool a, Bool b);
 Bool and(Bool a, Bool b);
 Bool or(Bool a, Bool b);
-Bool not(Bool a);
 Bool band(Bool a, Bool b);
 Bool bor(Bool a, Bool b);
 Bool bxor(Bool a, Bool b);
@@ -181,7 +179,6 @@ void write_u32(void *dest, U32 val);
 void write_u64(void *dest, U64 val);
 void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
-Bool is_n(void *self, void *other, USize size);
 void *get_payload(void *self);
 
 // System primitives

@@ -4049,7 +4049,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // break this generated call. The slot is freshly
                     // zero-allocated and `_idx` is always in bounds here, so a
                     // raw memcpy is correct -- identical to the Vec path.
-                    f.write("        memcpy(ptr_add(").write(p.name).write("->data, ((U64)_idx) * sizeof(").write(p.explicit_type).write(")), _val, sizeof(").write(p.explicit_type).write("));\n")
+                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((U64)_idx) * sizeof(").write(p.explicit_type).write("), _val, sizeof(").write(p.explicit_type).write("));\n")
                     f.write("        memset(_val, 0, sizeof(").write(p.explicit_type).write("));\n")
                     f.write("        ").write(p.explicit_type).write("_delete(_val, 1);\n")
                     f.write("    }\n")
@@ -7306,7 +7306,7 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             // matching note in main()'s variadic wrapper). The slot is freshly
             // zero-allocated and `_idx` is in bounds, so memcpy is correct and
             // decoupled from Array.set's signature.
-            f.write("        memcpy(ptr_add(_a->data, ((U64)_idx) * sizeof(").write(et).write(")), _val, sizeof(").write(et).write("));\n")
+            f.write("        memcpy((U8 *)(_a->data) + ((U64)_idx) * sizeof(").write(et).write("), _val, sizeof(").write(et).write("));\n")
             f.write("        memset(_val, 0, sizeof(").write(et).write("));\n")
             f.write("        ").write(et).write("_delete(_val, 1);\n")
             f.write("    }\n")

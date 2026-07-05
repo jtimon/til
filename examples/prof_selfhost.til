@@ -57,7 +57,10 @@ git_short_commit := proc() returns Str {
 }
 
 // build_ms from the last recorded row of the CSV, or -1 if none / unreadable.
-previous_build_ms := func() returns I64 {
+// A proc: it reads the filesystem (file_mtime + readfile), so it cannot be a
+// pure func (the harness rotted when func purity started being enforced --
+// make test does not run make profile).
+previous_build_ms := proc() returns I64 {
     if file_mtime(CSV).lt(0) { return -1 }
     content := File.readfile(CSV)
     lines := content.split("\n")
