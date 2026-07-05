@@ -1,0 +1,106 @@
+* Function kinds
+
+til has three kinds of named callable, plus three specialized forms.
+They sort along two axes: does the declaration carry a BODY, and does a
+call EMIT AS A REAL CALL or get inlined.
+
+| keyword               | body | compiled C          | interpreter          |
+|-----------------------+------+---------------------+----------------------|
+| ~func~ / ~proc~       | yes  | function + call     | runs the body        |
+| ~ext_func~/~ext_proc~ | no   | call to src/c/ sym  | FFI call             |
+| ~core_func~/~core_proc~ | no | inlined natively    | registered handler   |
+| ~lazy_func~/~lazy_proc~ | yes | inlined, lazy args | lazy body eval       |
+| ~macro~               | yes  | (gone by codegen)   | executed at comptime |
+| ~test~                | yes  | test-runner entry   | runs the body        |
+
+** func / proc
+
+The ordinary kind: a body in til, compiled to a real C function and
+called normally; the interpreter runs the body. ~func~ declares a PURE
+function (result from arguments, no side effects); ~proc~ declares a
+procedure (non-pure: mutation, I/O, ownership transfer).
+
+** ext_func / ext_proc
+
+No body (~{}~). The implementation is a hand-written C symbol in
+src/c/ (ext.c and friends) with the C signature the til qualifiers
+describe (see doc/qualifiers.org). The backend emits an ordinary call
+to that symbol; the interpreter reaches it through libffi
+(~ffi_register~ registers every ExtFunc/ExtProc it loads).
+
+** core_func / core_proc
+
+An ext_func OPTIMIZED TO BE INLINED: same shape (no body, qualifiers
+describe a fixed C signature), but instead of expecting a linkable
+symbol from ext.o, every backend (C today; any future codegen) lowers a
+call to native code at the call site -- ~a + b~, ~!(a)~, ~(UPtr)p == 0~,
+~((E*)a)->tag == ((E*)b)->tag~, pointer arithmetic. No call, no symbol.
+
+core_func is THE inlining mechanism, and it is reserved for core
+primitives (src/core). There is deliberately NO keyword for user code
+to be inlined: inlining a func that has a body is an optimizer's job,
+not a language surface. A core_func the backend does not recognize is a
+hard error (~core_func backend lowering: unknown op~), not a fallback
+call.
+
+Current core ops:
+
+- the scalar numeric ops on U8..U64, I8..I64, F32: ~add sub mul div
+  mod eq neq lt gt lte gte band bor bxor bnot shl shr~ (the generic
+  scalar lowering in builder.til, ~core_binop_to_c~)
+- ~Bool.eq~ (same generic scalar lowering: native ~==~)
+- ~not~ (native ~!~)
+- ~is_n~ (width-aware enum-tag compare, ~((E*)a)->tag == ((E*)b)->tag~)
+- ~is_null~ (native null test, ~(UPtr)p == 0~)
+- ~ptr_add~ (native pointer arithmetic, ~(void*)((U8*)buf + off)~)
+
+The interpreter cannot FFI a core_func (there is no registered symbol
+contract) and has no body to run, so each core op has a native
+evaluation path: the scalar ops go through ~scalar_core_op_eval~
+(parses the flat ~U32_eq~-style dispatch name), the rest through
+registered ~reg_dispatch~ handlers (~h_Bool_eq~, ~h_Bool_not~,
+~h_is_n~, ~h_is_null~, ~h_ptr_add~). Handlers extract C-level arg
+pointers with ~value_c_arg_ptr~, which mirrors the FFI marshalling, so
+interp and compile modes agree.
+
+Bootstrap note: src/c/ may KEEP a symbol for an op that became a
+core_func (~Bool_eq~, ~not~, ~is_n~, ~ptr_add~ live on in ext.c). That
+is what lets the conversion land as a single "Two-pass: " commit:
+pass-1 til_boot predates the inline and emits real calls, which link
+against the kept symbol; pass 2 inlines them. See doc/self.org.
+
+** lazy_func / lazy_proc
+
+A body, but calls are inlined WITH LAZY ARGUMENT EVALUATION: an
+argument expression is only evaluated where the body actually uses it.
+This is how ~and~ / ~or~ short-circuit without being language builtins.
+
+** macro
+
+A body that is EXECUTED AT COMPILE TIME (not expanded): the call site
+is replaced by the AST node the macro returns. By codegen time no
+macro calls remain.
+
+** test
+
+A named test block; ~make test~ collects and runs them in both interp
+and compile modes.
+
+* Inlining the compiler does on its own
+
+Two backend optimizations inline calls to ordinary funcs. They are not
+keywords and not name-lists a user can extend; they key on properties
+of the callee:
+
+- Accessor inline (#300): a method named ~len~ / ~unsafe_get~ whose
+  callee is a plain func with a single ~return EXPR~ body is spliced
+  inline (param-substituted) at the call site, for any type. ~for x in
+  c~ desugars to ~c.len()~ / ~c.unsafe_get(i)~ per iteration, so these
+  accessors must not cost a call.
+- Primitive clone fold: a ~clone~ call whose result is a value
+  primitive emits as the value itself. The ownership pass inserts
+  ~.clone()~ nodes on value-copy assignments (loop indices,
+  capacities, line/col fields); they must stay in the AST for
+  ownership/liveness analysis, so the fold happens at emit time. Calls
+  through a pointer (an ~own U8~ heap-buffer field) and the reflective
+  dispatch path keep the real ~<Prim>_clone~ call.

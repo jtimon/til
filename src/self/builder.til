@@ -3015,18 +3015,6 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // on the accessor method (single-return-expr body), not the
                     // container type -- no longer Vec-hardcoded.
                     emit_inline_accessor(f, e, find_callee_fdef(flat, ctx), depth, ctx)
-                } else if (sname == "Bool").and(mname.field_access_name() == "eq") {
-                    // Peephole: inline Bool.eq as native `==` -- a hot ext_func
-                    // call (1.8B in the --prof profile). Bool stays an ext_func
-                    // (the interpreter FFIs it, so both modes agree); same
-                    // approach as the `is` inline.
-                    f.write("((")
-                    f.write(til_type_name_c(e.expr_til_type()))
-                    f.write(")(")
-                    emit_deref(f, e.children[1], depth, ctx)
-                    f.write(" == ")
-                    emit_deref(f, e.children[2], depth, ctx)
-                    f.write("))")
                 } else if (mname.field_access_name() == "clone").and(is_primitive(e.expr_til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
                     // Peephole: a value primitive's clone is a value copy --
                     // emit the value directly instead of a <Prim>_clone() call
@@ -3249,8 +3237,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
-            } else if name.ident_name() == "is_n" {
-                // Peephole: inline `is_n`, the variable-width enum-tag check,
+            } else if name.ident_name().eq("is_n").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // is_n core_func: inline the variable-width enum-tag check
                 // by reading each operand's `tag` field through its enum C
                 // struct: ((E*)a)->tag == ((E*)b)->tag. Every enum is a struct
                 // with `tag` at offset 0, and the field's declared width
@@ -3260,8 +3248,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // here children[3] is an Ident). is_n is the sole tag-check
                 // primitive (the old 4-byte-only `is` folded into it, since the
                 // typed tag read handles any width) -- the #1 --prof CPU entry
-                // (93M calls). is_n stays an ext_func (the interpreter FFIs it,
-                // reading the same offset-0 tag), so both modes agree.
+                // (93M calls). The interpreter evaluates it via the registered
+                // h_is_n handler (a core_func is not FFI-registered), reading
+                // the same offset-0 tag bytes, so both modes agree.
                 isn_ret_c := til_type_name_c(e.expr_til_type())
                 enum_c := til_type_name(e.children[1].expr_til_type())
                 f.write("((")
@@ -3291,11 +3280,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(")((UPtr)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
                 f.write(") == 0))")
-            } else if name.ident_name() == "not" {
-                // #288 follow-up: Bool.not is now a core_func -- lower it to
-                // native `!` inline instead of a real call (~9.4M --prof). The
-                // interpreter keeps evaluating it via the registered h_Bool_not
-                // handler, so both modes agree; same name-gated shape as `is`.
+            } else if name.ident_name().eq("not").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // #288 follow-up: not is a core_func -- lower it to native `!`
+                // inline instead of a real call (~9.4M --prof). The interpreter
+                // keeps evaluating it via the registered h_Bool_not handler, so
+                // both modes agree. Gated on the callee actually being core,
+                // like is_null/ptr_add/is_n, not on the name alone.
                 f.write("((")
                 f.write(til_type_name_c(e.expr_til_type()))
                 f.write(")(!(")

@@ -4064,6 +4064,7 @@ Bool priv___src_self_interpreter_til__narrow_bool_arg(Scope * s, Expr * e, Conte
 Bool priv___src_self_interpreter_til__h_Bool_and(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_Bool_or(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_Bool_not(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_Bool_eq(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_U8_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_I16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_U16_from_i64(Scope * s, Expr * e, Value * r, Context * ctx);
@@ -4121,7 +4122,9 @@ Bool priv___src_self_interpreter_til__h_til_closure_slot_delete(Scope * s, Expr 
 Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
+void * priv___src_self_interpreter_til__value_c_arg_ptr(Value * v);
 Bool priv___src_self_interpreter_til__h_is_null(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_is_n(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);

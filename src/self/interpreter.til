@@ -5337,6 +5337,17 @@ priv h_Bool_not := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
     return true
 }
 
+// Bool.eq core_func handler (dispatch name is the flat "Bool_eq"): a
+// core_func is not FFI-registered, so the interpreter evaluates it here.
+// The inner .eq() is itself the core_func, lowered inline in this compiled
+// handler -- no handler recursion.
+priv h_Bool_eq := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    av := narrow_bool_arg(s, e.children[1], ctx)
+    bv := narrow_bool_arg(s, e.children[2], ctx)
+    r = Value.Boolean(av.eq(bv))
+    return true
+}
+
 priv h_U8_from_i64 := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.children[1], ctx)
     switch v {
@@ -6425,24 +6436,50 @@ priv h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     return true
 }
 
+// The pointer a Value passes to a C-signature Dynamic arg -- mirrors the FFI
+// call marshalling switch (ext_dispatch_ffi) so a core_func handler sees what
+// the old ext_func FFI call received. Ref/Dynamic/Func wrap a storage slot,
+// so the pointer is one deref away (testing the slot's own address would
+// wrongly read a NULL-holding ref field or Dynamic as non-null --
+// test/ref.til, test/aliases.til, the nested-enum is_n in test/enums.til).
+// Struct/Enum pass their data pointer. Scalars and anything else fall back to
+// val_to_ptr (a scalar's storage pointer -- non-null, matching is_null's old
+// value-arg behavior; these are degenerate for a Dynamic-typed arg).
+priv value_c_arg_ptr := func(v: Value) returns ref Dynamic {
+    switch v {
+    case Value.Ref(slot):     return deref(slot)
+    case Value.Dynamic(slot): return deref(slot)
+    case Value.Func(fslot):   return deref(fslot)
+    case Value.Struct(si):    return si.data
+    case Value.Enum(ei):      return ei.data
+    case:                     return val_to_ptr(v)
+    }
+}
+
 // is_null core_func handler: a core_func has no body to run and is not
-// FFI-registered, so the interpreter evaluates p.is_null() here. It must test
-// the pointer VALUE the arg represents -- exactly what the old
-// `p.ptr_eq(NULL)` FFI marshalled. A Value.Ref wraps the storage SLOT of an
-// lvalue (a `ref` param or a `ref` field), so the pointer lives one deref away
-// (deref(slot)); a Value.Dynamic already holds the pointer value directly, so
-// no deref. Testing the slot address itself would wrongly report a NULL ref
-// field as non-null (test/ref.til, test/aliases.til). The inner .is_null() is
-// itself the core_func, lowered inline in this compiled handler -- no handler
-// recursion.
+// FFI-registered, so the interpreter evaluates p.is_null() here, testing the
+// pointer VALUE the arg represents (value_c_arg_ptr) -- exactly what the old
+// `p.ptr_eq(NULL)` FFI marshalled. Testing a slot's own address instead would
+// wrongly report a NULL-holding ref field as non-null (test/ref.til,
+// test/aliases.til). The inner .is_null() is itself the core_func, lowered
+// inline in this compiled handler -- no handler recursion.
 priv h_is_null := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     v := eval_expr(s, e.children[1], ctx)
-    switch v {
-    case Value.Ref(slot):
-        r = Value.Boolean(deref(slot).is_null())
-    case:
-        r = Value.Boolean(val_to_ptr(v).is_null())
-    }
+    r = Value.Boolean(value_c_arg_ptr(v).is_null())
+    return true
+}
+
+// is_n core_func handler: the width-aware enum-tag compare (see dyn.til).
+// Comparing the first `size` raw bytes with memcmp is equivalent to ext.c's
+// width-switched typed compare: both read exactly the tag (offset 0,
+// `size` = tag width in bytes) of each operand for equality.
+priv h_is_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    a := eval_expr(s, e.children[1], ctx)
+    b := eval_expr(s, e.children[2], ctx)
+    size_val := eval_expr(s, e.children[3], ctx)
+    ref pa : Dynamic = value_c_arg_ptr(a)
+    ref pb : Dynamic = value_c_arg_ptr(b)
+    r = Value.Boolean(memcmp(pa, pb, value_to_u64(size_val)) == 0)
     return true
 }
 
@@ -6520,6 +6557,7 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("and", h_Bool_and, ctx)
     reg_dispatch("or", h_Bool_or, ctx)
     reg_dispatch("not", h_Bool_not, ctx)
+    reg_dispatch("Bool_eq", h_Bool_eq, ctx)
     reg_dispatch("U8_from_i64", h_U8_from_i64, ctx)
     reg_dispatch("U8_from_i64_ext", h_U8_from_i64, ctx)
     reg_dispatch("I16_from_i64", h_I16_from_i64, ctx)
@@ -6539,6 +6577,7 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("til_closure_slot_delete", h_til_closure_slot_delete, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)
     reg_dispatch("is_null", h_is_null, ctx)
+    reg_dispatch("is_n", h_is_n, ctx)
     reg_dispatch("dyn_call", h_dyn_call, ctx)
     reg_dispatch("dyn_call_ret", h_dyn_call, ctx)
     reg_dispatch("dyn_has_method", h_dyn_has_method, ctx)

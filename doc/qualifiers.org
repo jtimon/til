@@ -144,14 +144,18 @@ redundant and rejected by the typer.
   values even without the keyword -- a plain ~x: I64~ param and a plain
   ~returns I64~ are passed/returned by value. The qualifier is inferred for
   ordinary func/proc and funcptr signatures; it does NOT apply to
-  ~ext_func~/~ext_proc~ (their qualifiers map to a fixed C signature), to
+  ~ext_func~/~ext_proc~ or ~core_func~/~core_proc~ (their qualifiers map to
+  a fixed C signature -- for a core_func, the one its inline lowering and
+  any kept ext.c symbol share, see doc/functions.org), to
   ~mut~/~own~ primitive params, or to params of a ~returns ref T~ function
   (those stay borrowed pointers so the ref can escape)
 - Issue #223 step 2: because the qualifier is now inferred, an explicit
   ~shallow~ on a primitive where auto-shallow applies (ordinary func/proc,
   not ~returns ref~) is redundant, and the typer now REJECTS it: "redundant
   'shallow' on primitive ...; drop it". ~shallow~ remains required on
-  ~ext_func~/~ext_proc~ (it describes the fixed C signature) and on a
+  ~ext_func~/~ext_proc~ and ~core_func~/~core_proc~ (it describes the fixed
+  C signature; a bodyless ~returns Bool~ without ~shallow~ is an owned
+  Bool* return, and callers would deref+free the value) and on a
   ~returns ref T~ function's primitive params. (The funcptr-signature
   variant of the rule is sketched but not yet active -- ~infer_func_sig_expr~
   is a ~func~ with no ~ctx~ to raise the diagnostic from.)
