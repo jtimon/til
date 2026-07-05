@@ -2994,6 +2994,25 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         f.write(")((_cf_b == 0) ? 0 : (_cf_a ")
                         f.write(divmod_c_op)
                         f.write(" _cf_b)); })")
+                    } else if (core_op == "inc").or(core_op == "dec") {
+                        // inc/dec core_func: a unary self-mutating op. `x.inc()`
+                        // lowers to `(x += 1)` in place -- no call, no pointer
+                        // write-back. emit_deref yields the mut-self lvalue (a
+                        // stack local emits as its bare name, a ref local as
+                        // DEREF(ptr)); `+= 1` wraps at the scalar's width exactly
+                        // as the old `self = self + 1` body did. Preparation
+                        // commit: this branch stays dormant until inc/dec become
+                        // core_func (while they are func, builder_callee_is_core
+                        // is false and this whole block is skipped), so it must
+                        // land in master first for the flip's pass-1 til_boot to
+                        // have it (see doc/self.org, and dec below is the mirror).
+                        mut incdec_c_op := "+"
+                        if core_op == "dec" { incdec_c_op = "-" }
+                        f.write("(")
+                        emit_deref(f, e.children[1], depth, ctx)
+                        f.write(" ")
+                        f.write(incdec_c_op)
+                        f.write("= 1)")
                     } else {
                         core_c_op := core_binop_to_c(core_op)
                         if core_c_op.len() == 0 { panic(__LOC__, ": core_func backend lowering: unknown op '", core_op, "'") }
