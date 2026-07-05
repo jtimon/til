@@ -6425,6 +6425,27 @@ priv h_ptr_add := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bo
     return true
 }
 
+// is_null core_func handler: a core_func has no body to run and is not
+// FFI-registered, so the interpreter evaluates p.is_null() here. It must test
+// the pointer VALUE the arg represents -- exactly what the old
+// `p.ptr_eq(NULL)` FFI marshalled. A Value.Ref wraps the storage SLOT of an
+// lvalue (a `ref` param or a `ref` field), so the pointer lives one deref away
+// (deref(slot)); a Value.Dynamic already holds the pointer value directly, so
+// no deref. Testing the slot address itself would wrongly report a NULL ref
+// field as non-null (test/ref.til, test/aliases.til). The inner .is_null() is
+// itself the core_func, lowered inline in this compiled handler -- no handler
+// recursion.
+priv h_is_null := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    v := eval_expr(s, e.children[1], ctx)
+    switch v {
+    case Value.Ref(slot):
+        r = Value.Boolean(deref(slot).is_null())
+    case:
+        r = Value.Boolean(val_to_ptr(v).is_null())
+    }
+    return true
+}
+
 priv h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.children[1], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -6517,6 +6538,7 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("til_closure_delete", h_til_closure_delete, ctx)
     reg_dispatch("til_closure_slot_delete", h_til_closure_slot_delete, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)
+    reg_dispatch("is_null", h_is_null, ctx)
     reg_dispatch("dyn_call", h_dyn_call, ctx)
     reg_dispatch("dyn_call_ret", h_dyn_call, ctx)
     reg_dispatch("dyn_has_method", h_dyn_has_method, ctx)

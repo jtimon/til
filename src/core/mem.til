@@ -37,10 +37,12 @@ memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: UPtr) {}
 memcmp := ext_func(a: Dynamic, b: Dynamic, shallow len: UPtr) returns shallow I32 {}
 ptr_eq := ext_func(a: Dynamic, b: Dynamic) returns shallow Bool {}
 
-// is_null used to live in ext.c; it's now a one-liner over ptr_eq so
-// the C-side primitive surface shrinks by one symbol.  Reached via
-// UFCS as `aaa.is_null()` on any Dynamic-typed value.
-is_null := func(p: Dynamic) returns Bool { return p.ptr_eq(NULL) }
+// is_null is a core_func: the C backend lowers `p.is_null()` to a native
+// null test `(UPtr)p == 0` inline (no call, no symbol), and the AST
+// interpreter evaluates it via the registered h_is_null handler (a core_func
+// has no body to run and is not FFI-registered).  Reached via UFCS as
+// `aaa.is_null()` on any Dynamic-typed value.
+is_null := core_func(p: Dynamic) returns shallow Bool {}
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 

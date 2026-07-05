@@ -2354,7 +2354,6 @@ void File_delete(File * self, Bool call_free);
 File * File_fwrite(File * self, Array__Str * parts);
 File * File_clone(File * self);
 U64 File_size(void);
-Bool is_null(void * p);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
 Range * Range_clone(Range * val);
@@ -4122,6 +4121,7 @@ Bool priv___src_self_interpreter_til__h_til_closure_slot_delete(Scope * s, Expr 
 Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_is_null(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);

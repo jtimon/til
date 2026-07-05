@@ -3275,16 +3275,17 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(" *)(")
                 emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
                 f.write("))->tag))")
-            } else if name.ident_name() == "is_null" {
-                // Peephole: inline is_null(p) -- defined as p.ptr_eq(NULL) -- as
-                // a direct null test, dropping the is_null and its nested ptr_eq
-                // call (6.2M --prof calls). The Dynamic arg emits as the pointer
-                // value (emit_as_ptr), exactly as the real call passes it. The
-                // test is `(UPtr)p == 0` rather than `p == NULL`: for a value
-                // arg emit_as_ptr yields `&local`, and `&local == NULL` trips
-                // gcc -Waddress (always false); the integer compare is the same
-                // result without the diagnostic. is_null stays a real func (the
-                // interpreter runs its body), so both modes agree.
+            } else if name.ident_name().eq("is_null").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // is_null core_func: lower is_null(p) to a direct null test
+                // inline, dropping the call (6.2M --prof calls). The Dynamic arg
+                // emits as the pointer value (emit_as_ptr), exactly as the real
+                // call passes it. The test is `(UPtr)p == 0` rather than
+                // `p == NULL`: for a value arg emit_as_ptr yields `&local`, and
+                // `&local == NULL` trips gcc -Waddress (always false); the
+                // integer compare is the same result without the diagnostic. The
+                // interpreter evaluates is_null via the registered h_is_null
+                // handler (a core_func is not FFI-registered), so both modes
+                // agree.
                 f.write("((")
                 f.write(til_type_name_c(e.expr_til_type()))
                 f.write(")((UPtr)(")
