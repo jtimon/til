@@ -1929,15 +1929,27 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 // field with the USize/UPtr typedef -- ext.h's typedef is the
                 // single source of truth for the field's ABI width, so a field
                 // stays consistent no matter which compiler (til_boot or
-                // bin/til) emits it. Resolve only a LOCAL copy through the
-                // per-target authority for the layout size/align math, and set
-                // til_type to the resolved primitive so typechecking sees the
-                // right width. Other aliases resolve to their target as before.
+                // bin/til) emits it. til_type resolves to the TARGET primitive
+                // so typechecking the target program sees the right width.
+                //
+                // BUT the size/align math below feeds ctx.struct_layouts,
+                // whose ONLY consumer is the compile-time interpreter
+                // (constfolder). That interpreter operates on HOST-laid-out
+                // data and calls HOST-compiled clone/copy functions
+                // (Str_clone etc.), so its layout must be HOST width. Using
+                // the target width here corrupted cross-compile constfolding
+                // (a 32-bit target sized Str at 4-byte USize while the host
+                // Str is 8-byte, so heap_clone's memcpy shredded the Str ->
+                // segfault). The host width is THIS compiler's own USize:
+                // USize.size() resolves when the compiler itself is built,
+                // so it is 8 in a 64-bit-hosted til and 4 in a 32-bit-hosted
+                // one (#232) -- matching the running binary's ext.h typedef.
                 if ftype.eq("USize").or(ftype.eq("UPtr")) {
                     mut resolved := scope_target_usize_pname(scope).clone()
                     if ftype.eq("UPtr") { resolved = scope_target_uptr_pname(scope).clone() }
                     fd.til_type = til_type_from_explicit_type(resolved)
-                    ftype = resolved
+                    ftype = "U64"
+                    if USize.size().eq(4) { ftype = "U32" }
                 } else {
                     ref ab : TypeBinding = scope.get_binding(ftype)
                     if ab.is_null().not() {
