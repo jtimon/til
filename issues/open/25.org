@@ -2,101 +2,189 @@
 # category: deferred
 ** OPEN #25 Support for the 4 main operative systems
 
-:DEPENDENCIES: [[./12.org][#12]]
-  til currently only builds and runs on GNU/Linux. Should support the 4
-  main operative systems, in priority order:
-  1. GNU/Linux/BSD (current, done)
-  2. TempleOS
-  3. macOS
-  4. Windows
+:DEPENDENCIES: [[../fixed/12.org][#12]] (self-hosting, FIXED)
+:RELATED: [[./151.org][#151]] (TempleOS), [[./152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
 
-  This is not just "til builds natively on each OS." The goal is full
-  cross-compilation: build a til binary for any target from any host.
-  The matrix is 3×4 + 1×1 = 13 combinations: Linux, macOS, and Windows
-  can each target all 4 platforms, but TempleOS as a host only targets
-  itself (cross-compiling from TempleOS would mean replacing gcc/clang,
-  which is out of scope).
+  til should build and run on the 4 main operative systems, and not
+  just natively: the goal is full cross-compilation -- build a til
+  binary for any target from any host. Hosts are GNU/Linux, macOS and
+  Windows; targets add TempleOS. The matrix is 3x4 + 1x1 = 13
+  combinations (TempleOS as a host only targets itself; replacing
+  gcc/clang on TempleOS is out of scope).
 
-  ctil (the C bootstrap compiler) stays Linux-only. Once til is
-  self-hosting ([[./12.org][#12]]), til replaces ctil and handles all platforms.
-  Bootstrap path: ctil on Linux compiles self-hosted til → til can
-  then cross-compile itself and any .til program to any target.
+  The original priority order was Linux, TempleOS, macOS, Windows.
+  Reality inverted it: mingw-w64 made Windows cheap, so it landed
+  second. macOS is now the active front and the greatest remaining
+  challenge; TempleOS goes last ([[./151.org][#151]]).
 
-  The C codegen path helps: emit C + invoke the target's C compiler
-  works for most POSIX targets. But TempleOS breaks this pattern
-  (no C compiler), requiring a dedicated HolyC codegen backend.
+  Status (2026-07):
 
-  The builder must select the appropriate codegen backend per target.
+  - GNU/Linux: DONE. Native host plus 6 Linux targets (x64, arm64,
+    riscv64, x86, arm32, riscv32). CI cross-compiles all six and runs
+    x86/arm32/riscv32 under qemu. The --cc override supports odd
+    toolchains (the riscv32 job uses a Bootlin gcc).
+  - Windows as a target: DONE. mingw-w64 cross from Linux; vendored
+    libraylib-win64.a / libtinyfd-win64.a; mode gui links
+    gdi32/opengl32/winmm/...; [[file:../../src/c/ext.c][src/c/ext.c]] has full _WIN32 coverage
+    (CreateProcess, LoadLibrary/GetProcAddress FFI loading, psapi
+    RSS). CI cross-builds hello_script.exe and runs it on a real
+    windows-latest runner. make build_win sweeps all examples except
+    the ones that link Linux-only libs directly (raylib.til FFI demo,
+    nng_*.til -- no Windows nng build yet). 32-bit windows-x86 is
+    tracked in [[./232.org][#232]].
+  - wasm32 (bonus target beyond the 4): DONE via emscripten
+    (make build_wasm, single-file .html output; was #228).
+  - Windows as a host (bin/til.exe compiling programs ON Windows):
+    open. Needs libffi built for win64 (target_ffi_lib returns "" for
+    windows, and the compiler links libffi for its ext_func
+    interpreter dispatch), an nng-win64 build for mode server, and a
+    CI job that builds and runs the compiler itself on windows-latest.
+    The same libffi-win64 build unlocks runtime ext_func in
+    cross-compiled user programs.
+  - macOS: not started in practice. Plumbing exists in
+    [[file:../../src/self/targets.til][src/self/targets.til]] (Target.MacosX64/MacosArm64, clang -target
+    flags, -lm -lpthread), but nothing has ever been built or tested
+    on a Mac, and cross from Linux cannot work as-is: no Apple SDK on
+    the host. Detailed plan below.
+  - TempleOS: deferred, split out to [[./151.org][#151]]. #12 is fixed so the hard
+    dependency is satisfied; what remains is the HolyC backend itself
+    (Lang.HolyC and the holyc toolchain entry are placeholders today).
 
-  Common areas affected across platforms:
-  - Build system (builder that selects backend per target)
-  - FFI / dlsym (platform-specific dynamic loading)
-  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
-  - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
-  - Audio (miniaudio on POSIX/Windows, native on TempleOS)
+*** macOS plan
+
+   Why it is the hard one: unlike Windows there is no mingw equivalent
+   for Mach-O. Apple's SDK (libc headers, libSystem .tbd stubs, Cocoa/
+   OpenGL frameworks) is not redistributable, so the windows-x64
+   recipe -- vendor a cross compiler plus static libs, link on Linux --
+   does not transfer. Split the work so the SDK problem only blocks
+   the parts that genuinely need the SDK:
+
+**** Phase 1: native macOS host (arm64 first, x64 second)
+
+     Build and test til ON a Mac using GitHub's macOS runners
+     (macos-latest is arm64 today; macos-15-intel is x64). No SDK
+     problem there: the runner ships Xcode clang. Work items:
+
+     - Makefile portability: -lrt (in RAYLIB_FLAGS, linked into
+       til_boot too) and -latomic (NNG_FLAGS) do not exist on macOS;
+       gate on uname -s. xvfb-run is Linux-only: mac runners are
+       headless, so run the suite without the wrapper and without gui
+       tests at first (bin/tests --no-gui -- same reason Linux CI
+       needs xvfb at all). -rdynamic/-ldl reportedly work with Apple
+       clang; verify.
+     - The til_boot cc line uses only -Wall -Wextra -Werror; Apple
+       clang needs the -Wno-* extras toolchain_extra_args already adds
+       for clang builds (sometimes-uninitialized, self-assign,
+       unused-function) -- or the warnings fixed for real.
+     - ext.c: gate the /proc RSS walkers (proc_rss_bytes,
+       is_process_leader, proc_tree_rss_bytes) on __linux__; on macOS
+       they compile as unused static functions and trip
+       -Werror=unused-function. The rest is POSIX or already forked
+       per platform (_WIN32 / __EMSCRIPTEN__ / __APPLE__ ru_maxrss
+       units, host_os); audit for stragglers while there.
+     - Vendor builds on the mac runner: libffi (./configure lands in
+       vendor/libffi/aarch64-apple-darwin*/.libs), nng (cmake), raylib
+       (upstream supports PLATFORM_OS=OSX; links -framework
+       Cocoa/IOKit/OpenGL/CoreVideo), tinyfd (plain cc, osascript
+       backend).
+     - targets.til: fill target_ffi_lib and target_gui_libs for the
+       two macos targets (mac .a paths plus framework flags, mirroring
+       the -win64 pattern).
+     - Un-hardcode the libffi link() path: [[file:../../src/self/interpreter.til][src/self/interpreter.til]]
+       pins link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a");
+       the builder already rewrites Linux link flags per target for
+       windows/wasm -- extend that to pick the host's libffi dir.
+     - .dylib vs .so: interpreter.til formats "lib<name>.so" for
+       ffi_load_global_lib, and builder.til emits gen/lib/lib<name>.so
+       for mode lib; the macOS shared-lib suffix is .dylib.
+     - ASAN: clang ASAN works on macOS but LeakSanitizer does not
+       exist on arm64 darwin; make test's --asan run needs a mac
+       carve-out for leak checks (or run test_fast there until
+       sorted).
+     - CI: a macos-latest job running the no-gui suite; add
+       macos-15-intel once arm64 is green.
+
+**** Phase 2: SDK-less cross-compilation Linux -> macOS (CLI/server)
+
+     No zig dependency -- replicate the mechanism zig uses internally.
+     What zig actually does (zig cc is clang underneath):
+
+     - vendors the darwin libc headers in its own tree
+       (lib/libc/include/any-darwin-any/ in ziglang/zig, harvested
+       from Apple SDKs by the now-archived
+       ziglang/fetch-them-macos-headers tool);
+     - vendors lib/libc/darwin/libSystem.tbd, a YAML text stub listing
+       libSystem's exported symbols: the linker resolves -lSystem
+       against the stub and the real libSystem.dylib binds at runtime
+       (stable ABI -- same idea as mingw import libs);
+     - links with its own Mach-O linker and ad-hoc code-signs arm64
+       output (mandatory on Apple Silicon);
+     - compiles compiler-rt builtins from source for the target;
+     - bundles no frameworks: gui cross is SDK-bound even for zig.
+
+     Every piece has a freely available non-zig equivalent: clang is
+     already a Mach-O cross-compiler on any host, ld64.lld
+     (clang -fuse-ld=lld) links Mach-O and ad-hoc-signs arm64, and
+     libSystem.tbd is one vendorable text file. The vendored header
+     tree is the heavy part -- and precompiled per-target ext objects
+     ([[./152.org][#152]], macOS-only; linux/windows targets keep the current
+     compile-ext.c-with-the-cross-gcc flow that already works) make it
+     mostly unnecessary:
+
+     - Precompile ext-macos-arm64.o / ext-macos-x64.o (plus
+       libffi-macos-*.a) on the Phase 1 mac CI job, where the real SDK
+       lives, and commit them like libraylib-win64.a. That absorbs
+       every system-header need in ext.c (dlfcn, spawn, sysconf, ...).
+     - The generated C is nearly freestanding already: gen/til/*.c
+       includes only stdio/stdlib/string/stdarg/limits plus ext.h, and
+       ext.h includes only stdbool/stdint (clang provides those
+       itself, stdarg too). Finish the job -- #152 step 1: route the
+       remaining direct libc uses (printf family, fprintf(stderr,...),
+       malloc/free/realloc, mem*/str*) through ext.h prototypes or
+       til_* wrappers so the generated C compiles with clang's builtin
+       headers alone, no Apple headers on the host. One darwin quirk
+       forces part of this anyway: Apple's stdio.h does
+       #define stderr __stderrp, so raw fprintf(stderr, ...) in
+       generated C cannot be hand-prototyped portably -- stderr users
+       must go through ext.o.
+     - Vendor a libSystem.tbd (checked against zig's copy) and link:
+       clang -target arm64-apple-macos11 -fuse-ld=lld -lSystem plus
+       the precompiled objects. No crt1.o exists on modern macOS
+       (LC_MAIN entry point), so no CRT objects to obtain. If the
+       generated C ends up referencing compiler-rt builtins, build the
+       few needed ones from llvm compiler-rt (permissive license) --
+       Linux clang packages do not ship libclang_rt.osx.a.
+     - Host toolchain deps: distro clang + lld, nothing else. Plan B
+       if shrinking the generated C's libc surface drags on: vendor
+       the darwin libc headers the way zig does (do the license
+       diligence at vendoring time; the tree already vendors X11
+       headers, so there is precedent).
+     - osxcross (user-extracted SDK) stays a documented --cc
+       alternative for whoever wants Apple's real toolchain; never a
+       dependency.
+     - CI: a linux job cross-builds examples/hello_script.til for
+       macos-arm64 and macos-x64 (file output grepped for Mach-O),
+       uploads artifacts; a macos job downloads and runs them -- the
+       exact windows-x64-build / windows-x64-run pattern.
+
+**** Phase 3: the rest of the mac matrix
+
+     - mode gui cross from Linux stays blocked on Apple frameworks
+       (the Cocoa/OpenGL .tbd stubs are SDK content). GUI programs for
+       macOS are built natively on a Mac (Phase 1 covers that);
+       document osxcross plus user-supplied SDK for whoever needs gui
+       cross builds.
+     - macOS as a host targeting the others: windows-x64 via
+       brew mingw-w64; linux-* needs a Linux cross toolchain on the
+       mac (Apple clang cannot link glibc ELF without a sysroot --
+       homebrew musl cross-gcc for static musl binaries is the simple
+       first step, and the Phase 2 trick works in reverse too:
+       precompiled ext-linux-*.o plus vendored stubs). Verify on the
+       macos-latest CI job once Phase 1 lands.
 
 *** TempleOS
-   :DEPENDENCIES: [[./12.org][#12]]
-   The most interesting and challenging target. TempleOS has no C compiler,
-   no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
 
-   Requires a new holybuilder backend that emits HolyC instead of C.
-   HolyC is C-like enough that the translation should be mostly mechanical
-   (similar types, similar control flow), but differences in calling
-   conventions, memory management, and string handling will need attention.
-
-   For mode gui: raylib doesn't exist on TempleOS, so we need to recreate
-   raylib's interface using TempleOS graphics primitives (GrBlot, GrLine,
-   GrRect, etc.) and audio primitives. This is likely easier than most
-   people would expect — TempleOS has direct framebuffer access and simple
-   audio APIs, and raylib's 2D API surface is not that large. The hard
-   part is the impedance mismatch (TempleOS is cooperative multitasking,
-   640x480 16-color default, etc.), not the drawing primitives themselves.
-
-   Running the same mode gui program (e.g. music.til) on both GNU/Linux
-   via raylib AND TempleOS via native HolyC primitives would be a serious
-   language flex — proving til programs are truly platform-independent.
-
-   For mode server: TempleOS docker containers could be extremely small
-   (no libc, no userland, minimal kernel), making til a compelling choice
-   for lightweight server deployments on TempleOS-based containers.
-
-   Self-hosting ([[./12.org][#12]]) is a hard dependency: TempleOS has no C compiler,
-   so til must be able to compile itself to bring its own compiler onto
-   the platform. There's no way to cross-compile C for TempleOS from Linux.
-
-   Can test from Linux using QEMU with a TempleOS VM image. Copy til
-   files in via a virtual disk, run them, capture output. This is the
-   standard way to develop for TempleOS from a modern host.
-
-*** macOS
-   Closest to the current GNU/Linux target. All C code (ext.c,
-   dispatch.c) is already POSIX-portable — fork, execl, waitpid, dlopen,
-   dlsym all work the same on macOS. No cross-compilation needed: ship
-   source, user runs `make` with clang natively.
-
-   Makefile changes needed:
-   - `-ldl` not needed on macOS (dlopen is in libc)
-   - `-lffi` needs `brew install libffi` + Homebrew `-I`/`-L` paths
-   - `-rdynamic` works with clang
-   - Platform detection to conditionally apply the above
-
-   Runtime differences:
-   - `.dylib` instead of `.so` for dynamic libraries (mode gui, FFI)
-   - Homebrew paths for raylib headers and libs
-
-   No `#ifdef __APPLE__` needed in the C source itself — only in the
-   Makefile and possibly in the codegen output (linker flags when
-   compiling .til programs that use mode gui).
-
-*** Windows
-   Furthest from POSIX, but possibly dying — don't wait for self-hosting.
-   Options: MSVC, MinGW, or cross-compile with zig cc. Dynamic loading
-   via LoadLibrary/GetProcAddress instead of dlopen/dlsym. Process
-   spawning via CreateProcess instead of fork/exec. raylib supports
-   Windows natively, so mode gui should work once the build system
-   handles .dll and Windows linking.
-
-   Can test from Linux using Wine as a first step before touching a
-   real Windows machine.
-
+   Unchanged in spirit, now tracked in [[./151.org][#151]]: HolyC codegen backend
+   (the Lang.HolyC placeholder exists), TempleOS-native gui primitives
+   instead of raylib, QEMU-based test loop. Still the most interesting
+   target, still last in line.
