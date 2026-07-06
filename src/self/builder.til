@@ -5565,11 +5565,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // exit hooks at every function boundary; the runtime that accumulates and
     // reports per-function counts/time lives in src/c/ext.c. Linux/-rdynamic
     // only (the ext.c runtime is #ifndef _WIN32), so skip it for Windows.
-    // The exit hook is appended on the return path, so for til functions that
-    // end in a noreturn call (panic/exit) gcc then mis-fires
-    // -Werror=return-type ("control reaches end of non-void function"). The
-    // non-prof build validates return-type strictly, so relax just that check
-    // for instrumented builds.
+    // The exit hook is appended on the return path, which used to make gcc
+    // mis-fire -Werror=return-type ("control reaches end of non-void
+    // function") the same way ASAN did. The emitter now closes every diverging
+    // non-void body with __builtin_unreachable() (see body_diverges /
+    // emit_diverge_terminator), so gcc no longer needs to prove it and prof
+    // builds keep the full -Werror -- return-type stays a hard error.
     //
     // For the allocation profile, -DTIL_PROF_ALLOC turns on the wrap hooks in
     // ext.c and -Wl,--wrap=malloc/calloc/realloc (link-only) routes heap
@@ -5578,7 +5579,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut prof_flags := ""
     mut prof_link_flags := ""
     if prof.and(target.is(Target.WindowsX64).not()) {
-        prof_flags = " -finstrument-functions -Wno-error=return-type"
+        prof_flags = " -finstrument-functions"
         if asan.not() {
             prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
             prof_link_flags = " -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc"
