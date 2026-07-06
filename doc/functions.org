@@ -75,9 +75,10 @@ core_func -- transiently. That is what lets the conversion land as a
 single "Two-pass: " commit: pass-1 til_boot predates the inline and
 emits real calls, which link against the kept symbol; pass 2 inlines
 them. Once the conversion is in master nothing emits the call anymore
-and the dead symbol is dropped (~Bool_eq~, ~not~ and ~is_n~ are gone;
-~ptr_add~ remains only until the commit that stopped the variadic-args
-template from calling it is in master's til_boot). When there is no
+and the dead symbol is dropped one commit later (~Bool_eq~, ~not~,
+~is_n~ and ~ptr_add~ are all gone now) -- the lag is structural: the
+commit that makes a symbol unnecessary is itself compiled by a
+til_boot that still emits calls to it. When there is no
 symbol to keep AND comptime code exercises the op under pass-1's
 interpreter (inc/dec: the old symbols were generated from the very
 func bodies the flip deletes, and every comptime range loop steps a

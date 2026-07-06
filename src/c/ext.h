@@ -144,18 +144,11 @@ Str *U64_to_str_ext(U64 v);
 // U64 clone
 U64 U64_clone(const U64 *v);
 
-// Bool ops (shallow params)
-Bool and(Bool a, Bool b);
-Bool or(Bool a, Bool b);
-Bool band(Bool a, Bool b);
-Bool bor(Bool a, Bool b);
-Bool bxor(Bool a, Bool b);
-
 // Bool clone
 Bool Bool_clone(const Bool *v);
 
 // Pointer primitives (custom, not in libc). Inputs stay non-const for
-// the pointer-returning ones (ptr_add, to_ptr, deref, get_payload),
+// the pointer-returning ones (to_ptr, deref, get_payload),
 // which hand back interior pointers the caller is expected to write
 // through, and for write_ptr which mutates dest. is_null and ptr_eq
 // only read the pointer values, but adding `const` there makes gcc's
@@ -163,7 +156,6 @@ Bool Bool_clone(const Bool *v);
 // sites that follow a buf := alloc-or-NULL ; if (is_null(buf)) {} ;
 // use(buf) pattern; the analysis is correct in the abstract but
 // chases a real-world non-bug, so keep these non-const for now.
-void *ptr_add(void *buf, UPtr offset);
 void *to_ptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);

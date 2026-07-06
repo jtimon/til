@@ -487,26 +487,18 @@ Str *U64_to_str_ext(U64 v) {
 // U64 clone
 U64 U64_clone(const U64 *v) { return *v; }
 
-// Bool ops (shallow params, shallow return). Bool_eq and not used to live
-// here too; they are core_funcs now (the backend inlines every call), so
-// their symbols are gone.
-Bool band(Bool a, Bool b) { return a && b; }
-Bool bor(Bool a, Bool b) { return a || b; }
-Bool bxor(Bool a, Bool b) { return a != b; }
-
+// The Bool ops that used to live here (Bool_eq, not, band, bor, bxor) are
+// gone: eq and not are core_funcs (the backend inlines every call), and
+// band/bor/bxor had no til declaration left. and/or never lived here --
+// they are lazy_funcs whose bodies compile into the generated C itself.
 
 // Bool clone
 Bool Bool_clone(const Bool *v) { return *v; }
 
 // Pointer primitives (custom, not in libc). See ext.h for why these
-// keep non-const inputs.
-// ptr_add is a core_func (every til-level call inlines); the symbol is
-// kept ONLY because pass-1 til_boot's variadic-args template still emits
-// verbatim-C `memcpy(ptr_add(...))` calls. Once the inline-template commit
-// is in master, til_boot stops emitting those and this can be dropped.
-void *ptr_add(void *buf, UPtr offset) {
-    return (char *)buf + offset;
-}
+// keep non-const inputs. ptr_add used to live here; it is a core_func
+// now (every call site, including the variadic-args template, emits the
+// pointer arithmetic inline).
 void *to_ptr(void *a) { return a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }

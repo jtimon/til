@@ -4,41 +4,15 @@ The canonical macro-bench is:
 
   : time bin/til build src/til.til
 
-That gives one wall-clock number and forgets it. This doc adds two
-reproducible tools on top of it: a regression harness (is the build getting
-slower over time?) and a sample profile (where does the time actually go?).
+Is the compiler getting slower OVER TIME? That is already tracked without a
+separate tool: every green ~make test~ on the merger's machine records the
+~self_translate~ benchmark (~bin/til translate src/til.til~, the suite's
+"self" row) into doc/totals.csv, one row per commit, plotted as the "self" /
+"self-mem" series in img/totals.svg. (A separate best-of-3 harness --
+~make profile~ writing doc/selfhost_build.csv -- used to duplicate that
+per-commit series and was removed.)
 
-** Regression harness: ~make profile~
-
-  : make profile
-
-Runs examples/prof_selfhost.til, which times ~bin/til build src/til.til~
-over a few iterations, keeps the best (min) wall-clock ms and the peak RSS,
-and appends a row to doc/selfhost_build.csv keyed by the current git commit:
-
-  : commit,build_ms,peak_rss_kb
-  : b67ee8f,1234,114236
-
-On every run it compares the new best against the previously recorded row
-and prints one of:
-
-  - ~REGRESSION: N% slower than last recorded run ...~   (more than 10% slower)
-  - ~improved: N% faster ...~                            (more than 10% faster)
-  - ~within noise vs last recorded run ...~              (otherwise)
-
-So a CI / merger invocation can flag "self-host build got 10% slower since
-last merge" without a human remembering to time it. doc/selfhost_build.csv
-is a totals.csv-style neighbour: it is created on first run and meant to be
-committed and accumulated, one row per measured commit.
-
-The harness takes optional args -- ~prof_selfhost [iters] [target.til]~ --
-so the same recipe profiles any ~til build~, not just the compiler:
-
-  : bin/til run examples/prof_selfhost.til 5 examples/plot.til
-
-Defaults: iters=3, target=src/til.til. The first (cold-cache) build is
-discarded by best-of-N, so there is no separate warm-up pass. Output goes to
-a throwaway binary (tmp/prof_til) so the live bin/til is never clobbered.
+This doc covers the other question: WHERE does the time actually go?
 
 ** Sample profile: where the time goes
 
@@ -163,9 +137,7 @@ wraps them so a profile is one command:
 
   : bin/til run examples/profile.til [--prof|--massif] [target.til] [top_n]
 
-Defaults: method ~--prof~, target ~test/maps.til~, top_n 25. It is the
-allocation/CPU companion to ~examples/prof_selfhost.til~ (the build-TIME
-regression harness behind ~make profile~).
+Defaults: method ~--prof~, target ~test/maps.til~, top_n 25.
 
 ~--prof~ (default) builds the instrumented compiler and runs it, printing the
 per-function call/self-time and bytes-allocated tables -- the churn ranking that
@@ -194,84 +166,93 @@ From ~bin/til_prof translate test/maps.til~ on the current compiler -- the top
 ~bin/til run examples/profile.til test/maps.til 32~ (the absolute numbers
 drift; the ranking is what matters).
 
+Note the core_func conversions in action: earlier snapshots' top leaf
+offenders -- ~ptr_add~ (16.7M calls), ~not~ (9.4M), ~U32_inc~ (5.8M),
+~U32_clone~ / ~Bool_clone~, ~is_n~ -- no longer appear at all, because they
+are no longer functions (every call site is inlined). The heaviest remaining
+leaf calls, ~and~ (a lazy_func, emitted as a real call when there is nothing
+to short-circuit) and ~get_payload~ (still an ext_func), are the natural next
+candidates.
+
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
   |-----------------------------------------------+----------+---------+----------|
-  | Str_delete                                    | 29.7M    | 1152.4  | 1922.4   |
-  | and                                           | 34.2M    | 738.8   | 867.2    |
-  | expr_uses_var                                 | 4.2M     | 416.2   | 18230.6  |
-  | sleep_ms                                      | 8        | 400.5   | 400.5    |
-  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M     | 366.1   | 2933.7   |
-  | Str_cmp                                       | 14.5M    | 361.4   | 406.4    |
-  | Str_clone                                     | 6.8M     | 348.6   | 462.4    |
-  | OutOfBounds_delete                            | 8.7M     | 343.0   | 820.7    |
-  | ptr_add                                       | 16.7M    | 281.8   | 281.8    |
-  | expr_til_type                                 | 705K     | 244.4   | 523.6    |
-  | U32_clone                                     | 13.6M    | 228.3   | 228.3    |
-  | NodeType_is                                   | 11.0M    | 216.3   | 216.3    |
-  | get_payload                                   | 12.6M    | 211.9   | 211.9    |
-  | TypeScope_get_struct                          | 2.8M     | 207.4   | 4284.5   |
-  | Str_eq                                        | 8.1M     | 196.3   | 233.8    |
-  | expr_transfers_own                            | 1.6M     | 172.9   | 55558.4  |
-  | not                                           | 9.4M     | 160.2   | 160.2    |
-  | Map__Str_Dynamic_has                          | 3.0M     | 151.7   | 266.4    |
-  | Bool_clone                                    | 9.0M     | 151.5   | 151.5    |
-  | NodeType_delete                               | 703K     | 140.8   | 289.6    |
-  | Map__Str_Dynamic_get                          | 692K     | 117.9   | 241.9    |
-  | Map__Str_TypeBinding_has                      | 1.0M     | 116.8   | 226.7    |
-  | fa_is_ns                                      | 196K     | 115.6   | 816.7    |
-  | expr_used_in_nested_func                      | 1.6M     | 106.1   | 5147.6   |
-  | U32_inc                                       | 5.8M     | 98.6    | 98.6     |
-  | ident_name                                    | 2.5M     | 93.8    | 273.4    |
-  | field_access_name                             | 2.5M     | 92.7    | 248.7    |
-  | Array__Str_delete                             | 738K     | 89.2    | 183.6    |
-  | Array__Str_unsafe_set                         | 893K     | 89.0    | 317.2    |
-  | priv___src_self_typer_til__check_own_args     | 224K     | 86.8    | 225.6    |
-  | Array__Str_unsafe_get                         | 2.2M     | 83.9    | 121.8    |
-  | priv___src_self_constfolder_til__fold_subtree | 147K     | 66.0    | 12472.3  |
+  | Str_delete                                    | 28.6M    | 2508.4  | 3617.9   |
+  | and                                           | 33.1M    | 1286.8  | 1286.8   |
+  | Str_cmp                                       | 18.5M    | 1174.2  | 1299.1   |
+  | expr_uses_var                                 | 4.2M     | 1141.0  | 34596.9  |
+  | OutOfBounds_delete                            | 9.1M     | 821.1   | 1953.7   |
+  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M     | 766.8   | 6061.6   |
+  | Vec__Str_unsafe_get                           | 18.1M    | 724.8   | 724.8    |
+  | Map__Str_Dynamic_get                          | 994K     | 588.3   | 1169.7   |
+  | expr_til_type                                 | 730K     | 578.1   | 1218.7   |
+  | Str_eq                                        | 9.2M     | 557.8   | 646.3    |
+  | expr_transfers_own                            | 1.6M     | 504.6   | 116933.3 |
+  | NodeType_is                                   | 11.0M    | 492.3   | 492.3    |
+  | Map__Str_Dynamic_has                          | 3.0M     | 465.1   | 826.5    |
+  | Vec__Expr_unsafe_get                          | 11.1M    | 455.8   | 455.8    |
+  | get_payload                                   | 13.0M    | 453.3   | 453.3    |
+  | sleep_ms                                      | 8        | 400.7   | 400.7    |
+  | TypeScope_get_struct                          | 2.8M     | 384.9   | 10707.9  |
+  | fa_is_ns                                      | 196K     | 379.1   | 2096.4   |
+  | Map__Str_TypeBinding_has                      | 1.0M     | 370.5   | 709.0    |
+  | expr_used_in_nested_func                      | 1.6M     | 341.4   | 13738.1  |
+  | ctx_field_layout                              | 288K     | 297.9   | 1840.9   |
+  | Vec__Expr_get                                 | 3.1M     | 273.5   | 401.1    |
+  | Vec__Declaration_unsafe_get                   | 6.4M     | 256.7   | 256.7    |
+  | Str_clone                                     | 2.4M     | 218.8   | 218.8    |
+  | Map__Str_StructLayout_get                     | 430K     | 216.4   | 418.9    |
+  | Array__Str_unsafe_set                         | 906K     | 210.8   | 513.2    |
+  | NodeType_delete                               | 705K     | 201.0   | 499.7    |
+  | KeyNotFound_delete                            | 2.2M     | 200.4   | 473.2    |
+  | Map__Str_StructLayout_has                     | 430K     | 196.9   | 384.0    |
+  | Type_clone                                    | 1.0M     | 154.9   | 255.6    |
+  | priv___src_self_typer_til__check_own_args     | 224K     | 153.8   | 426.0    |
+  | Type_delete                                   | 1.3M     | 143.8   | 238.4    |
 
 Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Str_clone                                     | 13.6M  | 167044.2 | 6.8M    |
-  | Vec__Value_clone                              | 316    | 34454.5  | 158     |
-  | Vec__Expr_clone                               | 322K   | 34176.5  | 161K    |
-  | Vec__Expr_new                                 | 384K   | 32967.0  | 192K    |
-  | expr_used_in_nested_func                      | 1.6M   | 25538.5  | 1.6M    |
-  | Array__Str_new                                | 1.5M   | 25483.3  | 738K    |
-  | Expr_clone                                    | 161K   | 25135.9  | 161K    |
-  | expr_transfers_own                            | 1.6M   | 24598.9  | 1.6M    |
-  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M   | 24425.2  | 1.6M    |
-  | Vec__Expr_push                                | 45.8K  | 22799.4  | 121K    |
-  | Vec__Expr_push_take                           | 24.1K  | 22757.8  | 68.8K   |
-  | Expr_new                                      | 127K   | 19855.6  | 127K    |
-  | NodeType_Ident                                | 145K   | 19280.7  | 145K    |
-  | Vec__Expr_move_from                           | 10.7K  | 16939.4  | 27.6K   |
-  | Vec__Str_clone                                | 5.6K   | 11574.1  | 2.8K    |
-  | expr_til_type                                 | 716K   | 11062.9  | 705K    |
-  | Value_Uint32                                  | 214K   | 10026.5  | 214K    |
-  | Type_clone                                    | 639K   | 9701.7   | 1.0M    |
-  | NodeType_FieldAccess                          | 62.9K  | 8359.2   | 62.9K   |
-  | priv___src_self_context_til__func_defs_lookup_one | 529K | 8272.4 | 529K    |
-  | TypeScope_get_binding                         | 490K   | 7660.0   | 490K    |
-  | NodeType_FCall                                | 54.2K  | 7193.1   | 54.2K   |
-  | NodeType_clone                                | 51.7K  | 6872.8   | 288K    |
-  | Value_Struct                                  | 138K   | 6450.9   | 138K    |
-  | Type_Primitive                                | 272K   | 6384.0   | 272K    |
-  | NodeType_Literal                              | 47.0K  | 6246.0   | 47.0K   |
-  | Vec__Expr_append                              | 3.8K   | 6241.2   | 21.3K   |
-  | Vec__Str_new                                  | 390K   | 6092.4   | 195K    |
-  | StructInstance_clone                          | 138K   | 5375.7   | 138K    |
-  | Type_Custom                                   | 218K   | 5101.7   | 218K    |
-  | is_compile_directive                          | 315K   | 4919.7   | 315K    |
-  | Type_Struct                                   | 192K   | 4498.0   | 192K    |
+  | Str_clone                                     | 4.4M   | 75195.3  | 2.4M    |
+  | Vec__Expr_new                                 | 402K   | 50188.0  | 201K    |
+  | Vec__Expr_clone                               | 303K   | 47080.2  | 151K    |
+  | expr_used_in_nested_func                      | 1.6M   | 38312.1  | 1.6M    |
+  | expr_transfers_own                            | 1.6M   | 36902.3  | 1.6M    |
+  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M   | 36641.7  | 1.6M    |
+  | Vec__Value_clone                              | 316    | 34455.7  | 158     |
+  | Expr_clone                                    | 151K   | 34247.4  | 151K    |
+  | Vec__Expr_push_take                           | 24.0K  | 32976.6  | 74.4K   |
+  | Array__Str_new                                | 1.5M   | 32871.8  | 744K    |
+  | Expr_new                                      | 132K   | 30013.0  | 132K    |
+  | Vec__Expr_push                                | 40.1K  | 29309.5  | 121K    |
+  | NodeType_Ident                                | 140K   | 27256.1  | 140K    |
+  | ctx_field_layout                              | 865K   | 27027.5  | 288K    |
+  | Vec__Expr_move_from                           | 10.7K  | 24513.6  | 27.6K   |
+  | Vec__Str_clone                                | 5.6K   | 17361.3  | 2.8K    |
+  | expr_til_type                                 | 742K   | 17162.4  | 730K    |
+  | Type_clone                                    | 651K   | 12892.5  | 1.0M    |
+  | priv___src_self_context_til__func_defs_lookup_one | 540K | 12657.8 | 540K   |
+  | NodeType_FieldAccess                          | 60.7K  | 11855.7  | 60.7K   |
+  | TypeScope_get_binding                         | 488K   | 11432.4  | 488K    |
+  | NodeType_clone                                | 57.4K  | 11214.3  | 284K    |
+  | Value_Uint64                                  | 222K   | 10406.1  | 222K    |
+  | NodeType_FCall                                | 53.0K  | 10344.1  | 53.0K   |
+  | lookup_interp_type_def                        | 436K   | 10215.0  | 436K    |
+  | Vec__Str_new                                  | 389K   | 9124.8   | 195K    |
+  | Vec__Expr_append                              | 3.7K   | 8986.8   | 21.3K   |
+  | NodeType_Literal                              | 45.9K  | 8974.0   | 45.9K   |
+  | Type_Primitive                                | 280K   | 8760.2   | 280K    |
+  | is_compile_directive                          | 315K   | 7378.9   | 315K    |
+  | Type_Custom                                   | 218K   | 6804.8   | 218K    |
+  | Value_Struct                                  | 137K   | 6444.6   | 137K    |
 
 ** Status
 
-All five #237 stretch goals have shipped: the sample-profile recipe (perf /
-callgrind), the build-time regression harness (~make profile~), the
+All five #237 stretch goals shipped: the sample-profile recipe (perf /
+callgrind), a build-time regression harness (~make profile~ -- since retired
+as redundant with doc/totals.csv's per-commit "self" series), the
 per-function ~--prof~ CPU/call profiler, the allocation profile (the second
 ~--prof~ table), and this hot-functions table. The table above is meant to be
 refreshed each release and is where #234 / #235 / a HashMap-for-X swap can
