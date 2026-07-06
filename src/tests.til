@@ -452,6 +452,14 @@ main := proc(args: ..Str) {
     add_single(tests, "self_translate", "self", 0, "",
         format(til_bin, " translate src/til.til"))
 
+    // Issue #302 stage 0: the garbager decision-audit golden. Translating
+    // the frozen fixture with TIL_GC_AUDIT set dumps the asap pass's
+    // per-binding decisions and destructor sites; the byte-exact compare
+    // against test/gc_audit.expected turns any decision change into a
+    // reviewable diff. Regeneration recipe in test/gc_audit.til's header.
+    add_single(tests, "gc_audit", "self", 0, "test/gc_audit.expected",
+        format("TIL_GC_AUDIT=test/gc_audit.til ", til_bin, " translate test/gc_audit.til"))
+
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
     // long-running jobs (GUI builds, then the slow both tests) keeps the
@@ -652,7 +660,7 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 161,
+    add_count(tests, "typer_errors", "typer", "error:", 162,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,

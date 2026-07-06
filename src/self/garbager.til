@@ -30,6 +30,253 @@ priv LocalInfo := struct {
     own_transfer : I32 = -1
     skip_scope_delete := false
     is_heap := false
+    // True when the stmt at own_transfer consumes this binding via a
+    // DESTRUCTOR call (free(own x) / T.delete(own x, ...) /
+    // til_closure_delete(x)) rather than an ordinary own-arg / own-field
+    // transfer. The delete-method shape `if call_free { free(own self) }`
+    // is the one case where a param's conditional transfer must keep the
+    // full asap stand-down: the body's field deletes already ran, so
+    // grafting a delete onto the other path double-frees. Every OTHER
+    // conditionally-transferred own param was leaking under the old
+    // blanket "params stand down" rule (#302).
+    dtor_transfer := false
+}
+
+// True when `stmt` (or any sub-expression) destroys `name` directly:
+// free(own name), T.delete(own name, ...), or til_closure_delete(name).
+// Matched structurally, no name sniffing -- the shapes make_delete_call /
+// make_free_call / make_closure_delete_call emit and hand-written
+// destructor bodies use.
+priv transfer_is_destructor_call := func(stmt: Expr, name: Str) returns Bool {
+    if stmt.node_type.is(NodeType.FCall).and(stmt.children.len().gt(1)) {
+        mut is_dtor := false
+        switch stmt.children[0].node_type {
+        case NodeType.FieldAccess(dfa):
+            if dfa.field_access_name() == "delete" { is_dtor = true }
+        case NodeType.Ident(dfi):
+            if dfi.ident_name().eq("free").or(dfi.ident_name().eq("til_closure_delete")) { is_dtor = true }
+        case:
+        }
+        if is_dtor {
+            switch stmt.children[1].node_type {
+            case NodeType.Ident(dai):
+                if dai.ident_name() == name { return true }
+            case:
+            }
+        }
+    }
+    for dc : Expr in stmt.children {
+        if transfer_is_destructor_call(dc, name) { return true }
+    }
+    return false
+}
+
+// Issue #302 stage 0: decision-audit dump. TIL_GC_AUDIT=<path-substring>
+// makes insert_free_calls print, for every body in a matching unit, the
+// pass's final per-binding decisions (the LocalInfo table after the
+// analysis phases) and the destructor sites present in the body after
+// insertion. The golden test test/gc_audit.til + test/gc_audit.expected
+// pins the dump so later #302 stages show their decision diffs in review
+// instead of only as ASAN outcomes. See doc/garbager.org. The env read
+// lives in ext.c (gc_audit_filter, "" when unset) like the TIL_LEAK_PROBE
+// gate.
+gc_audit_filter := ext_proc() returns Str {}
+
+priv gc_audit_flag := func(b: Bool) returns Str {
+    if b { return "1" }
+    return "0"
+}
+
+// `name` with its LAST digit run removed: "hoisted__U64_7725" ->
+// "hoisted__U64_", "_va_Array_217_ek" -> "_va_Array__ek". Only the last
+// run goes because it is the synthesized counter; interior digits are type
+// widths (the U64 in hoisted__U64_...) and must survive. The counters are
+// GLOBAL (ctx.hoist_counter and friends run across every previously typed
+// unit), so printing them raw would shift the whole golden whenever an
+// unrelated core/std change adds or removes a hoist. Returns `name`
+// unchanged when it has no digits.
+priv gc_audit_strip_counter := func(name: Str) returns Str {
+    mut run_start : I64 = -1
+    mut run_end : I64 = -1
+    mut i : USize = 0
+    while i < name.len() {
+        if name.get(i).gte('0').and(name.get(i).lte('9')) {
+            run_start = i.to_i64()
+            mut j := i
+            while j.lt(name.len()).and(name.get(j).gte('0')).and(name.get(j).lte('9')) {
+                j++
+            }
+            run_end = j.to_i64()
+            i = j
+        } else {
+            i++
+        }
+    }
+    if run_start < 0 { return name.clone() }
+    start_u := run_start.to_usize()
+    end_u := run_end.to_usize()
+    return format(name.substr(0, start_u), name.substr(end_u, name.len().sub(end_u)))
+}
+
+// Stable display name: user names pass through; synthesized names (the
+// hoisted__ / leading-underscore population) get their trailing counter
+// replaced by a per-body ordinal in order of first appearance, so
+// identical bodies dump identically regardless of the global counter
+// state. Digit-less synthetic names pass through unchanged.
+priv gc_audit_name := func(name: Str, mut names: Map(Str, Str), mut counts: Map(Str, I64)) returns Str {
+    if name.starts_with("hoisted__").or(name.starts_with("_")).not() { return name.clone() }
+    if names.has(name) { return names[name].clone() }
+    key := gc_audit_strip_counter(name)
+    if key == name { return name.clone() }
+    mut k : I64 = 0
+    if counts.has(key) { k = counts[key].clone() }
+    counts.set(key, own k.add(1))
+    disp := format(key, "#", k.to_str())
+    names.set(name, own disp.clone())
+    return disp
+}
+
+// Renders `e` when it is a destructor-shaped call -- the exact shapes
+// make_delete_call / make_free_call / make_closure_delete_call emit
+// (which user-written cleanup shares) -- or "" for anything else.
+priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut counts: Map(Str, I64)) returns Str {
+    if e.node_type.is(NodeType.FCall).not() { return "" }
+    if e.children.len() < 2 { return "" }
+    mut kind := ""
+    mut tname := ""
+    switch e.children[0].node_type {
+    case NodeType.FieldAccess(del_fa):
+        if del_fa.field_access_name() != "delete" { return "" }
+        if e.children[0].children.len() < 1 { return "" }
+        switch e.children[0].children[0].node_type {
+        case NodeType.Ident(tid): tname = Str.clone(tid.ident_name())
+        case: return ""
+        }
+        kind = "delete"
+    case NodeType.Ident(fid):
+        if fid.ident_name() == "free" {
+            kind = "free"
+        } else if fid.ident_name() == "til_closure_delete" {
+            kind = "closure-delete"
+        } else {
+            return ""
+        }
+    case:
+        return ""
+    }
+    mut arg_name := "<expr>"
+    switch e.children[1].node_type {
+    case NodeType.Ident(aid): arg_name = gc_audit_name(aid.ident_name(), names, counts)
+    case:
+    }
+    mut own_s := ""
+    if get_own_arg(e, 1) { own_s = " own=1" }
+    if kind == "delete" {
+        mut cf := ""
+        if e.children.len() > 2 {
+            switch e.children[2].node_type {
+            case NodeType.Literal(Literal.Bool(cfb)): cf = format(" call_free=", gc_audit_flag(cfb))
+            case:
+            }
+        }
+        return format("delete ", tname, ".delete(", arg_name, ")", cf, own_s)
+    }
+    return format(kind, "(", arg_name, ")", own_s)
+}
+
+// Destructor sites present in `body` after insertion, recursively; `prefix`
+// is the dotted statement path ("2.if0.1 " style) so nested sites are
+// addressable. Nested if/while/block bodies are also dumped by their OWN
+// insert_free_calls run (they get separate garbager_destroy_body calls
+// during typing), so their sites appear twice: once standalone, once inside
+// the enclosing body's walk after insert_nested_exit_deletes may have
+// appended to them. Both views are wanted -- the second is where the
+// enclosing body's exit deletes land.
+priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), mut counts: Map(Str, I64)) {
+    for i in 0..body.children.len() {
+        ref s : Expr = body.children[i]
+        line := gc_audit_destructor_line(s, names, counts)
+        if line.len() > 0 {
+            println("GC-AUDIT site ", prefix, i.to_str(), " ", line)
+        }
+        switch s.node_type {
+        case NodeType.Assign(ad):
+            if ad.save_old_delete {
+                println("GC-AUDIT site ", prefix, i.to_str(), " assign-old-delete ", gc_audit_name(ad.name, names, counts))
+            }
+        case NodeType.FieldAssign(fad):
+            if fad.save_old_delete {
+                println("GC-AUDIT site ", prefix, i.to_str(), " fieldassign-old-delete ", gc_audit_name(fad.name, names, counts))
+            }
+        case NodeType.Return:
+            for ri in 1..s.children.len() {
+                rline := gc_audit_destructor_line(s.children[ri], names, counts)
+                if rline.len() > 0 {
+                    println("GC-AUDIT site ", prefix, i.to_str(), " return-attached ", rline)
+                }
+            }
+        case NodeType.If:
+            for ci in 1..s.children.len() {
+                gc_audit_sites(s.children[ci], format(prefix, i.to_str(), ".if", ci.sub(1).to_str(), "."), names, counts)
+            }
+        case NodeType.While:
+            if s.children.len() > 1 {
+                gc_audit_sites(s.children[1], format(prefix, i.to_str(), ".while."), names, counts)
+            }
+        case NodeType.Body:
+            gc_audit_sites(s, format(prefix, i.to_str(), ".body."), names, counts)
+        case NodeType.Switch:
+            for ci in 1..s.children.len() {
+                if s.children[ci].node_type.is(NodeType.Case) {
+                    cbi := s.children[ci].children.len() - 1
+                    gc_audit_sites(s.children[ci].children[cbi], format(prefix, i.to_str(), ".case", ci.sub(1).to_str(), "."), names, counts)
+                }
+            }
+        case:
+        }
+    }
+}
+
+// A binding with no decision at all -- not declared in this body, never
+// used, never transferred, not heap, not skipped. Program-scope dumps see
+// the whole global namespace this way (every imported core/std name plus
+// re-registered per-body temps); printing those would tie the golden to
+// the global name population, so the table filters them.
+priv gc_audit_local_is_noise := func(local: LocalInfo) returns Bool {
+    return local.decl_index.eq(-1).and(local.last_use.eq(-1))
+        .and(local.own_transfer.eq(-1))
+        .and(local.is_heap.not()).and(local.skip_scope_delete.not())
+}
+
+// One body's full audit record: the settled LocalInfo table (the pass's
+// decisions; decl/last_use/own_transfer are PRE-insertion statement
+// indexes), then the destructor sites found in the post-insertion body.
+// Called after the insertion loop so both sections share one name-ordinal
+// state. The table's order is the scope-binding order, which is
+// deterministic for a fixed compiler + source. locals= counts the SHOWN
+// lines (no-decision bindings are filtered, see gc_audit_local_is_noise).
+priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
+    mut names := Map(Str, Str).new()
+    mut counts := Map(Str, I64).new()
+    mut shown : I64 = 0
+    for counted : LocalInfo in locals {
+        if gc_audit_local_is_noise(counted).not() { shown = shown + 1 }
+    }
+    println("GC-AUDIT body ", ctx.path, ":", body.line.to_str(), ":", body.col.to_str(),
+        " locals=", shown.to_str())
+    for local : LocalInfo in locals {
+        if gc_audit_local_is_noise(local) { continue }
+        mut tname := type_to_name(local.type)
+        if tname.len() == 0 { tname = til_type_name(local.type) }
+        println("GC-AUDIT local ", gc_audit_name(local.name, names, counts),
+            " type=", tname,
+            " decl=", local.decl_index.to_str(),
+            " last_use=", local.last_use.to_str(),
+            " own_transfer=", local.own_transfer.to_str(),
+            " heap=", gc_audit_flag(local.is_heap),
+            " skip=", gc_audit_flag(local.skip_scope_delete))
+    }
+    gc_audit_sites(body, "", names, counts)
 }
 
 priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) returns Bool {
@@ -202,6 +449,9 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         li.last_use = last_use
         li.own_transfer = own_transfer
         li.skip_scope_delete = skip_scope_delete
+        if own_transfer >= 0 {
+            li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name)
+        }
         li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
         if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         // Decls whose RHS the builder will stack-allocate must use
@@ -459,7 +709,68 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     }
 }
 
-priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), ctx: Context) {
+// A while body whose UNGUARDED spine transfers `name` -- i.e. the
+// transfer re-runs on every iteration. Three exemptions keep this an
+// errors-only check under the index model:
+//   - an If/Switch-guarded transfer is exempt: the guard may hold for
+//     exactly one iteration (desugarer's `if ji == vi` splat push);
+//   - a spine containing a direct Break or Return executes at most once
+//     in full, so its transfer cannot re-run (Continue does NOT exempt:
+//     `{ consume(own s); continue }` still re-runs);
+//   - nested If/Switch bodies are skipped wholesale; a nested While's
+//     condition and spine re-run, so they are checked.
+priv while_spine_transfers := func(wbody: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    for sp : Expr in wbody.children {
+        if sp.node_type.is(NodeType.Break).or(sp.node_type.is(NodeType.Return)) { return false }
+    }
+    for sp : Expr in wbody.children {
+        switch sp.node_type {
+        case NodeType.If: continue
+        case NodeType.Switch: continue
+        case NodeType.While:
+            if expr_transfers_own(sp.children[0], name, scope, ctx) { return true }
+            if while_spine_transfers(sp.children[1], name, scope, ctx) { return true }
+            continue
+        case NodeType.Body:
+            if while_spine_transfers(sp, name, scope, ctx) { return true }
+            continue
+        case:
+        }
+        if expr_transfers_own(sp, name, scope, ctx) { return true }
+    }
+    return false
+}
+
+// `stmt` contains a loop whose re-running part transfers ownership of
+// `name`. The single own_transfer index cannot represent "the transfer
+// statement can execute twice", so without this check a transfer inside
+// a while of a binding declared outside it compiles into C whose second
+// iteration consumes an already-freed value (verified: silent
+// heap-use-after-free).
+priv transfer_inside_loop := func(stmt: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    if stmt.node_type.is(NodeType.While) {
+        if expr_transfers_own(stmt.children[0], name, scope, ctx) { return true }
+        return while_spine_transfers(stmt.children[1], name, scope, ctx)
+    }
+    for tc : Expr in stmt.children {
+        if transfer_inside_loop(tc, name, scope, ctx) { return true }
+    }
+    return false
+}
+
+priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Assign(ad):
+        if ad.name == name { return true }
+    case:
+    }
+    for rc : Expr in e.children {
+        if expr_reassigns_var(rc, name) { return true }
+    }
+    return false
+}
+
+priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
             ref stmt : Expr = body.children[local.last_use.to_usize()]
@@ -467,6 +778,21 @@ priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), ct
             ref xfer : Expr = body.children[local.own_transfer.to_usize()]
             println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
             println("  help: pass a clone instead: own ", local.name, ".clone()")
+        }
+        // #302: a transfer inside a loop, of a binding declared outside the
+        // loop, may run on every iteration -- the second one moves an
+        // already-moved value. A loop that also REASSIGNS the binding is
+        // the legitimate rebind-then-transfer pattern and is skipped (the
+        // index model cannot order the two within an iteration; the CFG
+        // pass will).
+        if local.own_transfer >= 0 {
+            ref xstmt : Expr = body.children[local.own_transfer.to_usize()]
+            if transfer_inside_loop(xstmt, local.name, scope, ctx).and(
+                expr_reassigns_var(xstmt, local.name).not()) {
+                xstmt.type_error(format("ownership of '", local.name,
+                    "' transferred inside a loop; a second iteration would use a moved value"), ctx)
+                println("  help: declare '", local.name, "' inside the loop, or pass a clone: own ", local.name, ".clone()")
+            }
         }
     }
 }
@@ -563,13 +889,15 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         // non-transferred local (e.g. the parser's last_field: consumed by
         // a ctor in the final stmt, but earlier `return mcall` paths leaked
         // it). Only stand down when the transfer is at or before this stmt.
-        // Restricted to body-declared locals (decl_index >= 0): own params
-        // carry conditional self-transfer shapes (a delete method's
-        // `if call_free { free(own self) }`) where an extra delete
-        // double-frees -- the same exclusion sink_conditional_transfer_deletes
-        // uses.
+        // Own params whose transfer is their own destructor call (a delete
+        // method's `if call_free { free(own self) }`) keep the full
+        // stand-down: an extra delete double-frees -- the same exclusion
+        // sink_conditional_transfer_deletes uses. Ordinary own params get
+        // the same pre-transfer rule as locals; the old blanket param
+        // stand-down leaked them on every exit edge before the transfer
+        // (#302).
         if local.own_transfer >= 0 {
-            if local.decl_index < 0 { continue }
+            if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
             if local.own_transfer <= stmt_idx.to_i32() { continue }
         }
         if local.decl_index < stmt_idx.to_i32() {
@@ -628,9 +956,12 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         if local.skip_scope_delete { continue }
         // Same pre-transfer rule as insert_nested_exit_deletes: an exit at
         // a stmt strictly before the transfer stmt still owns the local.
-        // Body-declared locals only; own params keep the full stand-down.
+        // Destructor-transferred own params keep the full stand-down (see
+        // the dtor_transfer comment on LocalInfo); ordinary own params are
+        // treated like locals -- the old blanket param stand-down leaked
+        // them on early exits before the transfer (#302).
         if local.own_transfer >= 0 {
-            if local.decl_index < 0 { continue }
+            if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
             if local.own_transfer <= stmt_idx.to_i32() { continue }
         }
         if local.decl_index < stmt_idx.to_i32() {
@@ -947,10 +1278,13 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
 // nested `else if` trees are handled recursively so a transfer in an inner
 // branch is not followed by an outer-branch delete.
 //
-// Restricted to body-declared LOCALS (decl_index >= 0). Params are excluded:
-// a delete method's own `self` does `if call_free { free(own self) }`, a
-// conditional transfer of `self`; sinking a delete into the else branch there
-// re-frees self on the call_free=false path (recursive delete -> bad-free).
+// Own params are covered too, EXCEPT when the conditional transfer is the
+// param's own destructor call (dtor_transfer): a delete method's `self` does
+// `if call_free { free(own self) }` after its field deletes already ran, so
+// sinking a delete into the else branch there re-frees the fields (recursive
+// delete -> bad-free). The old rule excluded ALL params, which leaked every
+// ordinary conditionally-transferred own param (#302: 30 bytes per call on
+// the non-transfer path of `if flag { return consume(own s) }`).
 //
 // Str is handled like any other owned local here: Str.delete knows whether its
 // buffer is owned, literal, or a view. The sink must be path-sensitive instead
@@ -958,7 +1292,7 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
 priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
-        if local.decl_index < 0 { continue }
+        if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
         if local.own_transfer < 0 { continue }
         if local.is_heap.not() { continue }
         if is_aggregate(local.type).not() { continue }
@@ -980,13 +1314,20 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     if locals_vec.len() == 0 { return false }
 
     extend_ref_local_lifetimes(body, locals_vec, scope)
-    check_use_after_own_transfer(body, locals_vec, ctx)
+    check_use_after_own_transfer(body, locals_vec, scope, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
     sink_conditional_transfer_deletes(body, locals_vec, scope, ctx)
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later
     // statement that reads a hoisted view aliasing its buffer. See #250.
     extend_hoist_view_lifetimes(body, locals_vec)
+
+    // #302 stage 0: decision audit. The analysis above has settled every
+    // per-binding decision; the dump itself runs after the insertion loop
+    // so the site walk sees the final body. Cost when disabled: one env
+    // read per body.
+    audit_filter := gc_audit_filter()
+    audit := audit_filter.len().gt(0).and(ctx.path.contains(audit_filter))
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -1005,6 +1346,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     }
 
     body.children.move_from(new_ch)
+    if audit { gc_audit_dump(ctx, body, locals_vec) }
     return true
 }
 

@@ -862,6 +862,7 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
     I32 own_transfer;
     Bool skip_scope_delete;
     Bool is_heap;
+    Bool dtor_transfer;
 } priv___src_self_garbager_til__LocalInfo;
 
 
@@ -3216,6 +3217,14 @@ Expr * priv___src_self_desugarer_til__hoist_to_temp(Context * ctx, Expr * val, V
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 U64 priv___src_self_garbager_til__LocalInfo_size(void);
+Bool priv___src_self_garbager_til__transfer_is_destructor_call(Expr * stmt, Str * name);
+Str * priv___src_self_garbager_til__gc_audit_flag(Bool b);
+Str * priv___src_self_garbager_til__gc_audit_strip_counter(Str * name);
+Str * priv___src_self_garbager_til__gc_audit_name(Str * name, Map__Str_Str * names, Map__Str_I64 * counts);
+Str * priv___src_self_garbager_til__gc_audit_destructor_line(Expr * e, Map__Str_Str * names, Map__Str_I64 * counts);
+void priv___src_self_garbager_til__gc_audit_sites(Expr * body, Str * prefix, Map__Str_Str * names, Map__Str_I64 * counts);
+Bool priv___src_self_garbager_til__gc_audit_local_is_noise(priv___src_self_garbager_til__LocalInfo * local);
+void priv___src_self_garbager_til__gc_audit_dump(Context * ctx, Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
 Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__Expr * preceding);
@@ -3224,7 +3233,10 @@ Bool priv___src_self_garbager_til__is_pod_enum_clone_wrap(Expr * e, TypeScope * 
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
 void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
-void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec__LocalInfo * locals, Context * ctx);
+Bool priv___src_self_garbager_til__while_spine_transfers(Expr * wbody, Str * name, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__transfer_inside_loop(Expr * stmt, Str * name, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__expr_reassigns_var(Expr * e, Str * name);
+void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only);
 void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, U64 stmt_idx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, U64 stmt_idx, Vec__Expr * new_ch);

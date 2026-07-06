@@ -1,0 +1,137 @@
+* The Garbager: til's compile-time GC
+
+Companion to [[file:./ownership.org][doc/ownership.org]] (the lifetime model)
+and [[file:./qualifiers.org][doc/qualifiers.org]] (the C shapes). Those two
+describe the LANGUAGE contract; this file documents the PASS that implements
+it -- ~src/self/garbager.til~, pipeline step 5 -- and, explicitly, the exact
+OUTPUT CONTRACT the pass has today. Issue #302 is the rework that makes this
+contract complete and explicit; this document is its stage 0 snapshot, kept
+current as the stages land.
+
+** What the pass is
+
+ASAP destruction (Mojo-style): every owned value has exactly one owner, and
+the compiler inserts the destructor at the owner's last use, before
+reassignment, and on every early-exit edge. One run per body:
+
+  - function/if/while/block/catch/switch-case bodies: called inline from the
+    typer's scope-management sites (~garbager_destroy_body~), because
+    per-body TypeScopes are stack-locals of ~infer_body~ (lifting them into
+    one phase needs #158's scope cache).
+  - program bodies: one ~garbager_destroy(ctx)~ phase at the tail of
+    ~init_and_type_program~ (loader.til), walking ~ctx.imported~.
+  - REPL deltas: ~garbager_destroy_body~ per delta (loader.til).
+
+The orchestrator is ~insert_free_calls~: collect per-binding facts
+(~collect_scope_locals~ -> ~LocalInfo~ with ~decl_index~ / ~last_use~ /
+~own_transfer~ statement indexes), run the analysis fixups
+(~extend_ref_local_lifetimes~, ~check_use_after_own_transfer~,
+~promote_own_transferred_locals~, ~sink_conditional_transfer_deletes~,
+~extend_hoist_view_lifetimes~), then rewrite the body statement list.
+
+** The output contract (today)
+
+Everything the pass produces, and who consumes it. This is the interface
+the builder and the interpreter must execute; #302's point is that today
+parts of it are re-derived or bypassed instead.
+
+  1. Inserted destructor statements: ~Type.delete(x, call_free)~ /
+     ~free(own x)~ / ~til_closure_delete(x)~ FCall nodes (built by
+     typer.til's ~make_delete_call~ / ~make_free_call~ /
+     ~make_closure_delete_call~) at last use, at scope end, before the
+     statement that reassigns, and on exit edges (break / continue / return
+     paths, including edges inside nested if/while/switch bodies).
+  2. Deletes attached as EXTRA CHILDREN of ~Return~ nodes: children[1..]
+     of a Return are cleanup calls to run AFTER evaluating children[0] and
+     before returning. Every return-emission shape in builder.til unpacks
+     this, and ~body_diverges~ must know cleanup can follow a terminator.
+  3. ~save_old_delete~ flags on Assign / FieldAssign: the builder emits the
+     old value's delete inline (stack and heap variants). Set from TWO
+     places today: typer's ~infer_assign_stmt~ and garbager's
+     ~insert_assign_delete~.
+  4. ~own_type~ promotion on Decl (~promote_own_transferred_locals~):
+     owned aggregate locals flip Shallow -> Own so codegen heap-boxes them.
+     Deliberate exceptions stay stack: LiteralStr RHS, ~returns shallow~
+     FCall RHS, POD-enum clone wrap.
+  5. Clone-elision rewrites (~insert_post_stmt_deletes~): at a dying
+     local's last use, ~lhs = local.clone()~ / ~holder.f =
+     T.clone(local)~ is rewritten back to bare ~local~ so codegen emits a
+     move; the local's own delete is skipped (Assign) or reduced to a
+     wrapper ~free~ (value-field FieldAssign; an Own field consumes the
+     wrapper instead, #256).
+  6. Wrapper frees after a Shallow-field value-copy transfer
+     (~transfer_is_shallow_field_value_copy~ + ~make_free_call~): the
+     "half a transfer" shape -- the field's destructor owns the inner
+     data, the orphaned heap wrapper still needs a bare ~free~.
+
+Known consumers that RE-DERIVE parts of this contract instead of reading
+it (the #302 inventory has the full list): builder.til's ~stack_locals~ /
+~stack_local_types~ (its own copy of decision 4's stack-vs-heap
+classification), ~is_noop_delete_stmt~, ~emit_as_ptr~'s ~_oa~ malloc-copy
+wrap, ~delete_call_free_lit~; interpreter.til's delete-interception layer
+(~delete_body_has_custom_logic~ + ~struct_deep_free~ family), manual arg-
+temp and scope teardown (~free_temp_arg_value~, ~free_non_own_temp_args~,
+deep ~scope_free~).
+
+** The decision-audit dump (stage 0 tooling)
+
+~TIL_GC_AUDIT=<path-substring>~ makes ~insert_free_calls~ print, for every
+body whose unit path contains the substring, the pass's settled decisions
+and the resulting destructor sites:
+
+  : GC-AUDIT body <path>:<line>:<col> locals=<n>
+  : GC-AUDIT local <name> type=<T> decl=<i> last_use=<i> own_transfer=<i> heap=<0|1> skip=<0|1>
+  : GC-AUDIT site <stmt-path> delete <T>.delete(<arg>) call_free=<0|1> [own=1]
+  : GC-AUDIT site <stmt-path> free(<arg>) [own=1]
+  : GC-AUDIT site <stmt-path> closure-delete(<arg>)
+  : GC-AUDIT site <stmt-path> return-attached <destructor>
+  : GC-AUDIT site <stmt-path> assign-old-delete <name>
+  : GC-AUDIT site <stmt-path> fieldassign-old-delete <name>
+
+~<stmt-path>~ is a dotted statement path ("2.if0.1" = statement 1 of the
+then-branch of the if at statement 2). ~local~ lines are the LocalInfo
+table AFTER the analysis phases (so ~last_use~ includes borrow extensions,
+~heap~ includes promotion); ~site~ lines are found by walking the body
+AFTER insertion, so they include pre-existing user-written cleanup of the
+same shapes -- the dump is a body snapshot, not an insertion log. Nested
+if/while/block bodies appear twice: once from their own per-body run,
+once inside the enclosing body's walk (which is where the enclosing
+body's exit deletes land). Synthesized names (the ~hoisted__~ /
+leading-underscore population) print with their digit runs replaced by a
+per-body first-appearance ordinal (~hoisted__U64_#0~): the raw counters
+are global across every previously typed unit, so printing them would
+shift the whole golden on any unrelated core/std change.
+
+The golden test ~gc_audit~ (src/tests.til) pins
+~TIL_GC_AUDIT=test/gc_audit.til bin/til translate test/gc_audit.til~
+against ~test/gc_audit.expected~, so every #302 stage shows its decision
+diffs in review. Regeneration recipe in test/gc_audit.til's header. The
+env read is ext.c's ~gc_audit_filter~ (same pattern as ~TIL_LEAK_PROBE~);
+unset means disabled and the pass does no extra work beyond one env read
+per body.
+
+** The target contract (#302)
+
+Where the rework is taking this interface -- see issue #302 for the full
+design and staging:
+
+  - One ownership dataflow on a real per-body CFG (states Uninit / Owned /
+    Moved / Borrowed-from), replacing the three statement indexes and the
+    path special cases (sinking, pre-transfer exit rules, taint machinery,
+    borrow-lifetime extensions). The same dataflow reports the
+    obviously-leaking shapes as compile errors: path-sensitive
+    use-after-move (including transfer inside a loop), and the
+    leaked-Dynamic rule -- an allocator-rooted Dynamic local must be
+    freed or transferred on every path (borrow-provenance Dynamics,
+    to_ptr / ptr_add results, are never flagged).
+  - Decisions recorded once, explicitly: storage class on Declaration
+    (builder's ~stack_locals~ re-derivation dies), full contracts on
+    destructor statements (no-op deletes simply not inserted), explicit
+    move markers instead of clone-elision rewrites, ~save_old_delete~ set
+    only by the garbager.
+  - Returns normalized to ~return <ident>~ with cleanup as ordinary
+    preceding statements (decision 2 disappears).
+  - The hoisting contract enforced: an owned temp the hoister missed is an
+    ICE, not a silent leak.
+  - Backends execute the recorded decisions; compensation code in
+    builder.til and (via #286) interpreter.til is deleted stage by stage.

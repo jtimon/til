@@ -1,0 +1,152 @@
+mode test
+
+// Issue #302 stage 0: frozen fixture for the garbager decision-audit golden.
+//
+// Each function below pins one shape of the asap pass's output contract
+// (see doc/garbager.org). The golden test runs
+//     TIL_GC_AUDIT=test/gc_audit.til bin/til translate test/gc_audit.til
+// and byte-compares stdout against test/gc_audit.expected, so any change
+// to the pass's per-binding decisions or destructor placement for these
+// shapes shows up as a reviewable diff instead of only as an ASAN outcome.
+//
+// When a #302 stage intentionally changes a decision, regenerate with:
+//     TIL_GC_AUDIT=test/gc_audit.til bin/til translate test/gc_audit.til \
+//         > test/gc_audit.expected
+// and review the diff as part of the change. Do not edit the fixture
+// casually: every edit shifts statement indexes in the golden.
+
+// Ownership sink for Str: callers transfer at the call site.
+consume := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+// Ownership sink for a container, for the conditional-transfer shape.
+consume_vec := func(own v: Vec(I64)) returns I64 {
+    return v.len().to_i64()
+}
+
+// Shape 1: stack Str-literal locals (stay heap=0 by design), an owned
+// heap local dying at its last use (the second push_str), and an owned
+// local handed out by the return.
+last_use_and_scope_end := func() returns Str {
+    lit := "left"
+    b_lit := "right"
+    b := b_lit.clone()
+    mut a := Str.with_capacity(16)
+    a.push_str(lit)
+    a.push_str(b)
+    return a
+}
+
+// Shape 2: reassignment of an owned aggregate -- the old value's delete
+// rides the Assign as save_old_delete.
+reassign_old := func() returns I64 {
+    first := "first"
+    mut s := first.clone()
+    second := "second"
+    s = second.clone()
+    return s.len().to_i64()
+}
+
+// Shape 3: ownership transfer at a call site -- the pass stands down,
+// no delete for s in this body.
+transfer_out := func() returns I64 {
+    lit := "moved"
+    s := lit.clone()
+    return consume(own s)
+}
+
+// Shape 4: transfer inside one if-branch only -- the sink grafts the
+// non-transfer path's delete.
+conditional_transfer := func(flag: Bool) returns I64 {
+    mut v := Vec(I64).new()
+    v.push(own 1)
+    if flag {
+        return consume_vec(own v)
+    }
+    return 0
+}
+
+// Shape 5: early exit while another owned local is still live -- the
+// nested return edge must free s.
+early_exit := func(flag: Bool) returns I64 {
+    lit := "live"
+    s := lit.clone()
+    if flag { return 1 }
+    return s.len().to_i64()
+}
+
+// Shape 6: a ref borrow owns nothing (skip=1) and extends the source's
+// last_use to cover the borrower.
+borrow_local := func() returns I64 {
+    lit := "source"
+    s := lit.clone()
+    ref view : Str = s
+    return view.len().to_i64()
+}
+
+// Shape 7: an exit edge inside a loop, before the owned local's last use
+// on the fall-through path.
+loop_return := func(n: I64) returns I64 {
+    lit := "loop"
+    s := lit.clone()
+    mut i := 0
+    while i < n {
+        if i == 2 { return 100 }
+        i++
+    }
+    return s.len().to_i64()
+}
+
+// Shape 8: a variadic call -- the _va_Array build with its ek/eo error
+// slots and the array's own-transfer into the callee.
+varargs_build := func() returns Str {
+    a := "aa"
+    b := "bb"
+    return format(a, b)
+}
+
+// Shape 9: own param transferred on one branch only -- the sink covers
+// ordinary params (#302); only destructor self-transfers stand down.
+cond_param := func(own s: Str, flag: Bool) returns I64 {
+    if flag {
+        return consume(own s)
+    }
+    return 0
+}
+
+// Shape 10: early exit before the param's transfer -- the exit edge
+// must free the still-owned param (#302).
+early_param := func(own s: Str, flag: Bool) returns I64 {
+    if flag { return 1 }
+    return consume(own s)
+}
+
+// Plain assert only: assert_eq is a type-generic func, and generic
+// instantiation clones the body into this unit with the DEFINITION
+// file's line numbers -- the audit dump would then couple the golden to
+// core/exit.til's line layout. assert is a plain func typed in its own
+// unit, so it never appears in this unit's dump.
+test_gc_audit_shapes := test() {
+    joined := last_use_and_scope_end()
+    assert(joined == "leftright")
+    assert(reassign_old() == 6)
+    assert(transfer_out() == 5)
+    assert(conditional_transfer(true) == 1)
+    assert(conditional_transfer(false) == 0)
+    assert(early_exit(true) == 1)
+    assert(early_exit(false) == 4)
+    assert(borrow_local() == 6)
+    assert(loop_return(5) == 100)
+    assert(loop_return(0) == 4)
+    assert(varargs_build() == "aabb")
+    lit := "hello"
+    a := lit.clone()
+    assert(cond_param(own a, true) == 5)
+    b := lit.clone()
+    assert(cond_param(own b, false) == 0)
+    c := lit.clone()
+    assert(early_param(own c, false) == 5)
+    d := lit.clone()
+    assert(early_param(own d, true) == 1)
+}

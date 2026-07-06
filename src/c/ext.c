@@ -972,6 +972,18 @@ Str *host_os(void) {
 #endif
 }
 
+// Issue #302 stage 0: filter for the garbager's decision-audit dump.
+// TIL_GC_AUDIT=<path-substring> makes the asap pass print its per-body
+// decisions (the LocalInfo table and the destructor sites present after
+// insertion) for bodies whose unit path contains the substring; unset or
+// empty disables the dump (the normal case). See doc/garbager.org. Owned
+// Str return, "" when unset -- same convention as host_os above.
+Str *gc_audit_filter(void) {
+    const char *env = getenv("TIL_GC_AUDIT");
+    if (!env) env = "";
+    return Str_clone(&(Str){.c_str = (I8*)env, .count = strlen(env), .cap = CAP_LIT});
+}
+
 #ifdef _WIN32
 I64 *spawn_cmd(const Str *cmd) {
     char *c = malloc(cmd->count + 1);

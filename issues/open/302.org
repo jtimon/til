@@ -1,6 +1,6 @@
 # priority: high
 # category: cleanups
-** OPEN #302 Garbager rework: make the compile-time GC the single, complete ownership authority
+** WIP #302 Garbager rework: make the compile-time GC the single, complete ownership authority
 
 make test now runs the full ASAN suite and is leak-clean (e3134d5,
 fe53487), but a substantial share of that greenness was bought with
@@ -83,8 +83,11 @@ decl_index, last_use, own_transfer. Paths do not exist in this model.
 Every path-shaped bug became a bolted-on special case:
 
   - sink_conditional_transfer_deletes + sink_nontransfer_paths:
-    transfer inside one if-branch, delete grafted into the others
-    (with Str and params excluded for separate reasons);
+    transfer inside one if-branch, delete grafted into the others.
+    (CORRECTION 2026-07-05: an earlier revision here repeated
+    doc/ownership.org's stale claim that Str was excluded from
+    sinking; Str is path-handled. Params WERE excluded wholesale --
+    verified leaks, fixed with LocalInfo.dtor_transfer, see Progress);
   - the own_transfer <= stmt_idx pre-transfer rules duplicated in
     insert_exit_deletes_into_stmt and insert_nested_exit_deletes: an
     exit edge before the transfer stmt still owns the local;
@@ -296,6 +299,42 @@ That subsumes, with no special cases:
   - double transfer on one path = a new, currently-undetectable
     error, reported at the second site.
 
+**** New diagnostics: forbid the obviously-leaking shapes
+
+The same per-path ownership state that places deletes also REPORTS the
+shapes that today leak or double-free silently:
+
+  - Use-after-move / double-move, path-sensitive (above). Includes the
+    transfer-inside-a-loop of a local declared outside the loop: the
+    single own_transfer index cannot represent the second iteration, so
+    today this compiles silently into double-free C.
+  - Leaked Dynamic (added 2026-07-05 on request). qualifiers.org states
+    the contract -- "a local owned Dynamic must either transfer
+    ownership to an own arg/field or be explicitly freed with
+    free(own buf)" -- and nothing enforces it; a forgotten free is
+    invisible until ASAN. Rule: a local Dynamic whose RHS provenance is
+    an allocator (malloc / calloc / realloc / EvalHeap.heap_alloc, plus
+    a call returning an owned Dynamic) must be freed or transferred on
+    EVERY path that leaves its scope; a path where it is still owned is
+    a compile error. Provenance is the gate because Dynamic is just
+    void* (#272): a to_ptr / ptr_add / deref result is a borrow and
+    must never be flagged. The same split catches the reverse footgun,
+    free(own p) on a borrow-provenance Dynamic. MUST land together with
+    the program-scope free(own buf) codegen fix below: the compliant
+    pattern itself emits invalid C at program scope today, so the rule
+    would otherwise demand code that cannot compile.
+  - Unhoisted owned temp (stage 5 below).
+  - No byte-copy of managed aggregates (with stage 4; #275 step 3):
+    extend check_move_managed_dest with its dual.
+
+Verified 2026-07-05 (tmp experiment): `buf : Dynamic = malloc(8)` +
+`free(own buf)` at PROGRAM scope emits
+`free(({ void *_oa = malloc(sizeof(void)); *_oa = buf; _oa; }));`
+-- two -Werror failures (void deref / void expression). emit_as_ptr
+treats the program-scope Dynamic local as a value global and applies
+the own-box malloc-copy wrap; an own Dynamic arg must be the pointer
+itself. The same free inside a proc body compiles fine.
+
 **** Explicit, recorded decisions (backends stop deciding)
 
   - Declaration gets a storage decision set ONCE by the garbager:
@@ -344,6 +383,49 @@ let the ownership pass insert temps itself; start with the check.
     where it cannot, the delete call is emitted and Str.delete
     decides at runtime.
 
+*** Progress
+
+  - [X] Stage 0: doc/garbager.org (the output-contract snapshot), the
+    TIL_GC_AUDIT decision-audit dump in insert_free_calls (env read via
+    ext.c gc_audit_filter, TIL_LEAK_PROBE-style), the frozen fixture
+    test/gc_audit.til, and the byte-exact golden test `gc_audit`
+    (src/tests.til) against test/gc_audit.expected.
+  - [X] Interim fixes from the 2026-07-05 experiment sweep (tmp/ repros
+    + generated-C reading + ASAN), landed ahead of stage 3 because they
+    are point fixes inside today's model:
+      1. Own param transferred on one if-branch leaked on the other
+         (ASAN: 30 bytes per call). The sink excluded ALL params; the
+         only shape that needs the stand-down is a param consumed by
+         its OWN destructor call (delete's `if call_free { free(own
+         self) }`). New transfer_is_destructor_call /
+         LocalInfo.dtor_transfer discriminates by transfer shape.
+      2. Same blanket exclusion in the exit-edge deletes: an early
+         return before the param's transfer leaked it (ASAN: 30
+         bytes). Ordinary params now get the locals' pre-transfer
+         rule; destructor self-transfers keep the full stand-down.
+      3. Transfer inside a loop of a binding declared outside it
+         compiled silently and heap-use-after-freed on the second
+         iteration (verified). New typer error ("ownership of 'x'
+         transferred inside a loop; a second iteration would use a
+         moved value"), skipped when the loop reassigns the binding
+         (rebind-then-transfer). The CFG pass will order the two
+         within an iteration; the index model cannot.
+    Regression tests: test/regression.til bug302_* (ASAN-verified
+    paths), test/typer_errors.til terr_loop_transfer (count 161->162),
+    gc_audit fixture shapes 9-10. doc/ownership.org's "Conditional
+    transfer" exclusion paragraph was stale (claimed Str excluded) and
+    is rewritten to match the code.
+    Still open from the same sweep: program-scope `free(own buf)`
+    emits invalid C (repro tmp/gc_dyn_prog.til, exact bad line in the
+    New-diagnostics section) -- stage 3's coupled codegen fix.
+  - [ ] Stage 1: single-source storage classification.
+  - [ ] Stage 2: return normalization.
+  - [ ] Stage 3: the CFG ownership pass.
+  - [ ] Stage 4: explicit moves + unified reassign deletes.
+  - [ ] Stage 5: temp-contract enforcement.
+  - [ ] Stage 6: builder compensation removal.
+  - [ ] Stage 7: interpreter compensation removal (rides #286).
+
 *** Staged plan
 
 Each stage lands suite-green. Garbager-semantics stages are
@@ -391,6 +473,10 @@ Stage 3. The CFG ownership pass. [Two-pass, the big one]
   alias_used_in_stmts. Borrow edges come from binding identity plus
   view-returning-call classification (returns ref / substr class),
   not the hoisted__ prefix. Add the path regression tests (below).
+  The "New diagnostics" set rides this same dataflow: the
+  path-sensitive use-after-move family and the leaked-Dynamic
+  provenance rule land here, with the program-scope free(own buf)
+  invalid-C fix first (the rule's required pattern must compile).
 
 Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
   Move markers replace the clone-elision rewrites; save_old_delete
@@ -404,8 +490,8 @@ Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
 Stage 5. Temp-contract enforcement. [Two-pass]
   The unhoisted-owned-temp ICE. Fix what it flushes out (the
   f().field class) by extending hoist coverage or pass-owned temp
-  insertion. Also fix the program-scope `free(own p)` invalid-C seam
-  bug while in the area.
+  insertion. (The program-scope `free(own p)` invalid-C fix moved to
+  stage 3, coupled to the leaked-Dynamic rule.)
 
 Stage 6. Builder compensation removal. [Two-pass]
   With 1-5 in, delete the remaining builder fixups: swap_freed
@@ -441,7 +527,13 @@ Stage 7. Interpreter compensation removal -- rides #286.
     user-named (non-hoisted) view outliving its statement, view of a
     view, two locals conditionally transferred into the same own
     field, use-after-move on one path only (must error), self-assign
-    `x = x.clone()` (must keep the clone).
+    `x = x.clone()` (must keep the clone), transfer inside a loop of an
+    outer local (must error), and the leaked-Dynamic rule: an
+    allocator-rooted Dynamic leaked on one path (must error), freed or
+    transferred on every path (ok), a to_ptr/ptr_add borrow never
+    flagged, free(own p) on a borrow-provenance Dynamic (must error),
+    and free(own buf) at program scope (must COMPILE, the stage 3
+    codegen fix).
   - Stage 0's GC-audit goldens diff the pass's decisions directly, so
     behavior changes are visible in review rather than only as ASAN
     outcomes.

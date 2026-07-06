@@ -125,3 +125,44 @@ bug239 := test() {
         UNREACHABLE()
     }
 }
+
+// --- #302: conditionally-transferred own params -----------------------
+//
+// Original bugs: the asap pass excluded ALL own params from the
+// conditional-transfer sink and from pre-transfer exit-edge deletes.
+// That exclusion is only correct for a param whose transfer is its own
+// destructor call (a delete method's `if call_free { free(own self) }`);
+// every ordinary own param transferred on one path leaked on the other
+// (30 bytes per call in the repro), and an early return before the
+// transfer leaked too. Procs so the constfolder cannot fold the calls
+// away; the ASAN suite verifies the paths no longer leak.
+
+bug302_sink := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+bug302_cond_param := proc(own s: Str, flag: Bool) returns I64 {
+    print_flush()
+    if flag {
+        return bug302_sink(own s)
+    }
+    return 0
+}
+
+bug302_early_param := proc(own s: Str, flag: Bool) returns I64 {
+    print_flush()
+    if flag { return 0 }
+    return bug302_sink(own s)
+}
+
+test_bug302_cond_param_paths := test() {
+    lit := "hello"
+    a := lit.clone()
+    assert(bug302_cond_param(own a, true) == 5)
+    b := lit.clone()
+    assert(bug302_cond_param(own b, false) == 0)
+    c := lit.clone()
+    assert(bug302_early_param(own c, false) == 5)
+    d := lit.clone()
+    assert(bug302_early_param(own d, true) == 0)
+}

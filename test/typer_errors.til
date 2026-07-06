@@ -770,3 +770,20 @@ terr_conv_op_fn := func(terr_b: I16) returns Bool { return terr_b > 0.to_i16() }
 terr_conv_op_fn(1)                                   // operator-operand type
 terr_conv_ret_fn := func() returns F32 { return 3.to_f32() }
 terr_conv_ret_fn()                                   // return type
+
+// #302: transferring ownership inside a loop, of a binding declared
+// outside the loop -- the second iteration would move an already-moved
+// value (previously compiled silently into use-after-free C). Loops
+// that REASSIGN the binding before transferring stay legal.
+terr_loop_sink := func(own terr_ls: Str) returns I64 { return terr_ls.len().to_i64() }
+terr_loop_transfer := func() returns I64 {
+    terr_lt_lit := "hello"
+    terr_lt_s := terr_lt_lit.clone()
+    mut terr_lt_total := 0
+    mut terr_lt_i := 0
+    while terr_lt_i < 2 {
+        terr_lt_total = terr_lt_total + terr_loop_sink(own terr_lt_s)
+        terr_lt_i++
+    }
+    return terr_lt_total
+}

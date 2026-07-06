@@ -158,11 +158,19 @@ one branch unconditionally transfers, local unused after the if" and sinks the
 delete into the non-transferring branch. It only ever ADDS a delete on a path
 where the local is provably still owned, so it cannot double-free.
 
-Excluded from sinking: ~Str~ (its CAP_LIT/CAP_VIEW heap/view duality means a
-~Str~ local may hold a borrowed view on the non-transfer path -- freeing it
-would free the source's buffer), and params (a ~delete~ method's ~self~ does
-~if call_free { free(own self) }~, a conditional self-transfer; sinking would
-re-free on the ~call_free=false~ path).
+Excluded from sinking: only bindings whose conditional transfer is their own
+DESTRUCTOR call (~transfer_is_destructor_call~ / ~LocalInfo.dtor_transfer~):
+a ~delete~ method's ~self~ does ~if call_free { free(own self) }~ after its
+field deletes already ran, so sinking a delete into the other path re-frees.
+Ordinary own params are covered like locals (#302; the old blanket param
+exclusion leaked every conditionally-transferred own param, and the same
+blanket rule in the exit-edge deletes leaked them on early returns before
+the transfer). ~Str~ is handled like any other owned local: ~Str.delete~
+reads ~cap~ to know owned/literal/view, so the sink is path-sensitive, not
+type-sensitive. A transfer INSIDE A LOOP of a binding declared outside it is
+rejected by the typer outright (#302) -- the second iteration would move an
+already-moved value -- unless the loop also reassigns the binding (the
+rebind-then-transfer pattern).
 
 ** Relation to Mojo
 

@@ -1686,6 +1686,8 @@ void Array__Str_set(Array__Str * self, U64 i, Str * val, I64 * _err_kind, OutOfB
     (void)hoisted__Bool_789;
     if (hoisted__Bool_789) {
         Array__Str_unsafe_set(self, i, val);
+    } else {
+        Str_delete(val, 1);
     }
 }
 
