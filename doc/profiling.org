@@ -166,86 +166,90 @@ From ~bin/til_prof translate test/maps.til~ on the current compiler -- the top
 ~bin/til run examples/profile.til test/maps.til 32~ (the absolute numbers
 drift; the ranking is what matters).
 
-Note the core_func conversions in action: earlier snapshots' top leaf
-offenders -- ~ptr_add~ (16.7M calls), ~not~ (9.4M), ~U32_inc~ (5.8M),
-~U32_clone~ / ~Bool_clone~, ~is_n~ -- no longer appear at all, because they
-are no longer functions (every call site is inlined). The heaviest remaining
-leaf calls, ~and~ (a lazy_func, emitted as a real call when there is nothing
-to short-circuit) and ~get_payload~ (still an ext_func), are the natural next
-candidates.
+Note the inlining work in action: earlier snapshots' top leaf offenders --
+~ptr_add~ (16.7M calls), ~not~ (9.4M), ~U32_inc~ (5.8M), ~U32_clone~ /
+~Bool_clone~, ~is_n~ (core_func conversions), then ~Vec__Str_unsafe_get~
+(18.1M) / ~Vec__Expr_unsafe_get~ (11.1M) / ~Vec__Declaration_unsafe_get~
+(6.4M) (the #305 accessor inline) -- no longer appear at all, because every
+call site is inlined. The heaviest remaining leaf calls, ~and~ (a lazy_func,
+emitted as a real call) and ~get_payload~ (still an ext_func), are the
+natural next candidates; past them the table is string churn
+(~Str_delete~ / ~Str_cmp~ / ~Str_clone~) and the typer's ownership walks
+(~expr_transfers_own~ / ~expr_uses_var~ by total_ms), which is #302
+territory.
 
 Top 32 by self time:
 
   | function                                      | calls    | self_ms | total_ms |
   |-----------------------------------------------+----------+---------+----------|
-  | Str_delete                                    | 28.6M    | 2508.4  | 3617.9   |
-  | and                                           | 33.1M    | 1286.8  | 1286.8   |
-  | Str_cmp                                       | 18.5M    | 1174.2  | 1299.1   |
-  | expr_uses_var                                 | 4.2M     | 1141.0  | 34596.9  |
-  | OutOfBounds_delete                            | 9.1M     | 821.1   | 1953.7   |
-  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M     | 766.8   | 6061.6   |
-  | Vec__Str_unsafe_get                           | 18.1M    | 724.8   | 724.8    |
-  | Map__Str_Dynamic_get                          | 994K     | 588.3   | 1169.7   |
-  | expr_til_type                                 | 730K     | 578.1   | 1218.7   |
-  | Str_eq                                        | 9.2M     | 557.8   | 646.3    |
-  | expr_transfers_own                            | 1.6M     | 504.6   | 116933.3 |
-  | NodeType_is                                   | 11.0M    | 492.3   | 492.3    |
-  | Map__Str_Dynamic_has                          | 3.0M     | 465.1   | 826.5    |
-  | Vec__Expr_unsafe_get                          | 11.1M    | 455.8   | 455.8    |
-  | get_payload                                   | 13.0M    | 453.3   | 453.3    |
-  | sleep_ms                                      | 8        | 400.7   | 400.7    |
-  | TypeScope_get_struct                          | 2.8M     | 384.9   | 10707.9  |
-  | fa_is_ns                                      | 196K     | 379.1   | 2096.4   |
-  | Map__Str_TypeBinding_has                      | 1.0M     | 370.5   | 709.0    |
-  | expr_used_in_nested_func                      | 1.6M     | 341.4   | 13738.1  |
-  | ctx_field_layout                              | 288K     | 297.9   | 1840.9   |
-  | Vec__Expr_get                                 | 3.1M     | 273.5   | 401.1    |
-  | Vec__Declaration_unsafe_get                   | 6.4M     | 256.7   | 256.7    |
-  | Str_clone                                     | 2.4M     | 218.8   | 218.8    |
-  | Map__Str_StructLayout_get                     | 430K     | 216.4   | 418.9    |
-  | Array__Str_unsafe_set                         | 906K     | 210.8   | 513.2    |
-  | NodeType_delete                               | 705K     | 201.0   | 499.7    |
-  | KeyNotFound_delete                            | 2.2M     | 200.4   | 473.2    |
-  | Map__Str_StructLayout_has                     | 430K     | 196.9   | 384.0    |
-  | Type_clone                                    | 1.0M     | 154.9   | 255.6    |
-  | priv___src_self_typer_til__check_own_args     | 224K     | 153.8   | 426.0    |
-  | Type_delete                                   | 1.3M     | 143.8   | 238.4    |
+  | Str_delete                                    | 28.6M    | 2245.3  | 3235.7   |
+  | and                                           | 33.2M    | 1149.4  | 1149.4   |
+  | Str_cmp                                       | 18.5M    | 1025.2  | 1136.8   |
+  | expr_uses_var                                 | 4.2M     | 886.1   | 27491.9  |
+  | OutOfBounds_delete                            | 9.1M     | 742.5   | 1759.7   |
+  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M     | 598.1   | 4453.0   |
+  | expr_til_type                                 | 732K     | 523.9   | 1099.9   |
+  | Str_eq                                        | 9.2M     | 507.3   | 586.5    |
+  | NodeType_is                                   | 11.0M    | 479.2   | 479.2    |
+  | get_payload                                   | 13.0M    | 405.6   | 405.6    |
+  | sleep_ms                                      | 8        | 400.9   | 400.9    |
+  | expr_transfers_own                            | 1.6M     | 382.7   | 88995.8  |
+  | TypeScope_get_struct                          | 2.8M     | 332.5   | 7263.9   |
+  | Map__Str_Dynamic_get                          | 994K     | 292.5   | 595.2    |
+  | Map__Str_Dynamic_has                          | 3.0M     | 285.2   | 488.6    |
+  | ctx_field_layout                              | 288K     | 263.3   | 1236.7   |
+  | fa_is_ns                                      | 196K     | 249.4   | 1515.9   |
+  | expr_used_in_nested_func                      | 1.6M     | 239.0   | 10321.8  |
+  | Map__Str_TypeBinding_has                      | 1.0M     | 205.0   | 392.8    |
+  | Str_clone                                     | 2.4M     | 189.4   | 189.4    |
+  | NodeType_delete                               | 709K     | 183.5   | 460.4    |
+  | KeyNotFound_delete                            | 2.2M     | 179.7   | 422.2    |
+  | Type_clone                                    | 1.0M     | 138.7   | 226.9    |
+  | priv___src_self_typer_til__check_own_args     | 224K     | 136.2   | 329.7    |
+  | Type_delete                                   | 1.3M     | 123.1   | 208.5    |
+  | priv___src_self_context_til__func_defs_lookup_one | 540K | 121.8   | 651.2    |
+  | Vec__Expr_get                                 | 3.1M     | 118.2   | 118.2    |
+  | priv___src_self_constfolder_til__fold_subtree | 147K     | 115.0   | 20830.7  |
+  | Array__Str_unsafe_set                         | 906K     | 112.4   | 315.2    |
+  | U64_cmp                                       | 3.5M     | 111.7   | 111.7    |
+  | Map__Str_StructLayout_get                     | 430K     | 107.3   | 211.4    |
+  | Map__Str_StructLayout_has                     | 430K     | 105.9   | 212.2    |
 
 Top 32 by bytes allocated:
 
   | function                                      | allocs | alloc_kb | calls   |
   |-----------------------------------------------+--------+----------+---------|
-  | Str_clone                                     | 4.4M   | 75195.3  | 2.4M    |
-  | Vec__Expr_new                                 | 402K   | 50188.0  | 201K    |
-  | Vec__Expr_clone                               | 303K   | 47080.2  | 151K    |
+  | Str_clone                                     | 4.4M   | 75334.7  | 2.4M    |
+  | Vec__Expr_new                                 | 402K   | 50197.0  | 201K    |
+  | Vec__Expr_clone                               | 307K   | 47817.5  | 153K    |
   | expr_used_in_nested_func                      | 1.6M   | 38312.1  | 1.6M    |
-  | expr_transfers_own                            | 1.6M   | 36902.3  | 1.6M    |
-  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M   | 36641.7  | 1.6M    |
+  | expr_transfers_own                            | 1.6M   | 36902.4  | 1.6M    |
+  | priv___src_self_typer_til__fcall_has_own_arg  | 1.6M   | 36641.9  | 1.6M    |
+  | Expr_clone                                    | 153K   | 34677.2  | 153K    |
   | Vec__Value_clone                              | 316    | 34455.7  | 158     |
-  | Expr_clone                                    | 151K   | 34247.4  | 151K    |
   | Vec__Expr_push_take                           | 24.0K  | 32976.6  | 74.4K   |
-  | Array__Str_new                                | 1.5M   | 32871.8  | 744K    |
-  | Expr_new                                      | 132K   | 30013.0  | 132K    |
-  | Vec__Expr_push                                | 40.1K  | 29309.5  | 121K    |
-  | NodeType_Ident                                | 140K   | 27256.1  | 140K    |
+  | Array__Str_new                                | 1.5M   | 32877.7  | 744K    |
+  | Expr_new                                      | 133K   | 30021.1  | 133K    |
+  | Vec__Expr_push                                | 40.2K  | 29323.1  | 121K    |
+  | NodeType_Ident                                | 140K   | 27418.9  | 140K    |
   | ctx_field_layout                              | 865K   | 27027.5  | 288K    |
   | Vec__Expr_move_from                           | 10.7K  | 24513.6  | 27.6K   |
   | Vec__Str_clone                                | 5.6K   | 17361.3  | 2.8K    |
-  | expr_til_type                                 | 742K   | 17162.4  | 730K    |
-  | Type_clone                                    | 651K   | 12892.5  | 1.0M    |
-  | priv___src_self_context_til__func_defs_lookup_one | 540K | 12657.8 | 540K   |
-  | NodeType_FieldAccess                          | 60.7K  | 11855.7  | 60.7K   |
+  | expr_til_type                                 | 744K   | 17221.1  | 732K    |
+  | Type_clone                                    | 654K   | 12922.0  | 1.0M    |
+  | priv___src_self_context_til__func_defs_lookup_one | 540K | 12658.1 | 540K   |
+  | NodeType_FieldAccess                          | 61.0K  | 11909.0  | 61.0K   |
   | TypeScope_get_binding                         | 488K   | 11432.4  | 488K    |
-  | NodeType_clone                                | 57.4K  | 11214.3  | 284K    |
+  | NodeType_clone                                | 57.6K  | 11250.2  | 286K    |
+  | NodeType_FCall                                | 53.3K  | 10409.8  | 53.3K   |
   | Value_Uint64                                  | 222K   | 10406.1  | 222K    |
-  | NodeType_FCall                                | 53.0K  | 10344.1  | 53.0K   |
   | lookup_interp_type_def                        | 436K   | 10215.0  | 436K    |
-  | Vec__Str_new                                  | 389K   | 9124.8   | 195K    |
+  | Vec__Str_new                                  | 389K   | 9126.5   | 195K    |
   | Vec__Expr_append                              | 3.7K   | 8986.8   | 21.3K   |
-  | NodeType_Literal                              | 45.9K  | 8974.0   | 45.9K   |
-  | Type_Primitive                                | 280K   | 8760.2   | 280K    |
-  | is_compile_directive                          | 315K   | 7378.9   | 315K    |
-  | Type_Custom                                   | 218K   | 6804.8   | 218K    |
+  | NodeType_Literal                              | 46.2K  | 9018.6   | 46.2K   |
+  | Type_Primitive                                | 282K   | 8822.8   | 282K    |
+  | is_compile_directive                          | 315K   | 7379.0   | 315K    |
+  | Type_Custom                                   | 218K   | 6810.4   | 218K    |
   | Value_Struct                                  | 137K   | 6444.6   | 137K    |
 
 ** Status
