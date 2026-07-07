@@ -533,13 +533,18 @@ let the ownership pass insert temps itself; start with the check.
       manual-free coexistence / own-arg transfer, ASAN), gc_audit
       shape 11 (golden pins `free(buf) own=1` inserted).
       USE commit (needs the prep's til_boot): migrate the non-island
-      `: Dynamic = malloc` sites to typed spellings -- 56 -> 25
-      remaining (interpreter 22 + eval_heap, plus dyn.til clone and
-      DynVec.pop whose Dynamic returns ARE the type-erasure API) --
-      and DELETE the 7 hand-written frees the pass now inserts:
-      mem.til swap, gui.til make_tone, scavenger.til x4, dyn_map.til
-      put's cloned_key. First explicit-call removals of the plan
-      (census class d partial; the island waits on #286).
+      `: Dynamic = malloc` sites to typed spellings -- 56 -> 26
+      remaining (interpreter 22 + eval_heap, dyn.til clone and
+      DynVec.pop whose Dynamic returns ARE the type-erasure API, and
+      gui.til make_tone whose buffer is read by LoadSoundFromWave
+      through the Wave FFI struct AFTER its last named use -- a
+      documented FFI island; auto-free would be premature and a U8*
+      does not coerce into the FFI field slot, which the two-pass
+      gate caught as a piano/guitar/music_modes/popcorn -Werror
+      break) -- and DELETE the 6 hand-written frees the pass now
+      inserts: mem.til swap, scavenger.til x4, dyn_map.til put's
+      cloned_key. First explicit-call removals of the plan (census
+      class d partial; the island waits on #286).
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

@@ -177,7 +177,7 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        prefix_data : Dynamic = malloc(prefix_cap.mul(self.elem_size).cast(U64))
+        prefix_data : U8 = malloc(prefix_cap.mul(self.elem_size).cast(U64))
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(self.elem_size).cast(U64))
         }
@@ -256,7 +256,7 @@ namespace:
 
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
-        new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(self.elem_size).cast(U64))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))

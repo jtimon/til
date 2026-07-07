@@ -1341,7 +1341,7 @@ Str * Str_with_capacity(U64 n) {
     (void)hoisted__U64_158;
     U64 hoisted__U64_159 = ((U64)(n + hoisted__U64_158));
     (void)hoisted__U64_159;
-    void * buf = malloc(hoisted__U64_159);
+    I8 *buf = malloc(hoisted__U64_159);
     I32 hoisted__I32_160 = 0;
     (void)hoisted__I32_160;
     U64 hoisted__U64_161 = 1ULL;
@@ -1449,7 +1449,7 @@ Str * Str_clone(Str * val) {
     (void)hoisted__U64_187;
     U64 hoisted__U64_188 = ((U64)(val->count + hoisted__U64_187));
     (void)hoisted__U64_188;
-    void * new_data = malloc(hoisted__U64_188);
+    I8 *new_data = malloc(hoisted__U64_188);
     memcpy(new_data, val->c_str, val->count);
     void *hoisted__v_189 = ((void *)((U8 *)(new_data) + (val->count)));
     (void)hoisted__v_189;
@@ -1760,7 +1760,7 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     (void)hoisted__U64_833;
     U64 hoisted__U64_834 = (U64)(hoisted__U64_833);
     (void)hoisted__U64_834;
-    void * new_data = malloc(hoisted__U64_834);
+    U8 *new_data = malloc(hoisted__U64_834);
     {
         U64 _re_U64_804 = self->cap;
         (void)_re_U64_804;
@@ -1963,7 +1963,7 @@ Vec__Str * Vec__Str_clone(Vec__Str * self) {
     (void)hoisted__U64_1137;
     U64 hoisted__U64_1138 = (U64)(hoisted__U64_1137);
     (void)hoisted__U64_1138;
-    void * new_data = malloc(hoisted__U64_1138);
+    U8 *new_data = malloc(hoisted__U64_1138);
     {
         U64 _re_U64_1108 = self->count;
         (void)_re_U64_1108;
@@ -4941,7 +4941,7 @@ Vec__Bool * Vec__Bool_clone(Vec__Bool * self) {
     (void)hoisted__U64_5297;
     U64 hoisted__U64_5298 = (U64)(hoisted__U64_5297);
     (void)hoisted__U64_5298;
-    void * new_data = malloc(hoisted__U64_5298);
+    U8 *new_data = malloc(hoisted__U64_5298);
     {
         U64 _re_U64_5268 = self->count;
         (void)_re_U64_5268;
@@ -5143,7 +5143,7 @@ Vec__I64 * Vec__I64_clone(Vec__I64 * self) {
     (void)hoisted__U64_5601;
     U64 hoisted__U64_5602 = (U64)(hoisted__U64_5601);
     (void)hoisted__U64_5602;
-    void * new_data = malloc(hoisted__U64_5602);
+    U8 *new_data = malloc(hoisted__U64_5602);
     {
         U64 _re_U64_5572 = self->count;
         (void)_re_U64_5572;
@@ -5345,7 +5345,7 @@ Vec__Declaration * Vec__Declaration_clone(Vec__Declaration * self) {
     (void)hoisted__U64_6209;
     U64 hoisted__U64_6210 = (U64)(hoisted__U64_6209);
     (void)hoisted__U64_6210;
-    void * new_data = malloc(hoisted__U64_6210);
+    U8 *new_data = malloc(hoisted__U64_6210);
     {
         U64 _re_U64_6180 = self->count;
         (void)_re_U64_6180;
@@ -5549,7 +5549,7 @@ Vec__Expr * Vec__Expr_clone(Vec__Expr * self) {
     (void)hoisted__U64_6513;
     U64 hoisted__U64_6514 = (U64)(hoisted__U64_6513);
     (void)hoisted__U64_6514;
-    void * new_data = malloc(hoisted__U64_6514);
+    U8 *new_data = malloc(hoisted__U64_6514);
     {
         U64 _re_U64_6484 = self->count;
         (void)_re_U64_6484;
@@ -5779,7 +5779,7 @@ void println(Array__Str * parts) {
 }
 
 void swap(void * a, void * b, U64 size) {
-    void * tmp = malloc(size);
+    U8 *tmp = malloc(size);
     memcpy(tmp, a, size);
     memcpy(a, b, size);
     memcpy(b, tmp, size);

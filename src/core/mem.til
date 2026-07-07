@@ -47,11 +47,10 @@ is_null := core_func(p: Dynamic) returns shallow Bool {}
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
 swap := func(a: Dynamic, b: Dynamic, size: UPtr) {
-    tmp : Dynamic = malloc(size)
+    tmp : U8 = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)
     memcpy(b, tmp, size)
-    free(own tmp)
 }
 
 move := func(dest: Dynamic, src: Dynamic, size: UPtr) {

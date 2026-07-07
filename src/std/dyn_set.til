@@ -96,7 +96,7 @@ namespace:
     }
 
     clone := func(self: DynSet) returns DynSet {
-        new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(self.elem_size).cast(U64))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
                          ptr_add(self.data, i.mul(self.elem_size).cast(U64)))

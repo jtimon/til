@@ -109,7 +109,7 @@ namespace:
             ref head2 : I64 = self.buckets.unsafe_get(bi)
             head_val : I64 = head2.clone()
             self.nexts.push(own head_val)
-            cloned_key : Dynamic = malloc(self.keys.elem_size.cast(U64))
+            cloned_key : U8 = malloc(self.keys.elem_size.cast(U64))
             if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
                 memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))

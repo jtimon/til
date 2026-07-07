@@ -147,7 +147,7 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        prefix_data : Dynamic = malloc(prefix_cap.mul(T.size()).cast(U64))
+        prefix_data : U8 = malloc(prefix_cap.mul(T.size()).cast(U64))
         if n > 0 {
             memcpy(prefix_data, self.data, n.mul(T.size()).cast(U64))
         }
@@ -210,7 +210,7 @@ namespace:
 
     /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec(T)) returns Vec(T) {
-        new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
             mut cloned : T = T.clone(src)

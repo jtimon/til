@@ -76,7 +76,7 @@ namespace:
     }
 
     clone := func(self: DynArray) returns DynArray {
-        new_data : Dynamic = malloc(self.cap.mul(self.elem_size).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(self.elem_size).cast(U64))
         for i in 0..self.cap {
             cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))

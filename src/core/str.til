@@ -99,7 +99,7 @@ namespace:
     /// Create an empty Str pre-allocated for up to `n` bytes.
     with_capacity := func(n: USize) returns Str {
         if n == 0 { return "" }
-        buf : Dynamic = malloc(n + 1)
+        buf : I8 = malloc(n + 1)
         memset(buf, 0, 1)
         return Str(c_str = buf, count = 0, cap = n)
     }
@@ -129,7 +129,7 @@ namespace:
     /// Deep-copy the string into a new owned Str.
     clone := func(val: Str) returns Str {
         if val.count == 0 { return "" }
-        new_data : Dynamic = malloc(val.count + 1)
+        new_data : I8 = malloc(val.count + 1)
         memcpy(new_data, val.c_str, val.count)
         memset(ptr_add(new_data, val.count), 0, 1)
         return Str(c_str = new_data, count = val.count, cap = val.count)
@@ -352,7 +352,7 @@ namespace:
 
     /// Create a 1-byte Str from a U8 value.
     from_byte := func(byte: U8) returns Str {
-        buf : Dynamic = malloc(2)
+        buf : I8 = malloc(2)
         memcpy(buf, byte, 1)
         memset(ptr_add(buf, 1), 0, 1)
         return Str(c_str = buf, count = 1, cap = 1)

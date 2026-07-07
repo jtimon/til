@@ -273,7 +273,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 // precomputed visited set.
 scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     pn := program.children.len()
-    pm : Dynamic = malloc(pn.cast(U64))
+    pm : U8 = malloc(pn.cast(U64))
     memset(pm, 0, pn.cast(U64))
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
@@ -298,7 +298,6 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
         }
     }
     children_filter_expr(program.children, pm, pn)
-    free(own pm)
 
     for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
@@ -307,7 +306,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
             ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.children[0])
             scv_nn2 := scv_ns2.len()
             if scv_nn2 > 0 {
-                scv_nm2 : Dynamic = malloc(scv_nn2.cast(U64))
+                scv_nm2 : U8 = malloc(scv_nn2.cast(U64))
                 memset(scv_nm2, 0, scv_nn2.cast(U64))
                 for j in 0..scv_nn2 {
                     scv_qn2 := qualified_name(sdecl.name, scv_ns2[j].name)
@@ -316,7 +315,6 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                     }
                 }
                 children_filter_decl(scv_ns2, scv_nm2, scv_nn2)
-                free(own scv_nm2)
             }
         case:
             UNREACHABLE()
@@ -464,7 +462,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
     if e.node_type.is(NodeType.Body) {
         n := e.children.len()
         if n > 0 {
-            marks : Dynamic = malloc(n.cast(U64))
+            marks : U8 = malloc(n.cast(U64))
             memset(marks, 0, n.cast(U64))
             mut any := false
             for i in 0..n {
@@ -475,7 +473,6 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
                 any = true
             }
             if any { children_filter_expr(e.children, marks, n) }
-            free(own marks)
         }
     }
     for c : Expr in e.children {
@@ -552,7 +549,7 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
 
     // Phase 3: mark Decls (delete or replace-with-rhs) and the
     // matching trivial-delete stmts.
-    marks : Dynamic = malloc(n.cast(U64))
+    marks : U8 = malloc(n.cast(U64))
     memset(marks, 0, n.cast(U64))
     dropped := Set(Str).new()
     mut any := false
@@ -602,7 +599,6 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             prune_trivial_deletes(body.children[j], dropped)
         }
     }
-    free(own marks)
     own refs.delete(true)
     own candidates.delete(true)
     own candidates_replace.delete(true)

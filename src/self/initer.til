@@ -80,7 +80,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         // constfolder eval (which clones Values and looks up nested struct/enum
         // defs by name) sees a populated registry; interpret_units later
         // re-registers with the same value, which is idempotent.
-        tdv : Dynamic = malloc(I64.size().cast(U64))
+        tdv : I64 = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.children[0])
         ctx.interp_type_defs.set(sname, own tdv)
         return 0
@@ -532,7 +532,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
         // register_struct_def_for_stmt for rationale).
-        tdv : Dynamic = malloc(I64.size().cast(U64))
+        tdv : I64 = malloc(I64.size().cast(U64))
         write_ptr(tdv, stmt.children[0])
         ctx.interp_type_defs.set(ename, own tdv)
         return 0

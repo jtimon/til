@@ -88,7 +88,7 @@ namespace:
     }
 
     clone := func(self: Set(T)) returns Set(T) {
-        new_data : Dynamic = malloc(self.cap.mul(T.size()).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
             mut cloned : T = T.clone(src)
