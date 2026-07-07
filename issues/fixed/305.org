@@ -1,0 +1,54 @@
+# priority: medium
+# category: optimizations
+** FIXED #305 Accessor inline (#300) missed hoisted bodies: unsafe_get emitted 18M real calls
+
+Fixed here (created directly in fixed/): the generalized len/unsafe_get
+accessor inline landed in #300, but the --prof snapshot refreshed after the
+core_func conversions showed Vec__Str_unsafe_get with 18.1M REAL calls and
+Vec__Expr_unsafe_get with 11.1M per self-host translate -- while `len` inlined
+fine at the very same call sites (the same for-in loop emitted
+`_fc->count` inline and then a real `Vec__Str_unsafe_get(_fc, &_fi)` call
+three lines later).
+
+Root cause, two layers. (1) #300's inlinability check required the callee
+body to be a single `return EXPR` statement. That check runs at emit time,
+but the desugarer's hoisting pass has already rewritten any NESTED body by
+then -- Vec.unsafe_get's
+
+    return ptr_add(self.data, i.mul(T.size()).cast(U64))
+
+becomes a chain of four single-init `hoisted__*` Decls feeding a trivial
+`return hoisted__v_N`. Four statements, not one, so the gate said no and
+every unsafe_get call stayed a real call. `len`'s `return self.count` has
+nothing to hoist, which is why it kept inlining and masked the miss.
+(2) The garbager then appends cleanup calls (`hoisted__X.delete(...)`) for
+the scalar temps -- no-ops at emit time (value scalars have no heap to
+free), but real AST statements that both break any "Decls then Return"
+shape check and make each cleaned-up temp count TWO uses (its real use
+plus the delete arg).
+
+Fix (src/self/builder.til): teach the inline to see through both layers.
+
+- builder_is_temp_delete recognizes the garbager's scalar-temp cleanup
+  shape (an FCall to `.delete` whose arg is a `hoisted__*` Ident of
+  primitive type).
+- builder_is_inline_accessor now also accepts a body of N `hoisted__*`
+  Decls (each with exactly one init, each used exactly once outside the
+  delete cleanups) followed by the Return -- the exact shape
+  hoist_to_temp + garbager produce. The use-exactly-once requirement
+  keeps the splice from duplicating or dropping a temp's computation.
+- emit_inline_accessor splices each temp's init back into its single use,
+  oldest first (so a later init's reference to an earlier temp is expanded
+  by the time its own turn comes), skipping the delete cleanups on both
+  sides (they are never emitted, and substituting into one would rewrite
+  the hoisted__ Ident arg that identifies it). That inverse-hoisting
+  reconstructs the pristine pre-hoist expression, and the existing
+  single-expression splice machinery (param substitution + ref/value
+  return emit) handles the rest unchanged. A body with no temps
+  degenerates to the old path.
+
+Regression evidence: in the regenerated compiler, Vec__Str_unsafe_get /
+Vec__Expr_unsafe_get vanish from the --prof top-32 (the refreshed tables in
+doc/profiling.org are the record); the remaining Vec__*_unsafe_get(
+references in boot/til.c are declarations and dyn-dispatch wrappers, not
+calls. make test_two_pass stays green.

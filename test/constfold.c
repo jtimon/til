@@ -1217,7 +1217,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = Array__Str_unsafe_get(_fc_Array__Str_115, &_fi_USize_115);
+            Str *s = (((void *)((U8 *)(_fc_Array__Str_115->data) + ((U64)(((U64)(_fi_USize_115 * 24ULL)))))));
             U64 hoisted__U64_118 = 1ULL;
             (void)hoisted__U64_118;
             U64 hoisted__U64_119 = ((U64)(_fi_USize_115 + hoisted__U64_118));
@@ -1246,7 +1246,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = Array__Str_unsafe_get(_fc_Array__Str_122, &_fi_USize_122);
+            Str *s = (((void *)((U8 *)(_fc_Array__Str_122->data) + ((U64)(((U64)(_fi_USize_122 * 24ULL)))))));
             U64 hoisted__U64_125 = 1ULL;
             (void)hoisted__U64_125;
             U64 hoisted__U64_126 = ((U64)(_fi_USize_122 + hoisted__U64_125));
@@ -1583,7 +1583,7 @@ Str * Array__Str_unsafe_get(Array__Str * self, U64 * i) {
 }
 
 void Array__Str_unsafe_set(Array__Str * self, U64 i, Str * val) {
-    Str *hoisted__Str_757 = Array__Str_unsafe_get(self, &i);
+    Str *hoisted__Str_757 = (((void *)((U8 *)(self->data) + ((U64)(((U64)(i * 24ULL)))))));
     (void)hoisted__Str_757;
     (void)hoisted__Str_757;
     Bool hoisted__Bool_758 = 0;
@@ -1591,7 +1591,7 @@ void Array__Str_unsafe_set(Array__Str * self, U64 i, Str * val) {
     Str_delete(hoisted__Str_757, hoisted__Bool_758);
     U64 hoisted__U64_759 = 24ULL;
     (void)hoisted__U64_759;
-    Str *hoisted__Str_760 = Array__Str_unsafe_get(self, &i);
+    Str *hoisted__Str_760 = (((void *)((U8 *)(self->data) + ((U64)(((U64)(i * 24ULL)))))));
     (void)hoisted__Str_760;
     (void)hoisted__Str_760;
     U64 hoisted__U64_761 = (U64)(hoisted__U64_759);
@@ -5765,7 +5765,7 @@ void println(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = Array__Str_unsafe_get(_fc_Array__Str_7642, &_fi_USize_7642);
+            Str *s = (((void *)((U8 *)(_fc_Array__Str_7642->data) + ((U64)(((U64)(_fi_USize_7642 * 24ULL)))))));
             U64 hoisted__U64_7645 = 1ULL;
             (void)hoisted__U64_7645;
             U64 hoisted__U64_7646 = ((U64)(_fi_USize_7642 + hoisted__U64_7645));

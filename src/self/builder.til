@@ -436,8 +436,76 @@ priv inline_subst := proc(e: Expr, params: Vec(Declaration), call: Expr) {
     }
 }
 
-// True when a `len`/`unsafe_get` accessor call is inlinable: the callee resolves
-// to a plain func whose body is a single `return EXPR`. Any type qualifies.
+// Substitute every use of the Ident `name` inside `e` with a clone of `val`.
+// Used by the accessor inline to splice hoisted temps back into their use.
+priv subst_ident_expr := proc(e: Expr, name: Str, val: Expr) {
+    for ci in 0..e.children.len() {
+        mut matched := false
+        switch e.children[ci].node_type {
+        case NodeType.Ident(id):
+            if id.ident_name().eq(name) {
+                e.children[ci] = val.clone()
+                matched = true
+            }
+        case:
+        }
+        if matched.not() {
+            subst_ident_expr(e.children[ci], name, val)
+        }
+    }
+}
+
+// Count uses of the Ident `name` inside `e` (the accessor inline requires
+// each hoisted temp to be used exactly once, or splicing its init back in
+// would duplicate or drop that computation).
+priv count_ident_uses := func(e: Expr, name: Str) returns USize {
+    mut n : USize = 0
+    switch e.node_type {
+    case NodeType.Ident(id):
+        if id.ident_name().eq(name) { n = 1 }
+    case:
+    }
+    for ci in 0..e.children.len() {
+        n = n.add(count_ident_uses(e.children[ci], name))
+    }
+    return n
+}
+
+// True when a statement is the garbager's cleanup of a desugarer-hoisted
+// scalar temp: `hoisted__X.delete(...)`. For a value primitive that delete
+// is a no-op at emit time (no heap allocation to free), so the accessor
+// inline both skips it while splicing and excludes it from the
+// used-exactly-once count -- without this, every temp that gets a cleanup
+// call counts two uses (its real use + the delete arg) and the gate
+// wrongly rejects the body.
+priv builder_is_temp_delete := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() < 2 { return false }
+    switch e.children[0].node_type {
+    case NodeType.FieldAccess(dn):
+        if dn.field_access_name().eq("delete").not() { return false }
+    case:
+        return false
+    }
+    switch e.children[1].node_type {
+    case NodeType.Ident(an):
+        return an.ident_name().starts_with("hoisted__").and(is_primitive(e.children[1].expr_til_type()))
+    case:
+        return false
+    }
+}
+
+// True when a `len`/`unsafe_get` accessor call is inlinable: the callee
+// resolves to a plain func whose body is a single `return EXPR`, possibly
+// preceded by desugarer-hoisted temps (issue #305). By emit time the
+// desugarer has rewritten any nested body -- e.g. unsafe_get's
+// `return ptr_add(self.data, i.mul(T.size()).cast(U64))` -- into a chain of
+// single-init `hoisted__*` Decls (plus their no-op scalar delete cleanups)
+// feeding a trivial Return, which used to fail the old single-statement
+// check (so len, with nothing to hoist, inlined while unsafe_get -- 18M
+// real calls per self-host translate -- did not). Accept that shape when
+// every temp is declared with exactly one init and used exactly once
+// outside the delete cleanups; emit_inline_accessor splices the inits back.
 priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
     if mname.eq("len").or(mname.eq("unsafe_get")).not() { return false }
     ref fdef : Expr = find_callee_fdef(flat, ctx)
@@ -447,8 +515,26 @@ priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) ret
         if fd.func_type.is(FuncType.Func).not() { return false }
         if fdef.children.len() == 0 { return false }
         ref body : Expr = fdef.children[0]
-        if body.children.len() != 1 { return false }
-        ref stmt : Expr = body.children[0]
+        n := body.children.len()
+        if n == 0 { return false }
+        for si in 0..n.sub(1) {
+            ref s : Expr = body.children[si]
+            if builder_is_temp_delete(s) { continue }
+            switch s.node_type {
+            case NodeType.Decl(sd):
+                if sd.name.starts_with("hoisted__").not() { return false }
+                if s.children.len() != 1 { return false }
+                mut uses : USize = 0
+                for sj in si.add(1)..n {
+                    if builder_is_temp_delete(body.children[sj]) { continue }
+                    uses = uses.add(count_ident_uses(body.children[sj], sd.name))
+                }
+                if uses != 1 { return false }
+            case:
+                return false
+            }
+        }
+        ref stmt : Expr = body.children[n.sub(1)]
         return stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0))
     case:
         return false
@@ -457,11 +543,32 @@ priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) ret
 
 // Emit an inlinable accessor call by splicing its (param-substituted) return
 // expression -- a value or a ref return depending on the accessor's return_own.
+// Desugarer-hoisted temps are spliced back into their single use first
+// (oldest first, so a later init's reference to an earlier temp is expanded
+// by the time its own turn comes), reconstructing the pristine pre-hoist
+// expression; with no temps this is the original single-return splice.
 priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx: Context) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        ref body : Expr = fdef.children[0]
-        mut ret := body.children[0].clone()
+        mut bodyc := fdef.children[0].clone()
+        n := bodyc.children.len()
+        for si in 0..n.sub(1) {
+            if builder_is_temp_delete(bodyc.children[si]) { continue }
+            switch bodyc.children[si].node_type {
+            case NodeType.Decl(sd):
+                for sj in si.add(1)..n {
+                    // Skip the temp-delete cleanups: they are never emitted,
+                    // and substituting into one would rewrite its hoisted__
+                    // Ident arg, un-recognizing it for the si-loop's own
+                    // builder_is_temp_delete check above.
+                    if builder_is_temp_delete(bodyc.children[sj]) { continue }
+                    subst_ident_expr(bodyc.children[sj], sd.name, bodyc.children[si].children[0])
+                }
+            case:
+                UNREACHABLE()
+            }
+        }
+        ref ret : Expr = bodyc.children[n.sub(1)]
         inline_subst(ret, fd.params, e)
         ref rv : Expr = ret.children[0]
         f.write("(")
