@@ -5,6 +5,10 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # Manual runs on any branch: lets bot sessions iterate on
+  # platform-specific jobs (issue #25 macos bring-up) from a feature
+  # branch instead of burning a master merge per attempt.
+  workflow_dispatch:
 
 jobs:
   linux-x64:
