@@ -62,4 +62,19 @@ assert(DeleteOnOverwrite.delete_count.eq(1))
 tracked = DeleteOnOverwrite(id=3)
 assert(DeleteOnOverwrite.delete_count.eq(2))
 
+// #302: a program-scope Dynamic follows the same raw-pointer contract as a
+// proc local (qualifiers.org): malloc it, pass it as the pointer VALUE, and
+// free(own) it. The builder used to classify it as a value global, so plain
+// args took its ADDRESS (an ext write clobbered the pointer slot, not the
+// buffer) and `free(own gbuf)` emitted the malloc(sizeof(void)) own-box --
+// invalid C that failed the whole compile.
+gbuf_read := func(p: Dynamic) returns U8 {
+    ref b : U8 = p
+    return b.clone()
+}
+gbuf : Dynamic = malloc(8)
+write_u8(gbuf, 77)
+assert(gbuf_read(gbuf).eq(77))
+free(own gbuf)
+
 println("globals: ok")

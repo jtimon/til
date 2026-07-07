@@ -319,21 +319,22 @@ shapes that today leak or double-free silently:
     a compile error. Provenance is the gate because Dynamic is just
     void* (#272): a to_ptr / ptr_add / deref result is a borrow and
     must never be flagged. The same split catches the reverse footgun,
-    free(own p) on a borrow-provenance Dynamic. MUST land together with
-    the program-scope free(own buf) codegen fix below: the compliant
-    pattern itself emits invalid C at program scope today, so the rule
-    would otherwise demand code that cannot compile.
+    free(own p) on a borrow-provenance Dynamic. Its codegen
+    precondition -- program-scope free(own buf) emitted invalid C, so
+    the rule would have demanded code that cannot compile -- was fixed
+    2026-07-05 (see Progress item 4); the rule is unblocked.
   - Unhoisted owned temp (stage 5 below).
   - No byte-copy of managed aggregates (with stage 4; #275 step 3):
     extend check_move_managed_dest with its dual.
 
-Verified 2026-07-05 (tmp experiment): `buf : Dynamic = malloc(8)` +
-`free(own buf)` at PROGRAM scope emits
-`free(({ void *_oa = malloc(sizeof(void)); *_oa = buf; _oa; }));`
--- two -Werror failures (void deref / void expression). emit_as_ptr
-treats the program-scope Dynamic local as a value global and applies
-the own-box malloc-copy wrap; an own Dynamic arg must be the pointer
-itself. The same free inside a proc body compiles fine.
+Verified 2026-07-05 (tmp experiment), FIXED same day (Progress item
+4): `buf : Dynamic = malloc(8)` + `free(own buf)` at PROGRAM scope
+emitted `free(({ void *_oa = malloc(sizeof(void)); *_oa = buf; _oa;
+}));` -- two -Werror failures (void deref / void expression).
+emit_as_ptr treated the program-scope Dynamic local as a value global
+and applied the own-box malloc-copy wrap; an own Dynamic arg must be
+the pointer itself. The same free inside a proc body always compiled
+fine (Dynamic locals never enter stack_locals).
 
 **** Explicit, recorded decisions (backends stop deciding)
 
@@ -415,9 +416,21 @@ let the ownership pass insert temps itself; start with the check.
     gc_audit fixture shapes 9-10. doc/ownership.org's "Conditional
     transfer" exclusion paragraph was stale (claimed Str excluded) and
     is rewritten to match the code.
-    Still open from the same sweep: program-scope `free(own buf)`
-    emits invalid C (repro tmp/gc_dyn_prog.til, exact bad line in the
-    New-diagnostics section) -- stage 3's coupled codegen fix.
+      4. (follow-up commit) Program-scope Dynamic args emitted wrong C
+         both ways: a plain arg took the pointer's ADDRESS (`&buf`, so
+         an ext write clobbered the pointer slot instead of the
+         buffer) and an own arg got the `_oa` own-box
+         (`malloc(sizeof(void))` + void deref -- the whole compile
+         failed, so the documented `free(own buf)` contract was
+         unwritable at program scope). Root cause: the program-scope
+         Dynamic decl is classified a value global, and emit_as_ptr's
+         Ident arm lacked the Dynamic pass-the-pointer-value case its
+         FieldAccess arm already had. Fixed in emit_as_ptr; proc
+         locals were never affected (Dynamic locals skip
+         stack_locals). Regression: test/globals.til gbuf block
+         (malloc / ext write / read-back / free at program scope,
+         both modes, ASAN). This unblocks the leaked-Dynamic rule --
+         its required pattern now compiles everywhere.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

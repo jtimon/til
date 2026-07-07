@@ -3756,6 +3756,18 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             f.write(ctx.closure_emit_env).write("->").write(ident.ident_name())
             return f
         }
+        // A Dynamic ident IS the raw pointer: pass its value. The
+        // stack/global paths below would take its address (`&buf` -- an
+        // ext write through it clobbers the pointer slot, not the buffer)
+        // or, for an own arg, wrap it in the `_oa` own-box, emitting
+        // `malloc(sizeof(void))` + a void deref -- invalid C. Program-scope
+        // `free(own buf)` did not compile because of this (#302); proc
+        // locals were unaffected only because Dynamic locals never enter
+        // stack_locals. Mirrors the FieldAccess arm's Dynamic case below.
+        if e.expr_til_type().is(Type.Dynamic) {
+            emit_expr(f, e, depth, ctx)
+            return f
+        }
         if is_shallow_param(ident.ident_name(), ctx).or(is_stack_local(ident.ident_name(), ctx)).or(is_value_global(ident.ident_name(), ctx)) {
             if is_own {
                 ref existing : Str = get_stack_local_ctype(ident.ident_name(), ctx)
