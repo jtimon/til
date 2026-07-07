@@ -76,6 +76,11 @@ $(NNG_LIB):
 	cmake --build vendor/nng/build --parallel
 	cp vendor/nng/build/libnng.a $@
 
+# REM vendored libffi 3.4.6 carries ONE local backport: upstream commit
+# 8308bed ("Move cfi_startproc after CNAME(label)") in
+# src/aarch64/sysv.S, required by Apple clang's assembler (issue #25).
+# Releases newer than 3.4.6 already include it, so re-vendoring a newer
+# libffi drops the patch naturally -- nothing to re-apply.
 vendor/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)

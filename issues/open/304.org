@@ -1,0 +1,29 @@
+# priority: low
+# category: cleanups
+** OPEN #304 Upgrade vendored libffi (3.4.6 -> latest)
+
+:RELATED: [[./25.org][#25]]
+
+  The vendored libffi is release 3.4.6. It carries one local backport
+  (issue #25 macOS bring-up): upstream commit 8308bed ("Move
+  cfi_startproc after CNAME(label)") in src/aarch64/sysv.S, without
+  which Apple clang's assembler rejects the file with "invalid CFI
+  advance_loc expression". There is a REM note next to the
+  vendor/libffi/.built recipe in the Makefile.
+
+  Upgrading to any release newer than 3.4.6 includes that fix upstream,
+  so the local patch disappears naturally in the re-vendor -- nothing
+  to re-apply.
+
+  Upgrade checklist (see also the commented "upgrading dependency
+  libraries" block under the Makefile clean target):
+
+  - Replace the vendor/libffi tree with the new release tarball.
+  - Rebuild from scratch (the .built stamp and configure output are
+    per-tree): rm vendor/libffi/.built, then make.
+  - Regenerate vendor/bindings/libffi.til (make update_c_libs) and
+    redo the hand-audit documented in doc/ffi.org before committing --
+    the committed bindings are generator output plus manual
+    proc/func + own/ref qualifier fixes that a regen blows away.
+  - Confirm the interpreter's ffi dispatch still passes the FFI tests
+    on linux-x64 and the macos CI job.

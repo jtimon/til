@@ -41,6 +41,7 @@
 *** [[./open/278.org][#278]] codegen: faster string switch dispatch (not a C switch)
 *** [[./open/296.org][#296]] Confusing errors when a FuncSig is written with an empty body `{}`
 *** [[./open/303.org][#303]] Give panic/exit/UNREACHABLE/TODO a real noreturn attribute
+*** [[./open/304.org][#304]] Upgrade vendored libffi (3.4.6 -> latest)
 * Optimizations
 ** High
 *** [[./open/292.org][#292]] Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
