@@ -5557,7 +5557,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target, compiler)
+    extra := toolchain_extra_args(target)
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
     // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
@@ -5655,9 +5655,11 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         if wasm_gui { compiler = "emcc" }
         else { compiler = toolchain_command(target, Lang.C) }
     }
-    mut extra := toolchain_extra_args(target, compiler)
+    mut extra := toolchain_extra_args(target)
     if wasm_gui {
-        extra = " -Wall -Wextra -Wno-sometimes-uninitialized -Wno-self-assign -Wno-uninitialized -Wno-unused-function -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
+        // emcc (clang-based) needs the emscripten -s link/runtime flags on
+        // top of the warning flags; no -Wno-* suppressions here either.
+        extra = " -Wall -Wextra -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
     }
 
     // ASAN builds run under the same full -Werror as non-ASAN (single cc
