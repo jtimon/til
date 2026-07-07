@@ -521,11 +521,6 @@ void write_f32(void *dest, F32 val) { *(F32 *)dest = val; }
 void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
-/* get_payload is a core_func (every til-level call inlines); the symbol is
- * kept ONLY because pass-1 til_boot predates the inline and still emits real
- * calls. Once the core_func commit is in master, til_boot stops emitting
- * those and this can be dropped. */
-void *get_payload(void *self) { return (U8*)self + sizeof(void *); }
 
 // CLI arg parsing
 

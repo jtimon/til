@@ -148,7 +148,7 @@ U64 U64_clone(const U64 *v);
 Bool Bool_clone(const Bool *v);
 
 // Pointer primitives (custom, not in libc). Inputs stay non-const for
-// the pointer-returning ones (to_ptr, deref, get_payload),
+// the pointer-returning ones (to_ptr, deref),
 // which hand back interior pointers the caller is expected to write
 // through, and for write_ptr which mutates dest. is_null and ptr_eq
 // only read the pointer values, but adding `const` there makes gcc's
@@ -171,7 +171,6 @@ void write_u32(void *dest, U32 val);
 void write_u64(void *dest, U64 val);
 void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
-void *get_payload(void *self);
 
 // System primitives
 Str *File_readfile(const Str *path);
