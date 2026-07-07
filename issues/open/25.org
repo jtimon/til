@@ -77,6 +77,33 @@
    - Both macos CI jobs (arm64 on macos-latest, x64 on macos-15-intel)
      run make test_nogui plus a --target=macos-* build/file/run check,
      non-blocking via continue-on-error.
+   - CI iterations 4-5: macos-x64 ran the ENTIRE compiler pipeline
+     (til_boot lexed/typed/emitted src/til.til, clang compiled the gen
+     C) and only tripped at the final link on a dangling ./src/self/
+     token -- root-caused to interpreter.til's hardcoded Linux-triple
+     libffi link() falling back to a bogus importer-relative path on
+     mac; the directive is gone (target_ffi_lib supplies libffi per
+     target). macos-arm64 instead aborts (silent SIGABRT) ~65s into
+     the til_boot self-build; both mac jobs now dump the .ips crash
+     reports on failure since the reason lands there, not on stderr.
+   - The arm64 abort is darwin-arm64 SPECIFIC: the identical in-process
+     work (typer, constfolder incl. live libffi ext_func evals,
+     garbager, emitter) completed fine on aarch64-LINUX under
+     qemu-user from an x64 box -- cross-built aarch64 vendor libs +
+     til_boot, interpreted hello and self-built src/til.til, exit 0.
+     Suspects shortlist for darwin-arm64: variadic-call ABI (darwin
+     passes variadics on the stack, unlike AAPCS64), Apple-Silicon-only
+     malloc/JIT strictness. The .ips backtrace decides.
+   - New matrix cell from that detour: aarch64-linux as a native HOST
+     works; CI gains linux-arm64-native (ubuntu-24.04-arm, full
+     make test + target build check, experimental) with targets.til
+     LinuxArm64 ffi/gui tables and a Makefile stable-path libffi copy,
+     mirroring the mac pattern.
+   - Iteration bottleneck: the GitHub App cannot dispatch workflow runs
+     (403 on actions -- needs Actions write permission), so mac runs
+     only happen on master pushes; grant the permission or trigger
+     'Run workflow' on the branch manually to unblock bot-driven
+     iteration without merges.
    - Next: iterate until test_nogui is green on both, then flip the
      jobs to blocking; then the ASAN carve-out and the gui suite
      natively on a mac.

@@ -5766,23 +5766,22 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         lf = lf.replace("vendor/raylib/src/libraylib.a", "")
         lf = lf.replace(" vendor/tinyfiledialogs/libtinyfd.a", "")
         lf = lf.replace("vendor/tinyfiledialogs/libtinyfd.a", "")
-        lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
-        lf = lf.replace("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
     }
 
     // For macOS targets (native mac builds, issue #25 phase 1), the
     // vendored .a paths in link() directives are correct as-is: a mac
     // host builds mac-native raylib/tinyfd/nng at the same paths. Only
     // drop what does not exist on darwin (-lrt and -latomic live inside
-    // libSystem) and the Linux-triple libffi path; target_ffi_lib below
-    // re-adds the mac libffi copy the Makefile maintains.
+    // libSystem). libffi never appears in lf anymore (no source link()s
+    // it; target_ffi_lib appends the per-target archive below) -- and
+    // substring-replacing a loader-resolved path is exactly how a
+    // dangling ./src/self/ token once reached the mac linker, so no
+    // path replaces here.
     if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
         lf = lf.replace(" -lrt", "")
         lf = lf.replace("-lrt", "")
         lf = lf.replace(" -latomic", "")
         lf = lf.replace("-latomic", "")
-        lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
-        lf = lf.replace("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
     }
     if wasm_gui { lf = "" }
 

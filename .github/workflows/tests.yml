@@ -28,6 +28,30 @@ jobs:
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
 
+  # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
+  # runners). Doubles as a continuous aarch64 testbed while the
+  # macos-arm64 bring-up hunts an arm64-darwin-only abort -- the full
+  # suite passing here keeps "generic aarch64" ruled out. Experimental
+  # and non-blocking until proven green a few times.
+  linux-arm64-native:
+    name: linux-arm64 (native, experimental)
+    runs-on: ubuntu-24.04-arm
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build and run tests
+        run: make test
+      - name: Test target build
+        run: |
+          ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64_native examples/hello_script.til
+          file bin/hello_script_arm64_native | grep -q "aarch64"
+          ./bin/hello_script_arm64_native
+          ./bin/hello_script_arm64_native | grep -q "Hello World"
+
   linux-arm64:
     name: linux-arm64
     runs-on: ubuntu-latest
@@ -189,6 +213,15 @@ jobs:
           file bin/hello_script_macos_arm64 | grep -q "Mach-O"
           ./bin/hello_script_macos_arm64
           ./bin/hello_script_macos_arm64 | grep -q "Hello World"
+      # macOS runtime aborts often log their reason only into the .ips
+      # crash report (not stderr) -- e.g. the silent 'Abort trap: 6'.
+      # ReportCrash writes asynchronously, hence the sleep.
+      - name: Dump crash reports
+        if: failure()
+        run: |
+          sleep 10
+          ls -l ~/Library/Logs/DiagnosticReports/ 2>/dev/null || true
+          cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
 
   macos-x64:
     name: macos-x64 (native, experimental)
@@ -206,3 +239,9 @@ jobs:
           file bin/hello_script_macos_x64 | grep -q "Mach-O"
           ./bin/hello_script_macos_x64
           ./bin/hello_script_macos_x64 | grep -q "Hello World"
+      - name: Dump crash reports
+        if: failure()
+        run: |
+          sleep 10
+          ls -l ~/Library/Logs/DiagnosticReports/ 2>/dev/null || true
+          cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true

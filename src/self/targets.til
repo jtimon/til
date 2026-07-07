@@ -235,9 +235,11 @@ target_system_libs := func(target: Target) returns Str {
 target_ffi_lib := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:     return "vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
-    // Native mac builds only: configure names its build dir with a
-    // version-suffixed triple (aarch64-apple-darwin24.3.0), so the
-    // Makefile copies the result to this stable path on Darwin hosts.
+    // Native builds only for the entries below: configure names its
+    // build dir with an unpredictable triple (version-suffixed on mac,
+    // vendor-dependent on arm64 linux), so the Makefile copies the
+    // result to these stable paths on the matching hosts.
+    case Target.LinuxArm64:   return "vendor/libffi/libffi-linux-arm64.a"
     case Target.MacosX64:     return "vendor/libffi/libffi-macos.a"
     case Target.MacosArm64:   return "vendor/libffi/libffi-macos.a"
     case: return ""
@@ -251,6 +253,10 @@ target_ffi_lib := func(target: Target) returns Str {
 target_gui_libs := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:
+        return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
+    // Native arm64 linux hosts build the same vendor paths natively,
+    // exactly like the macos entries below (issue #25).
+    case Target.LinuxArm64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
     case Target.LinuxX86:
         return "vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a"

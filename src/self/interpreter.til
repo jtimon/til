@@ -5,7 +5,11 @@ import("loader")
 import("builder")
 import("../std/sys")
 import("../../vendor/bindings/libffi")
-link("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a")
+// No link() here: the libffi static lib is host-dependent (the
+// configure triple dir only exists for the build host), so the builder
+// appends the right archive per target via target_ffi_lib instead. A
+// hardcoded Linux path made resolve_link_path fall back to a bogus
+// src/self/-relative candidate on mac hosts (issue #25).
 
 system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
 

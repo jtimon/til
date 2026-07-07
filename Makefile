@@ -29,6 +29,7 @@ LD_FLAGS := -rdynamic -ldl
 # families toolchain_extra_args silences for clang builds), and
 # xvfb-run is Linux-only (mac has no X11; run the suite bare there).
 UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
 RAYLIB_SYS_FLAGS := -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo
 NNG_SYS_FLAGS :=
@@ -89,6 +90,11 @@ ifeq ($(UNAME_S),Darwin)
 # (aarch64-apple-darwin24.3.0), which targets.til cannot predict; keep a
 # stable path for target_ffi_lib on mac hosts.
 	cp $(LIBFFI_DIR)/*apple-darwin*/.libs/libffi.a $(LIBFFI_DIR)/libffi-macos.a
+endif
+ifeq ($(UNAME_S)-$(UNAME_M),Linux-aarch64)
+# Same stable-path dance for native arm64 Linux hosts (the triple dir is
+# aarch64-unknown-linux-gnu or aarch64-linux-gnu depending on config.guess).
+	cp $(LIBFFI_DIR)/aarch64-*linux*/.libs/libffi.a $(LIBFFI_DIR)/libffi-linux-arm64.a
 endif
 	touch $@
 
