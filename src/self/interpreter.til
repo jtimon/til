@@ -5140,6 +5140,10 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
     if link_flags.is_null() {
         return
     }
+    // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
+    // host-dependent (this runs in the compiler, on the build host).
+    mut so_ext := ".so"
+    if host_os() == "macos" { so_ext = ".dylib" }
     mut i : USize = 0
     while i + 1 < link_flags.len() {
         if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i + 1).eq(108)) {
@@ -5153,7 +5157,7 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
             }
             if i > start {
                 lib := link_flags.substr(start, i - start)
-                soname := format("lib", lib, ".so")
+                soname := format("lib", lib, so_ext)
                 ffi_load_global_lib(soname)
             }
         } else {

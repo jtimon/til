@@ -163,3 +163,19 @@ jobs:
         run: |
           ./hello_script.exe
           ./hello_script.exe | grep -q "Hello World"
+
+  # Issue #25 phase 1: native macOS bring-up. Experimental and
+  # non-blocking (continue-on-error) until the suite is green on mac;
+  # flip it to blocking then. Runner is headless (no windowing session
+  # for raylib), so run the no-gui suite -- same reason linux jobs need
+  # xvfb. macos-latest is arm64; add macos-15-intel once this is green.
+  macos-arm64:
+    name: macos-arm64 (native, experimental)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build and run tests (no gui)
+        run: make test_nogui

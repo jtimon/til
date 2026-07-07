@@ -5512,7 +5512,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     }
 
     // Create shared library
-    so_path := format("gen/lib/lib", lib_name, ".so")
+    so_path := format("gen/lib/lib", lib_name, shared_lib_extension(target))
     cmd = compiler.format(asan_flags, " -shared -o ", so_path,
         " ", obj_path, " ", ext_obj,
         " ", user_obj, lf)
@@ -5663,6 +5663,21 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         lf = lf.replace("vendor/raylib/src/libraylib.a", "")
         lf = lf.replace(" vendor/tinyfiledialogs/libtinyfd.a", "")
         lf = lf.replace("vendor/tinyfiledialogs/libtinyfd.a", "")
+        lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
+        lf = lf.replace("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
+    }
+
+    // For macOS targets (native mac builds, issue #25 phase 1), the
+    // vendored .a paths in link() directives are correct as-is: a mac
+    // host builds mac-native raylib/tinyfd/nng at the same paths. Only
+    // drop what does not exist on darwin (-lrt and -latomic live inside
+    // libSystem) and the Linux-triple libffi path; target_ffi_lib below
+    // re-adds the mac libffi copy the Makefile maintains.
+    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
+        lf = lf.replace(" -lrt", "")
+        lf = lf.replace("-lrt", "")
+        lf = lf.replace(" -latomic", "")
+        lf = lf.replace("-latomic", "")
         lf = lf.replace(" vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
         lf = lf.replace("vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a", "")
     }
@@ -7875,7 +7890,7 @@ cmd_build := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Tar
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
     if result.eq(0).and(paths.do_lib) {
         print_translate_success(paths)
-        println(format("Generated: gen/lib/lib", paths.name, ".so"))
+        println(format("Generated: gen/lib/lib", paths.name, shared_lib_extension(target)))
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
     }
     return result
@@ -7957,13 +7972,13 @@ cmd_install := proc(lp: LoadedProgram, install_prefix_in: Str, target: Target, c
     if result != 0 { return result }
 
     if paths.do_lib {
-        so_dst := format(install_prefix, "/lib/lib", paths.name, ".so")
+        so_dst := format(install_prefix, "/lib/lib", paths.name, shared_lib_extension(target))
         a_dst := format(install_prefix, "/lib/lib", paths.name, ".a")
         h_dst := format(install_prefix, "/include/", paths.name, ".h")
         til_dst := format(support_root(install_prefix), "/lib/", paths.name, ".til")
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
 
-        result = install_file(format("gen/lib/lib", paths.name, ".so"), so_dst, "install shared library")
+        result = install_file(format("gen/lib/lib", paths.name, shared_lib_extension(target)), so_dst, "install shared library")
         if result == 0 { result = install_file(format("gen/lib/lib", paths.name, ".a"), a_dst, "install static library") }
         if result == 0 { result = install_file(paths.h_path, h_dst, "install C header") }
         if result == 0 { result = install_file(paths.til_path, til_dst, "install til binding") }

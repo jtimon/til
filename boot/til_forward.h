@@ -2883,6 +2883,7 @@ Str * toolchain_command(Target * target, Lang * lang);
 Str * priv___src_self_targets_til__target_prefix_args(Target * target);
 Str * toolchain_extra_args(Target * target, Str * compiler);
 Str * executable_extension(Target * target);
+Str * shared_lib_extension(Target * target);
 Str * target_system_libs(Target * target);
 Str * target_ffi_lib(Target * target);
 Str * target_gui_libs(Target * target);

@@ -196,6 +196,15 @@ executable_extension := func(target: Target) returns Str {
     }
 }
 
+shared_lib_extension := func(target: Target) returns Str {
+    switch target {
+    case Target.WindowsX64: return ".dll"
+    case Target.MacosX64:   return ".dylib"
+    case Target.MacosArm64: return ".dylib"
+    case: return ".so"
+    }
+}
+
 // CRT/system libraries always linked for this target. POSIX needs
 // dl + rt + m + pthread; Windows ext.c uses GetProcessMemoryInfo /
 // EnumProcessModules from psapi; mingw's CRT provides the rest inline.
@@ -223,6 +232,11 @@ target_system_libs := func(target: Target) returns Str {
 target_ffi_lib := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:     return "vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
+    // Native mac builds only: configure names its build dir with a
+    // version-suffixed triple (aarch64-apple-darwin24.3.0), so the
+    // Makefile copies the result to this stable path on Darwin hosts.
+    case Target.MacosX64:     return "vendor/libffi/libffi-macos.a"
+    case Target.MacosArm64:   return "vendor/libffi/libffi-macos.a"
     case: return ""
     }
     return ""
@@ -243,6 +257,14 @@ target_gui_libs := func(target: Target) returns Str {
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
     case Target.Wasm32:
         return "vendor/raylib/src/libraylib-web.a -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html"
+    // Native mac builds only (issue #25 phase 1): on a mac host the
+    // vendored raylib/tinyfd recipes produce mac-native .a files at the
+    // same paths as on Linux; the desktop frameworks are what raylib
+    // needs at final link. Cross gui builds stay SDK-bound (phase 3).
+    case Target.MacosX64:
+        return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo"
+    case Target.MacosArm64:
+        return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo"
     case: return ""
     }
     return ""

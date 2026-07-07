@@ -12,6 +12,10 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 #ifdef _WIN32
 #define TIL_DUP _dup
 #define TIL_DUP2 _dup2
@@ -895,6 +899,18 @@ Str *get_bin_dir(void) {
     for (DWORD i = 0; i < len; i++) if (buf[i] == '\\') buf[i] = '/';
 #elif defined(__EMSCRIPTEN__)
     return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+#elif defined(__APPLE__)
+    // No /proc on macOS; _NSGetExecutablePath may return a path with
+    // symlinks or relative components, so resolve it before use.
+    uint32_t bufsize = sizeof(buf);
+    if (_NSGetExecutablePath(buf, &bufsize) != 0) {
+        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+    }
+    char resolved[PATH_MAX];
+    if (realpath(buf, resolved) == NULL) {
+        return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
+    }
+    snprintf(buf, sizeof(buf), "%s", resolved);
 #else
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (len <= 0) return Str_clone(&(Str){.c_str = (I8*)".", .count = 1, .cap = CAP_LIT});
@@ -1136,7 +1152,10 @@ U64 peak_rss_bytes(void) {
 #endif
 }
 
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+// __linux__, not just POSIX: these walk /proc, which macOS does not have.
+// On macOS they would compile as unused static functions and trip
+// -Werror=unused-function (current_rss_bytes only calls them on __linux__).
+#if defined(__linux__)
 static U64 proc_rss_bytes(pid_t pid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%lld/statm", (long long)pid);
@@ -1199,7 +1218,7 @@ static U64 proc_tree_rss_bytes(pid_t pid) {
     }
     return total;
 }
-#endif  // !_WIN32
+#endif  // __linux__
 
 U64 current_rss_bytes(I64 pid) {
 #if defined(__linux__)

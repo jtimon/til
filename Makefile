@@ -23,8 +23,26 @@ SELF := $(wildcard src/self/*.til)
 LIB_TIL := $(wildcard lib/*.til) $(wildcard vendor/bindings/*.til)
 LD_FLAGS := -rdynamic -ldl
 
+# Host gating (issue #25 phase 1): -lrt and -latomic do not exist on
+# macOS (their contents live in libSystem), raylib needs the desktop
+# frameworks at final link, cc is clang (silence the same warning
+# families toolchain_extra_args silences for clang builds), and
+# xvfb-run is Linux-only (mac has no X11; run the suite bare there).
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+RAYLIB_SYS_FLAGS := -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo
+NNG_SYS_FLAGS :=
+CC_WNO := -Wno-sometimes-uninitialized -Wno-self-assign -Wno-uninitialized -Wno-unused-function
+XVFB_RUN :=
+else
+RAYLIB_SYS_FLAGS := -lrt
+NNG_SYS_FLAGS := -latomic
+CC_WNO :=
+XVFB_RUN := xvfb-run --auto-servernum
+endif
+
 RAYLIB_LIB := vendor/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread -lrt
+RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread $(RAYLIB_SYS_FLAGS)
 
 TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
@@ -35,7 +53,7 @@ EMAR ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emar
 EMRANLIB ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emranlib
 
 NNG_LIB := vendor/nng/libnng.a
-NNG_FLAGS := -Lvendor/nng -lnng -lpthread -latomic
+NNG_FLAGS := -Lvendor/nng -lnng -lpthread $(NNG_SYS_FLAGS)
 
 LIBFFI_DIR := vendor/libffi
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
@@ -61,6 +79,12 @@ $(NNG_LIB):
 vendor/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)
+ifeq ($(UNAME_S),Darwin)
+# configure names its build dir with a version-suffixed triple
+# (aarch64-apple-darwin24.3.0), which targets.til cannot predict; keep a
+# stable path for target_ffi_lib on mac hosts.
+	cp $(LIBFFI_DIR)/*apple-darwin*/.libs/libffi.a $(LIBFFI_DIR)/libffi-macos.a
+endif
 	touch $@
 
 # Bindings are produced by `bin/til bindings <header> -o <output.til>`
@@ -117,7 +141,7 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror $(CC_WNO) -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
@@ -152,7 +176,7 @@ bin/til_asan: bin/til $(CORE) $(SELF) $(LIB_TIL) src/til.til
 # --- Debug build (for gdb) ---
 
 bin/til_debug: bin/til
-	cc -g -O0 -Wall -Wextra -Werror \
+	cc -g -O0 -Wall -Wextra -Werror $(CC_WNO) \
 	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
 	  -o bin/til_debug
@@ -171,7 +195,7 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 # --- Test suite ---
 
 test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
+	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
@@ -180,7 +204,7 @@ test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
 # errors. Use for quick iteration; `make test` remains the default before
 # committing.
 test_fast: bin/til bin/test_runner bin/plot bin/tests
-	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+	$(XVFB_RUN) bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
 # Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
@@ -193,7 +217,7 @@ test_two_pass:
 	bin/til build src/test_runner.til
 	bin/til build examples/plot.til
 	bin/til build src/tests.til
-	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
+	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
 # ASAN target names are kept as aliases for scripts and muscle memory. The

@@ -1,6 +1,6 @@
 # priority: low
 # category: deferred
-** OPEN #25 Support for the 4 main operative systems
+** WIP #25 Support for the 4 main operative systems
 
 :DEPENDENCIES: [[../fixed/12.org][#12]] (self-hosting, FIXED)
 :RELATED: [[./151.org][#151]] (TempleOS), [[./152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
@@ -49,6 +49,24 @@
   - TempleOS: deferred, split out to [[./151.org][#151]]. #12 is fixed so the hard
     dependency is satisfied; what remains is the HolyC backend itself
     (Lang.HolyC and the holyc toolchain entry are placeholders today).
+
+*** Progress
+
+   - 2026-07 (Linux session): phase 1 groundwork that could be done and
+     verified from Linux, all host-gated so Linux behavior is
+     unchanged: Makefile uname gating (-lrt/-latomic dropped and
+     desktop frameworks added on Darwin, clang -Wno extras on the cc
+     lines, xvfb-run wrapper Linux-only, stable libffi-macos.a copy),
+     ext.c (__linux__ gate for the /proc RSS walkers,
+     _NSGetExecutablePath + realpath for get_bin_dir), targets.til
+     (shared_lib_extension helper, macos target_ffi_lib /
+     target_gui_libs), builder.til (macos link-flag rewrite, per-target
+     shared-lib suffix), interpreter.til (.dylib sonames for -l dlopens
+     on mac hosts), and an experimental non-blocking macos-arm64 CI job
+     running make test_nogui.
+   - Next: iterate on the mac CI job (or a real mac) until test_nogui
+     is green, then flip the job to blocking and add macos-15-intel;
+     then the ASAN carve-out and the gui suite natively on a mac.
 
 *** macOS plan
 
