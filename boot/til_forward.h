@@ -2559,6 +2559,10 @@ I64 enum_variant_tag(Expr * enum_def, Str * variant_name);
 I32 enum_variant_index(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 idx);
 Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
+Bool priv___src_self_context_til__fcall_is_noreturn(Expr * e);
+Bool priv___src_self_context_til__is_literal_true(Expr * e);
+Bool priv___src_self_context_til__has_unnested_break(Expr * e);
+Bool stmt_always_diverges(Expr * e);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);
@@ -2961,6 +2965,7 @@ Str * priv___src_self_typer_til__closure_borrowed_capture_name(Expr * e, TypeSco
 void priv___src_self_typer_til__check_returned_borrowed_closure_captures_in(Expr * e, TypeScope * func_scope, Context * ctx);
 void priv___src_self_typer_til__check_returned_borrowed_closure_captures(TypeScope * func_scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
+void priv___src_self_typer_til__check_all_paths_return(Expr * expr, Context * ctx);
 void priv___src_self_typer_til__check_unused_params(TypeScope * func_scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__check_unused_mut_params(TypeScope * func_scope, Expr * expr, Str * path, Context * ctx);
 void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
@@ -3590,7 +3595,6 @@ File * priv___src_self_builder_til__emit_as_ptr(File * f, Expr * e, I32 depth, B
 Str * priv___src_self_builder_til__cli_view_box(Str * ctype, Str * conv, Str * arg);
 Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg);
 void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg);
-Bool priv___src_self_builder_til__body_diverges(Expr * e);
 void priv___src_self_builder_til__emit_diverge_terminator(File * f, Str * ret, Expr * body);
 void priv___src_self_builder_til__emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static, LoadedProgram * lp);
 void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitted, LoadedProgram * lp);

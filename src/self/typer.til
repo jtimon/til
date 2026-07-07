@@ -3287,6 +3287,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         if macro_is_template.not() {
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
+            check_all_paths_return(expr, ctx)
             check_unused_params(func_scope, expr, ctx)
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
@@ -3297,6 +3298,33 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         UNREACHABLE()
     }
     ctx.typing_namespace_member = ifd_in_ns
+}
+
+// til's own all-paths-return check (option B). A non-void user function whose
+// body can fall off the end without returning is reported here, with a til
+// source location, instead of surfacing later as GCC's -Werror=return-type on
+// the generated C (which the emitter's __builtin_unreachable terminator would
+// otherwise quietly satisfy). The divergence predicate stmt_always_diverges
+// lives in context.til, shared with the builder's emit-side terminator so the
+// two can never drift. The C -Werror=return-type backstop stays on to catch
+// anything the analysis still misses in the other direction.
+priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
+    switch expr.node_type {
+    case NodeType.FuncDef(fdef):
+        // Only user Func/Proc bodies with a declared return type must return on
+        // every path. A void function (no return type) may fall off the end;
+        // ext/core have no til body; macros return AST; Test and auto-generated
+        // functions are the compiler's own concern, not user-facing.
+        if fdef.return_type.len() == 0 { return }
+        if fdef.auto_generated { return }
+        if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
+            .or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
+            .or(fdef.func_type.is(FuncType.Macro)).or(fdef.func_type.is(FuncType.Test)) { return }
+        if stmt_always_diverges(expr.children[0]).not() {
+            expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.return_type, "')"), ctx)
+        }
+    case:
+    }
 }
 
 priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {

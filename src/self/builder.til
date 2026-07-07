@@ -3921,59 +3921,17 @@ priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: 
     f.write(ind).write(ttype).write(" *").write(var).write(" = ").write(expr).write(";\n")
 }
 
-// True if executing `e` can never fall through to the statement that would
-// follow it: it always returns, or every branch of it does. A non-void
-// function whose body diverges gets a trailing `__builtin_unreachable()`
-// (see emit_diverge_terminator) so GCC's -Wreturn-type stays quiet under
-// ASAN -- `-fsanitize=address` mutates the CFG enough that GCC can no longer
-// prove an exhaustive switch/if never falls off the end of a non-void
-// function, and mis-fires "control reaches end of non-void function".
-// The check is SOUND (only true when control genuinely cannot reach the end),
-// so a genuinely missing return is never hidden: such a body does NOT diverge,
-// no terminator is emitted, and GCC's -Werror=return-type still fires on it --
-// til's only all-paths-return safety net.
-priv body_diverges := func(e: Expr) returns Bool {
-    switch e.node_type {
-    case NodeType.Return:
-        return true
-    case NodeType.Body:
-        // A block never falls through iff one of its statements diverges: the
-        // garbager appends an owned-local cleanup after the real terminator,
-        // so "any child diverges" is what marks the block as non-falling.
-        for c : Expr in e.children {
-            if body_diverges(c) { return true }
-        }
-        return false
-    case NodeType.If:
-        // Needs an else branch (children[2]) AND both branches diverging.
-        if e.children.len() <= 2 { return false }
-        return body_diverges(e.children[1]).and(body_diverges(e.children[2]))
-    case NodeType.Switch:
-        // C-exhaustive (a `default:`, emitted for the `case:` wildcard) and
-        // every arm diverges. Without a default GCC treats the switch as able
-        // to fall off its end, so the default is required to claim divergence.
-        mut has_default := false
-        for ci in 1..e.children.len() {
-            ref cn : Expr = e.children[ci]
-            if cn.children.len() == 1 {
-                has_default = true
-                if body_diverges(cn.children[0]).not() { return false }
-            } else {
-                if body_diverges(cn.children[1]).not() { return false }
-            }
-        }
-        return has_default
-    case:
-        return false
-    }
-}
-
 // Emit the trailing `__builtin_unreachable()` for a non-void function whose
-// body never falls through (see body_diverges). No-op for void functions
-// (they may legally fall off the end) and for bodies that can fall through
-// (leaving GCC's -Werror=return-type to catch a genuinely missing return).
+// body never falls through. This keeps GCC's -Wreturn-type quiet under ASAN /
+// -finstrument-functions, which mutate the CFG enough that GCC can no longer
+// prove an exhaustive switch/if never falls off the end of a non-void function
+// and mis-fires "control reaches end of non-void function". No-op for void
+// functions (they may legally fall off the end) and for bodies that can fall
+// through -- and the typer's check_all_paths_return has already rejected the
+// latter for user functions. The divergence predicate stmt_always_diverges is
+// shared with that typer check (context.til), so terminator and error agree.
 priv emit_diverge_terminator := proc(f: File, ret: Str, body: Expr) {
-    if ret.eq("void").not().and(body_diverges(body)) {
+    if ret.eq("void").not().and(stmt_always_diverges(body)) {
         f.write("    __builtin_unreachable();\n")
     }
 }
@@ -5464,7 +5422,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     // the end of a non-void function, mis-firing -Werror=return-type (issue
     // #240 demoted just that check with -Wno-error=return-type). The emitter
     // now closes every diverging non-void body with __builtin_unreachable()
-    // (see body_diverges / emit_diverge_terminator), so GCC no longer needs
+    // (see stmt_always_diverges / emit_diverge_terminator), so GCC no longer needs
     // to prove it and the false positive is gone -- return-type is a real
     // error again under ASAN too, still catching a genuinely missing return.
     werr := " -Werror"
@@ -5565,7 +5523,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // -Werror=return-type on exhaustive non-void functions (issue #240
     // demoted it with -Wno-error=return-type). The emitter now terminates
     // every diverging non-void body with __builtin_unreachable() (see
-    // body_diverges / emit_diverge_terminator), so the false positive is
+    // stmt_always_diverges / emit_diverge_terminator), so the false positive is
     // gone and return-type stays a hard error under ASAN too.
     werr := " -Werror"
     mut asan_flags := ""
@@ -5580,7 +5538,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // The exit hook is appended on the return path, which used to make gcc
     // mis-fire -Werror=return-type ("control reaches end of non-void
     // function") the same way ASAN did. The emitter now closes every diverging
-    // non-void body with __builtin_unreachable() (see body_diverges /
+    // non-void body with __builtin_unreachable() (see stmt_always_diverges /
     // emit_diverge_terminator), so gcc no longer needs to prove it and prof
     // builds keep the full -Werror -- return-type stays a hard error.
     //

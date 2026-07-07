@@ -787,3 +787,15 @@ terr_loop_transfer := func() returns I64 {
     }
     return terr_lt_total
 }
+
+// non-void function whose body can fall off the end without returning: til's
+// own all-paths-return check (not left to the C backend's -Werror=return-type).
+// `if` with no else -- the false path reaches the end.
+terr_missing_return_if := func(terr_mr_x: I64) returns I64 {
+    if terr_mr_x > 0 { return 1 }
+}
+// no return at all -- ends in an assignment.
+terr_missing_return_none := func(terr_mr_y: I64) returns I64 {
+    mut terr_mr_z := terr_mr_y
+    terr_mr_z = terr_mr_z + 1
+}
