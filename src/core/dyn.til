@@ -27,7 +27,12 @@ namespace:
 // typed ((E*)a)->tag compare (see builder.til), and the interpreter evaluates
 // it via the registered h_is_n handler (a core_func is not FFI-registered).
 is_n := core_func(self: Dynamic, other: Dynamic, shallow size: USize) returns shallow Bool {}
-get_payload := ext_func(self: Dynamic) returns ref Dynamic {}
+// The switch payload-binding accessor the desugarer inserts (bare user calls
+// are rejected by the typer): an enum's payload storage sits one pointer past
+// the tag. A core_func: the C backend inlines it to native pointer arithmetic
+// (see builder.til), and the interpreter evaluates it via the registered
+// h_get_payload handler (a core_func is not FFI-registered).
+get_payload := core_func(self: Dynamic) returns ref Dynamic {}
 dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) {}
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}

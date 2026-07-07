@@ -6499,6 +6499,18 @@ priv h_is_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     return true
 }
 
+// get_payload core_func handler: a core_func has no body to run and is not
+// FFI-registered, so the interpreter evaluates the desugarer's payload
+// accessor here. Bare get_payload calls are rejected by the typer (this
+// handler included), so compute the address the way the interp already does
+// for payload aliasing: the payload storage sits ENUM_PAYLOAD_OFFSET bytes
+// past the tag (see the #211 payload-alias machinery).
+priv h_get_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    v := eval_expr(s, e.children[1], ctx)
+    r = Value.Ref(ptr_add(value_c_arg_ptr(v), ENUM_PAYLOAD_OFFSET.cast(U64)))
+    return true
+}
+
 priv h_cfile_read_all := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     handle_v := eval_expr(s, e.children[1], ctx)
     ref hp : Dynamic = val_to_ptr(handle_v)
@@ -6594,6 +6606,7 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("ptr_add", h_ptr_add, ctx)
     reg_dispatch("is_null", h_is_null, ctx)
     reg_dispatch("is_n", h_is_n, ctx)
+    reg_dispatch("get_payload", h_get_payload, ctx)
     reg_dispatch("dyn_call", h_dyn_call, ctx)
     reg_dispatch("dyn_call_ret", h_dyn_call, ctx)
     reg_dispatch("dyn_has_method", h_dyn_has_method, ctx)

@@ -1,0 +1,31 @@
+# priority: medium
+# category: optimizations
+** FIXED #306 Make get_payload a core_func (13M calls per self-host translate)
+
+Fixed here (created directly in fixed/): after the core_func conversions and
+the #305 accessor inline, the --prof top-32 left get_payload as the heaviest
+remaining ext call -- 13.0M calls per self-host translate. It is the switch
+payload-binding accessor the desugarer inserts for every payload case (bare
+user calls are rejected by the typer), so every switch over a payload enum
+paid a real C call per binding.
+
+Fix: get_payload goes from ext_func to core_func, the ptr_add pattern
+exactly.
+
+- src/core/dyn.til: `get_payload := core_func(self: Dynamic) returns ref
+  Dynamic {}`.
+- src/self/builder.til: the ident-call path lowers it to native pointer
+  arithmetic, ((void *)((U8 *)(e) + sizeof(void *))) -- the payload storage
+  sits one pointer past the enum tag, mirroring ext.c's implementation; the
+  void* cast keeps the result assignable to the payload's typed pointer.
+- src/self/interpreter.til: a core_func is not FFI-registered, so the new
+  h_get_payload reg_dispatch handler evaluates it (value_c_arg_ptr extracts
+  the enum/ref pointer exactly as the old FFI marshalling did).
+- src/c/ext.c keeps the symbol transiently: pass-1 til_boot predates the
+  inline and emits real calls that link against it; it becomes removable
+  once this commit is in master's til_boot (same staging as every core-op
+  symbol removal, see doc/functions.org).
+
+Regression evidence: the regenerated compiler's only remaining get_payload
+references are the kept ext.c symbol, prototypes, and the reflective _dyn
+wrapper; make test_two_pass stays green.

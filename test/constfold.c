@@ -2717,7 +2717,7 @@ void Type_delete(Type * self, Bool call_free) {
     Bool hoisted__Bool_2311 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Struct}))->tag));
     (void)hoisted__Bool_2311;
     if (hoisted__Bool_2311) {
-        Str *hoisted__Str_2300 = get_payload(self);
+        Str *hoisted__Str_2300 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_2300;
         (void)hoisted__Str_2300;
         Bool hoisted__Bool_2301 = 0;
@@ -2729,7 +2729,7 @@ void Type_delete(Type * self, Bool call_free) {
     Bool hoisted__Bool_2313 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Enum}))->tag));
     (void)hoisted__Bool_2313;
     if (hoisted__Bool_2313) {
-        Str *hoisted__Str_2302 = get_payload(self);
+        Str *hoisted__Str_2302 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_2302;
         (void)hoisted__Str_2302;
         Bool hoisted__Bool_2303 = 0;
@@ -2741,7 +2741,7 @@ void Type_delete(Type * self, Bool call_free) {
     Bool hoisted__Bool_2315 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Custom}))->tag));
     (void)hoisted__Bool_2315;
     if (hoisted__Bool_2315) {
-        Str *hoisted__Str_2304 = get_payload(self);
+        Str *hoisted__Str_2304 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_2304;
         (void)hoisted__Str_2304;
         Bool hoisted__Bool_2305 = 0;
@@ -2753,7 +2753,7 @@ void Type_delete(Type * self, Bool call_free) {
     Bool hoisted__Bool_2317 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Primitive}))->tag));
     (void)hoisted__Bool_2317;
     if (hoisted__Bool_2317) {
-        Primitive *hoisted__Primitive_2306 = get_payload(self);
+        Primitive *hoisted__Primitive_2306 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Primitive_2306;
         (void)hoisted__Primitive_2306;
         Bool hoisted__Bool_2307 = 0;
@@ -2765,7 +2765,7 @@ void Type_delete(Type * self, Bool call_free) {
     Bool hoisted__Bool_2319 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_FuncPtrSig}))->tag));
     (void)hoisted__Bool_2319;
     if (hoisted__Bool_2319) {
-        Str *hoisted__Str_2308 = get_payload(self);
+        Str *hoisted__Str_2308 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_2308;
         (void)hoisted__Str_2308;
         Bool hoisted__Bool_2309 = 0;
@@ -2799,7 +2799,7 @@ Type * Type_clone(Type * self) {
     Bool hoisted__Bool_2425 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Struct}))->tag));
     (void)hoisted__Bool_2425;
     if (hoisted__Bool_2425) {
-        Str *_clone_payload_Struct_2 = get_payload(self);
+        Str *_clone_payload_Struct_2 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Struct_2;
         (void)_clone_payload_Struct_2;
         Str *hoisted__Str_2410 = Str_clone(_clone_payload_Struct_2);
@@ -2822,7 +2822,7 @@ Type * Type_clone(Type * self) {
     Bool hoisted__Bool_2429 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Enum}))->tag));
     (void)hoisted__Bool_2429;
     if (hoisted__Bool_2429) {
-        Str *_clone_payload_Enum_4 = get_payload(self);
+        Str *_clone_payload_Enum_4 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Enum_4;
         (void)_clone_payload_Enum_4;
         Str *hoisted__Str_2412 = Str_clone(_clone_payload_Enum_4);
@@ -2869,7 +2869,7 @@ Type * Type_clone(Type * self) {
     Bool hoisted__Bool_2439 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Custom}))->tag));
     (void)hoisted__Bool_2439;
     if (hoisted__Bool_2439) {
-        Str *_clone_payload_Custom_9 = get_payload(self);
+        Str *_clone_payload_Custom_9 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Custom_9;
         (void)_clone_payload_Custom_9;
         Str *hoisted__Str_2414 = Str_clone(_clone_payload_Custom_9);
@@ -2884,7 +2884,7 @@ Type * Type_clone(Type * self) {
     Bool hoisted__Bool_2441 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_Primitive}))->tag));
     (void)hoisted__Bool_2441;
     if (hoisted__Bool_2441) {
-        Primitive *_clone_payload_Primitive_10 = get_payload(self);
+        Primitive *_clone_payload_Primitive_10 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Primitive_10;
         (void)_clone_payload_Primitive_10;
         Primitive hoisted__Primitive_2416 = DEREF(_clone_payload_Primitive_10);
@@ -2899,7 +2899,7 @@ Type * Type_clone(Type * self) {
     Bool hoisted__Bool_2443 = ((Bool)(((Type *)(self))->tag == ((Type *)(&(Type){.tag = Type_TAG_FuncPtrSig}))->tag));
     (void)hoisted__Bool_2443;
     if (hoisted__Bool_2443) {
-        Str *_clone_payload_FuncPtrSig_11 = get_payload(self);
+        Str *_clone_payload_FuncPtrSig_11 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_FuncPtrSig_11;
         (void)_clone_payload_FuncPtrSig_11;
         Str *hoisted__Str_2418 = Str_clone(_clone_payload_FuncPtrSig_11);
@@ -3872,7 +3872,7 @@ void Literal_delete(Literal * self, Bool call_free) {
     Bool hoisted__Bool_3031 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Str}))->tag));
     (void)hoisted__Bool_3031;
     if (hoisted__Bool_3031) {
-        Str *hoisted__Str_3024 = get_payload(self);
+        Str *hoisted__Str_3024 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_3024;
         (void)hoisted__Str_3024;
         Bool hoisted__Bool_3025 = 0;
@@ -3884,7 +3884,7 @@ void Literal_delete(Literal * self, Bool call_free) {
     Bool hoisted__Bool_3033 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Num}))->tag));
     (void)hoisted__Bool_3033;
     if (hoisted__Bool_3033) {
-        LiteralNumData *hoisted__LiteralNumData_3026 = get_payload(self);
+        LiteralNumData *hoisted__LiteralNumData_3026 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__LiteralNumData_3026;
         (void)hoisted__LiteralNumData_3026;
         Bool hoisted__Bool_3027 = 0;
@@ -3896,7 +3896,7 @@ void Literal_delete(Literal * self, Bool call_free) {
     Bool hoisted__Bool_3035 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Bool}))->tag));
     (void)hoisted__Bool_3035;
     if (hoisted__Bool_3035) {
-        Bool *hoisted__Bool_3028 = get_payload(self);
+        Bool *hoisted__Bool_3028 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Bool_3028;
         (void)hoisted__Bool_3028;
         Bool hoisted__Bool_3029 = 0;
@@ -3914,7 +3914,7 @@ Literal * Literal_clone(Literal * self) {
     Bool hoisted__Bool_3091 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Str}))->tag));
     (void)hoisted__Bool_3091;
     if (hoisted__Bool_3091) {
-        Str *_clone_payload_Str_0 = get_payload(self);
+        Str *_clone_payload_Str_0 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Str_0;
         (void)_clone_payload_Str_0;
         Str *hoisted__Str_3085 = Str_clone(_clone_payload_Str_0);
@@ -3929,7 +3929,7 @@ Literal * Literal_clone(Literal * self) {
     Bool hoisted__Bool_3093 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Num}))->tag));
     (void)hoisted__Bool_3093;
     if (hoisted__Bool_3093) {
-        LiteralNumData *_clone_payload_Num_1 = get_payload(self);
+        LiteralNumData *_clone_payload_Num_1 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Num_1;
         (void)_clone_payload_Num_1;
         LiteralNumData *hoisted__LiteralNumData_3087 = LiteralNumData_clone(_clone_payload_Num_1);
@@ -3944,7 +3944,7 @@ Literal * Literal_clone(Literal * self) {
     Bool hoisted__Bool_3095 = ((Bool)(((Literal *)(self))->tag == ((Literal *)(&(Literal){.tag = Literal_TAG_Bool}))->tag));
     (void)hoisted__Bool_3095;
     if (hoisted__Bool_3095) {
-        Bool *_clone_payload_Bool_2 = get_payload(self);
+        Bool *_clone_payload_Bool_2 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Bool_2;
         (void)_clone_payload_Bool_2;
         Literal *hoisted__Literal_3089 = Literal_Bool(_clone_payload_Bool_2);
@@ -4231,7 +4231,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3380 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Literal}))->tag));
     (void)hoisted__Bool_3380;
     if (hoisted__Bool_3380) {
-        Literal *hoisted__Literal_3349 = get_payload(self);
+        Literal *hoisted__Literal_3349 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Literal_3349;
         (void)hoisted__Literal_3349;
         Bool hoisted__Bool_3350 = 0;
@@ -4243,7 +4243,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3382 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Ident}))->tag));
     (void)hoisted__Bool_3382;
     if (hoisted__Bool_3382) {
-        IdentData *hoisted__IdentData_3351 = get_payload(self);
+        IdentData *hoisted__IdentData_3351 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__IdentData_3351;
         (void)hoisted__IdentData_3351;
         Bool hoisted__Bool_3352 = 0;
@@ -4255,7 +4255,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3384 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Decl}))->tag));
     (void)hoisted__Bool_3384;
     if (hoisted__Bool_3384) {
-        Declaration *hoisted__Declaration_3353 = get_payload(self);
+        Declaration *hoisted__Declaration_3353 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Declaration_3353;
         (void)hoisted__Declaration_3353;
         Bool hoisted__Bool_3354 = 0;
@@ -4267,7 +4267,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3386 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Assign}))->tag));
     (void)hoisted__Bool_3386;
     if (hoisted__Bool_3386) {
-        AssignData *hoisted__AssignData_3355 = get_payload(self);
+        AssignData *hoisted__AssignData_3355 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__AssignData_3355;
         (void)hoisted__AssignData_3355;
         Bool hoisted__Bool_3356 = 0;
@@ -4279,7 +4279,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3388 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FCall}))->tag));
     (void)hoisted__Bool_3388;
     if (hoisted__Bool_3388) {
-        FCallData *hoisted__FCallData_3357 = get_payload(self);
+        FCallData *hoisted__FCallData_3357 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__FCallData_3357;
         (void)hoisted__FCallData_3357;
         Bool hoisted__Bool_3358 = 0;
@@ -4291,7 +4291,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3390 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FuncDef}))->tag));
     (void)hoisted__Bool_3390;
     if (hoisted__Bool_3390) {
-        FunctionDef *hoisted__FunctionDef_3359 = get_payload(self);
+        FunctionDef *hoisted__FunctionDef_3359 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__FunctionDef_3359;
         (void)hoisted__FunctionDef_3359;
         Bool hoisted__Bool_3360 = 0;
@@ -4303,7 +4303,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3392 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_StructDef}))->tag));
     (void)hoisted__Bool_3392;
     if (hoisted__Bool_3392) {
-        StructDef *hoisted__StructDef_3361 = get_payload(self);
+        StructDef *hoisted__StructDef_3361 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__StructDef_3361;
         (void)hoisted__StructDef_3361;
         Bool hoisted__Bool_3362 = 0;
@@ -4315,7 +4315,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3394 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_EnumDef}))->tag));
     (void)hoisted__Bool_3394;
     if (hoisted__Bool_3394) {
-        EnumDef *hoisted__EnumDef_3363 = get_payload(self);
+        EnumDef *hoisted__EnumDef_3363 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__EnumDef_3363;
         (void)hoisted__EnumDef_3363;
         Bool hoisted__Bool_3364 = 0;
@@ -4327,7 +4327,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3396 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FieldAccess}))->tag));
     (void)hoisted__Bool_3396;
     if (hoisted__Bool_3396) {
-        FieldAccessData *hoisted__FieldAccessData_3365 = get_payload(self);
+        FieldAccessData *hoisted__FieldAccessData_3365 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__FieldAccessData_3365;
         (void)hoisted__FieldAccessData_3365;
         Bool hoisted__Bool_3366 = 0;
@@ -4339,7 +4339,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3398 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FieldAssign}))->tag));
     (void)hoisted__Bool_3398;
     if (hoisted__Bool_3398) {
-        FieldAssignData *hoisted__FieldAssignData_3367 = get_payload(self);
+        FieldAssignData *hoisted__FieldAssignData_3367 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__FieldAssignData_3367;
         (void)hoisted__FieldAssignData_3367;
         Bool hoisted__Bool_3368 = 0;
@@ -4351,7 +4351,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3400 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_ForIn}))->tag));
     (void)hoisted__Bool_3400;
     if (hoisted__Bool_3400) {
-        ForInData *hoisted__ForInData_3369 = get_payload(self);
+        ForInData *hoisted__ForInData_3369 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__ForInData_3369;
         (void)hoisted__ForInData_3369;
         Bool hoisted__Bool_3370 = 0;
@@ -4363,7 +4363,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3402 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_NamedArg}))->tag));
     (void)hoisted__Bool_3402;
     if (hoisted__Bool_3402) {
-        Str *hoisted__Str_3371 = get_payload(self);
+        Str *hoisted__Str_3371 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_3371;
         (void)hoisted__Str_3371;
         Bool hoisted__Bool_3372 = 0;
@@ -4375,7 +4375,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3404 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Match}))->tag));
     (void)hoisted__Bool_3404;
     if (hoisted__Bool_3404) {
-        MatchData *hoisted__MatchData_3373 = get_payload(self);
+        MatchData *hoisted__MatchData_3373 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__MatchData_3373;
         (void)hoisted__MatchData_3373;
         Bool hoisted__Bool_3374 = 0;
@@ -4387,7 +4387,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3406 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_CaptureBlock}))->tag));
     (void)hoisted__Bool_3406;
     if (hoisted__Bool_3406) {
-        CaptureBlockData *hoisted__CaptureBlockData_3375 = get_payload(self);
+        CaptureBlockData *hoisted__CaptureBlockData_3375 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__CaptureBlockData_3375;
         (void)hoisted__CaptureBlockData_3375;
         Bool hoisted__Bool_3376 = 0;
@@ -4399,7 +4399,7 @@ void NodeType_delete(NodeType * self, Bool call_free) {
     Bool hoisted__Bool_3408 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_BodyValue}))->tag));
     (void)hoisted__Bool_3408;
     if (hoisted__Bool_3408) {
-        CaptureBlockData *hoisted__CaptureBlockData_3377 = get_payload(self);
+        CaptureBlockData *hoisted__CaptureBlockData_3377 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__CaptureBlockData_3377;
         (void)hoisted__CaptureBlockData_3377;
         Bool hoisted__Bool_3378 = 0;
@@ -4425,7 +4425,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3675 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Literal}))->tag));
     (void)hoisted__Bool_3675;
     if (hoisted__Bool_3675) {
-        Literal *_clone_payload_Literal_1 = get_payload(self);
+        Literal *_clone_payload_Literal_1 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Literal_1;
         (void)_clone_payload_Literal_1;
         Literal *hoisted__Literal_3644 = Literal_clone(_clone_payload_Literal_1);
@@ -4440,7 +4440,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3677 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Ident}))->tag));
     (void)hoisted__Bool_3677;
     if (hoisted__Bool_3677) {
-        IdentData *_clone_payload_Ident_2 = get_payload(self);
+        IdentData *_clone_payload_Ident_2 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Ident_2;
         (void)_clone_payload_Ident_2;
         IdentData *hoisted__IdentData_3646 = IdentData_clone(_clone_payload_Ident_2);
@@ -4455,7 +4455,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3679 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Decl}))->tag));
     (void)hoisted__Bool_3679;
     if (hoisted__Bool_3679) {
-        Declaration *_clone_payload_Decl_3 = get_payload(self);
+        Declaration *_clone_payload_Decl_3 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Decl_3;
         (void)_clone_payload_Decl_3;
         Declaration *hoisted__Declaration_3648 = Declaration_clone(_clone_payload_Decl_3);
@@ -4470,7 +4470,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3681 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Assign}))->tag));
     (void)hoisted__Bool_3681;
     if (hoisted__Bool_3681) {
-        AssignData *_clone_payload_Assign_4 = get_payload(self);
+        AssignData *_clone_payload_Assign_4 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Assign_4;
         (void)_clone_payload_Assign_4;
         AssignData *hoisted__AssignData_3650 = AssignData_clone(_clone_payload_Assign_4);
@@ -4485,7 +4485,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3683 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FCall}))->tag));
     (void)hoisted__Bool_3683;
     if (hoisted__Bool_3683) {
-        FCallData *_clone_payload_FCall_5 = get_payload(self);
+        FCallData *_clone_payload_FCall_5 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_FCall_5;
         (void)_clone_payload_FCall_5;
         FCallData *hoisted__FCallData_3652 = FCallData_clone(_clone_payload_FCall_5);
@@ -4500,7 +4500,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3685 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FuncDef}))->tag));
     (void)hoisted__Bool_3685;
     if (hoisted__Bool_3685) {
-        FunctionDef *_clone_payload_FuncDef_6 = get_payload(self);
+        FunctionDef *_clone_payload_FuncDef_6 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_FuncDef_6;
         (void)_clone_payload_FuncDef_6;
         FunctionDef *hoisted__FunctionDef_3654 = FunctionDef_clone(_clone_payload_FuncDef_6);
@@ -4515,7 +4515,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3687 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_StructDef}))->tag));
     (void)hoisted__Bool_3687;
     if (hoisted__Bool_3687) {
-        StructDef *_clone_payload_StructDef_7 = get_payload(self);
+        StructDef *_clone_payload_StructDef_7 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_StructDef_7;
         (void)_clone_payload_StructDef_7;
         StructDef *hoisted__StructDef_3656 = StructDef_clone(_clone_payload_StructDef_7);
@@ -4530,7 +4530,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3689 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_EnumDef}))->tag));
     (void)hoisted__Bool_3689;
     if (hoisted__Bool_3689) {
-        EnumDef *_clone_payload_EnumDef_8 = get_payload(self);
+        EnumDef *_clone_payload_EnumDef_8 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_EnumDef_8;
         (void)_clone_payload_EnumDef_8;
         EnumDef *hoisted__EnumDef_3658 = EnumDef_clone(_clone_payload_EnumDef_8);
@@ -4545,7 +4545,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3691 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FieldAccess}))->tag));
     (void)hoisted__Bool_3691;
     if (hoisted__Bool_3691) {
-        FieldAccessData *_clone_payload_FieldAccess_9 = get_payload(self);
+        FieldAccessData *_clone_payload_FieldAccess_9 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_FieldAccess_9;
         (void)_clone_payload_FieldAccess_9;
         FieldAccessData *hoisted__FieldAccessData_3660 = FieldAccessData_clone(_clone_payload_FieldAccess_9);
@@ -4560,7 +4560,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3693 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_FieldAssign}))->tag));
     (void)hoisted__Bool_3693;
     if (hoisted__Bool_3693) {
-        FieldAssignData *_clone_payload_FieldAssign_10 = get_payload(self);
+        FieldAssignData *_clone_payload_FieldAssign_10 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_FieldAssign_10;
         (void)_clone_payload_FieldAssign_10;
         FieldAssignData *hoisted__FieldAssignData_3662 = FieldAssignData_clone(_clone_payload_FieldAssign_10);
@@ -4599,7 +4599,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3701 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_ForIn}))->tag));
     (void)hoisted__Bool_3701;
     if (hoisted__Bool_3701) {
-        ForInData *_clone_payload_ForIn_14 = get_payload(self);
+        ForInData *_clone_payload_ForIn_14 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_ForIn_14;
         (void)_clone_payload_ForIn_14;
         ForInData *hoisted__ForInData_3664 = ForInData_clone(_clone_payload_ForIn_14);
@@ -4614,7 +4614,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3703 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_NamedArg}))->tag));
     (void)hoisted__Bool_3703;
     if (hoisted__Bool_3703) {
-        Str *_clone_payload_NamedArg_15 = get_payload(self);
+        Str *_clone_payload_NamedArg_15 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_NamedArg_15;
         (void)_clone_payload_NamedArg_15;
         Str *hoisted__Str_3666 = Str_clone(_clone_payload_NamedArg_15);
@@ -4653,7 +4653,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3711 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_Match}))->tag));
     (void)hoisted__Bool_3711;
     if (hoisted__Bool_3711) {
-        MatchData *_clone_payload_Match_19 = get_payload(self);
+        MatchData *_clone_payload_Match_19 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Match_19;
         (void)_clone_payload_Match_19;
         MatchData *hoisted__MatchData_3668 = MatchData_clone(_clone_payload_Match_19);
@@ -4708,7 +4708,7 @@ NodeType * NodeType_clone(NodeType * self) {
     Bool hoisted__Bool_3723 = ((Bool)(((NodeType *)(self))->tag == ((NodeType *)(&(NodeType){.tag = NodeType_TAG_CaptureBlock}))->tag));
     (void)hoisted__Bool_3723;
     if (hoisted__Bool_3723) {
-        CaptureBlockData *_clone_payload_CaptureBlock_25 = get_payload(self);
+        CaptureBlockData *_clone_payload_CaptureBlock_25 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_CaptureBlock_25;
         (void)_clone_payload_CaptureBlock_25;
         CaptureBlockData *hoisted__CaptureBlockData_3670 = CaptureBlockData_clone(_clone_payload_CaptureBlock_25);
@@ -4726,7 +4726,7 @@ NodeType * NodeType_clone(NodeType * self) {
         { NodeType *_r = malloc(sizeof(NodeType)); _r->tag = NodeType_TAG_Loc;
                 return _r; }
     }
-    CaptureBlockData *_clone_payload_BodyValue_27 = get_payload(self);
+    CaptureBlockData *_clone_payload_BodyValue_27 = ((void *)((U8 *)(self) + sizeof(void *)));
     (void)_clone_payload_BodyValue_27;
     (void)_clone_payload_BodyValue_27;
     CaptureBlockData *hoisted__CaptureBlockData_3726 = CaptureBlockData_clone(_clone_payload_BodyValue_27);
@@ -6313,7 +6313,7 @@ void Token_delete(Token * self, Bool call_free) {
     Bool hoisted__Bool_8680 = ((Bool)(((Token *)(self))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
     (void)hoisted__Bool_8680;
     if (hoisted__Bool_8680) {
-        I64 *hoisted__I64_8675 = get_payload(self);
+        I64 *hoisted__I64_8675 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__I64_8675;
         (void)hoisted__I64_8675;
         Bool hoisted__Bool_8676 = 0;
@@ -6325,7 +6325,7 @@ void Token_delete(Token * self, Bool call_free) {
     Bool hoisted__Bool_8682 = ((Bool)(((Token *)(self))->tag == ((Token *)(&(Token){.tag = Token_TAG_Name}))->tag));
     (void)hoisted__Bool_8682;
     if (hoisted__Bool_8682) {
-        Str *hoisted__Str_8677 = get_payload(self);
+        Str *hoisted__Str_8677 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)hoisted__Str_8677;
         (void)hoisted__Str_8677;
         Bool hoisted__Bool_8678 = 0;
@@ -6343,7 +6343,7 @@ Token * Token_clone(Token * self) {
     Bool hoisted__Bool_8717 = ((Bool)(((Token *)(self))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
     (void)hoisted__Bool_8717;
     if (hoisted__Bool_8717) {
-        I64 *_clone_payload_Num_0 = get_payload(self);
+        I64 *_clone_payload_Num_0 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Num_0;
         (void)_clone_payload_Num_0;
         Token *hoisted__Token_8713 = Token_Num(_clone_payload_Num_0);
@@ -6356,7 +6356,7 @@ Token * Token_clone(Token * self) {
     Bool hoisted__Bool_8719 = ((Bool)(((Token *)(self))->tag == ((Token *)(&(Token){.tag = Token_TAG_Name}))->tag));
     (void)hoisted__Bool_8719;
     if (hoisted__Bool_8719) {
-        Str *_clone_payload_Name_1 = get_payload(self);
+        Str *_clone_payload_Name_1 = ((void *)((U8 *)(self) + sizeof(void *)));
         (void)_clone_payload_Name_1;
         (void)_clone_payload_Name_1;
         Str *hoisted__Str_8714 = Str_clone(_clone_payload_Name_1);

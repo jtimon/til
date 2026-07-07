@@ -4140,6 +4140,7 @@ Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, 
 void * priv___src_self_interpreter_til__value_c_arg_ptr(Value * v);
 Bool priv___src_self_interpreter_til__h_is_null(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_is_n(Scope * s, Expr * e, Value * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_get_payload(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_tell(Scope * s, Expr * e, Value * r, Context * ctx);
