@@ -516,6 +516,30 @@ let the ownership pass insert temps itself; start with the check.
     auto-freed allocator-rooted typed locals), and stage 4 widened to
     a user-facing move primitive that deletes the memcpy+memset
     defusing idiom from core containers.
+  - [X] 2026-07-06 raw_alloc provenance (the Dynamic-never-owns pair's
+    first half, as a doc/self.org preparation+use commit pair):
+      PREP commit: a TYPED local whose RHS is malloc/calloc/realloc is
+      an owned heap block by provenance (LocalInfo.raw_alloc): always
+      heap-promoted (pointer form), cleanup inserted by the pass as a
+      bare free(own x) -- never a deep delete, the block is raw bytes.
+      Kills the classification FLIP where `buf : U8 = malloc(n)` only
+      meant "pointer" if a later hand-written free(own buf) existed
+      (without it the builder emitted the value-local
+      malloc-deref-free roundtrip, reading one uninitialized byte).
+      Dynamic-typed allocator locals excluded: type erasure hides
+      pointer escapes (interpreter write_ptr smuggling), so they keep
+      the manual contract until migrated. Regression:
+      test/regression.til test_bug302_raw_alloc (auto-free /
+      manual-free coexistence / own-arg transfer, ASAN), gc_audit
+      shape 11 (golden pins `free(buf) own=1` inserted).
+      USE commit (needs the prep's til_boot): migrate the non-island
+      `: Dynamic = malloc` sites to typed spellings -- 56 -> 25
+      remaining (interpreter 22 + eval_heap, plus dyn.til clone and
+      DynVec.pop whose Dynamic returns ARE the type-erasure API) --
+      and DELETE the 7 hand-written frees the pass now inserts:
+      mem.til swap, gui.til make_tone, scavenger.til x4, dyn_map.til
+      put's cloned_key. First explicit-call removals of the plan
+      (census class d partial; the island waits on #286).
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

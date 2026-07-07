@@ -126,7 +126,15 @@ GC-AUDIT body test/gc_audit.til:121:5 locals=2
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local s type=Str decl=-1 last_use=2 own_transfer=1 heap=1 skip=0
 GC-AUDIT site 0.if0.1 return-attached delete Str.delete(s) call_free=1 own=1
-GC-AUDIT body test/gc_audit.til:131:5 locals=75
+GC-AUDIT body test/gc_audit.til:129:5 locals=4
+GC-AUDIT local buf type=U8 decl=1 last_use=3 own_transfer=-1 heap=1 skip=0
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#0 type=U64 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
+GC-AUDIT site 2 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 5 free(buf) own=1
+GC-AUDIT site 6 delete U8.delete(hoisted__U8_#0) call_free=0
+GC-AUDIT body test/gc_audit.til:140:5 locals=79
 GC-AUDIT local a type=Str decl=62 last_use=68 own_transfer=64 heap=1 skip=0
 GC-AUDIT local b type=Str decl=69 last_use=75 own_transfer=71 heap=1 skip=0
 GC-AUDIT local c type=Str decl=76 last_use=82 own_transfer=78 heap=1 skip=0
@@ -154,6 +162,7 @@ GC-AUDIT local hoisted__Bool_#19 type=Bool decl=77 last_use=78 own_transfer=-1 h
 GC-AUDIT local hoisted__Bool_#20 type=Bool decl=80 last_use=82 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#21 type=Bool decl=84 last_use=85 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#22 type=Bool decl=87 last_use=89 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Bool_#23 type=Bool decl=92 last_use=94 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#1 type=I64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#2 type=I64 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
@@ -182,6 +191,8 @@ GC-AUDIT local hoisted__I64_#24 type=I64 decl=78 last_use=80 own_transfer=-1 hea
 GC-AUDIT local hoisted__I64_#25 type=I64 decl=79 last_use=80 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#26 type=I64 decl=85 last_use=87 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#27 type=I64 decl=86 last_use=87 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#28 type=I64 decl=90 last_use=92 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#29 type=I64 decl=91 last_use=92 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_#0 type=Str decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_#1 type=Str decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_#2 type=Str decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
@@ -200,6 +211,7 @@ GC-AUDIT local hoisted__Str_#14 type=Str decl=67 last_use=68 own_transfer=-1 hea
 GC-AUDIT local hoisted__Str_#15 type=Str decl=74 last_use=75 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_#16 type=Str decl=81 last_use=82 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Str_#17 type=Str decl=88 last_use=89 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Str_#18 type=Str decl=93 last_use=94 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local joined type=Str decl=0 last_use=4 own_transfer=-1 heap=1 skip=0
 GC-AUDIT local lit type=Str decl=61 last_use=83 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 3 delete Str.delete(hoisted__Str_#0) call_free=0
@@ -273,6 +285,10 @@ GC-AUDIT site 155 delete I64.delete(hoisted__I64_#26) call_free=0
 GC-AUDIT site 156 delete I64.delete(hoisted__I64_#27) call_free=0
 GC-AUDIT site 159 delete Bool.delete(hoisted__Bool_#22) call_free=0
 GC-AUDIT site 160 delete Str.delete(hoisted__Str_#17) call_free=0
+GC-AUDIT site 164 delete I64.delete(hoisted__I64_#28) call_free=0
+GC-AUDIT site 165 delete I64.delete(hoisted__I64_#29) call_free=0
+GC-AUDIT site 168 delete Bool.delete(hoisted__Bool_#23) call_free=0
+GC-AUDIT site 169 delete Str.delete(hoisted__Str_#18) call_free=0
 GC-AUDIT body test/gc_audit.til:0:0 locals=0
 Generated: gen/til/gc_audit.c
 Generated: gen/til/gc_audit_forward.h

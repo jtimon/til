@@ -166,3 +166,51 @@ test_bug302_cond_param_paths := test() {
     d := lit.clone()
     assert(bug302_early_param(own d, true) == 0)
 }
+
+// --- #302: typed locals from raw allocators (raw_alloc provenance) ----
+//
+// Original bug: `buf : U8 = malloc(n)` MEANT different things depending
+// on whether a `free(own buf)` appeared later in the body. The manual
+// free's own-transfer promoted the local to Own (pointer form); without
+// it the builder emitted a value local via the malloc-deref-free
+// roundtrip -- reading one uninitialized byte and discarding the buffer.
+// So the manual free could never be removed: its presence was what made
+// the declaration a pointer. Now an allocator RHS (malloc / calloc /
+// realloc) makes the local an owned heap block by provenance: pointer
+// form always, and the garbager inserts the free itself (a bare free,
+// never a deep delete -- the block is raw bytes).
+
+bug302_alloc_sink := func(own p: U8) returns I64 {
+    free(own p)
+    return 1
+}
+
+// No manual free: the garbager owns the cleanup (ASAN verifies).
+bug302_alloc_auto := proc() returns I64 {
+    print_flush()
+    buf : U8 = malloc(8)
+    write_u8(buf, 42)
+    return 0
+}
+
+// Manual free still present: the dtor transfer stands the pass down.
+bug302_alloc_manual := proc() returns I64 {
+    print_flush()
+    buf : U8 = malloc(8)
+    write_u8(buf, 43)
+    free(own buf)
+    return 0
+}
+
+// Transferred via own arg: the pass stands down; the callee frees.
+bug302_alloc_transfer := proc() returns I64 {
+    print_flush()
+    buf : U8 = malloc(8)
+    return bug302_alloc_sink(own buf)
+}
+
+test_bug302_raw_alloc := test() {
+    assert(bug302_alloc_auto() == 0)
+    assert(bug302_alloc_manual() == 0)
+    assert(bug302_alloc_transfer() == 1)
+}

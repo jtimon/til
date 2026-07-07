@@ -40,6 +40,35 @@ priv LocalInfo := struct {
     // conditionally-transferred own param was leaking under the old
     // blanket "params stand down" rule (#302).
     dtor_transfer := false
+    // True for a TYPED local whose RHS is an allocator call (malloc /
+    // calloc / realloc): an owned raw heap block. The garbager owns its
+    // free -- inserted like any owned local's cleanup, but always as a
+    // bare free(own x), never T.delete (the block is raw bytes; a deep
+    // delete would walk uninitialized memory). This is what makes
+    // `buf : U8 = malloc(n)` correct WITHOUT a hand-written
+    // free(own buf): previously the declaration's meaning FLIPPED on
+    // that manual free's presence (the free's own-transfer promoted the
+    // local to Own -> pointer form; without it the builder emitted the
+    // value-local malloc-deref-free roundtrip, reading one
+    // uninitialized byte and discarding the buffer). Dynamic-typed
+    // allocator locals are excluded: type erasure hides pointer escapes
+    // (write_ptr smuggling in the interpreter), so they keep the manual
+    // contract until the #302 Dynamic-never-owns migration retires
+    // them.
+    raw_alloc := false
+}
+
+// True when `e` is a direct call to a raw allocator whose result is an
+// owned heap block: malloc / calloc / realloc.
+priv rhs_is_allocator_call := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() < 1 { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(fid):
+        return fid.ident_name().eq("malloc").or(fid.ident_name().eq("calloc")).or(fid.ident_name().eq("realloc"))
+    case:
+        return false
+    }
 }
 
 // True when `stmt` (or any sub-expression) destroys `name` directly:
@@ -504,6 +533,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                     // shortcut keys off of (is_pod_enum_clone_call).
                     li.is_heap = false
                 }
+                if rhs_is_allocator_call(li_rhs).and(b.type.is(Type.Dynamic).not()) {
+                    // Typed local from a raw allocator: an owned heap
+                    // block the pass frees itself (see LocalInfo.raw_alloc).
+                    li.raw_alloc = true
+                    li.is_heap = true
+                }
             }
         }
         locals_vec.push(own li)
@@ -846,7 +881,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                         continue
                     }
                 }
-                if type_to_name(local.type).len() > 0 {
+                if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                     del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                     if del.is_null().not() {
                         if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
@@ -966,7 +1001,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         }
         if local.decl_index < stmt_idx.to_i32() {
             if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
-                if type_to_name(local.type).len() > 0 {
+                if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                     del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                     if del.is_null().not() { new_ch.push(own del) }
                 } else if local.is_heap {
@@ -1002,7 +1037,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // adding a `free` here would double-free.
             if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer == stmt_idx.to_i32() {
-                    if type_to_name(local.type).len() > 0 {
+                    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                         // Decl(field = local) where the receiving Shallow
                         // field value-copies the inner struct: the field's
                         // own destructor frees the inner data, but nothing
@@ -1111,7 +1146,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
                     }
                 }
             }
-            if type_to_name(local.type).len() > 0 {
+            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                 del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
@@ -1120,7 +1155,7 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             }
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
-            if type_to_name(local.type).len() > 0 {
+            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                 del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
@@ -1142,7 +1177,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                     ad.save_old_delete = true
                     stmt.set_expr_til_type(local.type.clone())
                 } else {
-                    if type_to_name(local.type).len() > 0 {
+                    if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                         del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
                         if del.is_null().not() { new_ch.push(own del) }
                     } else if local.is_heap {
@@ -1182,30 +1217,47 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
         switch stmt.node_type {
         case NodeType.Decl(dd):
         if dd.own_type.is(OwnType.Ref) { continue }
-        // Use is_aggregate, not raw is(Type.Struct): keeps user structs/
-        // enums (which heap-promote) distinct from everything else.
-        is_struct := is_aggregate(local.type)
-        if local.own_transfer.lt(0).and(is_struct.not()) { continue }
-        // Skip heap-promotion if the only "use" is the function's
-        // shallow return: the value-copy at return is the transfer,
-        // and a heap wrapper just leaks (the codegen does
-        // ~return DEREF(rv)~ without freeing rv). Keeping the local
-        // Shallow lets the codegen use a stack value and value-copy
-        // out cleanly.
-        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(is_struct) {
-            if local.last_use >= 0 {
-                ref last_stmt : Expr = body.children[local.last_use.to_usize()]
-                if last_stmt.node_type.is(NodeType.Return) {
-                    if last_stmt.children.len() > 0 {
-                        switch last_stmt.children[0].node_type {
-                        case NodeType.Ident(rname):
-                            if rname.ident_name() == local.name { continue }
-                        case:
-                        }
+        // Shared carve-out: the local's only escape is `return local` in a
+        // shallow-returning function -- the value-copy at the return IS the
+        // transfer, and a heap wrapper would just leak (the codegen does
+        // ~return DEREF(rv)~ without freeing rv). Applies to aggregates AND
+        // to raw_alloc locals: Vec(I64).pop's `out : T = malloc(T.size())`
+        // returns T under the auto-shallow primitive rule (#223), so
+        // heap-promoting it leaked the 8-byte box on every scalar pop.
+        mut shallow_ret_escape := false
+        if ctx.typer_in_shallow_return.and(local.own_transfer.lt(0)).and(local.last_use.gte(0)) {
+            ref last_stmt : Expr = body.children[local.last_use.to_usize()]
+            if last_stmt.node_type.is(NodeType.Return) {
+                if last_stmt.children.len() > 0 {
+                    switch last_stmt.children[0].node_type {
+                    case NodeType.Ident(rname):
+                        if rname.ident_name() == local.name { shallow_ret_escape = true }
+                    case:
                     }
                 }
             }
         }
+        // Raw-allocator RHS: heap-promote, scalar element type or not --
+        // the local IS a heap pointer, and without the promotion the
+        // builder emits the value-local malloc-deref-free roundtrip (see
+        // LocalInfo.raw_alloc). The shallow-return escape falls back to
+        // exactly that legacy roundtrip: value semantics at the return
+        // boundary, no wrapper to leak.
+        if local.raw_alloc {
+            if shallow_ret_escape {
+                local.raw_alloc = false
+                local.is_heap = false
+                continue
+            }
+            dd.own_type = OwnType.Own
+            local.is_heap = true
+            continue
+        }
+        // Use is_aggregate, not raw is(Type.Struct): keeps user structs/
+        // enums (which heap-promote) distinct from everything else.
+        is_struct := is_aggregate(local.type)
+        if local.own_transfer.lt(0).and(is_struct.not()) { continue }
+        if shallow_ret_escape.and(is_struct) { continue }
         dd.own_type = OwnType.Own
         local.is_heap = true
         case:

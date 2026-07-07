@@ -122,6 +122,15 @@ early_param := func(own s: Str, flag: Bool) returns I64 {
     return consume(own s)
 }
 
+// Shape 11: a typed local from a raw allocator (raw_alloc provenance,
+// #302): heap-promoted, and the pass inserts a bare free -- never a
+// deep delete -- with no hand-written free in sight.
+raw_alloc_auto := func() returns I64 {
+    buf : U8 = malloc(8)
+    write_u8(buf, 9)
+    return 0
+}
+
 // Plain assert only: assert_eq is a type-generic func, and generic
 // instantiation clones the body into this unit with the DEFINITION
 // file's line numbers -- the audit dump would then couple the golden to
@@ -149,4 +158,5 @@ test_gc_audit_shapes := test() {
     assert(early_param(own c, false) == 5)
     d := lit.clone()
     assert(early_param(own d, true) == 1)
+    assert(raw_alloc_auto() == 0)
 }

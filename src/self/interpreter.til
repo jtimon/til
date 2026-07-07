@@ -2186,7 +2186,19 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     interp_error(arg_expr, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
                     exit(1)
                 }
-                if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
+                if param.own_type.is(OwnType.Own).and(interp_is_primitive_type_name(param.explicit_type)).and(arg_cell.val.is(Value.Dynamic)) {
+                    // #302 raw_alloc: an `own p: U8`-style param takes an
+                    // owned heap BLOCK (a raw-allocator pointer typed by
+                    // its element), not a pointee read. reinterpret_ptr_value
+                    // would dereference the pointer into a scalar Value,
+                    // losing the block's identity -- the callee's
+                    // free(own p) then no-ops and the block leaks. Bind the
+                    // pointer itself and null the caller's cell (a move:
+                    // the callee is the single owner now).
+                    mut moved := shallow_copy_value(arg_cell.val)
+                    scope_set_owned(call_scope, param.name, moved)
+                    memcpy(arg_cell.val, val_none(), Value.size().cast(U64))
+                } else if is_value_ptr(arg_cell.val).and(param.explicit_type.len().gt(0)) {
                     mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, caller_scope, ctx, false)
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     scope_set_owned(call_scope, param.name, arg)
