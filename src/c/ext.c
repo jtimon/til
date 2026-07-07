@@ -1655,6 +1655,11 @@ void *__wrap_realloc(void *ptr, size_t size) {
 // normal runs are unaffected; examples/merge_commit.til sets it to record the
 // ASAN baseline. The weak decl lets non-sanitizer builds link (symbol is NULL
 // there, and the address check skips the call).
+// glibc-only block: the undefined-weak + address-check idiom is an ELF
+// linker feature -- Mach-O rejects the undefined symbols outright (issue
+// #25), and the probe measures glibc internals anyway, so gate the whole
+// probe on __GLIBC__ rather than declaring it weak everywhere.
+#if defined(__GLIBC__)
 __attribute__((weak)) unsigned long __sanitizer_get_current_allocated_bytes(void);
 // glibc's "release every internal allocation" entry point (what mtrace and
 // valgrind drive). Weak so non-glibc builds link with it NULL.
@@ -1685,3 +1690,4 @@ static void til_leak_probe(void) {
     if (&__sanitizer_get_current_allocated_bytes)
         fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
 }
+#endif  // __GLIBC__

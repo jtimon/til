@@ -64,9 +64,22 @@
      shared-lib suffix), interpreter.til (.dylib sonames for -l dlopens
      on mac hosts), and an experimental non-blocking macos-arm64 CI job
      running make test_nogui.
-   - Next: iterate on the mac CI job (or a real mac) until test_nogui
-     is green, then flip the job to blocking and add macos-15-intel;
-     then the ASAN carve-out and the gui suite natively on a mac.
+   - CI iterations so far: (1) vendored libffi 3.4.6 does not assemble
+     under Apple clang -- backported upstream 8308bed (cfi_startproc
+     after the CNAME label), tracked for removal by the libffi upgrade
+     issue #304; (2) boot/til.c tripped -Wgnu-null-pointer-arithmetic --
+     fixed in the emitter (NULL.ptr_add now lowers to a standard
+     (void *)(UPtr) cast, two-pass); (3) til_boot link failed on the
+     glibc leak probe's undefined-weak symbols (an ELF idiom Mach-O
+     rejects) -- probe now gated on __GLIBC__. A local
+     clang -Werror -fsyntax-only sweep with the mac warning set
+     reproduces the mac compile faithfully and is part of the loop.
+   - Both macos CI jobs (arm64 on macos-latest, x64 on macos-15-intel)
+     run make test_nogui plus a --target=macos-* build/file/run check,
+     non-blocking via continue-on-error.
+   - Next: iterate until test_nogui is green on both, then flip the
+     jobs to blocking; then the ASAN carve-out and the gui suite
+     natively on a mac.
 
 *** macOS plan
 
