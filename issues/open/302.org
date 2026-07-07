@@ -16,8 +16,15 @@ properly, so that:
   - the decisions are RECORDED explicitly in the typed AST;
   - builder and interpreter EXECUTE those decisions and never
     re-derive, guess, or compensate;
-  - manual memory survives only where doc/ownership.org sanctions it
-    (Dynamic islands, destructor bodies, the C bridge).
+  - manual memory survives only where it is genuinely the allocator or
+    a destructor's own body.
+
+THE GOAL, STATED AS THE METRIC (Jorge, 2026-07-06): remove the
+explicit calls to delete and free that would not be needed if the
+garbager worked properly. Every stage below must name the call class
+it deletes and the census section tracks the counts. Point bug-fixes
+along the way are welcome but they are not the deliverable; fewer
+hand-written free/delete calls is.
 
 This is the concrete design + staging for the garbager half of #272
 ("single ownership authority", its suggested-staging steps 4-5), with
@@ -44,6 +51,69 @@ miniature: two sessions fixed the #299 Context_delete use-after-free
 in parallel with two DIFFERENT mechanisms (explicit teardown clears
 in run() vs Context field order), both landed, and e333e8a then had
 to remove one of them.
+
+*** The explicit-call census (2026-07-06, vec.til read end to end)
+
+Counts of hand-written free/delete call sites (grep of free( /
+free(own / .delete( forms): src/core ~38 (numbers.til 9, tuple 6,
+set 6, vec 5, ast 4, array 4, str 2, map 2), src/std ~35 (the dyn_*
+containers + hashmap), src/self ~234 (interpreter.til 149,
+builder.til 30, typer.til 18, loader.til 15, garbager.til 10 -- the
+insertion factories themselves -- scavenger 6, constfolder 3,
+eval_heap 3). Allocation typing: 56 sites bind malloc/calloc/realloc
+results to `Dynamic`; 88 bind them to typed slots (own U8 fields,
+`out : T = malloc(...)` locals).
+
+Reading src/core/vec.til in full classifies every explicit call a
+container makes into five classes; the same classes cover str/map/
+set/array/tuple and most of the interpreter:
+
+  a. ALLOCATION into owned storage: `data = malloc(...)` into the
+     `own data : U8` field (new / with_capacity / take_prefix ctor),
+     `realloc(own self.data, ...)` on grow, `out : T =
+     malloc(T.size())` in pop. Stays -- this IS the allocator -- but
+     see class d for the typing rule.
+  b. DESTRUCTOR-TREE INTERNALS driven by the TYPE-ERASED buffer: the
+     per-element `T.delete(own ptr_add(self.data, i*size), false)`
+     loops (clear, move_from, unsafe_set) and the hand-written
+     delete/clone overrides that exist ONLY to run those loops. The
+     compiler cannot see "count elements of T behind an own U8
+     pointer", so the auto-generated delete/clone cannot cover
+     containers; everything else in Vec.delete (free(own self.data),
+     the call_free tail) the auto-generated path would already
+     handle. An owned typed buffer concept (own pointer-to-T plus a
+     compiler-known count field) would let containers drop their
+     hand-written delete/clone entirely. Language-design call --
+     recorded here as the root cause of class b, not yet a stage.
+  c. THE MANUAL MOVE IDIOM: memcpy(dst, val, size) + memset(val, 0,
+     size) (push, unsafe_set, push_take, pop, clone) and its
+     `other.count = 0` variant (append, move_from) -- 11 direct
+     memset-defusings in core/std, mirrored by the interpreter's
+     memcpy(val, val_none()) nullings. The memset exists for exactly
+     one reason: to DEFUSE the delete the garbager will insert later.
+     A move primitive the garbager understands deletes the whole
+     idiom (stage 4, now scoped to cover core containers, not just
+     the compiler-side clone-elision rewrite).
+  d. MALLOC INTO Dynamic: 2 sites even inside vec.til (take_prefix's
+     prefix_data, clone's new_data) among 56 repo-wide. Design ruling
+     2026-07-06: Dynamic is for SKIPPING TYPE CHECKING (dyn features,
+     type-erased borrows like to_ptr/ptr_add results), NOT for owning
+     storage; owned raw buffers are typed (own U8 fields, typed
+     locals like pop's `out : T`). These 56 sites migrate to typed
+     bindings and binding an allocator result to Dynamic becomes a
+     type error. See the reworked rule in New diagnostics.
+  e. DESTRUCTOR-TAIL PROTOCOL: `if call_free { free(own self) }`
+     repeated verbatim in every hand-written delete (all 9 of
+     numbers.til's calls are this and nothing else). Protocol
+     boilerplate that belongs to the delete contract / codegen, not
+     to every author.
+
+What this census says about the goal: the interpreter's 149 calls are
+the #286-gated shadow layer (already inventoried below); of the
+REST, class c (the move idiom) and class d (Dynamic ownership) are
+garbager/typer work with no interpreter dependency, class b needs the
+typed-buffer language decision, class a stays, class e dies with the
+recorded-decision destructor contract (stage 4/6).
 
 *** The garbager's output today (the undocumented contract)
 
@@ -308,21 +378,28 @@ shapes that today leak or double-free silently:
     transfer-inside-a-loop of a local declared outside the loop: the
     single own_transfer index cannot represent the second iteration, so
     today this compiles silently into double-free C.
-  - Leaked Dynamic (added 2026-07-05 on request). qualifiers.org states
-    the contract -- "a local owned Dynamic must either transfer
-    ownership to an own arg/field or be explicitly freed with
-    free(own buf)" -- and nothing enforces it; a forgotten free is
-    invisible until ASAN. Rule: a local Dynamic whose RHS provenance is
-    an allocator (malloc / calloc / realloc / EvalHeap.heap_alloc, plus
-    a call returning an owned Dynamic) must be freed or transferred on
-    EVERY path that leaves its scope; a path where it is still owned is
-    a compile error. Provenance is the gate because Dynamic is just
-    void* (#272): a to_ptr / ptr_add / deref result is a borrow and
-    must never be flagged. The same split catches the reverse footgun,
-    free(own p) on a borrow-provenance Dynamic. Its codegen
-    precondition -- program-scope free(own buf) emitted invalid C, so
-    the rule would have demanded code that cannot compile -- was fixed
-    2026-07-05 (see Progress item 4); the rule is unblocked.
+  - Dynamic never OWNS (REWORKED 2026-07-06, superseding the 07-05
+    "leaked Dynamic" enforcement rule). Design ruling: Dynamic exists
+    to skip type checking -- dyn features and type-erased BORROWS
+    (to_ptr / ptr_add / deref results) -- not to hold owned storage;
+    owned raw buffers are TYPED (own U8 fields as in Vec.data, typed
+    locals as in Vec.pop's `out : T = malloc(T.size())`). Two rules
+    replace the old plan of enforcing the manual-free contract:
+      1. Binding an allocator result (malloc / calloc / realloc /
+         EvalHeap.heap_alloc) or any owned pointer to a `Dynamic`
+         binding/field/param is a TYPE ERROR. The 56 existing
+         `: Dynamic = malloc(...)` sites migrate to typed bindings
+         first (vec.til's take_prefix/clone among them).
+      2. Allocator-rooted TYPED locals become ordinary garbager-owned
+         values: freed automatically at last use / exit edges like
+         any owned local, transferable via own args/fields. The
+         qualifiers.org manual contract ("must be explicitly freed
+         with free(own buf)") is thereby REMOVED, not enforced --
+         hand-written free(own buf) on locals becomes redundant and
+         then rejected, deleting that call class instead of policing
+         it (this is the goal metric applied to class d of the
+         census). The 07-05 codegen fix (Progress item 4) already
+         unblocked pointer-value emission everywhere.
   - Unhoisted owned temp (stage 5 below).
   - No byte-copy of managed aggregates (with stage 4; #275 step 3):
     extend check_move_managed_dest with its dual.
@@ -431,6 +508,14 @@ let the ownership pass insert temps itself; start with the check.
          (malloc / ext write / read-back / free at program scope,
          both modes, ASAN). This unblocks the leaked-Dynamic rule --
          its required pattern now compiles everywhere.
+  - [X] 2026-07-06 reanalysis on request: goal restated as the metric
+    (explicit free/delete calls removed), the explicit-call census
+    added (vec.til read end to end; classes a-e; repo-wide counts),
+    the leaked-Dynamic enforcement rule superseded by the
+    Dynamic-never-owns pair (allocator-into-Dynamic type error +
+    auto-freed allocator-rooted typed locals), and stage 4 widened to
+    a user-facing move primitive that deletes the memcpy+memset
+    defusing idiom from core containers.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.
@@ -487,9 +572,11 @@ Stage 3. The CFG ownership pass. [Two-pass, the big one]
   view-returning-call classification (returns ref / substr class),
   not the hoisted__ prefix. Add the path regression tests (below).
   The "New diagnostics" set rides this same dataflow: the
-  path-sensitive use-after-move family and the leaked-Dynamic
-  provenance rule land here, with the program-scope free(own buf)
-  invalid-C fix first (the rule's required pattern must compile).
+  path-sensitive use-after-move family and the Dynamic-never-owns
+  pair land here (allocator-into-Dynamic type error + auto-freed
+  allocator-rooted typed locals). Calls removed: every
+  `free(own buf)` on a local raw buffer (census class d), after the
+  56 `: Dynamic = malloc(...)` sites migrate to typed bindings.
 
 Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
   Move markers replace the clone-elision rewrites; save_old_delete
@@ -499,12 +586,25 @@ Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
   move marker once (pointer move / scope_set_owned nulling). This is
   also where #275's step-3 typer enforcement (no memcpy of managed
   aggregate bytes) can land, since moves are now first-class.
+  SCOPE WIDENED 2026-07-06: the move must be a USER-FACING primitive,
+  not only the compiler-internal marker -- core containers implement
+  moves today as memcpy(dst, val, size) + memset(val, 0, size) (or
+  `other.count = 0`), where the memset exists solely to defuse the
+  garbager's later delete (census class c: push, unsafe_set,
+  push_take, pop, clone, append, move_from in vec.til alone, ~11
+  memset-defusings across core/std, plus the interpreter's
+  val_none() nullings). Calls removed: the whole idiom -- and with
+  it #275's byte-copy enforcement becomes possible, since the
+  legitimate byte-moves now have a first-class spelling. The
+  destructor-tail boilerplate (`if call_free { free(own self) }`,
+  census class e) folds into the recorded destructor contract here
+  or in stage 6.
 
 Stage 5. Temp-contract enforcement. [Two-pass]
   The unhoisted-owned-temp ICE. Fix what it flushes out (the
   f().field class) by extending hoist coverage or pass-owned temp
-  insertion. (The program-scope `free(own p)` invalid-C fix moved to
-  stage 3, coupled to the leaked-Dynamic rule.)
+  insertion. (The program-scope `free(own p)` invalid-C fix already
+  landed 2026-07-05, Progress item 4.)
 
 Stage 6. Builder compensation removal. [Two-pass]
   With 1-5 in, delete the remaining builder fixups: swap_freed
@@ -541,12 +641,13 @@ Stage 7. Interpreter compensation removal -- rides #286.
     view, two locals conditionally transferred into the same own
     field, use-after-move on one path only (must error), self-assign
     `x = x.clone()` (must keep the clone), transfer inside a loop of an
-    outer local (must error), and the leaked-Dynamic rule: an
-    allocator-rooted Dynamic leaked on one path (must error), freed or
-    transferred on every path (ok), a to_ptr/ptr_add borrow never
-    flagged, free(own p) on a borrow-provenance Dynamic (must error),
-    and free(own buf) at program scope (must COMPILE, the stage 3
-    codegen fix).
+    outer local (must error), and the Dynamic-never-owns pair:
+    `: Dynamic = malloc(...)` (must error), an allocator-rooted TYPED
+    buffer local auto-freed on every path with no hand-written free
+    (ASAN-verified), the same local transferred via an own arg/field
+    (no double free), a to_ptr/ptr_add Dynamic borrow never flagged
+    and never freed, and pop-style `out : T = malloc(...)` returned
+    to the caller (caller's asap pass frees it).
   - Stage 0's GC-audit goldens diff the pass's decisions directly, so
     behavior changes are visible in review rather than only as ASAN
     outcomes.

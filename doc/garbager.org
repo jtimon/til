@@ -121,9 +121,13 @@ design and staging:
     borrow-lifetime extensions). The same dataflow reports the
     obviously-leaking shapes as compile errors: path-sensitive
     use-after-move (including transfer inside a loop), and the
-    leaked-Dynamic rule -- an allocator-rooted Dynamic local must be
-    freed or transferred on every path (borrow-provenance Dynamics,
-    to_ptr / ptr_add results, are never flagged).
+    Dynamic-never-owns pair -- binding an allocator result to Dynamic
+    is a type error (Dynamic is for type-erased borrows: to_ptr /
+    ptr_add results, dyn features), while allocator-rooted TYPED
+    locals (own U8 buffers, Vec.pop's `out : T = malloc(...)`) become
+    ordinary garbager-owned values, freed automatically -- deleting
+    the manual `free(own buf)` call class instead of policing it
+    (#302's census, class d).
   - Decisions recorded once, explicitly: storage class on Declaration
     (builder's ~stack_locals~ re-derivation dies), full contracts on
     destructor statements (no-op deletes simply not inserted), explicit
