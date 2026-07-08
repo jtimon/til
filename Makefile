@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_wasm doc doc_cache summary help install tmp two_pass
+.PHONY: all update_c_libs clean test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_mac build_wasm doc doc_cache summary help install tmp two_pass
 
 all: bin/til
 
@@ -321,6 +321,30 @@ build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
+# --- macOS native builds (issue #25) ---
+#
+# build_mac mirrors build_win but must run ON a mac host: cross-compiling
+# to Mach-O from Linux is SDK-bound (issue #25 phase 2), while a mac
+# builds the vendored raylib/tinyfd/nng/libffi natively at the same
+# vendor paths, so the examples sweep needs no -mac64 lib variants. The
+# target arch follows the host: macos-arm64 on Apple Silicon, macos-x64
+# on intel. raylib.til is excluded for the same reason as in build_win:
+# it is a direct raylib FFI demo (mode script, not mode gui), so the
+# builder never adds the desktop frameworks its final link needs on mac.
+MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
+MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til,$(wildcard examples/*.til))
+
+ifeq ($(UNAME_S),Darwin)
+build_mac: bin/til
+	for f in $(MAC_EXAMPLES_SRC); do \
+	  bin/til build --target=$(MAC_TARGET) $$f || exit 1; \
+	done
+else
+build_mac:
+	echo "error: build_mac must run on a macOS host (cross-compiling to Mach-O is SDK-bound, see issue #25)"
+	exit 1
+endif
+
 # --- Browser WASM cross-compilation ---
 
 RAYLIB_WASM_LIB := vendor/raylib/src/libraylib-web.a
@@ -356,6 +380,7 @@ help:
 	echo "make test_fast      Build + run tests without ASAN"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
+	echo "make build_mac      Build mac examples natively (run on a mac; arch follows host)"
 	echo "make build_wasm     Build browser WASM examples"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/, REPL doc cache, and UML docs"

@@ -104,6 +104,27 @@
      only happen on master pushes; grant the permission or trigger
      'Run workflow' on the branch manually to unblock bot-driven
      iteration without merges.
+   - CI iteration 7: the arm64-mac silent SIGABRT is GONE -- it was the
+     bogus libffi link() fallout after all (cured by removing the
+     directive; the crash-dump step found no .ips, consistent with the
+     abort never recurring). macos-arm64 now reaches a REAL frontier:
+     til_boot fails compiling src/til.til with
+     "./src/self/interpreter.til:5187:5: error: undefined variable
+     '_va_Array_3546_eo'" -- a desugarer-generated variadic err slot
+     (expect()'s OutOfBounds slot) dangling after the constfolder's
+     rewrite + re-inference, on this host ONLY (linux-x64, darwin-x64
+     and linux-aarch64-under-qemu all type the same file fine). So a
+     constfolder fold decision diverges on darwin-arm64 -- fold
+     decisions consume in-process FFI eval results, which is the only
+     host-dependent input -- and some fold shape then breaks
+     va_build_dce's never-dangle invariant. Two bugs to hunt: the
+     darwin-arm64 eval divergence, and the DCE hole that lets ANY
+     divergence dangle a reference. (A long-double hypothesis was
+     checked and dropped: nothing in the compiler or bindings touches
+     long double.)
+   - macos-x64 meanwhile runs test_nogui well past every previous
+     failure point (the libffi link() removal unblocked the final
+     link); first suite results pending.
    - Next: iterate until test_nogui is green on both, then flip the
      jobs to blocking; then the ASAN carve-out and the gui suite
      natively on a mac.

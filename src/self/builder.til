@@ -5789,7 +5789,16 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // src/self/targets.til. mode_auto_import points at gui iff the program
     // declared mode gui.
     sys_libs := target_system_libs(target)
-    ffi_lib  := target_ffi_lib(target)
+    // Per-target libffi archives exist only where a matching host built
+    // them (the Makefile keeps stable-path copies on native mac and
+    // native arm64-linux hosts). Cross hosts do not have them, and
+    // programs that never call ext_func at runtime do not need them, so
+    // link the archive only when it is actually present. Programs that
+    // DO use ext_func against a target with no vendored libffi still
+    // fail loudly at link on the missing ffi_* symbols -- the same
+    // behavior as before the table had entries for those targets.
+    mut ffi_lib := target_ffi_lib(target)
+    if ffi_lib.len().gt(0).and(realpath_str(ffi_lib).len().eq(0)) { ffi_lib = "" }
     mut gui_part := ""
     if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
 
