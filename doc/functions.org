@@ -55,6 +55,11 @@ Current core ops:
 - ~Bool.eq~ (same generic scalar lowering: native ~==~)
 - ~not~ (native ~!~)
 - ~is_n~ (width-aware enum-tag compare, ~((E*)a)->tag == ((E*)b)->tag~)
+- the auto-generated enum ~is~ method (initer generates it per enum as a
+  bodyless core_func; same typed tag-compare lowering as is_n, and the
+  interpreter dispatches it by its flat "<Enum>_is" name via
+  ~enum_core_is_eval~ -- per-enum names cannot be reg_dispatch'd
+  statically)
 - ~is_null~ (native null test, ~(UPtr)p == 0~)
 - ~ptr_add~ (native pointer arithmetic, ~(void*)((U8*)buf + off)~)
 

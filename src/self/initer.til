@@ -601,33 +601,30 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
 }
 
 priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col: U32) {
-    mut func_body := Expr.new(NodeType.Body, line, col)
-    // #264: width-correct tag comparison via is_n(self, other, tag_size).
-    tag_sz := enum_tag_size(enum_def)
-    mut is_id := Expr.new(ident_node("is_n"), line, col)
-    mut self_id := Expr.new(ident_node("self"), line, col)
-    mut other_id := Expr.new(ident_node("other"), line, col)
-    mut is_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    is_call.add_child(own is_id)
-    is_call.add_child(own self_id)
-    is_call.add_child(own other_id)
-    mut sz_lit := Expr.new(literal_num_node(tag_sz.to_str()), line, col)
-    is_call.add_child(own sz_lit)
-    mut ret := Expr.new(NodeType.Return, line, col)
-    ret.add_child(own is_call)
-    func_body.add_child(own ret)
-
+    // #264/#288 unification: `is` IS the tag compare, so generate it as a
+    // bodyless core_func and let the core machinery inline every call. The
+    // old shape was a plain func wrapping is_n: the wrapper's BODY inlined
+    // fine, but every `.is()` call site still paid a real C call into a
+    // one-compare function (11M NodeType_is per self-host translate). As a
+    // core_func the C backend lowers E_is to the typed tag compare at the
+    // call site (builder.til's `is` core arm) and the interpreter evaluates
+    // it via enum_core_is_eval (dispatched by the flat "<Enum>_is" name).
+    // The return is explicitly Shallow: a bodyless signature gets no
+    // auto-shallow inference (see doc/qualifiers.org), and an owned Bool*
+    // return would make callers deref+free the value.
     mut func_decl := FunctionDef(auto_generated = true)
-    func_decl.func_type = FuncType.Func
+    func_decl.func_type = FuncType.CoreFunc
     self_param := decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref)
     other_param := decl_typed(name = "other", explicit_type = ename, own_type = OwnType.Ref)
     func_decl.params.push(own self_param)
     func_decl.params.push(own other_param)
     func_decl.return_type = "Bool"
+    func_decl.return_own_type = OwnType.Shallow
     func_decl.variadic_index = -1
     func_decl.kwargs_index = -1
 
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
+    mut func_body := Expr.new(NodeType.Body, line, col)
     func_def.add_child(own func_body)
 
     switch enum_def.node_type {

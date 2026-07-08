@@ -7361,10 +7361,33 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, mut result: V
     return false
 }
 
+// The auto-generated enum `is` core_funcs dispatch by their flat name
+// ("NodeType_is", "Type_is", ...): strip the "_is" suffix, confirm the
+// prefix is a registered enum, and compare the first tag-width bytes of
+// each operand -- the same equality h_is_n computes (the tag sits at
+// offset 0). Per-enum names cannot be reg_dispatch'd statically, hence
+// the name-shape parse, mirroring scalar_core_op_eval's approach.
+priv enum_core_is_eval := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
+    if name.ends_with("_is").not() { return false }
+    if e.children.len() != 3 { return false }
+    tlen := name.len().sub(3)
+    type_str := name.substr(0, tlen)
+    ref edef : Expr = lookup_interp_type_def(type_str, ctx)
+    if edef.is_null() { return false }
+    if edef.node_type.is(NodeType.EnumDef).not() { return false }
+    a := eval_expr(scope, e.children[1], ctx)
+    b := eval_expr(scope, e.children[2], ctx)
+    ref pa : Dynamic = value_c_arg_ptr(a)
+    ref pb : Dynamic = value_c_arg_ptr(b)
+    result = Value.Boolean(memcmp(pa, pb, enum_tag_size(edef).cast(U64)) == 0)
+    return true
+}
+
 priv ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, mut result: Value, ctx: Context) returns Bool {
     if ctx.dispatch_inited.not() { dispatch_init(ctx) }
     if ext_dispatch_builtin(name, scope, e, result, ctx) { return true }
     if scalar_core_op_eval(name, scope, e, result, ctx) { return true }
+    if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
