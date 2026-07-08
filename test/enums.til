@@ -854,6 +854,60 @@ test_mut_nested_enum_payload_binding := test() {
     }
 }
 
+// #128: auto-generated enum clone deep-clones managed payloads. A
+// shallow copy would alias the payload buffer: writing through the
+// original's ref-mut payload binding would leak into the clone, and
+// the two scope-exit deletes would double-free (ASAN suite catches
+// that). Mutate the ORIGINAL after cloning and check the clone kept
+// the pre-mutation payload.
+test_str_payload_clone_deep := test() {
+    mut t := Token.Name("orig")
+    t2 := t.clone()
+    switch t {
+    case Token.Name(p): p = "changed"
+    case: assert_eq(Str, "wrong variant", "")
+    }
+    assert_eq(Str, t.to_str(), "Name(changed)")
+    switch t2 {
+    case Token.Name(n): assert_eq(Str, n, "orig")
+    case: assert_eq(Str, "wrong variant", "")
+    }
+}
+
+test_struct_payload_clone_deep := test() {
+    mut s := Shape.Dot(Point(x = 1, y = 2))
+    s2 := s.clone()
+    switch s {
+    case Shape.Dot(p): p = Point(x = 99, y = 42)
+    case: assert_eq(Str, "wrong variant", "")
+    }
+    switch s2 {
+    case Shape.Dot(q):
+        assert_eq(I64, q.x, 1)
+        assert_eq(I64, q.y, 2)
+    case: assert_eq(Str, "wrong variant", "")
+    }
+}
+
+// Nested managed payload: the outer clone must recurse through the
+// inner enum's payload too, not just copy the inner enum pointer.
+test_nested_enum_payload_clone_deep := test() {
+    mut o := NestedOuter.Wrap(NestedInner.A(7))
+    o2 := o.clone()
+    switch o {
+    case NestedOuter.Wrap(p): p = NestedInner.A(99)
+    case: assert_eq(Str, "wrong variant", "")
+    }
+    switch o2 {
+    case NestedOuter.Wrap(q):
+        switch q {
+        case NestedInner.A(n): assert_eq(I64, n, 7)
+        case: assert_eq(Str, "wrong inner variant", "")
+        }
+    case: assert_eq(Str, "wrong outer variant", "")
+    }
+}
+
 // #264: `enum(Type)` pins the discriminant (tag) width. The default
 // (no parens) is U8 (1 byte) for compactness; U16/U32/U64 widen the
 // in-memory tag to match a chosen C backing type for FFI/compactness.
