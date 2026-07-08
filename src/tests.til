@@ -466,7 +466,13 @@ main := proc(args: ..Str) {
     // parallel tail short. The ordering below is based on per-test times from
     // a full `make test` run.
 
-    // === GUI build tests (slowest: build + run under xvfb with timeout) ===
+    // === GUI build tests (slowest: build + run with timeout) ===
+    // Issue #266: GUI tests run as plain X clients of the single Xvfb that
+    // the Makefile's outer `xvfb-run` starts for the whole suite (DISPLAY
+    // is inherited). The old per-test `xvfb-run --auto-servernum` spawned
+    // 16 nested X servers whose EXIT-trap teardowns raced on their /tmp
+    // auth dirs: a failed `rm -r` there rewrote the healthy 124 exit
+    // (from `timeout`) into xvfb-run's own exit 5.
     if en_gui == 1 {
         gui_files := array(Str,
             "examples/music_modes.til",
@@ -491,7 +497,7 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn == "popcorn" { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
-                format(til_bin, " build", asan_flag, " ", gf, " '&&' xvfb-run --auto-servernum timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
+                format(til_bin, " build", asan_flag, " ", gf, " '&&' timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
         }
     }
 
