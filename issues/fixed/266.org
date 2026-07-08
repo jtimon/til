@@ -1,6 +1,31 @@
 # priority: low
 # category: bugs
-** OPEN #266 Flaky build_checkers (xvfb-run tmpdir cleanup race in parallel GUI suite)
+** FIXED #266 Flaky build_checkers (xvfb-run tmpdir cleanup race in parallel GUI suite)
+
+*** Post-mortem
+
+Root cause: each of the 16 GUI tests wrapped its game in its own
+`xvfb-run --auto-servernum`, spawning 16 X servers whose EXIT-trap
+teardowns ran concurrently. xvfb-run's trap does `xauth remove` (which
+churns transient `Xauthority-c`/`-l`/`-n` lock files in its private
+/tmp dir) followed by a bare `rm -r` of that dir; if the dir mutates
+under rm (ENOTEMPTY/ENOENT), the trap's `exit 5` overwrites the saved
+healthy exit status (124 from `timeout`), so a passing test reported
+`exit=5 expected=124`.
+
+Fix: the Makefile already runs the whole suite under ONE outer
+`xvfb-run --auto-servernum bin/tests` (the standard one-X-server,
+many-clients CI pattern), so every test inherits a live DISPLAY. The
+per-test inner `xvfb-run` was pure redundancy; the fix drops it, so
+GUI commands are now `til build ... && timeout 1 bin/<name>`. One
+server, one teardown, nothing left to race. The stagger idea sketched
+below was never implemented and is superseded. Side benefit for #25:
+`bin/tests` itself no longer invokes the Linux-only `xvfb-run` (on mac
+the inner wrapper exited 127; `make test` there runs the suite bare).
+
+Regression test: the 16 `build_*` GUI tests themselves -- the flake
+was intermittent, so the signal is the absence of spurious
+`exit=5 expected=124` failures across full-suite runs.
 
 `make test` intermittently fails one GUI test with `exit=5 expected=124`
 (seen most recently as `build_checkers`, but any of the build_* GUI
