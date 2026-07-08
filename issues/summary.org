@@ -7,7 +7,6 @@
 *** [[./open/266.org][#266]] Flaky build_checkers (xvfb-run tmpdir cleanup race in parallel GUI suite)
 * Cleanups
 ** High
-*** [[./open/91.org][#91]] Containers: store clone/delete as function pointers instead of dyn_call
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
 *** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup

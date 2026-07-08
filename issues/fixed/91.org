@@ -1,6 +1,28 @@
 # priority: high
 # category: cleanups
-** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
+** FIXED #91 Containers: store clone/delete as function pointers instead of dyn_call
+
+Post-mortem: the issue's goal -- containers no longer dispatching
+clone/delete through dyn_call's per-call string matching -- is achieved,
+though the final mechanism ended up better than the one proposed here.
+The FuncPtr-field approach was fully built (dyn_fn ext_func, builder
+dispatch + Type_method_dyn wrappers, CloneFn/DeleteFn/CmpFn aliases and
+defaults in core, fields on Vec/Array/Set/Map) and later superseded for
+the core containers by generics: Vec(T)/Map(K,V)/Set(T)/Array(T) now
+call T.clone()/T.delete()/K.cmp() statically at compile time -- zero
+runtime dispatch AND zero per-instance struct-size cost, which resolves
+the "Decision needed" concern about the +16..40 byte overhead. The
+fn-ptr machinery this issue built was not wasted: it survives as the
+dispatch mechanism of the type-erased DynVec (src/std/dyn_vec.til,
+elem_clone/elem_delete resolved once via dyn_fn at construction), and
+dyn_fn/dyn wrappers remain a general facility. Tuple keeps dyn_call in
+its delete/clone loops (src/core/tuple.til) by decision: it is
+heterogeneous (per-element type names), so per-call dispatch there is
+the intended general-purpose use of dyn_call, not a leftover.
+Regression coverage: the standard container suites (test/vecs.til,
+test/maps.til, test/sets.til, test/arrays.til, test/tuples.til,
+test/dyn_vecs.til) plus the dyn_fn typer enforcement checks in
+src/tests.til.
 
 Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
