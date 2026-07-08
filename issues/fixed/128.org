@@ -1,0 +1,45 @@
+# priority: high
+# category: bugs
+** FIXED #128 Auto-generated enum clone in ~initer.til~ is shallow for managed payloads
+
+Post-mortem: the shallow clone described below was fixed as part of the
+issue #109 payload-ownership work: ~generate_enum_clone_method~ now
+computes ~payload_needs_clone~ (non-primitive, non-Dynamic, non-funcsig
+payloads) and wraps the extracted payload ref in a ~.clone()~ call
+before passing it to the variant constructor (initer.til, "Issue #109"
+comment in ~generate_enum_clone_method~). The variant ctor takes the
+payload as ~own~ for compound types, so the cloned enum owns a fresh
+deep copy and the auto-generated delete (#126) can free both copies
+independently -- no aliasing, no double-free. This issue stayed open
+because no regression test pinned the behaviour; this commit adds
+~test_str_payload_clone_deep~, ~test_struct_payload_clone_deep~ and
+~test_nested_enum_payload_clone_deep~ to test/enums.til, which clone,
+mutate the original through a ref-mut payload binding, and assert the
+clone kept the pre-mutation payload (the ASAN suite would also catch
+any double-free from a shared payload buffer).
+
+The delete side of this issue is fixed ([[./126.org][#126]], now in [[../fixed/][issues/fixed/]]):
+  ~generate_enum_delete_method~ recurses into payload-owned data.
+
+  Remaining problem: auto-generated enum ~clone~ does NOT deep-clone
+  managed payloads. In ~generate_enum_clone_method~ (initer.til:668),
+  the payload is declared with ~own_type = OwnType.Ref~ and passed
+  directly to the constructor without calling ~.clone()~. This means
+  the cloned enum shares the same payload data as the original --
+  a shallow copy instead of a deep clone.
+
+  This matters for payload enums carrying managed values like:
+  - ~Str~
+  - structs with owned internals
+  - containers such as ~Vec~
+
+  Verified examples already allowed by the language/tests:
+  - ~Token.Name: Str~
+  - ~Shape.Dot: Point~
+  - ~Shape.Line: Str~
+
+  Desired end state:
+  - auto-generated enum ~clone~ calls ~PayloadType.clone()~ on managed
+    payload data before passing it to the constructor
+  - no double-free or aliasing from cloned enums sharing payload buffers
+
