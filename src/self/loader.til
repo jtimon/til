@@ -2288,6 +2288,44 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
 // cost. First-class / loop / early-return bodies are NOT handled here.
 mut lazy_stmt_temp_counter := 0
 
+// core_lazy_func inlining: a bodyless lazy core primitive has no body to
+// splice -- its expansion is compiler-known, exactly like a core_func's
+// backend lowering. `and` and `or` are the only core lazy ops; an unknown
+// name is a hard error, the loader-side twin of the C backend's
+// unknown-core-op panic. The spliced match keeps every argument in a
+// statement context (an arm), so arbitrarily complex second operands
+// lower with full ownership/cleanup machinery, same as lazy_func bodies.
+// Calls the loader misses (the desugarer synthesizes .and()/.or() chains
+// post-typer) reach the builder as residual calls and lower to C's
+// natively short-circuiting && / || there.
+priv inline_core_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr, name: Str) returns Bool {
+    ref call : Expr = parent.children[call_idx]
+    if lazy_call_arity_ok(call, fdef).not() { return false }
+    mut is_method := false
+    switch call.children[0].node_type {
+    case NodeType.FieldAccess: is_method = call.children[0].children.len() == 1
+    case:
+    }
+    if name == "and" {
+        // and(a, b) == match a { case true: b case: false }
+        a0 := lazy_eff_arg_clone(call, is_method, 0)
+        a1 := lazy_eff_arg_clone(call, is_method, 1)
+        parent.children[call_idx] = lazy_make_bool_match(own a0, own a1,
+            own Expr.new(NodeType.Literal(Literal.Bool(false)), call.line, call.col), call.line, call.col)
+        return true
+    }
+    if name == "or" {
+        // or(a, b) == match a { case true: true case: b }
+        a0 := lazy_eff_arg_clone(call, is_method, 0)
+        a1 := lazy_eff_arg_clone(call, is_method, 1)
+        parent.children[call_idx] = lazy_make_bool_match(own a0,
+            own Expr.new(NodeType.Literal(Literal.Bool(true)), call.line, call.col), own a1, call.line, call.col)
+        return true
+    }
+    panic(__LOC__, ": core_lazy_func loader expansion: unknown op '", name, "'")
+    return false
+}
+
 priv lazy_call_arity_ok := func(call: Expr, fdef: Expr) returns Bool {
     mut is_method := false
     switch call.children[0].node_type {
@@ -2486,6 +2524,13 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
                         if done {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
+                            expand_lazy_in_expr(e.children[i], scope, depth + 1, ctx)
+                            inlined = true
+                        }
+                    } else if ft.is(FuncType.CoreLazyFunc) {
+                        // Bodyless lazy core primitive: splice the
+                        // compiler-known match expansion.
+                        if inline_core_lazy_call(e, i, fdef, lname) {
                             expand_lazy_in_expr(e.children[i], scope, depth + 1, ctx)
                             inlined = true
                         }

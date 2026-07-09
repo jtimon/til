@@ -344,7 +344,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)).or(cb_ft.is(FuncType.CoreProc)) {
             return false
         }
-        if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)).or(cb_ft.is(FuncType.CoreFunc)) {
+        if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)).or(cb_ft.is(FuncType.CoreFunc)).or(cb_ft.is(FuncType.CoreLazyFunc)) {
             for ai in 1..e.children.len() {
                 if e.children[ai].expr_is_comptime(scope).not() { return false }
             }
@@ -413,7 +413,8 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
                             .or(top_ft.is(FuncType.Proc))
                             .or(top_ft.is(FuncType.ExtProc))
                             .or(top_ft.is(FuncType.CoreFunc))
-                            .or(top_ft.is(FuncType.CoreProc)))
+                            .or(top_ft.is(FuncType.CoreProc))
+                            .or(top_ft.is(FuncType.CoreLazyFunc)))
                         if type_name.len() > 0 {
                             if first_param == type_name {
                                 ufcs_match = 1
@@ -2358,7 +2359,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
                     if dyn_md.is_null().not() {
                         switch dyn_md.default_value.node_type {
                         case NodeType.FuncDef(dyn_mfd):
-                            if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)) {
+                            if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)).or(dyn_mfd.func_type.is(FuncType.CoreLazyFunc)) {
                                 e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
                             }
                         case:
@@ -2777,7 +2778,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             inner.set_func_def(tc_nd.name, tc_nd.default_value)
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_nd.name)
             tc_fb.is_func_decl = true
-            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)) {
+            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)).or(tc_fd.func_type.is(FuncType.CoreLazyFunc)) {
                 tc_fb.is_builtin = true
             }
             infer_func_def_expr(inner, tc_nd.default_value, ctx)
@@ -3025,7 +3026,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // proc calls" diagnostic. All lazy calls are inlined before this
         // pass runs, so these defs are dead -- they only need to type and
         // emit as ordinary functions.
-        is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc))
+        is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
         is_macro := fdef.func_type.is(FuncType.Macro)
         // Issue #262: a lazy callable's body must be handled by the loader's
         // lazy passes -- either expression-inlinable (lazy_body_inlinable:
@@ -3174,13 +3175,13 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 // ownership leaks the synthesized Array. Keep the parser's
                 // Ref setting for ext bindings; force Own elsewhere.
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
-                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
+                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 va_type := variadic_array_type_name(scope, param.explicit_type)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else if i.to_i32() == fdef.kwargs_index {
                 // Same rationale as variadic above.
-                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
+                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("KwargsMap"), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
@@ -3329,7 +3330,7 @@ priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
         if fdef.return_type.len() == 0 { return }
         if fdef.auto_generated { return }
         if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
-            .or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc))
+            .or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
             .or(fdef.func_type.is(FuncType.Macro)).or(fdef.func_type.is(FuncType.Test)) { return }
         if stmt_always_diverges(expr.children[0]).not() {
             expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.return_type, "')"), ctx)
@@ -3345,6 +3346,7 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
         if fdef.func_type.is(FuncType.ExtProc) { return }
         if fdef.func_type.is(FuncType.CoreFunc) { return }
         if fdef.func_type.is(FuncType.CoreProc) { return }
+        if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
         for param : Declaration in fdef.params {
             if param.name.len() == 0 { continue }
             if param.name.starts_with("_") { continue }
@@ -3373,6 +3375,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
         if fdef.func_type.is(FuncType.ExtProc) { return }
         if fdef.func_type.is(FuncType.CoreFunc) { return }
         if fdef.func_type.is(FuncType.CoreProc) { return }
+        if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
         // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
         // typer-emitted; the user cannot edit their signatures, so a
         // redundant `mut` there is not actionable.
@@ -4151,7 +4154,7 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
-            if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)) {
+            if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc)) {
                 fb.is_builtin = true
             }
             return true

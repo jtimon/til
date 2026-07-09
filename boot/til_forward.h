@@ -58,7 +58,8 @@ typedef enum {
     FuncType_TAG_LazyFunc,
     FuncType_TAG_LazyProc,
     FuncType_TAG_CoreFunc,
-    FuncType_TAG_CoreProc
+    FuncType_TAG_CoreProc,
+    FuncType_TAG_CoreLazyFunc
 } FuncType_tag;
 typedef struct FuncType FuncType;
 typedef enum {
@@ -197,6 +198,7 @@ typedef enum {
     TokenType_TAG_KwLazyProc,
     TokenType_TAG_KwCoreFunc,
     TokenType_TAG_KwCoreProc,
+    TokenType_TAG_KwCoreLazyFunc,
     TokenType_TAG_KwReturns,
     TokenType_TAG_KwThrows,
     TokenType_TAG_KwIf,
@@ -3446,6 +3448,7 @@ Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, U64 call_idx, E
 Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, U64 k);
 Map__Str_Expr * priv___src_self_loader_til__lazy_variadic_subs(Expr * call, Bool is_method, Expr * fdef, U64 nfixed, Str * loop_var, U64 k);
 Bool priv___src_self_loader_til__inline_variadic_lazy_call(Expr * parent, U64 call_idx, Expr * fdef);
+Bool priv___src_self_loader_til__inline_core_lazy_call(Expr * parent, U64 call_idx, Expr * fdef, Str * name);
 Bool priv___src_self_loader_til__lazy_call_arity_ok(Expr * call, Expr * fdef);
 Map__Str_Expr * priv___src_self_loader_til__lazy_build_subs(Expr * call, Expr * fdef);
 Expr * priv___src_self_loader_til__lazy_make_temp_decl(Str * name, Str * type_name, Expr * init, U32 line, U32 col);
@@ -4603,6 +4606,7 @@ TokenType *TokenType_KwLazyFunc();
 TokenType *TokenType_KwLazyProc();
 TokenType *TokenType_KwCoreFunc();
 TokenType *TokenType_KwCoreProc();
+TokenType *TokenType_KwCoreLazyFunc();
 TokenType *TokenType_KwReturns();
 TokenType *TokenType_KwThrows();
 TokenType *TokenType_KwIf();

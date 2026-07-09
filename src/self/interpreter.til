@@ -2329,7 +2329,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         case:
             UNREACHABLE()
         }
-        if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)) {
+        if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
             parent_sname := til_type_name(callee_expr.children[0].expr_til_type())
             ref tc : Cell = scope_get(scope, parent_sname)
             if tc.is_null().not() {
@@ -5341,17 +5341,28 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
     }
 }
 
+// and/or are core_lazy_funcs: the handler drives argument evaluation, so
+// laziness is direct -- the second operand is only evaluated when the first
+// does not already decide the result. (Parse-time calls were spliced to
+// matches by the loader; what dispatches here are residual calls, e.g. the
+// desugarer's synthesized chains under the interpreter.)
 priv h_Bool_and := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.children[1], ctx)
-    bv := narrow_bool_arg(s, e.children[2], ctx)
-    r = Value.Boolean(and(av, bv))
+    if av.not() {
+        r = Value.Boolean(false)
+        return true
+    }
+    r = Value.Boolean(narrow_bool_arg(s, e.children[2], ctx))
     return true
 }
 
 priv h_Bool_or := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     av := narrow_bool_arg(s, e.children[1], ctx)
-    bv := narrow_bool_arg(s, e.children[2], ctx)
-    r = Value.Boolean(or(av, bv))
+    if av {
+        r = Value.Boolean(true)
+        return true
+    }
+    r = Value.Boolean(narrow_bool_arg(s, e.children[2], ctx))
     return true
 }
 

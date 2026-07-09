@@ -9,6 +9,7 @@ call EMIT AS A REAL CALL or get inlined.
 | ~func~ / ~proc~       | yes  | function + call     | runs the body        |
 | ~ext_func~/~ext_proc~ | no   | call to src/c/ sym  | FFI call             |
 | ~core_func~/~core_proc~ | no | inlined natively    | registered handler   |
+| ~core_lazy_func~      | no   | inlined (lazy)      | lazy handler         |
 | ~lazy_func~/~lazy_proc~ | yes | inlined, lazy args | lazy body eval       |
 | ~macro~               | yes  | (gone by codegen)   | executed at comptime |
 | ~test~                | yes  | test-runner entry   | runs the body        |
@@ -95,6 +96,22 @@ landed as dormant preparation commits first. See doc/self.org.
 A body, but calls are inlined WITH LAZY ARGUMENT EVALUATION: an
 argument expression is only evaluated where the body actually uses it.
 This is how ~and~ / ~or~ short-circuit without being language builtins.
+
+** core_lazy_func
+
+A bodyless lazy core primitive -- core_func's discipline (no body, no
+symbol, never indirected, reserved for the core) plus lazy_func's
+call-by-name arguments. Its expansion is compiler-known (there is
+nothing to splice a body from): the loader replaces parse-time calls
+with the hardcoded short-circuit ~match~ (arms are statement contexts,
+so complex second operands keep full ownership/cleanup lowering), the C
+backend lowers residual calls (the desugarer's post-typer synthesized
+chains) to the natively short-circuiting ~&&~ / ~||~, and the
+interpreter's handlers evaluate the second operand only when the first
+does not decide the result. ~and~ / ~or~ (the ~&&~ / ~||~ operators'
+canonical forms) are the only core lazy ops; an unknown one is a hard
+error in both the loader and the backend. Variadic ~vand~ / ~vor~ stay
+ordinary lazy_funcs -- their unrolling derives from their loop bodies.
 
 ** macro
 

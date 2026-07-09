@@ -136,6 +136,13 @@ FuncType := enum {
     // the END so existing tag values stay stable for til_boot's committed
     // boot/ (same constraint that appended Sbyte/Ushort to Value).
     CoreFunc, CoreProc,
+    // core_lazy_func: a bodyless lazy core primitive (and/or). Like a
+    // core_func, every backend lowers it natively (C: the short-circuiting
+    // && / || operators) and it can never be indirected; like a lazy_func,
+    // its arguments are evaluated call-by-name (the loader splices the
+    // compiler-known match expansion at parse-time call sites). Appended at
+    // the END so existing tag values stay stable for til_boot's boot/.
+    CoreLazyFunc,
 }
 
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
@@ -880,6 +887,7 @@ func_type_variant_name := func(ft: FuncType) returns Str {
     case FuncType.LazyProc: return "LazyProc"
     case FuncType.CoreFunc: return "CoreFunc"
     case FuncType.CoreProc: return "CoreProc"
+    case FuncType.CoreLazyFunc: return "CoreLazyFunc"
     }
 }
 
@@ -1009,6 +1017,7 @@ func_type_name := func(ft: FuncType) returns Str {
     case FuncType.LazyProc: return "lazy_proc"
     case FuncType.CoreFunc: return "core_func"
     case FuncType.CoreProc: return "core_proc"
+    case FuncType.CoreLazyFunc: return "core_lazy_func"
     }
 }
 

@@ -591,7 +591,7 @@ priv builder_callee_is_core := func(name: Str, ctx: Context) returns Bool {
     if fdef.is_null() { return false }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        return fd.func_type.is(FuncType.CoreFunc).or(fd.func_type.is(FuncType.CoreProc))
+        return fd.func_type.is(FuncType.CoreFunc).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc))
     case:
         return false
     }
@@ -3443,6 +3443,29 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(")(!(")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(")))")
+            } else if name.ident_name().eq("and").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // core_lazy_func `and`: residual calls only -- parse-time
+                // calls were already spliced to matches by the loader; what
+                // reaches emit is the desugarer's post-typer synthesized
+                // chains, whose operands arrive pre-hoisted into pure temps.
+                // C's && short-circuits natively, so the lowering is exact
+                // either way (33M and() calls per self-host translate).
+                f.write("((")
+                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(")((")
+                emit_deref(f, e.children[1], depth, ctx)
+                f.write(") && (")
+                emit_deref(f, e.children[2], depth, ctx)
+                f.write(")))")
+            } else if name.ident_name().eq("or").and(builder_callee_is_core(name.ident_name(), ctx)) {
+                // core_lazy_func `or`: mirror of and, native ||.
+                f.write("((")
+                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(")((")
+                emit_deref(f, e.children[1], depth, ctx)
+                f.write(") || (")
+                emit_deref(f, e.children[2], depth, ctx)
+                f.write(")))")
             } else if name.ident_name().eq("ptr_add").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // ptr_add core_func: lower to native pointer arithmetic inline
                 // instead of a call. The cast to void* mirrors ext.c's
@@ -4441,7 +4464,7 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { return }
+        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { return }
     case:
         UNREACHABLE()
         return
@@ -4689,7 +4712,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
         // in ext.c / ext.h. Namespace ext_func methods still need their
         // forward decl from this path (top_level=false) -- nothing else
         // covers them.
-        if top_level.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc))) { return }
+        if top_level.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc))) { return }
         if name == "main" { return }
         ret := func_return_ctype(fd, ctx)
         f.write(ret).write(" ").write(name).write("(")
@@ -4990,7 +5013,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
                                 full_name := dd.name.concat3("_", fdd.name)
-                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
                             }
@@ -5000,7 +5023,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         case NodeType.FuncDef(fd):
                             if builder_is_type_gen_macro_def(rhs) { continue }
                             if rhs.children.len() == 0 { continue }
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             fc := func_to_c(dd.name)
                             if fc == "main" { continue }
                             emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -5142,7 +5165,7 @@ priv build_header_lp := proc(h_path: Str, lp: LoadedProgram) returns I32 {
 }
 
 priv emit_binding_ns_method := proc(f: File, fdd_name: Str, fd: FunctionDef, mut has_ns: Bool) returns Bool {
-    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { return has_ns }
+    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { return has_ns }
     if has_ns.not() { f.write("    namespace:\n"); has_ns = true }
     mut kw := "ext_func"
     if fd.func_type.is(FuncType.Proc).or(fd.func_type.is(FuncType.Test)) { kw = "ext_proc" }
@@ -5220,7 +5243,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 emit_binding_ns_methods(f, rhs)
                 f.write("}\n\n")
             case NodeType.FuncDef(fd):
-                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                 if fd.func_type.is(FuncType.Test) { continue }
                 mut kw := "ext_func"
                 if fd.func_type.is(FuncType.Proc) { kw = "ext_proc" }
@@ -5437,7 +5460,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                     if nsd.default_value.is_null() { continue }
                     switch nsd.default_value.node_type {
                     case NodeType.FuncDef(fd):
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                     f.write("_lib.").write(dd.name).write("_").write(nsd.name)
                     f.write(".argtypes = [")
                     for p in 0..fd.params.len() {
@@ -5464,7 +5487,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             } else {
                 switch rhs.node_type {
                 case NodeType.FuncDef(fd):
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                     if fd.func_type.is(FuncType.Test) { continue }
 
                     c_name := func_to_c(dd.name)
@@ -6067,7 +6090,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
-                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                                 full_name := dd.name.concat3("_", fdd.name)
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
@@ -6084,7 +6107,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                                 }
                             }
                             fc := func_to_c(dd.name)
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) {
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) {
                                 continue
                             }
                             emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -6112,7 +6135,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         if fdd.default_value.is_null() { continue }
                         switch fdd.default_value.node_type {
                         case NodeType.FuncDef(fd):
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             full_name := dd.name.concat3("_", fdd.name)
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
@@ -6123,7 +6146,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     case NodeType.FuncDef(fd):
                         if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len() == 0 { continue }
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                         if mode.is_null().not() {
                             if mode.needs_main {
                                 if dd.name == "main" { continue }
@@ -6191,7 +6214,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             if fdd.default_value.is_null() { continue }
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
-                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                                 full_name := dd.name.concat3("_", fdd.name)
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
@@ -6202,7 +6225,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         case NodeType.FuncDef(fd):
                             if builder_is_type_gen_macro_def(rhs) { continue }
                             if rhs.children.len() == 0 { continue }
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             if mode.is_null().not() {
                                 if mode.needs_main {
                                     if dd.name == "main" { continue }
@@ -6246,7 +6269,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             }
                         }
                         fc := func_to_c(dd.name)
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) {
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) {
                             continue
                         }
                         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -6579,7 +6602,7 @@ priv def_is_interface := func(def: Expr) returns Bool {
 // never be dyn_fn'd (the typer enforces this), so it gets NO dyn wrapper, NO
 // closure value, and NO dyn_fn dispatch entry. The call lowers inline instead.
 priv func_type_is_core := func(ft: FuncType) returns Bool {
-    return ft.is(FuncType.CoreFunc).or(ft.is(FuncType.CoreProc))
+    return ft.is(FuncType.CoreFunc).or(ft.is(FuncType.CoreProc)).or(ft.is(FuncType.CoreLazyFunc))
 }
 
 emit_dyn_fn_closure_value := proc(f: File, type_name: Str, method_name: Str, suffix: Str) {
@@ -7708,7 +7731,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         f.write("\n")
                     case NodeType.FuncDef(fd):
                         if builder_is_type_gen_macro_def(rhs) { continue }
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                         if rhs.children.len() == 0 { continue }
                         emit_func_def(f, dd.name, rhs, mode, false, lp)
                         if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
@@ -7736,7 +7759,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     f.write("\n")
                 case NodeType.FuncDef(fd):
                     if builder_is_type_gen_macro_def(rhs) { continue }
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) { continue }
+                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                     if rhs.children.len() == 0 { continue }
                     emit_func_def(f, dd.name, rhs, mode, false, lp)
                     if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
