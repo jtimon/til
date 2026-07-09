@@ -18,6 +18,7 @@ typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
 typedef struct DivideByZero DivideByZero;
 typedef struct IntegerOverflow IntegerOverflow;
+typedef struct Array__Bool Array__Bool;
 typedef enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -307,7 +308,6 @@ typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
-typedef struct Array__Bool Array__Bool;
 typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
@@ -478,6 +478,12 @@ typedef struct IntegerOverflow {
     Str msg;
 } IntegerOverflow;
 
+
+
+typedef struct Array__Bool {
+    U8 *data;
+    USize cap;
+} Array__Bool;
 
 
 struct Primitive {
@@ -964,12 +970,6 @@ typedef struct DocEntry {
     Str since;
     Str deprecated;
 } DocEntry;
-
-
-typedef struct Array__Bool {
-    U8 *data;
-    USize cap;
-} Array__Bool;
 
 
 typedef struct Vec__DynCallInfo {
@@ -2124,6 +2124,14 @@ I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 U64 Bool_size(void);
 U64 Bool_hash(Bool self, HashFn hasher);
+Array__Bool * Array__Bool_new(U64 cap);
+Bool * Array__Bool_unsafe_get(Array__Bool * self, U64 * i);
+Bool * Array__Bool_get(Array__Bool * self, U64 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
+void Array__Bool_unsafe_set(Array__Bool * self, U64 i, Bool * val);
+void Array__Bool_set(Array__Bool * self, U64 i, Bool * val, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
+void Array__Bool_delete(Array__Bool * self, Bool call_free);
+Array__Bool * Array__Bool_clone(Array__Bool * self);
+U64 Array__Bool_size(void);
 Bool Primitive_eq(Primitive * self, Primitive * other);
 void Primitive_delete(Primitive * self, Bool call_free);
 Primitive * Primitive_clone(Primitive * self);
@@ -3805,14 +3813,6 @@ void priv___src_self_builder_til__ensure_parent_dir(Str * path);
 void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, DocCatalog * catalog);
 I32 cmd_doc(LoadedProgram * lp);
 I32 cmd_doc_cache(LoadedProgram * lp);
-Array__Bool * Array__Bool_new(U64 cap);
-Bool * Array__Bool_unsafe_get(Array__Bool * self, U64 * i);
-Bool * Array__Bool_get(Array__Bool * self, U64 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Array__Bool_unsafe_set(Array__Bool * self, U64 i, Bool * val);
-void Array__Bool_set(Array__Bool * self, U64 i, Bool * val, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Array__Bool_delete(Array__Bool * self, Bool call_free);
-Array__Bool * Array__Bool_clone(Array__Bool * self);
-U64 Array__Bool_size(void);
 Vec__DynCallInfo * Vec__DynCallInfo_new(void);
 U64 Vec__DynCallInfo_len(Vec__DynCallInfo * self);
 void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);

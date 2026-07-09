@@ -142,22 +142,13 @@ test_core_bool_and_or := test() {
     expect((false || false).not(), "F || F")
 }
 
-# --- Genuinely-variadic vand/vor: declared `lazy_func(xs: ..Bool)` with a
-#     for-in body; every call site unrolls at compile time over its known
-#     operands into nested short-circuit matches (inline_variadic_lazy_call,
-#     src/self/loader.til). `and`/`or` stay strictly binary. Defined here for
-#     now: moving them into src/core/bool.til needs this compiler support
-#     baked into til_boot first (self.org preparation + use pair), so the
-#     core move is the follow-up commit after this one lands. ---
-
-vand := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x.not() { return false } }
-    return true
-}
-vor := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x { return true } }
-    return false
-}
+# --- Genuinely-variadic vand/vor (src/core/bool.til): declared
+#     `lazy_func(xs: ..Bool)` with an iterative for-in body -- the shape users
+#     will naturally write, so this coverage proves it works lazily like
+#     Haskell's `and`/`or`. Every call site unrolls at compile time over its
+#     known operands into nested short-circuit matches
+#     (inline_variadic_lazy_call, src/self/loader.til). `and`/`or` stay
+#     strictly binary. ---
 
 test_variadic_vand_vor := test() {
     expect(vand(true, true, true), "vand(T,T,T)")

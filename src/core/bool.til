@@ -9,6 +9,22 @@ and := lazy_func(a: Bool, b: Bool) returns Bool {
 or := lazy_func(a: Bool, b: Bool) returns Bool {
     return match a { case true: true case: b }
 }
+// Lisp-style N-ary and/or. `and`/`or` are strictly binary (the `&&`/`||`
+// operators and `.and()`/`.or()`); vand/vor are genuinely variadic: a real
+// `..Bool` param and an author-written loop body. Each call site is unrolled
+// at compile time over its known operands (inline_variadic_lazy_call in
+// src/self/loader.til): the for-in becomes one guard per operand, spliced as
+// nested short-circuit matches, so a later operand is evaluated only if every
+// earlier one kept going. Zero runtime cost -- no thunks, and the operand
+// collection is never materialized.
+vand := lazy_func(xs: ..Bool) returns Bool {
+    for x in xs { if x.not() { return false } }
+    return true
+}
+vor := lazy_func(xs: ..Bool) returns Bool {
+    for x in xs { if x { return true } }
+    return false
+}
 not := core_func(shallow a: Bool) returns shallow Bool {}
 
 /// Boolean value: true or false.
