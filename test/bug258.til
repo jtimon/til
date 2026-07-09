@@ -1,0 +1,101 @@
+mode test
+
+// Regression for issue #258: the garbager's clone-to-move elision
+// (insert_post_stmt_deletes) must NOT fire when the clone-arg is a Str.
+// A Str value can be a non-owning view at runtime (cap == CAP_VIEW:
+// substr / strip_prefix results), and views flow freely through locals,
+// reassignments and returns, so the move is only sound for types that
+// always own their contents. Before the fix,
+// `h.s = src.strip_prefix("--cc=").clone()` compiled to a MOVE of the
+// view into the field (no Str_clone emitted at all); once src's buffer
+// was freed or reused the field read garbage (broke --cc= handling in
+// til's own parse_args: "sh: 1: U: not found" on the linux-riscv32 CI).
+//
+// Each shape below stores a view-clone whose backing buffer dies when
+// the producing function returns; the clobber() call then reuses the
+// freed chunk so a moved-in view reads corrupted bytes even without
+// ASAN (make test's ASAN run catches the use-after-free directly).
+
+Holder := struct {
+    s := ""
+}
+
+OwnHolder := struct {
+    own s : Str = ""
+}
+
+// Shape 1 (the parse_args miscompile): FieldAssign into a Shallow field
+// from a view whose producing call was hoisted into a temp.
+make_field := func() returns Holder {
+    mut src := Str.with_capacity(32)
+    src.push_str("--cc=bug258-cc-value")
+    mut h := Holder()
+    h.s = src.strip_prefix("--cc=").clone()
+    return h
+}
+
+// Shape 2: plain Assign where the target is NOT the view's receiver
+// (the #238 var_aliases_target guard only covered target == receiver).
+make_assign := func() returns Str {
+    mut src := Str.with_capacity(32)
+    src.push_str("--cc=bug258-assign-value")
+    mut out := ""
+    out = src.strip_prefix("--cc=").clone()
+    return out
+}
+
+// Shape 3: user-named view local cloned into a field (the view is held
+// in `v`, not in a hoisted__ temp).
+make_named_view := func() returns Holder {
+    mut src := Str.with_capacity(32)
+    src.push_str("bug258-named-view-value")
+    mut h := Holder()
+    mut v := src.substr(0, 6)
+    h.s = v.clone()
+    return h
+}
+
+// Shape 4: same store into an OWN field (routes through the desugarer's
+// clone hoist instead of the garbager branch; locks that path in too).
+make_own_field := func() returns OwnHolder {
+    mut src := Str.with_capacity(32)
+    src.push_str("--cc=bug258-own-value")
+    mut h := OwnHolder()
+    h.s = src.strip_prefix("--cc=").clone()
+    return h
+}
+
+// Reuse the just-freed chunk so a moved-in view observably corrupts.
+clobber := func() returns Str {
+    mut z := Str.with_capacity(32)
+    z.push_str("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
+    return z
+}
+
+test_field_assign_keeps_view_clone := test() {
+    h := make_field()
+    z := clobber()
+    assert(z.len() > 0)
+    assert(h.s.eq("bug258-cc-value"))
+}
+
+test_assign_keeps_view_clone := test() {
+    out := make_assign()
+    z := clobber()
+    assert(z.len() > 0)
+    assert(out.eq("bug258-assign-value"))
+}
+
+test_named_view_keeps_clone := test() {
+    h := make_named_view()
+    z := clobber()
+    assert(z.len() > 0)
+    assert(h.s.eq("bug258"))
+}
+
+test_own_field_keeps_view_clone := test() {
+    h := make_own_field()
+    z := clobber()
+    assert(z.len() > 0)
+    assert(h.s.eq("bug258-own-value"))
+}

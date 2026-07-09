@@ -1,0 +1,142 @@
+# priority: medium
+# category: bugs
+** FIXED #258 codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
+
+*** Post-mortem
+
+Root cause: the garbager's two clone-to-move elision branches in
+~insert_post_stmt_deletes~ (src/self/garbager.til) -- FieldAssign
+~field = T.clone(local)~ and plain Assign ~lhs = local.clone()~ at the
+local's last use -- assumed the clone-arg owns its buffer. For Str that
+assumption is unprovable: a Str value can be a non-owning view at
+runtime (cap == CAP_VIEW, produced by substr / strip_prefix / trim),
+and views flow freely through locals, reassignments and returns (only
+.clone() materializes an owned copy). When the clone-arg held a view,
+the elision moved the borrow into the target, which dangled once the
+viewed buffer was freed or reused. The issue's "already ruled out"
+note was wrong: forcing the branches to stand down DOES keep the clone
+(verified on a 45-line standalone repro). Contrary to the "hard to
+reduce" note, the elision also fired on minimal shapes -- a
+Shallow-field assign from a hoisted view temp, a plain assign whose
+target differs from the view's receiver (the #238 ~var_aliases_target~
+guard only covered target == receiver), and a user-named view local
+(~mut v := src.substr(0, 3); h.s = v.clone()~); the earlier reduction
+attempts likely missed it because the corruption is only observable
+when the backing buffer dies before the target is read.
+
+Why the earlier instrumentation lied ("the clone is already gone by
+the time the garbager runs"): the instrumented compiler was built by
+HEAD's til_boot, whose OWN codegen carries this very bug -- boot/til.c
+contains elided view-moves in the compiler's own runtime (parser
+~pending_doc~, generic/param ~name~ fields, parse_args ~--target=~).
+Those latent dangling views can corrupt the running compiler's data
+(heap-reuse dependent, so it varies per run/host: the linux-riscv32 CI
+hit --cc while x86 did not), and a corrupted run can disable freshly
+added guard logic wholesale -- observed once as a til_boot-built
+bin/til whose pass-2 self-build emitted byte-exact OLD-style output
+(the new guard never fired). The same mechanism explains why guard
+edits appeared to have no effect during the original investigation.
+
+Bootstrap consequence: the commit ships the two-pass self-applied
+boot/ (verified fixed point: a compiler compiled from the committed
+boot/til.c translates src/til.til back to byte-identical C, its
+--cc=/--target=/--prefix= round-trip at runtime, and no elided
+clone-to-move sites remain in boot/til.c). With this clean boot in
+master, every future til_boot is built from corruption-free C, closing
+the nondeterminism window for good.
+
+Fix: ~clone_arg_may_be_view~ in src/self/garbager.til -- both branches
+stand down when the clone-arg's type is Str, the only type with a
+runtime view representation. Keeping the clone is exact and leak-free
+for Str (Str_clone copies the bytes, Str_delete honors the view /
+literal cap sentinels), so the cost is one byte copy. Non-Str
+aggregates keep the move: they have no view form, their values always
+own their contents, and for them the elision is a real leak fix
+(Context_clone via load_program; the #256 own-field move).
+
+The ~format(...)~ workarounds at the ~--cc=~ / ~--prefix=~ call sites
+in parse_args (src/til.til) are dropped;
+~flag.strip_prefix(...).clone()~ now round-trips (also fixes the same
+latent elision at ~--target=~, which never had a workaround). Shipped
+as a "Two-pass: " commit: til's own parse_args depends on the new
+emission, so boot/ must be the new compiler self-applied.
+
+Regression test: test/bug258.til (all four shapes: Shallow-field
+assign from a hoisted view, plain assign with target != receiver,
+user-named view local, own-field assign through the desugarer's clone
+hoist).
+
+[[../fixed/250.org][#250]] fixed the *delete-ordering* half of the
+substr-view-clone miscompile (~extend_hoist_view_lifetimes~ in
+~src/self/garbager.til~: an owned local's scope-end delete is now
+scheduled after the clone that reads its view, not before). This is the
+*other* half: in some shapes the ~.clone()~ of a borrowed view is
+*elided entirely* and the borrow itself is moved into the assign target,
+which then dangles once the source buffer is reused.
+
+It bit master directly: a refactor changed the arg parser from
+~flag.substr(N, ...).clone()~ to ~flag.strip_prefix("...").clone()~.
+~strip_prefix~ returns a view (it is ~self.substr(...)~), and
+~cli.cc = flag.strip_prefix("--cc=").clone()~ in ~parse_args~ compiled to
+a *move of the view*, corrupting ~--cc~ and breaking the linux-riscv32
+CI ("sh: 1: U: not found"). #250's fixed.org wrongly assumed the
+~format(...)~ ~--cc~ workaround was still in place; the refactor had
+replaced it. Re-fixed at the call sites for now (~--cc~ and ~--prefix=~
+use ~format(flag.strip_prefix(...))~, which materializes an owned copy).
+
+*** Generated C (the smoking gun)
+
+~cli.cc = flag.strip_prefix("--cc=").clone()~ (equivalently
+~flag.substr(5, ...).clone()~) emits:
+
+#+begin_src c
+Str *hoisted__Str_X = Str_substr(flag, 5, len-5);   // view INTO flag's buffer
+cli->cc = DEREF(hoisted__Str_X);                     // clone ELIDED: the view is moved in
+free(hoisted__Str_X);                                // frees only the view wrapper
+#+end_src
+
+There is no ~Str_clone~ at all. ~cli->cc.c_str~ now points into ~flag~'s
+buffer (an argv element); when that storage is reused during
+~load_program~, ~cli.cc~ reads garbage.
+
+*** Where it is NOT (already ruled out)
+
+The elision is *upstream of the asap pass* (~src/self/garbager.til~).
+Forcing the two garbager clone-to-move elision branches in
+~insert_post_stmt_deletes~ to stand down (the #238 ~var_aliases_target~
+guard plus a view guard) does NOT stop it -- the clone is already gone by
+the time the garbager runs. So the drop happens in the typer hoist pass,
+the scavenger DCE, or constfolder.
+
+*** Hard to reduce
+
+The clone is *kept* (and the code works) for every minimal shape tried:
+  - owned-local source: ~mut a := Str.with_capacity(..); h.s = a.substr(...).clone()~
+  - value-param source: ~mk := func(flag: Str) ... h.s = flag.substr(...).clone()~
+  - ref-into-Vec source: ~ref flag : Str = v[0]; h.s = flag.substr(...).clone()~
+Only the full ~parse_args~ context triggers the elision: a field of the
+*returned* struct, assigned inside a ~while~ loop over a ~ref flag : Str
+= args[i]~ binding, read long after the loop. Reproducing it minimally is
+the first task.
+
+*** Next steps
+
+1. Find a minimal repro (vary: returned-struct field vs local; inside a
+   loop vs not; ~ref~-into-collection source vs owned).
+2. Bisect which pass drops the clone: dump the post-typer, post-scavenger,
+   and post-constfolder AST for ~parse_args~ and see where
+   ~<view>.clone()~ becomes bare ~<view>~.
+3. Likely fix: the pass that turns ~x = view.clone()~ into a move at the
+   view's last use must treat a *borrowed view* as non-owning and keep the
+   clone (the move is only valid when the clone-arg owns its buffer). This
+   is the dual of [[../open/256.org][#256]] (which wants *more* moving of
+   genuinely-owned locals); here we want *less* moving of borrows.
+4. Once fixed, drop the ~format(...)~ workarounds in ~parse_args~
+   (~--cc~, ~--prefix=~) and confirm ~flag.strip_prefix(...).clone()~
+   round-trips.
+
+*** Why medium
+
+Silent data corruption (serious), but the triggering shape is narrow and
+the call sites that hit it are worked around. Same severity class as
+#238 / #250.

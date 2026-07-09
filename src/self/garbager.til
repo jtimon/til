@@ -379,6 +379,26 @@ priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec(Expr)) ret
     return false
 }
 
+// Issue #258: the clone-to-move elisions in insert_post_stmt_deletes are
+// only sound when the clone-arg OWNS its buffer. A Str value can be a
+// non-owning view at runtime (cap == CAP_VIEW: substr / strip_prefix /
+// trim results), and views flow freely through locals, reassignments and
+// returns -- only .clone() materializes an owned copy -- so no static
+// check here can prove a Str local owns its bytes. Moving one into the
+// assign/field target would install a borrow that dangles once the
+// viewed buffer dies (the other half of the #250 substr-view
+// miscompile: `cli.cc = flag.strip_prefix("--cc=").clone()` compiled to
+// a move of the view into flag's argv storage). Stand down for Str: its
+// clone+delete roundtrip is exact and leak-free (Str_clone copies the
+// bytes, Str_delete honors the view/literal cap sentinels), so keeping
+// the clone only costs a byte copy. Every other aggregate keeps the
+// move -- non-Str values have no view representation, their contents
+// always own, and for them the elision is a real leak fix
+// (Context_clone via load_program; the #256 own-field move).
+priv clone_arg_may_be_view := func(local: LocalInfo) returns Bool {
+    return type_to_name(local.type) == "Str"
+}
+
 priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr)) returns Bool {
     if varname.starts_with("hoisted__").not() { return false }
     tainted := collect_hoist_taint(target, preceding)
@@ -1066,8 +1086,10 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // only the heap wrapper. Only apply when stmt is the FieldAssign
             // itself (not a wrapping for/if -- last_use would point to the
             // outer stmt in that case, so this match implicitly excludes
-            // loop/conditional bodies).
-            if local.is_heap.and(is_aggregate(local.type)) {
+            // loop/conditional bodies). Str stands down: the value may be
+            // a borrowed view, so the clone must stay (see
+            // clone_arg_may_be_view, issue #258).
+            if local.is_heap.and(is_aggregate(local.type)).and(clone_arg_may_be_view(local).not()) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
                     ref fa_rhs : Expr = stmt.children[1]
                     if rhs_is_clone_fcall(fa_rhs).and(fa_rhs.children.len().gte(2)) {
@@ -1109,7 +1131,9 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // emits a pointer move into lhs, and skip local's scope-end
             // delete: ownership transfers wholesale to the assign target
             // (whose own save_old_delete already freed lhs's prior value).
-            if local.is_heap.and(is_aggregate(local.type)) {
+            // Str stands down: the value may be a borrowed view, so the
+            // clone must stay (see clone_arg_may_be_view, issue #258).
+            if local.is_heap.and(is_aggregate(local.type)).and(clone_arg_may_be_view(local).not()) {
                 mut assign_saves_old := false
                 switch stmt.node_type {
                 case NodeType.Assign(adata): assign_saves_old = adata.save_old_delete

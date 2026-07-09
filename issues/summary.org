@@ -1,6 +1,3 @@
-* Bugs
-** Medium
-*** [[./open/258.org][#258]] codegen: clone of a borrowed view is elided, moving the borrow (the other half of #250)
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

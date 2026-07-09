@@ -652,24 +652,14 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.target_str = flag.strip_prefix("--target=").clone()
             cli.path_idx++
         } else if flag.starts_with("--cc=") {
-            // format() (not strip_prefix(...).clone()): strip_prefix returns a
-            // borrowed view, and cloning a view that is stored into a field
-            // read after load_program is miscompiled (issue #258) -- an
-            // upstream pass elides the clone and moves the borrow in, which
-            // dangles once flag's argv buffer is reused (--cc arrives at
-            // compile_c as a single garbage byte: "sh: 1: U: not found").
-            // format() copies the bytes into an owned buffer.
-            cli.cc = format(flag.strip_prefix("--cc="))
+            cli.cc = flag.strip_prefix("--cc=").clone()
             cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx + 1]
             cli.install_prefix = pval.clone()
             cli.path_idx = cli.path_idx + 2
         } else if flag.starts_with("--prefix=") {
-            // format(), not strip_prefix(...).clone(): same view-clone
-            // miscompile as --cc above (issue #258); install_prefix is read
-            // later in cmd_install, so the moved-in borrow would dangle.
-            cli.install_prefix = format(flag.strip_prefix("--prefix="))
+            cli.install_prefix = flag.strip_prefix("--prefix=").clone()
             cli.path_idx++
         } else if flag == "--asan" {
             cli.asan = true
