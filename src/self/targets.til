@@ -208,7 +208,11 @@ toolchain_extra_args := proc(target: Target) returns Str {
     }
     prefix := target_prefix_args(target)
     mut out := prefix
-    out = out.format(" ", "-Wall -Wextra")
+    // -fsigned-char: til's I8 is plain C char (it must match libc
+    // prototypes in ext_func bindings), and plain char is unsigned on
+    // aarch64/arm Linux ABIs -- this flag pins it signed everywhere
+    // (no-op on x86/darwin, the semantics fix on ARM Linux; issue #25).
+    out = out.format(" ", "-Wall -Wextra -fsigned-char")
     // No warning suppressions: the generated C compiles clean under
     // -Wall -Wextra -Werror on every toolchain -- native gcc, native clang
     // (since the NULL-base ptr_add reinterpret emits a standard

@@ -610,7 +610,16 @@ main := proc(args: ..Str) {
     // const-folder never executes them at build time (which printed a bogus
     // line and dropped the runtime report). Assert the message appears exactly
     // once when interpreting a file whose FFI .so fails to load.
-    add_count(tests, "ffi_dlopen_fail_interp", "ffi", "dlopen failed", 1,
+    //
+    // The failure SHAPE is platform-dependent (issue #25): ELF defers
+    // undefined symbols to dlopen time, so the .so builds and dlopen
+    // fails; Mach-O's linker refuses the undefined symbol while BUILDING
+    // the .so, so the loud runtime report is the compile failure instead.
+    // Both paths exercise the same #283 guarantee: the interpreter
+    // reports the FFI load problem at runtime rather than swallowing it.
+    mut dlopen_fail_pat := "dlopen failed"
+    if host_os() == "macos" { dlopen_fail_pat = "failed to compile FFI library" }
+    add_count(tests, "ffi_dlopen_fail_interp", "ffi", dlopen_fail_pat, 1,
         format(til_bin, " interpret test/ffi_dlopen_fail.til"))
 
     // === library mode checks (pure/pura build are the heaviest here) ===

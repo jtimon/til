@@ -5210,7 +5210,9 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // interpreter's ASAN free() then rejects as a bad-free.
     mut san := ""
     if til_built_with_asan() { san = " -fsanitize=address -fno-omit-frame-pointer" }
-    cmd := format("cc -Wall -Wextra -shared -fPIC", san, " -I", ext_dir,
+    // -fsigned-char: same plain-char-is-signed contract as every other
+    // til compile (see ext.h's I8 note; issue #25).
+    cmd := format("cc -Wall -Wextra -fsigned-char -shared -fPIC", san, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf)

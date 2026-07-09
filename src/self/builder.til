@@ -2334,10 +2334,12 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_deref(f, scrut, depth, ctx)
     }
     f.write(") {\n")
+    mut has_default := false
     for ci in 1..e.children.len() {
         ref cn : Expr = e.children[ci]
         emit_indent(f, depth)
         if cn.children.len() == 1 {
+            has_default = true
             f.write("default: {\n")
             emit_body_scoped(f, cn.children[0], depth + 1, ctx)
         } else {
@@ -2375,6 +2377,17 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         f.write("break;\n")
         emit_indent(f, depth)
         f.write("}\n")
+    }
+    if has_default.not() {
+        // A til switch with no `case:` is a no-op for unmatched values;
+        // spell that as an explicit C default so clang under -Werror
+        // accepts constfolded scrutinees that match no case (it rejects
+        // `switch (5) { case 1: ... }` with no default -- issue #25,
+        // first hit by test/flow.til on the mac runners). The tag
+        // scrutinees here are integer-typed fields, not C enums, so no
+        // -Wswitch exhaustiveness signal is lost.
+        emit_indent(f, depth)
+        f.write("default: break;\n")
     }
     emit_indent(f, depth)
     f.write("}\n")

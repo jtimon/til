@@ -9,6 +9,14 @@ typedef int I32;
 typedef unsigned int U32;
 typedef short I16;
 typedef unsigned short U16;
+// I8 must stay plain char: ext_func bindings of libc functions
+// (setenv, getenv, ...) re-declare them with til types, and any other
+// char spelling conflicts with the libc headers' own prototypes. Plain
+// char is unsigned on aarch64/arm Linux ABIs though, which silently
+// flipped I8 unsigned there (found by the first native arm64 suite
+// run, issue #25) -- so every til compile passes -fsigned-char
+// (toolchain_extra_args, the Makefile cc lines, and the FFI user-.so
+// compile), pinning plain char signed on every platform.
 typedef char I8;
 typedef unsigned char U8;
 typedef float F32;

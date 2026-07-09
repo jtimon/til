@@ -288,13 +288,13 @@ I32 til_setenv(const I8 *name, const I8 *value, I32 overwrite)
     // setenv is not portable to Windows; use Win32 environment APIs.
     if (!overwrite) {
         // If the variable exists, do nothing.
-        DWORD len = GetEnvironmentVariableA(name, NULL, 0);
+        DWORD len = GetEnvironmentVariableA((const char *)name, NULL, 0);
         if (len > 0) return 0;
     }
-    if (SetEnvironmentVariableA(name, value)) return 0;
+    if (SetEnvironmentVariableA((const char *)name, (const char *)value)) return 0;
     return 1;
 #else
-    return (I32)setenv(name, value, overwrite);
+    return (I32)setenv((const char *)name, (const char *)value, overwrite);
 #endif
 }
 
@@ -432,7 +432,7 @@ Str *F32_to_repr(F32 v) {
 // and full precision, unlike the old hand-rolled Str.to_f32. Backs
 // Str.to_f32 so folded F32 literals round-trip in interp and codegen.
 F32 str_parse_f32(const Str *s) {
-    char *p = dup_n(s->c_str, s->count);
+    char *p = dup_n((const char *)s->c_str, s->count);
     float v = strtof(p, NULL);
     free(p);
     return (F32)v;
@@ -528,7 +528,7 @@ void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr)
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
 Str *File_readfile(const Str *path) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "File.readfile: could not open '%s'\n", p);
@@ -550,7 +550,7 @@ Str *File_readfile(const Str *path) {
 }
 
 void File_writefile(const Str *path, const Str *content) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "File.writefile: could not open '%s'\n", p);
@@ -657,7 +657,7 @@ void stdio_capture_begin(const Str *path) {
     fflush(stdout);
     fflush(stderr);
 
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     int fd = TIL_OPEN(p, TIL_O_WRONLY | TIL_O_CREAT | TIL_O_TRUNC | TIL_O_BINARY, 0666);
     free(p);
     if (fd < 0) stdio_capture_fail("stdio_capture_begin: open");
@@ -690,7 +690,7 @@ void stdio_capture_end(void) {
 // --- File handle I/O ---
 
 void *cfile_open(const Str *path, Bool is_write) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, is_write ? "wb" : "rb");
     if (!f) {
         fprintf(stderr, "cfile_open: could not open '%s'\n", p);
@@ -717,7 +717,7 @@ void cfile_write_str(void *handle, const Str *s) {
 // allowed and the cursor can move freely with cfile_seek, so small
 // regions can be patched without rewriting the whole file.
 void *cfile_open_update(const Str *path) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "r+b");
     if (!f) {
         fprintf(stderr, "cfile_open_update: could not open '%s'\n", p);
@@ -1041,7 +1041,7 @@ void sleep_ms(I64 ms) {
 }
 #else
 I64 *spawn_cmd(const Str *cmd) {
-    char *c = dup_n(cmd->c_str, cmd->count);
+    char *c = dup_n((const char *)cmd->c_str, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -1076,7 +1076,7 @@ void sleep_ms(I64 ms) {
 void noop_proc(void) {}
 
 I64 file_mtime(const Str *path) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -1085,7 +1085,7 @@ I64 file_mtime(const Str *path) {
 }
 
 I32 mkdir_p(const Str *path) {
-    char *p = dup_n(path->c_str, path->count);
+    char *p = dup_n((const char *)path->c_str, path->count);
     int rc = mkdir_p_cstr(p);
     if (rc != 0) fprintf(stderr, "mkdir_p: failed for '%s'\n", p);
     free(p);
@@ -1093,8 +1093,8 @@ I32 mkdir_p(const Str *path) {
 }
 
 I32 copy_file(const Str *src, const Str *dst) {
-    char *s = dup_n(src->c_str, src->count);
-    char *d = dup_n(dst->c_str, dst->count);
+    char *s = dup_n((const char *)src->c_str, src->count);
+    char *d = dup_n((const char *)dst->c_str, dst->count);
     int rc = copy_file_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_file: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -1103,8 +1103,8 @@ I32 copy_file(const Str *src, const Str *dst) {
 }
 
 I32 copy_tree(const Str *src, const Str *dst) {
-    char *s = dup_n(src->c_str, src->count);
-    char *d = dup_n(dst->c_str, dst->count);
+    char *s = dup_n((const char *)src->c_str, src->count);
+    char *d = dup_n((const char *)dst->c_str, dst->count);
     int rc = copy_tree_cstr(s, d);
     if (rc != 0) fprintf(stderr, "copy_tree: failed from '%s' to '%s'\n", s, d);
     free(s);
@@ -1243,7 +1243,7 @@ I32 til_system(const Str *cmd) {
     (void)cmd;
     return 1;
 #else
-    int status = system(cmd->c_str);
+    int status = system((const char *)cmd->c_str);
 #ifdef _WIN32
     return (I32)status;
 #else
@@ -1255,11 +1255,11 @@ I32 til_system(const Str *cmd) {
 
 #ifdef _WIN32
 Bool ffi_load_global_lib(const Str *soname) {
-    return LoadLibraryA(soname->c_str) != NULL;
+    return LoadLibraryA((const char *)soname->c_str) != NULL;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    ffi_handle = LoadLibraryA(path->c_str);
+    ffi_handle = LoadLibraryA((const char *)path->c_str);
     return ffi_handle != NULL;
 }
 
@@ -1272,7 +1272,7 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
-    return (U8 *)GetProcAddress(ffi_handle, name->c_str);
+    return (U8 *)GetProcAddress(ffi_handle, (const char *)name->c_str);
 }
 
 U8 *ffi_global_symbol(const Str *name) {
@@ -1334,11 +1334,11 @@ Str *ffi_last_error(void) {
 }
 #else
 Bool ffi_load_global_lib(const Str *soname) {
-    return dlopen(soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
+    return dlopen((const char *)soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    ffi_handle = dlopen(path->c_str, RTLD_NOW);
+    ffi_handle = dlopen((const char *)path->c_str, RTLD_NOW);
     return ffi_handle != NULL;
 }
 
@@ -1351,11 +1351,11 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
-    return dlsym(ffi_handle, name->c_str);
+    return dlsym(ffi_handle, (const char *)name->c_str);
 }
 
 U8 *ffi_global_symbol(const Str *name) {
-    return dlsym(RTLD_DEFAULT, name->c_str);
+    return dlsym(RTLD_DEFAULT, (const char *)name->c_str);
 }
 
 Str *ffi_last_error(void) {
@@ -1394,9 +1394,9 @@ I32 stderr_print(const Str *msg) {
 
 void unlink_path(const Str *path) {
 #ifdef _WIN32
-    _unlink(path->c_str);
+    _unlink((const char *)path->c_str);
 #else
-    unlink(path->c_str);
+    unlink((const char *)path->c_str);
 #endif
 }
 

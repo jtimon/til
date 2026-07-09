@@ -152,7 +152,7 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror $(CC_WNO) -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char $(CC_WNO) -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
@@ -187,7 +187,7 @@ bin/til_asan: bin/til $(CORE) $(SELF) $(LIB_TIL) src/til.til
 # --- Debug build (for gdb) ---
 
 bin/til_debug: bin/til
-	cc -g -O0 -Wall -Wextra -Werror $(CC_WNO) \
+	cc -g -O0 -Wall -Wextra -Werror -fsigned-char $(CC_WNO) \
 	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
 	  -o bin/til_debug
