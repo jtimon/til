@@ -2344,8 +2344,7 @@ void File_delete(File * self, Bool call_free);
 File * File_fwrite(File * self, Array__Str * parts);
 File * File_clone(File * self);
 U64 File_size(void);
-void swap(void * a, void * b, U64 size);
-void move(void * dest, void * src, U64 size);
+void swap_bytes(void * a, void * b, U64 size);
 Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
 U64 Range_hash(Range * self, HashFn hasher);
@@ -2937,7 +2936,6 @@ void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBind
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 void priv___src_self_typer_til__check_member_priv(Expr * e, Str * owner_name, Str * member_name, Bool member_is_priv, Context * ctx);
 void priv___src_self_typer_til__check_free_managed_local(TypeScope * scope, Expr * e, Context * ctx);
-void priv___src_self_typer_til__check_move_managed_dest(TypeScope * scope, Expr * e, Context * ctx);
 U64 priv___src_self_typer_til__cast_int_size(Type * t);
 Bool priv___src_self_typer_til__cast_is_signed(Type * t);
 Bool priv___src_self_typer_til__cast_pair_ok(Type * src, Type * target);

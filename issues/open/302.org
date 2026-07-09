@@ -545,6 +545,31 @@ let the ownership pass insert temps itself; start with the check.
       inserts: mem.til swap, scavenger.til x4, dyn_map.til put's
       cloned_key. First explicit-call removals of the plan (census
       class d partial; the island waits on #286).
+  - [X] 2026-07-07 rulings (Jorge): (1) move() and swap() must work as
+    they sound in terms of ownership (std::swap / mem::swap,
+    move-assign semantics) -- landing as another preparation+use pair:
+    PREP makes `move(T, mut dest, own src)` the typed ownership
+    primitive (destroys dest's old value in place, adopts src's bytes,
+    consumes src; regression test_bug302_move, ASAN both modes),
+    renames the desugarer's mut-param-assign lowering target to the
+    internal raw `swap_bytes` (the lowering runs after generic
+    instantiation and cannot call a typed swap), inlines the two
+    interpreter island byte-moves, and retires the typer's
+    check_move_managed_dest guard (its premise -- move leaking dest's
+    old contents -- is gone). Raw 3-arg `swap` survives the prep as a
+    swap_bytes alias because the committed boot's desugarer still
+    synthesizes it; the USE commit deletes it and lands
+    `swap(T, mut a, mut b)` + its test. The mut-param-assign lowering
+    itself is stage 4 debt (it IS the move idiom, synthesized).
+    (2) Collections keep OWNED elements as the default, and
+    borrow-element collections become first-class -- Vec(ref T) /
+    Map(K, ref V) -- instead of the Vec(Dynamic)-plus-cast-to-ref
+    idiom (and instead of the malloc'd pointer-cell idiom for tables
+    of borrowed AST nodes, which is ALSO blocked on an interpreter
+    gap: a stack cell + own-arg autobox works compiled but the
+    interpreter's boxed-scalar model loses write_ptr writes through
+    scalar bindings -- verified 2026-07-07, tmp/gc_stack_cell.til).
+    Design accepted; scheduling TBD with stage 4.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

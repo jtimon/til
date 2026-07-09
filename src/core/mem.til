@@ -46,14 +46,36 @@ is_null := core_func(p: Dynamic) returns shallow Bool {}
 
 to_ptr := ext_func(a: Dynamic) returns ref Dynamic {}
 
-swap := func(a: Dynamic, b: Dynamic, size: UPtr) {
+/// Compiler-internal raw byte swap: the desugarer lowers `param = rhs`
+/// for mut aggregate params to `swap_bytes(param, temp, T.size())`
+/// (hoist_param_swap_assign), which runs after generic instantiation and
+/// so cannot call the typed swap below. Not for user code -- it has no
+/// ownership semantics by itself (the lowering pairs it with the temp's
+/// scheduled delete). Dies with #302 stage 4's first-class move marker.
+swap_bytes := func(a: Dynamic, b: Dynamic, size: UPtr) {
     tmp : U8 = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)
     memcpy(b, tmp, size)
 }
 
-move := func(dest: Dynamic, src: Dynamic, size: UPtr) {
-    memcpy(dest, src, size)
-    memset(src, 0, size)
+/// DEPRECATED raw byte swap, kept ONLY for the bootstrap: the committed
+/// boot's desugarer still synthesizes 3-arg `swap(...)` calls for the
+/// mut-param-assign lowering. The next commit (the use half of this
+/// #302 preparation+use pair) deletes this and re-introduces `swap` as
+/// the typed ownership primitive `swap(T, mut a, mut b)` -- the
+/// desugarer in THIS commit's boot already targets swap_bytes.
+swap := func(a: Dynamic, b: Dynamic, size: UPtr) {
+    swap_bytes(a, b, size)
+}
+
+/// Move src into dest -- what a move means everywhere else (#302):
+/// dest's OLD value is destroyed, src's bytes become dest's, and src is
+/// consumed. Exactly one owner before, exactly one after. The body is
+/// just a byte swap: dest ends up owning src's contents, src's box ends
+/// up holding dest's OLD contents -- and src is an `own` param, so the
+/// garbager's scheduled deep delete of src reclaims exactly that old
+/// value plus the box. No explicit delete or free anywhere.
+move := func(T: Type, mut dest: T, own src: T) {
+    swap_bytes(dest, src, T.size())
 }

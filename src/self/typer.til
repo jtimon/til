@@ -2016,34 +2016,6 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
     }
 }
 
-// Forbid `move(dest, src, size)` when dest is statically a struct or
-// enum value. Every aggregate has a `delete` (auto-generated when not
-// hand-written, see doc/auto.org), so the criterion is simply "is the
-// destination an aggregate at all". move() is a raw memcpy+memset: it
-// bitwise-overwrites dest, so dest's old contents are never deleted --
-// a guaranteed leak whenever dest holds a live value. Rewrites go
-// through the owning container instead (Vec.set / children.set
-// deep-delete the old element; plain assignment save-old-deletes).
-// Raw destinations (Dynamic/U8 -- plain pointers, not aggregates)
-// never trip this. The find_namespace_func lookup below is a
-// belt-and-braces guard for scopes where the type's methods are not
-// registered, not a meaningful filter.
-priv check_move_managed_dest := proc(scope: TypeScope, e: Expr, ctx: Context) {
-    if e.children.len() < 2 { return }
-    tn := til_type_name(e.children[1].expr_til_type())
-    if tn.len() == 0 { return }
-    ref sdef : Expr = scope.get_struct(tn)
-    if sdef.is_null() { return }
-    ref del : Expr = find_namespace_func(sdef, "delete", scope)
-    if del.is_null() { return }
-    e.type_error(format(
-        "move() onto a live '", tn, "' bitwise-overwrites it and leaks its ",
-        "old contents (", tn, ".delete never runs on them) -- rewrite ",
-        "through the owning container (Vec.set / assignment) or move ",
-        "into raw memory via a Dynamic pointer",
-    ), ctx)
-}
-
 // Issue #212: byte size of an integer primitive Type, or 0 for any
 // non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
 // deliberately excluded -- `cast` is a bit reinterpret, not a value
@@ -2379,7 +2351,9 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)
     if name == "free" { check_free_managed_local(scope, e, ctx) }
-    if name == "move" { check_move_managed_dest(scope, e, ctx) }
+    // (check_move_managed_dest retired with the raw byte-move: `move` is
+    // now the typed ownership primitive that destroys dest's old value
+    // itself -- the guard's premise is gone, #302.)
     // Issue #191: macro calls require all arguments to be comptime-known.
     if callee_bind.is_null().not() {
         if binding_func_type(callee_bind).is(FuncType.Macro) {

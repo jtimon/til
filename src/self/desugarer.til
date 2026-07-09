@@ -4219,7 +4219,7 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
 
         call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
         call.set_expr_til_type(Type.None)
-        fn := Expr.new(ident_node("swap"), stmt.line, stmt.col)
+        fn := Expr.new(ident_node("swap_bytes"), stmt.line, stmt.col)
         call.add_child(own fn)
         a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
         a.set_expr_til_type(ab.type)

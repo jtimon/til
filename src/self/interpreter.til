@@ -187,7 +187,9 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                                     ref ei : EnumInstance = ei_ref
                                     cloned_ei := ei.clone()
                                     heap_ei : Dynamic = EvalHeap.heap_alloc(EnumInstance.size())
-                                    move(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
+                                    // Manual island byte-move (#286): erased slot, sized copy.
+                                    memcpy(heap_ei, cloned_ei, EnumInstance.size().cast(U64))
+                                    memset(cloned_ei, 0, EnumInstance.size().cast(U64))
                                     write_ptr(ptr_add(dst_data, foff.cast(U64)), heap_ei)
                                 }
                             } else {
@@ -7461,7 +7463,9 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
             free(own old_fe.cif)
         }
         val : Dynamic = malloc(FFIEntry.size().cast(U64))
-        move(val, entry, FFIEntry.size().cast(U64))
+        // Manual island byte-move (#286): erased slot, sized copy.
+        memcpy(val, entry, FFIEntry.size().cast(U64))
+        memset(entry, 0, FFIEntry.size().cast(U64))
         ctx.ffi_map.set(name, own val)
     case:
         UNREACHABLE()
