@@ -297,8 +297,10 @@ typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
 typedef struct DocMeta DocMeta;
 typedef struct ReplCoreDocCache ReplCoreDocCache;
+typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
+typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
 typedef struct Vec__DeclRef Vec__DeclRef;
 typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
 typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
@@ -895,11 +897,28 @@ typedef struct ReplCoreDocCache {
 } ReplCoreDocCache;
 
 
+typedef struct priv___src_self_loader_til__ImportCheckEntry {
+    Str path;
+    U32 line;
+    U32 col;
+    Str label;
+    Str dep;
+    Str decl_name;
+} priv___src_self_loader_til__ImportCheckEntry;
+
+
 typedef struct Vec__ProgramUnit {
     U8 *data;
     USize count;
     USize cap;
 } Vec__ProgramUnit;
+
+
+typedef struct Vec__ImportCheckEntry {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__ImportCheckEntry;
 
 
 typedef struct Vec__DeclRef {
@@ -1575,6 +1594,7 @@ typedef struct CliArgs {
     Bool early_return;
     Bool asan;
     Bool prof;
+    Bool check_unused_imports;
     Vec__Str *extra_modes;
 } CliArgs;
 
@@ -1870,6 +1890,8 @@ typedef struct Context {
     Vec__Dynamic ns_keys;
     Bool ns_inited;
     Map__Str_ImportUnit imported;
+    Bool check_unused_imports;
+    Set__Str import_use_edges;
     Set__Str imports_init_seed_done;
     Set__Str imports_init_active;
     Set__Str imports_init_done;
@@ -2527,6 +2549,8 @@ void Context_delete(Context * self, Bool call_free);
 U64 Context_size(void);
 void context_register_target_int_alias_types(Context * ctx, Str * usize_name, Str * uptr_name);
 void context_reset_type_scope(Context * ctx);
+void note_cross_file_use(Context * ctx, Str * decl_path);
+void note_cross_file_type_use(TypeScope * scope, Context * ctx, Str * type_name);
 Str * scope_target_usize_pname(TypeScope * scope);
 Str * scope_target_uptr_pname(TypeScope * scope);
 Str * priv_c_name(Str * path, Str * name);
@@ -2824,6 +2848,9 @@ void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Expr * gen
 void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__note_template_decl_use(Declaration * d, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__note_template_uses_walk(Expr * e, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__note_template_body_uses(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__gen_interface_box_fields_for_stmt(Expr * stmt);
 Expr * priv___src_self_initer_til__iface_self_field(Expr * stmt, Str * fname);
@@ -3433,6 +3460,13 @@ void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * sco
 void priv___src_self_loader_til__lazy_thunk_lower_unit(LoadedProgram * lp, Str * unit_path, Set__Str * lowered, Set__Str * seen);
 void priv___src_self_loader_til__expand_lazy_thunks_in_program(LoadedProgram * lp);
 void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp);
+priv___src_self_loader_til__ImportCheckEntry * priv___src_self_loader_til__ImportCheckEntry_clone(priv___src_self_loader_til__ImportCheckEntry * self);
+void priv___src_self_loader_til__ImportCheckEntry_delete(priv___src_self_loader_til__ImportCheckEntry * self, Bool call_free);
+U64 priv___src_self_loader_til__ImportCheckEntry_hash(priv___src_self_loader_til__ImportCheckEntry * self, HashFn hasher);
+U64 priv___src_self_loader_til__ImportCheckEntry_size(void);
+Bool priv___src_self_loader_til__import_stmt_label(Expr * imp_stmt, Str * label);
+void priv___src_self_loader_til__collect_import_check_entries(Str * unit_path, ImportUnit * iu, Vec__ImportCheckEntry * entries);
+I32 priv___src_self_loader_til__check_unused_imports_collected(Vec__ImportCheckEntry * entries, Context * ctx);
 I32 type_program_errors(LoadedProgram * lp, Bool run_tests);
 void finish_init_and_type_program(LoadedProgram * lp);
 I32 init_and_type_program_errors(LoadedProgram * lp, Bool run_tests);
@@ -3460,6 +3494,14 @@ ProgramUnit * Vec__ProgramUnit_get(Vec__ProgramUnit * self, U64 * i, I64 * _err_
 void Vec__ProgramUnit_delete(Vec__ProgramUnit * self, Bool call_free);
 Vec__ProgramUnit * Vec__ProgramUnit_clone(Vec__ProgramUnit * self);
 U64 Vec__ProgramUnit_size(void);
+Vec__ImportCheckEntry * Vec__ImportCheckEntry_new(void);
+U64 Vec__ImportCheckEntry_len(Vec__ImportCheckEntry * self);
+void Vec__ImportCheckEntry_clear(Vec__ImportCheckEntry * self);
+void Vec__ImportCheckEntry_push(Vec__ImportCheckEntry * self, priv___src_self_loader_til__ImportCheckEntry * val);
+priv___src_self_loader_til__ImportCheckEntry * Vec__ImportCheckEntry_unsafe_get(Vec__ImportCheckEntry * self, U64 * i);
+void Vec__ImportCheckEntry_delete(Vec__ImportCheckEntry * self, Bool call_free);
+Vec__ImportCheckEntry * Vec__ImportCheckEntry_clone(Vec__ImportCheckEntry * self);
+U64 Vec__ImportCheckEntry_size(void);
 Vec__DeclRef * Vec__DeclRef_new(void);
 void Vec__DeclRef_clear(Vec__DeclRef * self);
 priv___src_self_loader_til__DeclRef * Vec__DeclRef_unsafe_get(Vec__DeclRef * self, U64 * i);

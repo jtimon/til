@@ -2822,6 +2822,10 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope
     ref imported_macro : Expr = scope.lookup_func(name)
     if imported_macro.is_null() { return NULL }
     if init_is_type_gen_macro_def(imported_macro).not() { return NULL }
+    // #154: instantiating a template defined in another file counts as a
+    // use of that import (the expansion clones the def into this unit, so
+    // the typer never sees a cross-file read for it).
+    note_cross_file_type_use(scope, ctx, name)
     return imported_macro
 }
 
@@ -3534,6 +3538,11 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
             case NodeType.Ident(cn):
                 ref gnm : Str = cn.ident_name()
                 if generics.has(gnm) {
+                    // #154: calling a generic defined in another file counts
+                    // as a use of that import (the call is rewritten to a
+                    // local monomorphization, so the typer never sees a
+                    // cross-file read for it).
+                    note_cross_file_type_use(ctx.scope, ctx, gnm)
                     // Recurse into the args first (nested generic calls),
                     // then expand this call.
                     init_generic_walk(c, generics, seen, synthesized, ctx)
@@ -3780,10 +3789,65 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
     return errors
 }
 
+// #154: a template/generic body is cloned into the INSTANTIATING unit
+// before typing, so symbol reads inside it never produce a use edge for
+// the DECLARING file's own imports (e.g. hashmap.til's fnv1a default
+// from lib/hash). Credit them here, syntactically, before expansion
+// drops or clones the defs. Over-approximates (shadowed names count as
+// uses), which only makes the unused-import check quieter, never wrong.
+priv note_template_decl_use := func(d: Declaration, scope: TypeScope, ctx: Context) {
+    note_cross_file_type_use(scope, ctx, d.explicit_type)
+    if d.default_value.is_null().not() {
+        note_template_uses_walk(d.default_value, scope, ctx)
+    }
+}
+
+priv note_template_uses_walk := func(e: Expr, scope: TypeScope, ctx: Context) {
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        note_cross_file_type_use(scope, ctx, idn.ident_name())
+    case NodeType.StructDef(sdd):
+        for fd : Declaration in sdd.fields { note_template_decl_use(fd, scope, ctx) }
+        for nd : Declaration in sdd.ns_decls { note_template_decl_use(nd, scope, ctx) }
+    case NodeType.EnumDef(edd):
+        for nd2 : Declaration in edd.ns_decls { note_template_decl_use(nd2, scope, ctx) }
+        for j in 0..edd.variants.len() {
+            idx := j.to_i64()
+            if edd.payload_types.has(idx) {
+                note_cross_file_type_use(scope, ctx, edd.payload_types[idx])
+            }
+        }
+    case NodeType.FuncDef(fdd):
+        for pd : Declaration in fdd.params { note_template_decl_use(pd, scope, ctx) }
+        note_cross_file_type_use(scope, ctx, fdd.return_type)
+    case:
+    }
+    for c : Expr in e.children {
+        note_template_uses_walk(c, scope, ctx)
+    }
+}
+
+priv note_template_body_uses := func(program: Expr, scope: TypeScope, ctx: Context) {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        ref rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.FuncDef).not() { continue }
+        if init_is_type_gen_macro_def(rhs).or(init_func_is_generic(rhs)).not() { continue }
+        note_template_uses_walk(rhs, scope, ctx)
+    }
+}
+
 priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
     register_body_type_token(ctx, scope)
+
+    // #154: credit template/generic bodies' symbol uses to this file
+    // before the expansions below clone them into other units.
+    if ctx.check_unused_imports {
+        note_template_body_uses(program, scope, ctx)
+    }
 
     // Issue #57: expand `X := macroname(args)` where macroname is a
     // top-level macro returning StructDef/EnumDef -- inline the macro

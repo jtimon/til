@@ -336,6 +336,15 @@ Context := struct {
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map(Str, ImportUnit).new()
+    // #154 prototype: unused-import check, opt-in via the
+    // --check-unused-imports CLI flag (off by default -- turning it on
+    // unconditionally would be a flag day for aggregator imports).
+    // While it is on, the typer records one edge per cross-file symbol
+    // read ("user_path|decl_path" in import_use_edges); the loader
+    // consumes the edges after typing to flag imports that contributed
+    // no used symbol.
+    check_unused_imports := false
+    import_use_edges := Set(Str).new()
     // Issue #271: init has two states now. Seeded means file-level
     // declarations are visible to break import cycles; done means the
     // full init pass completed. Active prevents recursive cycles from
@@ -561,6 +570,28 @@ context_reset_type_scope := func(mut ctx: Context) {
     ctx.scope = TypeScope()
     ctx.scope.target_usize_pname = ctx.target_usize_pname.clone()
     ctx.scope.target_uptr_pname = ctx.target_uptr_pname.clone()
+}
+
+// #154: record that the file currently being typed (ctx.path) read a
+// symbol declared in decl_path. Gated on the --check-unused-imports
+// flag so default builds pay one branch; check_unused_imports_collected
+// in loader.til consumes the edges once the typer sweeps finish.
+note_cross_file_use := func(ctx: Context, decl_path: Str) {
+    if ctx.check_unused_imports.not() { return }
+    if decl_path.len() == 0 { return }
+    if decl_path == ctx.path { return }
+    ctx.import_use_edges.add(own format(ctx.path, "|", decl_path))
+}
+
+// #154: same, keyed by a type name (constructor calls, method-call and
+// field-access receivers): the use edge points at the file declaring
+// the type.
+note_cross_file_type_use := func(scope: TypeScope, ctx: Context, type_name: Str) {
+    if ctx.check_unused_imports.not() { return }
+    if type_name.len() == 0 { return }
+    ref b : TypeBinding = scope.get_binding(type_name)
+    if b.is_null() { return }
+    note_cross_file_use(ctx, b.path)
 }
 
 scope_target_usize_pname := func(scope: TypeScope) returns ref Str {

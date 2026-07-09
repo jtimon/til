@@ -1,0 +1,96 @@
+# priority: low
+# category: features
+** FIXED #154 Typer error for unused imports
+
+  Post-mortem: implemented as prescribed below -- prototyped behind an
+  opt-in CLI flag (~--check-unused-imports~), no flag day. With the
+  flag, an explicit ~import("x")~ in a user unit that contributed no
+  symbol read from the importing file is a type error:
+  ~error: unused import 'x'~ at the import stmt's location.
+
+  Mechanics (all gated on the flag, so default builds pay one branch):
+
+  - ~Context~ (src/self/context.til) gained ~check_unused_imports~ and
+    ~import_use_edges~ (a Set of "user_path|decl_path" strings), plus
+    ~note_cross_file_use(ctx, decl_path)~ /
+    ~note_cross_file_type_use(scope, ctx, type_name)~ helpers.
+  - The typer records an edge at every cross-file symbol read: Ident
+    resolution, direct-call callees, struct constructors, ns-method
+    calls, field access/assign receivers, assign targets, and
+    ~type_from_name~ explicit-type annotations.
+  - Templates and generics never produce a cross-file read at typing
+    time (their defs are cloned into the INSTANTIATING unit), so the
+    initer also records edges: at ~init_lookup_type_gen_macro~ (imported
+    template instantiation), at ~init_generic_walk~'s expansion of
+    imported generics, and via ~note_template_body_uses~ -- a syntactic
+    walk crediting a template/generic BODY's symbol references to its
+    declaring file (e.g. hashmap.til's ~fnv1a~ default from lib/hash).
+  - The loader (src/self/loader.til) snapshots every explicit import
+    stmt per user unit BEFORE ~desugar_namespace_imports~ rewrites the
+    ~name := import(...)~ decl form away (~ImportCheckEntry~ +
+    ~collect_import_check_entries~), then after all typer sweeps flags
+    entries with no edge (~check_unused_imports_collected~). Core units
+    are exempt: aggregators like core.til import to re-export by design.
+
+  Suppression syntax: no new form was needed. The existing named-import
+  decl with the ~_~ prefix opts out, matching the params/locals
+  convention from [[./86.org][#86]]:
+
+  #+begin_src til
+  import("foo")            // error if nothing from foo.til is read
+  _foo := import("foo")    // ok: _ prefix suppresses
+  #+end_src
+
+  A plain ~name := import(...)~ also counts as used when the local
+  namespace binding is read (~name.sym~ types as member access on the
+  desugared local ns struct, not as a cross-file read, so the check
+  consults the binding's ~used~ flag too).
+
+  Regression tests: ~unused_import_error~ (flag on, 1 error),
+  ~unused_import_error_off~ (same file, no flag, exit 0),
+  ~unused_import_ok~ (bare + named + suppressed forms, exit 0), driven
+  by test/unused_import_error.til and test/unused_import_ok.til.
+
+  Validation on the real codebase: ~translate --check-unused-imports
+  src/til.til~ reports exactly 5 findings, all true positives --
+  modes.til's unused ~import("initer")~, til.til's unused
+  ~import("self/modes")~ (both reachable transitively anyway), and
+  til.til's three vendor-binding imports kept only for FFI symbol
+  availability + link() directives (suppression material). Turning the
+  check on by default (the flag day: fixing/suppressing those five)
+  stays a separate, human-initiated decision.
+
+Follow-up to [[./86.org][#86]] (fixed). Now that unused function parameters and
+  unused local variables are type errors, do the same for unused
+  imports.
+
+  #+begin_src til
+  import("foo.til")              // error: unused import 'foo'
+  import("bar.til") as _bar      // ok: _ prefix suppresses (syntax TBD)
+  #+end_src
+
+  This is a lower priority and a meatier task than params/locals for
+  two reasons:
+  - Imports don't introduce a single named binding the way ~x := 42~
+    does. An ~import("foo.til")~ call brings every public top-level
+    decl from ~foo.til~ into the importing scope; "used" has to mean
+    "any symbol the import pulled in was read", not "a binding named
+    ~foo~ was read".
+  - til has no syntax today for a per-import suppression marker. The
+    ~_~ prefix convention works for named bindings but there's no
+    obvious place to put it on a bare ~import("...")~. Probably needs
+    a new form -- e.g. ~import("foo.til") as _name~ -- before we can
+    even talk about flagging unused imports.
+
+  Implementation sketch (post design):
+  1. Load/import pipeline records, per import, the set of names it
+     brought into the importing program's top-level scope.
+  2. Typer marks each imported binding as used (same ~used~ flag on
+     ~TypeBinding~ used by [[./86.org][#86]]'s param/local checks) when any of
+     those names is referenced from the importing module.
+  3. After type-checking, iterate imports; if no binding from a given
+     import was marked used and the import didn't opt out via the
+     ~_~ form, emit ~type error: unused import 'path'~.
+
+  Until the syntax for suppressing is decided, prototype behind a
+  flag so the codebase doesn't need a flag day.

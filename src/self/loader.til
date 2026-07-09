@@ -2838,6 +2838,100 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     }
 }
 
+// --- #154 prototype: unused-import check (--check-unused-imports) ---
+//
+// One entry per explicit import stmt in a user unit, snapshotted BEFORE
+// desugar_namespace_imports rewrites `name := import(...)` decls into
+// local ns structs -- the AST-position -> iu.imports mapping is only
+// 1:1 while both forms are still in the AST.
+priv ImportCheckEntry := struct {
+    path := ""       // importing unit's display path
+    line : U32 = 0
+    col : U32 = 0
+    label := ""      // import path literal as written, for the message
+    dep := ""        // resolved display path of the imported file
+    decl_name := ""  // non-empty for `name := import(...)` form
+}
+
+// True when imp_stmt is an import FCall of the exact shape that
+// count_ast_imports counts (so the caller's import_idx stays in step
+// with iu.imports); writes the path literal into label on success.
+priv import_stmt_label := func(imp_stmt: Expr, mut label: Str) returns Bool {
+    if imp_stmt.children.len() < 2 { return false }
+    if imp_stmt.children[1].node_type.is_literal_str().not() { return false }
+    mut is_imp := false
+    switch imp_stmt.children[0].node_type {
+    case NodeType.Ident(id):
+        if id.ident_name() == "import" { is_imp = true }
+    case:
+    }
+    if is_imp.not() { return false }
+    switch imp_stmt.children[1].node_type {
+    case NodeType.Literal(Literal.Str(p)):
+        label = p.clone()
+    case:
+    }
+    return true
+}
+
+priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut entries: Vec(ImportCheckEntry)) {
+    // Leading iu.imports entries with no matching AST stmt are
+    // loader-injected (mode auto-imports); skip them, mirroring
+    // type_bodies_file's auto_count logic.
+    ast_count : USize = count_ast_imports(iu.ast)
+    mut import_idx : USize = iu.imports.len() - ast_count
+    for stmt : Expr in iu.ast.children {
+        mut decl_name := ""
+        mut label := ""
+        mut is_imp := false
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
+            if stmt.children[0].node_type.is(NodeType.FCall) {
+                is_imp = import_stmt_label(stmt.children[0], label)
+                if is_imp {
+                    switch stmt.node_type {
+                    case NodeType.Decl(dd):
+                        decl_name = dd.name.clone()
+                    case:
+                    }
+                }
+            }
+        } else if stmt.node_type.is(NodeType.FCall) {
+            is_imp = import_stmt_label(stmt, label)
+        }
+        if is_imp.not() { continue }
+        ref dep : Str = iu.imports[import_idx]
+        import_idx++
+        entries.push(own ImportCheckEntry(path = unit_path.clone(),
+            line = stmt.line, col = stmt.col, label = label.clone(),
+            dep = dep.clone(), decl_name = decl_name.clone()))
+    }
+}
+
+// An explicit import whose file contributed no symbol read from the
+// importing file is flagged. `_name := import(...)` opts out -- the
+// same _-prefix convention as unused params/locals (#86). A plain
+// `name := import(...)` also counts as used when the local namespace
+// binding is read (h.sym types as member access on the synthesized
+// local struct `h`, not as a cross-file read, so the edge set alone
+// cannot see it).
+priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), ctx: Context) returns I32 {
+    mut found : I32 = 0
+    for ent : ImportCheckEntry in entries {
+        if ent.decl_name.starts_with("_") { continue }
+        mut is_used := ctx.import_use_edges.has(format(ent.path, "|", ent.dep))
+        if is_used.not().and(ent.decl_name.len().gt(0)) {
+            ref b : TypeBinding = ctx.scope.get_binding(ent.decl_name)
+            if b.is_null().not() { is_used = b.used }
+        }
+        if is_used.not() {
+            type_error_at(ent.path, ent.line, ent.col,
+                format("unused import '", ent.label, "'"), ctx)
+            found++
+        }
+    }
+    return found
+}
+
 type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
@@ -2846,6 +2940,17 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // to the per-target primitive. lp.target is final here (after any
     // --target override).
     context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+
+    // #154 prototype: snapshot every explicit import stmt per user unit
+    // before the namespace-import desugar below rewrites the decl form
+    // away. Core units are exempt -- aggregators like core.til import
+    // to re-export by design.
+    mut import_check_entries := Vec(ImportCheckEntry).new()
+    if lp.ctx.check_unused_imports {
+        for icu : ProgramUnit in lp.units {
+            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries)
+        }
+    }
 
     // Desugar namespace and selective imports BEFORE init_file runs,
     // so the initer sees the generated Decls and populates the scope.
@@ -2931,6 +3036,12 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     }
     for mode_file : Str in lp.mode_files {
         type_errors = type_errors + type_file(mode_file, lp.ctx)
+    }
+
+    // #154 prototype: flag user-unit imports that contributed no used
+    // symbol (opt-in via --check-unused-imports).
+    if lp.ctx.check_unused_imports {
+        type_errors = type_errors + check_unused_imports_collected(import_check_entries, lp.ctx)
     }
 
     if type_errors > 0 {

@@ -1,0 +1,12 @@
+mode script
+
+// #154: --check-unused-imports must accept every used import form and
+// the _-prefix opt-out.
+import("imports/import_helper")             // used: double() + Point below
+helper := import("imports/import_helper")   // used: helper.double()
+_quiet := import("imports/import_diamond_d") // unused, but _-prefix opts out
+
+println(double(21).to_str())
+println(helper.double(2).to_str())
+p := Point(x = 3, y = 4)
+println(p.x.add(p.y).to_str())

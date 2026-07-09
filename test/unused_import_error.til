@@ -1,0 +1,8 @@
+mode script
+
+// #154: with --check-unused-imports, an import that contributes no
+// symbol read from this file is a type error. Without the flag this
+// file interprets cleanly (exit 0).
+import("imports/import_helper")
+
+println("unused import goes unnoticed without --check-unused-imports")

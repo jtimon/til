@@ -546,6 +546,8 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
+    // #154 prototype: opt-in unused-import type errors.
+    check_unused_imports := false
     own extra_modes := Vec(Str).new()
 }
 
@@ -667,6 +669,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         } else if flag == "--prof" {
             cli.prof = true
             cli.path_idx++
+        } else if flag == "--check-unused-imports" {
+            cli.check_unused_imports = true
+            cli.path_idx++
         } else if flag.starts_with("--extra-modes=") {
             cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())
             cli.path_idx++
@@ -740,6 +745,8 @@ main := proc(args: ..Str) {
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.target = target
+    // #154 prototype: unused-import type errors, opt-in per invocation.
+    lp.ctx.check_unused_imports = cli.check_unused_imports
     user_argv := collect_user_argv(lp, args, cli.path_idx + 1)
 
     // `ast` prints the raw parsed AST -- skip init/typecheck/constfolder/scavenge

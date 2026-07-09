@@ -889,6 +889,8 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         ref mut sb_used : TypeBinding = scope.get_binding(name)
         if sb_used.is_null().not() { sb_used.used = true }
     }
+    // #154: constructing a cross-file type counts as a use of its import.
+    note_cross_file_type_use(scope, ctx, name)
     sf_sb := scope.find(name)
     switch sf_sb {
     case ScopeFind.Found(sb):
@@ -1774,6 +1776,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     if fd.is_null().not() { ns_member_priv = fd.is_priv }
     check_member_priv(e, obj3_sname, method, ns_member_priv, ctx)
     if ctx.auto_gen_depth.eq(0).and(fd.is_null().not()) { fd.used = true }
+    // #154: calling a method of a cross-file type uses that type's import.
+    note_cross_file_type_use(scope, ctx, obj3_sname)
     // #269: a call to an ABSTRACT method through an interface-typed receiver
     // cannot be resolved statically -- the receiver is a box carrying the
     // concrete implementer's type name (see gen_interface_box_fields_for_stmt
@@ -2317,6 +2321,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     ref mut callee_bind : TypeBinding = scope.get_binding(name)
     if callee_bind.is_null().not() {
         callee_bind.used = true
+        note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, ctx)
         if scope.lookup_func(callee_bind.name).is_null().not() {
             desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
@@ -2427,6 +2432,11 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
         expr.set_expr_til_type(type)
         ref mut ib : TypeBinding = scope.get_binding(id_name.ident_name())
         if ib.is_null().not() {
+            // #154: cross-file edge is recorded unconditionally -- the
+            // current_type_name gate below only guards the priv-decl
+            // `used` flag, and a type's own ns methods live in the
+            // type's file so a self-reference is a no-op edge anyway.
+            note_cross_file_use(ctx, ib.path)
             // #187 step 1: skip "used" marking when we're inside the
             // ident's own type namespace. Auto-generated clone/delete/
             // variant-constructor bodies reference the parent type by
@@ -3765,6 +3775,8 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
     if obj_sname.len() > 0 {
         ref sdef : Expr = scope.get_struct(obj_sname)
         if sdef.is_null().not() {
+            // #154: reading a member of a cross-file type uses its import.
+            note_cross_file_type_use(scope, ctx, obj_sname)
             mut fname := ""
             switch expr.node_type {
             case NodeType.FieldAccess(fn):
@@ -3867,6 +3879,8 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     if obj_sname.len() > 0 {
         ref sdef : Expr = scope.get_struct(obj_sname)
         if sdef.is_null().not() {
+            // #154: writing a member of a cross-file type uses its import.
+            note_cross_file_type_use(scope, ctx, obj_sname)
             mut found := false
             switch sdef.node_type {
             case NodeType.StructDef(fa_sdd):
@@ -5307,6 +5321,9 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     //   whole point of the binding.
     ref mut ub : TypeBinding = scope.get_binding(aname)
     if ub.is_null().not() {
+        // #154: writing a cross-file global counts as using its import
+        // even though it is not a read for the unused-variable check.
+        note_cross_file_use(ctx, ub.path)
         if ub.is_param.or(ub.own_type.is(OwnType.Ref)) { ub.used = true }
     }
     existing := scope.get_type(aname)
@@ -5581,6 +5598,11 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     if scope.is_null().not() {
         ref mut b : TypeBinding = scope.get_binding(name)
         if b.is_null().not() {
+            // #154: a type annotation naming a cross-file type uses its
+            // import (no auto_gen/current_type_name gate -- auto-generated
+            // bodies only exist because this file declared the type, so
+            // their annotations are source-level uses of the field types).
+            note_cross_file_use(ctx, b.path)
             if b.is_type_alias {
                 if b.alias_target.is_empty().not() {
                     return type_from_name(b.alias_target, scope, ctx)
