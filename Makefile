@@ -338,11 +338,13 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 # mode server examples: their raylib/nng archives are mac-native
 # vendored files that do not exist in-tree yet (frameworks are
 # SDK-bound; see the issue for phase 3).
-# bench_hashmap.til and custom_modes.til are excluded everywhere: the
-# former does not parse (stale
-# `HashMap(I64, I64).hasher = fnv1a` syntax at line 165), the latter
-# emits C that redefines Mode -- both fail identically on linux; no CI
-# sweep has ever built it -- build_win would fail on it the same way.
+# bench_hashmap.til is excluded because it does not parse (stale
+# `HashMap(I64, I64).hasher = fnv1a` syntax at line 165, fails
+# identically on linux; no sweep has ever built it). custom_modes.til
+# is excluded because it is not a standalone program: it is a
+# mode-definitions file consumed via --extra-modes (see the
+# build_sender/build_receiver/... tests in src/tests.til); building it
+# directly redefines the built-in modes.
 MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
 MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(wildcard examples/*.til))
 # Whitelist by mode: gui needs Apple frameworks (SDK-bound), server and

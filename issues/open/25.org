@@ -146,11 +146,13 @@
      diverging on aarch64 (FCVTZS saturates where x86 wraps to
      INT_MIN); to fix next, darwin-arm64 will need the same answer.
      The job keeps continue-on-error ONLY until those four are fixed.
-   - The build_mac sweeps exposed two examples that are broken on
-     every platform and built by no CI job: bench_hashmap.til (parse
-     error, stale HashMap(...).hasher = syntax) and custom_modes.til
-     (emitted C redefines Mode); both are excluded from the sweeps and
-     need their own fixes (not filed yet).
+   - The build_mac sweeps exposed one example broken on every platform
+     and built by no CI job: bench_hashmap.til (parse error, stale
+     HashMap(...).hasher = syntax; not filed yet). custom_modes.til is
+     also excluded from the sweeps but is NOT broken -- it is a
+     mode-definitions file consumed via --extra-modes (the
+     build_sender/... tests in src/tests.til), not a standalone
+     program; an earlier version of this entry misdiagnosed it.
    - MATRIX CELL DONE: linux-arm64 as a native host runs the FULL
      suite green (the -fsigned-char contract fixed all four bring-up
      failures); the CI job is blocking like the other linux jobs.
@@ -184,9 +186,35 @@
      solve in phase 3: GUI test commands now call `timeout` directly,
      which stock macOS does not ship (GNU coreutils; runner images
      have it via brew, bare macs do not).
-   - Next: iterate until test_nogui is green on both, then flip the
-     jobs to blocking; then the ASAN carve-out and the gui suite
-     natively on a mac.
+   - Darwin crash FINALLY caught on camera (run 29027527473, arm64):
+     the .ips symbolicates to abort() via
+     BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_WAS_NOT_ALLOCATED
+     inside Vec__Str_delete(user_argv, 1) at main's cleanup epilogue,
+     during a plain `til build src/test_runner.til`. user_argv is
+     created once in main and never touched again on the build path,
+     so its Vec struct (or data ptr) was clobbered earlier by
+     something else: heap corruption whose abort site is the victim,
+     not the culprit. The same inputs on linux run valgrind-clean
+     (26.4M allocs, 0 errors) and the full linux suite is ASAN-clean,
+     so the corrupting write lives in code only executed on mac
+     (host_os()=="macos" til branches, __APPLE__ ext.c, darwin libffi,
+     Apple clang codegen of boot/til.c). get_bin_dir/__APPLE__ and the
+     builder's macos rewrite were audited clean by hand. The next run
+     (b5301ec) crashed even earlier -- til_boot itself SIGSEGV'd
+     building src/til.til -- and ReportCrash wrote nothing within the
+     10s window ("total 0" twice), hence the CI forensics below.
+   - CI forensics upgraded to make the mac runners name the culprit:
+     (1) both mac suites now run under ASAN (bin/til_asan, same as
+     linux `make test` minus gui) so the corrupting write is caught
+     in-process with a full report in the log; (2) on failure a Guard
+     Malloc probe (DYLD_INSERT_LIBRARIES=libgmalloc) reruns a
+     previously-crashing compile with every allocation on its own
+     guarded page, catching even writes from uninstrumented code
+     (libffi asm) at the culprit instruction; (3) crash-report capture
+     hardened (sleep 30, user + system DiagnosticReports dirs).
+   - Next: read the ASAN/gmalloc culprit from the next mac run, fix
+     it, iterate until the suite is green on both arches; then the gui
+     suite natively on a mac (phase 3) and the `timeout` dependency.
 
 *** macOS plan
 
