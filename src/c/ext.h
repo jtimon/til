@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 
 typedef long long I64;
 typedef unsigned long long U64;
@@ -16,7 +17,13 @@ typedef unsigned short U16;
 // flipped I8 unsigned there (found by the first native arm64 suite
 // run, issue #25) -- so every til compile passes -fsigned-char
 // (toolchain_extra_args, the Makefile cc lines, and the FFI user-.so
-// compile), pinning plain char signed on every platform.
+// compile), pinning plain char signed on every platform. The guard
+// below turns any compile that misses the flag (e.g. building the
+// generated C by hand on an ARM box) into a loud error at the first
+// include instead of silently flipping I8's semantics.
+#if CHAR_MIN == 0
+#error "til requires plain char to be signed (I8 == char must match libc prototypes yet behave signed). Add -fsigned-char to this compile; every til-driven build passes it already."
+#endif
 typedef char I8;
 typedef unsigned char U8;
 typedef float F32;
