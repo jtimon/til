@@ -29,15 +29,12 @@ jobs:
           ./bin/hello_script_x64
 
   # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
-  # runners), running the full suite. First run scored 161/165; the
-  # four failures (cast/operators/cli_scalars) are real aarch64
-  # divergences under investigation in issue #25. continue-on-error
-  # stays ONLY until those are fixed, then this job becomes blocking
-  # like the other linux jobs.
+  # runners), running the full suite. Blocking like every other linux
+  # job: its bring-up failures (plain-char signedness) were fixed by
+  # the -fsigned-char contract and the suite is green here.
   linux-arm64-native:
     name: linux-arm64 (native)
     runs-on: ubuntu-24.04-arm
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
@@ -193,15 +190,14 @@ jobs:
           ./hello_script.exe
           ./hello_script.exe | grep -q "Hello World"
 
-  # Issue #25 phase 1: native macOS bring-up. Experimental and
-  # non-blocking (continue-on-error) until the suite is green on mac;
-  # flip both jobs to blocking then. Runners are headless (no windowing
-  # session for raylib), so run the no-gui suite -- same reason linux
-  # jobs need xvfb. macos-latest is arm64; macos-15-intel is x64.
+  # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
+  # failed job fails the run, honestly red until the remaining darwin
+  # bug is fixed. Runners are headless (no windowing session for
+  # raylib), so run the no-gui suite -- same reason linux jobs need
+  # xvfb. macos-latest is arm64; macos-15-intel is x64.
   macos-arm64:
     name: macos-arm64 (native)
     runs-on: macos-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - name: Create test tmp directory
@@ -214,20 +210,32 @@ jobs:
           file bin/hello_script_macos_arm64 | grep -q "Mach-O"
           ./bin/hello_script_macos_arm64
           ./bin/hello_script_macos_arm64 | grep -q "Hello World"
-      # macOS runtime aborts often log their reason only into the .ips
-      # crash report (not stderr) -- e.g. the silent 'Abort trap: 6'.
-      # ReportCrash writes asynchronously, hence the sleep.
+      # macOS crash reasons land in .ips crash reports, not stderr.
+      # ReportCrash writes asynchronously, hence the sleep. Upload the
+      # reports TOGETHER WITH the binaries they reference (til compiler
+      # + test binaries) so the .ips frame offsets can be symbolicated
+      # offline -- the current darwin frontier is an intermittent til
+      # SIGSEGV that needs exactly that (issue #25).
       - name: Dump crash reports
         if: failure()
         run: |
           sleep 10
           ls -l ~/Library/Logs/DiagnosticReports/ 2>/dev/null || true
           cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
+          mkdir -p tmp/crash
+          cp ~/Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
+          cp bin/til bin/til_boot tmp/crash/ 2>/dev/null || true
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-macos-arm64
+          path: tmp/crash/
+          if-no-files-found: ignore
 
   macos-x64:
     name: macos-x64 (native)
     runs-on: macos-15-intel
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - name: Create test tmp directory
@@ -246,3 +254,74 @@ jobs:
           sleep 10
           ls -l ~/Library/Logs/DiagnosticReports/ 2>/dev/null || true
           cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
+          mkdir -p tmp/crash
+          cp ~/Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
+          cp bin/til bin/til_boot tmp/crash/ 2>/dev/null || true
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-macos-x64
+          path: tmp/crash/
+          if-no-files-found: ignore
+
+  # Issue #25 phase 2: SDK-less cross-compilation from the canonical
+  # linux-x64 host to both mac targets (vendored zig-derived headers +
+  # libSystem.tbd + distro clang/lld), with the artifacts executed on
+  # the real mac runners -- the same build/run pair shape as
+  # windows-x64. Keeping linux-x64 as the single cross host avoids a
+  # combinatorial host-x-target explosion in CI.
+  macos-cross-build:
+    name: macos (cross-compile on linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile for macos-arm64 and macos-x64
+        run: |
+          ./bin/til build --target=macos-arm64 -o bin/hello_script-macos-arm64 examples/hello_script.til
+          file bin/hello_script-macos-arm64 | grep -q "Mach-O 64-bit arm64"
+          ./bin/til build --target=macos-x64 -o bin/hello_script-macos-x64 examples/hello_script.til
+          file bin/hello_script-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+      - name: Upload mac artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello_script-macos
+          path: |
+            bin/hello_script-macos-arm64
+            bin/hello_script-macos-x64
+
+  macos-arm64-cross-run:
+    name: macos-arm64 (run cross binary on mac)
+    needs: macos-cross-build
+    runs-on: macos-latest
+    steps:
+      - name: Download mac artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hello_script-macos
+      - name: Run cross-built binary
+        run: |
+          chmod +x hello_script-macos-arm64
+          ./hello_script-macos-arm64
+          ./hello_script-macos-arm64 | grep -q "Hello World"
+
+  macos-x64-cross-run:
+    name: macos-x64 (run cross binary on mac)
+    needs: macos-cross-build
+    runs-on: macos-15-intel
+    steps:
+      - name: Download mac artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hello_script-macos
+      - name: Run cross-built binary
+        run: |
+          chmod +x hello_script-macos-x64
+          ./hello_script-macos-x64
+          ./hello_script-macos-x64 | grep -q "Hello World"

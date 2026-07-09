@@ -151,6 +151,30 @@
      error, stale HashMap(...).hasher = syntax) and custom_modes.til
      (emitted C redefines Mode); both are excluded from the sweeps and
      need their own fixes (not filed yet).
+   - MATRIX CELL DONE: linux-arm64 as a native host runs the FULL
+     suite green (the -fsigned-char contract fixed all four bring-up
+     failures); the CI job is blocking like the other linux jobs.
+     continue-on-error is gone from every job -- failed mac jobs now
+     fail the run honestly.
+   - Current darwin frontier (both arches, one suspected bug): the til
+     compiler itself SIGSEGVs intermittently while compiling tests on
+     the mac runners -- macos-x64 is at 150/153 and macos-arm64 at
+     98/153 with the failing-test SET CHURNING between runs, and the
+     .ips crash reports all name procName til, Segmentation fault at
+     0x100000008 ("not in any region"). That address is exactly a
+     little-endian read of two adjacent U32s {count=8, cap=1} as a
+     64-bit pointer -- i.e. somewhere a Str's (count,cap) words get
+     read as its c_str, smelling like a struct-offset disagreement or
+     a stale-pointer read that darwin's nano-malloc layout turns into
+     this signature. The mac jobs now upload the crashing binaries
+     plus the .ips reports on failure so the frame offsets can be
+     symbolicated offline; that artifact is the next actionable input.
+   - Phase 2 CI landed: macos-cross-build cross-compiles hello_script
+     from linux-x64 to BOTH mac targets with the vendored SDK-less
+     toolchain and macos-{arm64,x64}-cross-run execute the artifacts
+     on the real mac runners -- the windows build/run pair shape.
+     linux-x64 stays the single cross host to avoid a combinatorial
+     host-x-target explosion.
    - Issue #266 (drop per-test xvfb-run; GUI tests inherit the suite's
      outer Xvfb) meshes with the mac design: on mac the outer wrapper
      is empty (XVFB_RUN) and raylib talks to Cocoa directly, so GUI
