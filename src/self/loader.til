@@ -2168,51 +2168,108 @@ priv lazy_eff_arg_clone := func(call: Expr, is_method: Bool, k: USize) returns E
     return call.children[k + 1].clone()
 }
 
-// Build a right-folded binary-call tree over effective args [lo, hi]:
-// `f(eff[lo], f(eff[lo+1], ... f(eff[hi-1], eff[hi])))`. Recursive so no
-// loop-carried ownership transfer is needed.
-priv lazy_build_fold := func(call: Expr, is_method: Bool, lo: USize, hi: USize,
-    name: Str, line: U32, col: U32) returns Expr {
-    if lo == hi { return lazy_eff_arg_clone(call, is_method, lo) }
-    mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
-    nc.add_child(own Expr.new(ident_node(name), line, col))
-    nc.add_child(own lazy_eff_arg_clone(call, is_method, lo))
-    nc.add_child(own lazy_build_fold(call, is_method, lo + 1, hi, name, line, col))
-    return nc
-}
-
-// Issue #262: a binary (2-param, non-variadic) lazy callable called with more
-// than 2 effective args right-folds into nested binary calls before inlining,
-// e.g. `and(a, b, c)` -> `and(a, and(b, c))`. This gives Lisp-style N-ary
-// short-circuit `and`/`or` while reusing the binary inliner -- the outer call
-// inlines to a `match`, and the spliced inner call is inlined by the
-// re-expansion pass. The fold builds bare-Ident calls regardless of whether
-// the original was written bare `and(a, b, c)` or UFCS `a.and(b, c)`. Folding
-// assumes the callable is associative (true for `and`/`or`); a non-associative
-// binary lazy callable should not be called with more than two args.
-priv lazy_try_fold_nary := func(mut parent: Expr, idx: USize, fdef: Expr, name: Str) {
-    mut nparams : USize = 0
-    mut variadic := false
+// Substitution map for one unrolled statement of a variadic lazy call: the
+// fixed params (before the variadic) map to their call-site argument
+// expressions, and -- when `loop_var` is non-empty -- the loop variable maps
+// to effective operand `k`. Built fresh per statement from the call, so each
+// spliced expression is an independent clone and a single substitution pass
+// suffices (no second walk that could capture names inside spliced operands).
+priv lazy_variadic_subs := func(call: Expr, is_method: Bool, fdef: Expr,
+        nfixed: USize, loop_var: Str, k: USize) returns Map(Str, Expr) {
+    mut subs := Map(Str, Expr).new()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
+        for j in 0..nfixed {
+            ref param : Declaration = fd.params[j]
+            subs.set(param.name, own lazy_eff_arg_clone(call, is_method, j))
+        }
+    case:
+    }
+    if loop_var.len() > 0 {
+        subs.set(loop_var, own lazy_eff_arg_clone(call, is_method, k))
+    }
+    return subs
+}
+
+// Issue #262: genuinely-variadic lazy callables (vand/vor). A lazy def with a
+// trailing variadic param whose body passes lazy_variadic_body_unrollable
+// (src/core/ast.til: the param is consumed only by `for <v> in xs { <guards> }`
+// loops) is unrolled at each call site over the compile-time-known operand
+// list: every such loop becomes its guard statements repeated once per
+// operand with <v> substituted by the operand expression (call-by-name), and
+// the resulting guard chain is spliced as nested short-circuit matches via
+// lazy_body_as_expr -- exactly like any other inlinable lazy body. A later
+// operand is therefore evaluated only if every earlier guard fell through.
+// Zero runtime cost: no thunks, and no operand collection is ever built.
+// Returns true if the call was replaced; false leaves it untouched (e.g. too
+// few fixed args), where the residual call fails arity checking in the typer.
+priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) returns Bool {
+    ref call : Expr = parent.children[call_idx]
+    if fdef.children.len() == 0 { return false }
+    ref body : Expr = fdef.children[0]
+
+    mut vidx : I32 = -1
+    mut nparams : USize = 0
+    mut vname := ""
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.kwargs_index >= 0 { return false }
+        vidx = fd.variadic_index
         nparams = fd.params.len()
-        variadic = fd.variadic_index >= 0
+        if vidx >= 0 { vname = fd.params[vidx.to_usize()].name.clone() }
     case:
+        return false
     }
-    if variadic.or(nparams.eq(2).not()) { return }
+    if vidx < 0 { return false }
+    if vidx.to_usize() != nparams - 1 { return false }   // variadic must be last
+    if lazy_variadic_body_unrollable(body, vname).not() { return false }
 
-    ref call : Expr = parent.children[idx]
     mut is_method := false
-    switch call.children[0].node_type {
-    case NodeType.FieldAccess: is_method = call.children[0].children.len() == 1
+    ref call_callee : Expr = call.children[0]
+    switch call_callee.node_type {
+    case NodeType.FieldAccess:
+        is_method = call_callee.children.len() == 1
     case:
     }
-    mut n := call.children.len() - 1
-    if is_method { n = call.children.len() }
-    if n.gt(2).not() { return }
+    mut eff_count : USize = call.children.len() - 1
+    if is_method { eff_count = call.children.len() }
+    nfixed := nparams - 1
+    if eff_count < nfixed { return false }
 
-    folded := lazy_build_fold(call, is_method, 0, n - 1, name, call.line, call.col)
-    parent.children[idx] = folded
+    // Unroll: each `for <v> in <vname>` loop becomes its guards once per
+    // operand; other statements (guards, the final return) pass through.
+    // All substitution happens here, per cloned statement, so lazy_body_as_expr
+    // gets a fully-substituted guard chain and no further walk is needed.
+    mut unrolled := Expr.new(NodeType.Body, call.line, call.col)
+    for si in 0..body.children.len() {
+        ref stmt : Expr = body.children[si]
+        mut handled := false
+        switch stmt.node_type {
+        case NodeType.ForIn(fid):
+            for k in nfixed..eff_count {
+                opnd_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, fid.name, k)
+                for gj in 0..stmt.children[1].children.len() {
+                    mut guard := stmt.children[1].children[gj].clone()
+                    lazy_substitute_idents(guard, opnd_subs)
+                    unrolled.add_child(own guard)
+                }
+            }
+            handled = true
+        case:
+        }
+        if handled.not() {
+            fixed_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, "", 0)
+            mut cst := stmt.clone()
+            lazy_substitute_idents(cst, fixed_subs)
+            unrolled.add_child(own cst)
+        }
+    }
+
+    cloned := lazy_body_as_expr(unrolled)
+    expect(cloned.is_null().not(),
+        "variadic lazy unroll produced a non-inlinable body despite lazy_variadic_body_unrollable")
+    parent.children[call_idx] = cloned
+    return true
 }
 
 // Issue #262: statement-inlining for non-inlinable-but-single-exit lazy
@@ -2413,10 +2470,11 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
                 if fdef.is_null().not() {
                     ft := func_def_type(fdef)
                     if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
-                        // N-ary fold for binary lazy callables (and/or):
-                        // `and(a, b, c)` -> `and(a, and(b, c))` before inline.
-                        lazy_try_fold_nary(e, i, fdef, lname)
-                        if inline_lazy_call(e, i, fdef) {
+                        // Variadic lazy defs (vand/vor) unroll over the
+                        // call's operands; fixed-arity defs inline directly.
+                        mut done := inline_variadic_lazy_call(e, i, fdef)
+                        if done.not() { done = inline_lazy_call(e, i, fdef) }
+                        if done {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
                             expand_lazy_in_expr(e.children[i], scope, depth + 1)

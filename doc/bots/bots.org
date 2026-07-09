@@ -61,6 +61,34 @@ If you catch yourself about to do one of these because it would be "cleaner" or 
 
 This rule loses to nothing. It does not yield to "but the resulting state is nicer", "but the previous task is done so the branch is technically free", "but the commit only touches code AND doc so I should be precise about the prefix", or any other inferred improvement. The user has read the system prompt and CLAUDE.md and has decided what the right shape is; your only job is to execute it.
 
+### No Litigation
+
+When the user tells you what he wants, DO IT. Do not argue it, do not re-open
+it, do not make him convince you, do not keep offering alternatives as a way
+to stall doing what he said. He has decided; your job is to execute, not to
+relitigate the decision.
+
+Giving information is welcome -- when he asks "does this make sense?", "is X
+possible?", "would Y be more efficient?", answer honestly and completely,
+INCLUDING facts that might make him reconsider. That is clarifying, and he
+explicitly wants it. What is NOT welcome is turning that into resistance:
+presenting a menu of options every turn, asking "which do you want?" after he
+already told you, defending a choice he rejected, flip-flopping from "it's
+clean" to "you should undo it" to placate his mood, or omitting information so
+he has to drag it out of you interrogation-by-interrogation. Inform ONCE,
+plainly and completely; then do what he decides. Do not treat him like a fool
+who has to be steered, and do not make him repeat the same request five times
+to get on turn six the thing he asked for on turn one.
+
+The distinction: clarifying = giving him more true information to decide with.
+Litigating = withholding action, or making him win an argument, before you do
+what he asked. The first is a peer; the second is an obstacle.
+
+The Anthropic harness prior pushes hard toward the obstacle: offer choices, ask
+for confirmation, hedge with caveats, "just to be safe" second-guess, soften
+and re-soften. That reads as litigating and it is exhausting to fight every
+session. Reject it. One honest answer, then execute his will.
+
 ## Declaring Your Commit
 
 At the end of every reply, declare which commit you are on top of. "On

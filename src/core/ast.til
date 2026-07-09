@@ -1108,6 +1108,72 @@ lazy_body_stmt_inlinable := func(body: Expr) returns Bool {
     return lazy_body_split_point(body) >= 0
 }
 
+// True when `e` mentions identifier `name` anywhere (an Ident read or an
+// Assign target). Used by lazy_variadic_body_unrollable to ensure the
+// variadic param is consumed ONLY by the for-in loops that get unrolled.
+priv lazy_mentions_ident := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Ident(idd):  if idd.ident_name() == name { return true }
+    case NodeType.Assign(ad):  if ad.name == name { return true }
+    case:
+    }
+    for c : Expr in e.children {
+        if lazy_mentions_ident(c, name) { return true }
+    }
+    return false
+}
+
+// Issue #262: shape check for a GENUINELY-variadic lazy body (vand/vor). The
+// variadic param `vname` may be consumed only as the iterated collection of
+// top-level `for <v> in <vname> { <guards> }` statements whose bodies are all
+// guards (`if c { return X }`, see lazy_is_guard); every other statement must
+// be a guard or the final single `return <expr>`, and must not mention
+// `vname`. Such a body unrolls at any call site with N compile-time-known
+// operands into a plain guard chain -- each for-in becomes its guards
+// repeated once per operand with <v> substituted by the operand expression
+// (call-by-name) -- which the lazy expression inliner then splices as nested
+// short-circuit matches. Zero runtime cost: no thunk, no collection is ever
+// built. The typer accepts a variadic lazy def iff this holds; the loader's
+// inline_variadic_lazy_call performs the matching unroll.
+lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
+    if body.node_type.is(NodeType.Body).not() { return false }
+    n := body.children.len()
+    if n == 0 { return false }
+    ref last : Expr = body.children[n - 1]
+    if last.node_type.is(NodeType.Return).not().or(last.children.len() < 1) { return false }
+    if lazy_mentions_ident(last, vname) { return false }
+    for i in 0..n - 1 {
+        ref stmt : Expr = body.children[i]
+        mut is_unroll_loop := false
+        switch stmt.node_type {
+        case NodeType.ForIn(fid):
+            if stmt.children.len() < 2 { return false }
+            mut iter_is_vname := false
+            switch stmt.children[0].node_type {
+            case NodeType.Ident(itn): iter_is_vname = itn.ident_name() == vname
+            case:
+            }
+            if iter_is_vname.not() { return false }        // a foreign loop: not unrollable
+            if fid.name == vname { return false }          // loop var shadows the param
+            if fid.name2.len() > 0 { return false }        // key/value form: not a plain list
+            ref lbody : Expr = stmt.children[1]
+            if lbody.node_type.is(NodeType.Body).not() { return false }
+            if lbody.children.len() == 0 { return false }
+            for j in 0..lbody.children.len() {
+                if lazy_is_guard(lbody.children[j]).not() { return false }
+                if lazy_mentions_ident(lbody.children[j], vname) { return false }
+            }
+            is_unroll_loop = true
+        case:
+        }
+        if is_unroll_loop.not() {
+            if lazy_is_guard(stmt).not() { return false }
+            if lazy_mentions_ident(stmt, vname) { return false }
+        }
+    }
+    return true
+}
+
 // --- ast_print ---
 ast_print := proc(e: Expr, indent: U32) {
     for _ in 0..indent.cast(U64) {

@@ -142,43 +142,66 @@ test_core_bool_and_or := test() {
     expect((false || false).not(), "F || F")
 }
 
-# --- Lisp-style N-ary and/or: a binary lazy callable called with more than
-#     two args right-folds into nested short-circuit matches. ---
+# --- Genuinely-variadic vand/vor: declared `lazy_func(xs: ..Bool)` with a
+#     for-in body; every call site unrolls at compile time over its known
+#     operands into nested short-circuit matches (inline_variadic_lazy_call,
+#     src/self/loader.til). `and`/`or` stay strictly binary. Defined here for
+#     now: moving them into src/core/bool.til needs this compiler support
+#     baked into til_boot first (self.org preparation + use pair), so the
+#     core move is the follow-up commit after this one lands. ---
 
-test_nary_and_or := test() {
-    expect(and(true, true, true), "and(T,T,T)")
-    expect(and(true, true, false).not(), "and(T,T,F)")
-    expect(and(true, false, true).not(), "and(T,F,T)")
-    expect(and(false, true, true).not(), "and(F,...)")
-    expect(or(false, false, true), "or(F,F,T)")
-    expect(or(false, false, false).not(), "or(F,F,F)")
-    expect(or(true, false, false), "or(T,...)")
-    # four operands
-    expect(and(true, true, true, true), "and x4 T")
-    expect(and(true, true, true, false).not(), "and x4 with F")
-    expect(or(false, false, false, true), "or x4 with T")
-    # method-call form folds identically (receiver is the first operand)
-    expect(true.and(true, true), "T.and(T,T)")
-    expect(false.or(false, true), "F.or(F,T)")
+vand := lazy_func(xs: ..Bool) returns Bool {
+    for x in xs { if x.not() { return false } }
+    return true
+}
+vor := lazy_func(xs: ..Bool) returns Bool {
+    for x in xs { if x { return true } }
+    return false
 }
 
-test_nary_short_circuits := test() {
+test_variadic_vand_vor := test() {
+    expect(vand(true, true, true), "vand(T,T,T)")
+    expect(vand(true, true, false).not(), "vand(T,T,F)")
+    expect(vand(true, false, true).not(), "vand(T,F,T)")
+    expect(vand(false, true, true).not(), "vand(F,...)")
+    expect(vor(false, false, true), "vor(F,F,T)")
+    expect(vor(false, false, false).not(), "vor(F,F,F)")
+    expect(vor(true, false, false), "vor(T,...)")
+    # two and one operands work through the same unroll
+    expect(vand(true, true), "vand(T,T)")
+    expect(vand(false, true).not(), "vand(F,T)")
+    expect(vor(false, true), "vor(F,T)")
+    expect(vand(true), "vand(T)")
+    expect(vor(false).not(), "vor(F)")
+    # zero operands: the fold identity (empty conjunction / disjunction)
+    expect(vand(), "vand() is true")
+    expect(vor().not(), "vor() is false")
+    # four operands
+    expect(vand(true, true, true, true), "vand x4 T")
+    expect(vand(true, true, true, false).not(), "vand x4 with F")
+    expect(vor(false, false, false, true), "vor x4 with T")
+    # method-call form unrolls identically (receiver is the first operand)
+    expect(true.vand(true, true), "T.vand(T,T)")
+    expect(false.vor(false, true), "F.vor(F,T)")
+}
+
+test_variadic_short_circuits := test() {
     eval_count = 0
     # first false -> every later operand (the bump()s) is skipped
-    r := and(false, bump(), bump())
-    expect(r.not(), "and(false, bump, bump) skips all")
+    r := vand(false, bump(), bump())
+    expect(r.not(), "vand(false, bump, bump) skips all")
     assert_eq(I64, eval_count, 0)
 
     eval_count = 0
-    # first true -> or short-circuits, no bump() runs
-    r2 := or(true, bump(), bump())
-    expect(r2, "or(true, bump, bump) short-circuits")
+    # first true -> vor short-circuits, no bump() runs
+    r2 := vor(true, bump(), bump())
+    expect(r2, "vor(true, bump, bump) short-circuits")
     assert_eq(I64, eval_count, 0)
 
     eval_count = 0
-    # and(true, true, bump()) reaches and evaluates the last operand once
-    r3 := and(true, true, bump())
-    expect(r3, "and(true, true, bump) evaluates last")
+    # vand(true, true, bump()) reaches and evaluates the last operand once
+    r3 := vand(true, true, bump())
+    expect(r3, "vand(true, true, bump) evaluates last")
     assert_eq(I64, eval_count, 1)
 }
 

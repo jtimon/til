@@ -1596,6 +1596,22 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     }
     infer_expr(scope, obj, in_func, ctx)
 
+    // A function pointer is a pointer-sized value, but a funcsig is not a
+    // struct, so it has no `size` metatype method of its own. Route a funcptr
+    // type-token's `.size()` through Dynamic (the universal 8-byte pointer,
+    // src/core/dyn.til), which reports pointer size. (`clone`/`delete` need
+    // funcptr-typed results / true no-op delete -- not Dynamic's, which frees
+    // -- so they are handled separately as the Array-of-funcptr work lands.)
+    if obj.expr_til_type().is_funcptr().and(method.eq("size")) {
+        switch obj.node_type {
+        case NodeType.Ident:
+            mut dyn_recv := Expr.new(ident_node("Dynamic"), obj.line, obj.col)
+            dyn_recv.set_expr_til_type(Type.Struct("Dynamic"))
+            fa.children[0] = dyn_recv
+        case:
+        }
+    }
+
     mut obj_is_type := false
     switch obj.node_type {
     case NodeType.Ident(oit_id):
@@ -3012,7 +3028,18 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             if expr.children.len() > 0 {
                 ref lbody : Expr = expr.children[0]
                 if lazy_body_inlinable(lbody).or(lazy_body_stmt_inlinable(lbody)).not() {
-                    expr.type_error("lazy_func/lazy_proc body must be inlinable for now (issue #262): a single 'return <expr>', an 'if/else' or guard chain, or a prelude of local bindings followed by such a tail; loops, early returns, and first-class use are not yet supported", ctx)
+                    // Issue #262: a variadic lazy def (vand/vor) is accepted
+                    // when its body is unrollable -- the loader unrolls every
+                    // call over its known operands (inline_variadic_lazy_call),
+                    // so the def itself is dead like any inlinable lazy def.
+                    mut lazy_var_unrollable := false
+                    if fdef.variadic_index >= 0 {
+                        ref vparam : Declaration = fdef.params[fdef.variadic_index.to_usize()]
+                        lazy_var_unrollable = lazy_variadic_body_unrollable(lbody, vparam.name)
+                    }
+                    if lazy_var_unrollable.not() {
+                        expr.type_error("lazy_func/lazy_proc body must be inlinable for now (issue #262): a single 'return <expr>', an 'if/else' or guard chain, a prelude of local bindings followed by such a tail, or a variadic body consuming its variadic param only via 'for x in xs { if ... { return ... } }' loops; other loops, early returns, and first-class use are not yet supported", ctx)
+                    }
                 }
             }
         }
