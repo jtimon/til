@@ -215,24 +215,29 @@ test_bug302_raw_alloc := test() {
     assert(bug302_alloc_transfer() == 1)
 }
 
-// --- #302: move() is an ownership primitive --------------------------
+// --- #302: move() and swap() are ownership primitives ----------------
 //
-// Original state: mem.til's move was a raw byte helper (Dynamic + size
-// args) with no ownership semantics -- a move() onto a live aggregate
-// leaked its old contents (a typer guard existed just to forbid that).
-// Now it works as it sounds: move(T, dest, own src) destroys dest's
-// old value in place, adopts src's bytes, and consumes src. Exactly one
-// owner before, exactly one after. ASAN verifies: no leak of the old
-// dest, no double-free of the moved contents, src's wrapper reclaimed.
-// (swap becomes the typed primitive in the use half of this
-// preparation+use pair; the bootstrap desugarer still needs the raw
-// 3-arg swap in this commit.)
+// Original state: mem.til's move/swap were raw byte helpers
+// (Dynamic + size args) with no ownership semantics -- a move() onto a
+// live aggregate leaked its old contents (a typer guard existed just
+// to forbid that). Now they work as they sound: swap(T, a, b)
+// exchanges owners with the bytes; move(T, dest, own src) destroys
+// dest's old value, adopts src's bytes, and consumes src -- exactly
+// one owner before, exactly one after. ASAN verifies: no leak of the
+// old dest, no double-free of the swapped/moved contents, src's
+// wrapper reclaimed.
 
-test_bug302_move := test() {
+test_bug302_move_swap := test() {
+    lit_a := "hi"
+    mut a := lit_a.clone()
     lit_b := "hello"
     mut b := lit_b.clone()
+    swap(Str, a, b)
+    assert(a == "hello")
+    assert(b == "hi")
     lit_c := "gone"
     mut c := lit_c.clone()
-    move(Str, c, own b)
+    move(Str, c, own a)
     assert(c == "hello")
+    assert(b == "hi")
 }

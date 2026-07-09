@@ -2345,7 +2345,7 @@ priv lazy_make_assign := func(name: Str, own rhs: Expr, line: U32, col: U32) ret
 // The fdef of a statement-inlinable lazy call at `call`, else NULL: a call to
 // a lazy callable whose body is NOT expression-inlinable but IS statement-
 // inlinable, with matching arity.
-priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope) returns ref Expr {
+priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context) returns ref Expr {
     if call.node_type.is(NodeType.FCall).not() { return NULL }
     if call.children.len() == 0 { return NULL }
     mut lname := ""
@@ -2355,6 +2355,13 @@ priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope) returns ref 
     case:
     }
     if lname.len() == 0 { return NULL }
+    // A name in ctx.generic_funcs is a monomorphized-and-DROPPED top-level
+    // generic: init_expand_generic_funcs freed its FuncDef, so
+    // scope.lookup_func(name) hands back a dangling pointer -- the same
+    // documented guard init_lookup_type_gen_macro carries. Reached here via
+    // a METHOD call sharing a generic's name (p.swap() vs core swap, #302:
+    // heap-use-after-free in func_def_type).
+    if ctx.generic_funcs.has(lname) { return NULL }
     ref fdef : Expr = scope.lookup_func(lname)
     if fdef.is_null() { return NULL }
     ft := func_def_type(fdef)
@@ -2419,7 +2426,7 @@ priv lazy_stmt_value_slot := func(s: Expr) returns ref Expr {
     return NULL
 }
 
-priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope) {
+priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Context) {
     mut old := Vec(Expr).new()
     old.move_from(body.children)
     mut new := Vec(Expr).new()
@@ -2428,7 +2435,7 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope) {
         ref slot_call : Expr = lazy_stmt_value_slot(s)
         mut handled := false
         if slot_call.is_null().not() {
-            ref fdef : Expr = lazy_stmt_inlinable_call(slot_call, scope)
+            ref fdef : Expr = lazy_stmt_inlinable_call(slot_call, scope, ctx)
             if fdef.is_null().not() {
                 result := lazy_build_prelude(slot_call, fdef, new)
                 if result.is_null().not() {
@@ -2443,16 +2450,16 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope) {
     body.children = new
 }
 
-priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32) {
+priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
     if e.is_null() { return }
     if depth > 256 { return }
-    if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope) }
+    if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope, ctx) }
     for i in 0..e.children.len() {
-        lazy_stmt_inline_walk(e.children[i], scope, depth.add(1))
+        lazy_stmt_inline_walk(e.children[i], scope, depth.add(1), ctx)
     }
 }
 
-priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
+priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
     expect(e.is_null().not(), "e is null")
     if depth > 256 { return }
     for i in 0..e.children.len() {
@@ -2465,7 +2472,9 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
             case NodeType.FieldAccess(fa): lname = Str.clone(fa.field_access_name())
             case:
             }
-            if lname.len() > 0 {
+            // Same dropped-generic guard as lazy_stmt_inlinable_call: a
+            // name in ctx.generic_funcs points at a freed FuncDef.
+            if lname.len().gt(0).and(ctx.generic_funcs.has(lname).not()) {
                 ref fdef : Expr = scope.lookup_func(lname)
                 if fdef.is_null().not() {
                     ft := func_def_type(fdef)
@@ -2477,14 +2486,14 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32) {
                         if done {
                             // The spliced body may contain further lazy
                             // calls (in the body or substituted args).
-                            expand_lazy_in_expr(e.children[i], scope, depth + 1)
+                            expand_lazy_in_expr(e.children[i], scope, depth + 1, ctx)
                             inlined = true
                         }
                     }
                 }
             }
         }
-        if inlined.not() { expand_lazy_in_expr(c, scope, depth + 1) }
+        if inlined.not() { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
     }
 }
 
@@ -2815,26 +2824,26 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     // their inlinable tails are left for pass 2.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            lazy_stmt_inline_walk(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0)
+            lazy_stmt_inline_walk(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0, lp.ctx)
         }
     }
     for uu : ProgramUnit in lp.units {
-        lazy_stmt_inline_walk(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0)
+        lazy_stmt_inline_walk(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0, lp.ctx)
     }
     for mf : Str in lp.mode_files {
-        lazy_stmt_inline_walk(lp.ctx.imported[mf].ast, lp.ctx.scope, 0)
+        lazy_stmt_inline_walk(lp.ctx.imported[mf].ast, lp.ctx.scope, 0, lp.ctx)
     }
     // Pass 2: expression inlining of (now exposed) inlinable lazy calls.
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            expand_lazy_in_expr(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0)
+            expand_lazy_in_expr(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0, lp.ctx)
         }
     }
     for uu : ProgramUnit in lp.units {
-        expand_lazy_in_expr(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0)
+        expand_lazy_in_expr(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0, lp.ctx)
     }
     for mf : Str in lp.mode_files {
-        expand_lazy_in_expr(lp.ctx.imported[mf].ast, lp.ctx.scope, 0)
+        expand_lazy_in_expr(lp.ctx.imported[mf].ast, lp.ctx.scope, 0, lp.ctx)
     }
 }
 
@@ -3125,8 +3134,8 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
     retarget_loaded_aliases(lp)
     normalize_scope_bindings(lp.ctx.scope)
-    lazy_stmt_inline_walk(delta, lp.ctx.scope, 0)
-    expand_lazy_in_expr(delta, lp.ctx.scope, 0)
+    lazy_stmt_inline_walk(delta, lp.ctx.scope, 0, lp.ctx)
+    expand_lazy_in_expr(delta, lp.ctx.scope, 0, lp.ctx)
 
     type_errors := type_repl_delta(root.path, delta, lp.ctx)
     if type_errors > 0 { return type_errors }

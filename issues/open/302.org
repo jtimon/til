@@ -558,9 +558,10 @@ let the ownership pass insert temps itself; start with the check.
     check_move_managed_dest guard (its premise -- move leaking dest's
     old contents -- is gone). Raw 3-arg `swap` survives the prep as a
     swap_bytes alias because the committed boot's desugarer still
-    synthesizes it; the USE commit deletes it and lands
-    `swap(T, mut a, mut b)` + its test. The mut-param-assign lowering
-    itself is stage 4 debt (it IS the move idiom, synthesized).
+    synthesizes it; the USE commit (landed 2026-07-08) deletes it and
+    lands `swap(T, mut a, mut b)` + the combined
+    test_bug302_move_swap. The mut-param-assign lowering itself is
+    stage 4 debt (it IS the move idiom, synthesized).
     (2) Collections keep OWNED elements as the default, and
     borrow-element collections become first-class -- Vec(ref T) /
     Map(K, ref V) -- instead of the Vec(Dynamic)-plus-cast-to-ref

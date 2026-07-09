@@ -59,14 +59,13 @@ swap_bytes := func(a: Dynamic, b: Dynamic, size: UPtr) {
     memcpy(b, tmp, size)
 }
 
-/// DEPRECATED raw byte swap, kept ONLY for the bootstrap: the committed
-/// boot's desugarer still synthesizes 3-arg `swap(...)` calls for the
-/// mut-param-assign lowering. The next commit (the use half of this
-/// #302 preparation+use pair) deletes this and re-introduces `swap` as
-/// the typed ownership primitive `swap(T, mut a, mut b)` -- the
-/// desugarer in THIS commit's boot already targets swap_bytes.
-swap := func(a: Dynamic, b: Dynamic, size: UPtr) {
-    swap_bytes(a, b, size)
+/// Exchange the values of two owned bindings of the same type -- what
+/// std::swap / mem::swap mean (#302): the contents change owners WITH
+/// the bytes, so nothing is cloned, nothing is deleted, nothing leaks
+/// and nothing double-frees. Ownership of a's old contents continues in
+/// b and vice versa; both bindings' scheduled deletes stay correct.
+swap := func(T: Type, mut a: T, mut b: T) {
+    swap_bytes(a, b, T.size())
 }
 
 /// Move src into dest -- what a move means everywhere else (#302):
