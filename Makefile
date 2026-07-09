@@ -321,18 +321,34 @@ build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
-# --- macOS native builds (issue #25) ---
+# --- macOS builds (issue #25) ---
 #
-# build_mac mirrors build_win but must run ON a mac host: cross-compiling
-# to Mach-O from Linux is SDK-bound (issue #25 phase 2), while a mac
-# builds the vendored raylib/tinyfd/nng/libffi natively at the same
-# vendor paths, so the examples sweep needs no -mac64 lib variants. The
-# target arch follows the host: macos-arm64 on Apple Silicon, macos-x64
-# on intel. raylib.til is excluded for the same reason as in build_win:
-# it is a direct raylib FFI demo (mode script, not mode gui), so the
-# builder never adds the desktop frameworks its final link needs on mac.
+# build_mac mirrors build_win. On a mac host it sweeps every example
+# natively (including gui: the vendored raylib/tinyfd/nng/libffi are
+# mac-native at the same vendor paths there), arch following the host.
+# On any other host it CROSS-compiles for BOTH mac arches using the
+# vendored SDK-less toolchain (vendor/macos: zig's darwin libc headers
+# + libSystem.tbd, driven by clang -target + lld -- issue #25 phase 2).
+# Outputs get -macos-arm64 / -macos-x64 suffixes since there is no
+# .exe-style extension to tell mac binaries apart.
+#
+# Exclusions: raylib.til is a direct raylib FFI demo (mode script, not
+# mode gui), so the builder never adds the desktop frameworks its final
+# link needs on mac. The cross sweep additionally skips mode gui and
+# mode server examples: their raylib/nng archives are mac-native
+# vendored files that do not exist in-tree yet (frameworks are
+# SDK-bound; see the issue for phase 3).
+# bench_hashmap.til and custom_modes.til are excluded everywhere: the
+# former does not parse (stale
+# `HashMap(I64, I64).hasher = fnv1a` syntax at line 165), the latter
+# emits C that redefines Mode -- both fail identically on linux; no CI
+# sweep has ever built it -- build_win would fail on it the same way.
 MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
-MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til,$(wildcard examples/*.til))
+MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(wildcard examples/*.til))
+# Whitelist by mode: gui needs Apple frameworks (SDK-bound), server and
+# the nng custom modes (publisher/subscriber/...) link the linux-built
+# vendored libnng.a. Only the portable modes cross-compile.
+MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib)$$' examples/*.til))
 
 ifeq ($(UNAME_S),Darwin)
 build_mac: bin/til
@@ -340,9 +356,12 @@ build_mac: bin/til
 	  bin/til build --target=$(MAC_TARGET) $$f || exit 1; \
 	done
 else
-build_mac:
-	echo "error: build_mac must run on a macOS host (cross-compiling to Mach-O is SDK-bound, see issue #25)"
-	exit 1
+build_mac: bin/til
+	for f in $(MAC_CROSS_EXAMPLES_SRC); do \
+	  b=$$(basename $$f .til); \
+	  bin/til build --target=macos-arm64 -o bin/$$b-macos-arm64 $$f || exit 1; \
+	  bin/til build --target=macos-x64 -o bin/$$b-macos-x64 $$f || exit 1; \
+	done
 endif
 
 # --- Browser WASM cross-compilation ---
@@ -380,7 +399,7 @@ help:
 	echo "make test_fast      Build + run tests without ASAN"
 	echo "make two_pass       Build, then rebuild with the fresh bin/til"
 	echo "make test_two_pass  two_pass + run tests (use for 'Two-pass: ' commits)"
-	echo "make build_mac      Build mac examples natively (run on a mac; arch follows host)"
+	echo "make build_mac      Build mac examples (native on a mac; SDK-less cross for both arches elsewhere)"
 	echo "make build_wasm     Build browser WASM examples"
 	echo "make update_c_libs  Regenerate FFI bindings from C headers (manual; see doc/ffi.org)"
 	echo "make doc            Regenerate doc/gen/, REPL doc cache, and UML docs"

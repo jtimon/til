@@ -125,6 +125,41 @@
    - macos-x64 meanwhile runs test_nogui well past every previous
      failure point (the libffi link() removal unblocked the final
      link); first suite results pending.
+   - PHASE 2 LANDED (SDK-less cross-compilation from Linux):
+     vendor/macos/ carries zig's curated darwin libc headers plus the
+     libSystem.tbd linker stub (provenance in vendor/macos/README.org,
+     zig commit 738d2be); macos targets from a non-mac host compile
+     with the stock clang against those headers and link with lld
+     (which ad-hoc code-signs arm64). make build_mac on Linux
+     cross-builds every portable-mode example (cli/script/pure/lib)
+     for BOTH mac arches with -macos-arm64/-macos-x64 name suffixes;
+     verified locally: 16 examples x 2 arches, all Mach-O, plus a
+     mode lib .dylib. mode gui stays SDK-bound (frameworks) and the
+     nng custom modes need a mac-built libnng -- both remain
+     native-mac-only until phase 3. Running the cross output on a real
+     mac is the next CI wiring step (artifact download job, like the
+     windows pair).
+   - First full-suite results on real aarch64-linux (the renamed
+     linux-arm64 (native) job, 3.5h on the free runner): 161/165.
+     The four failures -- cast.til, operators.til (interp+run) and
+     cli_scalars (i+r) -- look like float-to-int cast semantics
+     diverging on aarch64 (FCVTZS saturates where x86 wraps to
+     INT_MIN); to fix next, darwin-arm64 will need the same answer.
+     The job keeps continue-on-error ONLY until those four are fixed.
+   - The build_mac sweeps exposed two examples that are broken on
+     every platform and built by no CI job: bench_hashmap.til (parse
+     error, stale HashMap(...).hasher = syntax) and custom_modes.til
+     (emitted C redefines Mode); both are excluded from the sweeps and
+     need their own fixes (not filed yet).
+   - Issue #266 (drop per-test xvfb-run; GUI tests inherit the suite's
+     outer Xvfb) meshes with the mac design: on mac the outer wrapper
+     is empty (XVFB_RUN) and raylib talks to Cocoa directly, so GUI
+     tests need a window server session rather than any wrapper. It
+     also root-causes the build_minesweeper exit=5 flake seen during
+     phase 1 (nested Xvfb teardown race). One new mac dependency to
+     solve in phase 3: GUI test commands now call `timeout` directly,
+     which stock macOS does not ship (GNU coreutils; runner images
+     have it via brew, bare macs do not).
    - Next: iterate until test_nogui is green on both, then flip the
      jobs to blocking; then the ASAN carve-out and the gui suite
      natively on a mac.

@@ -175,7 +175,34 @@ priv target_prefix_args := func(target: Target) returns Str {
     }
 }
 
-toolchain_extra_args := func(target: Target) returns Str {
+// Cross-compiling to macOS from a non-mac host uses the vendored
+// SDK-less toolchain pieces (issue #25 phase 2, replicating what zig
+// does): zig's curated darwin libc headers plus the libSystem.tbd
+// linker stub under vendor/macos/, compiled by the host's clang and
+// linked with lld (which ad-hoc code-signs arm64 Mach-O). Native mac
+// builds keep the real SDK: no -nostdlibinc, system linker.
+priv macos_is_cross := proc(target: Target) returns Bool {
+    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)).not() {
+        return false
+    }
+    return host_os().eq("macos").not()
+}
+
+priv macos_cross_args := proc(target: Target) returns Str {
+    if macos_is_cross(target).not() { return "" }
+    return " -nostdlibinc -isystem vendor/macos/include"
+}
+
+// Link-only companion to macos_cross_args: -fuse-ld=lld and -L mean
+// nothing on -c compiles and clang -Werror rejects them as unused
+// arguments there, so the builder appends these only to command lines
+// that actually link.
+target_link_extra_args := proc(target: Target) returns Str {
+    if macos_is_cross(target).not() { return "" }
+    return " -fuse-ld=lld -Lvendor/macos"
+}
+
+toolchain_extra_args := proc(target: Target) returns Str {
     if target.is(Target.TempleosX86) {
         panic("HolyC doesn't support these flags")
     }
@@ -188,6 +215,7 @@ toolchain_extra_args := func(target: Target) returns Str {
     // (void *)(UPtr) cast, issue #25), and the cross compilers the CI
     // exercises (mingw-w64, aarch64/riscv64/arm gcc). The -Wno-* set that
     // used to ride along for clang/cross builds suppressed nothing.
+    out = out.format(macos_cross_args(target))
     return out
 }
 
@@ -220,8 +248,12 @@ target_system_libs := func(target: Target) returns Str {
     case Target.LinuxArm32:   return "-ldl -lrt -lm -lpthread"
     case Target.LinuxRiscv32: return "-ldl -lrt -lm -lpthread"
     case Target.WindowsX64:   return "-lpsapi"
-    case Target.MacosX64:     return "-lm -lpthread"
-    case Target.MacosArm64:   return "-lm -lpthread"
+    // On darwin, libm/libpthread are pure aliases of libSystem, which
+    // clang's darwin driver always links implicitly -- and the vendored
+    // cross toolchain (vendor/macos) ships ONLY libSystem.tbd, so the
+    // aliases must not be requested: empty works for native and cross.
+    case Target.MacosX64:     return ""
+    case Target.MacosArm64:   return ""
     case Target.Wasm32:       return ""
     case Target.TempleosX86:  return ""
     }

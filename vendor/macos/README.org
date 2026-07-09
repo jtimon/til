@@ -1,0 +1,33 @@
+* Vendored SDK-less macOS cross-compilation support (issue #25 phase 2)
+
+Contents:
+
+- include/ :: the darwin libc headers as curated by the Zig project
+  (ziglang/zig, lib/libc/include/any-darwin-any/, commit 738d2be9d6b6).
+- libSystem.tbd :: Zig's TAPI linker stub for /usr/lib/libSystem.B.dylib
+  (ziglang/zig, lib/libc/darwin/libSystem.tbd, same commit). Covers
+  x86_64-macos and arm64-macos (plus catalyst/arm64e variants).
+
+How it is used: targets.til (macos_cross_args) adds
+
+  -fuse-ld=lld -nostdlibinc -isystem vendor/macos/include -Lvendor/macos
+
+to macos-target builds when the HOST is not a mac, so the host's stock
+clang compiles against these headers and lld links against the
+libSystem stub (lld ad-hoc code-signs arm64 Mach-O, which Apple
+Silicon requires). The real libSystem.dylib binds at runtime on the
+target machine -- its ABI is stable, same idea as mingw import libs.
+Native mac builds do NOT use this directory: they get the real SDK.
+Apple frameworks (Cocoa/OpenGL/...) are NOT vendored -- mode gui
+cross-builds stay mac-native until phase 3 (see issues/open/25.org).
+
+Licensing: Zig's own code is MIT. The headers originate in Apple's
+SDKs / open source releases and carry their original per-file notices
+(APSL and BSD-style); Zig redistributes them in-tree and til follows
+the same practice. Review the per-file notices before making further
+redistribution decisions.
+
+Upgrade: re-copy the two paths above from a newer ziglang/zig checkout
+(sparse clone works: git clone --depth 1 --filter=blob:none --sparse,
+then git sparse-checkout set lib/libc/include/any-darwin-any
+lib/libc/darwin).

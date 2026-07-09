@@ -5631,7 +5631,11 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Create shared library
     so_path := format("gen/lib/lib", lib_name, shared_lib_extension(target))
-    cmd = compiler.format(asan_flags, " -shared -o ", so_path,
+    // extra carries the -target triple: without it the -shared link
+    // drives the HOST toolchain and (for mac cross) ELF lld rejects the
+    // Mach-O objects with "unknown file type". No -Werror here, so the
+    // compile-only flags inside extra are harmless on this link line.
+    cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path,
         " ", obj_path, " ", ext_obj,
         " ", user_obj, lf)
     result = system_cmd(cmd)
@@ -5785,20 +5789,29 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         lf = lf.replace("vendor/tinyfiledialogs/libtinyfd.a", "")
     }
 
-    // For macOS targets (native mac builds, issue #25 phase 1), the
-    // vendored .a paths in link() directives are correct as-is: a mac
-    // host builds mac-native raylib/tinyfd/nng at the same paths. Only
-    // drop what does not exist on darwin (-lrt and -latomic live inside
-    // libSystem). libffi never appears in lf anymore (no source link()s
-    // it; target_ffi_lib appends the per-target archive below) -- and
-    // substring-replacing a loader-resolved path is exactly how a
-    // dangling ./src/self/ token once reached the mac linker, so no
-    // path replaces here.
+    // For macOS targets, the vendored .a paths in link() directives are
+    // correct as-is on a mac host (native archives at the same paths)
+    // and loudly wrong-arch on cross hosts, so they stay. Every -l flag
+    // the tree uses is a libSystem alias on darwin (m, pthread, dl) or
+    // does not exist there (rt, atomic); libSystem itself is linked
+    // implicitly by clang's darwin driver, and the SDK-less cross
+    // toolchain (vendor/macos, issue #25 phase 2) ships only
+    // libSystem.tbd -- so drop them all. libffi never appears in lf
+    // anymore (no source link()s it; target_ffi_lib appends the
+    // per-target archive below) -- and substring-replacing a
+    // loader-resolved path is exactly how a dangling ./src/self/ token
+    // once reached the mac linker, so no path replaces here.
     if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
         lf = lf.replace(" -lrt", "")
         lf = lf.replace("-lrt", "")
         lf = lf.replace(" -latomic", "")
         lf = lf.replace("-latomic", "")
+        lf = lf.replace(" -ldl", "")
+        lf = lf.replace("-ldl", "")
+        lf = lf.replace(" -lpthread", "")
+        lf = lf.replace("-lpthread", "")
+        lf = lf.replace(" -lm", "")
+        lf = lf.replace("-lm", "")
     }
     if wasm_gui { lf = "" }
 
@@ -5819,7 +5832,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut gui_part := ""
     if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
 
-    cmd := compiler.format(extra, werr, asan_flags, prof_flags, prof_link_flags, " -g", dyn_flag, " -I", ext_dir,
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, prof_link_flags, target_link_extra_args(target), " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
         " ", ffi_lib, gui_part, " ", sys_libs)

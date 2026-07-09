@@ -2881,6 +2881,9 @@ Bool priv___src_self_targets_til__is_lang_supported_for_target(Lang * lang, Targ
 void priv___src_self_targets_til__validate_lang_for_target(Lang * lang, Target * target);
 Str * toolchain_command(Target * target, Lang * lang);
 Str * priv___src_self_targets_til__target_prefix_args(Target * target);
+Bool priv___src_self_targets_til__macos_is_cross(Target * target);
+Str * priv___src_self_targets_til__macos_cross_args(Target * target);
+Str * target_link_extra_args(Target * target);
 Str * toolchain_extra_args(Target * target);
 Str * executable_extension(Target * target);
 Str * shared_lib_extension(Target * target);
