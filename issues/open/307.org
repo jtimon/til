@@ -1,6 +1,6 @@
 # priority: medium
 # category: cleanups
-** OPEN #307 OrderedMap-backed StructDef/EnumDef: ordered member Vecs + name->position index
+** OPEN #307 StructDef/EnumDef name indexes: keep the ordered Vecs, add a Map(Str, USize) per collection
 
 StructDef stores its members as two plain Vecs (`fields`, `ns_decls`), so
 every lookup-by-name in the typer/initer is a linear scan, and several
@@ -9,36 +9,38 @@ initer's gather vecs like `field_names`, a porting artifact rstil does not
 have -- its preinit builds the generated clone directly off
 `struct_def.members`).
 
-EnumDef has the same shape and gets the same treatment: `ns_decls` (a
-Vec(Declaration), including the initer-generated variant constructors and
-clone) gains a name index like StructDef's, and `variants` (a Vec(Str)
-whose ORDER is the tag assignment, so it must stay an ordered Vec) gains a
+The design (nothing new is introduced -- the existing Vec and the existing
+til Map compose):
+
+    fields := Vec(Declaration)      // stays: declaration order = layout truth
+    index  := Map(Str, USize)       // added: name -> position in the Vec
+
+one index Map for `fields`, another for `ns_decls`. The Vec remains the
+single source of truth and keeps its semantic order; the Map is only an
+index over it. til's Map is sorted by key, which is irrelevant for an
+index (nobody iterates it) -- what it buys is that lookup-by-name becomes
+a map probe instead of a linear scan. Appends to the Vec never invalidate
+stored positions.
+
+Why the simpler-looking alternatives fail:
+
+- Replacing the Vec with `Map(Str, Declaration)` outright: the Map's
+  iteration order is KEY order, and field order is semantic -- it is the C
+  layout order. raylib's ext_struct `Color { r, g, b, a }` iterated in key
+  order comes out `a, b, g, r` and scrambles the FFI layout; positional
+  construction and the memcpy-layout logic assume source order too.
+- Keeping the Map primary plus a rank-index Vec for order: inserting into
+  a sorted map shifts the ranks of every later key, and struct/enum defs
+  get post-parse insertions (initer pushes the generated clone/delete and
+  variant constructors into `ns_decls`), so stored ranks go stale.
+
+EnumDef has the same shape and gets the same treatment: `ns_decls` gains a
+name index like StructDef's, and `variants` (a Vec(Str) whose ORDER is the
+tag assignment, so it must stay an ordered Vec) gains a
 variant-name -> tag-position index to replace the by-name scans. The
 existing per-variant parallel structures already key off that position
 (`payload_types : Map(I64, Str)` by tag, `payload_consts` indexed by tag),
-so they fit the position-index design unchanged.
-
-A plain til `Map(Str, Declaration)` cannot replace the Vecs: til's Map is
-sorted BY KEY, and field order is semantic -- it is the C layout order.
-E.g. raylib's ext_struct `Color { r, g, b, a }` iterated in key order comes
-out `a, b, g, r` and scrambles the FFI layout; positional construction and
-the memcpy-layout logic assume source order too. A rank-index side Vec over
-a sorted map also fails: post-parse insertions (initer pushes the generated
-clone/delete into `ns_decls`) shift the ranks of later keys.
-
-The stable shape keeps the Vec as the ordered truth and adds a keyed index:
-
-    fields := Vec(Declaration)      // declaration order = layout truth
-    index  := Map(Str, USize)       // name -> position in the Vec
-
-(one index for `fields`, another for `ns_decls`). Appends never invalidate
-positions, iteration order stays declaration order, and lookup becomes a
-map probe instead of a linear scan. That pair is exactly what an
-insertion-ordered map is internally (rstil has such a container,
-`OrderedMap`, used for generated methods and imported ASTs), so the
-reusable form is a new `OrderedMap(K, V)` container built from the two
-pieces til already has, then adopted for StructDef members and the Context
-tables that duplicate this by hand today.
+so they fit unchanged.
 
 Scope notes:
 

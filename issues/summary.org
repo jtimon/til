@@ -18,7 +18,7 @@
 *** [[./open/286.org][#286]] Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
 *** [[./open/302.org][#302]] Garbager rework: make the compile-time GC the single, complete ownership authority
 ** Medium
-*** [[./open/307.org][#307]] OrderedMap-backed StructDef/EnumDef: ordered member Vecs + name->position index
+*** [[./open/307.org][#307]] StructDef/EnumDef name indexes: keep the ordered Vecs, add a Map(Str, USize) per collection
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
