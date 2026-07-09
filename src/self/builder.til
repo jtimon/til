@@ -8496,8 +8496,9 @@ priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
 // info block collected from the typed AST.
 priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog) returns Str {
     // Strip a leading "./" via a self-reassign from a substring of `title`.
-    // This (`title = title.strip_prefix(...).clone()`) is compiled correctly
-    // since issue #238 fixed the asap-destruction delete-ordering / clone-elision.
+    // This (`title = title.strip_prefix(...).clone()`) is compiled correctly:
+    // #238 fixed the asap-destruction delete-ordering, and #258 keeps the
+    // clone of any Str whose defs are not provably owning.
     mut title := unit_path.clone()
     if title.starts_with("./") {
         title = title.strip_prefix("./").clone()
@@ -9006,10 +9007,10 @@ priv emit_doc_index := proc(catalog: DocCatalog) {
 priv til_doc_out_path := func(unit_path: Str) returns Str {
     // Trim a leading "./" and a trailing ".til" via self-reassigns from
     // substrings of `name`. `name = name.strip_prefix(...).clone()` is compiled
-    // correctly since issue #238 fixed the asap-destruction delete-ordering /
-    // clone-elision (the typer hoists the view-returning substr into a temp
-    // aliasing the local; the fix keeps the clone and orders the old-value
-    // delete after it).
+    // correctly: #238 fixed the asap-destruction delete-ordering (the typer
+    // hoists the view-returning substr into a temp aliasing the local, and
+    // the old-value delete is ordered after the clone), and #258 keeps the
+    // clone of any Str whose defs are not provably owning.
     mut name := unit_path.clone()
     if name.starts_with("./") { name = name.strip_prefix("./").clone() }
     if name.ends_with(".til") { name = name.strip_suffix(".til").clone() }

@@ -32,6 +32,16 @@ Codegen before: `hoisted = Node_clone(val); h->child = hoisted;
 Node_delete(val, 1);`. After: `h->child = val;` -- a pure pointer move,
 no clone, no delete.
 
+Update ([[../fixed/258.org][#258]]): for Str the move is gated on
+provable ownership -- a Str value can be a runtime borrowed view
+(cap == CAP_VIEW), so the unwrap only fires when the local's Decl
+initializer and every reassignment provably yield an owning or static
+value (a Str literal or a .clone() call; owning constructors like
+format are excluded because a constant-arg call can constfold into a
+stack literal after the garbager already committed to move+free);
+otherwise the clone stays. Non-Str aggregates (this issue's
+Node/Context cases) keep the unconditional move.
+
 Regression test: test/bug256.til (mode test,
 test_move_named_local_into_own_field), wired into src/tests.til so it runs
 under `make test`'s --asan. The compiler-level ASAN baseline in

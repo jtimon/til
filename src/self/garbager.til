@@ -335,13 +335,19 @@ priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) return
 // old-value delete too early and the RHS clone copies from vname's freed
 // buffer (a use-after-free; manifests as garbage bytes).
 //
-// Walk the already-emitted preceding statements, taint every `hoisted__`
-// binding whose initializer (transitively) reads vname, then report a
-// dependency if the RHS reads vname directly or any tainted temp.
-// Names of `hoisted__` temps among `preceding` whose initializer
-// (transitively) reads `target`. Such a temp may hold a non-owning *view*
-// into target's heap buffer (e.g. `target.substr(...)`), so any later use is
-// really a use of target's storage.
+// Walk the already-emitted preceding statements, taint every binding whose
+// initializer (transitively) reads vname, then report a dependency if the
+// RHS reads vname directly or any tainted binding.
+// Names of bindings among `preceding` whose initializer (transitively)
+// reads `target`. Such a binding may hold a non-owning *view* into
+// target's heap buffer (e.g. `target.substr(...)`), so any later use is
+// really a use of target's storage. This deliberately covers USER-NAMED
+// locals, not just `hoisted__` temps (#258 follow-up): `mut v :=
+// src.substr(0, n)` aliases src exactly like a hoisted temp does, and
+// the hoisted-only filter this walk used to have let src's delete land
+// between the view Decl and the later `v.clone()` -- a use-after-free.
+// The taint also follows clone results that no longer alias the buffer;
+// that over-eagerness only defers a delete or keeps a clone, both safe.
 priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(Str) {
     mut tainted := Vec(Str).new()
     mut changed := true
@@ -355,7 +361,8 @@ priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(
             case NodeType.Assign(ad): hname = ad.name
             case:
             }
-            if hname.starts_with("hoisted__").not() { continue }
+            if hname.len() == 0 { continue }
+            if hname == target { continue }
             mut already := false
             for t : Str in tainted { if t == hname { already = true } }
             if already { continue }
@@ -383,20 +390,101 @@ priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec(Expr)) ret
 // only sound when the clone-arg OWNS its buffer. A Str value can be a
 // non-owning view at runtime (cap == CAP_VIEW: substr / strip_prefix /
 // trim results), and views flow freely through locals, reassignments and
-// returns -- only .clone() materializes an owned copy -- so no static
-// check here can prove a Str local owns its bytes. Moving one into the
+// returns -- only .clone() materializes an owned copy. View-ness is a
+// runtime property of the VALUE (the cap sentinel), not of the type
+// (Str is an ordinary owning collection like Vec or Map), so the type
+// alone cannot tell a borrow from an owner. Moving a view into the
 // assign/field target would install a borrow that dangles once the
 // viewed buffer dies (the other half of the #250 substr-view
 // miscompile: `cli.cc = flag.strip_prefix("--cc=").clone()` compiled to
-// a move of the view into flag's argv storage). Stand down for Str: its
-// clone+delete roundtrip is exact and leak-free (Str_clone copies the
-// bytes, Str_delete honors the view/literal cap sentinels), so keeping
-// the clone only costs a byte copy. Every other aggregate keeps the
-// move -- non-Str values have no view representation, their contents
-// always own, and for them the elision is a real leak fix
+// a move of the view into flag's argv storage). So a Str clone-arg only
+// moves when ownership is provable (str_clone_to_move_provably_safe
+// below); otherwise the clone stays -- exact and leak-free (Str_clone
+// copies the bytes, Str_delete honors the view/literal cap sentinels),
+// costing one byte copy. Every other aggregate keeps the move
+// unconditionally -- non-Str values have no view representation, their
+// contents always own, and for them the elision is a real leak fix
 // (Context_clone via load_program; the #256 own-field move).
 priv clone_arg_may_be_view := func(local: LocalInfo) returns Bool {
     return type_to_name(local.type) == "Str"
+}
+
+// A def RHS that provably yields an owning-or-static Str value:
+//   - Str literal: CAP_LIT static bytes -- moving installs a view of
+//     static storage, which never dangles;
+//   - T.clone(...): ownership materialized by definition.
+// Anything else -- any other call (substr / strip_prefix / user funcs
+// can return CAP_VIEW borrows), ident copies, field reads -- is
+// unprovable: the value may be a borrowed view (issue #258). Owning
+// CONSTRUCTOR calls (format, Str.with_capacity) are deliberately NOT
+// whitelisted: the garbager runs before the constfolder, and a
+// constant-arg constructor can later fold into a stack literal Decl,
+// turning the move rewrite's wrapper `free(local)` into a free of a
+// stack value (fix_stale_litstr_in_body only repairs `<T>.delete`
+// cleanups, not the move path's raw free). A clone call never folds:
+// .clone() on a literal receiver is a typer error, and a runtime
+// receiver is unknowable to the folder.
+priv str_rhs_provably_owning := func(rhs: Expr) returns Bool {
+    if rhs.node_type.is_literal_str() { return true }
+    return rhs_is_clone_fcall(rhs)
+}
+
+// True when the subtree holds `name`'s Decl and its initializer is
+// provably owning. Nested FuncDef subtrees are skipped: a nested
+// function's `name` is a different binding.
+priv expr_has_owning_str_decl := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.FuncDef: return false
+    case NodeType.Decl(dd):
+        if dd.name == name {
+            if e.children.len() == 0 { return false }
+            return str_rhs_provably_owning(e.children[0])
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if expr_has_owning_str_decl(c, name) { return true }
+    }
+    return false
+}
+
+// True when the subtree writes `name` (Decl initializer or Assign, at
+// any nesting depth) with an RHS that is NOT provably owning. FuncDef
+// subtrees are skipped as above.
+priv expr_has_unproven_str_def := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.FuncDef: return false
+    case NodeType.Decl(dd):
+        if dd.name == name {
+            if e.children.len() == 0 { return true }
+            return str_rhs_provably_owning(e.children[0]).not()
+        }
+    case NodeType.Assign(ad):
+        if ad.name == name {
+            if e.children.len() == 0 { return true }
+            return str_rhs_provably_owning(e.children[0]).not()
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if expr_has_unproven_str_def(c, name) { return true }
+    }
+    return false
+}
+
+// Issue #258 refinement: a Str clone-arg may still be MOVED when every
+// def of the local among the preceding statements -- its Decl
+// initializer and every reassignment, at any nesting depth -- provably
+// yields an owning or static value (str_rhs_provably_owning). A local
+// with no visible Decl (params, outer-scope bindings) stays
+// conservative: its provenance is unknowable here, keep the clone.
+priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr)) returns Bool {
+    mut has_owning_decl := false
+    for pst : Expr in preceding {
+        if expr_has_unproven_str_def(pst, name) { return false }
+        if expr_has_owning_str_decl(pst, name) { has_owning_decl = true }
+    }
+    return has_owning_decl
 }
 
 priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr)) returns Bool {
@@ -732,15 +820,17 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
     }
 }
 
-// Issue #250: a hoisted view temp (a `hoisted__` Decl whose initializer reads
-// a local's heap buffer, e.g. `arg.substr(...)`) keeps that local's buffer
-// live until the temp is consumed -- typically by a later `.clone()`. The
-// local's last *named* mention is the view-producing statement, so without
-// this the asap pass schedules the local's auto-delete right there, BEFORE the
-// clone copies from the view: a use-after-free that corrupts the clone (garbage
-// bytes). This is the cross-variable generalization of #238, whose
-// collect_hoist_taint / var_aliases_target machinery only handled the case
-// where the view aliases the *assign target*.
+// Issue #250: a view binding (a Decl whose initializer reads a local's heap
+// buffer, e.g. `arg.substr(...)` -- a `hoisted__` temp or, since the #258
+// follow-up, a user-named local like `mut v := src.substr(0, n)`) keeps
+// that local's buffer live until the binding is consumed -- typically by a
+// later `.clone()`. The local's last *named* mention is the view-producing
+// statement, so without this the asap pass schedules the local's
+// auto-delete right there, BEFORE the clone copies from the view: a
+// use-after-free that corrupts the clone (garbage bytes). This is the
+// cross-variable generalization of #238, whose collect_hoist_taint /
+// var_aliases_target machinery only handled the case where the view
+// aliases the *assign target*.
 //
 // Fix idea #2 from the issue: treat a use of a hoisted view as a use of its
 // backing local. Taint the hoisted temps that (transitively) read the local,
@@ -1033,7 +1123,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
     }
 }
 
-priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
+priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -1055,6 +1145,16 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // field is Own/Ref, passing X as `own` arg to a function that
             // takes ownership of the wrapper) already consume the wrapper, so
             // adding a `free` here would double-free.
+            //
+            // REM (#258 audit): this branch is view-safe as-is -- freeing the
+            // WRAPPER of a view local touches neither the viewed buffer nor
+            // the field's copy. But the audited scenario (`h := Holder(s =
+            // v)` where `v := src.substr(...)`) shows the TRANSFER itself
+            // stores the borrow in the field, which dangles once src dies.
+            // That is constructor/field transfer semantics (no clone exists
+            // to preserve), not a garbager decision; a fix needs a language
+            // -level call (runtime clone-if-view on Str field transfers, or
+            // a diagnostic) and is out of scope here.
             if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer == stmt_idx.to_i32() {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
@@ -1076,6 +1176,21 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             continue
         }
         if local.last_use == stmt_idx.to_i32() {
+            // #258: Str clone-args move only under provable ownership; any
+            // other aggregate moves unconditionally (no view representation).
+            // The Str move is additionally COMPILE-ONLY: it pairs a bare
+            // field/assign store with a wrapper free, shaped for the C
+            // backend's move semantics. The interpreter executes value
+            // semantics with its own heap accounting, and running the
+            // rewritten pair there leaks the moved buffer (caught by the
+            // suite's ASAN interp run on test/bug258.til shape 5). The
+            // interpreter gains nothing from the rewrite -- it is a pure
+            // C-perf optimization -- so interp mode keeps the exact
+            // clone+delete roundtrip instead.
+            mut clone_to_move_ok := clone_arg_may_be_view(local).not()
+            if clone_to_move_ok.not().and(ctx.compile_mode) {
+                clone_to_move_ok = str_clone_to_move_provably_safe(local.name, preceding)
+            }
             // FieldAssign with auto-cloned Ident RHS at the local's last use:
             // the clone allocates a deep copy, the field stores the copy, and
             // the local's contents would then be deleted by the normal
@@ -1086,10 +1201,9 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // only the heap wrapper. Only apply when stmt is the FieldAssign
             // itself (not a wrapping for/if -- last_use would point to the
             // outer stmt in that case, so this match implicitly excludes
-            // loop/conditional bodies). Str stands down: the value may be
-            // a borrowed view, so the clone must stay (see
-            // clone_arg_may_be_view, issue #258).
-            if local.is_heap.and(is_aggregate(local.type)).and(clone_arg_may_be_view(local).not()) {
+            // loop/conditional bodies). Str moves only when its defs are
+            // provably owning (clone_to_move_ok above, issue #258).
+            if local.is_heap.and(is_aggregate(local.type)).and(clone_to_move_ok) {
                 if stmt.node_type.is(NodeType.FieldAssign).and(stmt.children.len().gte(2)) {
                     ref fa_rhs : Expr = stmt.children[1]
                     if rhs_is_clone_fcall(fa_rhs).and(fa_rhs.children.len().gte(2)) {
@@ -1131,9 +1245,9 @@ priv insert_post_stmt_deletes := func(stmt: Expr, locals: Vec(LocalInfo), stmt_i
             // emits a pointer move into lhs, and skip local's scope-end
             // delete: ownership transfers wholesale to the assign target
             // (whose own save_old_delete already freed lhs's prior value).
-            // Str stands down: the value may be a borrowed view, so the
-            // clone must stay (see clone_arg_may_be_view, issue #258).
-            if local.is_heap.and(is_aggregate(local.type)).and(clone_arg_may_be_view(local).not()) {
+            // Str moves only when its defs are provably owning
+            // (clone_to_move_ok above, issue #258).
+            if local.is_heap.and(is_aggregate(local.type)).and(clone_to_move_ok) {
                 mut assign_saves_old := false
                 switch stmt.node_type {
                 case NodeType.Assign(adata): assign_saves_old = adata.save_old_delete
@@ -1416,7 +1530,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
         insert_nested_exit_deletes(stmt, locals_vec, i)
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec(Expr).new()
-        insert_post_stmt_deletes(stmt, locals_vec, i, post_deletes, scope, new_ch)
+        insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }

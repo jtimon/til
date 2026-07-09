@@ -1,20 +1,30 @@
 mode test
 
+import("../src/std/sys")
+
 // Regression for issue #258: the garbager's clone-to-move elision
-// (insert_post_stmt_deletes) must NOT fire when the clone-arg is a Str.
-// A Str value can be a non-owning view at runtime (cap == CAP_VIEW:
-// substr / strip_prefix results), and views flow freely through locals,
-// reassignments and returns, so the move is only sound for types that
-// always own their contents. Before the fix,
-// `h.s = src.strip_prefix("--cc=").clone()` compiled to a MOVE of the
-// view into the field (no Str_clone emitted at all); once src's buffer
-// was freed or reused the field read garbage (broke --cc= handling in
-// til's own parse_args: "sh: 1: U: not found" on the linux-riscv32 CI).
+// (insert_post_stmt_deletes) must NOT fire when the clone-arg is a Str
+// whose defs are not provably owning. A Str value can be a non-owning
+// view at runtime (cap == CAP_VIEW: substr / strip_prefix results), and
+// views flow freely through locals, reassignments and returns, so the
+// move is only sound when ownership is provable (Decl initializer and
+// every reassignment is a Str literal or a .clone() call). Before the
+// fix, `h.s = src.strip_prefix("--cc=").clone()` compiled to a MOVE of
+// the view into the field (no Str_clone emitted at all); once src's
+// buffer was freed or reused the field read garbage (broke --cc=
+// handling in til's own parse_args: "sh: 1: U: not found" on the
+// linux-riscv32 CI).
 //
 // Each shape below stores a view-clone whose backing buffer dies when
 // the producing function returns; the clobber() call then reuses the
 // freed chunk so a moved-in view reads corrupted bytes even without
 // ASAN (make test's ASAN run catches the use-after-free directly).
+//
+// Every maker takes a runtime `salt` (derived from clock_ms(), always
+// 0) threaded into the buffer capacity: a pure nullary maker would be
+// CONSTANT-FOLDED at the call site (the folder evaluates it via the
+// interpreter, which is not miscompiled), and the compiled test would
+// assert on a baked literal instead of exercising the garbager path.
 
 Holder := struct {
     s := ""
@@ -26,8 +36,8 @@ OwnHolder := struct {
 
 // Shape 1 (the parse_args miscompile): FieldAssign into a Shallow field
 // from a view whose producing call was hoisted into a temp.
-make_field := func() returns Holder {
-    mut src := Str.with_capacity(32)
+make_field := func(salt: USize) returns Holder {
+    mut src := Str.with_capacity(salt + 32)
     src.push_str("--cc=bug258-cc-value")
     mut h := Holder()
     h.s = src.strip_prefix("--cc=").clone()
@@ -36,8 +46,8 @@ make_field := func() returns Holder {
 
 // Shape 2: plain Assign where the target is NOT the view's receiver
 // (the #238 var_aliases_target guard only covered target == receiver).
-make_assign := func() returns Str {
-    mut src := Str.with_capacity(32)
+make_assign := func(salt: USize) returns Str {
+    mut src := Str.with_capacity(salt + 32)
     src.push_str("--cc=bug258-assign-value")
     mut out := ""
     out = src.strip_prefix("--cc=").clone()
@@ -46,8 +56,8 @@ make_assign := func() returns Str {
 
 // Shape 3: user-named view local cloned into a field (the view is held
 // in `v`, not in a hoisted__ temp).
-make_named_view := func() returns Holder {
-    mut src := Str.with_capacity(32)
+make_named_view := func(salt: USize) returns Holder {
+    mut src := Str.with_capacity(salt + 32)
     src.push_str("bug258-named-view-value")
     mut h := Holder()
     mut v := src.substr(0, 6)
@@ -57,45 +67,124 @@ make_named_view := func() returns Holder {
 
 // Shape 4: same store into an OWN field (routes through the desugarer's
 // clone hoist instead of the garbager branch; locks that path in too).
-make_own_field := func() returns OwnHolder {
-    mut src := Str.with_capacity(32)
+make_own_field := func(salt: USize) returns OwnHolder {
+    mut src := Str.with_capacity(salt + 32)
     src.push_str("--cc=bug258-own-value")
     mut h := OwnHolder()
     h.s = src.strip_prefix("--cc=").clone()
     return h
 }
 
+// Shape 5 (#258 refinement): PROVABLY-OWNING local cloned into a field
+// at its last use. `src`'s Decl initializer is a .clone() call, so in
+// compile mode the garbager elides the outer clone and moves the local
+// (the #256 optimization); interp mode keeps the clone (the move
+// rewrite is shaped for C move semantics and leaks under the
+// interpreter's value-semantics accounting). Content must survive
+// either way.
+make_owned_field := func(salt: USize) returns Holder {
+    mut seed := Str.with_capacity(salt + 32)
+    seed.push_str("bug258-moved-owned-value")
+    mut src := seed.clone()
+    mut h := Holder()
+    h.s = src.clone()
+    return h
+}
+
+// Shape 6: plain Assign from a provably-owned source. The Assign move
+// branch additionally requires save_old_delete (an RHS that reads the
+// target), which an independently-built source never produces -- so the
+// clone stays here; this locks content correctness of the conservative
+// path.
+make_owned_assign := func(salt: USize) returns Str {
+    mut seed := Str.with_capacity(salt + 32)
+    seed.push_str("bug258-moved-assign-value")
+    mut src := seed.clone()
+    mut out := ""
+    out = src.clone()
+    return out
+}
+
+// Shape 7 (#258 refinement): an owning Decl init does NOT make the
+// local movable when a later reassignment is unprovable -- here `s` is
+// rebound to a view of `base`, so the clone must stay or h.s dangles
+// once base's buffer dies.
+make_reassigned_view := func(salt: USize) returns Holder {
+    mut base := Str.with_capacity(salt + 32)
+    base.push_str("bug258-reassigned-view")
+    mut seed := Str.with_capacity(salt + 16)
+    seed.push_str("owned-at-first")
+    mut s := seed.clone()
+    s = base.substr(0, 6)
+    mut h := Holder()
+    h.s = s.clone()
+    return h
+}
+
 // Reuse the just-freed chunk so a moved-in view observably corrupts.
-clobber := func() returns Str {
-    mut z := Str.with_capacity(32)
+clobber := func(salt: USize) returns Str {
+    mut z := Str.with_capacity(salt + 32)
     z.push_str("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")
     return z
 }
 
+// Runtime zero: opaque to the constfolder (clock_ms is an ext_proc).
+runtime_salt := proc() returns USize {
+    return clock_ms().mod(1).to_usize()
+}
+
 test_field_assign_keeps_view_clone := test() {
-    h := make_field()
-    z := clobber()
+    salt := runtime_salt()
+    h := make_field(salt)
+    z := clobber(salt)
     assert(z.len() > 0)
     assert(h.s.eq("bug258-cc-value"))
 }
 
 test_assign_keeps_view_clone := test() {
-    out := make_assign()
-    z := clobber()
+    salt := runtime_salt()
+    out := make_assign(salt)
+    z := clobber(salt)
     assert(z.len() > 0)
     assert(out.eq("bug258-assign-value"))
 }
 
 test_named_view_keeps_clone := test() {
-    h := make_named_view()
-    z := clobber()
+    salt := runtime_salt()
+    h := make_named_view(salt)
+    z := clobber(salt)
     assert(z.len() > 0)
     assert(h.s.eq("bug258"))
 }
 
 test_own_field_keeps_view_clone := test() {
-    h := make_own_field()
-    z := clobber()
+    salt := runtime_salt()
+    h := make_own_field(salt)
+    z := clobber(salt)
     assert(z.len() > 0)
     assert(h.s.eq("bug258-own-value"))
+}
+
+test_owned_local_moves_into_field := test() {
+    salt := runtime_salt()
+    h := make_owned_field(salt)
+    z := clobber(salt)
+    assert(z.len() > 0)
+    assert(h.s.eq("bug258-moved-owned-value"))
+}
+
+test_owned_assign_keeps_content := test() {
+    salt := runtime_salt()
+    out := make_owned_assign(salt)
+    z := clobber(salt)
+    assert(z.len() > 0)
+    assert(out.eq("bug258-moved-assign-value"))
+}
+
+test_reassigned_view_keeps_clone := test() {
+    salt := runtime_salt()
+    h := make_reassigned_view(salt)
+    z := clobber(salt)
+    assert(z.len() > 0)
+    assert(h.s.eq("bug258"))
 }
