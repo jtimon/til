@@ -26,6 +26,35 @@ it deletes and the census section tracks the counts. Point bug-fixes
 along the way are welcome but they are not the deliverable; fewer
 hand-written free/delete calls is.
 
+PLACEMENT CORRECTION (Jorge, 2026-07-09): the metric is about
+PLACEMENT, not about minimizing free/delete tokens. Explicit memory
+management legitimately lives in exactly these homes:
+
+  1. delete methods (destructors): the per-field / per-element
+     deletes, ~free(own self.data)~, and the
+     ~if call_free { free(own self) }~ box release -- ALL of it is
+     correct where it is;
+  2. allocators: malloc/calloc/realloc and buffer swaps in
+     new / with_capacity / grow / push paths, encapsulated in the
+     containers;
+  3. the machinery implementing the model itself: the garbager's
+     insertion factories, the builder emitting destructor calls as C,
+     the interpreter's runtime freeing values IT allocates;
+  4. documented FFI islands (until their gating issues land).
+
+Everything OUTSIDE those homes is the target: a hand-written free or
+delete in ordinary code (the compiler's own passes included -- they
+are ordinary til programs) exists only because the garbager failed
+there and someone compensated. Mojo draws the same line: its manual
+tells type authors to free UnsafePointer allocations in __del__, and
+its stdlib containers hand-manage element destruction
+(destroy_pointee loops) exactly like vec.til's T.delete loops --
+encapsulated manual memory is the design, not a defect (see
+doc/ownership.org "Relation to Mojo", re-verified against the Mojo
+manual 2026-07-09). A first attempt to "clean up" census class e
+(2026-07-09) got this backwards and was reverted same day -- see
+Progress.
+
 This is the concrete design + staging for the garbager half of #272
 ("single ownership authority", its suggested-staging steps 4-5), with
 the inventory refreshed against current master (e333e8a). The
@@ -76,15 +105,13 @@ set/array/tuple and most of the interpreter:
   b. DESTRUCTOR-TREE INTERNALS driven by the TYPE-ERASED buffer: the
      per-element `T.delete(own ptr_add(self.data, i*size), false)`
      loops (clear, move_from, unsafe_set) and the hand-written
-     delete/clone overrides that exist ONLY to run those loops. The
-     compiler cannot see "count elements of T behind an own U8
-     pointer", so the auto-generated delete/clone cannot cover
-     containers; everything else in Vec.delete (free(own self.data),
-     the call_free tail) the auto-generated path would already
-     handle. An owned typed buffer concept (own pointer-to-T plus a
-     compiler-known count field) would let containers drop their
-     hand-written delete/clone entirely. Language-design call --
-     recorded here as the root cause of class b, not yet a stage.
+     delete/clone overrides that run them. LEGITIMATE (placement
+     home 1, 2026-07-09): this is the destructor's own body, the
+     same shape as Mojo stdlib containers' destroy_pointee loops in
+     __del__. NOT a target of this issue. (A typed-buffer language
+     concept -- own pointer-to-T plus a compiler-known count --
+     could someday let auto-gen cover containers; recorded as a
+     possible future language design, explicitly out of #302 scope.)
   c. THE MANUAL MOVE IDIOM: memcpy(dst, val, size) + memset(val, 0,
      size) (push, unsafe_set, push_take, pop, clone) and its
      `other.count = 0` variant (append, move_from) -- 11 direct
@@ -103,17 +130,27 @@ set/array/tuple and most of the interpreter:
      bindings and binding an allocator result to Dynamic becomes a
      type error. See the reworked rule in New diagnostics.
   e. DESTRUCTOR-TAIL PROTOCOL: `if call_free { free(own self) }`
-     repeated verbatim in every hand-written delete (all 9 of
-     numbers.til's calls are this and nothing else). Protocol
-     boilerplate that belongs to the delete contract / codegen, not
-     to every author.
+     closing every hand-written delete. LEGITIMATE (placement home 1,
+     2026-07-09): the box release belongs at the end of the delete
+     body -- it is the visible form of til's box-vs-inline storage
+     model (Mojo's __del__ has no analog only because Mojo values
+     live in place; see doc/ownership.org). NOT a target. An
+     initer-appends-the-tail automation pair was built, gated green,
+     and REVERTED 2026-07-09 (see Progress): it moved calls that
+     were already in their right home.
 
-What this census says about the goal: the interpreter's 149 calls are
-the #286-gated shadow layer (already inventoried below); of the
-REST, class c (the move idiom) and class d (Dynamic ownership) are
-garbager/typer work with no interpreter dependency, class b needs the
-typed-buffer language decision, class a stays, class e dies with the
-recorded-decision destructor contract (stage 4/6).
+What this census says about the goal (re-read 2026-07-09 under the
+placement correction): classes a, b and e are correctly-placed
+destructor/allocator code and STAY. The targets are class c (the
+manual move idiom -- a workaround for the garbager not understanding
+moves; dies via the move/swap ruling), class d (Dynamic ownership --
+dies via the Dynamic-never-owns ruling), and above all the src/self
+compensation layer: the interpreter's 149 calls (the #286-gated
+shadow teardown plus manual frees), builder.til's re-derivations, and
+every hand-written free/delete in the compiler passes (typer.til,
+loader.til, constfolder.til, ...) that manages an ordinary
+garbager-tracked value instead of fixing the garbager gap that made
+it necessary.
 
 *** The garbager's output today (the undocumented contract)
 
@@ -571,6 +608,27 @@ let the ownership pass insert temps itself; start with the check.
     interpreter's boxed-scalar model loses write_ptr writes through
     scalar bindings -- verified 2026-07-07, tmp/gc_stack_cell.til).
     Design accepted; scheduling TBD with stage 4.
+  - [X] 2026-07-09 PLACEMENT CORRECTION (Jorge) + re-scope. A pair
+    automating census class e (initer appends the
+    `if call_free { free(own self) }` tail to custom deletes; all 31
+    explicit tails swept from the tree) was implemented, gated green
+    (169/169 two-pass), pushed -- and REVERTED same day on Jorge's
+    correction: the tails, the element-delete loops, and the buffer
+    frees inside delete methods are the destructor's own body, i.e.
+    exactly where explicit memory management BELONGS (as do
+    allocators). The goal was never fewer free tokens in core; it is
+    draining the calls OUTSIDE the legitimate homes (see the
+    placement correction at the top). Census classes b and e
+    reclassified LEGITIMATE/not-targets; class c and d stay targets
+    (both are Jorge's standing rulings); the primary target is the
+    src/self compensation layer. Same day: doc/ownership.org's
+    "Relation to Mojo" rewritten against the current Mojo manual
+    (read/mut/var renames, Copyable/Movable traits, field-sensitive
+    ASAP, @explicit_destroy, UnsafePointer-in-__del__ as the
+    encapsulated-manual-memory precedent), and the stale
+    "use `buf : Dynamic = malloc(...)` for owned allocations" idiom
+    in doc/qualifiers.org replaced with the typed raw_alloc contract
+    + Dynamic-never-owns ruling.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.
@@ -650,10 +708,9 @@ Stage 4. Explicit moves + unified reassign deletes. [Two-pass]
   memset-defusings across core/std, plus the interpreter's
   val_none() nullings). Calls removed: the whole idiom -- and with
   it #275's byte-copy enforcement becomes possible, since the
-  legitimate byte-moves now have a first-class spelling. The
-  destructor-tail boilerplate (`if call_free { free(own self) }`,
-  census class e) folds into the recorded destructor contract here
-  or in stage 6.
+  legitimate byte-moves now have a first-class spelling. (The
+  destructor tail is NOT part of this stage: placement correction
+  2026-07-09, census class e is legitimate destructor code.)
 
 Stage 5. Temp-contract enforcement. [Two-pass]
   The unhoisted-owned-temp ICE. Fix what it flushes out (the

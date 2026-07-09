@@ -39,7 +39,7 @@ The garbager only ever emits three things (see ~make_delete_call~ /
 |-----------------------------+----------------------------------+-----------------------------------------------|
 | ~Type.delete(own x, true)~  | heap-owned aggregate             | run field destructors, then ~free~ the box    |
 | ~Type.delete(x, false)~     | inline / stack value             | run field destructors only; nothing to free   |
-| ~free(own x)~               | raw ~Dynamic~, or orphan wrapper | ~free~ the pointer, NO inner destructor        |
+| ~free(own x)~               | raw block (typed raw_alloc local), raw ~Dynamic~, or orphan wrapper | ~free~ the pointer, NO inner destructor |
 
 ~call_free~ is the whole game for aggregates. A heap box (own local, own
 field, returned value) is freed with ~call_free=true~. An *inline* value (a
@@ -94,7 +94,8 @@ a container and must never be passed to ~free~/~delete~.
 | ~mut x := expr~           | same as above              | same; plus the OLD value is freed before each reassignment|
 | ~ref x : T = expr~        | borrowed                   | none (~skip_scope_delete~); the SOURCE's lifetime is extended to cover x |
 | ~ref mut x : T = expr~    | mutable borrow             | same as ~ref~                                            |
-| ~buf : Dynamic = malloc~  | owned raw pointer          | NOT tracked -- you must ~free(own buf)~ or transfer it    |
+| ~buf : U8 = malloc(n)~    | owned raw block (raw_alloc)| ~free(own buf)~ inserted at last use / exit edges (#302) |
+| ~buf : Dynamic = malloc~  | owned raw pointer (LEGACY) | NOT tracked -- manual ~free(own buf)~ or transfer; interpreter island only, slated to become a type error (#302) |
 
 The aggregate-local promotion is the workhorse: a plain ~x := Foo()~ starts
 ~Shallow~ but ~promote_own_transferred_locals~ flips owned aggregates to
@@ -174,27 +175,97 @@ rebind-then-transfer pattern).
 
 ** Relation to Mojo
 
-til's model is a close cousin of Mojo's value semantics, chosen on purpose:
+til's model is a deliberate close cousin of Mojo's. Re-checked against the
+Mojo manual 2026-07-09 (see Sources). Terminology note: Mojo renamed its
+conventions over 2024-2025 -- ~borrowed~ became ~read~, ~inout~ became
+~mut~, ~owned~ became ~var~ -- and replaced the ~__copyinit__~ /
+~__moveinit__~ dunders with the ~Copyable~/~Movable~ traits whose custom
+forms are ~__init__(out self, *, copy: Self)~ and
+~__init__(out self, *, deinit move: Self)~. Older posts use the old names.
 
-  - ASAP destruction. Mojo "destroys values using an ASAP policy ... uses
-    static analysis at compile-time to determine the last use of a value.
-    At that point, it immediately ends the value's lifetime and calls the
-    implicit __del__()." til does the same with ~last_use~ + ~make_delete_call~.
-  - Single owner. Both enforce one owner at a time and destroy at end of owner
-    lifetime.
-  - Argument conventions line up: Mojo ~borrowed~/~read~ == til default ~Ref~;
-    Mojo ~inout~/~mut~ == til ~mut~; Mojo ~owned~ == til ~own~.
-  - Transfer. Mojo's ~^~ transfer operator "disables the call to __del__" for
-    the source; til's ~own~ at a call site is the same -- ~expr_transfers_own~
-    makes the source's ASAP stand down.
-  - Lifetime extension. Mojo "extends the lifetime of the owner" when
-    references exist; til's ~extend_ref_local_lifetimes~ is the same idea.
+*** Same in both
 
-Differences worth noting: til has no ~^~ sigil -- ~own~ at the parameter
-declaration plus the call site carries it, and ownership of a plain local is
-inferred/promoted rather than copy-by-default. til also has the ~Dynamic~
-escape hatch (raw pointers) that Mojo does not, and ~Shallow~ is a first-class
-qualifier (Mojo's value-copy is implicit via ~Copyable~).
+  - ASAP destruction. Mojo "destroys values using an 'as soon as possible'
+    (ASAP) destruction policy that runs after every sub-expression": static
+    last-use analysis, then the implicit ~__del__()~ fires immediately --
+    not at scope end. til: ~last_use~ in ~collect_scope_locals~ +
+    ~make_delete_call~ -- same policy at statement granularity (see
+    differences).
+  - Single owner. "Every value has only one owner at a time"; the value is
+    destroyed when the owner's lifetime ends. Identical here.
+  - Argument conventions map one-to-one:
+    | Mojo (current)   | Mojo (pre-rename) | til           |
+    |------------------+-------------------+---------------|
+    | ~read~ (default) | ~borrowed~        | default (Ref) |
+    | ~mut~            | ~inout~           | ~mut~         |
+    | ~var~            | ~owned~           | ~own~         |
+  - Transfer. Mojo's postfix ~^~ sigil "transfers the value, leaving the
+    original variable uninitialized", disabling the source's ~__del__~;
+    use-after-transfer is a compile error. til: ~own~ at the call site is
+    the same (~expr_transfers_own~ stands the pass down;
+    ~check_use_after_own_transfer~ rejects later uses).
+  - Lifetime extension for borrows. Mojo extends the owner's lifetime while
+    references to it exist; til's ~extend_ref_local_lifetimes~ pushes the
+    owner's ~last_use~ past the borrower.
+  - Scalars opt out. Mojo trivial types (~Int~, ~Bool~, ~Float64~) have "no
+    ownership semantics", pass in registers, and have no destructors; til
+    scalars are auto-shallow (#223) and the garbager suppresses their
+    deletes.
+  - WHERE EXPLICIT MEMORY MANAGEMENT LIVES -- the part that matters for
+    #302. Mojo's manual instructs type authors to free dynamic allocations
+    in ~__del__~ ("freeing memory for any fields where you dynamically
+    allocated memory (for example, via UnsafePointer)"), and Mojo's stdlib
+    containers hand-manage element lifetimes through the ~UnsafePointer~
+    manual API (~alloc~/~free~, ~init_pointee_move~, ~destroy_pointee~
+    loops) inside ~__del__~ and the growth paths. That is exactly til's
+    shape: ~malloc~/~free~ and the per-element
+    ~T.delete(own ptr_add(...), false)~ loops live inside ~Vec.delete~ and
+    the grow paths. In BOTH languages, encapsulated manual memory inside
+    container/resource types is the DESIGN, not a defect; ordinary code
+    writes zero explicit frees.
+
+*** Different
+
+  - Copies. Mojo assignment copies when the type is ~Copyable~ (implicitly
+    only when ~ImplicitlyCopyable~); ~^~ opts into a move, and ~^~ is
+    optional on ~var~ args (without it a copy is passed). til never copies
+    implicitly: ~clone()~ is always explicit, and an ~own~ boundary always
+    moves (plus the user-facing ~swap~/~move~ primitives, #302).
+  - Destruction granularity. Mojo destroys after every SUB-expression and
+    tracks FIELD-SENSITIVE lifetimes ("destroys each field independently
+    with its ASAP destruction policy"; a partially-moved-out object must be
+    re-initialized before whole-object destruction). til's pass works per
+    statement per binding, and fields die only via the parent's ~delete~.
+    The #302 CFG pass narrows the statement-vs-path gap; field-sensitive
+    destruction stays out of scope.
+  - Reference safety. Mojo validates references with an origin (lifetime)
+    system and enforces argument EXCLUSIVITY ("if a function receives a
+    mutable reference to a value ... it can't receive any other references
+    to the same value"). til has no origin checker: ~ref~ is trusted and
+    locally lifetime-extended; ~returns ref~ is the documented dangerous
+    case; there is no exclusivity rule.
+  - Destructor signature. Mojo's ~__del__(deinit self)~ has no ~call_free~:
+    Mojo values live in place (fields inline, locals on the stack; the
+    compiler moves the bytes), so a destructor never frees its own box.
+    til heap-boxes owned aggregates, so ~delete(own self, call_free)~
+    threads the box-vs-inline bit down. The
+    ~if call_free { free(own self) }~ tail in every til destructor is this
+    difference made visible -- correct where it is, with no Mojo analog.
+  - Escape hatches. Mojo channels ALL raw memory through the typed
+    ~UnsafePointer~ API; til's escape hatch is ~Dynamic~ + libc calls.
+    Ruling 2026-07-06 (#302): ~Dynamic~ must not OWN storage -- owned raw
+    buffers are typed (~own U8~ fields, typed allocator locals via the
+    garbager's raw_alloc provenance) -- which moves til toward Mojo's
+    "unsafe is an explicit, typed API" stance.
+  - Mojo extras til lacks: ~out~ named-result constructors
+    (~__init__(out self)~ initializes in place; til constructors are
+    ordinary calls returning owned values), ~ref~ parametric-mutability
+    params, ~@explicit_destroy~ linear-style types (implicit destructor
+    disabled; a named cleanup MUST be called), and the ~_ = value~ discard
+    pattern that extends a lifetime to a chosen point.
+  - til extras Mojo lacks: ~Shallow~ as a first-class by-value qualifier
+    (Mojo's copies ride ~Copyable~ instead), and ownership of a plain local
+    inferred/promoted by the pass rather than declared.
 
 ** Manual free / delete: legitimate vs smell
 
@@ -204,10 +275,16 @@ a second look. It is one of two things:
 
 *** Legitimate (the garbager genuinely cannot see it)
 
-  1. ~Dynamic~ locals. The garbager opts out of raw pointers entirely (there
-     is no type to call ~delete~ on). A ~buf : Dynamic = malloc(...)~ MUST be
-     hand-freed with ~free(own buf)~ or transferred to an ~own~ arg/field.
-     This is documented in qualifiers.org and is correct by design.
+  1. ~Dynamic~ locals (LEGACY, interpreter island only). The garbager opts
+     out of raw ~Dynamic~ pointers (type erasure hides pointer escapes), so
+     a ~buf : Dynamic = malloc(...)~ MUST be hand-freed with ~free(own buf)~
+     or transferred. Ruling 2026-07-06 (#302): ~Dynamic~ must not own
+     storage at all -- owned raw buffers are TYPED (~buf : U8 = malloc(n)~,
+     ~out : T = malloc(T.size())~), which the garbager auto-frees by
+     provenance (raw_alloc), so those need NO hand-written free; the
+     remaining Dynamic-owning sites are being migrated and the binding
+     shape is slated to become a type error. A hand-written free on a
+     TYPED allocator local is now the smell, not the rule.
   2. Manual-memory islands: heap graphs reached only through ~Dynamic~ and
      stored in ~Dynamic~-valued containers, whose element ~delete~ is the
      no-op ~default_delete~. ~Map(K, Dynamic)~ and ~Vec(Dynamic)~ do NOT free
@@ -621,12 +698,19 @@ model and of how the interpreter's value-model fixes were found.
 
 ** Sources
 
-  - Mojo, "Value destruction" (ASAP, last-use destruction, __del__):
+  - Mojo, "Value destruction" (ASAP after every sub-expression,
+    field-sensitive lifetimes, @explicit_destroy, _ = discard):
     https://docs.modular.com/mojo/manual/lifecycle/death/
-  - Mojo, "Ownership" (borrowed/inout/owned conventions, ^ transfer):
+  - Mojo, "Ownership" (read/mut/var conventions, ^ transfer, mutable-
+    reference exclusivity; the pre-rename borrowed/inout/owned are gone):
     https://docs.modular.com/mojo/manual/values/ownership/
-  - Mojo, "Deep dive into ownership in Mojo":
+  - Mojo, "Value creation" (Copyable/ImplicitlyCopyable/Movable traits,
+    __init__ copy/move forms replacing __copyinit__/__moveinit__,
+    trivial types):
+    https://docs.modular.com/mojo/manual/lifecycle/life/
+  - Mojo, "Deep dive into ownership in Mojo" (pre-rename terminology):
     https://www.modular.com/blog/deep-dive-into-ownership-in-mojo
+  - Terminology re-verified against the manual 2026-07-09.
   - til implementation: [[file:../src/self/garbager.til][src/self/garbager.til]]
     (the ASAP pass), [[file:../src/self/typer.til][typer.til]]
     (~make_delete_call~, ~make_free_call~, ~expr_transfers_own~, ~fa_own_type~),
