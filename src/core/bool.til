@@ -3,12 +3,18 @@ mode lib
 import("numbers")
 import("str")
 
-and := lazy_func(a: Bool, b: Bool) returns Bool {
-    return match a { case true: b case: false }
-}
-or := lazy_func(a: Bool, b: Bool) returns Bool {
-    return match a { case true: true case: b }
-}
+// and/or are core_lazy_funcs: bodyless lazy core primitives (the canonical
+// forms of the `&&` / `||` operators). Their expansion is compiler-known --
+// the loader splices the short-circuit match at parse-time call sites
+// (and(a, b) == match a { case true: b case: false }; or(a, b) ==
+// match a { case true: true case: b }), the C backend lowers residual
+// calls (the desugarer's post-typer synthesized chains) to the natively
+// short-circuiting && / ||, and the interpreter's h_Bool_and / h_Bool_or
+// handlers only evaluate the second operand when the first does not
+// decide the result. Explicit `shallow` throughout: a bodyless signature
+// gets no auto-shallow inference (see doc/qualifiers.org).
+and := core_lazy_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
+or := core_lazy_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 // Lisp-style N-ary and/or. `and`/`or` are strictly binary (the `&&`/`||`
 // operators and `.and()`/`.or()`); vand/vor are genuinely variadic: a real
 // `..Bool` param and an author-written loop body. Each call site is unrolled
