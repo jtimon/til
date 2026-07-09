@@ -1281,7 +1281,7 @@ I64 Str_cmp(Str * a, Str * b) {
         I64 hoisted__I64_140 = -1;
         (void)hoisted__I64_140;
         { I64 _ret_val = hoisted__I64_140;
-                        return _ret_val; }
+                                return _ret_val; }
     }
     I32 hoisted__I32_145 = 0;
     (void)hoisted__I32_145;
@@ -1291,7 +1291,7 @@ I64 Str_cmp(Str * a, Str * b) {
         I64 hoisted__I64_141 = 1;
         (void)hoisted__I64_141;
         { I64 _ret_val = hoisted__I64_141;
-                        return _ret_val; }
+                                return _ret_val; }
     }
     I64 hoisted__I64_147 = U64_cmp(a->count, b->count);
     (void)hoisted__I64_147;
