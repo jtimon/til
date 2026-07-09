@@ -2,7 +2,6 @@ mode lib
 import("context")
 
 import("../std/mode_type")
-import("initer")
 
 
 context_register_path_mode := func(mut ctx: Context, path: Str, mode: Mode) {
