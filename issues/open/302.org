@@ -656,6 +656,23 @@ let the ownership pass insert temps itself; start with the check.
     as a Vec method (needs an API-shape decision, e.g.
     Vec.delete_marked); constfolder's scope_free(own va_scope) is
     interp-island machinery (stage 7).
+  - [X] 2026-07-10 follow-on (this branch, rebased onto the above):
+    the remaining small-file candidates the entry above flagged, and
+    the ordinary-owned-local deletes it did not reach, drained;
+    full-ASAN gate 169/169. (1) scavenger.til children_filter_expr/
+    children_filter_decl -- the per-element Expr/Declaration.delete +
+    compaction-over-v.data container surgery -- relocated into the
+    container as the generic `Vec(T).delete_marked(marks, n)` (delete
+    marked, memset, compact survivors, shrink count); the three
+    scavenger call sites become `<vec>.delete_marked(...)` and
+    scavenger now has ZERO explicit element deletes. (2) seven more
+    TypeScope-class deletes of ordinary owned Set/Vec locals removed,
+    garbager-covered: scavenger's refs/candidates/candidates_replace/
+    dropped Sets and constfolder's fuug_visiting/dead/va_done. Census
+    after (real call sites in src/self): interpreter ~150 (stage 7,
+    rides #286), builder 29 (stage 6), loader 2 scope_free + the
+    destructor body, constfolder 1 scope_free, scavenger 0, typer 0,
+    initer 0, garbager 0.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

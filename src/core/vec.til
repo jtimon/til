@@ -43,6 +43,37 @@ namespace:
         self.count = 0
     }
 
+    /// Delete the elements whose mark byte is nonzero and compact the
+    /// survivors forward, shrinking count to the survivors. `marks` is a
+    /// byte buffer with one entry per element in 0..n; n is the caller's
+    /// snapshot of count from when the marks were built. Keeps the
+    /// element deletes and buffer compaction inside the container (#302
+    /// placement) instead of callers walking self.data raw.
+    delete_marked := func(mut self: Vec(T), marks: Dynamic, n: USize) {
+        mut i : USize = 0
+        while i < n {
+            ref mark : Bool = ptr_add(marks, i)
+            if mark {
+                T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+                memset(ptr_add(self.data, i.mul(T.size())), 0, T.size())
+            }
+            i++
+        }
+        mut w : USize = 0
+        mut r : USize = 0
+        while r < n {
+            ref mark : Bool = ptr_add(marks, r)
+            if mark.not() {
+                if w != r {
+                    memcpy(ptr_add(self.data, w.mul(T.size())), ptr_add(self.data, r.mul(T.size())), T.size())
+                }
+                w++
+            }
+            r++
+        }
+        self.count = w
+    }
+
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {

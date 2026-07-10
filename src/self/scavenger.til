@@ -27,60 +27,6 @@ vec_push_str := func(mut v: Vec(Str), s: Str) {
     v.push(own s.clone())
 }
 
-// Compact+delete: mark dropped indices in a bool buffer, delete them,
-// then compact kept elements forward.
-priv children_filter_expr := func(mut v: Vec(Expr), marks: Dynamic, n: USize) {
-    // Delete marked elements and zero their bytes
-    mut i : USize = 0
-    while i < n {
-        ref mark : Bool = ptr_add(marks, i)
-        if mark {
-            Expr.delete(own ptr_add(v.data, i.mul(Expr.size())), false)
-            memset(ptr_add(v.data, i.mul(Expr.size())), 0, Expr.size())
-        }
-        i++
-    }
-    // Compact: move kept elements forward
-    mut w : USize = 0
-    mut r : USize = 0
-    while r < n {
-        ref mark : Bool = ptr_add(marks, r)
-        if mark.not() {
-            if w != r {
-                memcpy(ptr_add(v.data, w.mul(Expr.size())), ptr_add(v.data, r.mul(Expr.size())), Expr.size())
-            }
-            w++
-        }
-        r++
-    }
-    v.count = w
-}
-
-priv children_filter_decl := func(mut v: Vec(Declaration), marks: Dynamic, n: USize) {
-    mut i : USize = 0
-    while i < n {
-        ref mark : Bool = ptr_add(marks, i)
-        if mark {
-            Declaration.delete(own ptr_add(v.data, i.mul(Declaration.size())), false)
-            memset(ptr_add(v.data, i.mul(Declaration.size())), 0, Declaration.size())
-        }
-        i++
-    }
-    mut w : USize = 0
-    mut r : USize = 0
-    while r < n {
-        ref mark : Bool = ptr_add(marks, r)
-        if mark.not() {
-            if w != r {
-                memcpy(ptr_add(v.data, w.mul(Declaration.size())), ptr_add(v.data, r.mul(Declaration.size())), Declaration.size())
-            }
-            w++
-        }
-        r++
-    }
-    v.count = w
-}
-
 // Push qualified "Type.method" refs into v
 push_qn := func(mut v: Vec(Str), type_name: Str, method: Str) {
     v.push(own qualified_name(type_name, method))
@@ -297,7 +243,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
             }
         }
     }
-    children_filter_expr(program.children, pm, pn)
+    program.children.delete_marked(pm, pn)
 
     for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
@@ -314,7 +260,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                         memset(ptr_add(scv_nm2, j), 1, 1)
                     }
                 }
-                children_filter_decl(scv_ns2, scv_nm2, scv_nn2)
+                scv_ns2.delete_marked(scv_nm2, scv_nn2)
             }
         case:
             UNREACHABLE()
@@ -472,7 +418,7 @@ priv prune_trivial_deletes := proc(mut e: Expr, dropped: Set(Str)) {
                 memset(ptr_add(marks, i), 1, 1)
                 any = true
             }
-            if any { children_filter_expr(e.children, marks, n) }
+            if any { e.children.delete_marked(marks, n) }
         }
     }
     for c : Expr in e.children {
@@ -599,10 +545,6 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             prune_trivial_deletes(body.children[j], dropped)
         }
     }
-    own refs.delete(true)
-    own candidates.delete(true)
-    own candidates_replace.delete(true)
-    own dropped.delete(true)
     return any
 }
 

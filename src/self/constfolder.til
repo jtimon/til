@@ -839,7 +839,6 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 if is_macro_mode.not() {
                     mut fuug_visiting := Set(Str).new()
                     uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, fuug_visiting, ctx)
-                    own fuug_visiting.delete(true)
                     if uses_unknown {
                         return NULL
                     }
@@ -1379,7 +1378,6 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
         }
         body.children.move_from(keep)
     }
-    own dead.delete(true)
 }
 
 // Uniform fold: walk the subtree rooted at `e` and replace every FCall
@@ -1483,7 +1481,6 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     if va_done.len() > 0 {
         va_build_dce(e, va_done, ctx)
     }
-    own va_done.delete(true)
 }
 
 process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
