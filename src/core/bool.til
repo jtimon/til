@@ -17,19 +17,29 @@ and := core_lazy_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 or := core_lazy_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
 // Lisp-style N-ary and/or. `and`/`or` are strictly binary (the `&&`/`||`
 // operators and `.and()`/`.or()`); vand/vor are genuinely variadic: a real
-// `..Bool` param and an author-written loop body. Each call site is unrolled
-// at compile time over its known operands (inline_variadic_lazy_call in
-// src/self/loader.til): the for-in becomes one guard per operand, spliced as
-// nested short-circuit matches, so a later operand is evaluated only if every
-// earlier one kept going. Zero runtime cost -- no thunks, and the operand
-// collection is never materialized.
+// `..Bool` param and an author-written recursive body, the same shape GHC's
+// Prelude gives `and (x:xs) = x && and xs`. Each call site is unrolled
+// bottom-up at compile time over its known operands
+// (inline_recursive_variadic_lazy_call in src/self/loader.til): the base arm
+// at the end, each cons arm with x bound to its operand (call-by-name) and
+// the tail call replaced by the rest -- so a later operand is evaluated only
+// if every earlier one kept going. Zero runtime cost: no thunks, and the
+// operand collection is never materialized. The iterative for-in and
+// statement/switch forms of the same recursion are exercised in
+// test/lazy.til; all three unroll to equivalent code (benchmarked
+// indistinguishable) -- this form is kept in core for its Haskell-idiom
+// readability.
 vand := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x.not() { return false } }
-    return true
+    return match xs {
+    case []:        true
+    case [x, ..tl]: match x { case true: vand(..tl) case: false }
+    }
 }
 vor := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x { return true } }
-    return false
+    return match xs {
+    case []:        false
+    case [x, ..tl]: match x { case true: true case: vor(..tl) }
+    }
 }
 not := core_func(shallow a: Bool) returns shallow Bool {}
 

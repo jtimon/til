@@ -2450,6 +2450,86 @@ priv lazy_recursive_arm_value := func(arm: Expr) returns ref Expr {
     return arm.children[1].children[0]
 }
 
+// The Switch node of the STATEMENT (if/else) recursive form `{ switch <vname>
+// { ... } }`, or NULL. Same []/[h, ..t] discrimination as the match form, but
+// the arms are statement bodies (guards + returns) instead of single value
+// expressions -- the til-native if/else spelling, since `if` is a statement:
+//   switch xs {
+//   case []: return true
+//   case [x, ..tl]:
+//       if x.not() { return false }
+//       return vand(..tl)
+//   }
+priv lazy_recursive_body_switch := func(body: Expr, vname: Str) returns ref Expr {
+    if body.node_type.is(NodeType.Body).not() { return NULL }
+    if body.children.len() != 1 { return NULL }
+    ref sw : Expr = body.children[0]
+    if sw.node_type.is(NodeType.Switch).not() { return NULL }
+    if sw.children.len() != 3 { return NULL }   // scrutinee + exactly 2 cases
+    switch sw.children[0].node_type {
+    case NodeType.Ident(scrn):
+        if scrn.ident_name().eq(vname).not() { return NULL }
+    case: return NULL
+    }
+    return sw
+}
+
+// The Case child of switch `sw` whose pattern is a ListPattern with `arity`
+// children. Unlike the match form, the arm body is a statement list: the base
+// arm must be a single `return <expr>` and the cons arm an inlinable guard
+// chain -- both enforced by the callers.
+priv lazy_recursive_switch_arm := func(sw: Expr, arity: USize) returns ref Expr {
+    for i in 1..sw.children.len() {
+        ref cs : Expr = sw.children[i]
+        if cs.node_type.is(NodeType.Case).not() { continue }
+        if cs.children.len() != 2 { continue }
+        ref pat : Expr = cs.children[0]
+        if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
+            if cs.children[1].node_type.is(NodeType.Body) { return cs }
+        }
+    }
+    return NULL
+}
+
+// The single `return <expr>` value of a switch-form base arm, else NULL.
+priv lazy_recursive_switch_base_value := func(arm: Expr) returns ref Expr {
+    ref b : Expr = arm.children[1]
+    if b.children.len() != 1 { return NULL }
+    ref ret : Expr = b.children[0]
+    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return NULL }
+    return ret.children[0]
+}
+
+// Shared head/tail + hygiene rules for both recursive forms: distinct
+// head/tail names (also distinct from the variadic and any fixed param), the
+// base value mentions none of them, and the cons region never mentions the
+// variadic and uses the tail EXACTLY once -- as the single recursive tail
+// splat call `self(..tail)`.
+priv lazy_recursive_hygiene_ok := func(cons_pat: Expr, vname: Str,
+        fixed_names: Vec(Str), base_val: Expr, cons_region: Expr) returns Bool {
+    mut head := ""
+    mut tail := ""
+    switch cons_pat.children[0].node_type {
+    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
+    case: return false
+    }
+    switch cons_pat.children[1].node_type {
+    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
+    case: return false
+    }
+    if head.eq(tail).or(head.eq(vname)).or(tail.eq(vname)) { return false }
+    for fx : Str in fixed_names {
+        if fx.eq(head).or(fx.eq(tail)) { return false }
+    }
+    if lazy_count_ident_uses(base_val, vname).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, head).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, tail).gt(0) { return false }
+    if lazy_count_ident_uses(cons_region, vname).gt(0) { return false }
+    if lazy_count_ident_uses(cons_region, tail) != 1 { return false }
+    if lazy_count_tail_splat_calls(cons_region, tail) != 1 { return false }
+    return true
+}
+
 // Issue #262: shape check for the recursive variadic lazy form, shared by the
 // typer (def-site acceptance + body-typing skip: the ListPattern arms cannot
 // type as ordinary code), the builder (emission skip: the def is fully
@@ -2474,36 +2554,26 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
     case: return false
     }
     ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
-    if m.is_null() { return false }
-    ref base_arm : Expr = lazy_recursive_arm(m, 0)
-    ref cons_arm : Expr = lazy_recursive_arm(m, 2)
-    if base_arm.is_null().or(cons_arm.is_null()) { return false }
-
-    mut head := ""
-    mut tail := ""
-    ref cons_pat : Expr = cons_arm.children[0]
-    switch cons_pat.children[0].node_type {
-    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
-    case: return false
+    if m.is_null().not() {
+        ref base_arm : Expr = lazy_recursive_arm(m, 0)
+        ref cons_arm : Expr = lazy_recursive_arm(m, 2)
+        if base_arm.is_null().or(cons_arm.is_null()) { return false }
+        return lazy_recursive_hygiene_ok(cons_arm.children[0], vname, fixed_names,
+            lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm))
     }
-    switch cons_pat.children[1].node_type {
-    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
-    case: return false
-    }
-    if head.eq(tail).or(head.eq(vname)).or(tail.eq(vname)) { return false }
-    for fx : Str in fixed_names {
-        if fx.eq(head).or(fx.eq(tail)) { return false }
-    }
-    ref base_val : Expr = lazy_recursive_arm_value(base_arm)
-    if lazy_count_ident_uses(base_val, vname).gt(0) { return false }
-    if lazy_count_ident_uses(base_val, head).gt(0) { return false }
-    if lazy_count_ident_uses(base_val, tail).gt(0) { return false }
-    ref cons_val : Expr = lazy_recursive_arm_value(cons_arm)
-    if lazy_count_ident_uses(cons_val, vname).gt(0) { return false }
-    // The tail is used exactly once, and that use is the tail splat call.
-    if lazy_count_ident_uses(cons_val, tail) != 1 { return false }
-    if lazy_count_tail_splat_calls(cons_val, tail) != 1 { return false }
-    return true
+    // The statement (if/else) form: `switch xs { case []: ... case [h, ..t]:
+    // ... }` with a single-return base arm and an inlinable-guard-chain cons
+    // arm (the guards splice as nested short-circuit matches at unroll time).
+    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname)
+    if sw.is_null() { return false }
+    ref sbase : Expr = lazy_recursive_switch_arm(sw, 0)
+    ref scons : Expr = lazy_recursive_switch_arm(sw, 2)
+    if sbase.is_null().or(scons.is_null()) { return false }
+    ref sbase_val : Expr = lazy_recursive_switch_base_value(sbase)
+    if sbase_val.is_null() { return false }
+    if lazy_body_inlinable(scons.children[1]).not() { return false }
+    return lazy_recursive_hygiene_ok(scons.children[0], vname, fixed_names,
+        sbase_val, scons.children[1])
 }
 
 // Clone `e`, replacing the (unique) recursive tail splat call `self(..tail)`
@@ -2545,19 +2615,49 @@ priv lazy_subst_arm_clone := func(own arm: Expr, subs: Map(Str, Expr)) returns E
 // expand(k): the expression for effective operands [k, eff_count). At
 // k == eff_count the base arm; otherwise the cons arm with head -> operand k
 // and the recursive tail call replaced by expand(k + 1). Fixed params
-// substitute at every level.
+// substitute at every level. `cons_is_body` selects the form: false = the
+// match form (cons_src is the arm's value expression), true = the switch
+// (if/else) form (cons_src is the arm's statement Body -- an inlinable guard
+// chain, spliced to a nested short-circuit match via lazy_body_as_expr).
 priv lazy_expand_recursive := func(call: Expr, is_method: Bool, fdef: Expr,
-        nfixed: USize, eff_count: USize, k: USize, base_val: Expr, cons_val: Expr,
-        head: Str, tail: Str, self_name: Str) returns Expr {
+        nfixed: USize, eff_count: USize, k: USize, base_val: Expr, cons_src: Expr,
+        cons_is_body: Bool, head: Str, tail: Str, self_name: Str) returns Expr {
     if k == eff_count {
         base_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, "", 0)
         return lazy_subst_arm_clone(own base_val.clone(), base_subs)
     }
     inner := lazy_expand_recursive(call, is_method, fdef, nfixed, eff_count,
-        k + 1, base_val, cons_val, head, tail, self_name)
+        k + 1, base_val, cons_src, cons_is_body, head, tail, self_name)
     cons_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, head, k)
-    substituted := lazy_subst_arm_clone(own cons_val.clone(), cons_subs)
+    mut substituted := lazy_subst_arm_clone(own cons_src.clone(), cons_subs)
+    if cons_is_body {
+        substituted = lazy_body_as_expr(substituted)
+        expect(substituted.is_null().not(),
+            "switch-form recursive arm failed to splice despite lazy_body_inlinable")
+    }
     return lazy_clone_replacing_tail(substituted, tail, self_name, inner)
+}
+
+// Extract head/tail from the cons pattern, run the expansion, and splice the
+// result over the call node. Shared tail of inline_recursive_variadic_lazy_call
+// for both recursive forms.
+priv lazy_finish_recursive_inline := func(mut parent: Expr, call_idx: USize,
+        fdef: Expr, self_name: Str, is_method: Bool, eff_count: USize,
+        nfixed: USize, base_val: Expr, cons_src: Expr, cons_is_body: Bool,
+        cons_pat: Expr) {
+    mut head := ""
+    mut tail := ""
+    switch cons_pat.children[0].node_type {
+    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
+    case:
+    }
+    switch cons_pat.children[1].node_type {
+    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
+    case:
+    }
+    expanded := lazy_expand_recursive(parent.children[call_idx], is_method, fdef,
+        nfixed, eff_count, nfixed, base_val, cons_src, cons_is_body, head, tail, self_name)
+    parent.children[call_idx] = expanded
 }
 
 // Inline one call to a recursive variadic lazy def (shape pre-checked by
@@ -2584,24 +2684,23 @@ priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USi
     if is_method { eff_count = call.children.len() }
     if eff_count < nfixed { return false }
 
+    // Both forms share the expansion; they differ only in where the base
+    // value and cons region live (match arm values vs switch arm bodies).
     ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
-    ref base_arm : Expr = lazy_recursive_arm(m, 0)
-    ref cons_arm : Expr = lazy_recursive_arm(m, 2)
-    ref cons_pat : Expr = cons_arm.children[0]
-    mut head := ""
-    mut tail := ""
-    switch cons_pat.children[0].node_type {
-    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
-    case:
+    if m.is_null().not() {
+        ref base_arm : Expr = lazy_recursive_arm(m, 0)
+        ref cons_arm : Expr = lazy_recursive_arm(m, 2)
+        lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
+            eff_count, nfixed, lazy_recursive_arm_value(base_arm),
+            lazy_recursive_arm_value(cons_arm), false, cons_arm.children[0])
+        return true
     }
-    switch cons_pat.children[1].node_type {
-    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
-    case:
-    }
-    expanded := lazy_expand_recursive(call, is_method, fdef, nfixed, eff_count,
-        nfixed, lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm),
-        head, tail, self_name)
-    parent.children[call_idx] = expanded
+    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname)
+    ref sbase : Expr = lazy_recursive_switch_arm(sw, 0)
+    ref scons : Expr = lazy_recursive_switch_arm(sw, 2)
+    lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
+        eff_count, nfixed, lazy_recursive_switch_base_value(sbase),
+        scons.children[1], true, scons.children[0])
     return true
 }
 
