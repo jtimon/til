@@ -1,0 +1,7 @@
+mode script
+
+// Referencing a symbol a namespace import didn't bring in is a
+// load-time error ("no public symbol ...").
+h := import("imports/import_helper")
+
+println(h.nope().to_str())

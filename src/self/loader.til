@@ -1804,7 +1804,18 @@ build_repl_core_doc_cache := func(lp: LoadedProgram) returns ReplCoreDocCache {
 // Run init + typer + field-struct resolution. Stops short of constfolder and
 // scavenge so callers that only need a typed AST (e.g. `til doc`) don't pay
 // the codegen-prep cost.
-priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_decl_rhs: Bool, decl_name: Str, is_mut: Bool, decl_line: U32, decl_col: U32, ctx: Context, resolved_path: Str) returns Bool {
+// Namespace import decl form: `name := import("x")` makes `name` a
+// QUALIFIED ALIAS for x's public top-level decls -- every `name.sym`
+// use in the importing unit is rewritten (rewrite_ns_alias_uses) into a
+// direct reference to the original `sym`, and the decl itself is
+// dropped. The previous implementation instead synthesized a local ns
+// struct holding CLONES of every pub decl; the clones were typed in the
+// IMPORTING file, so a pub decl whose body referenced a priv sibling of
+// its own file broke (priv names are file-keyed), and every alias
+// duplicated the imported bodies in the binary. With an explicit symbol
+// list (`name := import("x", a, b)`) only the listed symbols are
+// rewritable; each listed symbol is validated to exist in x.
+priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context, resolved_path: Str, mut ns_alias_names: Set(Str), mut ns_alias_members: Set(Str), mut ns_alias_paths: Map(Str, Str)) returns Bool {
     mut handled := false
     if imp_stmt.children.len() >= 1 {
         switch imp_stmt.children[0].node_type {
@@ -1828,7 +1839,7 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                                 case:
                                 }
                             }
-                        } else if is_decl_rhs {
+                        } else {
                             if ctx.imported.has(resolved_path) {
                                 ref iu : ImportUnit = ctx.imported[resolved_path]
                                 if iu.is_null().not() {
@@ -1847,46 +1858,33 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
                             }
                         }
 
-                        if is_decl_rhs {
-                            handled = true
-                            mut def := Expr.new(NodeType.StructDef(StructDef()), imp_stmt.line, imp_stmt.col)
-                            if ctx.imported.has(resolved_path) {
-                                ref iu : ImportUnit = ctx.imported[resolved_path]
-                                if iu.is_null().not() {
-                                    for sym : Str in exp_symbols {
-                                        mut found := false
-                                        for dd : Expr in iu.ast.children {
-                                            switch dd.node_type {
-                                            case NodeType.Decl(cd):
-                                                if cd.name == sym {
-                                                    switch def.node_type {
-                                                    case NodeType.StructDef(sdd):
-                                                        mut cloned_cd := cd.clone()
-                                                        if dd.children.len() > 0 {
-                                                            cloned_cd.default_value = dd.children[0].clone()
-                                                        }
-                                                        sdd.ns_decls.push(own cloned_cd)
-                                                    case:
-                                                    }
-                                                    found = true
-                                                }
-                                            case:
-                                            }
-                                            if found { break }
+                        handled = true
+                        if ctx.imported.has(resolved_path) {
+                            ref iu : ImportUnit = ctx.imported[resolved_path]
+                            if iu.is_null().not() {
+                                for sym : Str in exp_symbols {
+                                    mut found := false
+                                    for dd : Expr in iu.ast.children {
+                                        switch dd.node_type {
+                                        case NodeType.Decl(cd):
+                                            if cd.name == sym { found = true }
+                                        case:
                                         }
-                                        if found.not() {
-                                            imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
-                                            return false
-                                        }
+                                        if found { break }
                                     }
+                                    if found.not() {
+                                        imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
+                                        return false
+                                    }
+                                    // Members keyed "alias|member" (til's
+                                    // parser rejects nested generics like
+                                    // Map(Str, Set(Str)) in param types).
+                                    ns_alias_members.add(own format(decl_name, "|", sym))
                                 }
                             }
-                            mut struct_body := Expr.new(NodeType.Body, imp_stmt.line, imp_stmt.col)
-                            def.add_child(own struct_body)
-                            mut new_decl := Expr.new(NodeType.Decl(Declaration(name = decl_name.clone(), is_mut = is_mut)), decl_line, decl_col)
-                            new_decl.add_child(own def)
-                            new_ch.push(own new_decl)
                         }
+                        ns_alias_names.add(own decl_name.clone())
+                        ns_alias_paths.set(decl_name, own resolved_path.clone())
                     }
                 }
             }
@@ -1896,11 +1894,81 @@ priv desugar_one_import := func(mut imp_stmt: Expr, mut new_ch: Vec(Expr), is_de
     return handled
 }
 
-priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
+// Rewrite every `alias.sym` FieldAccess whose base is a namespace-import
+// alias into a direct `sym` reference. Walks ns_decls / field defaults /
+// param defaults explicitly since those Exprs live outside e.children.
+// A member outside the alias's public set is a load-time error (same
+// stage as the selective-import symbol-not-found error). Limitation: the
+// match is purely syntactic on the base Ident's name, so a local
+// variable shadowing the alias name would still be rewritten.
+priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str) {
+    switch e.node_type {
+    case NodeType.StructDef(sdd):
+        for mut fd : Declaration in sdd.fields {
+            if fd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path)
+            }
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            if nd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path)
+            }
+        }
+    case NodeType.EnumDef(edd):
+        for mut nd2 : Declaration in edd.ns_decls {
+            if nd2.default_value.is_null().not() {
+                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path)
+            }
+        }
+    case NodeType.FuncDef(fdd):
+        for mut pd : Declaration in fdd.params {
+            if pd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path)
+            }
+        }
+    case:
+    }
+    for i in 0..e.children.len() {
+        ref mut c : Expr = e.children[i]
+        mut alias_name := ""
+        mut member := ""
+        switch c.node_type {
+        case NodeType.FieldAccess(fan):
+            if c.children.len() > 0 {
+                switch c.children[0].node_type {
+                case NodeType.Ident(base_id):
+                    if alias_names.has(base_id.ident_name()) {
+                        alias_name = Str.clone(base_id.ident_name())
+                        member = Str.clone(fan.field_access_name())
+                    }
+                case:
+                }
+            }
+        case:
+        }
+        if alias_name.len() > 0 {
+            if alias_members.has(format(alias_name, "|", member)).not() {
+                loc := format(path, ":", c.line.to_str(), ":", c.col.to_str())
+                panic("no public symbol '", member, "' in namespace import '",
+                    alias_name, "' of '", alias_paths[alias_name], "'", loc = loc)
+            }
+            mut idn := Expr.new(ident_node(member), c.line, c.col)
+            // Vec.set deep-deletes the replaced FieldAccess subtree.
+            e.children[i] = idn
+        } else {
+            rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path)
+        }
+    }
+}
+
+priv desugar_namespace_imports := func(path: Str, mut iu: ImportUnit, ctx: Context) {
     mut old := Vec(Expr).new()
     old.move_from(iu.ast.children)
     mut new_ch := Vec(Expr).new()
     mut imp_idx : USize = 0
+    mut ns_alias_names := Set(Str).new()
+    mut ns_alias_members := Set(Str).new()
+    mut ns_alias_paths := Map(Str, Str).new()
 
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
@@ -1908,9 +1976,6 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
         mut is_imp := false
         mut is_decl_rhs := false
         mut decl_name := ""
-        mut decl_line : U32 = 0
-        mut decl_col : U32 = 0
-        mut is_mut := false
 
         if stmt.node_type.is(NodeType.FCall) {
             is_imp = true
@@ -1921,11 +1986,8 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     decl_name = dd.name.clone()
-                    is_mut = dd.is_mut
                 case:
                 }
-                decl_line = stmt.line
-                decl_col = stmt.col
             }
         }
 
@@ -1972,23 +2034,29 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                 imp_idx++
                 if is_decl_rhs.and(decl_name.starts_with("_")) {
                     // #154: `_name := import(...)` is the unused-import
-                    // opt-out. The binding is deliberately never read, so
-                    // synthesizing the ns struct would be pointless work --
-                    // and cloning every pub decl is fragile for files whose
-                    // pub decls reference priv siblings. The file itself
+                    // opt-out. The alias is deliberately never read, so
+                    // no rewrite map entry is needed. The file itself
                     // stays loaded (the loader resolved it already); only
                     // the decl is dropped.
                     handled = true
                 } else if is_decl_rhs {
-                    handled = desugar_one_import(stmt.children[0], new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
-                } else {
-                    handled = desugar_one_import(stmt, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
+                    handled = desugar_one_import(stmt.children[0], decl_name, ctx, resolved, ns_alias_names, ns_alias_members, ns_alias_paths)
                 }
+                // Bare import stmts are kept as-is; the loader already
+                // resolved them and the typer walks them for recursion.
             }
         }
 
         if handled.not() {
             new_ch.push_take(old, i)
+        }
+    }
+
+    // Second pass: rewrite `alias.sym` uses in the kept statements into
+    // direct references to the original decls.
+    if ns_alias_names.len() > 0 {
+        for j in 0..new_ch.len() {
+            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path)
         }
     }
 
@@ -3243,20 +3311,15 @@ priv collect_import_check_entries := func(unit_path: Str, iu: ImportUnit, mut en
 
 // An explicit import whose file contributed no symbol read from the
 // importing file is flagged. `_name := import(...)` opts out -- the
-// same _-prefix convention as unused params/locals (#86). A plain
-// `name := import(...)` also counts as used when the local namespace
-// binding is read (h.sym types as member access on the synthesized
-// local struct `h`, not as a cross-file read, so the edge set alone
-// cannot see it).
+// same _-prefix convention as unused params/locals (#86). A used
+// `name := import(...)` alias needs no special case: its `name.sym`
+// uses are rewritten to direct references at desugar time, so they
+// produce ordinary cross-file use edges.
 priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), ctx: Context) returns I32 {
     mut found : I32 = 0
     for ent : ImportCheckEntry in entries {
         if ent.decl_name.starts_with("_") { continue }
-        mut is_used := ctx.import_use_edges.has(format(ent.path, "|", ent.dep))
-        if is_used.not().and(ent.decl_name.len().gt(0)) {
-            ref b : TypeBinding = ctx.scope.get_binding(ent.decl_name)
-            if b.is_null().not() { is_used = b.used }
-        }
+        is_used := ctx.import_use_edges.has(format(ent.path, "|", ent.dep))
         if is_used.not() {
             type_error_at(ent.path, ent.line, ent.col,
                 format("unused import '", ent.label, "'"), ctx)
@@ -3286,15 +3349,15 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
         }
     }
 
-    // Desugar namespace and selective imports BEFORE init_file runs,
-    // so the initer sees the generated Decls and populates the scope.
+    // Desugar namespace imports BEFORE init_file runs, so the initer
+    // only ever sees direct references to the original decls.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            desugar_namespace_imports(lp.ctx.imported[u.path], lp.ctx)
+            desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
         }
     }
     for u : ProgramUnit in lp.units {
-        desugar_namespace_imports(lp.ctx.imported[u.path], lp.ctx)
+        desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
     }
 
     // Issue #158: the typer populates the foldable-name sets during its

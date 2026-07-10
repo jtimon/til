@@ -26,3 +26,17 @@ import("imports/import_helper", MyConst)
 test_selective_import := test() {
     expect(MyConst.eq(123), "MyConst")
 }
+
+// Namespace import of a file whose pub decls reference priv siblings
+// (internal_inc, Secret, MAGIC, Mood). `ph.sym` desugars to a direct
+// reference to the original decl, so the priv siblings resolve in
+// their home file -- the old clone-into-a-local-ns-struct desugar
+// broke on exactly this.
+ph := import("imports/priv_helper")
+
+test_namespace_import_priv_siblings := test() {
+    expect(ph.add_one(40).eq(42), "ph.add_one(40)")
+    expect(ph.magic_value().eq(42), "ph.magic_value()")
+    expect(ph.make_secret(7).eq(7), "ph.make_secret(7)")
+    expect(ph.mood_score(1).eq(-1), "ph.mood_score(1)")
+}

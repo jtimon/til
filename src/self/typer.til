@@ -5267,7 +5267,13 @@ priv type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
     mut import_idx : USize = auto_count
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.FCall).not() { continue }
-        if stmt.children.len() != 2 { continue }
+        // >= 2, matching count_ast_imports: a selective import
+        // (`import("x", Sym)`) has 3 children. Requiring exactly 2 here
+        // desynchronized this walk from the auto_count math above, so
+        // the dep AFTER a selective import was never body-typed -- its
+        // priv uses stayed unmarked and tripped the #187 unused-priv
+        // check (visible as bogus "unused priv" errors in that file).
+        if stmt.children.len() < 2 { continue }
         if stmt.children[1].node_type.is_literal_str().not() { continue }
         switch stmt.children[0].node_type {
         case NodeType.Ident(id):

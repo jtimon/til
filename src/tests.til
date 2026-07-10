@@ -749,6 +749,11 @@ main := proc(args: ..Str) {
         format(til_bin, " interpret --check-unused-imports=false test/unused_import_error.til"))
     add_single(tests, "unused_import_ok", "typer", 0, "",
         format(til_bin, " interpret test/unused_import_ok.til"))
+    // Namespace-import alias: a member outside the imported file's
+    // public decls fails at load time.
+    add_count(tests, "import_ns_unknown_symbol", "typer",
+        "no public symbol", 1,
+        format(til_bin, " interpret test/import_ns_unknown_symbol.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
         "unused priv", 7,
         format(til_bin, " interpret test/priv_unused_error.til"))
