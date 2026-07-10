@@ -2872,7 +2872,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) retu
     if tail_expr.is_null() { return NULL }
 
     name := format("_lzr_", lazy_stmt_temp_counter.to_str())
-    lazy_stmt_temp_counter = lazy_stmt_temp_counter.add(1)
+    lazy_stmt_temp_counter++
 
     // The block: substituted prelude [0, sp) + `_lzr_N = tail`.
     mut blk := Expr.new(NodeType.Body, line, col)

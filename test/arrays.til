@@ -30,7 +30,7 @@ test_array_for_in := test() {
         ref expect_x : I64 = a.get(idx)!
         assert_eq(I64, x, expect_x)
         sum = sum.add(x)
-        idx = idx.add(1)
+        idx++
     }
     assert_eq(USize, idx, 4)
     assert_eq(I64, sum, 26)

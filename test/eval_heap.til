@@ -98,6 +98,6 @@ test_eval_heap_many := test() {
         EvalHeap.set_i64(p, i.to_i64())
         assert_eq(I64, EvalHeap.get_i64(p), i.to_i64())
         EvalHeap.heap_free(own p)
-        i = i.add(1)
+        i++
     }
 }

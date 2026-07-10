@@ -40,7 +40,7 @@ test_for_in_break := test() {
     mut count := 0
     for _c in "abcdef" {
         if count.eq(3) { break }
-        count = count.add(1)
+        count++
     }
     assert_eq(I64, count, 3)
 }
@@ -59,7 +59,7 @@ test_for_in_nested := test() {
     mut count := 0
     for _c1 in "ab" {
         for _c2 in "xy" {
-            count = count.add(1)
+            count++
         }
     }
     assert_eq(I64, count, 4)
@@ -68,7 +68,7 @@ test_for_in_nested := test() {
 test_for_in_empty := test() {
     mut count := 0
     for _c in "" {
-        count = count.add(1)
+        count++
     }
     assert_eq(I64, count, 0)
 
@@ -109,7 +109,7 @@ test_range_descending := test() {
 test_range_empty := test() {
     mut count := 0
     for _i in 3..3 {
-        count = count.add(1)
+        count++
     }
     assert_eq(I64, count, 0)
 }
@@ -145,7 +145,7 @@ test_range_nested := test() {
     mut sum := 0
     for _i in 0..3 {
         for _j in 0..4 {
-            sum = sum.add(1)
+            sum++
         }
     }
     assert_eq(I64, sum, 12)
@@ -205,7 +205,7 @@ test_range_i32 := test() {
 test_while_basic := test() {
     mut i := 0
     while i.lt(5) {
-        i = i.add(1)
+        i++
     }
     assert_eq(I64, i, 5)
 }
@@ -220,7 +220,7 @@ test_while_break := test() {
     mut i := 0
     while true {
         if i.eq(3) { break }
-        i = i.add(1)
+        i++
     }
     assert_eq(I64, i, 3)
 }
@@ -229,7 +229,7 @@ test_while_continue := test() {
     mut k := 0
     mut total := 0
     while k.lt(5) {
-        k = k.add(1)
+        k++
         if k.eq(3) { continue }
         total = total.add(k)
     }

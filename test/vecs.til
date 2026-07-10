@@ -281,7 +281,7 @@ test_vec_for_in := test() {
     for x : I64 in v {
         assert_eq(I64, x, v[idx])
         sum = sum.add(x)
-        idx = idx.add(1)
+        idx++
     }
     assert_eq(USize, idx, 10)
     assert_eq(I64, sum, 55)

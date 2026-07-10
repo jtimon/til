@@ -144,12 +144,12 @@ main := proc(args: ..Str) {
             method = "prof"
         } else if pos.eq(0) {
             target = a.clone()
-            pos = pos.add(1)
+            pos++
         } else {
             top = a.to_i64()
-            pos = pos.add(1)
+            pos++
         }
-        i = i.add(1)
+        i++
     }
     if top.lt(1) { top = DEFAULT_TOP }
 

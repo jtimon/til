@@ -1115,7 +1115,7 @@ lazy_body_split_point := func(body: Expr) returns I32 {
     mut k : USize = 0
     while k < n {
         if lazy_is_safe_prelude(body.children[k]).not() { break }
-        k = k.add(1)
+        k++
     }
     if k == 0 { return -1 }
     if k >= n { return -1 }

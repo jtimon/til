@@ -185,7 +185,7 @@ test_hashmap_for_in_kv := test() {
     mut sum := 0
     mut pairs_ok := true
     for k, v in m {
-        count = count.add(1)
+        count++
         sum = sum.add(v)
         if k.eq("a").and(v.eq(1).not()) { pairs_ok = false }
         if k.eq("b").and(v.eq(2).not()) { pairs_ok = false }

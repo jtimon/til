@@ -149,7 +149,7 @@ test_map_for_in_kv_ignore_both := test() {
     m.set("c", own 3)
     mut n := 0
     for _, _ in m {
-        n = n.add(1)
+        n++
     }
     assert_eq(I64, n, 3)
 }
