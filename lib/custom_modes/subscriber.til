@@ -1,1 +1,4 @@
-import("nng_base")
+// Pure re-export prelude for the custom mode: user programs read
+// nng_base symbols, this file itself does not (_-prefix opts out of
+// the unused-import check).
+_nng_base := import("nng_base")

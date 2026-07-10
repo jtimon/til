@@ -4,7 +4,6 @@ import("../src/core/io")
 import("../src/core/str")
 import("../src/core/vec")
 import("../src/core/numbers")
-import("../src/std/sys")
 import("../src/self/lexer")
 import("../src/self/parser")
 

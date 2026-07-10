@@ -2,11 +2,25 @@
 # category: features
 ** FIXED #154 Typer error for unused imports
 
-  Post-mortem: implemented as prescribed below -- prototyped behind an
-  opt-in CLI flag (~--check-unused-imports~), no flag day. With the
-  flag, an explicit ~import("x")~ in a user unit that contributed no
-  symbol read from the importing file is a type error:
+  Post-mortem: implemented as prescribed below -- first prototyped
+  behind an opt-in CLI flag (~--check-unused-imports~), then, after a
+  repo-wide sweep fixed or suppressed every violation, enabled by
+  default (~--check-unused-imports=false~ disables per invocation; the
+  REPL is exempt, since an import is legitimately typed there before
+  anything uses it). An explicit ~import("x")~ in a user unit that
+  contributed no symbol read from the importing file is a type error:
   ~error: unused import 'x'~ at the import stmt's location.
+
+  Flag-day sweep notes: the ~_name := import(...)~ opt-out now DROPS
+  the decl at desugar time instead of synthesizing the ns-struct clone
+  (the binding is deliberately unread, and cloning every pub decl was
+  fragile for files whose pub decls reference priv siblings). Findings
+  fixed: gui.til's dead std/sys import removed (shootil.til, which used
+  host_os through it transitively, now imports sys itself);
+  find_ufcs_opportunities.til's dead sys import removed. Deliberate
+  imports suppressed with the ~_~ form: circular_template_a's cycle
+  import, templ_type_only's load-only import of b, and the four
+  lib/custom_modes re-export preludes.
 
   Mechanics (all gated on the flag, so default builds pay one branch):
 

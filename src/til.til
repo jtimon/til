@@ -542,8 +542,9 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
-    // #154 prototype: opt-in unused-import type errors.
-    check_unused_imports := false
+    // #154: unused-import type errors, on by default;
+    // --check-unused-imports=false disables for one invocation.
+    check_unused_imports := true
     own extra_modes := Vec(Str).new()
 }
 
@@ -667,6 +668,17 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.path_idx++
         } else if flag == "--check-unused-imports" {
             cli.check_unused_imports = true
+            cli.path_idx++
+        } else if flag.starts_with("--check-unused-imports=") {
+            val := flag.strip_prefix("--check-unused-imports=")
+            if val == "false" {
+                cli.check_unused_imports = false
+            } else if val == "true" {
+                cli.check_unused_imports = true
+            } else {
+                println(format("error: --check-unused-imports expects true or false, got '", val, "'"))
+                exit(1)
+            }
             cli.path_idx++
         } else if flag.starts_with("--extra-modes=") {
             cli.extra_modes.push(own flag.strip_prefix("--extra-modes=").clone())

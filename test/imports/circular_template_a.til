@@ -1,6 +1,9 @@
 mode lib
 
-import("circular_template_b")
+// The import exists purely to create the a <-> b cycle this fixture
+// tests; a reads nothing from b, so the _-prefix opts out of the
+// unused-import check while keeping b loaded.
+_b := import("circular_template_b")
 
 CycleBox := struct<T: Type> {
     val : T

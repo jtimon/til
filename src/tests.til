@@ -740,15 +740,15 @@ main := proc(args: ..Str) {
     add_count(tests, "priv_error_build", "typer",
         "is private to", 4,
         format(til_bin, " build", asan_flag, " test/priv_error.til"))
-    // #154: unused-import check, opt-in via --check-unused-imports. The
-    // same file with an unused import passes without the flag.
+    // #154: unused-import check, on by default. The same file with an
+    // unused import passes with --check-unused-imports=false.
     add_count(tests, "unused_import_error", "typer",
         "unused import", 1,
-        format(til_bin, " interpret --check-unused-imports test/unused_import_error.til"))
-    add_single(tests, "unused_import_error_off", "typer", 0, "",
         format(til_bin, " interpret test/unused_import_error.til"))
+    add_single(tests, "unused_import_error_off", "typer", 0, "",
+        format(til_bin, " interpret --check-unused-imports=false test/unused_import_error.til"))
     add_single(tests, "unused_import_ok", "typer", 0, "",
-        format(til_bin, " interpret --check-unused-imports test/unused_import_ok.til"))
+        format(til_bin, " interpret test/unused_import_ok.til"))
     add_count(tests, "priv_unused_error_interp", "typer",
         "unused priv", 7,
         format(til_bin, " interpret test/priv_unused_error.til"))

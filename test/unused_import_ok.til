@@ -1,7 +1,7 @@
 mode script
 
-// #154: --check-unused-imports must accept every used import form and
-// the _-prefix opt-out.
+// #154: the unused-import check (on by default) must accept every used
+// import form and the _-prefix opt-out.
 import("imports/import_helper")             // used: double() + Point below
 helper := import("imports/import_helper")   // used: helper.double()
 _quiet := import("imports/import_diamond_d") // unused, but _-prefix opts out

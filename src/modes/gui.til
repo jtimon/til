@@ -1,6 +1,5 @@
 mode lib
 
-import("../std/sys")
 import("../../vendor/bindings/raylib")
 link("vendor/raylib/src/libraylib.a")
 link("m")

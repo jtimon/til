@@ -1970,7 +1970,16 @@ priv desugar_namespace_imports := func(mut iu: ImportUnit, ctx: Context) {
                     resolved = iu.imports[imp_idx].clone()
                 }
                 imp_idx++
-                if is_decl_rhs {
+                if is_decl_rhs.and(decl_name.starts_with("_")) {
+                    // #154: `_name := import(...)` is the unused-import
+                    // opt-out. The binding is deliberately never read, so
+                    // synthesizing the ns struct would be pointless work --
+                    // and cloning every pub decl is fragile for files whose
+                    // pub decls reference priv siblings. The file itself
+                    // stays loaded (the loader resolved it already); only
+                    // the decl is dropped.
+                    handled = true
+                } else if is_decl_rhs {
                     handled = desugar_one_import(stmt.children[0], new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
                 } else {
                     handled = desugar_one_import(stmt, new_ch, is_decl_rhs, decl_name, is_mut, decl_line, decl_col, ctx, resolved)
