@@ -2214,7 +2214,28 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
     expect_token(p, TokenType.KwCase)
     mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
     if check(p, TokenType.Colon).not() {
-        cn.add_child(own parse_expression(p))
+        // Issue #262: compile-time list pattern, `case []:` or
+        // `case [x, ..tl]:`. Only meaningful on the variadic param of a
+        // recursive variadic lazy body (the loader unrolls it away); the
+        // typer rejects any ListPattern that reaches it.
+        if check(p, TokenType.LBracket) {
+            lp_line := peek_line(p)
+            lp_col := peek_col(p)
+            advance(p)
+            mut lp := Expr.new(NodeType.ListPattern, lp_line, lp_col)
+            if check(p, TokenType.RBracket).not() {
+                head_name := expect_text(p, TokenType.Ident)
+                lp.add_child(own Expr.new(ident_node(head_name), lp_line, lp_col))
+                expect_token(p, TokenType.Comma)
+                expect_token(p, TokenType.DotDot)
+                tail_name := expect_text(p, TokenType.Ident)
+                lp.add_child(own Expr.new(ident_node(tail_name), lp_line, lp_col))
+            }
+            expect_token(p, TokenType.RBracket)
+            cn.add_child(own lp)
+        } else {
+            cn.add_child(own parse_expression(p))
+        }
         if check(p, TokenType.KwIf) {
             advance(p)
             cn.add_child(own parse_expression(p))

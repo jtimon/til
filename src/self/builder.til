@@ -4133,6 +4133,10 @@ priv emit_diverge_terminator := proc(f: File, ret: Str, body: Expr) {
 }
 
 priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_static: Bool, lp: LoadedProgram) {
+    // Issue #262: a recursive variadic lazy def (vand/vor) is fully consumed
+    // by the loader's recursion-unroll -- every call site is expanded -- and
+    // its ListPattern arms have no C lowering. Emit nothing.
+    if lazy_recursive_variadic_def(func_def) { return }
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
     ref body : Expr = func_def.children[0]
@@ -4703,6 +4707,9 @@ priv func_return_ctype := func(fd: FunctionDef, ctx: Context) returns Str {
 }
 
 priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: Bool, ctx: Context) {
+    // Issue #262: recursive variadic lazy defs are compile-time-only (see
+    // emit_func_def); no prototype either.
+    if lazy_recursive_variadic_def(fdef) { return }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         // Issue #176: top-level ext_func / ext_proc prototypes are emitted by

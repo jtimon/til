@@ -3037,11 +3037,22 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // fallback and would otherwise silently degrade to an eager call.
         if fdef.func_type.is(FuncType.LazyFunc).or(fdef.func_type.is(FuncType.LazyProc)) {
             if expr.children.len() > 0 {
+                // Issue #262: the RECURSIVE variadic form (vand/vor) is fully
+                // consumed by the loader's recursion-unroll -- every call is
+                // already expanded -- and its ListPattern arms cannot type as
+                // ordinary code, so skip typing the def entirely (the same
+                // way template macro bodies are skipped). The builder skips
+                // its emission via the same predicate.
+                if lazy_recursive_variadic_def(expr) {
+                    expr.set_expr_til_type(Type.None)
+                    ctx.typing_namespace_member = ifd_in_ns
+                    return
+                }
                 ref lbody : Expr = expr.children[0]
                 if lazy_body_inlinable(lbody).or(lazy_body_stmt_inlinable(lbody)).not() {
-                    // Issue #262: a variadic lazy def (vand/vor) is accepted
-                    // when its body is unrollable -- the loader unrolls every
-                    // call over its known operands (inline_variadic_lazy_call),
+                    // Issue #262: a variadic lazy def is accepted when its
+                    // body is unrollable -- the loader unrolls every call
+                    // over its known operands (inline_variadic_lazy_call),
                     // so the def itself is dead like any inlinable lazy def.
                     mut lazy_var_unrollable := false
                     if fdef.variadic_index >= 0 {
@@ -3049,7 +3060,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                         lazy_var_unrollable = lazy_variadic_body_unrollable(lbody, vparam.name)
                     }
                     if lazy_var_unrollable.not() {
-                        expr.type_error("lazy_func/lazy_proc body must be inlinable for now (issue #262): a single 'return <expr>', an 'if/else' or guard chain, a prelude of local bindings followed by such a tail, or a variadic body consuming its variadic param only via 'for x in xs { if ... { return ... } }' loops; other loops, early returns, and first-class use are not yet supported", ctx)
+                        expr.type_error("lazy_func/lazy_proc body must be inlinable for now (issue #262): a single 'return <expr>', an 'if/else' or guard chain, a prelude of local bindings followed by such a tail, or a variadic body consuming its variadic param only via 'for x in xs { if ... { return ... } }' loops or the recursive 'match xs { case []: ... case [x, ..tl]: ... }' form; other loops, early returns, and first-class use are not yet supported", ctx)
                     }
                 }
             }
@@ -6930,6 +6941,19 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     // verbatim with switch. The result temp itself is declared by the lowering
     // (it must live in the enclosing scope, not this block's scope).
     is_match := stmt.node_type.is(NodeType.Match)
+    // Issue #262: a ListPattern case head is only legal on the variadic param
+    // of a recursive variadic lazy body, where the loader's recursion-unroll
+    // consumes it before typing. One surviving here is a misuse -- reject it
+    // loudly instead of letting the pattern desugar into nonsense.
+    for lp_ci in 1..stmt.children.len() {
+        ref lp_case : Expr = stmt.children[lp_ci]
+        if lp_case.node_type.is(NodeType.Case).and(lp_case.children.len().gt(1)) {
+            if lp_case.children[0].node_type.is(NodeType.ListPattern) {
+                lp_case.type_error("list patterns ('[]', '[x, ..tl]') are only supported matching the variadic param of a recursive variadic lazy_func/lazy_proc body (issue #262)", ctx)
+                return false
+            }
+        }
+    }
     mut kind_word := "switch"
     mut result_temp := ""
     if is_match {

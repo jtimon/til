@@ -661,6 +661,15 @@ NodeType := enum {
     // Body; captures carry the same explicit list as closures. Appended after
     // Loc so existing NodeType tags stay stable.
     BodyValue: CaptureBlockData,
+    // Issue #262: compile-time list pattern in a match case head, used by the
+    // recursive form of variadic lazy callables (vand/vor):
+    //   case []:        -> zero children (the empty-operands base case)
+    //   case [x, ..tl]: -> two children, Ident(x) and Ident(tl) (head/tail)
+    // Only legal on the variadic param of a recursive variadic lazy body; the
+    // loader's recursion-unroll consumes it before typing, and the typer
+    // rejects any ListPattern that survives to it. Appended after BodyValue
+    // so existing NodeType tags stay stable.
+    ListPattern,
 namespace:
     // is() compares only the outer enum tag, so is(NodeType.Literal(Literal.X))
     // cannot tell the literal kinds apart -- it matches any Literal. These
@@ -834,6 +843,7 @@ expr_til_type := func(e: Expr) returns Type {
         return e.children[0].expr_til_type()
     case NodeType.Catch:       return Type.None
     case NodeType.RestPattern: return Type.Unknown
+    case NodeType.ListPattern: return Type.Unknown
     case NodeType.CaptureBlock: return Type.None
     }
     return Type.Unknown

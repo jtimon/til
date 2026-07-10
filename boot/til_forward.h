@@ -120,7 +120,8 @@ typedef enum {
     NodeType_TAG_RestPattern,
     NodeType_TAG_CaptureBlock,
     NodeType_TAG_Loc,
-    NodeType_TAG_BodyValue
+    NodeType_TAG_BodyValue,
+    NodeType_TAG_ListPattern
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
@@ -2974,6 +2975,17 @@ Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, U64 call_idx, E
 Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, U64 k);
 Map__Str_Expr * priv___src_self_loader_til__lazy_variadic_subs(Expr * call, Bool is_method, Expr * fdef, U64 nfixed, Str * loop_var, U64 k);
 Bool priv___src_self_loader_til__inline_variadic_lazy_call(Expr * parent, U64 call_idx, Expr * fdef);
+U64 priv___src_self_loader_til__lazy_count_ident_uses(Expr * e, Str * name);
+Bool priv___src_self_loader_til__lazy_is_tail_splat_call(Expr * e, Str * tail_name);
+U64 priv___src_self_loader_til__lazy_count_tail_splat_calls(Expr * e, Str * tail_name);
+Expr * priv___src_self_loader_til__lazy_recursive_body_match(Expr * body, Str * vname);
+Expr * priv___src_self_loader_til__lazy_recursive_arm(Expr * m, U64 * arity);
+Expr * priv___src_self_loader_til__lazy_recursive_arm_value(Expr * arm);
+Bool lazy_recursive_variadic_def(Expr * fdef);
+Expr * priv___src_self_loader_til__lazy_clone_replacing_tail(Expr * e, Str * tail_name, Str * self_name, Expr * repl);
+Expr * priv___src_self_loader_til__lazy_subst_arm_clone(Expr * arm, Map__Str_Expr * subs);
+Expr * priv___src_self_loader_til__lazy_expand_recursive(Expr * call, Bool is_method, Expr * fdef, U64 nfixed, U64 eff_count, U64 k, Expr * base_val, Expr * cons_val, Str * head, Str * tail, Str * self_name);
+Bool priv___src_self_loader_til__inline_recursive_variadic_lazy_call(Expr * parent, U64 call_idx, Expr * fdef, Str * self_name);
 Bool priv___src_self_loader_til__inline_core_lazy_call(Expr * parent, U64 call_idx, Expr * fdef, Str * name);
 Bool priv___src_self_loader_til__lazy_call_arity_ok(Expr * call, Expr * fdef);
 Map__Str_Expr * priv___src_self_loader_til__lazy_build_subs(Expr * call, Expr * fdef);

@@ -2272,6 +2272,262 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
     return true
 }
 
+// Issue #262: the RECURSIVE (Haskell-style) form of a variadic lazy callable.
+// GHC's Prelude defines `and (x:xs) = x && and xs`; til's equivalent is
+//   vand := lazy_func(xs: ..Bool) returns Bool {
+//       return match xs {
+//       case []:        true
+//       case [x, ..tl]: match x { case true: vand(..tl) case: false }
+//       }
+//   }
+// The body is a single `return match <xs> { ... }` with exactly two arms: an
+// empty-list-pattern base case and a head/tail cons case whose value contains
+// exactly one recursive tail call `self(..tl)` (an is_splat FCall of the tail
+// ident). Each call site is unrolled bottom-up over its compile-time-known
+// operands: expand(k) = base-arm value at k == N, else the cons-arm value with
+// head -> operand k and the tail call replaced by expand(k+1). Call-by-name,
+// zero runtime cost, and the author -- not the compiler -- defines the fold
+// shape and base case, so nothing assumes associativity.
+
+// Count value-uses of identifier `name` in `e` (Ident reads + Assign targets).
+priv lazy_count_ident_uses := func(e: Expr, name: Str) returns USize {
+    mut n : USize = 0
+    switch e.node_type {
+    case NodeType.Ident(idd):  if idd.ident_name() == name { n = n.add(1) }
+    case NodeType.Assign(ad):  if ad.name == name { n = n.add(1) }
+    case:
+    }
+    for c : Expr in e.children {
+        n = n.add(lazy_count_ident_uses(c, name))
+    }
+    return n
+}
+
+// True if `e` is a recursive tail splat call `<callee>(..tail_name)`: an
+// is_splat FCall with exactly one argument, the bare Ident `tail_name`.
+priv lazy_is_tail_splat_call := func(e: Expr, tail_name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.FCall(fcd):
+        if fcd.is_splat.not() { return false }
+        if e.children.len() != 2 { return false }
+        switch e.children[1].node_type {
+        case NodeType.Ident(arg_id): return arg_id.ident_name() == tail_name
+        case: return false
+        }
+    case: return false
+    }
+}
+
+priv lazy_count_tail_splat_calls := func(e: Expr, tail_name: Str) returns USize {
+    mut n : USize = 0
+    if lazy_is_tail_splat_call(e, tail_name) { n = 1 }
+    for c : Expr in e.children {
+        n = n.add(lazy_count_tail_splat_calls(c, tail_name))
+    }
+    return n
+}
+
+// The Match node of a recursive variadic lazy body `{ return match <vname>
+// { ... } }`, or NULL when the body does not have that outer shape.
+priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns ref Expr {
+    if body.node_type.is(NodeType.Body).not() { return NULL }
+    if body.children.len() != 1 { return NULL }
+    ref ret : Expr = body.children[0]
+    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return NULL }
+    ref m : Expr = ret.children[0]
+    if m.node_type.is(NodeType.Match).not() { return NULL }
+    if m.children.len() != 3 { return NULL }   // scrutinee + exactly 2 cases
+    switch m.children[0].node_type {
+    case NodeType.Ident(scrn):
+        if scrn.ident_name().eq(vname).not() { return NULL }
+    case: return NULL
+    }
+    return m
+}
+
+// The Case child of `m` whose pattern is a ListPattern with `arity` children
+// (0 = the `[]` base case, 2 = the `[h, ..t]` cons case), or NULL. A guard
+// (3-child Case) disqualifies the arm, as does an arm body that is not the
+// parser's single-value Body wrapper (match arms parse as [pattern,
+// Body(value)] -- see parse_case_head's caller in parse_primary).
+priv lazy_recursive_arm := func(m: Expr, arity: USize) returns ref Expr {
+    for i in 1..m.children.len() {
+        ref cs : Expr = m.children[i]
+        if cs.node_type.is(NodeType.Case).not() { continue }
+        if cs.children.len() != 2 { continue }
+        ref pat : Expr = cs.children[0]
+        if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
+            ref ab : Expr = cs.children[1]
+            if ab.node_type.is(NodeType.Body).and(ab.children.len().eq(1)) {
+                return cs
+            }
+        }
+    }
+    return NULL
+}
+
+// The value expression of a recursive arm: unwrap the parser's single-value
+// Body wrapper (splicing the Body itself would put a statement list in
+// expression position).
+priv lazy_recursive_arm_value := func(arm: Expr) returns ref Expr {
+    return arm.children[1].children[0]
+}
+
+// Issue #262: shape check for the recursive variadic lazy form, shared by the
+// typer (def-site acceptance + body-typing skip: the ListPattern arms cannot
+// type as ordinary code), the builder (emission skip: the def is fully
+// consumed at compile time), and the loader's unroll. Requirements beyond the
+// outer shape: distinct head/tail names (both distinct from the variadic
+// param and any fixed param), the base arm mentions neither the variadic nor
+// head/tail, and the cons arm uses the tail EXACTLY once -- as the one
+// recursive tail splat call `self(..tail)`.
+lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
+    if fdef.node_type.is(NodeType.FuncDef).not() { return false }
+    if fdef.children.len() == 0 { return false }
+    mut vname := ""
+    mut fixed_names := Vec(Str).new()
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.func_type.is(FuncType.LazyFunc).or(fd.func_type.is(FuncType.LazyProc)).not() { return false }
+        if fd.kwargs_index >= 0 { return false }
+        if fd.variadic_index < 0 { return false }
+        if fd.variadic_index.to_usize() != fd.params.len() - 1 { return false }
+        vname = fd.params[fd.variadic_index.to_usize()].name.clone()
+        for j in 0..fd.params.len() - 1 { fixed_names.push(own fd.params[j].name.clone()) }
+    case: return false
+    }
+    ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
+    if m.is_null() { return false }
+    ref base_arm : Expr = lazy_recursive_arm(m, 0)
+    ref cons_arm : Expr = lazy_recursive_arm(m, 2)
+    if base_arm.is_null().or(cons_arm.is_null()) { return false }
+
+    mut head := ""
+    mut tail := ""
+    ref cons_pat : Expr = cons_arm.children[0]
+    switch cons_pat.children[0].node_type {
+    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
+    case: return false
+    }
+    switch cons_pat.children[1].node_type {
+    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
+    case: return false
+    }
+    if head.eq(tail).or(head.eq(vname)).or(tail.eq(vname)) { return false }
+    for fx : Str in fixed_names {
+        if fx.eq(head).or(fx.eq(tail)) { return false }
+    }
+    ref base_val : Expr = lazy_recursive_arm_value(base_arm)
+    if lazy_count_ident_uses(base_val, vname).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, head).gt(0) { return false }
+    if lazy_count_ident_uses(base_val, tail).gt(0) { return false }
+    ref cons_val : Expr = lazy_recursive_arm_value(cons_arm)
+    if lazy_count_ident_uses(cons_val, vname).gt(0) { return false }
+    // The tail is used exactly once, and that use is the tail splat call.
+    if lazy_count_ident_uses(cons_val, tail) != 1 { return false }
+    if lazy_count_tail_splat_calls(cons_val, tail) != 1 { return false }
+    return true
+}
+
+// Clone `e`, replacing the (unique) recursive tail splat call `self(..tail)`
+// with a clone of `repl`. The callee must name the def itself -- a tail splat
+// call targeting anything else is a lie about the recursion and panics.
+priv lazy_clone_replacing_tail := func(e: Expr, tail_name: Str, self_name: Str, repl: Expr) returns Expr {
+    if lazy_is_tail_splat_call(e, tail_name) {
+        mut cname := ""
+        switch e.children[0].node_type {
+        case NodeType.Ident(cn): cname = Str.clone(cn.ident_name())
+        case:
+        }
+        expect(cname == self_name,
+            "recursive variadic lazy: the tail splat call must target the def itself")
+        return repl.clone()
+    }
+    mut out := Expr.new(e.node_type, e.line, e.col)
+    for c : Expr in e.children {
+        out.add_child(own lazy_clone_replacing_tail(c, tail_name, self_name, repl))
+    }
+    return out
+}
+
+// Substitute `subs` into a cloned arm value, handling the bare-Ident-root
+// case (the walk only substitutes children; a root Ident swaps wholesale).
+priv lazy_subst_arm_clone := func(own arm: Expr, subs: Map(Str, Expr)) returns Expr {
+    mut root_name := ""
+    switch arm.node_type {
+    case NodeType.Ident(rn): root_name = Str.clone(rn.ident_name())
+    case:
+    }
+    if root_name.len().gt(0).and(subs.has(root_name)) {
+        return subs[root_name].clone()
+    }
+    lazy_substitute_idents(arm, subs)
+    return arm
+}
+
+// expand(k): the expression for effective operands [k, eff_count). At
+// k == eff_count the base arm; otherwise the cons arm with head -> operand k
+// and the recursive tail call replaced by expand(k + 1). Fixed params
+// substitute at every level.
+priv lazy_expand_recursive := func(call: Expr, is_method: Bool, fdef: Expr,
+        nfixed: USize, eff_count: USize, k: USize, base_val: Expr, cons_val: Expr,
+        head: Str, tail: Str, self_name: Str) returns Expr {
+    if k == eff_count {
+        base_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, "", 0)
+        return lazy_subst_arm_clone(own base_val.clone(), base_subs)
+    }
+    inner := lazy_expand_recursive(call, is_method, fdef, nfixed, eff_count,
+        k + 1, base_val, cons_val, head, tail, self_name)
+    cons_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, head, k)
+    substituted := lazy_subst_arm_clone(own cons_val.clone(), cons_subs)
+    return lazy_clone_replacing_tail(substituted, tail, self_name, inner)
+}
+
+// Inline one call to a recursive variadic lazy def (shape pre-checked by
+// lazy_recursive_variadic_def). Returns false only on a fixed-arity shortfall,
+// where the residual call fails arity checking in the typer.
+priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USize,
+        fdef: Expr, self_name: Str) returns Bool {
+    ref call : Expr = parent.children[call_idx]
+    mut vname := ""
+    mut nfixed : USize = 0
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        vname = fd.params[fd.variadic_index.to_usize()].name.clone()
+        nfixed = fd.params.len() - 1
+    case: return false
+    }
+    mut is_method := false
+    switch call.children[0].node_type {
+    case NodeType.FieldAccess:
+        is_method = call.children[0].children.len() == 1
+    case:
+    }
+    mut eff_count : USize = call.children.len() - 1
+    if is_method { eff_count = call.children.len() }
+    if eff_count < nfixed { return false }
+
+    ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
+    ref base_arm : Expr = lazy_recursive_arm(m, 0)
+    ref cons_arm : Expr = lazy_recursive_arm(m, 2)
+    ref cons_pat : Expr = cons_arm.children[0]
+    mut head := ""
+    mut tail := ""
+    switch cons_pat.children[0].node_type {
+    case NodeType.Ident(hn): head = Str.clone(hn.ident_name())
+    case:
+    }
+    switch cons_pat.children[1].node_type {
+    case NodeType.Ident(tn): tail = Str.clone(tn.ident_name())
+    case:
+    }
+    expanded := lazy_expand_recursive(call, is_method, fdef, nfixed, eff_count,
+        nfixed, lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm),
+        head, tail, self_name)
+    parent.children[call_idx] = expanded
+    return true
+}
+
 // Issue #262: statement-inlining for non-inlinable-but-single-exit lazy
 // bodies. A body `{ <safe prelude statements> <inlinable tail> }` (e.g.
 // `x := f(a); return x.and(b)`) cannot become a single expression, so at a
@@ -2517,9 +2773,15 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
                 if fdef.is_null().not() {
                     ft := func_def_type(fdef)
                     if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
-                        // Variadic lazy defs (vand/vor) unroll over the
-                        // call's operands; fixed-arity defs inline directly.
-                        mut done := inline_variadic_lazy_call(e, i, fdef)
+                        // Variadic lazy defs unroll over the call's operands
+                        // (the recursive Haskell-style form first, then the
+                        // iterative for-in form); fixed-arity defs inline
+                        // directly.
+                        mut done := false
+                        if lazy_recursive_variadic_def(fdef) {
+                            done = inline_recursive_variadic_lazy_call(e, i, fdef, lname)
+                        }
+                        if done.not() { done = inline_variadic_lazy_call(e, i, fdef) }
                         if done.not() { done = inline_lazy_call(e, i, fdef) }
                         if done {
                             // The spliced body may contain further lazy
@@ -2538,7 +2800,16 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
                 }
             }
         }
-        if inlined.not() { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
+        // A recursive variadic lazy def body is a compile-time TEMPLATE: its
+        // self-call `self(..tl)` is the recursion point the per-call-site
+        // unroll consumes, not a call to expand here -- expanding it in place
+        // would destroy the template. Skip descending into such defs.
+        mut recursive_template := false
+        switch c.node_type {
+        case NodeType.FuncDef: recursive_template = lazy_recursive_variadic_def(c)
+        case:
+        }
+        if inlined.not().and(recursive_template.not()) { expand_lazy_in_expr(c, scope, depth + 1, ctx) }
     }
 }
 

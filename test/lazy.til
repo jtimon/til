@@ -196,6 +196,59 @@ test_variadic_short_circuits := test() {
     assert_eq(I64, eval_count, 1)
 }
 
+# --- Recursive (Haskell-style) variadic lazy funcs: the same feature written
+#     the way GHC's Prelude writes `and (x:xs) = x && and xs` -- a `[]` base
+#     case and a `[x, ..tl]` cons case recursing via the tail splat call. The
+#     loader unrolls each call bottom-up over its known operands
+#     (inline_recursive_variadic_lazy_call, src/self/loader.til); the author,
+#     not the compiler, defines the fold shape and base case. Defined here for
+#     now: moving the core vand/vor to this form needs this compiler support
+#     baked into til_boot first (self.org preparation + use pair), so the core
+#     swap is the follow-up commit. ---
+
+vand_rec := lazy_func(xs: ..Bool) returns Bool {
+    return match xs {
+    case []:        true
+    case [x, ..tl]: match x { case true: vand_rec(..tl) case: false }
+    }
+}
+vor_rec := lazy_func(xs: ..Bool) returns Bool {
+    return match xs {
+    case []:        false
+    case [x, ..tl]: match x { case true: true case: vor_rec(..tl) }
+    }
+}
+
+test_recursive_vand_vor := test() {
+    expect(vand_rec(), "vand_rec() is true")
+    expect(vor_rec().not(), "vor_rec() is false")
+    expect(vand_rec(true), "vand_rec(T)")
+    expect(vand_rec(false).not(), "vand_rec(F)")
+    expect(vand_rec(true, true, true), "vand_rec(T,T,T)")
+    expect(vand_rec(true, false, true).not(), "vand_rec(T,F,T)")
+    expect(vor_rec(false, false, true), "vor_rec(F,F,T)")
+    expect(vor_rec(false, false, false).not(), "vor_rec(F,F,F)")
+    expect(vand_rec(true, true, true, true), "vand_rec x4")
+    # method-call form unrolls identically (receiver is the first operand)
+    expect(true.vand_rec(true, false).not(), "T.vand_rec(T,F)")
+    expect(false.vor_rec(false, true), "F.vor_rec(F,T)")
+}
+
+test_recursive_short_circuits := test() {
+    eval_count = 0
+    r := vand_rec(false, bump(), bump())
+    expect(r.not(), "vand_rec(false, bump, bump) skips the rest")
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r2 := vor_rec(true, bump(), bump())
+    expect(r2, "vor_rec(true, bump, bump) short-circuits")
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r3 := vand_rec(true, true, bump())
+    expect(r3, "vand_rec(true, true, bump) evaluates last")
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- decisive short-circuit proof: an unused side-effecting argument must
 #     NOT run. bump() increments a global counter; if it ran when it should
 #     have been short-circuited, the count would be non-zero. ---
