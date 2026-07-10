@@ -1542,8 +1542,13 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
 
 // Per-body asap entry. Called from the typer's scope-management sites
 // (infer_func_def_expr, infer_if_stmt, infer_while_stmt, the Body/Catch
-// arms of infer_body_stmt) after infer_body has settled and before
-// TypeScope.delete. Returns true iff body.children changed, so the
+// arms of infer_body_stmt) after infer_body has settled. The per-body
+// TypeScope local itself is an ordinary owned local of the calling
+// typer function, reclaimed by this same pass when the CALLER's body
+// is processed (#302 removed the 11 hand-written TypeScope.delete
+// calls that used to follow these call sites; they predated the pass
+// covering such locals and the full ASAN suite proves the inserted
+// deletes cover them). Returns true iff body.children changed, so the
 // caller can decide whether to re-run reregister_scope_defs.
 // See issue #204.
 garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
@@ -1559,11 +1564,12 @@ garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope
 //
 // Sub-body asap (function bodies, if/while/block/catch scopes)
 // still runs inline from the typer's scope-management sites
-// because per-body scopes are stack-locals freed by
-// TypeScope.delete once infer_body returns. Issue #204 step 3b
-// covers lifting the inline calls into this proc; the blocker is
-// per-body scope ownership, which needs either a scope cache on
-// Context (#158) or an on-the-fly scope rebuild in garbager.
+// because per-body scopes are locals of the typer functions,
+// gone (via this pass's own inserted deletes, #302) once
+// infer_body returns. Issue #204 step 3b covers lifting the
+// inline calls into this proc; the blocker is per-body scope
+// ownership, which needs either a scope cache on Context (#158)
+// or an on-the-fly scope rebuild in garbager.
 garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
     saved_in_main := ctx.typer_in_main_func

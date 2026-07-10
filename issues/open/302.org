@@ -629,6 +629,16 @@ let the ownership pass insert temps itself; start with the check.
     "use `buf : Dynamic = malloc(...)` for owned allocations" idiom
     in doc/qualifiers.org replaced with the typed raw_alloc contract
     + Dynamic-never-owns ruling.
+  - [X] 2026-07-09 first drained compensation class under the
+    corrected scope: the 11 hand-written `TypeScope.delete(own
+    <scope>)` calls in typer.til (infer_namespace/func_def/if/while/
+    body/block/catch/switch-case/trial-arm sites) are REMOVED. The
+    per-body scopes are ordinary owned locals (`x := TypeScope(parent
+    = scope)`); the pass covers them like any local, and the full
+    ASAN suite (leak detection on, typer exercised thousands of
+    scopes per compile) passes with zero hand-written deletes --
+    proving the calls were pre-garbager history, not a gap.
+    garbager.til's two stale call-order comments updated.
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

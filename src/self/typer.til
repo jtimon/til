@@ -2806,7 +2806,6 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     if expr.node_type.is(NodeType.StructDef) {
         check_user_delete_frees_own_fields(ctx.current_type_name, expr, ctx)
     }
-    TypeScope.delete(own inner)
 }
 
 // Issue #223 step 3: a struct is auto-shallow (safe to pass/return by a
@@ -3316,7 +3315,6 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             check_unused_locals(func_scope, ctx.path, ctx)
             check_unused_mut_locals(func_scope, ctx.path, ctx)
         }
-        TypeScope.delete(own func_scope)
     case:
         UNREACHABLE()
     }
@@ -3747,14 +3745,12 @@ priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_lo
     garbager_destroy_body(ctx, stmt.children[1], then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
-    TypeScope.delete(own then_scope)
     if stmt.children.len() > 2 {
         else_scope := TypeScope(parent = scope)
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt.children[2], else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
         check_unused_mut_locals(else_scope, ctx.path, ctx)
-        TypeScope.delete(own else_scope)
     }
     stmt.set_expr_til_type(Type.None)
 }
@@ -4052,7 +4048,6 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
     garbager_destroy_body(ctx, stmt.children[1], while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
     check_unused_mut_locals(while_scope, ctx.path, ctx)
-    TypeScope.delete(own while_scope)
     stmt.set_expr_til_type(Type.None)
 }
 
@@ -4731,7 +4726,6 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
     garbager_destroy_body(ctx, body, body_scope)
     check_unused_locals(body_scope, ctx.path, ctx)
     check_unused_mut_locals(body_scope, ctx.path, ctx)
-    TypeScope.delete(own body_scope)
     expr.set_expr_til_type(Type.Body)
 }
 
@@ -4787,7 +4781,6 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     garbager_destroy_body(ctx, body, block_scope)
     check_unused_locals(block_scope, ctx.path, ctx)
     check_unused_mut_locals(block_scope, ctx.path, ctx)
-    TypeScope.delete(own block_scope)
     stmt.set_expr_til_type(Type.None)
 }
 
@@ -4850,7 +4843,6 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
         garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
         check_unused_mut_locals(block_scope, ctx.path, ctx)
-        TypeScope.delete(own block_scope)
     case NodeType.While:
         infer_while_stmt(scope, stmt, in_func, returns_ref, ctx)
     case NodeType.CaptureBlock:
@@ -4888,7 +4880,6 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
             garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
             check_unused_mut_locals(catch_scope, ctx.path, ctx)
-            TypeScope.delete(own catch_scope)
         } else {
             stmt.type_error("catch must have 3 children: var, type, body", ctx)
         }
@@ -6707,7 +6698,6 @@ priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr,
         infer_expr(arm_scope, trial.children[last_idx], in_func, ctx)
         t = trial.children[last_idx].expr_til_type()
     }
-    TypeScope.delete(own arm_scope)
     return t
 }
 
@@ -6891,7 +6881,6 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         garbager_destroy_body(ctx, case_body, case_scope)
         check_unused_locals(case_scope, ctx.path, ctx)
         check_unused_mut_locals(case_scope, ctx.path, ctx)
-        TypeScope.delete(own case_scope)
     }
     if is_enum {
         ref edef2 : Expr = scope.get_struct(sw_sname)
