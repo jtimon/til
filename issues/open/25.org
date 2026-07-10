@@ -212,9 +212,28 @@
      guarded page, catching even writes from uninstrumented code
      (libffi asm) at the culprit instruction; (3) crash-report capture
      hardened (sleep 30, user + system DiagnosticReports dirs).
-   - Next: read the ASAN/gmalloc culprit from the next mac run, fix
-     it, iterate until the suite is green on both arches; then the gui
-     suite natively on a mac (phase 3) and the `timeout` dependency.
+   - First ASAN-suite run (29050250037) results: (a) macos-x64 ran the
+     whole 46-min ASAN suite; its many run-phase failures all trace to
+     ASAN aborting AT STARTUP of the compiled test binaries --
+     __asan::InitializeFlags() -> Die() -- because asan_child_prefix
+     forced ASAN_OPTIONS=detect_leaks=1 and Apple's ASAN runtime has
+     no LeakSanitizer. Fixed: detect_leaks=0 on a macos host. (b) The
+     compile-phase failures (closures_compile etc.) had their reason
+     discarded: test_runner redirected every phase's stderr to
+     /dev/null, so ASAN reports never reached any log -- on linux too.
+     Fixed: stderr goes to gen/out/*.err and failing tests echo it
+     (tail-truncated). (c) The arm64 job died in the build step and
+     the Guard Malloc probe crashed in 52s (a catch!), but macOS-26
+     .ips files are >5000 lines each and the raw cats buried both the
+     probe's report and the build error beyond the log API's tail
+     window; artifact download is proxy-blocked from the bot session.
+     Fixed: the dump step prints a compact per-report digest
+     (procName/exception/frames) instead of raw cats; full reports
+     still go to the artifact.
+   - Next: read the ASAN/gmalloc culprit digest from the next mac run,
+     fix it, iterate until the suite is green on both arches; then the
+     gui suite natively on a mac (phase 3) and the `timeout`
+     dependency.
 
 *** macOS plan
 

@@ -45,6 +45,24 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     return count
 }
 
+// Echo a failing phase's captured output so the reason for the failure
+// (til panic, ASAN report, cc error, ...) lands in the suite log instead
+// of dying with the redirect. Tail-truncated so one pathological test
+// cannot bury the rest of the log.
+print_captured_err := proc(path: Str) {
+    content := File.readfile(path)
+    if content.len() == 0 { return }
+    max_len : USize = 8192
+    if content.len() > max_len {
+        println("--- captured output (last ", max_len.to_str(), " bytes of ", path, "):")
+        println(content.substr(content.len() - max_len, max_len))
+    } else {
+        println("--- captured output (", path, "):")
+        println(content)
+    }
+    println("--- end captured output")
+}
+
 PhaseResult := struct {
     status := -1
     ms := 0
@@ -116,8 +134,12 @@ main := proc(args: ..Str) {
         mut run_mem := 0
         mut fail := 0
 
+        interp_errfile := format("gen/out/interp/", basename, ".err")
+        run_errfile := format("gen/out/run/", basename, ".err")
+        compile_errfile := format("gen/out/run/", basename, ".cc.err")
+
         if en_interp == 1 {
-            cmd := til_bin.format(" interpret '", file, "' > ", interp_outfile, " 2>/dev/null")
+            cmd := til_bin.format(" interpret '", file, "' > ", interp_outfile, " 2> ", interp_errfile)
             phase := run_phase(cmd)
             interp_ms = phase.ms
             interp_mem = phase.mem
@@ -125,20 +147,21 @@ main := proc(args: ..Str) {
                 interp_ok = 1
             } else {
                 println("FAIL (interp): ", file)
+                print_captured_err(interp_errfile)
                 fail = 1
             }
         }
 
         if en_run == 1 {
             // Compile
-            build_cmd := til_bin.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2>/dev/null")
+            build_cmd := til_bin.format(" build", asan_flag, " -o ", bin_path, " '", file, "' 2> ", compile_errfile)
             phase := run_phase(build_cmd)
             compile_ms = phase.ms
             compile_mem = phase.mem
             if phase.status == 0 {
                 compile_ok = 1
                 // Run the compiled binary
-                run_cmd := bin_path.format(" > ", run_outfile, " 2>/dev/null")
+                run_cmd := bin_path.format(" > ", run_outfile, " 2> ", run_errfile)
                 run_phase_result := run_phase(run_cmd)
                 run_ms = run_phase_result.ms
                 run_mem = run_phase_result.mem
@@ -146,10 +169,12 @@ main := proc(args: ..Str) {
                     run_ok = 1
                 } else {
                     println("FAIL (run): ", file)
+                    print_captured_err(run_errfile)
                     fail = 1
                 }
             } else {
                 println("FAIL (compile): ", file)
+                print_captured_err(compile_errfile)
                 fail = 1
             }
         }
@@ -242,6 +267,7 @@ main := proc(args: ..Str) {
         mut ok := 1
         if phase.status != expected_exit {
             println("FAIL: ", label, " exit=", phase.status.to_str(), " expected=", expected_exit.to_str())
+            print_captured_err(outfile)
             ok = 0
         }
 
@@ -250,6 +276,7 @@ main := proc(args: ..Str) {
             expected := File.readfile(expected_out_file)
             if actual != expected {
                 println("FAIL: ", label, " output mismatch")
+                print_captured_err(outfile)
                 ok = 0
             }
         }
@@ -301,6 +328,7 @@ main := proc(args: ..Str) {
         mut ok := 1
         if actual_count != expected_count {
             println("FAIL: ", label, " count=", actual_count.to_str(), " expected=", expected_count.to_str())
+            print_captured_err(outfile)
             ok = 0
         }
 

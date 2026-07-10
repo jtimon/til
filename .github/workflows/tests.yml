@@ -241,20 +241,41 @@ jobs:
       # ReportCrash writes them asynchronously -- sometimes well past
       # 10s, occasionally to the system directory -- hence the long
       # sleep and both dirs (a 10s single-dir version missed every
-      # report in runs 29027527473/x64 and 29045082029/arm64). Upload
-      # the reports TOGETHER WITH the binaries they reference so frame
-      # offsets can be symbolicated offline (issue #25).
+      # report in runs 29027527473/x64 and 29045082029/arm64). Print a
+      # COMPACT digest (procName + exception + faulting-thread frames)
+      # instead of raw cats: full macOS-26 .ips files are >5000 lines
+      # each and bury everything else past the log API's tail window
+      # (run 29050250037). The full reports still go into the artifact
+      # together with the binaries they reference (issue #25).
       - name: Dump crash reports
         if: failure()
         run: |
           sleep 30
           ls -l ~/Library/Logs/DiagnosticReports/ /Library/Logs/DiagnosticReports/ 2>/dev/null || true
-          cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
-          sudo cat /Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
           mkdir -p tmp/crash
           cp ~/Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
           sudo cp /Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
           cp bin/til bin/til_boot tmp/crash/ 2>/dev/null || true
+          python3 - <<'EOF'
+          import glob, json
+          for p in sorted(glob.glob('tmp/crash/*.ips')):
+              print('=== digest:', p)
+              try:
+                  raw = open(p).read()
+                  body = json.loads(raw[raw.index('\n'):])
+                  for k in ('procName', 'parentProc', 'exception', 'termination', 'asi'):
+                      if k in body: print(k, ':', json.dumps(body[k]))
+                  t = body['threads'][body.get('faultingThread', 0)]
+                  for f in t.get('frames', []):
+                      src = f.get('sourceFile', '')
+                      line = f.get('sourceLine', '')
+                      loc = ' {}:{}'.format(src, line) if src else ''
+                      print('  frame img={} off={} {}{}'.format(
+                          f.get('imageIndex'), f.get('imageOffset'),
+                          f.get('symbol', '?'), loc))
+              except Exception as e:
+                  print('  digest failed:', e)
+          EOF
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -296,12 +317,30 @@ jobs:
         run: |
           sleep 30
           ls -l ~/Library/Logs/DiagnosticReports/ /Library/Logs/DiagnosticReports/ 2>/dev/null || true
-          cat ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
-          sudo cat /Library/Logs/DiagnosticReports/*.ips 2>/dev/null || true
           mkdir -p tmp/crash
           cp ~/Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
           sudo cp /Library/Logs/DiagnosticReports/*.ips tmp/crash/ 2>/dev/null || true
           cp bin/til bin/til_boot tmp/crash/ 2>/dev/null || true
+          python3 - <<'EOF'
+          import glob, json
+          for p in sorted(glob.glob('tmp/crash/*.ips')):
+              print('=== digest:', p)
+              try:
+                  raw = open(p).read()
+                  body = json.loads(raw[raw.index('\n'):])
+                  for k in ('procName', 'parentProc', 'exception', 'termination', 'asi'):
+                      if k in body: print(k, ':', json.dumps(body[k]))
+                  t = body['threads'][body.get('faultingThread', 0)]
+                  for f in t.get('frames', []):
+                      src = f.get('sourceFile', '')
+                      line = f.get('sourceLine', '')
+                      loc = ' {}:{}'.format(src, line) if src else ''
+                      print('  frame img={} off={} {}{}'.format(
+                          f.get('imageIndex'), f.get('imageOffset'),
+                          f.get('symbol', '?'), loc))
+              except Exception as e:
+                  print('  digest failed:', e)
+          EOF
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@v4
