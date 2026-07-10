@@ -985,7 +985,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 interp_error(e, format("no field '", Str.clone(fname.field_access_name()), "'"), ctx)
                 exit(1)
             }
-            fl := ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
+            ref fl : FieldLayout = ctx_field_layout(si.struct_name, fname.field_access_name(), ctx)
             return read_field(si.data, fdecl, fl.offset, ctx)
         case:
             UNREACHABLE()
@@ -1778,7 +1778,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     exit(1)
                 }
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname)
-                wf_fl := ctx_field_layout(cur_sname, fname, ctx)
+                ref wf_fl : FieldLayout = ctx_field_layout(cur_sname, fname, ctx)
                 write_field(base, fdecl, wf_fl.offset, wf_fl.size, val, ctx)
                 if move_src.is_null().not() {
                     if move_src.val.is(Value.Func).not() {
@@ -2570,7 +2570,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         case:
                             val = eval_expr(scope, arg, ctx)
                         }
-                        ctor_fl := ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
+                        ref ctor_fl : FieldLayout = ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
                         write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                     }
                 case:
@@ -2693,9 +2693,9 @@ priv container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
     }
     sep := struct_name.find("__")
     if sep >= 0 {
-        data_fl := ctx_field_layout(struct_name, "data", ctx)
-        count_fl := ctx_field_layout(struct_name, "count", ctx)
-        cap_fl := ctx_field_layout(struct_name, "cap", ctx)
+        ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
+        ref count_fl : FieldLayout = ctx_field_layout(struct_name, "count", ctx)
+        ref cap_fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
         if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
             if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.not()).and(data_fl.is_funcptr.not()) {
                 start := sep.add(2).to_usize()
@@ -2743,13 +2743,13 @@ priv type_name_is_funcsig := func(type_name: Str, ctx: Context) returns Bool {
 priv container_live_count := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
     mut count_field := "count"
     if struct_name.starts_with("Array__") { count_field = "cap" }
-    fl := ctx_field_layout(struct_name, count_field, ctx)
+    ref fl : FieldLayout = ctx_field_layout(struct_name, count_field, ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
 
 priv container_capacity := func(struct_name: Str, data: Dynamic, ctx: Context) returns USize {
-    fl := ctx_field_layout(struct_name, "cap", ctx)
+    ref fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
@@ -2815,9 +2815,9 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
 }
 
 priv free_tuple_data := func(data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("Tuple", "data", ctx)
-    type_names_fl := ctx_field_layout("Tuple", "type_names", ctx)
-    type_sizes_fl := ctx_field_layout("Tuple", "type_sizes", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("Tuple", "data", ctx)
+    ref type_names_fl : FieldLayout = ctx_field_layout("Tuple", "type_names", ctx)
+    ref type_sizes_fl : FieldLayout = ctx_field_layout("Tuple", "type_sizes", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
     ref type_names : Vec(Str) = ptr_add(data, type_names_fl.offset.cast(U64))
@@ -2841,10 +2841,10 @@ priv free_tuple_data := func(data: Dynamic, ctx: Context) {
 // deep-copy each heterogeneous element by its parallel type metadata (mirroring
 // Tuple.clone's dyn_call loop), then repoint dst's data field at it.
 priv clone_tuple_buffer := func(src_tuple: Dynamic, dst_tuple: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("Tuple", "data", ctx)
-    names_fl := ctx_field_layout("Tuple", "type_names", ctx)
-    sizes_fl := ctx_field_layout("Tuple", "type_sizes", ctx)
-    cap_fl := ctx_field_layout("Tuple", "cap", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("Tuple", "data", ctx)
+    ref names_fl : FieldLayout = ctx_field_layout("Tuple", "type_names", ctx)
+    ref sizes_fl : FieldLayout = ctx_field_layout("Tuple", "type_sizes", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout("Tuple", "cap", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_tuple, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
     ref cap : USize = ptr_add(src_tuple, cap_fl.offset.cast(U64))
@@ -2873,10 +2873,10 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
     if data.is_null() { return }
     if ctx.struct_layouts.has(struct_name).not() { return }
     if struct_name == "Expr" {
-        node_fl := ctx_field_layout("Expr", "node_type", ctx)
+        ref node_fl : FieldLayout = ctx_field_layout("Expr", "node_type", ctx)
         if node_fl.size.eq(0) { panic("struct_deep_free Expr missing node_type layout") }
         NodeType.delete(own ptr_add(data, node_fl.offset.cast(U64)), false)
-        children_fl := ctx_field_layout("Expr", "children", ctx)
+        ref children_fl : FieldLayout = ctx_field_layout("Expr", "children", ctx)
         if children_fl.size.eq(0).or(children_fl.struct_name.len().eq(0)) {
             panic("struct_deep_free Expr missing children layout")
         }
@@ -2953,7 +2953,7 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
 priv free_container_data := func(struct_name: Str, data: Dynamic, ctx: Context) {
     elem_type := container_elem_type(struct_name, ctx)
     if elem_type.len() == 0 { panic("free_container_data: not a container: ", struct_name) }
-    data_fl := ctx_field_layout(struct_name, "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
     n := container_live_count(struct_name, data, ctx)
@@ -2981,7 +2981,7 @@ priv free_container_str_data_cached := func(data: Dynamic, ctx: Context) {
 priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
     elem_type := container_elem_type(struct_name, ctx)
     if elem_type.len() == 0 { panic("clone_container_buffer: not a container: ", struct_name) }
-    data_fl := ctx_field_layout(struct_name, "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
     cap := container_capacity(struct_name, src_data, ctx)
@@ -2996,31 +2996,31 @@ priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, dst_dat
 }
 
 priv dyn_vec_count := func(data: Dynamic, ctx: Context) returns USize {
-    fl := ctx_field_layout("DynVec", "count", ctx)
+    ref fl : FieldLayout = ctx_field_layout("DynVec", "count", ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
 
 priv dyn_vec_cap := func(data: Dynamic, ctx: Context) returns USize {
-    fl := ctx_field_layout("DynVec", "cap", ctx)
+    ref fl : FieldLayout = ctx_field_layout("DynVec", "cap", ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
 
 priv dyn_vec_elem_size := func(data: Dynamic, ctx: Context) returns USize {
-    fl := ctx_field_layout("DynVec", "elem_size", ctx)
+    ref fl : FieldLayout = ctx_field_layout("DynVec", "elem_size", ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
 
 priv dyn_vec_elem_kind := func(data: Dynamic, ctx: Context) returns USize {
-    fl := ctx_field_layout("DynVec", "elem_kind", ctx)
+    ref fl : FieldLayout = ctx_field_layout("DynVec", "elem_kind", ctx)
     ref n : USize = ptr_add(data, fl.offset.cast(U64))
     return n.clone()
 }
 
 priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Context) returns Str {
-    fl := ctx_field_layout(struct_name, "elem_delete", ctx)
+    ref fl : FieldLayout = ctx_field_layout(struct_name, "elem_delete", ctx)
     ref stored : Dynamic = deref(ptr_add(data, fl.offset.cast(U64)))
     mut stored_func : Dynamic = stored
     if callable_box_is(stored) {
@@ -3048,7 +3048,7 @@ priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Conte
 }
 
 priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynVec", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynVec", "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
     count := dyn_vec_count(data, ctx)
@@ -3071,11 +3071,11 @@ priv free_dyn_vec_buffer := func(data: Dynamic, ctx: Context) {
 }
 
 priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynArray", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynArray", "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
-    cap_fl := ctx_field_layout("DynArray", "cap", ctx)
-    elem_size_fl := ctx_field_layout("DynArray", "elem_size", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout("DynArray", "cap", ctx)
+    ref elem_size_fl : FieldLayout = ctx_field_layout("DynArray", "elem_size", ctx)
     ref cap : USize = ptr_add(data, cap_fl.offset.cast(U64))
     ref elem_size : USize = ptr_add(data, elem_size_fl.offset.cast(U64))
     elem_type := erased_elem_delete_type("DynArray", data, ctx)
@@ -3088,11 +3088,11 @@ priv free_dyn_array_buffer := func(data: Dynamic, ctx: Context) {
 }
 
 priv free_dyn_set_buffer := func(data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynSet", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynSet", "data", ctx)
     ref hdr : DynPtrBox = ptr_add(data, data_fl.offset.cast(U64))
     if hdr.p.is_null() { return }
-    count_fl := ctx_field_layout("DynSet", "count", ctx)
-    elem_size_fl := ctx_field_layout("DynSet", "elem_size", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout("DynSet", "count", ctx)
+    ref elem_size_fl : FieldLayout = ctx_field_layout("DynSet", "elem_size", ctx)
     ref count : USize = ptr_add(data, count_fl.offset.cast(U64))
     ref elem_size : USize = ptr_add(data, elem_size_fl.offset.cast(U64))
     elem_type := erased_elem_delete_type("DynSet", data, ctx)
@@ -3105,7 +3105,7 @@ priv free_dyn_set_buffer := func(data: Dynamic, ctx: Context) {
 }
 
 priv clone_dyn_vec_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynVec", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynVec", "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
     cap := dyn_vec_cap(src_data, ctx)
@@ -3135,11 +3135,11 @@ priv clone_dyn_vec_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Con
 }
 
 priv clone_dyn_array_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynArray", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynArray", "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
-    cap_fl := ctx_field_layout("DynArray", "cap", ctx)
-    elem_size_fl := ctx_field_layout("DynArray", "elem_size", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout("DynArray", "cap", ctx)
+    ref elem_size_fl : FieldLayout = ctx_field_layout("DynArray", "elem_size", ctx)
     ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
     ref elem_size : USize = ptr_add(src_data, elem_size_fl.offset.cast(U64))
     new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(elem_size))
@@ -3155,12 +3155,12 @@ priv clone_dyn_array_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: C
 }
 
 priv clone_dyn_set_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Context) {
-    data_fl := ctx_field_layout("DynSet", "data", ctx)
+    ref data_fl : FieldLayout = ctx_field_layout("DynSet", "data", ctx)
     ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset.cast(U64))
     if src_hdr.p.is_null() { return }
-    cap_fl := ctx_field_layout("DynSet", "cap", ctx)
-    count_fl := ctx_field_layout("DynSet", "count", ctx)
-    elem_size_fl := ctx_field_layout("DynSet", "elem_size", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout("DynSet", "cap", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout("DynSet", "count", ctx)
+    ref elem_size_fl : FieldLayout = ctx_field_layout("DynSet", "elem_size", ctx)
     ref cap : USize = ptr_add(src_data, cap_fl.offset.cast(U64))
     ref count : USize = ptr_add(src_data, count_fl.offset.cast(U64))
     ref elem_size : USize = ptr_add(src_data, elem_size_fl.offset.cast(U64))
@@ -4035,10 +4035,10 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
     ref array_def : Expr = lookup_interp_type_def(array_canon_name, ctx)
     sz := ctx_total_size(array_canon_name, ctx)
     inst_data : Dynamic = EvalHeap.heap_alloc(sz)
-    ba_data_fl := ctx_field_layout(array_canon_name, "data", ctx)
+    ref ba_data_fl : FieldLayout = ctx_field_layout(array_canon_name, "data", ctx)
     write_ptr(ptr_add(inst_data, ba_data_fl.offset.cast(U64)), data)
     ref ba_cap_d : Declaration = find_field_decl(array_def, "cap")
-    ba_cap_fl := ctx_field_layout(array_canon_name, "cap", ctx)
+    ref ba_cap_fl : FieldLayout = ctx_field_layout(array_canon_name, "cap", ctx)
     write_field(inst_data, ba_cap_d, ba_cap_fl.offset, ba_cap_fl.size, Value.Uint64(count.to_u64()), ctx)
     return make_struct_value(array_canon_name, to_ptr(inst_data), false, ctx)
 }
@@ -4100,9 +4100,22 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
             ref ien_ns : Vec(Declaration) = def_ns_decls(sdef)
+            // #307: two passes so registration order does not depend on
+            // declaration order. A namespace CONSTANT's initializer may
+            // reference a sibling method (`MAX : U64 = U64.bnot(0)`);
+            // register every function member first (their eval needs no
+            // siblings), then evaluate the constants.
+            for d_f : Declaration in ien_ns {
+                ref nsf : Declaration = d_f
+                if nsf.default_value.is_null() { continue }
+                if nsf.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                fval_f := eval_expr(global, nsf.default_value, ctx)
+                ns_set(dd.name, nsf.name, fval_f, ctx)
+            }
             for d_j : Declaration in ien_ns {
                 ref nsd : Declaration = d_j
                 if nsd.default_value.is_null() { continue }
+                if nsd.default_value.node_type.is(NodeType.FuncDef) { continue }
                 mut fval := eval_expr(global, nsd.default_value, ctx)
                 if sdef.node_type.is(NodeType.EnumDef) {
                     if enum_has_payloads(sdef).not() {
@@ -4163,8 +4176,8 @@ interpreter_free_ns := func(mut ctx: Context) {
 // inside was built at a different USize width than the source it compiles:
 // the bytes are laid out the same way struct_deep_free later reads them.
 priv str_write_count_cap := func(inst_data: Dynamic, count_val: USize, cap_val: USize, ctx: Context) {
-    count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
-    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "count", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
     ref count_d : Declaration = find_field_decl(ctx.cached_str_def, "count")
     ref cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
     write_field(inst_data, count_d, count_fl.offset, count_fl.size, Value.Uint64(count_val.to_u64()), ctx)
@@ -4175,7 +4188,7 @@ priv str_write_count_cap := func(inst_data: Dynamic, count_val: USize, cap_val: 
 // ctx layout offset/width. Used by the deep-clone paths that force cap=count
 // to claim ownership of a freshly cloned c_str.
 priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
-    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
     ref cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
     write_field(str_base, cap_d, cap_fl.offset, cap_fl.size, Value.Uint64(cap_val.to_u64()), ctx)
 }
@@ -4187,7 +4200,7 @@ priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
 // it at the ctx offset instead (low bytes carry the value / the CAP_VIEW /
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
     return str_usize_field_at(str_base, cap_fl.offset, cap_fl.size)
 }
 
@@ -4198,7 +4211,7 @@ str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // count@8 AND the neighbouring cap@12, so count comes back with cap in its
 // high word -- a garbage huge value that crashes the buffer clone's memcpy.
 str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
-    count_fl := ctx_field_layout(ctx.cached_str_name, "count", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "count", ctx)
     return str_usize_field_at(str_base, count_fl.offset, count_fl.size)
 }
 
@@ -6302,7 +6315,7 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
                     ref fd : Declaration = find_field_decl(base_def, fa.field_access_name())
                     if fd.is_null().not() {
                         if fd.own_type.is(OwnType.Own).and(field_nested_def(fd, ctx).is_null()).and(decl_is_funcsig(fd, ctx).not()) {
-                            raw_fl := ctx_field_layout(base_struct_name, fa.field_access_name(), ctx)
+                            ref raw_fl : FieldLayout = ctx_field_layout(base_struct_name, fa.field_access_name(), ctx)
                             raw_field_slot = ptr_add(bsi.data, raw_fl.offset.cast(U64))
                             free_owned_raw_field = true
                         }
@@ -6396,7 +6409,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
                         ref fdecl : Declaration = find_field_decl(sdef, fa.field_access_name())
                         if fdecl.is_null().not() {
                             if decl_is_funcsig(fdecl, ctx) {
-                                fl := ctx_field_layout(si.struct_name, fa.field_access_name(), ctx)
+                                ref fl : FieldLayout = ctx_field_layout(si.struct_name, fa.field_access_name(), ctx)
                                 ref slot : Dynamic = ptr_add(si.data, fl.offset.cast(U64))
                                 ref stored : Dynamic = deref(slot)
                                 if stored.is_null().not() { callable_storage_free(stored) }
@@ -7054,7 +7067,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, mut result: Valu
                 // the struct and the c_str together at teardown. Force cap=count
                 // so delete reclaims the c_str (mirrors make_str_value_own;
                 // ExtStr and Str share the {ptr, count, cap} layout).
-                es_cap_fl := ctx_field_layout(ctx.cached_str_name, "cap", ctx)
+                ref es_cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
                 ref es_cap_d : Declaration = find_field_decl(ctx.cached_str_def, "cap")
                 write_field(raw_ptr, es_cap_d, es_cap_fl.offset, es_cap_fl.size, Value.Uint64(sp.count.to_u64()), ctx)
                 result = make_struct_value(ctx.cached_str_name, raw_ptr, false, ctx)

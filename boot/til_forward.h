@@ -264,7 +264,6 @@ typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
-typedef struct Vec__I32 Vec__I32;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef enum {
     Lang_TAG_C,
@@ -766,13 +765,6 @@ typedef struct Vec__ExprPtrBox {
     USize count;
     USize cap;
 } Vec__ExprPtrBox;
-
-
-typedef struct Vec__I32 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__I32;
 
 
 typedef struct Map__Str_I64 {
@@ -1430,6 +1422,7 @@ typedef struct Context {
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
+    FieldLayout empty_field_layout;
     Bool typing_namespace_member;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
@@ -2405,14 +2398,6 @@ I32 init_repl_delta(Str * path, Expr * program, Context * ctx);
 Bool priv___src_self_initer_til__enum_variant_is_payload_less(Expr * enum_def, Str * variant_name);
 Str * clone_call_type_name(Expr * e);
 Bool is_pod_enum_clone_of(Expr * e, Expr * edef);
-Vec__I32 * Vec__I32_new(void);
-void Vec__I32_clear(Vec__I32 * self);
-void Vec__I32_push(Vec__I32 * self, I32 * val);
-I32 * Vec__I32_unsafe_get(Vec__I32 * self, U64 * i);
-I32 * Vec__I32_get(Vec__I32 * self, U64 * i, I64 * _err_kind, OutOfBounds * _err_OutOfBounds, Str * loc);
-void Vec__I32_delete(Vec__I32 * self, Bool call_free);
-Vec__I32 * Vec__I32_clone(Vec__I32 * self);
-U64 Vec__I32_size(void);
 Map__Str_I64 * Map__Str_I64_new(void);
 Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key);
 I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind, KeyNotFound * _err_KeyNotFound, Str * loc);

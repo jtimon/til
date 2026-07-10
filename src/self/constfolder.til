@@ -383,7 +383,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 if is_funcptr(fd.til_type) {
                     return NULL
                 }
-                fl_pre := ctx_field_layout(si.to_str(), fd.name, ctx)
+                ref fl_pre : FieldLayout = ctx_field_layout(si.to_str(), fd.name, ctx)
                 mut farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
                 if farg.is_null() { return NULL }
                 ctor.add_child(own farg)

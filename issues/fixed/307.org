@@ -1,0 +1,48 @@
+# priority: medium
+# category: cleanups
+** FIXED #307 StructDef/EnumDef member lookups: kill the initer gather vecs; stop ctx_field_layout copying per call
+
+Post-mortem: re-scoped twice before landing. The original draft proposed
+a new OrderedMap container for StructDef/EnumDef members; a second draft
+kept the Vecs and added Map(Str, USize) name -> position indexes. Both
+were implemented and rejected: the scans they replace use Str.eq's O(1)
+length reject over tiny member lists, while the indexes pay Str.cmp
+probes, clone a key per member per def, and deep-clone inside every def
+clone -- a net regression with permanent name duplication. What actually
+ships is the part of the issue with standalone value plus a measured
+optimization in the same member/type-lookup territory:
+
+- Deduplication: the initer clone/delete generators build directly off
+  sdd.fields, deleting the field_names/field_refs and del_field_* gather
+  vecs (a porting artifact rstil does not have).
+- Optimization: ctx_field_layout returned a freshly built FieldLayout
+  (struct_name Str cloned) on every call -- 311K calls, 933K allocations
+  / 29.2MB per profiled translate, the #2 allocation row in
+  doc/profiling.org. It now returns a BORROWED ref to the FieldLayout
+  that ctx.struct_layouts already stores; misses borrow the shared zero
+  layout ctx.empty_field_layout (const field; must never be written
+  through -- all ~52 call sites audited read-only). Measured with
+  `bin/til run examples/profile.til test/maps.til 32`: allocations 933K
+  -> 311K, 29164KB -> 7291KB, self_ms 284.9 -> 136.3. The remaining one
+  allocation per call is the Map probe's __LOC__ Str (#302 territory).
+- Hardening (latent order bugs found while the rejected designs were in
+  the tree, real regardless of member iteration order): field-access
+  receivers apply get_struct's non-type-binding fall-through (#147 rule)
+  so a sibling namespace member named like a global type cannot shadow
+  it in receiver position; interpreter_init_ns registers function
+  members before evaluating namespace constants, so a constant like
+  `MAX : U64 = U64.bnot(0)` no longer depends on declaration order.
+
+Known-latent (predates #307, deliberately NOT fixed here): a namespace
+member whose initializer or body references a sibling member declared
+LATER in the same type still depends on declaration order in the typer's
+member sweep. Follow-up candidate (not filed): TypeScope_get_struct --
+3.0M calls, 8.0s total in the same profile -- parent-chain walk plus Map
+probe per receiver resolution; a cache needs care around init-time
+set_struct_def writes and child-scope shadowing.
+
+Original problem statement: StructDef stores its members as two plain
+Vecs (fields, ns_decls), every lookup-by-name is a linear scan, and
+several places kept hand-rolled side collections on top (initer gather
+vecs; per-call rebuilt layout values). The scans stay -- they were never
+the measured cost; the side collections and the per-call copies were.

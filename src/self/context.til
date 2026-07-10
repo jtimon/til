@@ -389,6 +389,14 @@ Context := struct {
     // fills the AST fields. Readers still use the AST fields for now; they
     // migrate to this map in step 4.
     struct_layouts := Map(Str, StructLayout).new()
+    // #307: the shared zero layout that ctx_field_layout returns (as a
+    // borrowed ref) on its miss paths, so misses allocate nothing. It MUST
+    // NEVER be written through: every caller treats ctx_field_layout
+    // results as read-only, and a write here would silently corrupt every
+    // later miss. `const` rejects direct re-assignment; writes through a
+    // borrowed ref are guarded by this invariant (all 52 call sites
+    // audited read-only at #307 time).
+    const empty_field_layout := FieldLayout()
 
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept

@@ -3781,7 +3781,27 @@ priv resolve_fa_receiver_alias := func(scope: TypeScope, mut obj: Expr) {
 priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context) {
     infer_expr(scope, expr.children[0], in_func, ctx)
     resolve_fa_receiver_alias(scope, expr.children[0])
-    obj_sname := til_type_name(expr.children[0].expr_til_type())
+    mut obj_sname := til_type_name(expr.children[0].expr_til_type())
+    // #307: an Ident receiver whose binding is a non-type (e.g. a sibling
+    // namespace member such as a variant ctor named like a global enum)
+    // types nameless, but a field access needs a type. Apply get_struct's
+    // fall-through rule (#147): a non-type binding does not block
+    // resolving the same-named TYPE in receiver position.
+    if obj_sname.len() == 0 {
+        switch expr.children[0].node_type {
+        case NodeType.Ident(fa_rid):
+            ref fa_tdef : Expr = scope.get_struct(fa_rid.ident_name())
+            if fa_tdef.is_null().not() {
+                obj_sname = Str.clone(fa_rid.ident_name())
+                if fa_tdef.node_type.is(NodeType.EnumDef) {
+                    expr.children[0].set_expr_til_type(Type.Enum(obj_sname.clone()))
+                } else {
+                    expr.children[0].set_expr_til_type(Type.Struct(obj_sname.clone()))
+                }
+            }
+        case:
+        }
+    }
     if obj_sname.len() > 0 {
         ref sdef : Expr = scope.get_struct(obj_sname)
         if sdef.is_null().not() {

@@ -263,31 +263,11 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         }
 
         if has_clone.not() {
-            field_names := Vec(Str).new()
-            field_refs := Vec(I32).new()
-            for d_j : Declaration in sdd.fields {
-                ref fd : Declaration = d_j
-                field_names.push(own fd.name.clone())
-                mut ref_flag : I32 = 0
-                if fd.own_type.is(OwnType.Ref) {
-                    ref_flag = 1
-                } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd), scope)) {
-                    // POD field: value-copy is the clone, so pass
-                    // directly and skip the wasteful `.clone()` wrap.
-                    // Uses field_inferred_type_name so that
-                    // `mut x := 0` (no explicit annotation) also
-                    // benefits -- inference picks I64 from the
-                    // LiteralNum default value.  Own-typed fields are
-                    // excluded: their value-copy aliases the heap
-                    // payload.  FuncPtr fields fall under is_pod
-                    // (a function pointer is just a pointer value).
-                    ref_flag = 1
-                }
-                field_refs.push(own ref_flag)
-            }
-
+            // #307: build the generated clone directly off sdd.fields (the
+            // field_names/field_refs gather vecs were a porting artifact
+            // rstil does not have).
             mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            if field_names.len() == 0 {
+            if sdd.fields.len() == 0 {
                 mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
                 mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
                 ctor.add_child(own ctor_name)
@@ -300,19 +280,33 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                 mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
                 ctor.add_child(own ctor_name)
 
-                for j in 0..field_names.len() {
-                    ref fname : Str = field_names[j]
+                for fd : Declaration in sdd.fields {
+                    mut pass_directly := false
+                    if fd.own_type.is(OwnType.Ref) {
+                        pass_directly = true
+                    } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd), scope)) {
+                        // POD field: value-copy is the clone, so pass
+                        // directly and skip the wasteful `.clone()` wrap.
+                        // Uses field_inferred_type_name so that
+                        // `mut x := 0` (no explicit annotation) also
+                        // benefits -- inference picks I64 from the
+                        // LiteralNum default value.  Own-typed fields are
+                        // excluded: their value-copy aliases the heap
+                        // payload.  FuncPtr fields fall under is_pod
+                        // (a function pointer is just a pointer value).
+                        pass_directly = true
+                    }
 
                     mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
                     // NodeType.FieldAccess/NamedArg's constructors Str_clone their
-                    // payload internally, so an outer fname.clone() at the call
+                    // payload internally, so an outer fd.name.clone() at the call
                     // site is a redundant alloc whose wrapper Str leaks if the
-                    // asap delete misses it. Pass the borrowed `fname` directly.
-                    mut field_acc := Expr.new(field_access_node(fname), stmt.line, stmt.col)
+                    // asap delete misses it. Pass the borrowed `fd.name` directly.
+                    mut field_acc := Expr.new(field_access_node(fd.name), stmt.line, stmt.col)
                     field_acc.add_child(own self_id)
 
-                    mut named := Expr.new(NodeType.NamedArg(fname.clone()), stmt.line, stmt.col)
-                    if field_refs[j] == 1 {
+                    mut named := Expr.new(NodeType.NamedArg(fd.name.clone()), stmt.line, stmt.col)
+                    if pass_directly {
                         named.add_child(own field_acc)
                     } else {
                         mut clone_call := make_method_call_fcall(own field_acc, "clone", stmt.line, stmt.col)
@@ -329,7 +323,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
             mut func_decl := FunctionDef(auto_generated = true)
             func_decl.func_type = FuncType.Func
             mut self_pname := "self"
-            if field_names.len() == 0 { self_pname = "_self" }
+            if sdd.fields.len() == 0 { self_pname = "_self" }
             func_decl.params.push(own decl_typed(name = self_pname, explicit_type = sname, own_type = OwnType.Ref))
             func_decl.return_type = sname.clone()
             func_decl.variadic_index = -1
@@ -356,53 +350,37 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                     pod_no_field_deletes = false
                 }
             }
-            del_field_names := Vec(Str).new()
-            del_field_owns := Vec(Bool).new()
-            del_field_funcptrs := Vec(Bool).new()
+            // #307: emit the per-field cleanup directly off sdd.fields (the
+            // del_field_* gather vecs were a porting artifact).
+            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
             if pod_no_field_deletes.not() {
                 for d_j : Declaration in sdd.fields {
                     ref fd : Declaration = d_j
                     if fd.own_type.is(OwnType.Ref) { continue }
+
+                    mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
+                    mut field_acc := Expr.new(field_access_node(fd.name), stmt.line, stmt.col)
+                    field_acc.add_child(own self_id)
+
                     if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is_funcptr().or(type_from_name_init(fd.explicit_type, scope).is(Type.Body))) {
-                        del_field_names.push(own fd.name.clone())
-                        del_field_owns.push(own false)
-                        del_field_funcptrs.push(own true)
+                        mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                        mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
+                        closure_del.add_child(own closure_del_id)
+                        closure_del.add_child(own field_acc.clone())
+                        proc_body.add_child(own closure_del)
                         continue
                     }
-                    del_field_names.push(own fd.name.clone())
-                    del_field_funcptrs.push(own false)
-                    if fd.own_type.is(OwnType.Own) {
-                        del_field_owns.push(own true)
-                    } else {
-                        del_field_owns.push(own false)
-                    }
+
+                    mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
+                    del_acc.add_child(own field_acc)
+                    mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                    set_own_arg(del_call, 0) // signal UFCS own for self arg
+                    del_call.add_child(own del_acc)
+
+                    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(fd.own_type.is(OwnType.Own))), stmt.line, stmt.col)
+                    del_call.add_child(own cf_lit)
+                    proc_body.add_child(own del_call)
                 }
-            }
-
-            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            for j in 0..del_field_names.len() {
-                mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
-                mut field_acc := Expr.new(field_access_node(del_field_names[j]), stmt.line, stmt.col)
-                field_acc.add_child(own self_id)
-
-                if del_field_funcptrs[j] {
-                    mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                    mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
-                    closure_del.add_child(own closure_del_id)
-                    closure_del.add_child(own field_acc.clone())
-                    proc_body.add_child(own closure_del)
-                    continue
-                }
-
-                mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
-                del_acc.add_child(own field_acc)
-                mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                set_own_arg(del_call, 0) // signal UFCS own for self arg
-                del_call.add_child(own del_acc)
-
-                mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(del_field_owns[j])), stmt.line, stmt.col)
-                del_call.add_child(own cf_lit)
-                proc_body.add_child(own del_call)
             }
 
             mut cond := Expr.new(ident_node("call_free"), stmt.line, stmt.col)
@@ -2085,31 +2063,38 @@ ctx_total_size := func(name: Str, ctx: Context) returns USize {
     return ctx.struct_layouts[name].total_size
 }
 
-// Issue #147 step 4: per-field layout lookup. Walks the parent struct's
-// definition to find ~field_name~'s index, then returns the FieldLayout
-// (offset, size, struct_name) from ctx.struct_layouts. Returns the zero
-// FieldLayout when the parent or field isn't registered, matching what
-// the AST field_offset / field_size used to default to.
-ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns FieldLayout {
-    if sname.len().eq(0).or(field_name.len().eq(0)) { return FieldLayout() }
-    if ctx.struct_layouts.has(sname).not() { return FieldLayout() }
+// Issue #147 step 4 / #307: per-field layout lookup. Walks the parent
+// struct's definition to find ~field_name~'s index, then returns a
+// BORROWED ref to the FieldLayout that ctx.struct_layouts already stores.
+// It used to build and return a fresh copy per call -- 311K calls and
+// 933K allocations (29MB) per self-host translate, the #2 allocation row
+// in doc/profiling.org -- for a value the layout map keeps alive anyway.
+// Misses borrow ctx.empty_field_layout (zero layout), matching what the
+// AST field_offset / field_size used to default to. Callers must treat
+// the result as read-only (audited at #307 time).
+ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns ref FieldLayout {
+    if sname.len().eq(0).or(field_name.len().eq(0)) { return ctx.empty_field_layout }
+    if ctx.struct_layouts.has(sname).not() { return ctx.empty_field_layout }
     ref sl : StructLayout = ctx.struct_layouts[sname]
     ref tdef : Expr = lookup_interp_type_def(sname, ctx)
-    if tdef.is_null() { return FieldLayout() }
+    if tdef.is_null() { return ctx.empty_field_layout }
     switch tdef.node_type {
     case NodeType.StructDef(sdd):
         for i in 0..sdd.fields.len() {
-            if sdd.fields[i].name == field_name {
+            ref fd_i : Declaration = sdd.fields.unsafe_get(i)
+            if fd_i.name == field_name {
                 if i < sl.fields.len() {
-                    ref fl : FieldLayout = sl.fields[i]
-                    return FieldLayout(offset = fl.offset, size = fl.size, struct_name = fl.struct_name.clone(), own_type = fl.own_type, is_str = fl.is_str, is_enum = fl.is_enum, is_funcptr = fl.is_funcptr)
+                    // unsafe_get: the i < len() check above proves the
+                    // index (and skips the checked get's __LOC__ Str
+                    // materialization -- one alloc per call at 311K calls).
+                    return sl.fields.unsafe_get(i)
                 }
-                return FieldLayout()
+                return ctx.empty_field_layout
             }
         }
     case:
     }
-    return FieldLayout()
+    return ctx.empty_field_layout
 }
 
 
