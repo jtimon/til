@@ -1749,12 +1749,24 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                 case:
                 }
-                // Chain walking for nested field access (e.g. a.b.c = val)
+                // Chain walking for nested field access (e.g. a.b.c = val).
+                // Collect the chain's field names outer-to-inner (for
+                // `c.b.a`: [a, b]) while descending to the root Ident, then
+                // apply them root-to-leaf so `base` ends at the struct whose
+                // field `fname` is assigned. Previously only depth==1 was
+                // handled, so `c.b.a.x = 42` left base/cur_sdef pointing at
+                // `c`/C; find_field_decl(C, "x") then returned NULL and
+                // write_field dereferenced the null Declaration (a segfault
+                // in field_nested_def -> is_primitive).
                 if stmt.children[0].node_type.is(NodeType.FieldAccess) {
+                    mut chain_names := Vec(Str).new()
                     ref mut cur : Expr = stmt.children[0]
-                    mut depth : I32 = 0
                     while cur.node_type.is(NodeType.FieldAccess) {
-                        depth++
+                        switch cur.node_type {
+                        case NodeType.FieldAccess(fa_link):
+                            chain_names.push(own Str.clone(fa_link.field_access_name()))
+                        case:
+                        }
                         cur = cur.children[0]
                     }
                     switch cur.node_type {
@@ -1766,23 +1778,20 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                 base = to_ptr(si.data)
                                 cur_sdef = lookup_interp_type_def(si.struct_name, si.ctx)
                                 cur_sname = si.struct_name
-                                // For simplicity, handle depth=1 (most common: a.field = val)
-                                if depth == 1 {
-                                    switch stmt.children[0].node_type {
-                                    case NodeType.FieldAccess(fa_name):
-                                            ref fd : Declaration = find_field_decl(cur_sdef, fa_name.field_access_name())
-                                        if fd.is_null().not() {
-                                            fa_off := ctx_field_layout(si.struct_name, fa_name.field_access_name(), ctx).offset
-                                            if fd.own_type.is(OwnType.Shallow).not() {
-                                                base = deref(ptr_add(base, fa_off))
-                                            } else {
-                                                base = ptr_add(base, fa_off)
-                                            }
-                                            cur_sdef = field_nested_def(fd, ctx)
-                                            cur_sname = fd.explicit_type
-                                        }
-                                    case:
+                                mut step_i : USize = chain_names.len()
+                                while step_i > 0 {
+                                    step_i = step_i - 1
+                                    ref step_name : Str = chain_names[step_i]
+                                    ref step_fd : Declaration = find_field_decl(cur_sdef, step_name)
+                                    if step_fd.is_null() { break }
+                                    step_off := ctx_field_layout(cur_sname, step_name, ctx).offset
+                                    if step_fd.own_type.is(OwnType.Shallow).not() {
+                                        base = deref(ptr_add(base, step_off))
+                                    } else {
+                                        base = ptr_add(base, step_off)
                                     }
+                                    cur_sdef = field_nested_def(step_fd, ctx)
+                                    cur_sname = step_fd.explicit_type
                                 }
                             case:
                             }

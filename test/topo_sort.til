@@ -27,3 +27,24 @@ test_topo_inline_struct := test() {
     assert(c.b.y.eq(10))
     assert(c.z.eq(5))
 }
+
+D := struct {
+    c := C()
+    w : I64 = 0
+}
+
+// Four-level nested inline assign. The interpreter's field-assign chain
+// walk used to handle only a single link, so `d.c.b.a.x = ...` wrote
+// through a null field decl and segfaulted; assignments at every depth
+// must land and read back independently.
+test_topo_inline_struct_deep := test() {
+    mut d := D()
+    d.c.b.a.x = 99
+    d.c.b.y = 8
+    d.c.z = 7
+    d.w = 6
+    assert(d.c.b.a.x.eq(99))
+    assert(d.c.b.y.eq(8))
+    assert(d.c.z.eq(7))
+    assert(d.w.eq(6))
+}

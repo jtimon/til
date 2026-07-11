@@ -576,9 +576,10 @@ main := proc(args: ..Str) {
     // proc/ext_proc calls and the typer now demands it be a func. Update the
     // test (or the rule) then re-enable.
     // add_both(tests, "test/namespaces.til", flags)
-    // TODO: topo_sort.til segfaults in interp mode (inline nested struct
-    // fields A->B->C). Fix the crash then re-enable.
-    // add_both(tests, "test/topo_sort.til", flags)
+    // topo_sort.til: re-enabled on both backends. The interp segfault
+    // (a 3+-level nested inline-struct assign like c.b.a.x = 42 walked
+    // only one chain link, then wrote through a null field decl) is fixed.
+    add_both(tests, "test/topo_sort.til", flags)
     add_both(tests, "test/ref.til", flags)
     // enums_lifecycle ran compile-only for years: interpreting it tripped
     // the inline-enum-payload aliasing bug (write_field byte-copied the
