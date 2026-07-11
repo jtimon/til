@@ -670,13 +670,37 @@ align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
+// Issue #309: type-size intrinsics (`X.size()`, `dyn_size_of`) normally fold
+// to a compile-time literal taken from the HOST struct layout
+// (ctx.struct_layouts, which the compile-time interpreter needs at host
+// width). That literal is baked into the emitted C, so when the TARGET
+// container width differs from the host's -- `--usize=32` on a 64-bit host,
+// or any narrower cross-compile target (wasm32, linux-x86, ...) -- the baked
+// size disagrees with the actual emitted struct (whose USize/UPtr fields
+// follow ext.h's typedef). This returns true exactly in that mismatch case;
+// callers then leave the size intrinsic unfolded so the emitted `X_size()` /
+// `dyn_size_of()` return C `sizeof(...)` (target width). Native builds
+// (host == target) return false and keep folding, so codegen is unchanged.
+size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
+    mut host_usize := "U64"
+    if USize.size().eq(4) { host_usize = "U32" }
+    mut host_uptr := "U64"
+    if UPtr.size().eq(4) { host_uptr = "U32" }
+    return ctx.target_usize_pname.eq(host_usize).not().or(ctx.target_uptr_pname.eq(host_uptr).not())
+}
+
 constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
     case NodeType.FuncDef(fd):
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            if fd.func_type.is(FuncType.Macro) {
+            if dd.name.eq("dyn_size_of").and(size_intrinsics_use_sizeof(ctx)) {
+                // Issue #309: leave dyn_size_of unfolded on a width-mismatched
+                // target so a constant-arg call reaches the runtime
+                // dyn_size_of() (sizeof, target width) instead of folding to a
+                // host-width literal.
+            } else if fd.func_type.is(FuncType.Macro) {
                 ctx.constfolder_foldables.set(dd.name, own FuncType.Macro)
             } else if fd.func_type.is(FuncType.Func)
                 .or(fd.func_type.is(FuncType.ExtFunc)).or(fd.func_type.is(FuncType.CoreFunc)) {
@@ -691,12 +715,18 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 ref fdd : Declaration = d_j
                 switch fdd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.concat3("_", fdd.name)
-                    if ffd.func_type.is(FuncType.Macro) {
-                        ctx.constfolder_foldables.set(qname, own FuncType.Macro)
-                    } else if ffd.func_type.is(FuncType.Func)
-                        .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
-                        ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                    if fdd.name.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                        // Issue #309: skip the auto-generated size method on a
+                        // width-mismatched target so the emitted X_size()
+                        // returns sizeof(ctype) (target width).
+                    } else {
+                        qname := sdd.name.concat3("_", fdd.name)
+                        if ffd.func_type.is(FuncType.Macro) {
+                            ctx.constfolder_foldables.set(qname, own FuncType.Macro)
+                        } else if ffd.func_type.is(FuncType.Func)
+                            .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
+                            ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                        }
                     }
                 case:
                 }
@@ -711,12 +741,17 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
                 if nsd.default_value.is_null() { continue }
                 switch nsd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    qname := sdd.name.concat3("_", nsd.name)
-                    if ffd.func_type.is(FuncType.Macro) {
-                        ctx.constfolder_foldables.set(qname, own FuncType.Macro)
-                    } else if ffd.func_type.is(FuncType.Func)
-                        .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
-                        ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                    if nsd.name.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                        // Issue #309: skip the auto-generated enum size method on
+                        // a width-mismatched target (emitted X_size() -> sizeof).
+                    } else {
+                        qname := sdd.name.concat3("_", nsd.name)
+                        if ffd.func_type.is(FuncType.Macro) {
+                            ctx.constfolder_foldables.set(qname, own FuncType.Macro)
+                        } else if ffd.func_type.is(FuncType.Func)
+                            .or(ffd.func_type.is(FuncType.ExtFunc)).or(ffd.func_type.is(FuncType.CoreFunc)) {
+                            ctx.constfolder_foldables.set(qname, own ffd.func_type.clone())
+                        }
                     }
                 case:
                 }

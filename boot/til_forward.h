@@ -2079,6 +2079,7 @@ Str * scope_target_usize_pname(TypeScope * scope);
 Str * scope_target_uptr_pname(TypeScope * scope);
 Str * priv_c_name(Str * path, Str * name);
 U64 align_up(U64 offset, U64 align);
+Bool size_intrinsics_use_sizeof(Context * ctx);
 void constfolder_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);

@@ -4463,9 +4463,11 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
 }
 
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
+    mut is_auto_size := false
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { return }
+        is_auto_size = dd_name.eq("size").and(fd.auto_generated)
     case:
         UNREACHABLE()
         return
@@ -4474,6 +4476,19 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len() == 0 { return }
     full_name := name.concat3("_", dd_name)
+    // Issue #309: on a width-mismatched target (`--usize=32` or a narrower
+    // cross-compile target), emit the auto-generated size method as C
+    // `sizeof(ctype)` instead of the host-width literal the interpreter baked,
+    // so `X.size()` matches the actual emitted struct width. The return type is
+    // always USize (set in gen_size_method_for_stmt), resolved here the same way
+    // the forward decl resolves it. The constfolder leaves these calls unfolded
+    // for the same case (see size_intrinsics_use_sizeof / constfolder_classify_stmt).
+    if is_auto_size.and(size_intrinsics_use_sizeof(lp.ctx)) {
+        // Return type is USize; its resolved scalar C name is the target pname
+        // ("U32"/"U64"), matching how the forward decl resolves it.
+        f.write(lp.ctx.target_usize_pname).write(" ").write(full_name).write("(void) {\n    return sizeof(").write(name).write(");\n}\n\n")
+        return
+    }
     emit_func_def(f, full_name, fdef, NULL, false, lp)
     f.write("\n")
 }

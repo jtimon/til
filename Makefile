@@ -222,6 +222,8 @@ check_usize32: bin/til tmp
 	bin/til --usize=32 test/usize32.til
 	bin/til build --usize=32 -o tmp/usize32 test/usize32.til
 	tmp/usize32
+	bin/til build --usize=32 -o tmp/usize32_sizes test/usize32_sizes.til
+	tmp/usize32_sizes
 
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
 # compiled test/example binaries run without sanitizer instrumentation, so the

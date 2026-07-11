@@ -7,11 +7,12 @@ mode script
 //  1. USize is really U32. Its arithmetic wraps at 2^32: 0xFFFFFFFF + 1 == 0,
 //     where a U64 USize would give 4294967296. This is the direct,
 //     host-independent proof that the flag took effect, both interpreted and
-//     compiled. (NOTE: Str.size()/dyn_size_of still report the compile-time
-//     HOST layout width, because ctx.struct_layouts is host-width for the
-//     constfold interpreter -- see compute_struct_layout / issue #192. That is
-//     existing cross-compile behaviour, not specific to this flag; the runtime
-//     structs really are the narrow width via -DTIL_USIZE32.)
+//     compiled. (Str.size()/dyn_size_of report the TARGET width in COMPILED
+//     code -- they emit C sizeof on a width-mismatched target -- but the HOST
+//     width under the interpreter, which manipulates the compiler's own
+//     host-resident structs. That compile/interpret split is why the size
+//     assertions live compile-only in test/usize32_sizes.til; here we only use
+//     the U32-arithmetic proof, which holds in both modes.)
 //
 //  2. Real container/string work round-trips at the narrow width, catching the
 //     width-mismatch heap corruption that #192 / d44f77c fixed.
