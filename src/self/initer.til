@@ -1998,11 +1998,24 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 // Compute size and alignment for a TIL type name.
 // For struct/enum payloads, recurses into compute_struct_layout / compute_enum_layout.
 priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
+    // Layout twin of the USize/UPtr handling in compute_struct_layout:
+    // this sizing feeds ctx.struct_layouts, whose only consumer is the
+    // HOST-side constfold interpreter, so width-alias payloads must be
+    // sized at the width of THIS compiler's own USize -- not the
+    // target's. primitive_type_info would resolve them per-target,
+    // which corrupted enum-with-USize-payload constfolding when
+    // cross-compiling (garbage payload size read -> ASAN
+    // allocation-size-too-big).
+    mut sized_type := ftype.clone()
+    if ftype.eq("USize").or(ftype.eq("UPtr")) {
+        sized_type = "U64"
+        if USize.size().eq(4) { sized_type = "U32" }
+    }
     mut prim : Primitive = Primitive.I64
     mut psz : USize = 0
     mut pal : USize = 0
     mut pbuiltin : Bool = false
-    if primitive_type_info(ftype, scope, prim, psz, pal, pbuiltin) {
+    if primitive_type_info(sized_type, scope, prim, psz, pal, pbuiltin) {
         sz = psz
         al = pal
         return

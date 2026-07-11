@@ -4547,13 +4547,23 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         return
     }
     switch val {
+    // fsz is the SLOT width from the (host-width) layout, which can be
+    // wider than the value's own box: cross-compiling to 32-bit types a
+    // USize value as Uint32 (target semantics) while the host slot is 8
+    // bytes. memcpy(ptr, v, fsz) then dragged EvalHeap poison in as the
+    // field's top half (clone_container_buffer later read a garbage
+    // count -> ASAN allocation-size-too-big). Widen narrow scalars
+    // through an 8-byte temp (cast sign/zero-extends) and copy fsz low
+    // bytes from that -- exact for fsz == value width, correct
+    // little-endian extension/truncation otherwise. Int/Uint64 boxes
+    // are already 8 bytes, so reading fsz <= 8 from them is safe.
     case Value.Int(v):     memcpy(ptr, v, fsz)
-    case Value.Byte(v):    memcpy(ptr, v, fsz)
-    case Value.Sbyte(v):   memcpy(ptr, v, fsz)
-    case Value.Short(v):   memcpy(ptr, v, fsz)
-    case Value.Ushort(v):  memcpy(ptr, v, fsz)
-    case Value.Int32(v):   memcpy(ptr, v, fsz)
-    case Value.Uint32(v):  memcpy(ptr, v, fsz)
+    case Value.Byte(v):    wf_u : U64 = v.cast(U64); memcpy(ptr, wf_u, fsz)
+    case Value.Sbyte(v):   wf_i : I64 = v.cast(I64); memcpy(ptr, wf_i, fsz)
+    case Value.Short(v):   wf_i : I64 = v.cast(I64); memcpy(ptr, wf_i, fsz)
+    case Value.Ushort(v):  wf_u : U64 = v.cast(U64); memcpy(ptr, wf_u, fsz)
+    case Value.Int32(v):   wf_i : I64 = v.cast(I64); memcpy(ptr, wf_i, fsz)
+    case Value.Uint32(v):  wf_u : U64 = v.cast(U64); memcpy(ptr, wf_u, fsz)
     case Value.Uint64(v):  memcpy(ptr, v, fsz)
     case Value.Float(v):   memcpy(ptr, v, fsz)
     case Value.Boolean(v): memcpy(ptr, v, fsz)
