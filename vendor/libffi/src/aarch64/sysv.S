@@ -68,11 +68,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 #define BTI_J hint #36
 /*
  * The ELF Notes section needs to indicate if BTI is supported, as the first ELF loaded that doesn't
- * declare this support disables it for the whole process.
+ * declare this support disables it for memory region containing the loaded library.
  */
-# define GNU_PROPERTY_AARCH64_BTI (1 << 0)         /* Has Branch Target Identification */
+# define AARCH64_BTI (1 << 0)         /* Has Branch Target Identification */
 	.text
 	.align 4
+
+#if defined(__ARM_FEATURE_GCS_DEFAULT) && __ARM_FEATURE_GCS_DEFAULT == 1
+#define AARCH64_GCS (1<<2)
+#else
+#define AARCH64_GCS 0 /* No GCS */
+#endif
 
 /* ffi_call_SYSV
    extern void ffi_call_SYSV (void *stack, void *frame,
@@ -92,27 +98,27 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 CNAME(ffi_call_SYSV):
 	cfi_startproc
 	BTI_C
-	/* Sign the lr with x1 since that is where it will be stored */
+	PAC_CFI_WINDOW_SAVE
+	/* Sign the lr with x1 since that is the CFA which is the modifer used in auth instructions */
 	SIGN_LR_WITH_REG(x1)
 
-	/* Use a stack frame allocated by our caller.  */
-#if defined(HAVE_PTRAUTH) && defined(__APPLE__)
+#if defined(HAVE_ARM64E_PTRAUTH) && defined(__APPLE__)
 	/* darwin's libunwind assumes that the cfa is the sp and that's the data
 	 * used to sign the lr.  In order to allow unwinding through this
 	 * function it is necessary to point the cfa at the signing register.
 	 */
 	cfi_def_cfa(x1, 0);
-#else
-	cfi_def_cfa(x1, 40);
 #endif
+	/* Use a stack frame allocated by our caller.  */
 	stp	x29, x30, [x1]
+	cfi_def_cfa_register(x1)
+	cfi_rel_offset (x29, 0)
+	cfi_rel_offset (x30, 8)
 	mov	x9, sp
 	str	x9, [x1, #32]
 	mov	x29, x1
-	mov	sp, x0
 	cfi_def_cfa_register(x29)
-	cfi_rel_offset (x29, 0)
-	cfi_rel_offset (x30, 8)
+	mov	sp, x0
 
 	mov	x9, x2			/* save fn */
 	mov	x8, x3			/* install structure return */
@@ -326,6 +332,7 @@ CNAME(ffi_closure_SYSV_V):
 	cfi_startproc
 	BTI_C
 	SIGN_LR
+	PAC_CFI_WINDOW_SAVE
 	stp     x29, x30, [sp, #-ffi_closure_SYSV_FS]!
 	cfi_adjust_cfa_offset (ffi_closure_SYSV_FS)
 	cfi_rel_offset (x29, 0)
@@ -351,6 +358,7 @@ CNAME(ffi_closure_SYSV):
 	cfi_startproc
 	BTI_C
 	SIGN_LR
+	PAC_CFI_WINDOW_SAVE
 	stp     x29, x30, [sp, #-ffi_closure_SYSV_FS]!
 	cfi_adjust_cfa_offset (ffi_closure_SYSV_FS)
 	cfi_rel_offset (x29, 0)
@@ -527,6 +535,7 @@ L(do_closure):
 #if defined(FFI_EXEC_STATIC_TRAMP)
 	.align 4
 CNAME(ffi_closure_SYSV_V_alt):
+	BTI_C
 	/* See the comments above trampoline_code_table. */
 	ldr	x17, [sp, #8]			/* Load closure in x17 */
 	add	sp, sp, #16			/* Restore the stack */
@@ -541,6 +550,7 @@ CNAME(ffi_closure_SYSV_V_alt):
 
 	.align 4
 CNAME(ffi_closure_SYSV_alt):
+	BTI_C
 	/* See the comments above trampoline_code_table. */
 	ldr	x17, [sp, #8]			/* Load closure in x17 */
 	add	sp, sp, #16			/* Restore the stack */
@@ -646,6 +656,8 @@ CNAME(ffi_go_closure_SYSV_V):
 CNAME(ffi_go_closure_SYSV):
 	cfi_startproc
 	BTI_C
+	SIGN_LR_LINUX_ONLY
+	PAC_CFI_WINDOW_SAVE
 	stp     x29, x30, [sp, #-ffi_closure_SYSV_FS]!
 	cfi_adjust_cfa_offset (ffi_closure_SYSV_FS)
 	cfi_rel_offset (x29, 0)
@@ -675,19 +687,44 @@ CNAME(ffi_go_closure_SYSV):
 #endif /* FFI_CLOSURES */
 #endif /* __arm64__ */
 
+#define GNU_PROPERTY(value)						\
+	.pushsection .note.gnu.property, "a";				\
+	.balign 8;							\
+	.long 4;							\
+	.long 0x10;							\
+	.long 0x5;							\
+	.asciz "GNU";							\
+	.long 0xc0000000; /* GNU_PROPERTY_AARCH64_FEATURE_1_AND */	\
+	.long 4;							\
+	.long value;							\
+	.long 0;							\
+	.popsection;
+
+#ifdef __ARM_BUILDATTR64_FV
+/* Add AArch64 feature bits build attributes.  */
+# define FEATURE_1_AND_MARK(value)					\
+    .aeabi_subsection aeabi_feature_and_bits, optional, ULEB128;	\
+    .if ((value) & AARCH64_BTI);					\
+    .aeabi_attribute Tag_Feature_BTI, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_BTI, 0;				\
+    .endif;								\
+    .if ((value) & AARCH64_POINTER_AUTH);				\
+    .aeabi_attribute Tag_Feature_PAC, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_PAC, 0;				\
+    .endif;								\
+    .if ((value) & AARCH64_GCS);					\
+    .aeabi_attribute Tag_Feature_GCS, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_GCS, 0;				\
+    .endif;
+#else
+/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
+# define FEATURE_1_AND_MARK(value) GNU_PROPERTY (value)
+#endif /* __ARM_BUILDATTR64_FV */
+
 #if defined __ELF__ && defined __linux__
 	.section .note.GNU-stack,"",%progbits
-
-	.pushsection .note.gnu.property, "a";
-	.balign 8;
-	.long 4;
-	.long 0x10;
-	.long 0x5;
-	.asciz "GNU";
-	.long 0xc0000000; /* GNU_PROPERTY_AARCH64_FEATURE_1_AND */
-	.long 4;
-	.long GNU_PROPERTY_AARCH64_BTI;
-	.long 0;
-	.popsection;
+FEATURE_1_AND_MARK(AARCH64_BTI | AARCH64_POINTER_AUTH | AARCH64_GCS)
 #endif
-

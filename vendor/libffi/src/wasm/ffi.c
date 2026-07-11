@@ -1,5 +1,6 @@
 /* -----------------------------------------------------------------------
    ffi.c - Copyright (c) 2018-2023  Hood Chatham, Brion Vibber, Kleis Auke Wolthuizen, and others.
+           Copyright (c) 2026  Anthony Green
 
    wasm32/emscripten Foreign Function Interface
 
@@ -41,28 +42,7 @@
 
 #define EM_JS_MACROS(ret, name, args, body...) EM_JS(ret, name, args, body)
 
-#if WASM_BIGINT
 EM_JS_DEPS(libffi, "$getWasmTableEntry,$setWasmTableEntry,$getEmptyTableSlot,$convertJsFunctionToWasm");
-#define CALL_FUNCTION_POINTER(ptr, args...) \
-  (LOG_DEBUG("CALL_FUNC_PTR", ptr, args),   \
-  getWasmTableEntry(ptr).apply(null, args))
-
-#define JS_FUNCTION_TO_WASM convertJsFunctionToWasm
-#else
-EM_JS_DEPS(libffi, "$getWasmTableEntry,$setWasmTableEntry,$getEmptyTableSlot,$convertJsFunctionToWasm,$dynCall,$generateFuncType,$uleb128Encode");
-#define CALL_FUNCTION_POINTER(ptr, args...)     \
-  (LOG_DEBUG("CALL_FUNC_PTR", sig, ptr, args),  \
-  dynCall(sig, ptr, args))
-
-#define JS_FUNCTION_TO_WASM createLegalizerWrapper
-#endif
-
-// Signature calculations are not needed if WASM_BIGINT is present.
-#if WASM_BIGINT
-#define SIG(sig)
-#else
-#define SIG(sig) sig
-#endif
 
 #define DEREF_U8(addr, offset) HEAPU8[addr + offset]
 #define DEREF_S8(addr, offset) HEAP8[addr + offset]
@@ -73,28 +53,43 @@ EM_JS_DEPS(libffi, "$getWasmTableEntry,$setWasmTableEntry,$getEmptyTableSlot,$co
 
 #define DEREF_F32(addr, offset) HEAPF32[(addr >> 2) + offset]
 #define DEREF_F64(addr, offset) HEAPF64[(addr >> 3) + offset]
-
-#if WASM_BIGINT
-// We have HEAPU64 in this case.
 #define DEREF_U64(addr, offset) HEAPU64[(addr >> 3) + offset]
-#endif
-
 
 #define CHECK_FIELD_OFFSET(struct, field, offset)                                  \
   _Static_assert(                                                                  \
     offsetof(struct, field) == offset,                                             \
     "Memory layout of '" #struct "' has changed: '" #field "' is in an unexpected location");
 
+#if __SIZEOF_POINTER__ == 4
+
+#define FFI_EMSCRIPTEN_ABI FFI_WASM32_EMSCRIPTEN
+#define PTR_SIG 'i'
+
+#define DEC_PTR(p) p
+#define ENC_PTR(p) p
+
+#define DEREF_PTR(addr, offset) DEREF_U32(addr, offset)
+#define DEREF_PTR_NUMBER(addr, offset) DEREF_PTR(addr, offset)
+
+// Store an integral return value widened to ffi_arg (32 bits on wasm32), as
+// the libffi API promises for integral returns narrower than a register.
+// The typed-array store wraps modulo 2^32, so a sign-extended negative
+// Number is stored correctly by both variants.
+#define STORE_ARG_WIDENED_UNSIGNED(rvalue, x) (DEREF_U32(rvalue, 0) = (x))
+#define STORE_ARG_WIDENED_SIGNED(rvalue, x) (DEREF_U32(rvalue, 0) = (x))
+
 CHECK_FIELD_OFFSET(ffi_cif, abi, 4*0);
 CHECK_FIELD_OFFSET(ffi_cif, nargs, 4*1);
 CHECK_FIELD_OFFSET(ffi_cif, arg_types, 4*2);
 CHECK_FIELD_OFFSET(ffi_cif, rtype, 4*3);
+CHECK_FIELD_OFFSET(ffi_cif, flags, 4*5);
 CHECK_FIELD_OFFSET(ffi_cif, nfixedargs, 4*6);
 
 #define CIF__ABI(addr) DEREF_U32(addr, 0)
 #define CIF__NARGS(addr) DEREF_U32(addr, 1)
 #define CIF__ARGTYPES(addr) DEREF_U32(addr, 2)
 #define CIF__RTYPE(addr) DEREF_U32(addr, 3)
+#define CIF__FLAGS(addr) DEREF_U32(addr, 5)
 #define CIF__NFIXEDARGS(addr) DEREF_U32(addr, 6)
 
 CHECK_FIELD_OFFSET(ffi_type, size, 0);
@@ -106,6 +101,59 @@ CHECK_FIELD_OFFSET(ffi_type, elements, 8);
 #define FFI_TYPE__ALIGN(addr) DEREF_U16(addr + 4, 0)
 #define FFI_TYPE__TYPEID(addr) DEREF_U16(addr + 6, 0)
 #define FFI_TYPE__ELEMENTS(addr) DEREF_U32(addr + 8, 0)
+
+#elif __SIZEOF_POINTER__ == 8
+
+#define FFI_EMSCRIPTEN_ABI FFI_WASM64_EMSCRIPTEN
+#define PTR_SIG 'j'
+
+// DEC_PTR casts a pointer value (comming from Wasm) represented as BigInt (i64) to Number (i53).
+// This should be used for a pointer that is expected to be within the i53 range. If the pointer
+// value is outside the Number's range, the value will become NaN.
+#define DEC_PTR(p) bigintToI53Checked(p)
+// ENC_PTR casts a pointer value represented as Number to BigInt (i64)
+#define ENC_PTR(p) BigInt(p)
+
+#define DEREF_PTR(addr, offset) DEREF_U64(addr, offset)
+#define DEREF_PTR_NUMBER(addr, offset) DEC_PTR(DEREF_PTR(addr, offset))
+
+// Store an integral return value widened to ffi_arg (64 bits on wasm64), as
+// the libffi API promises for integral returns narrower than a register.
+// BigInt masking treats the value as infinite-precision two's complement, so
+// the unsigned variant zero-extends a possibly-negative i32 Number, while
+// the BigUint64Array store wraps the signed variant modulo 2^64, which is
+// sign extension.
+#define STORE_ARG_WIDENED_UNSIGNED(rvalue, x) \
+  (DEREF_U64(rvalue, 0) = BigInt(x) & BigInt(4294967295))
+#define STORE_ARG_WIDENED_SIGNED(rvalue, x) (DEREF_U64(rvalue, 0) = BigInt(x))
+
+CHECK_FIELD_OFFSET(ffi_cif, abi, 0);
+CHECK_FIELD_OFFSET(ffi_cif, nargs, 4);
+CHECK_FIELD_OFFSET(ffi_cif, arg_types, 8);
+CHECK_FIELD_OFFSET(ffi_cif, rtype, 16);
+CHECK_FIELD_OFFSET(ffi_cif, flags, 28);
+CHECK_FIELD_OFFSET(ffi_cif, nfixedargs, 32);
+
+#define CIF__ABI(addr) DEREF_U32(addr, 0)
+#define CIF__NARGS(addr) DEREF_U32(addr + 4,  0)
+#define CIF__ARGTYPES(addr) DEREF_U64(addr + 8,  0)
+#define CIF__RTYPE(addr) DEREF_U64(addr + 16, 0)
+#define CIF__FLAGS(addr) DEREF_U32(addr + 28, 0)
+#define CIF__NFIXEDARGS(addr) DEREF_U32(addr + 32, 0)
+
+CHECK_FIELD_OFFSET(ffi_type, size, 0);
+CHECK_FIELD_OFFSET(ffi_type, alignment, 8);
+CHECK_FIELD_OFFSET(ffi_type, type, 10);
+CHECK_FIELD_OFFSET(ffi_type, elements, 16);
+
+#define FFI_TYPE__SIZE(addr) DEREF_U64(addr, 0)
+#define FFI_TYPE__ALIGN(addr) DEREF_U16(addr + 8, 0)
+#define FFI_TYPE__TYPEID(addr) DEREF_U16(addr + 10, 0)
+#define FFI_TYPE__ELEMENTS(addr) DEREF_U64(addr + 16, 0)
+
+#else
+#error "Unknown pointer size"
+#endif
 
 #define ALIGN_ADDRESS(addr, align) (addr &= (~((align) - 1)))
 #define STACK_ALLOC(stack, size, align) ((stack -= (size)), ALIGN_ADDRESS(stack, align))
@@ -126,7 +174,7 @@ _Static_assert(FFI_BAD_TYPEDEF_MACRO == FFI_BAD_TYPEDEF, "FFI_BAD_TYPEDEF must b
 ffi_status FFI_HIDDEN
 ffi_prep_cif_machdep(ffi_cif *cif)
 {
-  if (cif->abi != FFI_WASM32_EMSCRIPTEN)
+  if (cif->abi != FFI_EMSCRIPTEN_ABI)
     return FFI_BAD_ABI;
   // This is called after ffi_prep_cif_machdep_var so we need to avoid
   // overwriting cif->nfixedargs.
@@ -170,6 +218,7 @@ ffi_prep_cif_machdep_var(ffi_cif *cif, unsigned nfixedargs, unsigned ntotalargs)
 EM_JS_MACROS(
 void,
 unbox_small_structs, (ffi_type type_ptr), {
+  type_ptr = DEC_PTR(type_ptr);
   var type_id = FFI_TYPE__TYPEID(type_ptr);
   while (type_id === FFI_TYPE_STRUCT) {
     // Don't unbox single element structs if they are bigger than 16 bytes. This
@@ -182,15 +231,15 @@ unbox_small_structs, (ffi_type type_ptr), {
     //
     // See the Python comment here:
     // https://github.com/python/cpython/blob/a16a9f978f42b8a09297c1efbf33877f6388c403/Modules/_ctypes/stgdict.c#L718-L779
-    if (FFI_TYPE__SIZE(type_ptr) > 16) {
+    if (DEC_PTR(FFI_TYPE__SIZE(type_ptr)) > 16) {
       break;
     }
-    var elements = FFI_TYPE__ELEMENTS(type_ptr);
-    var first_element = DEREF_U32(elements, 0);
+    var elements = DEC_PTR(FFI_TYPE__ELEMENTS(type_ptr));
+    var first_element = DEREF_PTR_NUMBER(elements, 0);
     if (first_element === 0) {
       type_id = FFI_TYPE_VOID;
       break;
-    } else if (DEREF_U32(elements, 1) === 0) {
+    } else if (DEREF_PTR_NUMBER(elements, 1) === 0) {
       type_ptr = first_element;
       type_id = FFI_TYPE__TYPEID(first_element);
     } else {
@@ -204,13 +253,22 @@ EM_JS_MACROS(
 void,
 ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
 {
+  cif = DEC_PTR(cif);
+  fn = DEC_PTR(fn);
+  rvalue = DEC_PTR(rvalue);
+  avalue = DEC_PTR(avalue);
   var abi = CIF__ABI(cif);
   var nargs = CIF__NARGS(cif);
   var nfixedargs = CIF__NFIXEDARGS(cif);
-  var arg_types_ptr = CIF__ARGTYPES(cif);
+  var arg_types_ptr = DEC_PTR(CIF__ARGTYPES(cif));
+  var flags = CIF__FLAGS(cif);
   var rtype_unboxed = unbox_small_structs(CIF__RTYPE(cif));
   var rtype_ptr = rtype_unboxed[0];
   var rtype_id = rtype_unboxed[1];
+  // A small struct return is unboxed to a scalar type id above, but it is
+  // still a struct to the caller: its buffer is exactly the struct's size,
+  // so it must not get the integral widening to ffi_arg.
+  var rtype_widen = FFI_TYPE__TYPEID(DEC_PTR(CIF__RTYPE(cif))) !== FFI_TYPE_STRUCT;
   var orig_stack_ptr = stackSave();
   var cur_stack_ptr = orig_stack_ptr;
 
@@ -231,51 +289,26 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
   // just use this. We also mark a flag that we don't need to convert the return
   // value of the dynamic call back to C.
   if (rtype_id === FFI_TYPE_LONGDOUBLE || rtype_id === FFI_TYPE_STRUCT) {
-    args.push(rvalue);
+    if (rvalue === 0) {
+      // NULL rvalue: the caller discards the result, but the callee still
+      // needs somewhere to write it. Allocate scratch space on the stack;
+      // it is released by the stackRestore after the call.
+      var rsize = DEC_PTR(FFI_TYPE__SIZE(rtype_ptr));
+      var ralign = FFI_TYPE__ALIGN(rtype_ptr);
+      STACK_ALLOC(cur_stack_ptr, rsize, ralign);
+      rvalue = cur_stack_ptr;
+    }
+    args.push(ENC_PTR(rvalue));
     ret_by_arg = true;
   }
-
-  SIG(var sig = "");
-
-#if !WASM_BIGINT
-  switch(rtype_id) {
-  case FFI_TYPE_VOID:
-    SIG(sig = 'v');
-    break;
-  case FFI_TYPE_STRUCT:
-  case FFI_TYPE_LONGDOUBLE:
-    SIG(sig = 'vi');
-    break;
-  case FFI_TYPE_INT:
-  case FFI_TYPE_UINT8:
-  case FFI_TYPE_SINT8:
-  case FFI_TYPE_UINT16:
-  case FFI_TYPE_SINT16:
-  case FFI_TYPE_UINT32:
-  case FFI_TYPE_SINT32:
-  case FFI_TYPE_POINTER:
-    SIG(sig = 'i');
-    break;
-  case FFI_TYPE_FLOAT:
-    SIG(sig = 'f');
-    break;
-  case FFI_TYPE_DOUBLE:
-    SIG(sig = 'd');
-    break;
-  case FFI_TYPE_UINT64:
-  case FFI_TYPE_SINT64:
-    SIG(sig = 'j');
-    break;
-  }
-#endif
 
   // Accumulate a Javascript list of arguments for the Javascript wrapper for
   // the wasm function. The Javascript wrapper does a type conversion from
   // Javascript to C automatically, here we manually do the inverse conversion
   // from C to Javascript.
   for (var i = 0; i < nfixedargs; i++) {
-    var arg_ptr = DEREF_U32(avalue, i);
-    var arg_unboxed = unbox_small_structs(DEREF_U32(arg_types_ptr, i));
+    var arg_ptr = DEREF_PTR_NUMBER(avalue, i);
+    var arg_unboxed = unbox_small_structs(DEREF_PTR(arg_types_ptr, i));
     var arg_type_ptr = arg_unboxed[0];
     var arg_type_id = arg_unboxed[1];
 
@@ -286,67 +319,47 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
     case FFI_TYPE_INT:
     case FFI_TYPE_SINT32:
     case FFI_TYPE_UINT32:
-    case FFI_TYPE_POINTER:
       args.push(DEREF_U32(arg_ptr, 0));
-      SIG(sig += 'i');
       break;
     case FFI_TYPE_FLOAT:
       args.push(DEREF_F32(arg_ptr, 0));
-      SIG(sig += 'f');
       break;
     case FFI_TYPE_DOUBLE:
       args.push(DEREF_F64(arg_ptr, 0));
-      SIG(sig += 'd');
       break;
     case FFI_TYPE_UINT8:
       args.push(DEREF_U8(arg_ptr, 0));
-      SIG(sig += 'i');
       break;
     case FFI_TYPE_SINT8:
       args.push(DEREF_S8(arg_ptr, 0));
-      SIG(sig += 'i');
       break;
     case FFI_TYPE_UINT16:
       args.push(DEREF_U16(arg_ptr, 0));
-      SIG(sig += 'i');
       break;
     case FFI_TYPE_SINT16:
       args.push(DEREF_S16(arg_ptr, 0));
-      SIG(sig += 'i');
       break;
     case FFI_TYPE_UINT64:
     case FFI_TYPE_SINT64:
-      #if WASM_BIGINT
       args.push(DEREF_U64(arg_ptr, 0));
-      #else
-      args.push(DEREF_U32(arg_ptr, 0));
-      args.push(DEREF_U32(arg_ptr, 1));
-      #endif
-      SIG(sig += 'j');
       break;
     case FFI_TYPE_LONGDOUBLE:
       // long double is passed as a pair of BigInts.
-      #if WASM_BIGINT
       args.push(DEREF_U64(arg_ptr, 0));
       args.push(DEREF_U64(arg_ptr, 1));
-      #else
-      args.push(DEREF_U32(arg_ptr, 0));
-      args.push(DEREF_U32(arg_ptr, 1));
-      args.push(DEREF_U32(arg_ptr, 2));
-      args.push(DEREF_U32(arg_ptr, 3));
-      #endif
-      SIG(sig += "jj");
       break;
     case FFI_TYPE_STRUCT:
       // Nontrivial structs are passed by pointer.
       // Have to copy the struct onto the stack though because C ABI says it's
       // call by value.
-      var size = FFI_TYPE__SIZE(arg_type_ptr);
+      var size = DEC_PTR(FFI_TYPE__SIZE(arg_type_ptr));
       var align = FFI_TYPE__ALIGN(arg_type_ptr);
       STACK_ALLOC(cur_stack_ptr, size, align);
       HEAP8.subarray(cur_stack_ptr, cur_stack_ptr+size).set(HEAP8.subarray(arg_ptr, arg_ptr + size));
-      args.push(cur_stack_ptr);
-      SIG(sig += 'i');
+      args.push(ENC_PTR(cur_stack_ptr));
+      break;
+    case FFI_TYPE_POINTER:
+      args.push(DEREF_PTR(arg_ptr, 0));
       break;
     case FFI_TYPE_COMPLEX:
       throw new Error('complex marshalling nyi');
@@ -364,12 +377,11 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
   // We don't have any way of knowing how many args were actually passed, so we
   // just always copy extra nonsense past the end. The ownwards call will know
   // not to look at it.
-  if (nfixedargs != nargs) {
-    SIG(sig += 'i');
+  if (flags & VARARGS_FLAG) {
     var struct_arg_info = [];
     for (var i = nargs - 1;  i >= nfixedargs; i--) {
-      var arg_ptr = DEREF_U32(avalue, i);
-      var arg_unboxed = unbox_small_structs(DEREF_U32(arg_types_ptr, i));
+      var arg_ptr = DEREF_PTR_NUMBER(avalue, i);
+      var arg_unboxed = unbox_small_structs(DEREF_PTR(arg_types_ptr, i));
       var arg_type_ptr = arg_unboxed[0];
       var arg_type_id = arg_unboxed[1];
       switch (arg_type_id) {
@@ -386,7 +398,6 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
       case FFI_TYPE_INT:
       case FFI_TYPE_UINT32:
       case FFI_TYPE_SINT32:
-      case FFI_TYPE_POINTER:
       case FFI_TYPE_FLOAT:
         STACK_ALLOC(cur_stack_ptr, 4, 4);
         DEREF_U32(cur_stack_ptr, 0) = DEREF_U32(arg_ptr, 0);
@@ -409,8 +420,12 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
         // Again, struct must be passed by pointer.
         // But ABI is by value, so have to copy struct onto stack.
         // Currently arguments are going onto stack so we can't put it there now. Come back for this.
-        STACK_ALLOC(cur_stack_ptr, 4, 4);
-        struct_arg_info.push([cur_stack_ptr, arg_ptr, FFI_TYPE__SIZE(arg_type_ptr), FFI_TYPE__ALIGN(arg_type_ptr)]);
+        STACK_ALLOC(cur_stack_ptr, __SIZEOF_POINTER__, __SIZEOF_POINTER__);
+        struct_arg_info.push([cur_stack_ptr, arg_ptr, DEC_PTR(FFI_TYPE__SIZE(arg_type_ptr)), FFI_TYPE__ALIGN(arg_type_ptr)]);
+        break;
+      case FFI_TYPE_POINTER:
+        STACK_ALLOC(cur_stack_ptr, __SIZEOF_POINTER__, __SIZEOF_POINTER__);
+        DEREF_PTR(cur_stack_ptr, 0) = DEREF_PTR(arg_ptr, 0);
         break;
       case FFI_TYPE_COMPLEX:
         throw new Error('complex arg marshalling nyi');
@@ -419,7 +434,7 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
       }
     }
     // extra normal argument which is the pointer to the varargs.
-    args.push(cur_stack_ptr);
+    args.push(ENC_PTR(cur_stack_ptr));
     // Now allocate variable struct args on stack too.
     for (var i = 0; i < struct_arg_info.length; i++) {
       var struct_info = struct_arg_info[i];
@@ -429,12 +444,13 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
       var align = struct_info[3];
       STACK_ALLOC(cur_stack_ptr, size, align);
       HEAP8.subarray(cur_stack_ptr, cur_stack_ptr+size).set(HEAP8.subarray(arg_ptr, arg_ptr + size));
-      DEREF_U32(arg_target, 0) = cur_stack_ptr;
+      DEREF_PTR(arg_target, 0) = ENC_PTR(cur_stack_ptr);
     }
   }
   stackRestore(cur_stack_ptr);
   stackAlloc(0); // stackAlloc enforces alignment invariants on the stack pointer
-  var result = CALL_FUNCTION_POINTER(fn, args);
+  LOG_DEBUG("CALL_FUNC_PTR", "fn:", fn, "args:", args);
+  var result = getWasmTableEntry(fn).apply(null, args);
   // Put the stack pointer back (we moved it if there were any struct args or we
   // made a varargs call)
   stackRestore(orig_stack_ptr);
@@ -445,16 +461,31 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
     return;
   }
 
+  // A NULL rvalue means the caller discards the return value.
+  if (rvalue === 0) {
+    return;
+  }
+
   // Otherwise the result was automatically converted from C into Javascript and
   // we need to manually convert it back to C.
+  // Integral returns narrower than a register are widened to ffi_arg, as
+  // documented and as every native port does -- but only genuine scalar
+  // returns: an unboxed small-struct return keeps its natural width.
   switch (rtype_id) {
   case FFI_TYPE_VOID:
     break;
   case FFI_TYPE_INT:
-  case FFI_TYPE_UINT32:
   case FFI_TYPE_SINT32:
-  case FFI_TYPE_POINTER:
-    DEREF_U32(rvalue, 0) = result;
+    if (rtype_widen)
+      STORE_ARG_WIDENED_SIGNED(rvalue, result | 0);
+    else
+      DEREF_U32(rvalue, 0) = result;
+    break;
+  case FFI_TYPE_UINT32:
+    if (rtype_widen)
+      STORE_ARG_WIDENED_UNSIGNED(rvalue, result | 0);
+    else
+      DEREF_U32(rvalue, 0) = result;
     break;
   case FFI_TYPE_FLOAT:
     DEREF_F32(rvalue, 0) = result;
@@ -463,21 +494,35 @@ ffi_call_js, (ffi_cif *cif, ffi_fp fn, void *rvalue, void **avalue),
     DEREF_F64(rvalue, 0) = result;
     break;
   case FFI_TYPE_UINT8:
+    if (rtype_widen)
+      STORE_ARG_WIDENED_UNSIGNED(rvalue, result & 0xff);
+    else
+      DEREF_U8(rvalue, 0) = result;
+    break;
   case FFI_TYPE_SINT8:
-    DEREF_U8(rvalue, 0) = result;
+    if (rtype_widen)
+      STORE_ARG_WIDENED_SIGNED(rvalue, (result << 24) >> 24);
+    else
+      DEREF_U8(rvalue, 0) = result;
     break;
   case FFI_TYPE_UINT16:
+    if (rtype_widen)
+      STORE_ARG_WIDENED_UNSIGNED(rvalue, result & 0xffff);
+    else
+      DEREF_U16(rvalue, 0) = result;
+    break;
   case FFI_TYPE_SINT16:
-    DEREF_U16(rvalue, 0) = result;
+    if (rtype_widen)
+      STORE_ARG_WIDENED_SIGNED(rvalue, (result << 16) >> 16);
+    else
+      DEREF_U16(rvalue, 0) = result;
     break;
   case FFI_TYPE_UINT64:
   case FFI_TYPE_SINT64:
-    #if WASM_BIGINT
     DEREF_U64(rvalue, 0) = result;
-    #else
-    DEREF_U32(rvalue, 0) = result;
-    DEREF_U32(rvalue, 1) = getTempRet0();
-    #endif
+    break;
+  case FFI_TYPE_POINTER:
+    DEREF_PTR(rvalue, 0) = result;
     break;
   case FFI_TYPE_COMPLEX:
     throw new Error('complex ret marshalling nyi');
@@ -490,6 +535,8 @@ void ffi_call(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue) {
   ffi_call_js(cif, fn, rvalue, avalue);
 }
 
+#if __SIZEOF_POINTER__ == 4
+
 CHECK_FIELD_OFFSET(ffi_closure, ftramp, 4*0);
 CHECK_FIELD_OFFSET(ffi_closure, cif, 4*1);
 CHECK_FIELD_OFFSET(ffi_closure, fun, 4*2);
@@ -500,12 +547,30 @@ CHECK_FIELD_OFFSET(ffi_closure, user_data, 4*3);
 #define CLOSURE__fun(addr) DEREF_U32(addr, 2)
 #define CLOSURE__user_data(addr) DEREF_U32(addr, 3)
 
+#elif __SIZEOF_POINTER__ == 8
+
+CHECK_FIELD_OFFSET(ffi_closure, ftramp, 0);
+CHECK_FIELD_OFFSET(ffi_closure, cif, 8);
+CHECK_FIELD_OFFSET(ffi_closure, fun, 16);
+CHECK_FIELD_OFFSET(ffi_closure, user_data, 24);
+
+#define CLOSURE__wrapper(addr) DEREF_U64(addr, 0)
+#define CLOSURE__cif(addr) DEREF_U64(addr, 1)
+#define CLOSURE__fun(addr) DEREF_U64(addr, 2)
+#define CLOSURE__user_data(addr) DEREF_U64(addr, 3)
+
+#else
+#error "Unknown pointer size"
+#endif
+
 EM_JS_MACROS(void *, ffi_closure_alloc_js, (size_t size, void **code), {
+  size = DEC_PTR(size);
+  code = DEC_PTR(code);
   var closure = _malloc(size);
   var index = getEmptyTableSlot();
-  DEREF_U32(code, 0) = index;
-  CLOSURE__wrapper(closure) = index;
-  return closure;
+  DEREF_PTR(code, 0) = ENC_PTR(index);
+  CLOSURE__wrapper(closure) = ENC_PTR(index);
+  return ENC_PTR(closure);
 })
 
 void * __attribute__ ((visibility ("default")))
@@ -514,7 +579,8 @@ ffi_closure_alloc(size_t size, void **code) {
 }
 
 EM_JS_MACROS(void, ffi_closure_free_js, (void *closure), {
-  var index = CLOSURE__wrapper(closure);
+  closure = DEC_PTR(closure);
+  var index = DEC_PTR(CLOSURE__wrapper(closure));
   freeTableIndexes.push(index);
   _free(closure);
 })
@@ -524,155 +590,20 @@ ffi_closure_free(void *closure) {
   return ffi_closure_free_js(closure);
 }
 
-#if !WASM_BIGINT
-
-// When !WASM_BIGINT, we assume there is no JS bigint integration, so JavaScript
-// functions cannot take 64 bit integer arguments.
-//
-// We need to make our own wasm legalizer adaptor that splits 64 bit integer
-// arguments and then calls the JavaScript trampoline, then the JavaScript
-// trampoline reassembles them, calls the closure, then splits the result (if
-// it's a 64 bit integer) and the adaptor puts it back together.
-//
-// This is basically the reverse of the Emscripten function
-// createDyncallWrapper.
-EM_JS(void, createLegalizerWrapper, (int trampoline, int sig), {
-  if(!sig.includes("j")) {
-    return convertJsFunctionToWasm(trampoline, sig);
-  }
-  var sections = [];
-  var prelude = [
-    0x00, 0x61, 0x73, 0x6d, // magic ("\0asm")
-    0x01, 0x00, 0x00, 0x00, // version: 1
-  ];
-  sections.push(prelude);
-  var wrappersig = [
-    // if return type is j, we will put the upper 32 bits into tempRet0.
-    sig[0].replace("j", "i"),
-    // in the rest of the argument list, one 64 bit integer is legalized into
-    // two 32 bit integers.
-    sig.slice(1).replace(/j/g, "ii"),
-  ].join("");
-
-  var typeSectionBody = [
-    0x03, // number of types = 3
-  ];
-  generateFuncType(wrappersig, typeSectionBody); // The signature of the wrapper we are generating
-  generateFuncType(sig, typeSectionBody); // the signature of the function pointer we will call
-  generateFuncType("i", typeSectionBody); // the signature of getTempRet0
-
-  var typeSection = [0x01 /* Type section code */];
-  uleb128Encode(typeSectionBody.length, typeSection); // length of section in bytes
-  typeSection.push.apply(typeSection, typeSectionBody);
-  sections.push(typeSection);
-
-  var importSection = [
-    0x02, // import section code
-    0x0d, // length of section in bytes
-    0x02, // number of imports = 2
-    // Import the getTempRet0 function, which we will call "r"
-    0x01, 0x65, // name "e"
-    0x01, 0x72, // name "r"
-    0x00, // importing a function
-    0x02, // type 2 = () -> i32
-    // Import the wrapped function, which we will call "f"
-    0x01, 0x65, // name "e"
-    0x01, 0x66, // name "f"
-    0x00, // importing a function
-    0x00, // type 0 = wrappersig
-  ];
-  sections.push(importSection);
-
-  var functionSection = [
-    0x03, // function section code
-    0x02, // length of section in bytes
-    0x01, // number of functions = 1
-    0x01, // type 1 = sig
-  ];
-  sections.push(functionSection);
-
-  var exportSection = [
-    0x07, // export section code
-    0x05, // length of section in bytes
-    0x01, // One export
-    0x01, 0x66, // name "f"
-    0x00, // type: function
-    0x02, // function index 2 = the wrapper function
-  ];
-  sections.push(exportSection);
-
-  var convert_code = [];
-  convert_code.push(0x00); // no local variables (except the arguments)
-
-  function localGet(j) {
-    convert_code.push(0x20); // local.get
-    uleb128Encode(j, convert_code);
-  }
-
-  for (var i = 1; i < sig.length; i++) {
-    if (sig[i] == "j") {
-      localGet(i - 1);
-      convert_code.push(
-        0xa7 // i32.wrap_i64
-      );
-      localGet(i - 1);
-      convert_code.push(
-        0x42, 0x20, // i64.const 32
-        0x88,       // i64.shr_u
-        0xa7        // i32.wrap_i64
-      );
-    } else {
-      localGet(i - 1);
-    }
-  }
-  convert_code.push(
-    0x10, 0x01 // call f
-  );
-  if (sig[0] === "j") {
-    // Need to reassemble a 64 bit integer. Lower 32 bits is on stack. Upper 32
-    // bits we get from getTempRet0
-    convert_code.push(
-      0xad,       // i64.extend_i32_unsigned
-      0x10, 0x00, // Call function 0 (r = getTempRet0)
-      // join lower 32 bits and upper 32 bits
-      0xac,       // i64.extend_i32_signed
-      0x42, 0x20, // i64.const 32
-      0x86,       // i64.shl,
-      0x84        // i64.or
-    );
-  }
-  convert_code.push(0x0b); // end
-
-  var codeBody = [0x01]; // one code
-  uleb128Encode(convert_code.length, codeBody);
-  codeBody.push.apply(codeBody, convert_code);
-  var codeSection = [0x0a /* Code section code */];
-  uleb128Encode(codeBody.length, codeSection);
-  codeSection.push.apply(codeSection, codeBody);
-  sections.push(codeSection);
-
-  var bytes = new Uint8Array([].concat.apply([], sections));
-  // We can compile this wasm module synchronously because it is small.
-  var module = new WebAssembly.Module(bytes);
-  var instance = new WebAssembly.Instance(module, {
-    e: {
-      r: getTempRet0,
-      f: trampoline,
-    },
-  });
-  return instance.exports.f;
-});
-#endif
-
 EM_JS_MACROS(
 ffi_status,
 ffi_prep_closure_loc_js,
 (ffi_closure *closure, ffi_cif *cif, void *fun, void *user_data, void *codeloc),
 {
+  closure = DEC_PTR(closure);
+  cif = DEC_PTR(cif);
+  fun = DEC_PTR(fun);
+  user_data = DEC_PTR(user_data);
+  codeloc = DEC_PTR(codeloc);
   var abi = CIF__ABI(cif);
   var nargs = CIF__NARGS(cif);
   var nfixedargs = CIF__NFIXEDARGS(cif);
-  var arg_types_ptr = CIF__ARGTYPES(cif);
+  var arg_types_ptr = DEC_PTR(CIF__ARGTYPES(cif));
   var rtype_unboxed = unbox_small_structs(CIF__RTYPE(cif));
   var rtype_ptr = rtype_unboxed[0];
   var rtype_id = rtype_unboxed[1];
@@ -688,7 +619,7 @@ ffi_prep_closure_loc_js,
   case FFI_TYPE_STRUCT:
   case FFI_TYPE_LONGDOUBLE:
     // Return via a first pointer argument.
-    sig = 'vi';
+    sig = 'v' + PTR_SIG;
     ret_by_arg = true;
     break;
   case FFI_TYPE_INT:
@@ -698,7 +629,6 @@ ffi_prep_closure_loc_js,
   case FFI_TYPE_SINT16:
   case FFI_TYPE_UINT32:
   case FFI_TYPE_SINT32:
-  case FFI_TYPE_POINTER:
     sig = 'i';
     break;
   case FFI_TYPE_FLOAT:
@@ -711,6 +641,9 @@ ffi_prep_closure_loc_js,
   case FFI_TYPE_SINT64:
     sig = 'j';
     break;
+  case FFI_TYPE_POINTER:
+    sig = PTR_SIG;
+    break;
   case FFI_TYPE_COMPLEX:
     throw new Error('complex ret marshalling nyi');
   default:
@@ -719,11 +652,11 @@ ffi_prep_closure_loc_js,
   var unboxed_arg_type_id_list = [];
   var unboxed_arg_type_info_list = [];
   for (var i = 0; i < nargs; i++) {
-    var arg_unboxed = unbox_small_structs(DEREF_U32(arg_types_ptr, i));
+    var arg_unboxed = unbox_small_structs(DEREF_PTR(arg_types_ptr, i));
     var arg_type_ptr = arg_unboxed[0];
     var arg_type_id = arg_unboxed[1];
     unboxed_arg_type_id_list.push(arg_type_id);
-    unboxed_arg_type_info_list.push([FFI_TYPE__SIZE(arg_type_ptr), FFI_TYPE__ALIGN(arg_type_ptr)]);
+    unboxed_arg_type_info_list.push([DEC_PTR(FFI_TYPE__SIZE(arg_type_ptr)), FFI_TYPE__ALIGN(arg_type_ptr)]);
   }
   for (var i = 0; i < nfixedargs; i++) {
     switch (unboxed_arg_type_id_list[i]) {
@@ -734,8 +667,6 @@ ffi_prep_closure_loc_js,
     case FFI_TYPE_SINT16:
     case FFI_TYPE_UINT32:
     case FFI_TYPE_SINT32:
-    case FFI_TYPE_POINTER:
-    case FFI_TYPE_STRUCT:
       sig += 'i';
       break;
     case FFI_TYPE_FLOAT:
@@ -751,6 +682,10 @@ ffi_prep_closure_loc_js,
     case FFI_TYPE_SINT64:
       sig += 'j';
       break;
+    case FFI_TYPE_STRUCT:
+    case FFI_TYPE_POINTER:
+      sig += PTR_SIG;
+      break;
     case FFI_TYPE_COMPLEX:
       throw new Error('complex marshalling nyi');
     default:
@@ -759,9 +694,9 @@ ffi_prep_closure_loc_js,
   }
   if (nfixedargs < nargs) {
     // extra pointer to varargs stack
-    sig += "i";
+    sig += PTR_SIG;
   }
-  LOG_DEBUG("CREATE_CLOSURE",  "sig:", sig);
+  LOG_DEBUG("CREATE_CLOSURE", "sig:", sig);
   function trampoline() {
     var args = Array.prototype.slice.call(arguments);
     var size = 0;
@@ -778,7 +713,7 @@ ffi_prep_closure_loc_js,
       STACK_ALLOC(cur_ptr, 8, 8);
       ret_ptr = cur_ptr;
     }
-    cur_ptr -= 4 * nargs;
+    cur_ptr -= __SIZEOF_POINTER__ * nargs;
     var args_ptr = cur_ptr;
     var carg_idx = 0;
     // Here we either have the actual argument, or a pair of BigInts for long
@@ -799,76 +734,62 @@ ffi_prep_closure_loc_js,
       case FFI_TYPE_SINT8:
         // Bad things happen if we don't align to 4 here
         STACK_ALLOC(cur_ptr, 1, 4);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_U8(cur_ptr, 0) = cur_arg;
         break;
       case FFI_TYPE_UINT16:
       case FFI_TYPE_SINT16:
         // Bad things happen if we don't align to 4 here
         STACK_ALLOC(cur_ptr, 2, 4);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_U16(cur_ptr, 0) = cur_arg;
         break;
       case FFI_TYPE_INT:
       case FFI_TYPE_UINT32:
       case FFI_TYPE_SINT32:
-      case FFI_TYPE_POINTER:
         STACK_ALLOC(cur_ptr, 4, 4);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_U32(cur_ptr, 0) = cur_arg;
         break;
       case FFI_TYPE_STRUCT:
         // cur_arg is already a pointer to struct
         // copy it onto stack to pass by value
         STACK_ALLOC(cur_ptr, arg_size, arg_align);
-        HEAP8.subarray(cur_ptr, cur_ptr + arg_size).set(HEAP8.subarray(cur_arg, cur_arg + arg_size));
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        HEAP8.subarray(cur_ptr, cur_ptr + arg_size).set(HEAP8.subarray(DEC_PTR(cur_arg), DEC_PTR(cur_arg) + arg_size));
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         break;
       case FFI_TYPE_FLOAT:
         STACK_ALLOC(cur_ptr, 4, 4);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_F32(cur_ptr, 0) = cur_arg;
         break;
       case FFI_TYPE_DOUBLE:
         STACK_ALLOC(cur_ptr, 8, 8);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_F64(cur_ptr, 0) = cur_arg;
         break;
       case FFI_TYPE_UINT64:
       case FFI_TYPE_SINT64:
         STACK_ALLOC(cur_ptr, 8, 8);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
-        #if WASM_BIGINT
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_U64(cur_ptr, 0) = cur_arg;
-        #else
-        // Bigint arg was split by legalizer adaptor
-        DEREF_U32(cur_ptr, 0) = cur_arg;
-        cur_arg = args[jsarg_idx++];
-        DEREF_U32(cur_ptr, 1) = cur_arg;
-        #endif
         break;
       case FFI_TYPE_LONGDOUBLE:
         STACK_ALLOC(cur_ptr, 16, 8);
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
-        #if WASM_BIGINT
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
         DEREF_U64(cur_ptr, 0) = cur_arg;
         cur_arg = args[jsarg_idx++];
         DEREF_U64(cur_ptr, 1) = cur_arg;
-        #else
-        // Was split by legalizer adaptor
-        DEREF_U32(cur_ptr, 0) = cur_arg;
-        cur_arg = args[jsarg_idx++];
-        DEREF_U32(cur_ptr, 1) = cur_arg;
-        cur_arg = args[jsarg_idx++];
-        DEREF_U32(cur_ptr, 2) = cur_arg;
-        cur_arg = args[jsarg_idx++];
-        DEREF_U32(cur_ptr, 3) = cur_arg;
-        #endif
+        break;
+      case FFI_TYPE_POINTER:
+        STACK_ALLOC(cur_ptr, __SIZEOF_POINTER__, __SIZEOF_POINTER__);
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
+        DEREF_PTR(cur_ptr, 0) = cur_arg;
         break;
       }
     }
     // If its a varargs call, last js argument is a pointer to the varargs.
-    var varargs = args[args.length - 1];
+    var varargs = DEC_PTR(args[args.length - 1]);
     // We have no way of knowing how many varargs were actually provided, this
     // fills the rest of the stack space allocated with nonsense. The onward
     // call will know to ignore the nonsense.
@@ -884,20 +805,20 @@ ffi_prep_closure_loc_js,
       if (arg_type_id === FFI_TYPE_STRUCT) {
         // In this case varargs is a pointer to pointer to struct so we need to
         // deref once
-        var struct_ptr = DEREF_U32(varargs, 0);
+        var struct_ptr = DEREF_PTR_NUMBER(varargs, 0);
         STACK_ALLOC(cur_ptr, arg_size, arg_align);
         HEAP8.subarray(cur_ptr, cur_ptr + arg_size).set(HEAP8.subarray(struct_ptr, struct_ptr + arg_size));
-        DEREF_U32(args_ptr, carg_idx) = cur_ptr;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(cur_ptr);
       } else {
-        DEREF_U32(args_ptr, carg_idx) = varargs;
+        DEREF_PTR(args_ptr, carg_idx) = ENC_PTR(varargs);
       }
-      varargs += 4;
+      varargs += __SIZEOF_POINTER__;
     }
     stackRestore(cur_ptr);
     stackAlloc(0); // stackAlloc enforces alignment invariants on the stack pointer
-    LOG_DEBUG("CALL_CLOSURE",  "closure:", closure, "fptr", CLOSURE__fun(closure), "cif",  CLOSURE__cif(closure));
+    LOG_DEBUG("CALL_CLOSURE", "closure:", closure, "fptr", CLOSURE__fun(closure), "cif", CLOSURE__cif(closure));
     getWasmTableEntry(CLOSURE__fun(closure))(
-        CLOSURE__cif(closure), ret_ptr, args_ptr,
+        CLOSURE__cif(closure), ENC_PTR(ret_ptr), ENC_PTR(args_ptr),
         CLOSURE__user_data(closure)
     );
     stackRestore(orig_stack_ptr);
@@ -905,33 +826,26 @@ ffi_prep_closure_loc_js,
     // If we aren't supposed to return by argument, figure out what to return.
     if (!ret_by_arg) {
       switch (sig[0]) {
-      case "i":
+      case 'i':
         return DEREF_U32(ret_ptr, 0);
-      case "j":
-        #if WASM_BIGINT
+      case 'j':
         return DEREF_U64(ret_ptr, 0);
-        #else
-        // Split the return i64, set the upper 32 bits into tempRet0 and return
-        // the lower 32 bits.
-        setTempRet0(DEREF_U32(ret_ptr, 1));
-        return DEREF_U32(ret_ptr, 0);
-        #endif
-      case "d":
+      case 'd':
         return DEREF_F64(ret_ptr, 0);
-      case "f":
+      case 'f':
         return DEREF_F32(ret_ptr, 0);
       }
     }
   }
   try {
-    var wasm_trampoline = JS_FUNCTION_TO_WASM(trampoline, sig);
+    var wasm_trampoline = convertJsFunctionToWasm(trampoline, sig);
   } catch(e) {
     return FFI_BAD_TYPEDEF_MACRO;
   }
   setWasmTableEntry(codeloc, wasm_trampoline);
-  CLOSURE__cif(closure) = cif;
-  CLOSURE__fun(closure) = fun;
-  CLOSURE__user_data(closure) = user_data;
+  CLOSURE__cif(closure) = ENC_PTR(cif);
+  CLOSURE__fun(closure) = ENC_PTR(fun);
+  CLOSURE__user_data(closure) = ENC_PTR(user_data);
   return FFI_OK_MACRO;
 })
 
@@ -940,7 +854,7 @@ ffi_prep_closure_loc_js,
 ffi_status ffi_prep_closure_loc(ffi_closure *closure, ffi_cif *cif,
                                 void (*fun)(ffi_cif *, void *, void **, void *),
                                 void *user_data, void *codeloc) {
-  if (cif->abi != FFI_WASM32_EMSCRIPTEN)
+  if (cif->abi != FFI_EMSCRIPTEN_ABI)
     return FFI_BAD_ABI;
   return ffi_prep_closure_loc_js(closure, cif, (void *)fun, user_data,
                                      codeloc);

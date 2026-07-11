@@ -141,8 +141,13 @@ case "${host}" in
 	SOURCES="ffi.c sysv.S"
 	;;
 
-  loongarch64-*-*)
-	TARGET=LOONGARCH64; TARGETDIR=loongarch64
+  loongarch*-*-*)
+	if test $ac_cv_sizeof_size_t = 4; then
+	  TARGET=LOONGARCH32
+	else
+	  TARGET=LOONGARCH64
+	fi
+	TARGETDIR=loongarch
 	SOURCES="ffi.c sysv.S"
 	;;
 
@@ -183,11 +188,6 @@ case "${host}" in
 	# Support 128-bit long double for NewABI.
 	HAVE_LONG_DOUBLE='defined(__mips64)'
 	TARGET=MIPS; TARGETDIR=mips
-	;;
-
-  nios2*-linux*)
-	TARGET=NIOS2; TARGETDIR=nios2
-	SOURCES="ffi.c sysv.S"
 	;;
 
   or1k*-*-*)
@@ -266,7 +266,12 @@ case "${host}" in
 	;;
 
   wasm32-*-*)
-	TARGET=wasm32; TARGETDIR=wasm32
+	TARGET=wasm32; TARGETDIR=wasm
+	SOURCES="ffi.c"
+	;;
+
+  wasm64-*-*)
+	TARGET=wasm64; TARGETDIR=wasm
 	SOURCES="ffi.c"
 	;;
 

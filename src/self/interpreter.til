@@ -5166,7 +5166,7 @@ priv ffi_host_default_abi := proc() returns I32 {
 priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     expect(cif.rtype.is_null().not(), "cif.rtype is null")
     ref rt : ffi_type = cif.rtype
-    return rt.type == FFI_TYPE_STRUCT.to_i16()
+    return rt.type == FFI_TYPE_STRUCT.to_u16()
 }
 
 // These four are side-effecting (dlopen mutates the loader, dlerror clears
@@ -6304,7 +6304,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
         stp.alignment = 0
-        stp.type = FFI_TYPE_STRUCT.to_i16()
+        stp.type = FFI_TYPE_STRUCT.to_u16()
         stp.elements = elements
         box := FFITypePtrBox(ptr = stp)
         ctx.ffi_type_cache.push(own box)

@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------------
-   types.c - Copyright (c) 1996, 1998, 2024  Red Hat, Inc.
+   types.c - Copyright (c) 1996, 1998, 2024, 2025, 2026  Red Hat, Inc.
 
    Predefined ffi_types needed by libffi.
 
@@ -30,6 +30,28 @@
 
 #include <ffi.h>
 #include <ffi_common.h>
+
+/* Return a version string. */
+const char *ffi_get_version (void)
+{
+  return FFI_VERSION_STRING;
+}
+
+/* Return the version as an unsigned long value: (x * 10000 + y * 100 + z) */
+unsigned long ffi_get_version_number (void)
+{
+  return FFI_VERSION_NUMBER;
+}
+
+unsigned int ffi_get_default_abi (void)
+{
+  return FFI_DEFAULT_ABI;
+}
+
+size_t ffi_get_closure_size (void)
+{
+  return sizeof(ffi_closure);
+}
 
 /* Type definitions */
 
@@ -104,3 +126,16 @@ FFI_COMPLEX_TYPEDEF(float, float, const);
 FFI_COMPLEX_TYPEDEF(double, double, const);
 FFI_COMPLEX_TYPEDEF(longdouble, long double, FFI_LDBL_CONST);
 #endif
+
+#ifdef FFI_TARGET_HAS_INT128
+# ifdef HAVE_INT128
+FFI_TYPEDEF(uint128, __uint128_t, FFI_TYPE_UINT128, const);
+FFI_TYPEDEF(sint128, __int128_t, FFI_TYPE_SINT128, const);
+# else
+/* We don't actually need compiler support for __int128_t, as we don't
+   use the type itself within libffi.  Obviously the size is 16; make
+   the conservative assumption that the alignment must also be 16. */
+const ffi_type ffi_type_uint128 = { 16, 16, FFI_TYPE_UINT128, NULL };
+const ffi_type ffi_type_sint128 = { 16, 16, FFI_TYPE_SINT128, NULL };
+# endif
+#endif /* FFI_TARGET_HAS_INT128 */

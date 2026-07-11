@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------------
-   closures.c - Copyright (c) 2019, 2022 Anthony Green
+   closures.c - Copyright (c) 2019, 2022, 2026 Anthony Green
                 Copyright (c) 2007, 2009, 2010 Red Hat, Inc.
                 Copyright (C) 2007, 2009, 2010 Free Software Foundation, Inc
                 Copyright (c) 2011 Plausible Labs Cooperative, Inc.
@@ -164,7 +164,7 @@ ffi_tramp_is_present (__attribute__((unused)) void *ptr)
 
 #include <mach/mach.h>
 #include <pthread.h>
-#ifdef HAVE_PTRAUTH
+#ifdef HAVE_ARM64E_PTRAUTH
 #include <ptrauth.h>
 #endif
 #include <stdio.h>
@@ -223,7 +223,7 @@ ffi_trampoline_table_alloc (void)
   /* Remap the trampoline table on top of the placeholder page */
   trampoline_page = config_page + PAGE_MAX_SIZE;
 
-#ifdef HAVE_PTRAUTH
+#ifdef HAVE_ARM64E_PTRAUTH
   trampoline_page_template = (vm_address_t)(uintptr_t)ptrauth_auth_data((void *)&ffi_closure_trampoline_table_page, ptrauth_key_function_pointer, 0);
 #else
   trampoline_page_template = (vm_address_t)&ffi_closure_trampoline_table_page;
@@ -268,7 +268,7 @@ ffi_trampoline_table_alloc (void)
       ffi_trampoline_table_entry *entry = &table->free_list_pool[i];
       entry->trampoline =
 	(void *) (trampoline_page + (i * FFI_TRAMPOLINE_SIZE));
-#ifdef HAVE_PTRAUTH
+#ifdef HAVE_ARM64E_PTRAUTH
       entry->trampoline = ptrauth_sign_unauthenticated(entry->trampoline, ptrauth_key_function_pointer, 0);
 #endif
 
@@ -393,11 +393,9 @@ ffi_closure_free (void *ptr)
 
 #define USE_LOCKS 1
 #define USE_DL_PREFIX 1
-#ifdef __GNUC__
-#ifndef USE_BUILTIN_FFS
-#define USE_BUILTIN_FFS 1
-#endif
-#endif
+/* dlmalloc's bit-index macros use __builtin_clz/__builtin_ctz directly on any
+   GNU-compatible compiler, so USE_BUILTIN_FFS (and pulling in <strings.h> for
+   ffs()) is no longer needed (libffi #754).  */
 
 /* We need to use mmap, not sbrk.  */
 #define HAVE_MORECORE 0

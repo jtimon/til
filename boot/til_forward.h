@@ -314,6 +314,7 @@ typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct _ffi_type ffi_type;
+typedef struct ffi_call_plan ffi_call_plan;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
 typedef struct InterpClosure InterpClosure;
@@ -928,8 +929,8 @@ typedef struct Vec__DocEntry {
 
 typedef struct _ffi_type {
     USize size;
-    I16 alignment;
-    I16 type;
+    U16 alignment;
+    U16 type;
     void * *elements;
 } ffi_type;
 
@@ -963,6 +964,11 @@ typedef struct {
 typedef struct {
     char _;
 } ffi_go_closure;
+
+
+typedef struct ffi_call_plan {
+    char _;
+} ffi_call_plan;
 
 
 typedef struct StructInstance {
@@ -3400,6 +3406,10 @@ ffi_go_closure * ffi_go_closure_clone(ffi_go_closure * _self);
 void ffi_go_closure_delete(ffi_go_closure * self, Bool call_free);
 U64 ffi_go_closure_hash(ffi_go_closure * self, HashFn hasher);
 U64 ffi_go_closure_size(void);
+ffi_call_plan * ffi_call_plan_clone(ffi_call_plan * _self);
+void ffi_call_plan_delete(ffi_call_plan * self, Bool call_free);
+U64 ffi_call_plan_hash(ffi_call_plan * self, HashFn hasher);
+U64 ffi_call_plan_size(void);
 Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
 void priv___src_self_interpreter_til__interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
@@ -4010,6 +4020,8 @@ extern I64 FFI_TYPE_SINT64;
 extern I64 FFI_TYPE_STRUCT;
 extern I64 FFI_TYPE_POINTER;
 extern I64 FFI_TYPE_COMPLEX;
+extern I64 FFI_TYPE_UINT128;
+extern I64 FFI_TYPE_SINT128;
 extern I32 FFI_FIRST_ABI;
 extern I32 FFI_UNIX64;
 extern I32 FFI_WIN64;
@@ -4027,6 +4039,7 @@ extern I32 FFI_BAD_TYPEDEF;
 extern I32 FFI_BAD_ABI;
 extern I32 FFI_BAD_ARGTYPE;
 extern I64 FFI_SIZEOF_ARG;
+extern I64 FFI_VERSION_NUMBER;
 extern U64 CALLABLE_BOX_MAGIC;
 extern U64 ENUM_PAYLOAD_OFFSET;
 extern U64 ENUM_PAYLOAD_OFFSET;

@@ -199,6 +199,26 @@ which must be re-applied after regeneration:
    the socket out-parameter by address -- ~mut~ because the call
    writes the socket through that non-const pointer).
 
+libffi has three hand-edits, marked "Hand-audited" / "keep across
+regens" in ~vendor/bindings/libffi.til~:
+
+0. *The mutating calls are ext_proc.*  ~ffi_prep_cif(_var)~, the
+   ~ffi_call~ family, every ~ffi_prep_*closure*~,
+   ~ffi_closure_alloc~, ~ffi_call_plan_alloc~,
+   ~ffi_raw_size~/~ffi_java_raw_size~ and ~ffi_get_struct_offsets~
+   write through pointer args or touch allocator state; the binder
+   emits ~ext_func~ for the value-returning ones and constfolding
+   them would execute those writes at compile time.  Only the pure
+   version/constant getters (~ffi_get_version(_number)~,
+   ~ffi_get_default_abi~, ~ffi_get_closure_size~) stay ~ext_func~.
+1. *~ffi_cif~ carries a trailing ~extra_cif_fields~ slot* mirroring
+   the per-target ~FFI_EXTRA_CIF_FIELDS~ macro the binder cannot see
+   through (issue #25: without it every ~ffi_prep_cif~ on
+   darwin-arm64 writes 4 bytes past the allocation).
+2. *The ~ffi_abi~ constants carry a warning comment*: their values
+   are x86-64-only; abi selection goes through
+   ~ffi_host_default_abi()~ in ~src/self/interpreter.til~.
+
 Useful workflow:
 
 1. Save the current ~vendor/bindings/raylib.til~ somewhere

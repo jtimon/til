@@ -1,8 +1,8 @@
 mode lib
 
 /* -----------------------------------------------------------------*-C-*-
-   libffi 3.4.6
-     - Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024 Anthony Green
+   libffi 3.7.1
+     - Copyright (c) 2011, 2014, 2019, 2021, 2022, 2024, 2025, 2026 Anthony Green
      - Copyright (c) 1996-2003, 2007, 2008 Red Hat, Inc.
 
    Permission is hereby granted, free of charge, to any person
@@ -67,11 +67,13 @@ FFI_TYPE_SINT64 : I64 = 12
 FFI_TYPE_STRUCT : I64 = 13
 FFI_TYPE_POINTER : I64 = 14
 FFI_TYPE_COMPLEX : I64 = 15
+FFI_TYPE_UINT128 : I64 = 16
+FFI_TYPE_SINT128 : I64 = 17
 
 /* This should always refer to the last type code (for sanity checks).  */
 
 /* -----------------------------------------------------------------*-C-*-
-   ffitarget.h - Copyright (c) 2012, 2014, 2018  Anthony Green
+   ffitarget.h - Copyright (c) 2012, 2014, 2018, 2026  Anthony Green
                  Copyright (c) 1996-2003, 2010  Red Hat, Inc.
                  Copyright (C) 2008  Free Software Foundation, Inc.
 
@@ -117,7 +119,8 @@ ffi_abi := I32
 // ffi_host_default_abi() (src/self/interpreter.til), which resolves
 // the value for the running host and panics on unaudited ones. On
 // aarch64 this constant selected the Windows-on-ARM ABI and corrupted
-// memory on darwin (issue #25).
+// memory on darwin (issue #25). Hand-audited note: keep across
+// regens.
 FFI_FIRST_ABI : I32 = 1
 FFI_UNIX64 : I32 = 2
 FFI_WIN64 : I32 = 3
@@ -147,8 +150,8 @@ FFI_64_BIT_MAX : I64 = 9223372036854775807
 
 ffi_type := ext_struct("_ffi_type") {
     size : USize = 0
-    alignment : I16 = 0
-    type : I16 = 0
+    alignment : U16 = 0
+    type : U16 = 0
     ref elements : Dynamic = NULL
 }
 
@@ -171,19 +174,19 @@ FFI_BAD_TYPEDEF : I32 = 1
 FFI_BAD_ABI : I32 = 2
 FFI_BAD_ARGTYPE : I32 = 3
 
-// The C ffi_cif ends with FFI_EXTRA_CIF_FIELDS, a per-target macro:
-// `unsigned aarch64_nfixedargs` on darwin-arm64, `unsigned is_variadic`
-// on windows-arm64, empty everywhere else (vendor/libffi/src/aarch64/
-// ffitarget.h). ffi_prep_cif_machdep WRITES that field, so a mirror
-// without it under-allocates by 4 bytes on those targets and every
-// ffi_prep_cif corrupts the neighboring heap chunk -- the darwin-arm64
-// intermittent-crash root cause of issue #25, caught by Guard Malloc
-// inside ffi_prep_cif_machdep. Model the union of the per-target
-// layouts: the trailing slot is dead weight on targets whose C struct
-// lacks it (libffi never touches it there) and keeps ffi_cif.size()
-// large enough on the ones that have it. The prefix field offsets are
-// identical everywhere. Keep this when regenerating the bindings; the
-// binder cannot see through the ifdef.
+// Hand-audited edit, keep across regens (the binder cannot see through
+// the ifdef): the C ffi_cif ends with FFI_EXTRA_CIF_FIELDS, a
+// per-target macro -- `unsigned aarch64_nfixedargs` on darwin-arm64,
+// `unsigned is_variadic` on windows-arm64, empty everywhere else
+// (vendor/libffi/src/aarch64/ffitarget.h). ffi_prep_cif_machdep WRITES
+// that field, so a mirror without it under-allocates by 4 bytes on
+// those targets and every ffi_prep_cif corrupts the neighboring heap
+// chunk -- the darwin-arm64 intermittent-crash root cause of issue
+// #25, caught by Guard Malloc inside ffi_prep_cif_machdep. Model the
+// union of the per-target layouts: the trailing slot is dead weight on
+// targets whose C struct lacks it (libffi never touches it there) and
+// keeps ffi_cif.size() large enough on the ones that have it. The
+// prefix field offsets are identical everywhere.
 ffi_cif := ext_struct {
     abi : ffi_abi = 0
     nargs : U32 = 0
@@ -220,6 +223,21 @@ ffi_java_raw_to_ptrarray := ext_proc(mut cif : ffi_cif, mut raw : ffi_java_raw, 
 
 ffi_java_raw_size := ext_proc(mut cif : ffi_cif) returns shallow USize {}
 
+/* ---- Version API ------------------------------------------------------ */
+
+FFI_VERSION_NUMBER : I64 = 30701
+
+/* Return a version string. */
+ffi_get_version := ext_func() returns ref I8 {}
+
+/* Return the version as an unsigned long value: (x * 10000 + y * 100 + z) */
+ffi_get_version_number := ext_func() returns shallow I64 {}
+
+/* ---- Internals API ---------------------------------------------------- */
+
+ffi_get_default_abi := ext_func() returns shallow I32 {}
+ffi_get_closure_size := ext_func() returns shallow USize {}
+
 /* ---- Definitions for closures ----------------------------------------- */
 
 ffi_closure := ext_struct {}  // opaque: unsupported field shape
@@ -254,6 +272,26 @@ ffi_prep_cif := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nargs
 ffi_prep_cif_var := ext_proc(mut cif : ffi_cif, shallow abi : ffi_abi, shallow nfixedargs : U32, shallow ntotalargs : U32, mut rtype : ffi_type, mut atypes : Dynamic) returns shallow ffi_status {}
 
 ffi_call := ext_proc(mut cif : ffi_cif, fn : Dynamic, mut rvalue : Dynamic, mut avalue : Dynamic) {}
+
+/* Reusable call plans.
+
+   A plan captures a signature's argument placement once so that repeated
+   calls skip the per-call work that ffi_call would otherwise redo.  Build one
+   with ffi_call_plan_alloc, invoke it as many times as you like, and release
+   it with ffi_call_plan_free.
+
+   The plan is opaque and caller-owned.  The cif must outlive the plan.
+   ffi_call_plan_alloc returns NULL only on allocation failure; a signature
+   with no fast path is still valid and ffi_call_plan_invoke falls back to
+   ffi_call for it.  A plan is immutable once built, so it may be shared and
+   invoked concurrently from multiple threads.  */
+ffi_call_plan := ext_struct("ffi_call_plan") {}
+
+ffi_call_plan_alloc := ext_proc(mut cif : ffi_cif) returns ref ffi_call_plan {}
+
+ffi_call_plan_invoke := ext_proc(mut plan : ffi_call_plan, fn : Dynamic, mut rvalue : Dynamic, mut avalue : Dynamic) {}
+
+ffi_call_plan_free := ext_proc(mut plan : ffi_call_plan) {}
 
 ffi_get_struct_offsets := ext_proc(shallow abi : ffi_abi, mut struct_type : ffi_type, mut offsets : USize) returns shallow ffi_status {}
 
