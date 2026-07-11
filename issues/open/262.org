@@ -41,27 +41,46 @@ Status summary (what is merged):
   UFCS-receiver-call arg -- misfired). Now keyed off a parser-set
   ~return_shallow_explicit~ flag.
 
-  REMAINING -- each BLOCKED on a separate prerequisite, NOT on more lazy work:
-    1. Declared-variadic lazy (~lazy_func(xs: ..Bool)~). Design 2 wants the
-       variadic param to become an ARRAY OF THUNKS (~Array(_Fn_ret_T)~). til
-       does not support Array-of-funcptr today: a hand-written
-       ~func(xs: ..SomeFnSig)~ with ~for x in xs~ produces ~47~ type errors
-       (the Array template's generated clone/size/cast do not work for a
-       funcptr element). So variadic lazy is blocked on Array-of-funcptr
-       support, a separate gap useful well beyond lazy_func. (The pervasive
-       variadic ~and~/~or~ is already covered by the N-ary fold, which needs
-       no array.)
-    2. FIRST-CLASS / escaping lazy callables (store/return/pass a lazy func
+  DONE (declared-variadic lazy, compile-time unroll). ~lazy_func(xs: ..Bool)~
+  works with THREE equivalent body spellings, each unrolled at the call site
+  over its compile-time-known operands (no thunks, no Array is ever built --
+  the Array-of-thunks Design 2 route and its Array-of-funcptr blocker became
+  moot for variadic; Design 1's compile-time expansion landed instead):
+    - ITERATIVE: ~for x in xs { if x.not() { return false } } return true~
+      -- each for-in becomes one guard per operand
+      (~inline_variadic_lazy_call~, src/self/loader.til).
+    - RECURSIVE match (the GHC Prelude shape, ~and (x:xs) = x && and xs~):
+      ~return match xs { case []: true case [x, ..tl]: match x { case true:
+      vand(..tl) case: false } }~. New surface syntax: compile-time list
+      patterns ~case []:~ / ~case [x, ..tl]:~ (NodeType.ListPattern, legal
+      only on the variadic param of such a body) + the existing ~f(..xs)~
+      splat as the recursive tail call. Bottom-up unroll
+      (~inline_recursive_variadic_lazy_call~); the def itself is a
+      compile-time template (never expanded in place, typed, or emitted).
+    - RECURSIVE statement/switch (if/else clause style): ~switch xs { case
+      []: return true case [x, ..tl]: if x.not() { return false } return
+      vand(..tl) }~ -- same unroll, the cons arm's guard chain splices via
+      ~lazy_body_as_expr~.
+  Core ~vand~/~vor~ (src/core/bool.til) use the recursive match form -- all
+  three benchmarked indistinguishable (20M 4-operand calls, identical
+  outputs), so the Haskell idiom won on readability. The other two spellings
+  are test-local coverage in test/lazy.til (~vand_iter~/~vor_iter~,
+  ~vand_rec_if~/~vor_rec_if~). The old N-ary FOLD (binary defs silently
+  accepting N args) is DELETED: ~and~/~or~ are strictly binary and a 3+-arg
+  call is an arity error.
+
+  REMAINING -- each blocked on a separate prerequisite or a non-goal:
+    1. FIRST-CLASS / escaping lazy callables (store/return/pass a lazy func
        as a value, call it after its defining scope exits -- needed for
        infinite structures and alpha-beta game trees). The thunks capture by
        reference, so #54's escape checks correctly reject this today. Blocked
        on #54's escaping-closure work (shallow/own captures, broader
        stored-closure escape paths).
-    3. Param-name shadowing inside a thunk-lowered body: currently the def is
+    2. Param-name shadowing inside a thunk-lowered body: currently the def is
        left lazy (hard-errors) rather than risk mis-rewriting a shadowed use.
        A minor self-imposed limitation; needs scope-aware auto-force. Low
        value (shadowing a param inside a lazy body is rare).
-    4. call-by-need / memoization: a NON-GOAL under the chosen call-by-name
+    3. call-by-need / memoization: a NON-GOAL under the chosen call-by-name
        semantics (see below) -- it would break the inline == thunk
        equivalence and only helps params reused within a body.
 
