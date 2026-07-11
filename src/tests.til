@@ -1,6 +1,7 @@
 mode cli
 
 import("std/sys")
+import("std/file")
 
 NL := "\n"
 TIL := "bin/til"

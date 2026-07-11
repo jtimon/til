@@ -188,8 +188,12 @@ void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
 
 // System primitives
-Str *File_readfile(const Str *path);
-void File_writefile(const Str *path, const Str *content);
+// File_readfile / File_writefile are namespace ext methods of the File
+// struct (src/std/file.til). Namespace ext methods get their prototype
+// from the builder's forward-decl pass, which does not apply the FFI
+// const convention, so these params must stay non-const to match.
+Str *File_readfile(Str *path);
+void File_writefile(Str *path, Str *content);
 void stdio_capture_begin(const Str *path);
 void stdio_capture_end(void);
 Str *doc_cache_unescape(const Str *raw);
@@ -215,19 +219,21 @@ I32 copy_tree(const Str *src, const Str *dst);
 Bool ptr_eq(void *a, void *b);
 void eprint_single(const Str *s);
 
-// File handle I/O. The void * handle is opaque; til-side bindings take
-// it non-mut, but the underlying FILE * state is mutated by the call,
-// so handle stays non-const.
+// File handle I/O. The void * handle is opaque; the til-side bindings
+// (src/std/file.til) take it as a non-mut Dynamic, and the builder's FFI
+// const convention emits those params as `const void *`, so the handle
+// is const here and each body casts it back to FILE * (the FILE state
+// itself is of course mutated by the call).
 void *cfile_open(const Str *path, Bool is_write);
 void *cfile_open_update(const Str *path);
-void cfile_close(void *handle);
-void cfile_write_str(void *handle, const Str *s);
-Str *cfile_read_all(void *handle);
-I64 cfile_tell(void *handle);
-void cfile_seek(void *handle, I64 pos);
-void cfile_seek_cur(void *handle, I64 delta);
-void cfile_seek_end(void *handle, I64 delta);
-Str *cfile_read_n(void *handle, I64 count);
+void cfile_close(const void *handle);
+void cfile_write_str(const void *handle, const Str *s);
+Str *cfile_read_all(const void *handle);
+I64 cfile_tell(const void *handle);
+void cfile_seek(const void *handle, I64 pos);
+void cfile_seek_cur(const void *handle, I64 delta);
+void cfile_seek_end(const void *handle, I64 delta);
+Str *cfile_read_n(const void *handle, I64 count);
 
 // Line input. The til-side binding declares `mut line: Str`, so line
 // is mutated by this call -- keep it non-const.

@@ -3,6 +3,7 @@ mode cli
 import("../src/core/io")
 import("../src/core/str")
 import("../src/std/sys")
+import("../src/std/file")
 
 run := proc(cmd: Str) returns I64 {
     pid := spawn_cmd(cmd)

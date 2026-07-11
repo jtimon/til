@@ -1,5 +1,7 @@
 mode gui
 
+import("../src/std/file")
+
 main := proc(args: ..Str) {
     font_size : I32 = 16
     char_w : I32 = 9

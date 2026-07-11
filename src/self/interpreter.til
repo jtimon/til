@@ -4,6 +4,7 @@ import("context")
 import("loader")
 import("builder")
 import("../std/sys")
+import("../std/file")
 import("../../vendor/bindings/libffi")
 // No link() here: the libffi static lib is host-dependent (the
 // configure triple dir only exists for the build host), so the builder

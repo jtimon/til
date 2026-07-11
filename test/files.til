@@ -1,5 +1,7 @@
 mode test
 
+import("../src/std/file")
+
 test_file_write_and_read := test() {
     path := "tmp/_test_file_io.txt"
     f := File.new(path, true)

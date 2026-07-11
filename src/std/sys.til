@@ -1,5 +1,7 @@
 mode lib
 
+import("file")
+
 // System primitives that cause (or observe) side effects on the host.
 //
 // These live in std -- NOT core -- so that a restricted mode like

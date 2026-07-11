@@ -2,6 +2,7 @@ mode cli
 
 import("../src/core/io")
 import("../src/std/sys")
+import("../src/std/file")
 import("../src/core/ast")
 import("../src/self/lexer")
 import("../src/self/parser")

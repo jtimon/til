@@ -2,6 +2,7 @@ mode cli
 
 import("../src/core/io")
 import("../src/std/sys")
+import("../src/std/file")
 import("../src/core/str")
 import("../src/core/vec")
 import("../src/core/numbers")

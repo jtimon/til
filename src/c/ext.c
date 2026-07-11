@@ -527,7 +527,7 @@ void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr)
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
-Str *File_readfile(const Str *path) {
+Str *File_readfile(Str *path) {
     char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
@@ -549,7 +549,7 @@ Str *File_readfile(const Str *path) {
     return s;
 }
 
-void File_writefile(const Str *path, const Str *content) {
+void File_writefile(Str *path, Str *content) {
     char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
@@ -606,7 +606,7 @@ Str *doc_cache_unescape(const Str *raw) {
 }
 
 Str *doc_cache_read_unescape(const Str *path) {
-    Str *raw = File_readfile(path);
+    Str *raw = File_readfile((Str *)path);
     Str *result = doc_cache_unescape(raw);
     free(raw->c_str);
     free(raw);
@@ -701,11 +701,11 @@ void *cfile_open(const Str *path, Bool is_write) {
     return (void *)f;
 }
 
-void cfile_close(void *handle) {
+void cfile_close(const void *handle) {
     if (handle) fclose((FILE *)handle);
 }
 
-void cfile_write_str(void *handle, const Str *s) {
+void cfile_write_str(const void *handle, const Str *s) {
     if (!handle) {
         fprintf(stderr, "cfile_write_str: file not open\n");
         exit(1);
@@ -729,7 +729,7 @@ void *cfile_open_update(const Str *path) {
 }
 
 // Current cursor position as a byte offset from the start of the file.
-I64 cfile_tell(void *handle) {
+I64 cfile_tell(const void *handle) {
     if (!handle) {
         fprintf(stderr, "cfile_tell: file not open\n");
         exit(1);
@@ -738,7 +738,7 @@ I64 cfile_tell(void *handle) {
 }
 
 // Move the cursor to an absolute byte offset from the start of the file.
-void cfile_seek(void *handle, I64 pos) {
+void cfile_seek(const void *handle, I64 pos) {
     if (!handle) {
         fprintf(stderr, "cfile_seek: file not open\n");
         exit(1);
@@ -748,7 +748,7 @@ void cfile_seek(void *handle, I64 pos) {
 
 // Move the cursor by `delta` bytes relative to its current position
 // (delta may be negative).
-void cfile_seek_cur(void *handle, I64 delta) {
+void cfile_seek_cur(const void *handle, I64 delta) {
     if (!handle) {
         fprintf(stderr, "cfile_seek_cur: file not open\n");
         exit(1);
@@ -759,7 +759,7 @@ void cfile_seek_cur(void *handle, I64 delta) {
 // Move the cursor to `delta` bytes relative to the end of the file
 // (delta is typically <= 0; seek_end(0) puts the cursor at EOF, so a
 // following tell() yields the file size).
-void cfile_seek_end(void *handle, I64 delta) {
+void cfile_seek_end(const void *handle, I64 delta) {
     if (!handle) {
         fprintf(stderr, "cfile_seek_end: file not open\n");
         exit(1);
@@ -770,7 +770,7 @@ void cfile_seek_end(void *handle, I64 delta) {
 // Read up to `count` bytes starting at the current cursor position. The
 // returned Str's count reflects how many bytes were actually read (fewer
 // than `count` near end-of-file).
-Str *cfile_read_n(void *handle, I64 count) {
+Str *cfile_read_n(const void *handle, I64 count) {
     if (!handle) {
         fprintf(stderr, "cfile_read_n: file not open\n");
         exit(1);
@@ -819,7 +819,7 @@ Bool in_read_line(Str *line) {
     return 1;
 }
 
-Str *cfile_read_all(void *handle) {
+Str *cfile_read_all(const void *handle) {
     if (!handle) {
         fprintf(stderr, "cfile_read_all: file not open\n");
         exit(1);

@@ -11,6 +11,7 @@ mode lib
 // that classify identifier bytes), so reuse them rather than redefining.
 import("lexer")
 import("../std/sys")
+import("../std/file")
 //
 // What it does NOT do:
 //   * emit `link("...")` -- callers add that themselves where they `import`.

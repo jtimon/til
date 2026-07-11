@@ -1,6 +1,7 @@
 mode cli
 
 import("../src/std/sys")
+import("../src/std/file")
 
 // Sample-profile driver for the self-host compiler (issue #237). Companion to
 // examples/prof_selfhost.til, which is the build-TIME regression harness; this

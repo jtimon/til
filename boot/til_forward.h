@@ -136,8 +136,8 @@ typedef struct Vec__U64 Vec__U64;
 typedef struct KwargsMap KwargsMap;
 typedef struct Map__Str_Tuple Map__Str_Tuple;
 typedef struct Vec__Tuple Vec__Tuple;
-typedef struct File File;
 typedef struct Range Range;
+typedef struct File File;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -590,17 +590,17 @@ typedef struct Vec__Tuple {
 } Vec__Tuple;
 
 
+typedef struct Range {
+    U64 start;
+    U64 end;
+} Range;
+
+
 typedef struct File {
     U8 *handle;
     Bool is_write;
     Bool is_update;
 } File;
-
-
-typedef struct Range {
-    U64 start;
-    U64 end;
-} Range;
 
 
 struct TokenType {
@@ -1877,6 +1877,13 @@ void panic(Array__Str * parts, Str * loc);
 void UNREACHABLE(Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
+void swap_bytes(void * a, void * b, U64 size);
+Range * Range_clone(Range * val);
+void Range_delete(Range * self, Bool call_free);
+U64 Range_hash(Range * self, HashFn hasher);
+U64 Range_size(void);
+Str * File_readfile(Str * path);
+void File_writefile(Str * path, Str * content);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
 void File_close(File * self);
@@ -1884,11 +1891,6 @@ void File_delete(File * self, Bool call_free);
 File * File_fwrite(File * self, Array__Str * parts);
 File * File_clone(File * self);
 U64 File_size(void);
-void swap_bytes(void * a, void * b, U64 size);
-Range * Range_clone(Range * val);
-void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range * self, HashFn hasher);
-U64 Range_size(void);
 I64 wait_cmd(I64 pid);
 I64 run_cmd(Str * output, Array__Str * args);
 Bool TokenType_is(TokenType * self, TokenType * other);

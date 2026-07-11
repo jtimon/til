@@ -1,6 +1,7 @@
 mode lib
 import("context")
 
+import("../std/file")
 import("parser")
 import("modes")
 import("initer")

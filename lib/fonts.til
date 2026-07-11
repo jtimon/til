@@ -8,6 +8,7 @@ mode lib
 // integer font units; default em-square size is 10240 (see svg.til).
 
 import("svg")
+import("../src/std/file")
 
 // --- Primitive writers ---
 

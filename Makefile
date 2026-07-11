@@ -19,6 +19,7 @@
 all: bin/til
 
 CORE := $(wildcard src/core/*.til)
+STD := $(wildcard src/std/*.til)
 SELF := $(wildcard src/self/*.til)
 LIB_TIL := $(wildcard lib/*.til) $(wildcard vendor/bindings/*.til)
 LD_FLAGS := -rdynamic -ldl
@@ -156,7 +157,7 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
-bin/til: bin/til_boot $(CORE) $(SELF) $(LIB_TIL) src/til.til
+bin/til: bin/til_boot $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
 	bin/til_boot build -o bin/til src/til.til
 	cp gen/til/til.c gen/til/til_forward.h boot/ 2>/dev/null || true
 
@@ -181,7 +182,7 @@ two_pass: bin/til
 # through src/self/builder.til. Same recipe is reusable for any .til
 # program ("bin/til build --asan -o foo foo.til") so we can asan-test
 # compiled outputs, not just the compiler itself.
-bin/til_asan: bin/til $(CORE) $(SELF) $(LIB_TIL) src/til.til
+bin/til_asan: bin/til $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
 	bin/til build --asan -o bin/til_asan src/til.til
 
 # --- Debug build (for gdb) ---
@@ -194,13 +195,13 @@ bin/til_debug: bin/til
 
 # --- Test programs ---
 
-bin/test_runner: bin/til $(CORE) $(SELF) src/test_runner.til
+bin/test_runner: bin/til $(CORE) $(STD) $(SELF) src/test_runner.til
 	bin/til build src/test_runner.til
 
-bin/plot: bin/til $(CORE) $(SELF) examples/plot.til
+bin/plot: bin/til $(CORE) $(STD) $(SELF) examples/plot.til
 	bin/til build examples/plot.til
 
-bin/tests: bin/til $(CORE) $(SELF) src/tests.til
+bin/tests: bin/til $(CORE) $(STD) $(SELF) src/tests.til
 	bin/til build src/tests.til
 
 # --- Test suite ---

@@ -12,6 +12,7 @@ mode cli
 
 import("../lib/svg")
 import("../lib/fonts")
+import("../src/std/file")
 
 // Map the glyph to the ASCII codepoint for 'T' (decimal 84).
 LOGO_CODEPOINT := 84

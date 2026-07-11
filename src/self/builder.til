@@ -4,6 +4,7 @@ import("context")
 import("loader")
 import("targets")
 import("../std/sys")
+import("../std/file")
 
 system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
 

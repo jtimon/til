@@ -1,6 +1,7 @@
 mode cli
 
 import("../src/std/sys")
+import("../src/std/file")
 
 // REPL smoke test for #157: pipe several turns into bin/til, capture stdout,
 // and verify help(), expression output, and persisted declarations all work.

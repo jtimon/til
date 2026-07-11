@@ -13,6 +13,7 @@ VERSION := get_version()
 
 // Import self-hosted modules
 import("std/sys")
+import("std/file")
 import("self/loader")
 import("self/builder")
 import("self/interpreter")
