@@ -442,7 +442,24 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                 // to pass self where the no-arg size() expects none.
                 // sdd.total_struct_size is already set by the earlier
                 // layout-computation pass.
-                sz_text := ctx_total_size(sname, ctx).to_str()
+                mut hash_sz : USize = ctx_total_size(sname, ctx)
+                // Builtin primitives are declared as FIELDLESS structs
+                // (numbers.til's `I64 : StructDef = struct {...}`), so
+                // their layout size is 0 -- but the key bytes are the
+                // primitive's width. Hashing 0 bytes made every integer
+                // key return the hasher's seed, collapsing HashMap into
+                // one bucket chain: O(n^2), ~56s for 100k I64 inserts
+                // where Str keys took 94ms (examples/bench_hashmap.til).
+                if hash_sz == 0 {
+                    mut hs_prim : Primitive = Primitive.I64
+                    mut hs_sz : USize = 0
+                    mut hs_al : USize = 0
+                    mut hs_builtin : Bool = false
+                    if primitive_type_info(sname, scope, hs_prim, hs_sz, hs_al, hs_builtin) {
+                        hash_sz = hs_sz
+                    }
+                }
+                sz_text := hash_sz.to_str()
 
                 mut hash_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
                 mut size_lit := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)

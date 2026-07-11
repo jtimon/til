@@ -2936,6 +2936,15 @@ priv struct_deep_free := func(struct_name: Str, data: Dynamic, ctx: Context) {
             }
             continue
         }
+        // Inline (shallow) enum field: the payload buffer lives in the
+        // struct bytes and owns its nested heap (write_field deep-clones
+        // it in); free any nested Str storage by tag. Skipping this
+        // orphaned the payload once write_field stopped aliasing the
+        // ctor temp's storage.
+        if fl.is_enum {
+            enum_payload_deep_free(fl.struct_name, ptr_add(data, foff), ctx)
+            continue
+        }
         if fl.struct_name.len().gt(0).and(fl.is_enum.not()) {
             struct_deep_free(fl.struct_name, ptr_add(data, foff), ctx)
         }
@@ -4605,7 +4614,20 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             write_ptr(ptr_add(heap_ei, 8), new_data)
             write_ptr(ptr, heap_ei)
         } else {
+            // Overwrite: release the previous inline payload's nested heap
+            // first (mirrors free_inline_struct_slot for struct fields).
+            // Safe at construction too: heap_alloc calloc-zeroes, and the
+            // deep-free helpers no-op on a zeroed payload.
+            enum_payload_deep_free(ei.enum_name, ptr, ei.ctx)
             memcpy(ptr, ei.data, total)
+            // Same contract as the Own/Ref branch above and the Struct
+            // case: the caller deep-deletes `val` after this call, so the
+            // inline copy must own an independent nested heap. Without
+            // this fixup an inlined Str payload's c_str stayed SHARED
+            // with the temp -- its delete left the field dangling (the
+            // interpreter heap-use-after-free that kept test/parsing.til
+            // compile-only).
+            enum_payload_deep_clone(ei.enum_name, ptr, ei.ctx)
         }
     case Value.Ref(pv):     write_ptr(ptr, deref(pv))
     case Value.Dynamic(pv): write_ptr(ptr, deref(pv))

@@ -52,3 +52,43 @@ test_vec_payload_clone := test() {
         UNREACHABLE()
     }
 }
+
+// A struct with an INLINE enum field whose payload owns heap (Token.Name's
+// Str). The ctor temp used to alias its payload storage into the struct;
+// the temp's delete then freed the shared c_str, and the return-in-if
+// reclone read freed memory (the interpreter use-after-free that kept
+// this file and test/parsing.til compile-only).
+TokenHolder := struct {
+    t := Token.Eof
+}
+
+priv make_holder := func(flag: Bool) returns TokenHolder {
+    h := TokenHolder(t = Token.Name("hello world longer string to heap"))
+    if flag {
+        return h
+    }
+    return TokenHolder(t = Token.Eof)
+}
+
+test_inline_enum_payload_return_in_if := test() {
+    x := make_holder(true)
+    switch x.t {
+    case Token.Name(s):
+        assert_eq(Str, s, "hello world longer string to heap")
+    case:
+        UNREACHABLE()
+    }
+}
+
+// Field overwrite must free the previous inline payload's nested heap
+// (this leaked before write_field released the old payload).
+test_inline_enum_payload_overwrite := test() {
+    mut h := TokenHolder(t = Token.Name("first heap string payload"))
+    h.t = Token.Name("second heap string payload")
+    switch h.t {
+    case Token.Name(s):
+        assert_eq(Str, s, "second heap string payload")
+    case:
+        UNREACHABLE()
+    }
+}

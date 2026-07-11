@@ -518,9 +518,11 @@ main := proc(args: ..Str) {
     add_both(tests, "test/operators.til", flags)
     add_both(tests, "test/flow.til", flags)
     add_both(tests, "test/asting.til", flags)
-    // parsing.til drives the self-parser itself; compiled-only for now:
-    // interpreting it trips a pre-existing interpreter heap-use-after-free
-    // (reclone_return -> enum_payload_deep_clone).
+    // parsing.til drives the self-parser itself; compiled-only for now.
+    // The inline-enum-payload use-after-free that used to crash it is
+    // fixed, but interpretation still miscounts a parsed StructDef's
+    // fields Vec (test_struct_def reads len 0 where compiled reads 1) --
+    // a separate interpreter payload bug.
     add_both(tests, "test/parsing.til", format(flags, " -no-interp"))
     add_both(tests, "test/structs.til", flags)
     add_both(tests, "test/interfaces.til", flags)
@@ -577,9 +579,11 @@ main := proc(args: ..Str) {
     // fields A->B->C). Fix the crash then re-enable.
     // add_both(tests, "test/topo_sort.til", flags)
     add_both(tests, "test/ref.til", flags)
-    // enums_lifecycle runs compile-only (interp disabled), so it is the
-    // fastest both test; keep it last.
-    add_both(tests, "test/enums_lifecycle.til", mode_flags(0, en_run, asan_flag))
+    // enums_lifecycle ran compile-only for years: interpreting it tripped
+    // the inline-enum-payload aliasing bug (write_field byte-copied the
+    // ctor temp's payload and the temp's delete freed the shared Str
+    // storage). Fixed -- both backends now.
+    add_both(tests, "test/enums_lifecycle.til", flags)
     // doc_block_comments imports the lexer and builds Tokens (U32 fields),
     // so it runs compile-only like the lexing tests below (issue #182).
     add_both(tests, "test/doc_block_comments.til", mode_flags(0, en_run, asan_flag))

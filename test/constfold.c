@@ -2056,7 +2056,7 @@ U64 U8_size(void) {
 }
 
 U64 U8_hash(U8 self, HashFn hasher) {
-    U64 hoisted__U64_1241 = 0ULL;
+    U64 hoisted__U64_1241 = 1ULL;
     (void)hoisted__U64_1241;
     U64 hoisted__U64_1242 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U8 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1241); });
     (void)hoisted__U64_1242;
@@ -2078,7 +2078,7 @@ U64 U32_size(void) {
 }
 
 U64 U32_hash(U32 self, HashFn hasher) {
-    U64 hoisted__U64_1431 = 0ULL;
+    U64 hoisted__U64_1431 = 4ULL;
     (void)hoisted__U64_1431;
     U64 hoisted__U64_1432 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1431); });
     (void)hoisted__U64_1432;
@@ -2108,7 +2108,7 @@ U64 U64_size(void) {
 }
 
 U64 U64_hash(U64 self, HashFn hasher) {
-    U64 hoisted__U64_1523 = 0ULL;
+    U64 hoisted__U64_1523 = 8ULL;
     (void)hoisted__U64_1523;
     U64 hoisted__U64_1524 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U64 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1523); });
     (void)hoisted__U64_1524;
@@ -2130,7 +2130,7 @@ U64 I8_size(void) {
 }
 
 U64 I8_hash(I8 self, HashFn hasher) {
-    U64 hoisted__U64_1542 = 0ULL;
+    U64 hoisted__U64_1542 = 1ULL;
     (void)hoisted__U64_1542;
     U64 hoisted__U64_1543 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I8 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1542); });
     (void)hoisted__U64_1543;
@@ -2152,7 +2152,7 @@ U64 I32_size(void) {
 }
 
 U64 I32_hash(I32 self, HashFn hasher) {
-    U64 hoisted__U64_1862 = 0ULL;
+    U64 hoisted__U64_1862 = 4ULL;
     (void)hoisted__U64_1862;
     U64 hoisted__U64_1863 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_1862); });
     (void)hoisted__U64_1863;
@@ -2224,7 +2224,7 @@ U64 I64_size(void) {
 }
 
 U64 I64_hash(I64 self, HashFn hasher) {
-    U64 hoisted__U64_2049 = 0ULL;
+    U64 hoisted__U64_2049 = 8ULL;
     (void)hoisted__U64_2049;
     U64 hoisted__U64_2050 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I64 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2049); });
     (void)hoisted__U64_2050;
@@ -2246,7 +2246,7 @@ U64 F32_size(void) {
 }
 
 U64 F32_hash(F32 self, HashFn hasher) {
-    U64 hoisted__U64_2070 = 0ULL;
+    U64 hoisted__U64_2070 = 4ULL;
     (void)hoisted__U64_2070;
     U64 hoisted__U64_2071 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, F32 *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2070); });
     (void)hoisted__U64_2071;
@@ -2288,7 +2288,7 @@ U64 Bool_size(void) {
 }
 
 U64 Bool_hash(Bool self, HashFn hasher) {
-    U64 hoisted__U64_2125 = 0ULL;
+    U64 hoisted__U64_2125 = 1ULL;
     (void)hoisted__U64_2125;
     U64 hoisted__U64_2126 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Bool *, U64))til_closure->call)(til_closure->env, &self, hoisted__U64_2125); });
     (void)hoisted__U64_2126;
