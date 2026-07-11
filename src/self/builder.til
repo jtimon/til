@@ -5604,7 +5604,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     return 0
 }
 
-priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool) returns I32 {
+priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool, usize32: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -5630,6 +5630,9 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     if asan {
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
+    // --usize=32 (issue #309): force U32 container fields in the emitted C.
+    mut usize_flags := ""
+    if usize32 { usize_flags = " -DTIL_USIZE32" }
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -5638,7 +5641,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Compile library .c to object
     obj_path := format("gen/lib/", lib_name, ".o")
-    mut cmd := compiler.format(extra, werr, asan_flags, " -fPIC -I", ext_dir,
+    mut cmd := compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir,
         " -c ", c_path, " -o ", obj_path)
     mut result := system_cmd(cmd)
     if result != 0 {
@@ -5648,7 +5651,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
 
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
-    cmd = compiler.format(extra, werr, asan_flags, " -fPIC -I", ext_dir,
+    cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir,
         " -c ", ext_c_path, " -o ", ext_obj)
     result = system_cmd(cmd)
     if result != 0 {
@@ -5660,7 +5663,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     mut user_obj := ""
     if uc.len() > 0 {
         user_obj = "gen/lib/user.o"
-        cmd = compiler.format(extra, werr, asan_flags, " -fPIC -I", ext_dir, ifl,
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir, ifl,
             " -c ", uc, " -o ", user_obj)
         result = system_cmd(cmd)
         if result != 0 {
@@ -5702,7 +5705,7 @@ priv is_gui_auto_import := func(auto_import: Str) returns Bool {
     return auto_import.eq("gui").or(auto_import.eq("src/modes/gui")).or(auto_import.ends_with("/gui"))
 }
 
-priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool) returns I32 {
+priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool, usize32: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -5762,6 +5765,14 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         }
     }
 
+    // --usize=32 (issue #309): -DTIL_USIZE32 makes ext.h typedef USize as
+    // U32 while UPtr stays pointer-width, so the emitted program's container
+    // fields match the U32 layout the compiler used at typecheck/constfold.
+    // The generated .c and ext.c are compiled in one cc invocation below, so
+    // a single define covers both.
+    mut usize_flags := ""
+    if usize32 { usize_flags = " -DTIL_USIZE32" }
+
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
     slash := ext_c_path.rfind("/")
@@ -5789,7 +5800,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             // Skip -include forward.h for src/c/ files
             mut fwd_flag := format(" -include ", fwd_path)
             if file.starts_with("src/c/") { fwd_flag = " -Isrc/c -Iboot" }
-            obj_cmd := compiler.format(extra, werr, asan_flags, prof_flags, " -I", ext_dir,
+            obj_cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, " -I", ext_dir,
                 fwd_flag, ifl, " -c ", file,
                 " -o ", user_obj)
 
@@ -5872,7 +5883,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut gui_part := ""
     if is_gui_auto_import(mode_auto_import) { gui_part = format(" ", target_gui_libs(target)) }
 
-    cmd := compiler.format(extra, werr, asan_flags, prof_flags, prof_link_flags, target_link_extra_args(target), " -g", dyn_flag, " -I", ext_dir,
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, prof_link_flags, target_link_extra_args(target), " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
         " ", ffi_lib, gui_part, " ", sys_libs)
@@ -8046,10 +8057,13 @@ priv print_translate_success := proc(paths: BuildPaths) {
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+    // --usize=32 (issue #309): pass -DTIL_USIZE32 to cc so the emitted C's
+    // container widths match the alias width used at typecheck/constfold.
+    usize32 := lp.usize_override_bits.eq(32)
     if paths.do_lib {
-        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan)
+        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan, usize32)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize32)
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {

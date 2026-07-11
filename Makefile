@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_mac build_wasm doc doc_cache summary help install tmp two_pass
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
 
 all: bin/til
 
@@ -207,16 +207,28 @@ bin/tests: bin/til $(CORE) $(STD) $(SELF) src/tests.til
 
 # --- Test suite ---
 
-test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize32
 	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
+
+# Issue #309 regression: --usize=32 forces the USize container-width alias to
+# U32 even on this 64-bit host (Str.size() 24 -> 16) while UPtr stays 64-bit.
+# test/usize32.til asserts the narrowed widths and round-trips strings/vecs,
+# exiting non-zero on any mismatch. Run both interpreted (compile-time
+# constfold + interpreter fold code at U32) and compiled (-DTIL_USIZE32 in the
+# emitted C). Not part of the src/tests.til corpus -- it targets U32, not the
+# default U64.
+check_usize32: bin/til tmp
+	bin/til --usize=32 test/usize32.til
+	bin/til build --usize=32 -o tmp/usize32 test/usize32.til
+	tmp/usize32
 
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
 # compiled test/example binaries run without sanitizer instrumentation, so the
 # suite is faster at the cost of not catching compiler or program leaks / heap
 # errors. Use for quick iteration; `make test` remains the default before
 # committing.
-test_fast: bin/til bin/test_runner bin/plot bin/tests
+test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize32
 	$(XVFB_RUN) bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 

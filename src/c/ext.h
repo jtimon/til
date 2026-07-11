@@ -28,12 +28,22 @@ typedef char I8;
 typedef unsigned char U8;
 typedef float F32;
 typedef bool Bool;
-// container sizes (count, cap, elem_size); target-driven like UPtr
-#if UINTPTR_MAX == 0xffffffff
+// container sizes (count, cap, elem_size) and raw pointer/byte widths.
+// UPtr always follows the C pointer width (real pointer arithmetic needs
+// it). USize follows pointer width too by default, but `til --usize=32`
+// passes -DTIL_USIZE32 to cc so a 64-bit host can build U32-wide container
+// fields while UPtr stays 64-bit (issue #309). When TIL_USIZE32 is not
+// defined this block is byte-identical to the old pointer-width typedef.
+#if defined(TIL_USIZE32)
 typedef U32 USize;
-typedef U32 UPtr;
+#elif UINTPTR_MAX == 0xffffffff
+typedef U32 USize;
 #else
 typedef U64 USize;
+#endif
+#if UINTPTR_MAX == 0xffffffff
+typedef U32 UPtr;
+#else
 typedef U64 UPtr;
 #endif
 typedef struct Str Str;

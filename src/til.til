@@ -546,6 +546,10 @@ usage := proc() {
     println("  ast        Print the parsed AST as a Lisp-like S-expression")
     println("  bindings   Generate a `mode lib` .til binding from a C header")
     println("  help       Print this message")
+    println("")
+    println("Options:")
+    println("  --usize=32  Force U32 container index/size widths, saving memory on a")
+    println("              64-bit host (default follows the target's pointer width).")
 }
 
 CliArgs := struct {
@@ -560,6 +564,9 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
+    // #309: --usize=32 forces the USize container-width alias to U32 even on
+    // a 64-bit host (UPtr stays pointer-width). 0 = follow the target default.
+    usize_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.
     check_unused_imports := true
@@ -671,6 +678,19 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         } else if flag.starts_with("--cc=") {
             cli.cc = flag.strip_prefix("--cc=").clone()
             cli.path_idx++
+        } else if flag.starts_with("--usize=") {
+            // #309: force the USize container-width alias. 32 = U32 even on a
+            // 64-bit host (UPtr stays pointer-width); 64 = the current default.
+            uval := flag.strip_prefix("--usize=")
+            if uval == "32" {
+                cli.usize_bits = 32
+            } else if uval == "64" {
+                cli.usize_bits = 64
+            } else {
+                println(format("error: --usize expects 32 or 64, got '", uval, "'"))
+                exit(1)
+            }
+            cli.path_idx++
         } else if flag.eq("--prefix").and(cli.path_idx.add(1).lt(args.len())) {
             ref pval : Str = args[cli.path_idx + 1]
             cli.install_prefix = pval.clone()
@@ -771,6 +791,9 @@ main := proc(args: ..Str) {
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
     lp.target = target
+    // #309: --usize override must be set before prepare_program stamps the
+    // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).
+    lp.usize_override_bits = cli.usize_bits
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports
     user_argv := collect_user_argv(lp, args, cli.path_idx + 1)

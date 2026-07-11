@@ -262,6 +262,11 @@ LoadedProgram := struct {
     include_flags := ""
     link_c_paths := ""
     run_tests := false
+    // --usize=32 override (issue #309): 0 = follow the target's pointer
+    // width (default), 32 = force the USize alias to U32 even on a 64-bit
+    // host. UPtr is never affected. Set from the CLI in src/til.til before
+    // prepare_program stamps the alias widths.
+    usize_override_bits : I64 = 0
 namespace:
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
         if self.is_null() { return }
@@ -320,7 +325,14 @@ priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
 // from the source alias decl (lag-free); fall back to the baked
 // target_*_name only if the source decl can't be found.
 priv target_int_alias_name := func(lp: LoadedProgram, alias_name: Str, target_fallback: Str) returns Str {
-    if target_uptr_name(lp.target) == "U32" { return "U32" }
+    // --usize=32 (issue #309): force the USize alias to U32 on any host,
+    // independent of the target's pointer width. UPtr is never forced here,
+    // so it keeps following target_uptr_name (pointer width).
+    if alias_name.eq("USize").and(lp.usize_override_bits.eq(32)) { return "U32" }
+    // 32-bit targets narrow this alias to U32. Use the per-alias width the
+    // caller resolved (target_fallback = target_usize_name / target_uptr_name)
+    // rather than always gating on UPtr's width, so USize and UPtr can differ.
+    if target_fallback == "U32" { return "U32" }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
