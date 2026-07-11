@@ -3081,56 +3081,161 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
 // `func() returns T { return e }` (call-by-name). The synthetic funcptr type is
 // named `_Fn_ret_<T>`, registered through register_funcsig_alias_for_stmt so the
 // builder emits the typedef. Scope: top-level defs, bare-name calls, exact
-// (non-variadic) arity, no shadowing of a param name inside the body.
+// (non-variadic) arity. Shadowed param names are handled scope-aware
+// (lazy_autoforce_body); the residual walls are assigning a param /
+// field-assigning through one / case patterns binding a param name
+// (lazy_thunk_blocked), which stay hard errors.
 
-// True if `body` (a FuncDef body) binds any name equal to a lazy param name --
-// a Decl, an Assign target, or a for-loop variable. Walk stops at nested
-// FuncDef boundaries (their params/locals are their own). When shadowing is
-// present we do NOT thunk-lower the def at all (the existing typer hard error
-// fires) rather than risk mis-rewriting a shadowed use.
-priv lazy_param_shadowed := func(e: Expr, pnames: Set(Str), depth: I32) returns Bool {
-    if depth > 256 { return false }
-    for i in 0..e.children.len() {
-        ref c : Expr = e.children[i]
-        switch c.node_type {
-        case NodeType.FuncDef: continue   // nested closure: its own scope
-        case NodeType.Decl(dd):
-            if pnames.has(dd.name) { return true }
-        case NodeType.Assign(ad):
-            if pnames.has(ad.name) { return true }
-        case NodeType.ForIn(fd):
-            if pnames.has(fd.name) { return true }
-            if fd.name2.len().gt(0).and(pnames.has(fd.name2)) { return true }
+// True when a case FCall pattern (enum payload binding `Type.Variant(x)` or
+// struct pattern `Point(x = nx)`) BINDS a name equal to a lazy param name.
+// Binder idents are not uses -- forcing one would destroy the binding -- and
+// binder-aware forcing is not worth the complexity for this rare shape.
+priv lazy_case_binds_param := func(pat: Expr, pnames: Set(Str)) returns Bool {
+    if pat.node_type.is(NodeType.FCall).not() { return false }
+    for i in 1..pat.children.len() {
+        ref a : Expr = pat.children[i]
+        switch a.node_type {
+        case NodeType.Ident(bn):
+            if pnames.has(bn.ident_name()) { return true }
+        case NodeType.NamedArg:
+            if a.children.len() > 0 {
+                switch a.children[0].node_type {
+                case NodeType.Ident(nbn):
+                    if pnames.has(nbn.ident_name()) { return true }
+                case NodeType.FCall:
+                    if lazy_case_binds_param(a.children[0], pnames) { return true }
+                case:
+                }
+            }
+        case NodeType.FCall:
+            if lazy_case_binds_param(a, pnames) { return true }
         case:
         }
-        if lazy_param_shadowed(c, pnames, depth + 1) { return true }
     }
     return false
 }
 
-// Rewrite every value-use of a lazy param name into a zero-arg force call
-// `p()`. Each matching Ident child is replaced by `(FCall (Ident p))`. Walk
-// stops at nested FuncDef boundaries. Shadowing is rejected earlier, so every
-// Ident naming a param here is genuinely that param.
-priv lazy_autoforce := func(mut e: Expr, pnames: Set(Str), depth: I32) {
-    if depth > 256 { return }
-    for i in 0..e.children.len() {
-        ref c : Expr = e.children[i]
-        switch c.node_type {
-        case NodeType.FuncDef: continue   // nested closure: leave its body
-        case NodeType.Ident(idn):
-            ref nm : Str = idn.ident_name()
-            if pnames.has(nm) {
-                line := c.line
-                col := c.col
-                mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                call.add_child(own Expr.new(ident_node(nm), line, col))
-                e.children[i] = call
-                continue
+// The root receiver of a FieldAccess chain (`p.x.f` -> `p`), else NULL.
+priv lazy_fieldaccess_root := func(e: Expr) returns ref Expr {
+    if e.node_type.is(NodeType.FieldAccess).and(e.children.len().gt(0)) {
+        return lazy_fieldaccess_root(e.children[0])
+    }
+    return e
+}
+
+// True when the body contains a construct the thunk lowering cannot rewrite
+// faithfully, so the def is left lazy and the typer's hard error names it:
+//   - an ASSIGN whose target names a param (a thunk cannot be assigned; the
+//     by-name splice would write into the caller's argument, which a forced
+//     temporary cannot express). Conservatively includes assigns to a local
+//     SHADOWING the param -- rename the local instead.
+//   - a FIELD-ASSIGN whose receiver chain roots in a param (`p.f = x`: the
+//     forced call yields a temporary, so the write would be lost).
+//   - a case pattern BINDING a param name (see lazy_case_binds_param).
+priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns Bool {
+    if depth > 256 { return true }
+    switch e.node_type {
+    case NodeType.FuncDef: return false        // nested closure: its own scope
+    case NodeType.Assign(ad):
+        if pnames.has(ad.name) { return true }
+    case NodeType.FieldAssign:
+        if e.children.len() > 0 {
+            ref root : Expr = lazy_fieldaccess_root(e.children[0])
+            switch root.node_type {
+            case NodeType.Ident(rn):
+                if pnames.has(rn.ident_name()) { return true }
+            case:
             }
+        }
+    case NodeType.Case:
+        if e.children.len() >= 2 {
+            if lazy_case_binds_param(e.children[0], pnames) { return true }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if lazy_thunk_blocked(c, pnames, depth + 1) { return true }
+    }
+    return false
+}
+
+// Scope-aware auto-force: rewrite every value-use of a LIVE lazy param `p`
+// (in `pnames` and not in `shadowed`) into a zero-arg force call `p()`.
+// Shadowing rules: a Decl of the name shadows it for the REST of its
+// enclosing Body (the Decl's own initializer still sees the param); a for-in
+// loop variable shadows it inside the loop body only; a catch binding shadows
+// it inside the catch body. A nested FuncDef is its own scope: never
+// descended. lazy_autoforce_node processes ONE child slot (so a bare-Ident
+// slot can be replaced through its parent); lazy_autoforce_body runs a
+// statement list, threading Decl shadows to the following statements.
+priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
+        shadowed: Set(Str), depth: I32) {
+    if depth > 256 { return }
+    ref c : Expr = parent.children[idx]
+    switch c.node_type {
+    case NodeType.FuncDef: return
+    case NodeType.Ident(idn):
+        ref nm : Str = idn.ident_name()
+        if pnames.has(nm).and(shadowed.has(nm).not()) {
+            line := c.line
+            col := c.col
+            mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+            call.add_child(own Expr.new(ident_node(nm), line, col))
+            parent.children[idx] = call
+        }
+        return
+    case NodeType.Body:
+        lazy_autoforce_body(c, pnames, shadowed, depth + 1)
+        return
+    case NodeType.ForIn(fid):
+        // The iterated expression sees the current scope; the loop body sees
+        // the loop variable(s) shadowing any same-named param.
+        if c.children.len() >= 1 { lazy_autoforce_node(c, 0, pnames, shadowed, depth + 1) }
+        mut loop_shadowed := shadowed.clone()
+        if pnames.has(fid.name) { loop_shadowed.add(own fid.name.clone()) }
+        if fid.name2.len().gt(0).and(pnames.has(fid.name2)) {
+            loop_shadowed.add(own fid.name2.clone())
+        }
+        if c.children.len() >= 2 {
+            lazy_autoforce_body(c.children[1], pnames, loop_shadowed, depth + 1)
+        }
+        return
+    case NodeType.Catch:
+        // children: [Ident var, Ident type, Body]. The binder idents are not
+        // uses; the caught var shadows a same-named param in the catch body.
+        mut catch_shadowed := shadowed.clone()
+        switch c.children[0].node_type {
+        case NodeType.Ident(cvn):
+            if pnames.has(cvn.ident_name()) { catch_shadowed.add(own Str.clone(cvn.ident_name())) }
         case:
         }
-        lazy_autoforce(c, pnames, depth + 1)
+        if c.children.len() >= 3 {
+            lazy_autoforce_body(c.children[2], pnames, catch_shadowed, depth + 1)
+        }
+        return
+    case:
+    }
+    for j in 0..c.children.len() {
+        lazy_autoforce_node(c, j, pnames, shadowed, depth + 1)
+    }
+}
+
+priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
+        outer_shadowed: Set(Str), depth: I32) {
+    if depth > 256 { return }
+    mut shadowed := outer_shadowed.clone()
+    for i in 0..body.children.len() {
+        mut decl_name := ""
+        switch body.children[i].node_type {
+        case NodeType.Decl(dd): decl_name = dd.name.clone()
+        case:
+        }
+        lazy_autoforce_node(body, i, pnames, shadowed, depth + 1)
+        // A Decl shadows its name for the statements AFTER it (its own
+        // initializer, walked above, still saw the param).
+        if decl_name.len().gt(0).and(pnames.has(decl_name)) {
+            shadowed.add(own decl_name)
+        }
     }
 }
 
@@ -3175,8 +3280,10 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
     case:
         return
     }
-    // Shadowing: leave the def lazy so the existing typer hard error fires.
-    if lazy_param_shadowed(body, pnames, 0) { return }
+    // Constructs the thunk rewrite cannot express (assigning a param,
+    // field-assigning through one, case patterns binding a param name):
+    // leave the def lazy so the typer's hard error names it.
+    if lazy_thunk_blocked(body, pnames, 0) { return }
 
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
@@ -3192,7 +3299,8 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
     case:
         return
     }
-    lazy_autoforce(body, pnames, 0)
+    no_shadow := Set(Str).new()
+    lazy_autoforce_body(body, pnames, no_shadow, 0)
     lowered.add(own name.clone())
     lp.ctx.scope.set_func_def(name, fdef)
 }

@@ -742,15 +742,15 @@ for mut k, v in terr_kvmut_map {
 }
 
 // #262: the thunk fallback lowers non-inlinable lazy bodies (loops, early
-// returns) to ordinary thunk-taking functions, so a plain loop body now
-// compiles. The fallback is NOT applied when a param name is SHADOWED inside
-// the body (auto-forcing a shadowed use would be wrong), so such a def stays
-// lazy and still hard-errors as non-inlinable. Here the for-loop variable `b`
-// shadows the param `b`, so the def is left lazy and rejected.
-terr_bad_lazy := lazy_func(a: Bool, b: Bool) returns Bool {
-    if b { return a }
-    for b in 0..3 { if b.eq(2) { return a } }
-    return a
+// returns) to ordinary thunk-taking functions -- including bodies that
+// SHADOW a param (scope-aware auto-force). What it cannot express is
+// ASSIGNING a lazy param: a thunk cannot be assigned, and the by-name splice
+// would write into the caller's argument, which a forced temporary cannot.
+// Such a def stays lazy and hard-errors as non-inlinable (lazy_thunk_blocked,
+// src/self/loader.til). Here the body assigns the param `b`.
+terr_bad_lazy := lazy_func(a: Bool, mut b: Bool) returns Bool {
+    while a { b = false }
+    return b
 }
 
 // #294: a numeric conversion on a numeric literal is redundant -- the bare

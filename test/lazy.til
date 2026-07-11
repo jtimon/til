@@ -433,6 +433,43 @@ test_thunk_ufcs_method := test() {
     assert_eq(I64, eval_count, 0)
 }
 
+# --- thunk fallback with SHADOWED params: auto-force is scope-aware. The
+#     for-in loop variable `b` and the block-local `b := 42` shadow the param
+#     inside their scopes (never forced there); the final `return b` is the
+#     param again and forces the thunk. ---
+
+shadow_mix := lazy_func(a: Bool, b: Bool) returns Bool {
+    for _ in 0..3 { if a.not() { return false } }
+    for b in 0..2 { if b.eq(9) { return false } }
+    if a {
+        # block-local shadows the param; its INITIALIZER still sees (and
+        # forces) the param `a`, not-foldable so the local survives to C.
+        b := a
+        if b.not() { return false }
+    }
+    return b
+}
+
+test_thunk_shadowing := test() {
+    expect(shadow_mix(true, true), "shadow T,T")
+    expect(shadow_mix(true, false).not(), "shadow T,F")
+    expect(shadow_mix(false, true).not(), "shadow F,T")
+}
+
+test_thunk_shadowing_short_circuits := test() {
+    # a=false -> the first loop returns before the param `b` is ever forced;
+    # the shadowed b's (loop var, block local) never touch the thunk.
+    eval_count = 0
+    r := shadow_mix(false, bump())
+    expect(r.not(), "shadow_mix(false, bump()) is false")
+    assert_eq(I64, eval_count, 0)
+    # a=true -> only the final `return b` forces the thunk: exactly once.
+    eval_count = 0
+    r2 := shadow_mix(true, bump())
+    expect(r2, "shadow_mix(true, bump()) is true")
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
 #     (a side-effecting expression). ---
 
