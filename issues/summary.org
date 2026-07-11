@@ -46,6 +46,7 @@
 ** Medium
 *** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+*** [[./open/309.org][#309]] --usize=32 flag: force U32 container widths on 64-bit builds
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/63.org][#63]] User-defined modes

@@ -1,0 +1,255 @@
+# priority: medium
+# category: features
+** OPEN #309 --usize=32 flag: force U32 container widths on 64-bit builds
+
+Add a compiler/interpreter flag ~--usize=32~ (default ~64~) that forces the
+~USize~ alias to ~U32~ even on a 64-bit host, while ~UPtr~ stays ~U64~. This
+shrinks every container index/length/capacity/size field (Str, Vec, Array,
+Map, Set, DynVec, ...) from 8 bytes back to 4, trading addressable range for
+memory. It is an opt-in knob for memory-sensitive workloads on 64-bit
+machines, not a new default.
+
+*** Motivation
+
+Issue #192 made ~USize~ target-driven (~U64~ on 64-bit, ~U32~ on 32-bit),
+matching ~UPtr~. That was correct, but it widened every container size field
+on 64-bit builds and cost measurable memory/throughput. The aggregate
+regression was expected; what was painful was that it landed unevenly across
+commits, and some workloads simply do not need 64-bit-wide counts. ~--usize=32~
+lets those workloads keep the smaller U32 footprint on a 64-bit CPU WITHOUT
+cross-compiling to a real 32-bit target (which would also cripple ~UPtr~ and
+pointer arithmetic).
+
+Concretely, at ~--usize=32~ on x86-64: ~Str.size()~ 24 -> 16, ~Vec(T).size()~
+24 -> 16, ~DynVec.size()~ 56 -> smaller, etc. -- pointers and ~UPtr~ stay 8
+bytes.
+
+*** Key insight: this is the 32-bit-cross-compile path minus the UPtr downshift
+
+Cross-compiling a 32-bit target from a 64-bit host ALREADY resolves ~USize~ to
+~U32~ on a 64-bit host, and #192's final fix (commit ~d44f77c~, "Issue #192:
+fix USize width crash cross-compiling a 32-bit target from a 64-bit host") made
+that path work end to end. ~--usize=32~ is the same width combination on the
+compiler's interpret/constfold side; it differs only in keeping ~UPtr~ = ~U64~
+and the codegen target 64-bit.
+
+Why the interpret/constfold side needs no new work:
+
+- The compile-time interpreter's ~Str~/container layout is fully ctx-driven:
+  the ~make_str_value~ family, ~str_count_at~ / ~str_cap_at~ /
+  ~str_usize_field_at~, and every container read go through ~ctx_field_layout~
+  / ~ctx_total_size~ (src/self/interpreter.til ~4029-4125~, ~2700-3076~), which
+  resolve the USize width from ~scope_target_usize_pname~ per compilation --
+  NOT from the compiler binary's own build width. So a U64-built ~bin/til~
+  already folds U32-USize code correctly (that is exactly what d44f77c fixed).
+- NO core container struct has a ~UPtr~-typed field: every data pointer is
+  ~own~ / ~Dynamic~, which the interpreter stores as a real 8-byte host pointer
+  regardless of target (src/self/initer.til ~1808-1810~). So the interpreter's
+  runtime Value layouts depend ONLY on the USize width, never on ~UPtr~.
+  Setting ~USize~=U32 while ~UPtr~=U64 yields a BYTE-IDENTICAL interpreter
+  layout to a genuine 32-bit target, introducing no layout the machinery has
+  not already been exercised against.
+
+So the real work is: (1) let ~USize~ be chosen independently of the target /
+~UPtr~ in the width resolvers, (2) split ext.h's C ABI so the emitted C can use
+~uint32_t USize~ while keeping ~uint64_t UPtr~, (3) driver plumbing, (4) a
+regression test. #192's hard part (the interpreter coupling) is already done.
+
+*** How USize width is resolved today (map for implementers)
+
+There are two width authorities, deliberately kept in agreement:
+
+1. C ABI width -- ~src/c/ext.h:16-23~, a single ~#if UINTPTR_MAX == 0xffffffff~
+   block that typedefs BOTH ~USize~ and ~UPtr~ to U32/U64 by the C compiler's
+   POINTER width. Governs the byte layout of every emitted ~USize~ struct field
+   and the width of ext.c's compiled ~USize~/~UPtr~. This is the single source
+   of truth for the struct-field ABI: emitted fields spell the typedef NAME
+   "USize" via ~field_emit_ctype~ (src/self/builder.til ~761-765~), and
+   ~TIL_CAP_LIT~ / ~TIL_CAP_VIEW~ emit as ~((USize)-1)~ / ~((USize)-2)~.
+2. ctx/layout width -- ~Context.target_usize_pname~ / ~scope.target_usize_pname~
+   (default "U64"; src/self/context.til ~78~ and ~312~), used by the typer /
+   initer / interpreter / constfolder for size/align math, typechecking,
+   sentinels, and the whole interpret path.
+
+The width VALUE is a pure function of ~Target~ (a plain enum -- src/self/
+targets.til ~27~ -- with no per-instance fields, so a per-compilation override
+CANNOT live on ~Target~; it must be a separate field the resolvers consult):
+
+- ~target_usize_name~ / ~target_uptr_name~ (src/self/targets.til ~108-125~),
+  both "U32" iff ~target_is_32bit~, else "U64" -- identical bodies.
+- ~target_int_alias_name~ (src/self/loader.til ~308-318~) finalizes it per
+  build. NOTE line ~309~ gates the USize width on ~target_uptr_name~ -- it
+  tests the POINTER width even for the USize call. This conflation must be
+  undone for USize to be U32 while UPtr is U64.
+- ~context_register_target_int_alias_types~ (src/self/context.til ~562-567~,
+  called once at src/self/loader.til ~2685~) stamps all four pname fields.
+- ~retarget_loaded_aliases~ (src/self/loader.til ~338-341~) stamps the
+  USize/UPtr ~TypeBinding.type~ / ~alias_target~.
+
+Consumers read ~scope_target_usize_pname~ (context.til ~575-583~): the initer
+(~initer.til:19~, ~1199~, ~1926-1930~), the typer (~typer.til:5502~, ~5568~),
+~type_from_name_init~ (~context.til:761~), and the constfolder CAP sentinels
+(~constfolder.til:1648-1664~, U32- vs U64-wide, fed by
+~lp.ctx.target_usize_pname~).
+
+The twinning of USize and UPtr is enforced redundantly in four places: ext.h
+~17-23~; loader.til ~309~; the identical targets.til bodies; and the source
+aliases ~USize := U64~ / ~UPtr := U64~ at src/core/numbers.til ~808~ / ~814~.
+There is currently NO path by which USize and UPtr resolve to different widths.
+The struct-layout engine, however, ALREADY resolves USize and UPtr through
+separate pnames (initer.til ~1926-1930~), so divergent widths are handled
+correctly at the layout level once the resolvers stop twinning them.
+
+*** "Manage aliases in typer/desugarer -- join them back"
+
+The alias-resolution logic is scattered and duplicated. The same
+~if name == "USize"~ short-circuit is reimplemented at ~6 sites (typer.til
+~5502~ / ~5568~, context.til ~761~, initer.til ~19~ / ~1199~ / ~1926~), and the
+width is stored in TWO authorities -- the pname fields AND the ~TypeBinding~ --
+that are stamped at different phases and re-synced by ~retarget_alias_binding~.
+Code comments already flag the fragility ("same authority as type_from_name_init
+and resolve_type_alias"; "so the name-form and the type-form never disagree").
+Note the desugarer does NOT currently participate in alias resolution at all
+(src/self/desugarer.til only emits the string "USize" for generated
+loop-counter locals); "manage aliases in typer/desugarer" therefore means
+either keeping resolution in the typer (unify the resolvers) or moving it
+earlier into desugaring.
+
+Adding ~--usize=32~ as raw plumbing would mean threading the override through
+every one of those scattered sites -- exactly the kind of scatter that made
+#192 painful. The clean approach is to centralize alias-width resolution into a
+SINGLE authority FIRST, so the flag becomes a one-line override. Two candidate
+shapes:
+
+  (a) Unify the resolvers: one ~resolve_alias_width_name(scope, name)~ (or
+      equivalent) that ~type_from_name~ / ~resolve_type_alias~ /
+      ~type_from_name_init~ / ~primitive_type_info~ all call, plus one authority
+      for the width so the pname fields and the ~TypeBinding~ stop being two
+      sources of truth (fold ~retarget_alias_binding~ into it).
+  (b) Resolve aliases once during desugaring so downstream passes see already-
+      resolved widths (heavier; changes WHEN resolution happens).
+
+Recommendation: (a). It is lower-risk, width-neutral, and sufficient to make
+the flag a single override at ~context_register_target_int_alias_types~.
+Whether to also pull resolution into the desugarer (b) is a design call to
+settle before Step 1 -- it is a larger refactor and not required for the flag.
+
+*** Design decisions to settle before coding
+
+- Flag spelling / values: ~--usize=32~ and ~--usize=64~ (default 64), parsed
+  alongside ~--target=~ (src/til.til ~503-552~). Accept only 32 / 64.
+- Override home: ~CliArgs.usize_bits~ -> a new ~LoadedProgram~ field, set in
+  ~main~ right after ~lp.target = target~ (src/til.til ~615-618~), consulted at
+  the single stamping site.
+- ext.h lever: gate ~USize~ on a new macro (~#if defined(TIL_USIZE32)~) BEFORE
+  the ~UINTPTR_MAX~ block; leave ~UPtr~'s ~UINTPTR_MAX~ block untouched. The
+  driver passes ~-DTIL_USIZE32~ to cc when the override is 32. (Do NOT try to
+  prepend a ~typedef~ override in the emitted prelude -- it collides with
+  ext.h's unconditional typedef and never reaches ext.c.)
+- Scope: the flag affects the compiled/interpreted PROGRAM, not the build of
+  ~bin/til~ itself (bin/til stays U64).
+- Interaction with a 32-bit ~--target~: ~--usize=64~ on a 32-bit target is odd
+  (containers wider than pointers). Simplest: support ~--usize=32~ only as a
+  downshift on 64-bit targets and document / reject other combinations. Settle
+  this.
+
+*** Incremental plan
+
+No step changes the DEFAULT width, so NONE needs a ~Two-pass:~ commit -- each is
+width-neutral for the existing build and green under plain ~make test~ (the new
+macro is undefined by default, so the emitted C and boot artifacts are
+byte-identical until someone passes the flag).
+
+**** Step 1 -- centralize alias-width resolution (the "join them back" cleanup)
+
+Width-neutral refactor. Collapse the ~6 duplicated ~if name == "USize"/"UPtr"~
+resolvers (typer.til ~5502~ / ~5568~, context.til ~761~, initer.til ~19~ /
+~1199~ / ~1926~) into a single authority function, and make the ~TypeBinding~
+and the pname fields stop being two independently-stamped sources of truth
+(fold ~retarget_alias_binding~ into the same authority). Verify
+~make clean && make test~ green (identical widths for every existing target).
+This turns the remaining steps into one-line overrides instead of a scatter
+hunt. Optional but strongly recommended; skip only if the flag is wanted as raw
+plumbing.
+
+**** Step 2 -- driver flag + resolver override (makes `interpret` work at U32)
+
+- Parse ~--usize=~ in ~parse_args~ (src/til.til ~503-552~); add
+  ~CliArgs.usize_bits~ (default from target).
+- Add a ~LoadedProgram~ override field, set in ~main~ after ~lp.target = target~
+  (src/til.til ~615-618~).
+- Consult it at ~context_register_target_int_alias_types~ (loader.til ~2685~)
+  and the ~retarget_loaded_aliases~ USize line (loader.til ~340~), and fix
+  ~target_int_alias_name~'s line-~309~ UPtr conflation so USize can be U32 while
+  UPtr is U64.
+- With no flag: byte-identical behavior. Verify green.
+- After this step ~til interpret --usize=32 foo.til~ already runs correctly (the
+  interpret path is fully ctx-driven); ~build~ still emits U64 C -> not yet
+  usable for codegen. Add an interpret-only smoke test here.
+
+**** Step 3 -- ext.h C-ABI split + builder -D threading (makes `build`/`translate`/`run` work)
+
+- ext.h: gate ~USize~ on ~#if defined(TIL_USIZE32)~ first, else the existing
+  ~UINTPTR_MAX~ block; leave ~UPtr~ untouched. Width-neutral (macro undefined by
+  default -> byte-identical).
+- Builder: when the compilation's usize override is 32, pass ~-DTIL_USIZE32~ to
+  every cc invocation. ~compile_c~ is a single cc command for the generated
+  ~.c~ + ext.c (builder.til ~5547-5550~); ~compile_lib~ needs it on each object
+  compile (~5352~ / ~5362~ / ~5374~). Thread the override from LoadedProgram/ctx
+  into the builder compile functions.
+- Verify green (default build defines no macro). Then ~til build --usize=32
+  foo.til~ emits ~uint32_t USize~ / ~uint64_t UPtr~ and links against the normal
+  64-bit libc.
+
+**** Step 4 -- regression test + Makefile target
+
+- Add a test that builds AND runs a program with ~--usize=32~ on the 64-bit
+  host and asserts the narrowed sizes (~Str.size()==16~, ~Vec(Str).size()==16~,
+  a shrunk ~DynVec.size()~) plus correct round-trips of strings / vecs / maps.
+- Add a Makefile target modeled on the ~--target=windows-x64~ /
+  ~--target=wasm32~ rules (Makefile ~304~ / ~331~). This ~--usize=32~-on-64-bit
+  build is MORE testable than a real 32-bit cross-compile: it links the normal
+  64-bit libc (the sandbox lacks 32-bit libc headers, so the existing 32-bit CI
+  targets cannot fully link here).
+- Leave the existing U64 size assertions (test/vecs.til ~135-137~,
+  test/dyn_vecs.til ~141-143~) as default-build coverage; the new test covers
+  U32.
+
+**** Step 5 -- docs + optional perf measurement (Doc:)
+
+- Document ~--usize=32~ in ~usage()~ (src/til.til) and any CLI docs.
+- Optionally quantify the memory/throughput win vs the default U64 build
+  (examples/shootil.til / doc/totals.csv) to confirm it recovers some of the
+  #192 regression for memory-bound workloads.
+
+*** Pitfalls / non-goals
+
+- Do NOT reintroduce the #192 interpreter coupling: keep every compile-time
+  Str/container layout read ctx-driven. It is fixed (d44f77c); the flag rides on
+  it. If a fold segfaults at U32, a NEW hardcoded-width read has crept in --
+  route it through ~ctx_field_layout~ / ~str_usize_field_at~, do not band-aid.
+- ~UPtr~ MUST stay pointer width: never let ~USize~=U32 reach real pointer
+  arithmetic (~ptr_add~, ext.c ~503~). The FFI boxing macros ~USIZE_REF~ /
+  ~UPTR_REF~ (ext.h ~30-31~) are already separate; audit any site that boxes a
+  USize where C expects UPtr, since such a mismatch cannot surface while the
+  widths are equal today.
+- Avoid the ext.h "prepend a typedef" trap (collides with ext.h's unconditional
+  typedef; never reaches ext.c). Use the ~-D~ macro (option b above). A
+  builder-emitted concrete ~uint32_t~ field type is also wrong -- it reopens the
+  #192 C-ABI blocker (ext.c keeps U64 sentinels / boxing).
+- d44f77c shipped NO dedicated regression -- the only guardrail for the
+  U32-on-64-bit-host width combination today is the 32-bit CI targets. Step 4's
+  test closes that gap for good.
+
+*** Anchor index (line numbers may drift; function names are stable)
+
+- Alias decls: src/core/numbers.til:808 (~USize := U64~), :814 (~UPtr := U64~)
+- Target width: src/self/targets.til:27 (~Target~ enum), :108 (~target_uptr_name~), :122 (~target_usize_name~)
+- Per-build resolve: src/self/loader.til:308 (~target_int_alias_name~, the :309 UPtr conflation), :2685 (stamp), :340 (retarget)
+- Width store: src/self/context.til:78 / :312 (pname defaults), :562 (~context_register_target_int_alias_types~), :575 (~scope_target_usize_pname~)
+- Resolvers to unify: typer.til:5502 / :5568, context.til:761, initer.til:19 / :1199 / :1926
+- C ABI: src/c/ext.h:16-23 (typedef block), :30-31 (REF macros); src/self/builder.til:761 (~field_emit_ctype~), :5547 (compile_c cc cmd), :5352 / :5362 / :5374 (compile_lib)
+- Interpreter (ctx-driven, do not break): src/self/interpreter.til:4029-4125, :4075 (~str_usize_field_at~); src/self/initer.til:2063 (~ctx_total_size~), :2074 (~ctx_field_layout~), :1808 (pointer fields always 8B)
+- Driver: src/til.til:403 (~CliArgs~), :418 (~parse_args~), :503-552 (flag scan), :615-618 (target -> lp)
+- Size assertions: test/vecs.til:135-137, test/dyn_vecs.til:141-143
+- Precedent commit: d44f77c ; prior-art issue: issues/fixed/192.org
