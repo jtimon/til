@@ -886,6 +886,15 @@ main := proc(args: ..Str) {
     // Bad Bool value: both backends print the diagnostic and exit(1).
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
 
+    // REPL help() smoke test. It drives bin/til's REPL over a piped script
+    // and self-checks, exiting 0 on PASS / 1 on FAIL. It used to be a
+    // separate hand-run `make test_repl_help` target outside the suite, so
+    // the suite could pass green while the REPL was broken (it did, twice,
+    // during the doc.til core->std move). Registering it here runs it
+    // wherever bin/tests runs -- make test, linux CI, and the mac jobs that
+    // invoke bin/tests directly. Exit-code-only check (no expected_out).
+    add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til"))
+
     // === Run all tests in parallel ===
     mut suite_end_ms := 0
     run_all_parallel(tests, j, fail, suite_end_ms)
