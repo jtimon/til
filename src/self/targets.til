@@ -147,7 +147,10 @@ priv validate_lang_for_target := func(lang: Lang, target: Target) {
 
 // ---------- Toolchain commands
 
-toolchain_command := func(target: Target, lang: Lang) returns Str {
+// proc, not func: the WindowsX64 case is host-dependent (host_os() is a
+// proc), so the whole thing must be a proc. Its two callers (compile_c,
+// compile_lib) are already procs.
+toolchain_command := proc(target: Target, lang: Lang) returns Str {
     validate_lang_for_target(lang, target)
     switch target {
     case Target.LinuxX64:     return "gcc"
@@ -156,7 +159,12 @@ toolchain_command := func(target: Target, lang: Lang) returns Str {
     case Target.LinuxX86:     return "gcc"
     case Target.LinuxArm32:   return "arm-linux-gnueabihf-gcc"
     case Target.LinuxRiscv32: return "riscv32-linux-gnu-gcc"
-    case Target.WindowsX64:   return "x86_64-w64-mingw32-gcc"
+    // mingw's gcc is the cross-prefixed x86_64-w64-mingw32-gcc when
+    // building windows FROM another host, but plain "gcc" when running
+    // natively ON windows (mingw installs it unprefixed in PATH).
+    case Target.WindowsX64:
+        if host_os() == "windows" { return "gcc" }
+        return "x86_64-w64-mingw32-gcc"
     case Target.MacosX64:     return "clang"
     case Target.MacosArm64:   return "clang"
     case Target.Wasm32:       return "clang"
@@ -278,6 +286,13 @@ target_ffi_lib := func(target: Target) returns Str {
     case Target.LinuxArm64:   return "vendor/libffi/libffi-linux-arm64.a"
     case Target.MacosX64:     return "vendor/libffi/libffi-macos.a"
     case Target.MacosArm64:   return "vendor/libffi/libffi-macos.a"
+    // mingw's target triple is fixed (no version suffix), so this path
+    // is stable and usable from any host that has the win64 libffi
+    // built -- unlike the mac/arm64 stable-path copies. This unlocks
+    // windows AS A HOST (til.exe links libffi for its ext_func
+    // interpreter dispatch) and runtime ext_func in cross-built user
+    // programs (issue #25).
+    case Target.WindowsX64:   return "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
     case: return ""
     }
     return ""
@@ -317,23 +332,30 @@ target_gui_libs := func(target: Target) returns Str {
 
 // ---------- Detect current platform
 
+// The default build/run target: the platform this binary itself was
+// compiled for, read from host_os()/host_arch() (compile-time string
+// literals) rather than uname. uname is wrong for a self-hosting
+// compiler on two counts: it does not exist on a Windows host (til.exe
+// would fall back to LinuxX64 and emit linux link flags -- the bug that
+// blocked windows AS A HOST, issue #25), and under emulation (wine,
+// qemu-user) it reports the KERNEL's platform while this binary, and
+// the toolchain/libffi linked into it, are the compiled platform, which
+// is what the default target must match. It is also free: the old
+// version spawned two uname subprocesses on every invocation.
 detect_current_target := proc() returns Target {
-    mut uname_s := ""
-    run_cmd(uname_s, "uname", "-s")
-    mut uname_m := ""
-    run_cmd(uname_m, "uname", "-m")
-
-    os := uname_s.replace("\n", "")
-    arch := uname_m.replace("\n", "")
-
-    if os == "Darwin" {
+    os := host_os()
+    arch := host_arch()
+    if os == "macos" {
         if arch == "arm64" { return Target.MacosArm64 }
         return Target.MacosX64
     }
-    if os == "Linux" {
-        if arch == "aarch64" { return Target.LinuxArm64 }
+    if os == "windows" { return Target.WindowsX64 }
+    if os == "linux" {
+        if arch == "arm64"   { return Target.LinuxArm64 }
         if arch == "riscv64" { return Target.LinuxRiscv64 }
-        if arch.eq("armv7l").or(arch.eq("armv6l")).or(arch.eq("armv8l")) { return Target.LinuxArm32 }
+        if arch == "arm32"   { return Target.LinuxArm32 }
+        if arch == "riscv32" { return Target.LinuxRiscv32 }
+        if arch == "x86"     { return Target.LinuxX86 }
         return Target.LinuxX64
     }
     return Target.LinuxX64

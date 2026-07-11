@@ -5829,55 +5829,58 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         user_part = all_objs
     }
 
-    // -rdynamic is a Linux/ELF gcc driver flag for exporting symbols to dlsym.
-    // mingw silently ignores it but clangs error out, so only add for non-Windows.
+    // -rdynamic (Linux/ELF) puts every symbol in the dynamic symbol
+    // table so the interpreter's ffi_global_symbol can dlsym(RTLD_DEFAULT)
+    // the exe's own statically-linked symbols (the libffi ffi_type_*
+    // globals, the ext.c primitives, the libc bindings) at runtime.
+    // mingw's equivalent is -Wl,--export-all-symbols: without it a PE has
+    // NO export table, GetProcAddress finds nothing, ffi_type_ref returns
+    // NULL and ffi_prep_cif faults -- which is exactly what blocked
+    // windows AS A HOST (til.exe running the interpreter/constfolder) and
+    // any cross-built program that calls ext_func at runtime (issue #25).
+    // wasm has no runtime symbol table / FFI, so it stays bare.
     mut dyn_flag := " -rdynamic"
-    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32)) { dyn_flag = "" }
+    if target.is(Target.WindowsX64) { dyn_flag = " -Wl,--export-all-symbols" }
+    if target.is(Target.Wasm32) { dyn_flag = "" }
 
-    // For Windows cross-compile, rewrite link_flags inherited from
-    // vendor/bindings/{raylib,libffi,tinyfd}.til. Their link() directives carry
-    // hardcoded Linux paths and POSIX-only -l flags; mingw doesn't ship
-    // -ldl/-lrt and can't load Linux ELF .a files. The Windows variants
-    // are added via target_gui_libs / target_ffi_lib / target_system_libs
-    // below, so it's safe to strip the Linux ones here.
-    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32)) {
-        lf = lf.replace(" -ldl", "")
-        lf = lf.replace("-ldl", "")
-        lf = lf.replace(" -lrt", "")
-        lf = lf.replace("-lrt", "")
-        lf = lf.replace(" -lpthread", "")
-        lf = lf.replace("-lpthread", "")
-        lf = lf.replace(" -lm", "")
-        lf = lf.replace("-lm", "")
-        lf = lf.replace(" vendor/raylib/src/libraylib.a", "")
-        lf = lf.replace("vendor/raylib/src/libraylib.a", "")
-        lf = lf.replace(" vendor/tinyfiledialogs/libtinyfd.a", "")
-        lf = lf.replace("vendor/tinyfiledialogs/libtinyfd.a", "")
-    }
-
-    // For macOS targets, the vendored .a paths in link() directives are
-    // correct as-is on a mac host (native archives at the same paths)
-    // and loudly wrong-arch on cross hosts, so they stay. Every -l flag
-    // the tree uses is a libSystem alias on darwin (m, pthread, dl) or
-    // does not exist there (rt, atomic); libSystem itself is linked
-    // implicitly by clang's darwin driver, and the SDK-less cross
-    // toolchain (vendor/macos, issue #25 phase 2) ships only
-    // libSystem.tbd -- so drop them all. libffi never appears in lf
-    // anymore (no source link()s it; target_ffi_lib appends the
-    // per-target archive below) -- and substring-replacing a
-    // loader-resolved path is exactly how a dangling ./src/self/ token
-    // once reached the mac linker, so no path replaces here.
-    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
-        lf = lf.replace(" -lrt", "")
-        lf = lf.replace("-lrt", "")
-        lf = lf.replace(" -latomic", "")
-        lf = lf.replace("-latomic", "")
-        lf = lf.replace(" -ldl", "")
-        lf = lf.replace("-ldl", "")
-        lf = lf.replace(" -lpthread", "")
-        lf = lf.replace("-lpthread", "")
-        lf = lf.replace(" -lm", "")
-        lf = lf.replace("-lm", "")
+    // For Windows/wasm cross-compiles, rewrite link_flags inherited
+    // from vendor/bindings/{raylib,tinyfd}.til link() directives: they
+    // carry Linux archive paths and POSIX-only -l flags; mingw doesn't
+    // ship -ldl/-lrt and can't load Linux ELF .a files. The Windows
+    // variants are added via target_gui_libs / target_ffi_lib /
+    // target_system_libs below. For macOS targets the vendored .a
+    // paths are correct as-is on a mac host (native archives at the
+    // same paths) and loudly wrong-arch on cross hosts, so they stay;
+    // every -l flag the tree uses is a libSystem alias on darwin (m,
+    // pthread, dl) or does not exist there (rt, atomic).
+    //
+    // The rewrite is TOKEN-level, never substring replace: the loader
+    // resolves link() paths importer-relative, so lf can carry the
+    // same archive as an ABSOLUTE path (that is how til.til's own
+    // windows cross-link got a dangling "/repo/root/" token when the
+    // relative substring was stripped out of it, and how a dangling
+    // ./src/self/ token once reached the mac linker). Matching whole
+    // tokens by suffix drops both spellings; anything unrecognized is
+    // kept and fails loudly at link with its real name.
+    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32))
+        .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
+        // On macos the archive paths stay (native archives live at the
+        // same paths on a mac host) and -latomic must go (no such lib
+        // on darwin). On windows/wasm the linux archives go and
+        // -latomic stays (mingw ships libatomic).
+        is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
+        tokens := lf.split(" ")
+        mut new_lf := ""
+        for t : Str in tokens {
+            if t.len() == 0 { continue }
+            if t.eq("-ldl").or(t.eq("-lrt")).or(t.eq("-lpthread")).or(t.eq("-lm")) { continue }
+            if is_macos.and(t.eq("-latomic")) { continue }
+            if is_macos.not() {
+                if t.ends_with("libraylib.a").or(t.ends_with("libtinyfd.a")) { continue }
+            }
+            new_lf = new_lf.format(" ", t)
+        }
+        lf = new_lf
     }
     if wasm_gui { lf = "" }
 

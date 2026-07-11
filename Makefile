@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_win_host build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
 
 all: bin/til
 
@@ -324,6 +324,21 @@ $(TINYFD_WIN_LIB):
 	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
 
+# libffi cross-built for win64. Needed to cross-compile til.exe itself
+# (the compiler links libffi for its ext_func interpreter dispatch --
+# windows AS A HOST, issue #25) and any windows program that calls
+# ext_func at runtime. mingw's triple is fixed, so configure lands the
+# build in a predictable x86_64-w64-mingw32/ subdir that target_ffi_lib
+# points at directly; we build that subdir with -C rather than via the
+# top-level Makefile, which AX_ENABLE_BUILDDIR repoints per configure
+# run. Depends on the native .built so the host libffi is configured
+# first and its stable archive is never disturbed by this second
+# configure (different per-triple subdir).
+LIBFFI_WIN_LIB := vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a
+$(LIBFFI_WIN_LIB): vendor/libffi/.built
+	cd $(LIBFFI_DIR) && ./configure --host=x86_64-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
+	$(MAKE) -C $(LIBFFI_DIR)/x86_64-w64-mingw32
+
 # raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
 # paths -- it deliberately doesn't use mode gui. nng_pair.til and
 # nng_pubsub.til likewise link the Linux libnng.a directly and there is
@@ -336,6 +351,15 @@ build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
 
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
+
+# til.exe: the compiler itself cross-built for a windows HOST (issue
+# #25). Links the win64 libffi so the interpreter/constfolder ext_func
+# dispatch works when til runs ON windows. Not part of build_win (that
+# sweeps example programs); this is the compiler.
+build_win_host: bin/til.exe
+
+bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
+	bin/til build --target=windows-x64 -o bin/til.exe src/til.til
 
 # --- macOS builds (issue #25) ---
 #
