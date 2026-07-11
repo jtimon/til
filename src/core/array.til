@@ -16,7 +16,7 @@ Array := struct<T: Type> {
 namespace:
     /// Create a zero-initialized Array with the given capacity.
     new := func(cap: USize) returns Array(T) {
-        return Array(T)(data = calloc(cap.cast(U64), T.size().cast(U64)), cap = cap)
+        return Array(T)(data = calloc(cap, T.size()), cap = cap)
     }
 
     len := func(self: Array(T)) returns USize { return self.cap }
@@ -27,7 +27,7 @@ namespace:
     /// its `_fi < len()` termination test already proves the index in
     /// bounds (issue #284).
     unsafe_get := func(self: Array(T), i: USize) returns ref T {
-        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+        return ptr_add(self.data, i.mul(T.size()))
     }
 
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
@@ -45,8 +45,8 @@ namespace:
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(self: Array(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
-        memcpy(self.unsafe_get(i), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        memcpy(self.unsafe_get(i), val, T.size())
+        memset(val, 0, T.size())
     }
 
     /// Overwrite the element at index `i`. Drops the old value. `val` is
@@ -62,19 +62,19 @@ namespace:
 
     delete := func(own self: Array(T), call_free: Bool = true) {
         for i in 0..self.cap {
-            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
         }
         free(own self.data)
         if call_free { free(own self) }
     }
 
     clone := func(self: Array(T)) returns Array(T) {
-        new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.cap {
-            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)
-            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
-            memset(cloned, 0, T.size().cast(U64))
+            memcpy(ptr_add(new_data, i.mul(T.size())), cloned, T.size())
+            memset(cloned, 0, T.size())
         }
         return Array(T)(data = new_data, cap = self.cap)
     }

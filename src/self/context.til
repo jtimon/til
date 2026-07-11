@@ -189,7 +189,7 @@ namespace:
             ref mut b : TypeBinding = self.bindings[name]
             b.func_type = func_def_type(fdef)
         }
-        cell : I64 = malloc(I64.size().cast(U64))
+        cell : I64 = malloc(I64.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
     }
@@ -198,7 +198,7 @@ namespace:
     // ref struct_def field). Same malloc'd-cell pattern as set_func_def
     // -- the cell is owned by the Map, the Expr lives in the AST.
     set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
-        cell : I64 = malloc(I64.size().cast(U64))
+        cell : I64 = malloc(I64.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
     }

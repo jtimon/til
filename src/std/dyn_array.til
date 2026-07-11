@@ -13,7 +13,7 @@ namespace:
     new_type_name := func(elem_type: Str, cap: USize) returns DynArray {
         if elem_type.is_empty() { panic("DynArray.new: elem_type required") }
         elem_size : USize = dyn_size_of(elem_type)
-        return DynArray(data = calloc(cap.cast(U64), elem_size.cast(U64)), cap = cap,
+        return DynArray(data = calloc(cap, elem_size), cap = cap,
                      elem_size = elem_size,
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
@@ -29,7 +29,7 @@ namespace:
     /// Unchecked ref to the element at index `i`. Caller guarantees
     /// `i < self.cap`; the unchecked core that `get` wraps (issue #284).
     unsafe_get := func(self: DynArray, i: USize) returns ref Dynamic {
-        return ptr_add(self.data, i.mul(self.elem_size).cast(U64))
+        return ptr_add(self.data, i.mul(self.elem_size))
     }
 
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
@@ -47,7 +47,7 @@ namespace:
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(self: DynArray, i: USize, own val: Dynamic) {
         self.elem_delete(self.unsafe_get(i), false)
-        memcpy(self.unsafe_get(i), val, self.elem_size.cast(U64))
+        memcpy(self.unsafe_get(i), val, self.elem_size)
         free(own val)
     }
 
@@ -69,17 +69,17 @@ namespace:
 
     delete := func(own self: DynArray, call_free: Bool = true) {
         for i in 0..self.cap {
-            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         free(own self.data)
         if call_free { free(own self) }
     }
 
     clone := func(self: DynArray) returns DynArray {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.cap {
-            cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
-            memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))
+            cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
+            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
         return DynArray(data = new_data, cap = self.cap,

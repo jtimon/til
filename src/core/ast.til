@@ -760,11 +760,11 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()).cast(U64))
+            self.children.data = realloc(own self.children.data, new_cap.mul(Expr.size()))
             self.children.cap = new_cap
         }
-        memcpy(ptr_add(self.children.data, self.children.count.mul(Expr.size()).cast(U64)),
-            other.children.data, other.children.count.mul(Expr.size()).cast(U64))
+        memcpy(ptr_add(self.children.data, self.children.count.mul(Expr.size())),
+            other.children.data, other.children.count.mul(Expr.size()))
         self.children.count = needed
         other.children.count = 0
         // Free other's source buffer before nulling: the bytes were
@@ -962,7 +962,7 @@ node_head_str := func(data: NodeType) returns Str {
 // where Head = NodeType variant name + inline payload (see node_head_str).
 expr_to_str_indent := func(self: Expr, indent: U32) returns Str {
     mut out := ""
-    for _ in 0..indent.cast(U64) {
+    for _ in 0..indent {
         out = format(out, "  ")
     }
     head := node_head_str(self.node_type)
@@ -1195,7 +1195,7 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
 
 // --- ast_print ---
 ast_print := proc(e: Expr, indent: U32) {
-    for _ in 0..indent.cast(U64) {
+    for _ in 0..indent {
         print("  ")
     }
     print("(", node_name(e.node_type))
@@ -1224,7 +1224,7 @@ ast_print := proc(e: Expr, indent: U32) {
         for e_i : Expr in e.children {
             ast_print(e_i, indent + 1)
         }
-        for _ in 0..indent.cast(U64) {
+        for _ in 0..indent {
             print("  ")
         }
     }

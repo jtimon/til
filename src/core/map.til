@@ -80,22 +80,22 @@ namespace:
         } else {
             if self.keys.count == self.keys.cap {
                 new_cap : USize = self.keys.cap * 2
-                self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()).cast(U64))
-                self.values.data = realloc(own self.values.data, new_cap.mul(V.size()).cast(U64))
+                self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()))
+                self.values.data = realloc(own self.values.data, new_cap.mul(V.size()))
                 self.keys.cap = new_cap
                 self.values.cap = new_cap
             }
-            memmove(ptr_add(self.keys.data, lo.add(1).mul(K.size()).cast(U64)),
-                    ptr_add(self.keys.data, lo.mul(K.size()).cast(U64)),
-                    self.keys.count.sub(lo).mul(K.size()).cast(U64))
-            memmove(ptr_add(self.values.data, lo.add(1).mul(V.size()).cast(U64)),
-                    ptr_add(self.values.data, lo.mul(V.size()).cast(U64)),
-                    self.values.count.sub(lo).mul(V.size()).cast(U64))
+            memmove(ptr_add(self.keys.data, lo.add(1).mul(K.size())),
+                    ptr_add(self.keys.data, lo.mul(K.size())),
+                    self.keys.count.sub(lo).mul(K.size()))
+            memmove(ptr_add(self.values.data, lo.add(1).mul(V.size())),
+                    ptr_add(self.values.data, lo.mul(V.size())),
+                    self.values.count.sub(lo).mul(V.size()))
             mut cloned_key : K = K.clone(key)
-            memcpy(ptr_add(self.keys.data, lo.mul(K.size()).cast(U64)), cloned_key, K.size().cast(U64))
-            memset(cloned_key, 0, K.size().cast(U64))
-            memcpy(ptr_add(self.values.data, lo.mul(V.size()).cast(U64)), val, V.size().cast(U64))
-            memset(val, 0, V.size().cast(U64))
+            memcpy(ptr_add(self.keys.data, lo.mul(K.size())), cloned_key, K.size())
+            memset(cloned_key, 0, K.size())
+            memcpy(ptr_add(self.values.data, lo.mul(V.size())), val, V.size())
+            memset(val, 0, V.size())
             free(own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1

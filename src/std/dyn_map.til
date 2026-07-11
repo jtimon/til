@@ -96,27 +96,27 @@ namespace:
         } else {
             if self.keys.count == self.keys.cap {
                 new_cap : USize = self.keys.cap * 2
-                self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size).cast(U64))
-                self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size).cast(U64))
+                self.keys.data = realloc(own self.keys.data, new_cap.mul(self.keys.elem_size))
+                self.values.data = realloc(own self.values.data, new_cap.mul(self.values.elem_size))
                 self.keys.cap = new_cap
                 self.values.cap = new_cap
             }
-            memmove(ptr_add(self.keys.data, lo.add(1).mul(self.keys.elem_size).cast(U64)),
-                    ptr_add(self.keys.data, lo.mul(self.keys.elem_size).cast(U64)),
-                    self.keys.count.sub(lo).mul(self.keys.elem_size).cast(U64))
-            memmove(ptr_add(self.values.data, lo.add(1).mul(self.values.elem_size).cast(U64)),
-                    ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)),
-                    self.values.count.sub(lo).mul(self.values.elem_size).cast(U64))
-            cloned_key : U8 = malloc(self.keys.elem_size.cast(U64))
+            memmove(ptr_add(self.keys.data, lo.add(1).mul(self.keys.elem_size)),
+                    ptr_add(self.keys.data, lo.mul(self.keys.elem_size)),
+                    self.keys.count.sub(lo).mul(self.keys.elem_size))
+            memmove(ptr_add(self.values.data, lo.add(1).mul(self.values.elem_size)),
+                    ptr_add(self.values.data, lo.mul(self.values.elem_size)),
+                    self.values.count.sub(lo).mul(self.values.elem_size))
+            cloned_key : U8 = malloc(self.keys.elem_size)
             if self.keys.elem_kind == ELEM_BOXED {
                 key_copy : Dynamic = self.keys.elem_clone(key)
-                memcpy(cloned_key, key_copy, self.keys.elem_size.cast(U64))
+                memcpy(cloned_key, key_copy, self.keys.elem_size)
                 free(own key_copy)
             } else {
-                memcpy(cloned_key, key, self.keys.elem_size.cast(U64))
+                memcpy(cloned_key, key, self.keys.elem_size)
             }
-            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size).cast(U64)), cloned_key, self.keys.elem_size.cast(U64))
-            memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size).cast(U64)), val, self.values.elem_size.cast(U64))
+            memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size)), cloned_key, self.keys.elem_size)
+            memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val, self.values.elem_size)
             free(own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1

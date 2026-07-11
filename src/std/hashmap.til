@@ -98,9 +98,9 @@ namespace:
             // Key already present: keep the stored key and replace value.
             slot_idx : USize = existing.to_usize()
             slot_off : USize = slot_idx * V.size()
-            V.delete(own ptr_add(self.values.data, slot_off.cast(U64)), false)
-            memcpy(ptr_add(self.values.data, slot_off.cast(U64)), val, V.size().cast(U64))
-            memset(val, 0, V.size().cast(U64))
+            V.delete(own ptr_add(self.values.data, slot_off), false)
+            memcpy(ptr_add(self.values.data, slot_off), val, V.size())
+            memset(val, 0, V.size())
             free(own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
@@ -109,17 +109,17 @@ namespace:
 
             if self.keys.count == self.keys.cap {
                 new_cap : USize = self.keys.cap * 2
-                self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()).cast(U64))
-                self.values.data = realloc(own self.values.data, new_cap.mul(V.size()).cast(U64))
+                self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()))
+                self.values.data = realloc(own self.values.data, new_cap.mul(V.size()))
                 self.keys.cap = new_cap
                 self.values.cap = new_cap
             }
 
             mut key_copy : K = K.clone(key)
-            memcpy(ptr_add(self.keys.data, self.keys.count.mul(K.size()).cast(U64)), key_copy, K.size().cast(U64))
-            memset(key_copy, 0, K.size().cast(U64))
-            memcpy(ptr_add(self.values.data, self.values.count.mul(V.size()).cast(U64)), val, V.size().cast(U64))
-            memset(val, 0, V.size().cast(U64))
+            memcpy(ptr_add(self.keys.data, self.keys.count.mul(K.size())), key_copy, K.size())
+            memset(key_copy, 0, K.size())
+            memcpy(ptr_add(self.values.data, self.values.count.mul(V.size())), val, V.size())
+            memset(val, 0, V.size())
             free(own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1
@@ -199,8 +199,8 @@ namespace:
         // Drop the entry's owned key/value inner heap. Inline the
         // slot pointer via ptr_add to avoid the nested-bang-on-Dynamic
         // hoist (the typer's bang temp can't hold a Dynamic result).
-        K.delete(own ptr_add(self.keys.data, keys_off.cast(U64)), false)
-        V.delete(own ptr_add(self.values.data, values_off.cast(U64)), false)
+        K.delete(own ptr_add(self.keys.data, keys_off), false)
+        V.delete(own ptr_add(self.values.data, values_off), false)
 
         // Unlink from the chain.
         nxt_val : I64 = self.nexts.unsafe_get(idx_u).clone()
@@ -235,10 +235,10 @@ namespace:
             // Move bytes for keys, values, and the chain link.
             last_keys_off : USize = last_u * K.size()
             last_values_off : USize = last_u * V.size()
-            memcpy(ptr_add(self.keys.data, keys_off.cast(U64)),
-                   ptr_add(self.keys.data, last_keys_off.cast(U64)), K.size().cast(U64))
-            memcpy(ptr_add(self.values.data, values_off.cast(U64)),
-                   ptr_add(self.values.data, last_values_off.cast(U64)), V.size().cast(U64))
+            memcpy(ptr_add(self.keys.data, keys_off),
+                   ptr_add(self.keys.data, last_keys_off), K.size())
+            memcpy(ptr_add(self.values.data, values_off),
+                   ptr_add(self.values.data, last_values_off), V.size())
             self.nexts.unsafe_set(idx_u, own self.nexts.unsafe_get(last_u).clone())
         }
 

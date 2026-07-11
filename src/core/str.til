@@ -439,7 +439,7 @@ namespace:
 
     /// Parse as base-10 unsigned 64-bit integer.
     to_u64 := func(self: Str) returns U64 {
-        return self.to_i64().cast(U64)
+        return self.to_i64()
     }
 
     /// Parse as base-10 USize (collection sizes/indices).

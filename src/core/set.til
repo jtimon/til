@@ -15,7 +15,7 @@ Set := struct<T: Type> {
 namespace:
     /// Create an empty Set. T must implement `cmp`.
     new := func() returns Set(T) {
-        return Set(T)(data = malloc(T.size().cast(U64)), cap = 1)
+        return Set(T)(data = malloc(T.size()), cap = 1)
     }
 
     len := func(self: Set(T)) returns USize { return self.count }
@@ -23,7 +23,7 @@ namespace:
     /// Drop all live elements but keep the allocated storage so the Set can be reused.
     clear := func(mut self: Set(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
         }
         self.count = 0
     }
@@ -34,7 +34,7 @@ namespace:
         mut hi := self.count
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
-            ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
+            ref cur : T = ptr_add(self.data, mid.mul(T.size()))
             c : I64 = T.cmp(cur, val)
             if c < 0 { lo = mid + 1 }
             else {
@@ -53,7 +53,7 @@ namespace:
         mut found := false
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
-            ref cur : T = ptr_add(self.data, mid.mul(T.size()).cast(U64))
+            ref cur : T = ptr_add(self.data, mid.mul(T.size()))
             c : I64 = T.cmp(cur, val)
             if c < 0 { lo = mid + 1 }
             else {
@@ -63,19 +63,19 @@ namespace:
         }
         if found {
             T.delete(own val, false)
-            memset(val, 0, T.size().cast(U64))
+            memset(val, 0, T.size())
             free(own val)
         } else {
             if self.count == self.cap {
                 new_cap := self.cap * 2
-                self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+                self.data = realloc(own self.data, new_cap.mul(T.size()))
                 self.cap = new_cap
             }
-            memmove(ptr_add(self.data, lo.add(1).mul(T.size()).cast(U64)),
-                    ptr_add(self.data, lo.mul(T.size()).cast(U64)),
-                    self.count.sub(lo).mul(T.size()).cast(U64))
-            memcpy(ptr_add(self.data, lo.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-            memset(val, 0, T.size().cast(U64))
+            memmove(ptr_add(self.data, lo.add(1).mul(T.size())),
+                    ptr_add(self.data, lo.mul(T.size())),
+                    self.count.sub(lo).mul(T.size()))
+            memcpy(ptr_add(self.data, lo.mul(T.size())), val, T.size())
+            memset(val, 0, T.size())
             free(own val)
             self.count = self.count + 1
         }
@@ -88,12 +88,12 @@ namespace:
     }
 
     clone := func(self: Set(T)) returns Set(T) {
-        new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
-            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)
-            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
-            memset(cloned, 0, T.size().cast(U64))
+            memcpy(ptr_add(new_data, i.mul(T.size())), cloned, T.size())
+            memset(cloned, 0, T.size())
         }
         return Set(T)(data = new_data, count = self.count, cap = self.cap)
     }

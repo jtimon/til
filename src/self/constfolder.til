@@ -1414,8 +1414,8 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             // `known = snapshot_fd`, which would leak a second deep
             // copy of every value). memset snapshot_fd to zero so its
             // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.constfolder_known, snapshot_fd, Map(Str, Value).size().cast(U64))
-            memset(snapshot_fd, 0, Map(Str, Value).size().cast(U64))
+            memcpy(ctx.constfolder_known, snapshot_fd, Map(Str, Value).size())
+            memset(snapshot_fd, 0, Map(Str, Value).size())
             continue
         }
         fold_subtree(scope, child, ctx)

@@ -625,6 +625,8 @@ namespace:
             mag : U64 = U64.sub(0, val.cast(U64))
             return format("-", mag.to_str())
         }
+        // Dispatch positives to U64.to_str: dropping the cast makes this
+        // I64.to_str call ITSELF -> infinite recursion.
         return val.cast(U64).to_str()
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}

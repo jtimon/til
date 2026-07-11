@@ -181,7 +181,7 @@ priv KEYWORDS := keyword_map()
 // then zeroes the now-dangling module slot.
 lexer_cleanup := func() {
     own KEYWORDS.delete(true)
-    memset(KEYWORDS, 0, Map(Str, TokenType).size().cast(U64))
+    memset(KEYWORDS, 0, Map(Str, TokenType).size())
 }
 
 // --- tok_name ---

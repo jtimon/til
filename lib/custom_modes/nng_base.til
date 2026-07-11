@@ -7,7 +7,7 @@ link("atomic")
 read_cstr := func(p: Dynamic) returns Str {
     mut n : USize = 0
     while true {
-        ref b : I8 = ptr_add(p, n.cast(U64))
+        ref b : I8 = ptr_add(p, n)
         if b.eq(0) { break }
         n++
     }

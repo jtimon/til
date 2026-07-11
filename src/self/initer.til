@@ -18,7 +18,10 @@ priv primitive_type_info := func(name: Str, scope: TypeScope, mut prim: Primitiv
     // the resolvers use, keeping struct layout consistent with field types.
     if name == "USize" { return primitive_type_info(scope_target_usize_pname(scope), scope, prim, sz, al, is_builtin) }
     if name == "UPtr" { return primitive_type_info(scope_target_uptr_pname(scope), scope, prim, sz, al, is_builtin) }
-    if name == "Dynamic" { sz = 8; al = 8; is_builtin = true; return true }
+    // Dynamic is a raw pointer in the HOST binary (layout consumers are
+    // host-side; see compute_struct_layout). UPtr.size() resolves at the
+    // compiler's own build time, so it tracks the running binary's width.
+    if name == "Dynamic" { sz = UPtr.size(); al = UPtr.size(); is_builtin = true; return true }
     return false
 }
 
@@ -80,7 +83,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         // constfolder eval (which clones Values and looks up nested struct/enum
         // defs by name) sees a populated registry; interpret_units later
         // re-registers with the same value, which is idempotent.
-        tdv : I64 = malloc(I64.size().cast(U64))
+        tdv : I64 = malloc(I64.size())
         write_ptr(tdv, stmt.children[0])
         ctx.interp_type_defs.set(sname, own tdv)
         return 0
@@ -510,7 +513,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
         // register_struct_def_for_stmt for rationale).
-        tdv : I64 = malloc(I64.size().cast(U64))
+        tdv : I64 = malloc(I64.size())
         write_ptr(tdv, stmt.children[0])
         ctx.interp_type_defs.set(ename, own tdv)
         return 0
@@ -1781,8 +1784,10 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             mut field_is_funcptr := false
 
             if fd.own_type.is(OwnType.Shallow).not() {
-                fsz = 8
-                falign = 8
+                // own/ref fields are pointers in the HOST binary the
+                // interpreter walks; UPtr.size() is the host width.
+                fsz = UPtr.size()
+                falign = UPtr.size()
 
                 mut ftype := fd.explicit_type
                 if ftype.len() == 0 {
@@ -1938,7 +1943,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     }
                 }
 
-                if ftype.len() == 0 { fsz = 8; falign = 8 }
+                if ftype.len() == 0 { fsz = UPtr.size(); falign = UPtr.size() }
                 else {
                     mut prim : Primitive = Primitive.I64
                     mut psz : USize = 0
@@ -1950,8 +1955,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         falign = pal
                     } else if type_from_name_init(ftype, scope).is_funcptr().or(type_from_name_init(ftype, scope).is(Type.Body)) {
                         field_is_funcptr = true
-                        fsz = 8
-                        falign = 8
+                        fsz = UPtr.size()
+                        falign = UPtr.size()
                     } else {
                         ref nested_def : Expr = scope.get_struct(ftype)
                         if nested_def.is_null().not() {
@@ -1968,8 +1973,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                                 field_struct_name = ftype.clone()
                             }
                         } else {
-                            fsz = 8
-                            falign = 8
+                            fsz = UPtr.size()
+                            falign = UPtr.size()
                         }
                     }
                 }
@@ -2003,9 +2008,9 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
         return
     }
     tsa_resolved := type_from_name_init(ftype, scope)
-    if tsa_resolved.is_funcptr().or(tsa_resolved.is(Type.Body)) { sz = 8; al = 8; return }
+    if tsa_resolved.is_funcptr().or(tsa_resolved.is(Type.Body)) { sz = UPtr.size(); al = UPtr.size(); return }
     ref nested : Expr = scope.get_struct(ftype)
-    if nested.is_null() { sz = 8; al = 8; return }
+    if nested.is_null() { sz = UPtr.size(); al = UPtr.size(); return }
     switch nested.node_type {
     case NodeType.StructDef:
         compute_struct_layout(ftype, nested, scope, ctx)

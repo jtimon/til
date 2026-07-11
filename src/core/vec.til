@@ -17,7 +17,7 @@ Vec := struct<T: Type> {
 namespace:
     /// Create a new empty Vec for elements of type T.
     new := func() returns Vec(T) {
-        return Vec(T)(data = malloc(T.size().cast(U64)), cap = 1)
+        return Vec(T)(data = malloc(T.size()), cap = 1)
     }
 
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
@@ -29,7 +29,7 @@ namespace:
     with_capacity := func(n: USize) returns Vec(T) {
         mut cap : USize = 1
         if n > 0 { cap = n }
-        return Vec(T)(data = malloc(cap.mul(T.size()).cast(U64)), cap = cap)
+        return Vec(T)(data = malloc(cap.mul(T.size())), cap = cap)
     }
 
     len := func(self: Vec(T)) returns USize { return self.count }
@@ -38,7 +38,7 @@ namespace:
     /// storage and element-type metadata so the Vec can be reused.
     clear := func(mut self: Vec(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
         }
         self.count = 0
     }
@@ -48,11 +48,11 @@ namespace:
     push := func(mut self: Vec(T), own val: T) {
         if self.count == self.cap {
             new_cap := self.cap * 2
-            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        memcpy(ptr_add(self.data, self.count.mul(T.size())), val, T.size())
+        memset(val, 0, T.size())
         self.count = self.count + 1
     }
 
@@ -68,10 +68,10 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)), other.data, other.count.mul(T.size()).cast(U64))
+        memcpy(ptr_add(self.data, self.count.mul(T.size())), other.data, other.count.mul(T.size()))
         self.count = needed
         other.count = 0
     }
@@ -84,7 +84,7 @@ namespace:
     /// bytes were moved into self.
     move_from := func(mut self: Vec(T), mut other: Vec(T)) {
         for i in 0..self.count {
-            T.delete(own ptr_add(self.data, i.mul(T.size()).cast(U64)), false)
+            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
         }
         needed := other.count
         if needed > self.cap {
@@ -92,11 +92,11 @@ namespace:
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
-            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
         if needed > 0 {
-            memcpy(self.data, other.data, needed.mul(T.size()).cast(U64))
+            memcpy(self.data, other.data, needed.mul(T.size()))
         }
         self.count = needed
         other.count = 0
@@ -108,7 +108,7 @@ namespace:
     /// directly because its `_fi < len()` termination test already
     /// proves the index in bounds (issue #284).
     unsafe_get := func(self: Vec(T), i: USize) returns ref T {
-        return ptr_add(self.data, i.mul(T.size()).cast(U64))
+        return ptr_add(self.data, i.mul(T.size()))
     }
 
     /// Return a reference to the element at index `i`. Throws
@@ -130,9 +130,9 @@ namespace:
             panic("Vec.pop: empty vec")
         }
         last := self.count - 1
-        out : T = malloc(T.size().cast(U64))
-        memcpy(out, ptr_add(self.data, last.mul(T.size()).cast(U64)), T.size().cast(U64))
-        memset(ptr_add(self.data, last.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
+        out : T = malloc(T.size())
+        memcpy(out, ptr_add(self.data, last.mul(T.size())), T.size())
+        memset(ptr_add(self.data, last.mul(T.size())), 0, T.size())
         self.count = last
         return out
     }
@@ -147,16 +147,16 @@ namespace:
         if n > 0 {
             prefix_cap = n
         }
-        prefix_data : U8 = malloc(prefix_cap.mul(T.size()).cast(U64))
+        prefix_data : U8 = malloc(prefix_cap.mul(T.size()))
         if n > 0 {
-            memcpy(prefix_data, self.data, n.mul(T.size()).cast(U64))
+            memcpy(prefix_data, self.data, n.mul(T.size()))
         }
         tail_count := self.count - n
         if tail_count > 0 {
-            memmove(self.data, ptr_add(self.data, n.mul(T.size()).cast(U64)), tail_count.mul(T.size()).cast(U64))
+            memmove(self.data, ptr_add(self.data, n.mul(T.size())), tail_count.mul(T.size()))
         }
         if n > 0 {
-            memset(ptr_add(self.data, tail_count.mul(T.size()).cast(U64)), 0, n.mul(T.size()).cast(U64))
+            memset(ptr_add(self.data, tail_count.mul(T.size())), 0, n.mul(T.size()))
         }
         self.count = tail_count
         return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
@@ -167,8 +167,8 @@ namespace:
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(mut self: Vec(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
-        memcpy(self.unsafe_get(i), val, T.size().cast(U64))
-        memset(val, 0, T.size().cast(U64))
+        memcpy(self.unsafe_get(i), val, T.size())
+        memset(val, 0, T.size())
     }
 
     /// Overwrite the element at index `i`. `val` is owned. Throws
@@ -191,12 +191,12 @@ namespace:
         }
         if self.count == self.cap {
             new_cap := self.cap * 2
-            self.data = realloc(own self.data, new_cap.mul(T.size()).cast(U64))
+            self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size()).cast(U64)),
-               ptr_add(src.data, i.mul(T.size()).cast(U64)), T.size().cast(U64))
-        memset(ptr_add(src.data, i.mul(T.size()).cast(U64)), 0, T.size().cast(U64))
+        memcpy(ptr_add(self.data, self.count.mul(T.size())),
+               ptr_add(src.data, i.mul(T.size())), T.size())
+        memset(ptr_add(src.data, i.mul(T.size())), 0, T.size())
         self.count = self.count + 1
     }
 
@@ -210,12 +210,12 @@ namespace:
 
     /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec(T)) returns Vec(T) {
-        new_data : U8 = malloc(self.cap.mul(T.size()).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
-            ref src : T = ptr_add(self.data, i.mul(T.size()).cast(U64))
+            ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)
-            memcpy(ptr_add(new_data, i.mul(T.size()).cast(U64)), cloned, T.size().cast(U64))
-            memset(cloned, 0, T.size().cast(U64))
+            memcpy(ptr_add(new_data, i.mul(T.size())), cloned, T.size())
+            memset(cloned, 0, T.size())
         }
         return Vec(T)(data = new_data, count = self.count, cap = self.cap)
     }

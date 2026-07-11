@@ -19,7 +19,7 @@ namespace:
             panic("DynSet.new: type ", elem_type, " must implement cmp")
         }
         sz : USize = dyn_size_of(elem_type)
-        return DynSet(data = malloc(sz.cast(U64)), cap = 1,
+        return DynSet(data = malloc(sz), cap = 1,
                    elem_size = sz,
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"),
@@ -33,7 +33,7 @@ namespace:
     clear := func(mut self: DynSet) {
         for i in 0..self.count {
             self.elem_delete(
-                      ptr_add(self.data, i.mul(self.elem_size).cast(U64)), false)
+                      ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         self.count = 0
     }
@@ -45,7 +45,7 @@ namespace:
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
             c : I64 = self.elem_cmp(
-                          ptr_add(self.data, mid.mul(self.elem_size).cast(U64)), val)
+                          ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
@@ -64,7 +64,7 @@ namespace:
         while lo < hi {
             mid := lo.add(hi.sub(lo) / 2)
             c : I64 = self.elem_cmp(
-                          ptr_add(self.data, mid.mul(self.elem_size).cast(U64)), val)
+                          ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
@@ -77,13 +77,13 @@ namespace:
         } else {
             if self.count == self.cap {
                 new_cap := self.cap * 2
-                self.data = realloc(own self.data, new_cap.mul(self.elem_size).cast(U64))
+                self.data = realloc(own self.data, new_cap.mul(self.elem_size))
                 self.cap = new_cap
             }
-            memmove(ptr_add(self.data, lo.add(1).mul(self.elem_size).cast(U64)),
-                    ptr_add(self.data, lo.mul(self.elem_size).cast(U64)),
-                    self.count.sub(lo).mul(self.elem_size).cast(U64))
-            memcpy(ptr_add(self.data, lo.mul(self.elem_size).cast(U64)), val, self.elem_size.cast(U64))
+            memmove(ptr_add(self.data, lo.add(1).mul(self.elem_size)),
+                    ptr_add(self.data, lo.mul(self.elem_size)),
+                    self.count.sub(lo).mul(self.elem_size))
+            memcpy(ptr_add(self.data, lo.mul(self.elem_size)), val, self.elem_size)
             free(own val)
             self.count = self.count + 1
         }
@@ -96,11 +96,11 @@ namespace:
     }
 
     clone := func(self: DynSet) returns DynSet {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size).cast(U64))
+        new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
-                         ptr_add(self.data, i.mul(self.elem_size).cast(U64)))
-            memcpy(ptr_add(new_data, i.mul(self.elem_size).cast(U64)), cloned, self.elem_size.cast(U64))
+                         ptr_add(self.data, i.mul(self.elem_size)))
+            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
         return DynSet(data = new_data, count = self.count, cap = self.cap,

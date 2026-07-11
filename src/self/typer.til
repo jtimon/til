@@ -1638,7 +1638,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         // #192: to_u64/to_u32 are the target-dependent widths -- a USize/UPtr
         // value needs `.to_u64()` on 64-bit and `.to_u32()` on 32-bit for the
         // same source to typecheck on both, so a self-conversion to either is
-        // portable, not a mistake. Exempt them (mirrors the .cast(U64)/.cast(U32)
+        // portable, not a mistake. Exempt them (mirrors the /.cast(U32)
         // exemption below). The lint still catches every other self-conversion.
         conv_w := method.eq("to_u64").or(method.eq("to_u32"))
         if has_type_name.and(is_self_conversion_method(method, type_name)).and(conv_w.not()) {
@@ -1658,7 +1658,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             switch e.children[1].node_type {
             case NodeType.Ident(cast_id_data):
                 // #192: USize/UPtr are target-dependent (U32 on 32-bit,
-                // U64 on 64-bit). A `.cast(U64)`/`.cast(U32)` on such a
+                // U64 on 64-bit). A ``/`.cast(U32)` on such a
                 // value is redundant on one target but a needed widening on
                 // the other, so it must stay for portability. Don't flag
                 // self-casts to these widths; the lint still catches
