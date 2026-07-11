@@ -1,0 +1,8 @@
+mode lib
+
+import("enum_only")
+
+make_color := func(n: I64) returns Color {
+    if n == 0 { return Color.Red }
+    return Color.Blue
+}

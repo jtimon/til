@@ -2124,6 +2124,32 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             pc_col := peek_col(p)
             call = parse_call(p, own call.clone(), pc_line, pc_col)
         }
+        // Postfix `.` on a call result at statement level: method chains
+        // (`clock_ms().gt(0)`, `f().write("a")`) and field assignment
+        // through a call (`HashMap(I64, I64).hasher = fnv1a`). Rewind and
+        // re-parse as an expression -- parse_primary owns the full chain
+        // logic -- then wrap in a FieldAssign if an '=' follows. Same
+        // rewind trick the subscript-assign statement paths use.
+        if check(p, TokenType.Dot) {
+            p.pos = start_pos
+            mut chained := parse_expression(p)
+            if check(p, TokenType.Eq) {
+                mut fa_name := ""
+                switch chained.node_type {
+                case NodeType.FieldAccess(fan):
+                    fa_name = Str.clone(fan.field_access_name())
+                case:
+                    panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+                        ": left side of '=' is not a field access")
+                }
+                advance(p) // consume '='
+                mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name = fa_name)), t_line, t_col)
+                fa.add_child(own chained.children[0].clone())
+                fa.add_child(own parse_expression(p))
+                return fa
+            }
+            return chained
+        }
         return call
     }
 

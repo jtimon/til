@@ -40,3 +40,13 @@ test_namespace_import_priv_siblings := test() {
     expect(ph.make_secret(7).eq(7), "ph.make_secret(7)")
     expect(ph.mood_score(1).eq(-1), "ph.mood_score(1)")
 }
+
+// A local shadowing the alias name must NOT be alias-rewritten:
+// helper here is a Point value, so helper.x reads the local's field
+// (x is not even a public symbol of import_helper -- an unshadowed
+// rewrite would panic "no public symbol 'x'").
+test_namespace_alias_shadowing := test() {
+    helper := Point(x = 5, y = 6)
+    expect(helper.x.eq(5), "shadowed helper.x")
+    expect(helper.y.eq(6), "shadowed helper.y")
+}

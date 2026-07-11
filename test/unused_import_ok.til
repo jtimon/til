@@ -10,3 +10,29 @@ println(double(21).to_str())
 println(helper.double(2).to_str())
 p := Point(x = 3, y = 4)
 println(p.x.add(p.y).to_str())
+
+// An enum used ONLY in switch-case patterns still counts as a use of
+// its import (the subject's value arrives via enum_factory, so without
+// the pattern edge enum_only would be a false positive).
+import("imports/enum_only")    // used: Color.* case patterns below
+import("imports/enum_factory") // used: make_color()
+
+c := make_color(0)
+mut r := 0
+switch c {
+case Color.Red:   r = 1
+case Color.Green: r = 2
+case Color.Blue:  r = 3
+}
+println(r.to_str())
+
+// A template used ONLY type-position/value-position from a unit that
+// does NOT own the monomorphization (templ_type_only_a's unit inits
+// first and owns CrossBox__I64) must still credit the template's
+// declaring file.
+import("imports/templ_cross_base")  // used: CrossBox(I64) below
+import("imports/templ_type_only_a") // used: type_only_a_holder()
+
+cb := CrossBox(I64).new(own 7)
+th := type_only_a_holder(cb)
+println(th.value().to_str())

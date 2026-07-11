@@ -1,0 +1,3 @@
+mode lib
+
+Color := enum { Red, Green, Blue }

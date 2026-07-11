@@ -1,26 +1,26 @@
-mode script
+mode test
 
 import("../src/self/lexer")
-import("../src/self/ast")
 import("../src/self/parser")
 
 // Helper: tokenize + parse
 parse_src := proc(src: Str) returns Expr {
     tokens := tokenize(src, "test")
     mut mode_str := ""
-    return parse(tokens, src, "test", mode_str)
+    mut anon_counter : I64 = 0
+    return parse(tokens, src, "test", mode_str, anon_counter)
 }
 
-test_empty := proc() {
+test_empty := test() {
     root := parse_src("")
     assert(root.node_type.is(NodeType.Body))
     assert_eq(USize, root.children.len(), 0)
 }
 
-test_declaration := proc() {
+test_declaration := test() {
     root := parse_src("x := 42")
     assert_eq(USize, root.children.len(), 1)
-    ref decl : Expr = root.children.get(0)
+    ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
     switch decl.node_type {
     case NodeType.Decl(dd):
@@ -30,13 +30,13 @@ test_declaration := proc() {
         UNREACHABLE()
     }
     assert_eq(USize, decl.children.len(), 1)
-    ref val : Expr = decl.children.get(0)
+    ref val : Expr = decl.children[0]
     assert_eq(Str, node_name(val.node_type), "num")
 }
 
-test_typed_decl := proc() {
+test_typed_decl := test() {
     root := parse_src("x : I64 = 0")
-    ref decl : Expr = root.children.get(0)
+    ref decl : Expr = root.children[0]
     switch decl.node_type {
     case NodeType.Decl(dd):
         assert_eq(Str, dd.name, "x")
@@ -46,118 +46,157 @@ test_typed_decl := proc() {
     }
 }
 
-test_assignment := proc() {
+test_assignment := test() {
     root := parse_src("x = 1")
-    ref assign : Expr = root.children.get(0)
+    ref assign : Expr = root.children[0]
     assert_eq(Str, node_name(assign.node_type), "assign")
     switch assign.node_type {
-    case NodeType.Assign(_as):
-        assert_eq(Str, _as, "x")
+    case NodeType.Assign(ad):
+        assert_eq(Str, ad.name, "x")
     case:
         UNREACHABLE()
     }
     assert_eq(USize, assign.children.len(), 1)
 }
 
-test_call := proc() {
+test_call := test() {
     root := parse_src("foo(1, 2)")
-    ref call : Expr = root.children.get(0)
+    ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     assert_eq(USize, call.children.len(), 3)
-    ref callee : Expr = call.children.get(0)
+    ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "ident")
     switch callee.node_type {
-    case NodeType.Ident(_ci):
-        assert_eq(Str, _ci, "foo")
+    case NodeType.Ident(ci):
+        assert_eq(Str, ci.ident_name(), "foo")
     case:
         UNREACHABLE()
     }
 }
 
-test_method_call := proc() {
+test_method_call := test() {
     root := parse_src("x.foo(1)")
-    ref call : Expr = root.children.get(0)
+    ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     assert_eq(USize, call.children.len(), 2)
-    ref callee : Expr = call.children.get(0)
+    ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
-    case NodeType.FieldAccess(_cf):
-        assert_eq(Str, _cf, "foo")
+    case NodeType.FieldAccess(cf):
+        assert_eq(Str, cf.field_access_name(), "foo")
     case:
         UNREACHABLE()
     }
 }
 
-test_method_call_on_subscript_receiver := proc() {
+test_method_call_on_subscript_receiver := test() {
     root := parse_src("e.children[0].set_expr_til_type(t)")
-    ref call : Expr = root.children.get(0)
+    ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
-    ref callee : Expr = call.children.get(0)
+    ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
-    case NodeType.FieldAccess(_cf):
-        assert_eq(Str, _cf, "set_expr_til_type")
+    case NodeType.FieldAccess(cf):
+        assert_eq(Str, cf.field_access_name(), "set_expr_til_type")
     case:
         UNREACHABLE()
     }
 }
 
-test_if_else := proc() {
+// Statement-level method chain on a call result: the statement parser
+// used to reject the '.' after 'foo()' ("expected statement, found '.'").
+test_stmt_chain_on_call := test() {
+    root := parse_src("foo().bar(1)")
+    ref call : Expr = root.children[0]
+    assert_eq(Str, node_name(call.node_type), "fcall")
+    ref callee : Expr = call.children[0]
+    assert_eq(Str, node_name(callee.node_type), "field_access")
+    switch callee.node_type {
+    case NodeType.FieldAccess(cf):
+        assert_eq(Str, cf.field_access_name(), "bar")
+    case:
+        UNREACHABLE()
+    }
+    ref recv : Expr = callee.children[0]
+    assert_eq(Str, node_name(recv.node_type), "fcall")
+}
+
+// Statement-level field assignment through a call result
+// (`HashMap(I64, I64).hasher = fnv1a` in examples/bench_hashmap.til).
+test_stmt_field_assign_on_call := test() {
+    root := parse_src("box(1).field = 2")
+    ref fa : Expr = root.children[0]
+    assert_eq(Str, node_name(fa.node_type), "field_assign")
+    switch fa.node_type {
+    case NodeType.FieldAssign(fad):
+        assert_eq(Str, fad.name, "field")
+    case:
+        UNREACHABLE()
+    }
+    assert_eq(USize, fa.children.len(), 2)
+    ref recv : Expr = fa.children[0]
+    assert_eq(Str, node_name(recv.node_type), "fcall")
+}
+
+test_if_else := test() {
     root := parse_src("if true { x = 1 } else { x = 2 }")
-    ref node : Expr = root.children.get(0)
+    ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "if")
     assert_eq(USize, node.children.len(), 3)
 }
 
-test_while := proc() {
+test_while := test() {
     root := parse_src("while true { x = 1 }")
-    ref node : Expr = root.children.get(0)
+    ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "while")
     assert_eq(USize, node.children.len(), 2)
 }
 
-test_func_def := proc() {
+test_func_def := test() {
     root := parse_src("f := func(x: I64) returns I64 { return x }")
-    ref decl : Expr = root.children.get(0)
+    ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
     assert_eq(USize, decl.children.len(), 1)
-    ref fdef : Expr = decl.children.get(0)
+    ref fdef : Expr = decl.children[0]
     assert_eq(Str, node_name(fdef.node_type), "func_def")
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         assert_eq(Str, func_type_name(fd.func_type), "func")
         assert_eq(Str, fd.return_type, "I64")
-        assert_eq(USize, fd.param_names.len(), 1)
+        assert_eq(USize, fd.params.len(), 1)
     case:
         UNREACHABLE()
     }
 }
 
-test_struct_def := proc() {
+test_struct_def := test() {
     root := parse_src("P := struct { mut x := 0 }")
-    ref decl : Expr = root.children.get(0)
+    ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
-    ref sdef : Expr = decl.children.get(0)
+    ref sdef : Expr = decl.children[0]
     assert_eq(Str, node_name(sdef.node_type), "struct_def")
-    ref body : Expr = sdef.children.get(0)
-    assert_eq(USize, body.children.len(), 1)
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        assert_eq(USize, sd.fields.len(), 1)
+    case:
+        UNREACHABLE()
+    }
 }
 
-test_switch := proc() {
+test_switch := test() {
     root := parse_src("switch x { case 1: y = 1 case 2: y = 2 case: y = 0 }")
-    ref node : Expr = root.children.get(0)
+    ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "switch")
     assert_eq(USize, node.children.len(), 4)
-    ref c1 : Expr = node.children.get(1)
+    ref c1 : Expr = node.children[1]
     assert_eq(USize, c1.children.len(), 2)
-    ref cd : Expr = node.children.get(3)
+    ref cd : Expr = node.children[3]
     assert_eq(USize, cd.children.len(), 1)
 }
 
-test_for_in := proc() {
+test_for_in := test() {
     root := parse_src("for i in 0..10 { x = i }")
-    ref node : Expr = root.children.get(0)
+    ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "for_in")
     switch node.node_type {
     case NodeType.ForIn(fi):
@@ -167,19 +206,3 @@ test_for_in := proc() {
     }
     assert_eq(USize, node.children.len(), 2)
 }
-
-test_empty()
-test_declaration()
-test_typed_decl()
-test_assignment()
-test_call()
-test_method_call()
-test_method_call_on_subscript_receiver()
-test_if_else()
-test_while()
-test_func_def()
-test_struct_def()
-test_switch()
-test_for_in()
-
-println("parsing: ok")

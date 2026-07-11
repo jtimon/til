@@ -3925,14 +3925,26 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         if fld.own_type.is(OwnType.Ref) {
                             check_ref_assign_owned_rhs(stmt, fname, rhs, scope, ctx)
                         }
+                        // Resolve the declared type from explicit_type when
+                        // set, like the field-ACCESS path does: a
+                        // template-synthesized struct's cloned decls carry
+                        // til_type Unknown, and comparing against that
+                        // misreported every assign as a type mismatch.
+                        mut fld_type := fld.til_type.clone()
+                        if fld.explicit_type.len() > 0 {
+                            resolved_fld_type := type_from_name(fld.explicit_type, scope, ctx)
+                            if resolved_fld_type.is(Type.Unknown).not() {
+                                fld_type = resolved_fld_type
+                            }
+                        }
                         mut handled_lit := false
                         switch rhs.node_type {
                         case NodeType.Literal(Literal.Num(lit_str)):
-                            if is_numeric_type(fld.til_type) {
-                                if literal_in_range(lit_str.literal_num_text(), fld.til_type).not() {
+                            if is_numeric_type(fld_type) {
+                                if literal_in_range(lit_str.literal_num_text(), fld_type).not() {
                                     rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
                                 }
-                                rhs.set_expr_til_type(fld.til_type.clone())
+                                rhs.set_expr_til_type(fld_type.clone())
                                 handled_lit = true
                             }
                         case:
@@ -3941,7 +3953,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                             rhs_type := rhs.expr_til_type()
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig
                             // wildcard-aware family-equality.
-                            if rhs_type.is(fld.til_type).not().and(funcptr_eq(rhs_type, fld.til_type).not()) {
+                            if rhs_type.is(fld_type).not().and(funcptr_eq(rhs_type, fld_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -3963,21 +3975,31 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         if nsd.is_mut.not() {
                             stmt.type_error(format("cannot assign to immutable field '", fname, "'"), ctx)
                         }
+                        // Same explicit_type fallback as the struct-field
+                        // branch above (template-synthesized clones carry
+                        // til_type Unknown).
+                        mut nsd_type := nsd.til_type.clone()
+                        if nsd.explicit_type.len() > 0 {
+                            resolved_nsd_type := type_from_name(nsd.explicit_type, scope, ctx)
+                            if resolved_nsd_type.is(Type.Unknown).not() {
+                                nsd_type = resolved_nsd_type
+                            }
+                        }
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case NodeType.Literal(Literal.Num(lit_str)):
-                            if is_numeric_type(nsd.til_type) {
-                                if literal_in_range(lit_str.literal_num_text(), nsd.til_type).not() {
+                            if is_numeric_type(nsd_type) {
+                                if literal_in_range(lit_str.literal_num_text(), nsd_type).not() {
                                     rhs.type_error(format("integer literal out of range for field '", fname, "'"), ctx)
                                 }
-                                rhs.set_expr_til_type(nsd.til_type.clone())
+                                rhs.set_expr_til_type(nsd_type.clone())
                                 handled_lit2 = true
                             }
                         case:
                         }
                         if handled_lit2.not() {
                             rhs_type := rhs.expr_til_type()
-                            if rhs_type.is(nsd.til_type).not().and(funcptr_eq(rhs_type, nsd.til_type).not()) {
+                            if rhs_type.is(nsd_type).not().and(funcptr_eq(rhs_type, nsd_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
                                         stmt.type_error(format("field '", fname, "' type mismatch"), ctx)
@@ -6990,6 +7012,14 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         }
     }
     infer_expr(scope, sw_expr, in_func, ctx)
+    // #154: case patterns (`case Color.Red:`) textually reference the
+    // subject's enum; credit its declaring file so a pattern-only use
+    // doesn't flag the import as unused. Must sit BEFORE the clike
+    // dispatch -- payload-free enums lower through infer_clike_switch
+    // and return early.
+    if sw_expr.expr_til_type().is(Type.Enum) {
+        note_cross_file_type_use(scope, ctx, til_type_name(sw_expr.expr_til_type()))
+    }
     if switch_is_clike(scope, stmt, sw_expr, is_match) {
         infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
         return false

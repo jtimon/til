@@ -1893,70 +1893,152 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
     return handled
 }
 
-// Rewrite every `alias.sym` FieldAccess whose base is a namespace-import
-// alias into a direct `sym` reference. Walks ns_decls / field defaults /
-// param defaults explicitly since those Exprs live outside e.children.
-// A member outside the alias's public set is a load-time error (same
-// stage as the selective-import symbol-not-found error). Limitation: the
-// match is purely syntactic on the base Ident's name, so a local
-// variable shadowing the alias name would still be rewritten.
-priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str) {
-    switch e.node_type {
-    case NodeType.StructDef(sdd):
-        for mut fd : Declaration in sdd.fields {
-            if fd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path)
-            }
+// Collect the binder names a switch-case pattern introduces for its
+// body: the plain-Ident payload args of (possibly nested) FCall
+// patterns, e.g. `p` in `case NodeType.Literal(Literal.Str(p)):`.
+priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str)) {
+    if pat.node_type.is(NodeType.FCall).not() { return }
+    for ai in 1..pat.children.len() {
+        ref a : Expr = pat.children[ai]
+        switch a.node_type {
+        case NodeType.Ident(bid):
+            out.add(own Str.clone(bid.ident_name()))
+        case NodeType.FCall:
+            collect_case_pattern_binders(a, out)
+        case:
         }
-        for mut nd : Declaration in sdd.ns_decls {
-            if nd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path)
-            }
-        }
-    case NodeType.EnumDef(edd):
-        for mut nd2 : Declaration in edd.ns_decls {
-            if nd2.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path)
-            }
-        }
-    case NodeType.FuncDef(fdd):
-        for mut pd : Declaration in fdd.params {
-            if pd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path)
+    }
+}
+
+// Rewrite-or-recurse for one child slot: if it is an `alias.sym`
+// FieldAccess whose base names a (non-shadowed) namespace-import alias,
+// replace it with a direct `sym` Ident; a member outside the alias's
+// public set is a load-time error (same stage as the selective-import
+// symbol-not-found error). Anything else recurses.
+priv ns_alias_rewrite_child := func(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str)) {
+    ref mut c : Expr = e.children[i]
+    mut alias_name := ""
+    mut member := ""
+    switch c.node_type {
+    case NodeType.FieldAccess(fan):
+        if c.children.len() > 0 {
+            switch c.children[0].node_type {
+            case NodeType.Ident(base_id):
+                if alias_names.has(base_id.ident_name()).and(shadowed.has(base_id.ident_name()).not()) {
+                    alias_name = Str.clone(base_id.ident_name())
+                    member = Str.clone(fan.field_access_name())
+                }
+            case:
             }
         }
     case:
     }
+    if alias_name.len() > 0 {
+        if alias_members.has(format(alias_name, "|", member)).not() {
+            loc := format(path, ":", c.line.to_str(), ":", c.col.to_str())
+            panic("no public symbol '", member, "' in namespace import '",
+                alias_name, "' of '", alias_paths[alias_name], "'", loc = loc)
+        }
+        mut idn := Expr.new(ident_node(member), c.line, c.col)
+        // Vec.set deep-deletes the replaced FieldAccess subtree.
+        e.children[i] = idn
+    } else {
+        rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path, shadowed)
+    }
+}
+
+// Rewrite every `alias.sym` FieldAccess whose base is a namespace-import
+// alias into a direct `sym` reference. Walks ns_decls / field defaults /
+// param defaults explicitly since those Exprs live outside e.children.
+// `shadowed` tracks names rebound by an enclosing binder -- function
+// params/captures, body locals (from their decl point onward), for-in
+// loop vars, switch-case payload binders, and catch vars -- so a local
+// that shadows the alias name is left alone.
+priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str)) {
+    switch e.node_type {
+    case NodeType.StructDef(sdd):
+        for mut fd : Declaration in sdd.fields {
+            if fd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+            }
+        }
+        for mut nd : Declaration in sdd.ns_decls {
+            if nd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+            }
+        }
+        return
+    case NodeType.EnumDef(edd):
+        for mut nd2 : Declaration in edd.ns_decls {
+            if nd2.default_value.is_null().not() {
+                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+            }
+        }
+        return
+    case NodeType.FuncDef(fdd):
+        for mut pd : Declaration in fdd.params {
+            if pd.default_value.is_null().not() {
+                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+            }
+        }
+        mut fn_shadow := shadowed.clone()
+        for pd2 : Declaration in fdd.params {
+            fn_shadow.add(own pd2.name.clone())
+        }
+        for cap : Declaration in fdd.captures {
+            fn_shadow.add(own cap.name.clone())
+        }
+        for fi in 0..e.children.len() {
+            ns_alias_rewrite_child(e, fi, alias_names, alias_members, alias_paths, path, fn_shadow)
+        }
+        return
+    case NodeType.Body:
+        // Locals shadow from their decl point onward, so extend the set
+        // AFTER each Decl child is walked (its RHS still sees the alias).
+        mut body_shadow := shadowed.clone()
+        for bi in 0..e.children.len() {
+            ns_alias_rewrite_child(e, bi, alias_names, alias_members, alias_paths, path, body_shadow)
+            switch e.children[bi].node_type {
+            case NodeType.Decl(bd):
+                body_shadow.add(own bd.name.clone())
+            case:
+            }
+        }
+        return
+    case NodeType.ForIn(fid):
+        if e.children.len() >= 2 {
+            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed)
+            mut loop_shadow := shadowed.clone()
+            loop_shadow.add(own fid.name.clone())
+            if fid.name2.len() > 0 { loop_shadow.add(own fid.name2.clone()) }
+            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, loop_shadow)
+            return
+        }
+    case NodeType.Case:
+        // [pattern, body]: payload binders in the pattern shadow the body.
+        if e.children.len() == 2 {
+            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed)
+            mut case_shadow := shadowed.clone()
+            collect_case_pattern_binders(e.children[0], case_shadow)
+            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, case_shadow)
+            return
+        }
+    case NodeType.Catch:
+        // [var Ident, type Ident, body]: the err var shadows the body.
+        if e.children.len() >= 3 {
+            mut catch_shadow := shadowed.clone()
+            switch e.children[0].node_type {
+            case NodeType.Ident(cvid):
+                catch_shadow.add(own Str.clone(cvid.ident_name()))
+            case:
+            }
+            ns_alias_rewrite_child(e, 2, alias_names, alias_members, alias_paths, path, catch_shadow)
+            return
+        }
+    case:
+    }
     for i in 0..e.children.len() {
-        ref mut c : Expr = e.children[i]
-        mut alias_name := ""
-        mut member := ""
-        switch c.node_type {
-        case NodeType.FieldAccess(fan):
-            if c.children.len() > 0 {
-                switch c.children[0].node_type {
-                case NodeType.Ident(base_id):
-                    if alias_names.has(base_id.ident_name()) {
-                        alias_name = Str.clone(base_id.ident_name())
-                        member = Str.clone(fan.field_access_name())
-                    }
-                case:
-                }
-            }
-        case:
-        }
-        if alias_name.len() > 0 {
-            if alias_members.has(format(alias_name, "|", member)).not() {
-                loc := format(path, ":", c.line.to_str(), ":", c.col.to_str())
-                panic("no public symbol '", member, "' in namespace import '",
-                    alias_name, "' of '", alias_paths[alias_name], "'", loc = loc)
-            }
-            mut idn := Expr.new(ident_node(member), c.line, c.col)
-            // Vec.set deep-deletes the replaced FieldAccess subtree.
-            e.children[i] = idn
-        } else {
-            rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path)
-        }
+        ns_alias_rewrite_child(e, i, alias_names, alias_members, alias_paths, path, shadowed)
     }
 }
 
@@ -2054,8 +2136,9 @@ priv desugar_namespace_imports := func(path: Str, mut iu: ImportUnit, ctx: Conte
     // Second pass: rewrite `alias.sym` uses in the kept statements into
     // direct references to the original decls.
     if ns_alias_names.len() > 0 {
+        no_shadows := Set(Str).new()
         for j in 0..new_ch.len() {
-            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path)
+            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows)
         }
     }
 

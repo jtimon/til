@@ -1,0 +1,37 @@
+# priority: medium
+# category: bugs
+** OPEN #308 Interpreted gui programs panic instead of running
+
+  Interpreted gui mode is meant to work (REPL included), but today it
+  dies before drawing anything:
+
+  #+begin_src sh
+  bin/til interpret examples/hello_gui.til
+  # ./src/self/interpreter.til: panic: expected Bool argument
+  # to and/or/not, got Value.None   (narrow_bool_arg)
+  #+end_src
+
+  Two layers to this:
+
+  1. The immediate crash: an and/or/not arg evaluates to Value.None.
+     Likely an ext call whose FFI dispatch failed and quietly yielded
+     None instead of erroring at the failed call -- find it and make
+     the FAILING call loud, then fix the failure itself.
+  2. The structural problem underneath: the interpreter resolves ext
+     symbols by dlsym on the running binary (ffi_global_symbol) plus
+     dlopen'd "-l" libs (ffi_init_link_libs), but bin/til does not
+     contain the raylib/tinyfd symbols at all -- the vendor libs are
+     static archives and nothing in the compiler references their
+     symbols, so the linker extracts no members (verified via nm: zero
+     raylib symbols in bin/til, both before and after the vendor
+     binding imports were dropped from til.til as inert). For
+     interpreted gui FFI to resolve, the symbols must become reachable
+     -- e.g. link the vendor archives into bin/til with
+     --whole-archive (or generated references), or dlopen shared
+     builds of them at interpret time.
+
+  Not covered by the suite because gui interpret is slow, but simple
+  programs like examples/hello_gui.til should work and be reasonably
+  fast. Success criteria: `bin/til interpret examples/hello_gui.til`
+  opens the window and runs, and the same works from a `til repl gui`
+  session.

@@ -1,3 +1,6 @@
+* Bugs
+** Medium
+*** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

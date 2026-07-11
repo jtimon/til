@@ -10,7 +10,7 @@ import("../lib/hash")
 // only honest measurement; interp mode is dominated by dispatch
 // overhead and would mask the algorithmic difference.
 
-bench_map_i64 := func(n: I64) returns Vec(I64) {
+bench_map_i64 := proc(n: I64) returns Vec(I64) {
     m := Map(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
@@ -41,7 +41,7 @@ bench_map_i64 := func(n: I64) returns Vec(I64) {
     return results
 }
 
-bench_hashmap_i64 := func(n: I64) returns Vec(I64) {
+bench_hashmap_i64 := proc(n: I64) returns Vec(I64) {
     m := HashMap(I64, I64).new()
     t0 := clock_ms()
     for i in 0..n {
@@ -72,7 +72,7 @@ bench_hashmap_i64 := func(n: I64) returns Vec(I64) {
     return results
 }
 
-bench_map_str := func(n: I64) returns Vec(I64) {
+bench_map_str := proc(n: I64) returns Vec(I64) {
     // Pre-build the key set so the timed sections only measure map ops.
     keys := Vec(Str).new()
     for i in 0..n {
@@ -112,7 +112,7 @@ bench_map_str := func(n: I64) returns Vec(I64) {
     return results
 }
 
-bench_hashmap_str := func(n: I64) returns Vec(I64) {
+bench_hashmap_str := proc(n: I64) returns Vec(I64) {
     keys := Vec(Str).new()
     for i in 0..n {
         keys.push(own format("k", i.to_str()))

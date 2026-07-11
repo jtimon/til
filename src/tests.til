@@ -517,6 +517,10 @@ main := proc(args: ..Str) {
     add_both(tests, "test/operators.til", flags)
     add_both(tests, "test/flow.til", flags)
     add_both(tests, "test/asting.til", flags)
+    // parsing.til drives the self-parser itself; compiled-only for now:
+    // interpreting it trips a pre-existing interpreter heap-use-after-free
+    // (reclone_return -> enum_payload_deep_clone).
+    add_both(tests, "test/parsing.til", format(flags, " -no-interp"))
     add_both(tests, "test/structs.til", flags)
     add_both(tests, "test/interfaces.til", flags)
     add_both(tests, "test/types.til", flags)
