@@ -265,9 +265,21 @@
      signature. Fix: ffi_host_default_abi() in interpreter.til
      resolves the abi from the running host and panics on unaudited
      hosts; the binding constant now carries a do-not-use warning.
-   - Next: land both FFI fixes, read the next mac run's arm64 job;
-     iterate to green on both arches; then phase 3 (gui archives,
-     `timeout`, nng).
+   - The FFI fixes landed: run 29139535275 (2047de9) has BOTH mac
+     suites completing at 153/155 -- the arm64 job went from dying in
+     2 minutes to running its full 31-minute ASAN suite. The four
+     remaining failures (arm64: templ_vec compile +
+     ffi_scavenge_link_c_run; x64: fn_ptr compile + issues_summary)
+     are all silent kills: empty captured stderr, no crash report,
+     different victims per run per arch. Diagnosed as runner OOM, not
+     a code bug -- measured on linux-x64: a small test's ASAN compile
+     peaks ~1GB and self_translate peaks 8.5GB, above the arm64
+     runner's 7GB total RAM, while tests.til defaults -j to the core
+     count (3-4). Fix: the mac suite invocations run -j2. If kills
+     persist at -j2 the next lever is ASAN allocator tuning
+     (quarantine_size_mb) or -j1.
+   - Next: read the -j2 run; if green, mac phase 1 is DONE and the
+     jobs stay blocking; then phase 3 (gui archives, `timeout`, nng).
 
 *** macOS plan
 
