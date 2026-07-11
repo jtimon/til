@@ -80,7 +80,10 @@ TypeScope := struct {
     // Issue #147: name -> FuncDef Expr ptr (stored as Dynamic since
     // Maps don't carry ref Expr). Replaces TypeBinding.func_def. Set
     // by scope.set_func_def at every binding write site that used to
-    // assign b.func_def; readers use scope.lookup_func(name).
+    // assign b.func_def; readers use scope.lookup_func(name). The
+    // builder also stores binding-less C-symbol aliases here through
+    // set_func_symbol; lookup_func ignores those because it gates on
+    // bindings, while lookup_func_symbol reads them for codegen.
     func_defs := Map(Str, Dynamic).new()
     struct_defs := Map(Str, Dynamic).new()
     ref parent : TypeScope = NULL
@@ -174,6 +177,21 @@ namespace:
         }
         return NULL
     }
+    lookup_func_symbol := func(self: TypeScope, name: Str) returns ref Expr {
+        if self.bindings.has(name) {
+            ref b : TypeBinding = self.bindings[name]
+            if b.is_func_decl {
+                return func_defs_lookup_one(self.func_defs, name)
+            }
+            return NULL
+        }
+        ref local : Expr = func_defs_lookup_one(self.func_defs, name)
+        if local.is_null().not() { return local }
+        if self.parent.is_null().not() {
+            return self.parent.lookup_func_symbol(name)
+        }
+        return NULL
+    }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
     // func_defs map (the replacement for the removed ref func_def
     // field) and cache its FuncType so binding_func_type stays a pure
@@ -189,6 +207,12 @@ namespace:
             ref mut b : TypeBinding = self.bindings[name]
             b.func_type = func_def_type(fdef)
         }
+        cell : I64 = malloc(I64.size())
+        write_ptr(cell, fdef)
+        self.func_defs.set(name, own cell)
+    }
+    set_func_symbol := func(mut self: TypeScope, name: Str, fdef: Expr) {
+        if self.bindings.has(name) { return }
         cell : I64 = malloc(I64.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
@@ -408,10 +432,6 @@ Context := struct {
     closure_emit_env := ""
     closure_emit_captures := Set(Str).new()
 
-    // #178 builder lookup tables migrated from module-globals. Populated
-    // at build registration time, read throughout codegen.
-    func_defs := Map(Str, Dynamic).new()
-    struct_def_exprs := Map(Str, Dynamic).new()
     funcsig_names := Set(Str).new()
     closure_value_names := Set(Str).new()
     script_globals := Set(Str).new()
@@ -545,7 +565,7 @@ Context := struct {
     // map" that lets struct/enum values carry only a heap pointer +
     // type name and recover their layout by name lookup. Stored as
     // Map(Str, Dynamic) of malloc'd cells holding the Expr pointer
-    // (same encoding as struct_def_exprs / func_defs) so the field type
+    // (same encoding as TypeScope.struct_defs / TypeScope.func_defs) so the field type
     // stays in scope at the Context definition in this file.
     interp_type_defs := Map(Str, Dynamic).new()
 

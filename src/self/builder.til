@@ -393,15 +393,11 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
 }
 
 priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
-    ref slot : Dynamic = ctx.struct_def_exprs.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
+    return ctx.scope.get_struct(name)
 }
 
 priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
-    ref slot : Dynamic = ctx.func_defs.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
+    return ctx.scope.lookup_func_symbol(name)
 }
 
 // --- len/unsafe_get accessor inlining (issue #300) ---
@@ -5959,51 +5955,65 @@ priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
     }
 }
 
-priv register_lookups_prog := func(prog: Expr, ctx: Context) {
+priv register_body_func_symbols := func(body: Expr, ctx: Context) {
+    if body.node_type.is(NodeType.Body).not() { return }
+    for nested : Expr in body.children {
+        if is_func_decl(nested).not() { continue }
+        switch nested.node_type {
+        case NodeType.Decl(nd):
+            ref fdef : Expr = nested.children[0]
+            switch fdef.node_type {
+            case NodeType.FuncDef(fd):
+                if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))
+                    .or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)) {
+                    ctx.scope.set_func_symbol(nd.name, fdef)
+                }
+            case:
+            }
+        case:
+            UNREACHABLE()
+        }
+    }
+}
+
+priv register_type_func_symbols := func(type_name: Str, def: Expr, ctx: Context) {
+    ref ns : Vec(Declaration) = def_ns_decls(def)
+    for nd : Declaration in ns {
+        if nd.default_value.is_null() { continue }
+        if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+        key := type_name.concat3("_", nd.name)
+        ctx.scope.set_func_symbol(key, nd.default_value)
+        if nd.default_value.children.len() > 0 {
+            register_body_func_symbols(nd.default_value.children[0], ctx)
+        }
+    }
+}
+
+priv register_func_symbols_prog := func(prog: Expr, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                sdv : I64 = malloc(I64.size())
-                write_ptr(sdv, rhs)
-                ctx.struct_def_exprs.set(dd.name, own sdv)
-                // Register ns_decls methods into func_defs
-                ref rl_ns : Vec(Declaration) = def_ns_decls(rhs)
-                for d_j : Declaration in rl_ns {
-                    ref nsd : Declaration = d_j
-                    if nsd.default_value.is_null() { continue }
-                    if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    key := dd.name.concat3("_", nsd.name)
-                    if ctx.func_defs.has(key) { continue }
-                    fv : I64 = malloc(I64.size())
-                    write_ptr(fv, nsd.default_value)
-                    ctx.func_defs.set(key, own fv)
-                    if nsd.default_value.children.len() > 0 {
-                        ref fbody : Expr = nsd.default_value.children[0]
-                        for nested : Expr in fbody.children {
-                            if is_func_decl(nested).not() { continue }
-                            switch nested.node_type {
-                            case NodeType.Decl(nd):
-                                nv : I64 = malloc(I64.size())
-                                write_ptr(nv, nested.children[0])
-                                ctx.func_defs.set(nd.name, own nv)
-                            case:
-                                UNREACHABLE()
-                            }
-                        }
-                    }
-                }
-            }
-            if rhs.node_type.is(NodeType.FuncDef) {
-                fv2 : I64 = malloc(I64.size())
-                write_ptr(fv2, rhs)
-                ctx.func_defs.set(dd.name, own fv2)
+                register_type_func_symbols(dd.name, rhs, ctx)
             }
         case:
             UNREACHABLE()
         }
+    }
+}
+
+priv build_register_func_symbols_lp := func(lp: LoadedProgram) {
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            register_func_symbols_prog(iu.ast, lp.ctx)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        register_func_symbols_prog(iu.ast, lp.ctx)
     }
 }
 
@@ -6050,24 +6060,6 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
         collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, lp.ctx)
     }
 }
-
-priv build_register_lookups_lp := func(lp: LoadedProgram) {
-    lp.ctx.struct_def_exprs = Map(Str, Dynamic).new()
-    lp.ctx.func_defs = Map(Str, Dynamic).new()
-    builder_reset_func_scratch(lp.ctx)
-
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            register_lookups_prog(iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        register_lookups_prog(iu.ast, lp.ctx)
-    }
-}
-
 
 priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
@@ -7841,7 +7833,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     mut is_lib := false
     if mode.is_null().not() { is_lib = mode.is_library }
 
-    build_register_lookups_lp(lp)
+    builder_reset_func_scratch(lp.ctx)
+    build_register_func_symbols_lp(lp)
     build_register_funcsig_names_lp(lp)
     build_register_closure_values_lp(lp)
     f := File.new(c_output_path, true)
@@ -7954,7 +7947,6 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
             }
         }
     }
-    lp.ctx.func_defs = Map(Str, Dynamic).new()
     builder_reset_func_scratch(lp.ctx)
     return 0
 }
