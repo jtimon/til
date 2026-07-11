@@ -1514,7 +1514,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             if ch.len() > 0 { byte_val = ch.get(0).cast(I64) }
         }
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
-        e.set_expr_til_type(Type.Primitive(Primitive.U8))
+        e.set_til_type(Type.Primitive(Primitive.U8))
         e_set = true
     case TokenType.KwTrue:
         advance(p)
@@ -2438,7 +2438,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         mut node := Expr.new(NodeType.ForIn(fid), i_line, i_col)
         if has_explicit_type {
-            node.set_expr_til_type(explicit_type)
+            node.set_til_type(explicit_type)
         }
         expect_token(p, TokenType.KwIn)
         node.add_child(own parse_expression(p))

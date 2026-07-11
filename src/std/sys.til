@@ -23,6 +23,8 @@ copy_file := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 copy_tree := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 stdio_capture_begin := ext_proc(path: Str) {}
 stdio_capture_end := ext_proc() {}
+// Read one line from stdin (host input observation; moved from core/io.til).
+in_read_line := ext_proc(mut line: Str) returns shallow Bool {}
 
 wait_cmd := proc(pid: I64) returns I64 {
     while true {

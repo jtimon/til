@@ -1,12 +1,10 @@
 mode lib
 
-import("bool")
 import("str")
 
 print_single := ext_proc(s: Str) {}
 eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
-in_read_line := ext_proc(mut line: Str) returns shallow Bool {}
 
 /// Print strings to stdout followed by a newline.
 println := proc(parts: ..Str) {
@@ -24,5 +22,6 @@ print := proc(parts: ..Str) {
 }
 
 // File handle I/O (the File struct and cfile_* externs) lives in
-// src/std/file.til -- import("std/file") -- so restricted modes can ban
-// filesystem access by banning the import (see issues #215/#216).
+// src/std/file.til -- import("std/file") -- and stdin line input
+// (in_read_line) in src/std/sys.til, so restricted modes can ban
+// filesystem and stdin access by banning the import (see #215/#216).

@@ -53,7 +53,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     return type_program_errors(lp, false)
 }
 
-repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool) returns Str {
+repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Str {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     stdio_capture_begin(out_path)
@@ -65,7 +65,8 @@ repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProg
     if result == 0 { result = interp_session_prepare_context(session, lp, interpret_fwd_path) }
     if result == 0 {
         interp_session_eval_core_once(session, lp)
-        interp_session_eval_current_root(session, lp, block_start_line, eval_doc_line)
+        interp_session_eval_imported_once(session, lp)
+        interp_session_eval_current_root(session, lp, block_start_line, eval_doc_line, doc_init_line)
         interp_session_finish_context(lp)
     }
     stdio_capture_end()
@@ -84,6 +85,7 @@ repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram
     if result == 0 { result = interp_session_prepare_context(session, lp, interpret_fwd_path) }
     if result == 0 {
         interp_session_eval_core_once(session, lp)
+        interp_session_eval_imported_once(session, lp)
         interp_session_eval_current_tail(session, lp, start_idx, count)
         interp_session_finish_context(lp)
     }
@@ -252,6 +254,9 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
 
     mut combined := ""
     combined = combined.format("mode ", mode_str, "\n")
+    // Committed turns may contain help() calls, whose symbols live in
+    // std/doc since it left core (same injection as run_repl_session).
+    combined = combined.format("_doc := import(\"", bin_dir, "/src/std/doc\")\n")
     combined = combined.format(accum)
     File.writefile(tmp_path, combined)
 
@@ -285,6 +290,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     ext_c_path := bin_dir.format("/src/c/ext.c")
     core_info_cache_path := bin_dir.format("/", REPL_CORE_INFO_CACHE)
     core_docs_cache_path := bin_dir.format("/", REPL_CORE_DOCS_CACHE)
+    // std/doc no longer lives in core, but help() must stay ambient in the
+    // REPL, so every program the REPL loads imports it explicitly. The path
+    // is absolute (the loader resolves those as-is) because tmp_path's
+    // directory floats with the user's cwd; the `_doc :=` prefix opts out
+    // of the unused-import check for turns that never call help().
+    doc_import_line := format("_doc := import(\"", bin_dir, "/src/std/doc\")\n")
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""
     mut user_info_cache := ""
@@ -298,7 +309,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     system_cmd("mkdir -p tmp")
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
     out_path := format("tmp/repl_", process_id().to_str(), ".out")
-    File.writefile(tmp_path, format("mode ", mode_str, "\n"))
+    File.writefile(tmp_path, format("mode ", mode_str, "\n", doc_import_line))
     mut cached_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
     cached_errors := repl_init_cached_program(cached_lp)
     if cached_errors > 0 { panic("REPL cached base program failed to typecheck") }
@@ -351,7 +362,11 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         if need_docs {
             doc_line = build_doc_init_line_cache_files(core_info_cache_path, core_docs_cache_path, user_info_cache, user_docs_cache)
         }
-        mut block_start_line : U32 = 2
+        // Preamble layout: line 1 mode, line 2 the injected std/doc import,
+        // line 3 the doc-init call (doc_line, only when need_docs). accum and
+        // the user block follow.
+        doc_init_line : U32 = 3
+        mut block_start_line : U32 = 3
         if doc_line.len() > 0 { block_start_line++ }
         block_start_line = block_start_line + repl_source_line_count(accum)
         use_full_load := repl_has_loader_directives.or(current_has_loader_directive).or(repl_has_lazy_defs).or(current_has_lazy_def).or(repl_has_full_state).or(current_has_known_variadic_call)
@@ -364,6 +379,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut trial_counter := repl_anon_type_counter
             mut combined := ""
             combined = combined.format("mode ", mode_str, "\n")
+            combined = combined.format(doc_import_line)
             combined = combined.format(doc_line)
             combined = combined.format(accum)
             if accum.len() > 0 { combined = combined.format("\n") }
@@ -404,7 +420,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if run_errs == 0 {
                 if use_full_load {
                     finish_prepare_program(run_heap)
-                    turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, current_has_help)
+                    turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, current_has_help, doc_init_line)
                 } else {
                     mut eval_start := run_tail_start
                     if doc_line.len() > 0 { if current_has_help.not() { eval_start++ } }
@@ -426,6 +442,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut trial_counter2 := repl_anon_type_counter
             mut combined2 := ""
             combined2 = combined2.format("mode ", mode_str, "\n")
+            combined2 = combined2.format(doc_import_line)
             combined2 = combined2.format(doc_line)
             combined2 = combined2.format(accum)
             if accum.len() > 0 { combined2 = combined2.format("\n") }
@@ -465,7 +482,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 if use_full_load {
                     finish_init_and_type_program(typed_heap)
                     finish_prepare_program(typed_heap)
-                    turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, current_has_help)
+                    turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, current_has_help, doc_init_line)
                 } else {
                     mut eval_start2 := typed_tail_start
                     if doc_line.len() > 0 { if current_has_help.not() { eval_start2++ } }

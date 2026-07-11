@@ -80,7 +80,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     // Only FuncPtr-typed callees go through the indirect-call emit path, so
     // this is the only shape that actually needs an answer. Other callees
     // (struct constructors, regular func calls) have null fn_sig today.
-    if callee.expr_til_type().is_funcptr().not() { return NULL }
+    if callee.til_type().is_funcptr().not() { return NULL }
     ref s : TypeScope = ctx.scope
     ref via_scope : Expr = resolve_fn_sig(fcall, s)
     if via_scope.is_null().not() { return via_scope }
@@ -280,8 +280,8 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
     if is_clone.not() { return false }
     if callee.children.len() == 0 { return false }
     ref recv : Expr = callee.children[0]
-    if recv.expr_til_type().is(Type.Struct).not() { return false }
-    tname := til_type_name(recv.expr_til_type())
+    if recv.til_type().is(Type.Struct).not() { return false }
+    tname := til_type_name(recv.til_type())
     if is_pod_struct(tname, ctx).not() { return false }
     switch e.children[1].node_type {
     case NodeType.Ident(an):
@@ -310,10 +310,10 @@ priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: C
 // variant FieldAccess; otherwise fall back to emit_deref.
 priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ref pe_arg : Expr = e.children[1]
-    if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.expr_til_type().is(Type.Enum)) {
+    if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.til_type().is(Type.Enum)) {
         switch pe_arg.node_type {
         case NodeType.FieldAccess(pe_vn):
-            pe_sname := til_type_name(pe_arg.children[0].expr_til_type())
+            pe_sname := til_type_name(pe_arg.children[0].til_type())
             f.write("(").write(pe_sname).write("){.tag = ")
             f.write(pe_sname).write("_TAG_").write(pe_vn.field_access_name()).write("}")
             return
@@ -380,7 +380,7 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     if rhs.node_type.is(NodeType.FuncDef) { return false }
     if rhs.node_type.is(NodeType.StructDef) { return false }
     if rhs.node_type.is(NodeType.EnumDef) { return false }
-    if stmt.expr_til_type().is(Type.None) {
+    if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return false }
     }
     switch stmt.node_type {
@@ -486,7 +486,7 @@ priv builder_is_temp_delete := func(e: Expr) returns Bool {
     }
     switch e.children[1].node_type {
     case NodeType.Ident(an):
-        return an.ident_name().starts_with("hoisted__").and(is_primitive(e.children[1].expr_til_type()))
+        return an.ident_name().starts_with("hoisted__").and(is_primitive(e.children[1].til_type()))
     case:
         return false
     }
@@ -617,9 +617,9 @@ priv core_binop_to_c := func(op: Str) returns Str {
 }
 
 priv fa_struct_name := func(e: Expr) returns Str {
-    if e.children.len() == 0 { return til_type_name(e.expr_til_type()) }
+    if e.children.len() == 0 { return til_type_name(e.til_type()) }
     ref obj : Expr = e.children[0]
-    obj_sname := til_type_name(obj.expr_til_type())
+    obj_sname := til_type_name(obj.til_type())
     if obj_sname.len() > 0 { return obj_sname }
     switch obj.node_type {
     case NodeType.Ident(ident): return Str.clone(ident.ident_name())
@@ -838,7 +838,7 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
     case NodeType.Ident(ident):
         if callee_returns_shallow(ident.ident_name(), ctx) { return true }
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee.children[0].expr_til_type())
+        sname := til_type_name(callee.children[0].til_type())
         if sname.len() == 0 { return false }
         flat := sname.concat3("_", mname.field_access_name())
         if callee_returns_shallow(flat, ctx) { return true }
@@ -860,11 +860,11 @@ priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     // Same override-aware short-circuit as fcall_is_shallow_return:
     // cast(e, T) is declared `returns shallow Dynamic` but the typer
     // sets the call's til_type to T. Trust the override.
-    if fcall.expr_til_type().is(Type.Dynamic).not() { return false }
+    if fcall.til_type().is(Type.Dynamic).not() { return false }
     ref callee_node : Expr = fcall.children[0]
     switch callee_node.node_type {
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee_node.children[0].expr_til_type())
+        sname := til_type_name(callee_node.children[0].til_type())
         if sname.len() == 0 { return false }
         flat := sname.concat3("_", mname.field_access_name())
         return callee_returns_dynamic(flat, ctx)
@@ -1046,7 +1046,7 @@ priv builder_variadic_vec_ctype := func(ctx: Context, elem_type: Str) returns St
 
 priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Context) returns Bool {
     if fcall.children.len() != 2 { return false }
-    ename := til_type_name(fcall.expr_til_type())
+    ename := til_type_name(fcall.til_type())
     if ename.len() == 0 { return false }
     prefix := format(ename, "_")
     if callee_name.starts_with(prefix).not() { return false }
@@ -1345,7 +1345,7 @@ priv resolve_callee_name := func(fcall: Expr) returns Str {
     ref callee_node : Expr = fcall.children[0]
     switch callee_node.node_type {
     case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee_node.children[0].expr_til_type())
+        sname := til_type_name(callee_node.children[0].til_type())
         if sname.len() == 0 { return "" }
         return sname.concat3("_", mname.field_access_name())
     case NodeType.Ident(ident): return Str.clone(ident.ident_name())
@@ -1364,7 +1364,7 @@ priv fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
     // "void *" from callee_return_ctype). Limited to the Dynamic case
     // so struct-returning calls (like Array_new) keep their lookup.
     if callee_returns_dynamic(callee, ctx) {
-        t := fcall.expr_til_type()
+        t := fcall.til_type()
         if t.is(Type.Unknown).not().and(t.is(Type.Dynamic).not()) {
             return til_type_to_c(t)
         }
@@ -1737,7 +1737,7 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
 priv fcall_is_struct_ctor := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() == 0 { return false }
-    sname := til_type_name(e.expr_til_type())
+    sname := til_type_name(e.til_type())
     if sname.len() == 0 { return false }
     switch e.children[0].node_type {
     case NodeType.Ident(ci): return ci.ident_name() == sname
@@ -1756,7 +1756,7 @@ priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns Bool {
         ref arg : Expr = ctor.children[i]
         if arg.node_type.is(NodeType.FCall).not() { continue }
         if fcall_is_struct_ctor(arg).not() { return false }
-        arg_sname := til_type_name(arg.expr_til_type())
+        arg_sname := til_type_name(arg.til_type())
         if is_pod_struct(arg_sname, ctx).not() { return false }
         if pod_ctor_args_are_safe(arg, ctx).not() { return false }
     }
@@ -1771,8 +1771,8 @@ priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns Bool {
 // punctuation -- this emits the `(...){...}` expression with no
 // semicolon.
 priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Context) {
-    ctor_sname := til_type_name(ctor.expr_til_type())
-    ctype := c_type_name(ctor.expr_til_type(), ctor_sname, ctx)
+    ctor_sname := til_type_name(ctor.til_type())
+    ctype := c_type_name(ctor.til_type(), ctor_sname, ctx)
     f.write("(").write(ctype).write("){")
     ref pod_def : Expr = find_struct_def(ctor_sname, ctx)
     if pod_def.is_null().not() {
@@ -1821,7 +1821,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     // signature so fcall_fn_sig can recover it at the eventual call site.
     // The original typer scope where `dd` lived is gone by emit time, so we
     // pin the FuncDef pointer here while we still have access to the rhs.
-    if e.expr_til_type().is_funcptr() {
+    if e.til_type().is_funcptr() {
         ref decl_sig : Expr = resolve_decl_fn_sig(rhs, dd, ctx.scope, ctx)
         if decl_sig.is_null().not() {
             sig_buf : I64 = malloc(I64.size())
@@ -1835,7 +1835,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     case NodeType.FuncDef(rhs_fd): rhs_is_capturing_func = rhs_fd.captures.len() > 0
     case:
     }
-    if e.expr_til_type().is_funcptr().and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not().or(rhs_is_capturing_func)) {
+    if e.til_type().is_funcptr().and(dd.own_type.is(OwnType.Ref).not()).and(rhs.node_type.is(NodeType.FuncDef).not().or(rhs_is_capturing_func)) {
         mut ct := "void *"
         mut is_typedef := false
         // Issue #58 / #147 step 5: the FuncSig alias name now lives on
@@ -1846,7 +1846,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         // gate the previous `is_funcsig_type(dd.explicit_type, ctx)`
         // check effectively gave, but read from til_type instead of from
         // Declaration.explicit_type (#147 step 5 path).
-        sig_name := til_type_name(e.expr_til_type())
+        sig_name := til_type_name(e.til_type())
         if sig_name.len() > 0 {
             ct = sig_name
             is_typedef = true
@@ -1861,7 +1861,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         else if is_typedef { f.fwrite(ct, " ", dd.name, " = ") }
         else { f.fwrite(ct, dd.name, " = ") }
         emit_expr(f, rhs, depth, ctx); f.write(";\n")
-    } else if e.expr_til_type().is(Type.Body).and(dd.own_type.is(OwnType.Ref).not()) {
+    } else if e.til_type().is(Type.Body).and(dd.own_type.is(OwnType.Ref).not()) {
         is_global_body := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
         if is_global_body { f.write(dd.name).write(" = ") }
         else { f.write("TilClosure *").write(dd.name).write(" = ") }
@@ -1872,7 +1872,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         f.write("/* ")
         if rhs.node_type.is(NodeType.EnumDef) { f.write("enum") } else { f.write("struct") }
         f.fwrite(" ", dd.name, " defined above */\n")
-    } else if e.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) {
+    } else if e.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) {
         // REM Type alias -- no-op
     } else {
         if dd.own_type.is(OwnType.Ref) {
@@ -1886,7 +1886,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     ctx.builder_func.ref_dyn_locals.add(own dd.name.clone())
                 }
             }
-            ctype := resolve_decl_ctype(e.expr_til_type(), rhs.expr_til_type(), dd.explicit_type, ctx)
+            ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), dd.explicit_type, ctx)
             if is_rg { f.write(dd.name).write(" = ") }
             else { f.fwrite(ctype, " *", dd.name, " = ") }
             emit_as_ptr(f, rhs, depth, false, ctx); f.write(";\n")
@@ -1898,18 +1898,18 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
             }
         } else {
-            ctype := resolve_decl_ctype(e.expr_til_type(), rhs.expr_til_type(), dd.explicit_type, ctx)
+            ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), dd.explicit_type, ctx)
             is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
-            if e.expr_til_type().is(Type.Dynamic) {
+            if e.til_type().is(Type.Dynamic) {
                 if is_global { f.write(dd.name).write(" = ") }
-                else { tc := til_type_to_c(e.expr_til_type()); f.fwrite(tc, " ", dd.name, " = ") }
+                else { tc := til_type_to_c(e.til_type()); f.fwrite(tc, " ", dd.name, " = ") }
                 emit_deref(f, rhs, depth, ctx); f.write(";\n")
             } else {
                 can_hoist := is_global.not().and(dd.own_type.is(OwnType.Own).not())
-                .and(e.expr_til_type().is_funcptr().not()).and(e.expr_til_type().is(Type.Dynamic).not())
+                .and(e.til_type().is_funcptr().not()).and(e.til_type().is(Type.Dynamic).not())
                 .and(rhs.node_type.is(NodeType.FCall).and(fcall_returns_dynamic(rhs, ctx)).not())
                 // Struct constructor
-                rhs_sname := til_type_name(rhs.expr_til_type())
+                rhs_sname := til_type_name(rhs.til_type())
                 mut is_ctor := rhs.node_type.is(NodeType.FCall).and(rhs_sname.len().gt(0))
                 if is_ctor {
                     if rhs.children.len() > 0 {
@@ -1968,7 +1968,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     if dd.is_mut.not() { ctx.builder_func.stack_lit_str_locals.add(own dd.name.clone()) }
                 } else if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
-                .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.expr_til_type().is(Type.Enum))) {
+                .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
                     if is_global {
                         if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                             f.write(dd.name).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
@@ -2091,7 +2091,7 @@ priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
         case:
         }
     }
-    return c_type_name(rv.expr_til_type(), til_type_name(rv.expr_til_type()), ctx)
+    return c_type_name(rv.til_type(), til_type_name(rv.til_type()), ctx)
 }
 
 priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
@@ -2116,12 +2116,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     } else {
         ref rv : Expr = e.children[0]
         // Struct constructor return
-        rv_sname := til_type_name(rv.expr_til_type())
+        rv_sname := til_type_name(rv.til_type())
         if rv.node_type.is(NodeType.FCall).and(rv_sname.len().gt(0)).and(rv.children.len().gt(0)) {
             switch rv.children[0].node_type {
             case NodeType.Ident(ci):
                 if ci.ident_name() == rv_sname {
-                    ctype := c_type_name(rv.expr_til_type(), rv_sname, ctx)
+                    ctype := c_type_name(rv.til_type(), rv_sname, ctx)
                     f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write("));\n")
                     emit_ctor_fields(f, "_r", rv, depth, ctx)
                     for i in 1..e.children.len() {
@@ -2174,7 +2174,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                             if rv_name.starts_with("hoisted__").and(
                                 is_stack_local(rv_name.ident_name(), ctx).not()).and(
                                 is_value_global(rv_name.ident_name(), ctx).not()).and(
-                                rv.expr_til_type().is(Type.Dynamic).not()) {
+                                rv.til_type().is(Type.Dynamic).not()) {
                                 ctype := emit_return_ctype(rv, ctx)
                                 cname := builder_resolve_c_ident_name(rv_name.ident_name(), ctx)
                                 f.write("{ ").write(ctype).write(" _ret = DEREF(").write(cname).write("); free(").write(cname).write(");\n")
@@ -2200,7 +2200,7 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         }
         // Inline field value: box for return
         if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(rv, ctx).not())
-        .and(builder_fa_is_ns(rv, ctx).not()).and(rv.expr_til_type().is(Type.Dynamic).not()) {
+        .and(builder_fa_is_ns(rv, ctx).not()).and(rv.til_type().is(Type.Dynamic).not()) {
             emit_return_box(f, e, depth, ctx)
             // Shallow fcall: box for return
         } else if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
@@ -2251,8 +2251,8 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 UNREACHABLE()
             }
             // Bare enum variant ref: heap-allocate
-        } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv, ctx)).and(rv.expr_til_type().is(Type.Enum)) {
-            sn := til_type_name(rv.children[0].expr_til_type())
+        } else if rv.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rv, ctx)).and(rv.til_type().is(Type.Enum)) {
+            sn := til_type_name(rv.children[0].til_type())
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
                 f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
@@ -2292,16 +2292,16 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
     switch c1.node_type {
     case NodeType.Ident(del_arg):
         if is_stack_local(del_arg.ident_name(), ctx).not() { return false }
-        if c1.expr_til_type().is(Type.Enum) {
+        if c1.til_type().is(Type.Enum) {
             // POD enum (no variant payload): destructor is just
             // `if (call_free) free(self);`. With the local on the
             // stack and the value reclaimed at block exit, the call
             // is pure overhead.
-            tname := til_type_name(c1.expr_til_type())
+            tname := til_type_name(c1.til_type())
             if is_pod_enum(tname, ctx) { return true }
             return false
         }
-        if c1.expr_til_type().is(Type.Struct) { return false }
+        if c1.til_type().is(Type.Struct) { return false }
         return true
     case:
         return false
@@ -2317,9 +2317,9 @@ priv is_noop_delete_stmt := func(e: Expr, ctx: Context) returns Bool {
 // which a C `switch` does not capture, so it reaches the enclosing loop.
 priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ref scrut : Expr = e.children[0]
-    is_enum := scrut.expr_til_type().is(Type.Enum)
+    is_enum := scrut.til_type().is(Type.Enum)
     mut enum_name := ""
-    if is_enum { enum_name = til_type_name(scrut.expr_til_type()) }
+    if is_enum { enum_name = til_type_name(scrut.til_type()) }
     f.write("switch (")
     if is_enum {
         // Switch on the tag field. emit_deref yields the enum value, so
@@ -2446,7 +2446,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
         }
         if ad.save_old_delete {
-            ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+            ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
             if is_stack_local(aname, ctx).or(is_value_global(aname, ctx)) {
                 // LiteralStr RHS can be written directly into the stack-local
                 // after running the old destructor.
@@ -2500,22 +2500,22 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             return
         }
         is_hoisted := is_stack_local(aname, ctx).or(is_value_global(aname, ctx))
-        if e.expr_til_type().is(Type.Dynamic) {
+        if e.til_type().is(Type.Dynamic) {
             f.write(aname).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n"); return
         }
         if ad.is_payload_alias {
             mut is_compound := false
-            if e.expr_til_type().is(Type.Struct).or(e.expr_til_type().is(Type.Enum)) { is_compound = true }
+            if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) { is_compound = true }
             if is_compound.and(rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx))) {
                 // Issue #223 step 3: shallow-returning call yields a value;
                 // delete the old payload, then deref-assign the value directly.
-                ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+                ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
                 f.write("{ ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                 f.write("*").write(aname).write(" = ")
                 emit_expr(f, rhs, depth, ctx)
                 f.write("; }\n")
             } else if is_compound.and(rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())) {
-                ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+                ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
                 f.write("{ ").write(ctype).write("_delete(").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
                 f.write(ctype).write(" *_new = (").write(ctype).write(" *)")
                 emit_expr(f, rhs, depth, ctx)
@@ -2542,7 +2542,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                 f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
             } else if rhs.node_type.is(NodeType.FCall) {
-                ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+                ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
                 f.write("{ ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
                 emit_expr(f, rhs, depth, ctx)
                 f.write("; ").write(aname).write(" = *_hp; free(_hp); }\n")
@@ -2551,14 +2551,14 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
         } else {
             if rhs.node_type.is(NodeType.FCall).or(rhs.node_type.is_literal_str())
-            .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.expr_til_type().is(Type.Enum))) {
+            .or(rhs.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(rhs, ctx)).and(rhs.til_type().is(Type.Enum))) {
                 if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                     f.write("*").write(aname).write(" = ")
                 } else {
                     f.write(aname).write(" = ")
                 }
                 emit_expr(f, rhs, depth, ctx)
-            } else if e.expr_til_type().is_funcptr().or(e.expr_til_type().is(Type.Body)) {
+            } else if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
                 f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx)
             } else {
                 f.write("*").write(aname).write(" = "); emit_deref(f, rhs, depth, ctx)
@@ -2572,7 +2572,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         did_save_old := fad.save_old_delete
         mut old_ctype := ""
         if did_save_old {
-            old_ctype = c_type_name(rhs_fa.expr_til_type(), til_type_name(rhs_fa.expr_til_type()), ctx)
+            old_ctype = c_type_name(rhs_fa.til_type(), til_type_name(rhs_fa.til_type()), ctx)
             f.write("{ ") f.write(old_ctype)
             if builder_fa_is_ptr(e, ctx) {
                 f.write(" *_old = ")
@@ -2605,7 +2605,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 emit_pod_struct_user_clone_arg(f, rhs_fa, depth, ctx)
                 f.write(";\n")
             } else {
-                ftype := c_type_name(rhs_fa.expr_til_type(), til_type_name(rhs_fa.expr_til_type()), ctx)
+                ftype := c_type_name(rhs_fa.til_type(), til_type_name(rhs_fa.til_type()), ctx)
                 f.write("{ ").write(ftype).write(" *_fa = "); emit_expr(f, rhs_fa, depth, ctx); f.write("; ")
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -2616,7 +2616,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
         } else {
             if builder_fa_is_ns(e, ctx) {
-                f.write(til_type_name(obj.expr_til_type())).write("_").write(fname).write(" = ")
+                f.write(til_type_name(obj.til_type())).write("_").write(fname).write(" = ")
             } else {
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -2657,7 +2657,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 case:
                 }
                 if target_name.len().gt(0).and(temp_name.len().gt(0)) {
-                    arg_type := swap_target.expr_til_type()
+                    arg_type := swap_target.til_type()
                     arg_tname := til_type_name(arg_type)
                     if arg_tname == "Str" {
                         // If the temp is a stack-local (Str value, not pointer),
@@ -2723,7 +2723,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // a no-op at runtime. Also `(void)` the hoisted
                         // call_free temp if present, so -Wunused-variable
                         // doesn't trip.
-                        if is_stack_local(del_arg.ident_name(), ctx).and(c1.expr_til_type().is(Type.Struct)) {
+                        if is_stack_local(del_arg.ident_name(), ctx).and(c1.til_type().is(Type.Struct)) {
                             ref del_ct : Str = get_stack_local_ctype(del_arg.ident_name(), ctx)
                             if del_ct.is_null().not().and(del_ct.eq("Str").or(is_pod_struct(del_ct, ctx))) {
                                 if e.children.len() >= 3 {
@@ -2742,7 +2742,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             case:
             }
         }
-        e_sname := til_type_name(e.expr_til_type())
+        e_sname := til_type_name(e.til_type())
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
             switch e.children[0].node_type {
             case NodeType.Ident(cname):
@@ -2761,9 +2761,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         //    Vec's inner buffer, ...). Hand off to `T.delete(self,
         //    call_free=true)` -- the same ASAP path the typer would
         //    have taken if the temp had survived.
-        if e.expr_til_type().is(Type.None).not() {
+        if e.til_type().is(Type.None).not() {
             if fcall_returns_own(e, ctx.scope) {
-                tname := type_to_name(e.expr_til_type())
+                tname := type_to_name(e.til_type())
                 if tname.len() > 0 {
                     f.write(tname).write("_delete(")
                     emit_expr(f, e, depth, ctx)
@@ -2808,11 +2808,11 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
         mut ret_c := "void *"
         if sfd.return_type.len() == 0 {
             ret_c = "void"
-        } else if e.expr_til_type().is(Type.None).not().and(e.expr_til_type().is(Type.Unknown).not())
-        .and(e.expr_til_type().is(Type.Dynamic).not()) {
-            ret_c = til_type_to_c(e.expr_til_type())
-            if e.expr_til_type().is(Type.Struct).or(e.expr_til_type().is(Type.Enum)) {
-                e_sname := til_type_name(e.expr_til_type())
+        } else if e.til_type().is(Type.None).not().and(e.til_type().is(Type.Unknown).not())
+        .and(e.til_type().is(Type.Dynamic).not()) {
+            ret_c = til_type_to_c(e.til_type())
+            if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) {
+                e_sname := til_type_name(e.til_type())
                 if e_sname.len() > 0 { ret_c = e_sname }
             }
             if ret_shallow.not() { ret_c = format(ret_c, " *") }
@@ -2830,10 +2830,10 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
                 arg_shallow = p.own_type.is(OwnType.Shallow)
             }
             mut arg_c := "void *"
-            if arg.expr_til_type().is(Type.Unknown).not().and(arg.expr_til_type().is(Type.Dynamic).not()) {
-                arg_c = til_type_to_c(arg.expr_til_type())
-                if arg.expr_til_type().is(Type.Struct).or(arg.expr_til_type().is(Type.Enum)) {
-                    arg_sname := til_type_name(arg.expr_til_type())
+            if arg.til_type().is(Type.Unknown).not().and(arg.til_type().is(Type.Dynamic).not()) {
+                arg_c = til_type_to_c(arg.til_type())
+                if arg.til_type().is(Type.Struct).or(arg.til_type().is(Type.Enum)) {
+                    arg_sname := til_type_name(arg.til_type())
                     if arg_sname.len() > 0 { arg_c = arg_sname }
                 }
                 if arg_shallow.not() { arg_c = format(arg_c, " *") }
@@ -2899,7 +2899,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
         for cap : Declaration in fd.captures {
             ctype := c_type_name(cap.til_type, til_type_name(cap.til_type), _ctx)
             mut cap_expr := Expr.new(ident_node(cap.name), e.line, e.col)
-            cap_expr.set_expr_til_type(cap.til_type.clone())
+            cap_expr.set_til_type(cap.til_type.clone())
             if cap.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(cap.name).write(" = ")
                 emit_as_ptr(f, cap_expr, _depth, false, _ctx)
@@ -2923,7 +2923,7 @@ emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Contex
         for cap_b : Declaration in bd.captures {
             ctype_b := c_type_name(cap_b.til_type, til_type_name(cap_b.til_type), _ctx)
             mut cap_expr_b := Expr.new(ident_node(cap_b.name), e.line, e.col)
-            cap_expr_b.set_expr_til_type(cap_b.til_type.clone())
+            cap_expr_b.set_til_type(cap_b.til_type.clone())
             if cap_b.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(cap_b.name).write(" = ")
                 emit_as_ptr(f, cap_expr_b, _depth, false, _ctx)
@@ -3016,7 +3016,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         // the ULL suffix or `cc -Werror` rejects "integer constant is
         // so large that it is unsigned". The constfolder marks the
         // type, we just have to emit the suffix.
-        if type_is_primitive(e.expr_til_type(), Primitive.U64) {
+        if type_is_primitive(e.til_type(), Primitive.U64) {
             f.write("ULL")
         }
     case NodeType.Literal(Literal.Bool(b)):
@@ -3028,7 +3028,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             f.write("(*").write(ctx.closure_emit_env).write("->").write(ident.ident_name()).write(")")
             return f
         }
-        if e.expr_til_type().is_funcptr() {
+        if e.til_type().is_funcptr() {
             ref ident_fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
             if ident_fdef.is_null().not().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
                 f.write("&")
@@ -3048,11 +3048,11 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         // args. fcall_fn_sig resolves the FuncSig via the cast's
         // child(2) Ident.
         if callee.node_type.is(NodeType.FCall) {
-            if callee.expr_til_type().is(Type.Body) {
+            if callee.til_type().is(Type.Body) {
                 emit_body_closure_call(f, callee, depth, ctx)
                 return f
             }
-            if callee.expr_til_type().is_funcptr() {
+            if callee.til_type().is_funcptr() {
                 ref sig_cc : Expr = fcall_fn_sig(e, ctx)
                 if sig_cc.is_null().not() {
                     emit_fcall_closure_call(f, e, callee, sig_cc, depth, ctx)
@@ -3062,11 +3062,11 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         }
         // Indirect call through FuncSig-typed struct field
         if callee.node_type.is(NodeType.FieldAccess) {
-            if callee.expr_til_type().is(Type.Body) {
+            if callee.til_type().is(Type.Body) {
                 emit_body_closure_call(f, callee, depth, ctx)
                 return f
             }
-            if callee.expr_til_type().is_funcptr() {
+            if callee.til_type().is_funcptr() {
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 if sig.is_null().not() {
                     emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
@@ -3074,7 +3074,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             }
             // Namespace method call
-            sname := til_type_name(callee.children[0].expr_til_type())
+            sname := til_type_name(callee.children[0].til_type())
             switch callee.node_type {
             case NodeType.FieldAccess(mname):
                 flat := sname.concat3("_", mname.field_access_name())
@@ -3083,7 +3083,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // operator inline -- no call, no symbol. The result cast is
                     // the method's declared return type, e.g. ((U32)(a + b)).
                     ref core_op : Str = mname.field_access_name()
-                    core_ret_c := til_type_name_c(e.expr_til_type())
+                    core_ret_c := til_type_name_c(e.til_type())
                     if core_op == "bnot" {
                         f.write("((")
                         f.write(core_ret_c)
@@ -3164,7 +3164,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // on the accessor method (single-return-expr body), not the
                     // container type -- no longer Vec-hardcoded.
                     emit_inline_accessor(f, e, find_callee_fdef(flat, ctx), depth, ctx)
-                } else if (mname.field_access_name() == "clone").and(is_primitive(e.expr_til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
+                } else if (mname.field_access_name() == "clone").and(is_primitive(e.til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
                     // Peephole: a value primitive's clone is a value copy --
                     // emit the value directly instead of a <Prim>_clone() call
                     // (13.6M U32_clone + 9M Bool_clone in --prof). Done in the
@@ -3213,7 +3213,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         case NodeType.Ident(name):
             if name.ident_name().eq("memset").and(e.children.len().eq(4)) {
                 ref memset_arg : Expr = e.children[1]
-                memset_arg_type := c_type_name(memset_arg.expr_til_type(), til_type_name(memset_arg.expr_til_type()), ctx)
+                memset_arg_type := c_type_name(memset_arg.til_type(), til_type_name(memset_arg.til_type()), ctx)
                 if memset_arg_type == "Str" {
                     f.write("if ((")
                     emit_expr(f, memset_arg, depth, ctx)
@@ -3231,7 +3231,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             } else if name.ident_name().eq("free").and(e.children.len().eq(2)) {
                 ref free_arg : Expr = e.children[1]
-                free_arg_type := c_type_name(free_arg.expr_til_type(), til_type_name(free_arg.expr_til_type()), ctx)
+                free_arg_type := c_type_name(free_arg.til_type(), til_type_name(free_arg.til_type()), ctx)
                 if free_arg_type == "Str" {
                     f.write("if ((")
                     emit_expr(f, free_arg, depth, ctx)
@@ -3286,7 +3286,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Issue #212: integer reinterpret or same-signedness
                 // widening -> bare C cast. The typer set this FCall's
                 // til_type to the target type T.
-                mut cast_c_type := til_type_name_c(e.expr_til_type())
+                mut cast_c_type := til_type_name_c(e.til_type())
                 // Issue #58: cast-to-FuncSig. til_type_name_c yields "Fn",
                 // which is not a C type. For Dynamic -> FuncPtr the source
                 // is a slot pointer (Vec.get returned the slot address);
@@ -3294,7 +3294,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // FuncPtr -> FuncPtr (identity) we just pass through as
                 // void *.
                 if (cast_c_type == "Fn").or(cast_c_type == "Body") {
-                    if e.children[1].expr_til_type().is(Type.Dynamic) {
+                    if e.children[1].til_type().is(Type.Dynamic) {
                         f.write("(*(void **)(")
                         emit_deref(f, e.children[1], depth, ctx)
                         f.write("))")
@@ -3363,9 +3363,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 case:
                     UNREACHABLE()
                 }
-            } else if til_type_name(e.expr_til_type()).len().gt(0).and(name.ident_name().eq(til_type_name(e.expr_til_type()))) {
+            } else if til_type_name(e.til_type()).len().gt(0).and(name.ident_name().eq(til_type_name(e.til_type()))) {
                 // Struct constructor
-                ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+                ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
                 ctx.ctor_seq = ctx.ctor_seq + 1
                 id := ctx.ctor_seq
                 f.write("({ ")
@@ -3380,9 +3380,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write(" _sc")
                 emit_i32(f, id)
                 f.write("; })")
-            } else if callee.expr_til_type().is(Type.Body) {
+            } else if callee.til_type().is(Type.Body) {
                 emit_body_closure_call(f, callee, depth, ctx)
-            } else if callee.expr_til_type().is_funcptr() {
+            } else if callee.til_type().is_funcptr() {
                 // Indirect call through function pointer variable
                 ref sig : Expr = fcall_fn_sig(e, ctx)
                 emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
@@ -3400,8 +3400,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // (93M calls). The interpreter evaluates it via the registered
                 // h_is_n handler (a core_func is not FFI-registered), reading
                 // the same offset-0 tag bytes, so both modes agree.
-                isn_ret_c := til_type_name_c(e.expr_til_type())
-                enum_c := til_type_name(e.children[1].expr_til_type())
+                isn_ret_c := til_type_name_c(e.til_type())
+                enum_c := til_type_name(e.children[1].til_type())
                 f.write("((")
                 f.write(isn_ret_c)
                 f.write(")(((")
@@ -3425,7 +3425,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // handler (a core_func is not FFI-registered), so both modes
                 // agree.
                 f.write("((")
-                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(til_type_name_c(e.til_type()))
                 f.write(")((UPtr)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
                 f.write(") == 0))")
@@ -3436,7 +3436,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // both modes agree. Gated on the callee actually being core,
                 // like is_null/ptr_add/is_n, not on the name alone.
                 f.write("((")
-                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(til_type_name_c(e.til_type()))
                 f.write(")(!(")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(")))")
@@ -3448,7 +3448,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // C's && short-circuits natively, so the lowering is exact
                 // either way (33M and() calls per self-host translate).
                 f.write("((")
-                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(til_type_name_c(e.til_type()))
                 f.write(")((")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(") && (")
@@ -3457,7 +3457,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             } else if name.ident_name().eq("or").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // core_lazy_func `or`: mirror of and, native ||.
                 f.write("((")
-                f.write(til_type_name_c(e.expr_til_type()))
+                f.write(til_type_name_c(e.til_type()))
                 f.write(")((")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(") || (")
@@ -3543,8 +3543,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
     case NodeType.FieldAccess(fname):
         ref obj : Expr = e.children[0]
         if builder_fa_is_ns(e, ctx) {
-            obj_sname := til_type_name(obj.expr_til_type())
-            if e.expr_til_type().is(Type.Enum) {
+            obj_sname := til_type_name(obj.til_type())
+            if e.til_type().is(Type.Enum) {
                 f.write("&(")
                 f.write(obj_sname)
                 f.write("){.tag = ")
@@ -3573,7 +3573,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             }
             if obj_is_get_payload {
-                obj_sname_cast := til_type_name(obj.expr_til_type())
+                obj_sname_cast := til_type_name(obj.til_type())
                 if obj_sname_cast.len() > 0 {
                     f.write("((")
                     f.write(obj_sname_cast)
@@ -3626,7 +3626,7 @@ priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     }
 }
 priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {
-    ref ecf_def : Expr = find_struct_def(til_type_name(ctor.expr_til_type()), ctx)
+    ref ecf_def : Expr = find_struct_def(til_type_name(ctor.til_type()), ctx)
     mut fi : USize = 0
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
@@ -3672,13 +3672,13 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                 }
                 f.write(";\n")
             } else if arg.node_type.is(NodeType.FCall) {
-                arg_sname := til_type_name(arg.expr_til_type())
+                arg_sname := til_type_name(arg.til_type())
                 if arg_sname.len() > 0 {
                     mut handled := false
                     switch arg.children[0].node_type {
                     case NodeType.Ident(callee_ident):
                         if callee_ident.ident_name() == arg_sname {
-                            ct := c_type_name(arg.expr_til_type(), arg_sname, ctx)
+                            ct := c_type_name(arg.til_type(), arg_sname, ctx)
                             ctx.ctor_seq = ctx.ctor_seq + 1
                             id := ctx.ctor_seq
                             tmp := format("_cs", id.to_str())
@@ -3717,7 +3717,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                 f.write(";\n")
             }
         } else if arg.node_type.is(NodeType.FCall) {
-            arg_sname2 := til_type_name(arg.expr_til_type())
+            arg_sname2 := til_type_name(arg.til_type())
             if arg_sname2.len() > 0 {
                 mut is_ctor_call := false
                 switch arg.children[0].node_type {
@@ -3733,7 +3733,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                             f.write(";\n")
                             is_ctor_call = true
                         } else {
-                        ct := c_type_name(arg.expr_til_type(), arg_sname2, ctx)
+                        ct := c_type_name(arg.til_type(), arg_sname2, ctx)
                         ctx.ctor_seq = ctx.ctor_seq + 1
                         id := ctx.ctor_seq
                         tmp := format("_cs", id.to_str())
@@ -3764,7 +3764,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                         emit_expr(f, arg, depth, ctx)
                         f.write(";\n")
                     } else {
-                        ftype := c_type_name(arg.expr_til_type(), arg_sname2, ctx)
+                        ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
                         f.write("{ ")
                         f.write(ftype)
                         f.write(" *_ca = ")
@@ -3782,7 +3782,7 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                     emit_expr(f, arg, depth, ctx)
                     f.write(";\n")
                 } else {
-                    ftype := c_type_name(arg.expr_til_type(), arg_sname2, ctx)
+                    ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
                     f.write("{ ")
                     f.write(ftype)
                     f.write(" *_ca = ")
@@ -3881,9 +3881,9 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
         }
     case:
     }
-    if e.expr_til_type().is(Type.Dynamic) {
+    if e.til_type().is(Type.Dynamic) {
         emit_expr(f, e, depth, ctx)
-    } else if e.expr_til_type().is_funcptr().or(e.expr_til_type().is(Type.Body)) {
+    } else if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
         switch e.node_type {
         case NodeType.Ident(ident):
             if is_ref_local(ident.ident_name(), ctx) {
@@ -3908,7 +3908,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
                 // narrow_dynamic has retyped this use to a concrete
                 // primitive. Emit a typed cast so DEREF doesn't try to
                 // dereference a `void *` (which is invalid C).
-                ctype := til_type_to_c(e.expr_til_type())
+                ctype := til_type_to_c(e.til_type())
                 f.write("DEREF((").write(ctype).write(" *)").emit_expr(e, depth, ctx).write(")")
             } else if is_ref_local(ident.ident_name(), ctx) {
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
@@ -3920,7 +3920,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
         case NodeType.Literal(Literal.Str(s)):
             f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
         case NodeType.FieldAccess:
-            if builder_fa_is_ns(e, ctx).and(e.expr_til_type().is(Type.Enum)) {
+            if builder_fa_is_ns(e, ctx).and(e.til_type().is(Type.Enum)) {
                 f.write("(*").emit_expr(e, depth, ctx).write(")")
             } else {
                 emit_expr(f, e, depth, ctx)
@@ -3933,7 +3933,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
 }
 
 priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: Bool, ctx: Context) returns ref File {
-    if e.expr_til_type().is_funcptr().or(e.expr_til_type().is(Type.Body)) {
+    if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
         switch e.node_type {
         case NodeType.Ident(ident):
             if is_ref_local(ident.ident_name(), ctx) { emit_deref(f, e, depth, ctx) }
@@ -3957,7 +3957,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
         // `free(own buf)` did not compile because of this (#302); proc
         // locals were unaffected only because Dynamic locals never enter
         // stack_locals. Mirrors the FieldAccess arm's Dynamic case below.
-        if e.expr_til_type().is(Type.Dynamic) {
+        if e.til_type().is(Type.Dynamic) {
             emit_expr(f, e, depth, ctx)
             return f
         }
@@ -3965,7 +3965,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             if is_own {
                 ref existing : Str = get_stack_local_ctype(ident.ident_name(), ctx)
                 mut ctype := ""
-                if existing.is_null().not() { ctype = existing.clone() } else { ctype = c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx) }
+                if existing.is_null().not() { ctype = existing.clone() } else { ctype = c_type_name(e.til_type(), til_type_name(e.til_type()), ctx) }
                 if ctype.eq("Str").and(is_stack_lit_str_local(ident.ident_name(), ctx)).and(ctx.builder_func.force_heap_stack_lit_str_own.not()) {
                     f.write("&")
                     f.write(builder_resolve_c_ident_name(ident.ident_name(), ctx))
@@ -3986,12 +3986,12 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             emit_expr(f, e, depth, ctx)
         }
     case NodeType.FCall:
-        e_sname := til_type_name(e.expr_til_type())
+        e_sname := til_type_name(e.til_type())
         if e_sname.len().gt(0).and(e.children.len().gt(0)) {
             switch e.children[0].node_type {
             case NodeType.Ident(callee_ident):
                 if callee_ident.ident_name() == e_sname {
-                    ctype := c_type_name(e.expr_til_type(), e_sname, ctx)
+                    ctype := c_type_name(e.til_type(), e_sname, ctx)
                     ctx.ctor_seq = ctx.ctor_seq + 1
                     id := ctx.ctor_seq
                     f.write("({ ")
@@ -4022,9 +4022,9 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     case NodeType.FieldAccess(fname):
         if builder_fa_is_ptr(e, ctx) {
             emit_expr(f, e, depth, ctx)
-        } else if builder_fa_is_ns(e, ctx).and(e.expr_til_type().is(Type.Enum)) {
+        } else if builder_fa_is_ns(e, ctx).and(e.til_type().is(Type.Enum)) {
             if is_own {
-                obj_sname := til_type_name(e.children[0].expr_til_type())
+                obj_sname := til_type_name(e.children[0].til_type())
                 f.write("({ ")
                 f.write(obj_sname)
                 f.write(" *_oa = malloc(sizeof(")
@@ -4039,7 +4039,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
             } else {
                 emit_expr(f, e, depth, ctx)
             }
-        } else if e.expr_til_type().is(Type.Dynamic) {
+        } else if e.til_type().is(Type.Dynamic) {
             emit_expr(f, e, depth, ctx)
         } else {
             f.write("&")
@@ -4048,7 +4048,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     case NodeType.Literal(Literal.Null):
         f.write("NULL")
     case:
-        ctype := c_type_name(e.expr_til_type(), til_type_name(e.expr_til_type()), ctx)
+        ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
         f.write("&(")
         f.write(ctype)
         f.write("){")
@@ -4168,7 +4168,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                         if gs.node_type.is(NodeType.Decl) {
                             ref rhs : Expr = gs.children[0]
                             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                            if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
+                            if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                         } else if gs.node_type.is(NodeType.FCall).not() { continue }
                         emit_stmt(f, gs, 1, lp.ctx)
                     }
@@ -4180,7 +4180,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     if gs.node_type.is(NodeType.Decl) {
                         ref rhs : Expr = gs.children[0]
                         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                        if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
+                        if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                     } else if gs.node_type.is(NodeType.FCall).not() { continue }
                     emit_stmt(f, gs, 1, lp.ctx)
                 }
@@ -4805,7 +4805,7 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
             } else {
                 switch rhs.node_type {
                 case NodeType.Ident(rhs_name):
-                    if stmt.expr_til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), ctx)) {
+                    if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), ctx)) {
                         f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
                     }
                 case:
@@ -4840,7 +4840,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                     } else {
                         switch rhs.node_type {
                         case NodeType.Ident(rhs_name):
-                            if stmt.expr_til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
+                            if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
                                 f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
                             }
                         case:
@@ -4867,7 +4867,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                 } else {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
-                        if stmt.expr_til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
+                        if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
                             f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
                         }
                     case:
@@ -5111,7 +5111,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
                 if is_exported_top_level_global(stmt).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ctype := extern_decl_ctype(stmt.expr_til_type(), stmt.children[0].expr_til_type(), lp.ctx)
+                    ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
                     if dd.own_type.is(OwnType.Ref) {
                         f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
                     } else {
@@ -5129,7 +5129,7 @@ priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
             if is_exported_top_level_global(stmt).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                ctype := extern_decl_ctype(stmt.expr_til_type(), stmt.children[0].expr_til_type(), lp.ctx)
+                ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
                 if dd.own_type.is(OwnType.Ref) {
                     f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
                 } else {
@@ -5896,7 +5896,7 @@ priv register_funcsig_prog := func(prog: Expr, ctx: Context) {
                         ctx.funcsig_names.add(own dd.name.clone())
                     }
                 }
-                if stmt.expr_til_type().is(Type.None) {
+                if stmt.til_type().is(Type.None) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_name):
                         if ctx.funcsig_names.has(rhs_name.ident_name()) {
@@ -5918,7 +5918,7 @@ priv emit_global_inits_prog := proc(f: File, prog: Expr, ctx: Context) {
             ref rhs : Expr = gs.children[0]
             if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef))
             .or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-            if gs.expr_til_type().is(Type.None) {
+            if gs.til_type().is(Type.None) {
                 if rhs.node_type.is(NodeType.Ident) { continue }
             }
         } else {
@@ -6022,7 +6022,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
     expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(ident):
-        if e.expr_til_type().is_funcptr() {
+        if e.til_type().is_funcptr() {
             ref fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
             if fdef.is_null().not() { names.add(own Str.clone(ident.ident_name())) }
         }
@@ -7531,7 +7531,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             for stmt : Expr in iu.ast.children {
                 if is_exported_top_level_global(stmt).not() { continue }
-                ctype := extern_decl_ctype(stmt.expr_til_type(), stmt.children[0].expr_til_type(), lp.ctx)
+                ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
                     if dd.own_type.is(OwnType.Ref) {
@@ -7551,7 +7551,7 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
-            ctype := extern_decl_ctype(stmt.expr_til_type(), stmt.children[0].expr_til_type(), lp.ctx)
+            ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
             switch stmt.node_type {
             case NodeType.Decl(dd):
                 if dd.own_type.is(OwnType.Ref) {
@@ -7588,7 +7588,7 @@ priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr) {
             if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
             if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
             if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-                ng_sname := til_type_name(dd.default_value.expr_til_type())
+                ng_sname := til_type_name(dd.default_value.til_type())
                 if ng_sname.len() > 0 {
                     f.write(ng_sname).write(" ").write(sdecl.name).write("_").write(dd.name).write(";\n")
                 } else {
@@ -7691,7 +7691,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
                 if gs.node_type.is(NodeType.Decl) {
                     ref rhs : Expr = gs.children[0]
                     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                    if gs.expr_til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
+                    if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
                 } else if gs.node_type.is(NodeType.FCall).not() { continue }
                 emit_stmt(f, gs, 1, lp.ctx)
             }
@@ -8115,6 +8115,8 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     dst_root := support_root(prefix)
     mut rc := install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
     if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
+    if rc != 0 { return rc }
     rc = install_tree(format(root, "/lib"), format(dst_root, "/lib"), "install compiler library sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/modes"), format(dst_root, "/src/modes"), "install compiler mode sources")
@@ -8122,8 +8124,6 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     rc = install_tree(format(root, "/src/c"), format(dst_root, "/src/c"), "install compiler C sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
-    if rc != 0 { return rc }
-    rc = install_tree(format(root, "/lib"), format(dst_root, "/lib"), "install bundled dependency tree")
     if rc != 0 { return rc }
     rc = install_file(root.format("/", REPL_CORE_INFO_CACHE), dst_root.format("/", REPL_CORE_INFO_CACHE), "install REPL doc info cache")
     if rc != 0 { return rc }

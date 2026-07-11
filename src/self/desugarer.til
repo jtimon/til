@@ -169,7 +169,7 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
         decl.add_child(own dd.default_value.clone())
         top_level.push(own decl)
         mut ident := Expr.new(ident_node(lname), dd.default_value.line, dd.default_value.col)
-        ident.set_expr_til_type(dd.default_value.expr_til_type())
+        ident.set_til_type(dd.default_value.til_type())
         dd.default_value = ident
     } else {
         counter = typer_lift_lambdas_in_expr(dd.default_value, top_level, counter)
@@ -548,7 +548,7 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
         case NodeType.Ident(idn):
             tn := guess_local_type(root_body, idn.name)
             if tn.len() > 0 {
-                e.children[0].set_expr_til_type(Type.Custom(tn.clone()))
+                e.children[0].set_til_type(Type.Custom(tn.clone()))
             }
         case:
         }
@@ -560,7 +560,7 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
 
 priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, before_line: U32) returns Bool {
     if e.line.lt(before_line).and(e.node_type.is(NodeType.Throw)).and(e.children.len().eq(1)) {
-        mut thrown_name := type_to_name(e.expr_til_type())
+        mut thrown_name := type_to_name(e.til_type())
         if thrown_name.len() == 0 {
             switch e.children[0].node_type {
             case NodeType.Ident(idn):
@@ -765,7 +765,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                     case:
                     }
                     if tn.len() > 0 {
-                        stmt.set_expr_til_type(Type.Custom(tn.clone()))
+                        stmt.set_til_type(Type.Custom(tn.clone()))
                     }
                 }
             }
@@ -777,7 +777,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
         if e.children.len() == 1 {
             tn := throw_type_name_for_with_body(e.children[0], root_body)
             if tn.len() > 0 {
-                e.set_expr_til_type(Type.Custom(tn.clone()))
+                e.set_til_type(Type.Custom(tn.clone()))
             }
         }
     }
@@ -788,7 +788,7 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
 
 priv collect_throw_types_in := proc(e: Expr, mut out: Vec(Str)) {
     if e.node_type.is(NodeType.Throw) {
-        tn := til_type_name(e.expr_til_type())
+        tn := til_type_name(e.til_type())
         if tn.len() > 0 {
             mut already := false
             for existing : Str in out {
@@ -1588,11 +1588,11 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
     if key.len() == 0 { return }
     ref tts : Vec(Str) = ctx.throws_global[key]
     mut kind_id := Expr.new(ident_node("_err_kind"), e.line, e.col)
-    kind_id.set_expr_til_type(Type.Primitive(Primitive.I64))
+    kind_id.set_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
     for tn : Str in tts {
         mut slot_id := Expr.new(ident_node(err_slot_name(tn)), e.line, e.col)
-        slot_id.set_expr_til_type(til_type_from_explicit_type(tn))
+        slot_id.set_til_type(til_type_from_explicit_type(tn))
         e.add_child(own slot_id)
     }
     switch e.node_type {
@@ -2115,7 +2115,7 @@ priv process_throw_catch_in_body := proc(
         // 5. Rewrite Throw -> two assigns.
         if stmt.node_type.is(NodeType.Throw) {
             if stmt.children.len() == 1 {
-                throw_t := stmt.expr_til_type()
+                throw_t := stmt.til_type()
                 mut tn := ""
                 if throw_t.is(Type.Unknown).not().and(throw_t.is(Type.None).not()) {
                     tn = type_to_name(throw_t)
@@ -2365,7 +2365,7 @@ process_throw_catch_in_func_body := proc(
         .and(has_body_bang.not()) { return }
 
     // Pre-pass: annotate every Throw with its resolved type so the
-    // body walk can read stmt.expr_til_type() directly during rewriting.
+    // body walk can read stmt.til_type() directly during rewriting.
     if has_body_throw_catch {
         annotate_throw_types_in(body, body)
         annotate_throw_ident_expr_types(body, body)
@@ -2993,7 +2993,7 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 // Switch/Case nodes for the backends; everything else desugars to if/elif.
 switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
     if is_match { return false }
-    sw_type := sw_expr.expr_til_type()
+    sw_type := sw_expr.til_type()
     sw_sname := til_type_name(sw_type)
     mut is_enum := false
     mut is_bool := false
@@ -3356,7 +3356,7 @@ priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     case:
         UNREACHABLE()
     }
-    kw_decl.set_expr_til_type(Type.Struct("KwargsMap"))
+    kw_decl.set_til_type(Type.Struct("KwargsMap"))
     kw_decl.add_child(own new_call)
     return kw_decl
 }
@@ -3373,13 +3373,13 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     mut set_call := make_ns_call("KwargsMap", "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
-    self_id.set_expr_til_type(Type.Struct("KwargsMap"))
+    self_id.set_til_type(Type.Struct("KwargsMap"))
     set_call.add_child(own self_id)
 
     mut key_lit := Expr.new(NodeType.Literal(Literal.Str(key_name)), fcall.line, fcall.col)
     set_call.add_child(own key_lit)
 
-    tname := type_to_name(val.expr_til_type())
+    tname := type_to_name(val.til_type())
     mut type_lit := Expr.new(NodeType.Literal(Literal.Str(tname.clone())), fcall.line, fcall.col)
     set_call.add_child(own type_lit)
 
@@ -3389,8 +3389,8 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     mut out_val := val.clone()
     if val.node_type.is(NodeType.Ident).or(val.node_type.is(NodeType.FieldAccess)) {
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val.expr_til_type().is_funcptr().not()).and(val.expr_til_type().is(Type.Body).not()) {
-            out_val = make_clone_call(tname, val.expr_til_type(), val, val)
+        if tname.len().gt(0).and(val.til_type().is_funcptr().not()).and(val.til_type().is(Type.Body).not()) {
+            out_val = make_clone_call(tname, val.til_type(), val, val)
         }
     }
     set_call.add_child(own out_val)
@@ -3410,7 +3410,7 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
 
     cap_str := vc.to_str()
     mut cap := Expr.new(literal_num_node(cap_str), fcall.line, fcall.col)
-    cap.set_expr_til_type(usize_type(scope, ctx))
+    cap.set_til_type(usize_type(scope, ctx))
     new_call.add_child(own cap)
 
     mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
@@ -3421,7 +3421,7 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
     case:
         UNREACHABLE()
     }
-    va_decl.set_expr_til_type(Type.Struct(array_type.clone()))
+    va_decl.set_til_type(Type.Struct(array_type.clone()))
     va_decl.add_child(own new_call)
     return va_decl
 }
@@ -3448,9 +3448,9 @@ priv variadic_err_slot_name := func(va_name: Str, suffix: Str) returns Str {
 // need a real value / own-arg handling the desugar does not synthesize.
 priv build_resolved_struct_default := func(name: Str, scope: TypeScope, line: U32, col: U32) returns Expr {
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    call.set_expr_til_type(Type.Struct(name.clone()))
+    call.set_til_type(Type.Struct(name.clone()))
     mut callee := Expr.new(ident_node(name), line, col)
-    callee.set_expr_til_type(Type.Struct(name.clone()))
+    callee.set_til_type(Type.Struct(name.clone()))
     call.add_child(own callee)
     ref sdef : Expr = scope.get_struct(name)
     expect(sdef.is_null().not(), "build_resolved_struct_default: struct not registered")
@@ -3493,9 +3493,9 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     case:
         UNREACHABLE()
     }
-    ek.set_expr_til_type(Type.Primitive(Primitive.I64))
+    ek.set_til_type(Type.Primitive(Primitive.I64))
     mut ek_init := Expr.new(literal_num_node("0"), line, col)
-    ek_init.set_expr_til_type(Type.Primitive(Primitive.I64))
+    ek_init.set_til_type(Type.Primitive(Primitive.I64))
     ek.add_child(own ek_init)
     scope.set(variadic_err_slot_name(va_name, "_ek"), Type.Primitive(Primitive.I64), true, ctx.path, line, col, false, OwnType.Shallow)
     new_ch.push(own ek)
@@ -3512,7 +3512,7 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     case:
         UNREACHABLE()
     }
-    eo.set_expr_til_type(Type.Struct("OutOfBounds"))
+    eo.set_til_type(Type.Struct("OutOfBounds"))
     eo.add_child(own build_resolved_struct_default("OutOfBounds", scope, line, col))
     scope.set(variadic_err_slot_name(va_name, "_eo"), Type.Struct("OutOfBounds"), true, ctx.path, line, col, false, OwnType.Own)
     new_ch.push(own eo)
@@ -3529,28 +3529,28 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     mut set_call := make_ns_call(array_type, "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
-    self_id.set_expr_til_type(Type.Struct(array_type.clone()))
+    self_id.set_til_type(Type.Struct(array_type.clone()))
     set_call.add_child(own self_id)
 
     idx_str := j.to_str()
     mut idx := Expr.new(literal_num_node(idx_str), fcall.line, fcall.col)
-    idx.set_expr_til_type(usize_type(scope, ctx))
+    idx.set_til_type(usize_type(scope, ctx))
     set_call.add_child(own idx)
 
     ref val_in : Expr = fcall.children[vi.add(j.to_i32()).to_usize()]
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
-        tname := type_to_name(val_in.expr_til_type())
+        tname := type_to_name(val_in.til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()).and(val_in.expr_til_type().is(Type.Body).not()) {
-            val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
+        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
+            val = make_clone_call(tname, val_in.til_type(), val_in, val_in)
         }
     }
     elem_t := type_from_name(elem_type, scope, ctx)
     switch val.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
-            val.set_expr_til_type(elem_t)
+            val.set_til_type(elem_t)
         }
     case:
     }
@@ -3558,10 +3558,10 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
 
     // Manually attach the throwing-set error out-args (see comment above).
     mut ek_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_ek")), fcall.line, fcall.col)
-    ek_id.set_expr_til_type(Type.Primitive(Primitive.I64))
+    ek_id.set_til_type(Type.Primitive(Primitive.I64))
     set_call.add_child(own ek_id)
     mut eo_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_eo")), fcall.line, fcall.col)
-    eo_id.set_expr_til_type(til_type_from_explicit_type("OutOfBounds"))
+    eo_id.set_til_type(til_type_from_explicit_type("OutOfBounds"))
     set_call.add_child(own eo_id)
 
     // Issue #281: set() may declare trailing defaulted params (e.g.
@@ -3600,7 +3600,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     case:
         UNREACHABLE()
     }
-    vec_decl.set_expr_til_type(Type.Struct(vec_type))
+    vec_decl.set_til_type(Type.Struct(vec_type))
     vec_decl.add_child(own new_call)
     return vec_decl
 }
@@ -3610,23 +3610,23 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: St
     mut push_call := make_ns_call(vec_type, "push", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(vec_name), fcall.line, fcall.col)
-    self_id.set_expr_til_type(Type.Struct(vec_type))
+    self_id.set_til_type(Type.Struct(vec_type))
     push_call.add_child(own self_id)
 
     ref val_in : Expr = fcall.children[j + 2]
     mut val := val_in.clone()
     if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
-        tname := type_to_name(val_in.expr_til_type())
+        tname := type_to_name(val_in.til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
-        if tname.len().gt(0).and(val_in.expr_til_type().is_funcptr().not()).and(val_in.expr_til_type().is(Type.Body).not()) {
-            val = make_clone_call(tname, val_in.expr_til_type(), val_in, val_in)
+        if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {
+            val = make_clone_call(tname, val_in.til_type(), val_in, val_in)
         }
     }
     elem_t := type_from_name(elem_type, scope, ctx)
     switch val.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
-            val.set_expr_til_type(elem_t)
+            val.set_til_type(elem_t)
         }
     case:
     }
@@ -3641,7 +3641,7 @@ priv rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, 
     old_args.move_from(fcall.children)
     fcall.children = Vec(Expr).new()
     fcall.node_type = ident_node(coll_name)
-    fcall.set_expr_til_type(coll_type)
+    fcall.set_til_type(coll_type)
 }
 
 priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) returns Bool {
@@ -3719,7 +3719,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             count : USize = rhs.children.len() - 2
             mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
             vec_type := format("Vec__", elem_type)
-            vec_decl.set_expr_til_type(Type.Struct(vec_type.clone()))
+            vec_decl.set_til_type(Type.Struct(vec_type.clone()))
             switch vec_decl.node_type {
             case NodeType.Decl(dd):
                 dd.is_mut = true
@@ -3740,7 +3740,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             count : USize = rhs.children.len() - 2
             array_type := variadic_array_type_name(scope, elem_type)
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
-            arr_decl.set_expr_til_type(Type.Struct(array_type.clone()))
+            arr_decl.set_til_type(Type.Struct(array_type.clone()))
             scope.set(var_name, Type.Struct(array_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             new_ch.push(own arr_decl)
             build_variadic_err_slots(var_name, new_ch, scope, ctx, rhs.line, rhs.col)
@@ -3774,7 +3774,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     ref first : Expr = set_lit.children[0]
-    elem_type := type_to_name(first.expr_til_type())
+    elem_type := type_to_name(first.til_type())
     if elem_type.len() == 0 {
         first.type_error("set literal: cannot determine element type", ctx)
         return false
@@ -3786,7 +3786,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     for j in 1..set_lit.children.len() {
         ref v : Expr = set_lit.children[j]
-        vt := type_to_name(v.expr_til_type())
+        vt := type_to_name(v.til_type())
         if vt.len().eq(0).or(vt.eq(elem_type).not()) {
             v.type_error("set literal: all elements must be the same type", ctx)
         }
@@ -3795,7 +3795,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     set_type := set_literal_type_name(scope, elem_type)
     mut new_call := make_ns_call(set_type, "new", Type.Struct(set_type.clone()), set_lit)
     if set_type == "Set" {
-        mut et := set_lit.make_til_type_expr(first.expr_til_type())
+        mut et := set_lit.make_til_type_expr(first.til_type())
         new_call.add_child(own et)
     }
 
@@ -3807,7 +3807,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case:
         UNREACHABLE()
     }
-    decl.set_expr_til_type(Type.Struct(set_type.clone()))
+    decl.set_til_type(Type.Struct(set_type.clone()))
     decl.add_child(own new_call)
 
     scope.set(var_name, Type.Struct(set_type.clone()), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -3817,7 +3817,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     for e_j : Expr in set_lit.children {
         mut add_call := make_ns_call(set_type, "add", Type.None, set_lit)
         mut self_id := Expr.new(ident_node(var_name), set_lit.line, set_lit.col)
-        self_id.set_expr_til_type(Type.Struct(set_type.clone()))
+        self_id.set_til_type(Type.Struct(set_type.clone()))
         add_call.add_child(own self_id)
         mut val := e_j.clone()
         add_call.add_child(own val)
@@ -3852,8 +3852,8 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 
     ref first_key : Expr = map_lit.children[0]
     ref first_val : Expr = map_lit.children[1]
-    key_type := type_to_name(first_key.expr_til_type())
-    val_type := type_to_name(first_val.expr_til_type())
+    key_type := type_to_name(first_key.til_type())
+    val_type := type_to_name(first_val.til_type())
 
     if key_type.len() == 0 {
         first_key.type_error("map literal: cannot determine key type", ctx)
@@ -3871,13 +3871,13 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     for j in 2..map_lit.children.len() {
         if j % 2 == 0 {
             ref k : Expr = map_lit.children[j]
-            kt := type_to_name(k.expr_til_type())
+            kt := type_to_name(k.til_type())
             if kt.len().eq(0).or(kt.eq(key_type).not()) {
                 k.type_error("map literal: all keys must be the same type", ctx)
             }
         } else {
             ref v : Expr = map_lit.children[j]
-            vt := type_to_name(v.expr_til_type())
+            vt := type_to_name(v.til_type())
             if vt.len().eq(0).or(vt.eq(val_type).not()) {
                 v.type_error("map literal: all values must be the same type", ctx)
             }
@@ -3887,9 +3887,9 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     map_type := map_literal_type_name(key_type, val_type)
     mut new_call := make_ns_call(map_type, "new", Type.Struct(map_type.clone()), map_lit)
     if map_type == "Map" {
-        mut kt := map_lit.make_til_type_expr(first_key.expr_til_type())
+        mut kt := map_lit.make_til_type_expr(first_key.til_type())
         new_call.add_child(own kt)
-        mut vt := map_lit.make_til_type_expr(first_val.expr_til_type())
+        mut vt := map_lit.make_til_type_expr(first_val.til_type())
         new_call.add_child(own vt)
     }
 
@@ -3901,7 +3901,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case:
         UNREACHABLE()
     }
-    decl.set_expr_til_type(Type.Struct(map_type.clone()))
+    decl.set_til_type(Type.Struct(map_type.clone()))
     decl.add_child(own new_call)
 
     scope.set(var_name, Type.Struct(map_type.clone()), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -3911,7 +3911,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     for j in 0..n_pairs {
         mut set_call := make_ns_call(map_type, "set", Type.None, map_lit)
         mut self_id := Expr.new(ident_node(var_name), map_lit.line, map_lit.col)
-        self_id.set_expr_til_type(Type.Struct(map_type.clone()))
+        self_id.set_til_type(Type.Struct(map_type.clone()))
         set_call.add_child(own self_id)
         mut key := map_lit.children[j * 2].clone()
         set_call.add_child(own key)
@@ -4076,7 +4076,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
             if field_assign_needs_delete(stmt, scope) {
                 ref fa_rhs : Expr = stmt.children[1]
-                if type_to_name(fa_rhs.expr_til_type()).len() > 0 {
+                if type_to_name(fa_rhs.til_type()).len() > 0 {
                     needs_delete = true
                 }
             }
@@ -4191,7 +4191,7 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope) {
             ref rhs : Expr = stmt.children[1]
-            if type_to_name(rhs.expr_til_type()).len() > 0 {
+            if type_to_name(rhs.til_type()).len() > 0 {
                 switch stmt.node_type {
                 case NodeType.FieldAssign(fad):
                     fad.save_old_delete = true
@@ -4218,11 +4218,11 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         if is_aggregate(ab.type).not() { return }
 
         call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-        call.set_expr_til_type(Type.None)
+        call.set_til_type(Type.None)
         fn := Expr.new(ident_node("swap_bytes"), stmt.line, stmt.col)
         call.add_child(own fn)
         a := Expr.new(ident_node(stmt_name), stmt.line, stmt.col)
-        a.set_expr_til_type(ab.type)
+        a.set_til_type(ab.type)
         call.add_child(own a)
         call.add_child(own stmt.children[0].clone())
         tname := type_to_name(ab.type)
@@ -4317,7 +4317,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     if expr.node_type.is(NodeType.FieldAccess).and(expr.children.len().gt(0)) {
         ref fa_base : Expr = expr.children[0]
         if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
-            if fcall_is_get_method(fa_base).or(is_aggregate(fa_base.expr_til_type()).and(fcall_returns_own(fa_base, scope))) {
+            if fcall_is_get_method(fa_base).or(is_aggregate(fa_base.til_type()).and(fcall_returns_own(fa_base, scope))) {
                 expr.children[0] = hoist_to_temp(ctx, fa_base, hoisted, scope, false)
             }
         }
@@ -4331,7 +4331,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // builds the call with Identifier args, not via the hoister).
     if is_macro_call(expr, ctx) { return }
 
-    expr_sname := til_type_name(expr.expr_til_type())
+    expr_sname := til_type_name(expr.til_type())
     mut is_dyn_call := false
     mut is_array_vec := false
     mut is_ctor_call := false
@@ -4400,7 +4400,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
                 if is_aggregate(field_type).or(field_type.is(Type.Custom)) {
                     continue
                 }
-                arg_type := arg.expr_til_type()
+                arg_type := arg.til_type()
                 if is_aggregate(arg_type).or(arg_type.is(Type.Custom)) {
                     continue
                 }
@@ -4493,7 +4493,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
     hoist_expr(ctx, stmt.children[1], hoisted, scope)
     mut fa_hoist := true
     if stmt.fa_own_type(scope).is(OwnType.Shallow) {
-        rhs_type := stmt.children[1].expr_til_type()
+        rhs_type := stmt.children[1].til_type()
         if is_aggregate(rhs_type) {
             fa_hoist = false
         }
@@ -4538,7 +4538,7 @@ priv hoist_stmt_fcall := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     // hoist-into-temp dance: nothing on the heap to clean up, so the
     // call can stay as a bare FCall stmt. Only Own returns require the
     // wrap so the matching delete frees the heap box.
-    if stmt.expr_til_type().is(Type.None) { return }
+    if stmt.til_type().is(Type.None) { return }
     if fcall_returns_own(stmt, scope).not() { return }
     hoist_to_temp(ctx, stmt, hoisted, scope, false)
     popped : Expr = hoisted.pop()
@@ -4560,7 +4560,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             if j.to_i32().gte(vi).and(j.to_i32().lt(vi + vc.to_i32())) {
                 if va_inserted.not() {
                     mut va_id := Expr.new(ident_node(va_name), line, col)
-                    va_id.set_expr_til_type(Type.Struct(array_type.clone()))
+                    va_id.set_til_type(Type.Struct(array_type.clone()))
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                     new_own = new_own.bor(bit)
@@ -4571,7 +4571,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             }
             if j.to_i32().eq(vi).and(va_inserted.not()) {
                 mut va_id := Expr.new(ident_node(va_name), line, col)
-                va_id.set_expr_til_type(Type.Struct(array_type.clone()))
+                va_id.set_til_type(Type.Struct(array_type.clone()))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                 new_own = new_own.bor(bit)
@@ -4590,7 +4590,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         }
         if va_inserted.not() {
             mut va_id := Expr.new(ident_node(va_name), line, col)
-            va_id.set_expr_til_type(Type.Struct(array_type.clone()))
+            va_id.set_til_type(Type.Struct(array_type.clone()))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
@@ -4938,7 +4938,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             if ji.gte(ki).and(ji.lt(ki + kc.to_i32())) {
                 if kw_inserted.not() {
                     mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
-                    kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
+                    kw_id.set_til_type(Type.Struct("KwargsMap"))
                     mut bit : U64 = 1
                     for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                     new_own = new_own.bor(bit)
@@ -4949,7 +4949,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             }
             if ji.eq(ki).and(kw_inserted.not()) {
                 mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
-                kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
+                kw_id.set_til_type(Type.Struct("KwargsMap"))
                 mut bit : U64 = 1
                 for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
                 new_own = new_own.bor(bit)
@@ -4968,7 +4968,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
         }
         if kw_inserted.not() {
             mut kw_id := Expr.new(ident_node(kw_name), fcall.line, fcall.col)
-            kw_id.set_expr_til_type(Type.Struct("KwargsMap"))
+            kw_id.set_til_type(Type.Struct("KwargsMap"))
             mut bit : U64 = 1
             for _ in 0..fcall_new_ch.len() { bit = bit * 2 }
             new_own = new_own.bor(bit)
@@ -4985,13 +4985,13 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
 priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
     if stmt.fa_own_type(scope).is(OwnType.Ref) { return false }
     if stmt.fa_own_type(scope).is(OwnType.Shallow).not() { return true }
-    ft := stmt.children[1].expr_til_type()
+    ft := stmt.children[1].til_type()
     if is_aggregate(ft) { return true }
     return false
 }
 
 priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
-    tp := type_prefix(val.expr_til_type())
+    tp := type_prefix(val.til_type())
     // Non-underscore prefix so the builder's `_x`-deliberately-unused
     // exemption doesn't free-pass these compiler temps. If a hoisted
     // temp survives DCE and goes unused, that's a DCE bug worth
@@ -5001,14 +5001,14 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     ctx.hoist_counter++
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
-    decl.set_expr_til_type(val.expr_til_type())
+    decl.set_til_type(val.til_type())
 
     mut val_is_ref := false
     if val.node_type.is(NodeType.FCall) {
         val_is_ref = fcall_returns_ref(val, scope).eq(0).not()
     }
 
-    is_compound := is_aggregate(val.expr_til_type())
+    is_compound := is_aggregate(val.til_type())
     // LiteralStr temps: the builder emits these as stack-allocated
     // compound-literal Str values (no malloc). Leaving own_type at
     // Shallow makes the typer-inserted Str.delete use call_free=false,
@@ -5018,8 +5018,8 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     decl.add_child(own val.clone())
 
     mut ident := Expr.new(ident_node(tname), val.line, val.col)
-    ident.set_expr_til_type(val.expr_til_type())
-    scope.set(tname, val.expr_til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
+    ident.set_til_type(val.til_type())
+    scope.set(tname, val.til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname)
     switch decl.node_type {
     case NodeType.Decl(dd):

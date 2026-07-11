@@ -208,8 +208,8 @@ FCallData := struct {
     swap_replace := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
-    // set_expr_til_type method at FCall infer time, and
-    // ~expr_til_type~ reads it back via the chokepoint's FCall
+    // set_til_type method at FCall infer time, and
+    // ~til_type~ reads it back via the chokepoint's FCall
     // dispatch case. Callees declared without a ~returns~ clause
     // resolve to ~Type.None~ -- common for callees written as
     // ~proc~, but not a func/proc distinction (per CLAUDE.md
@@ -688,7 +688,7 @@ namespace:
         TODO("Expr.eq")
         return false
     }
-    expr_til_type := func(self: Expr) returns Type {
+    til_type := func(self: Expr) returns Type {
         switch self.node_type {
         case NodeType.Body:        return Type.None
         case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
@@ -701,12 +701,12 @@ namespace:
         case NodeType.Decl(dd):    return dd.til_type.clone()
         case NodeType.Assign:
             if self.children.len() == 0 { return Type.Unknown }
-            return self.children[0].expr_til_type()
+            return self.children[0].til_type()
         case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
         case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
         case NodeType.NamedArg:
             if self.children.len() == 0 { return Type.Unknown }
-            return self.children[0].expr_til_type()
+            return self.children[0].til_type()
         case NodeType.FCall(fcd):  return fcd.til_type.clone()
         case NodeType.FuncDef:     return Type.FuncPtr
         case NodeType.BodyValue:   return Type.Body
@@ -716,7 +716,7 @@ namespace:
         case NodeType.FieldAssign: return Type.None
         case NodeType.Return:
             if self.children.len() == 0 { return Type.None }
-            return self.children[0].expr_til_type()
+            return self.children[0].til_type()
         case NodeType.If:          return Type.None
         case NodeType.While:       return Type.None
         case NodeType.ForIn(fd):   return fd.til_type.clone()
@@ -731,7 +731,7 @@ namespace:
         case NodeType.Loc:         return Type.Struct("Str")
         case NodeType.Throw:
             if self.children.len() == 0 { return Type.None }
-            return self.children[0].expr_til_type()
+            return self.children[0].til_type()
         case NodeType.Catch:       return Type.None
         case NodeType.RestPattern: return Type.Unknown
         case NodeType.ListPattern: return Type.Unknown
@@ -739,7 +739,7 @@ namespace:
         }
         return Type.Unknown
     }
-    set_expr_til_type := func(mut self: Expr, shallow t: Type) {
+    set_til_type := func(mut self: Expr, shallow t: Type) {
         switch self.node_type {
         case NodeType.Literal(Literal.Num(nd)):
             nd.til_type = t
@@ -757,7 +757,7 @@ namespace:
             md.til_type = t
         case NodeType.Throw:
             if self.children.len() > 0 {
-                self.children[0].set_expr_til_type(t)
+                self.children[0].set_til_type(t)
             }
         case:
         }

@@ -731,7 +731,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             mut then_body := Expr.new(NodeType.Body, line, col)
 
             mut type_id := Expr.new(ident_node(vtype), line, col)
-            type_id.set_expr_til_type(type_from_name_init(vtype, scope))
+            type_id.set_til_type(type_from_name_init(vtype, scope))
             mut del_acc := Expr.new(field_access_node("delete"), line, col)
             del_acc.add_child(own type_id)
             mut del_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -1810,7 +1810,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 if ftype.len() == 0 {
                     if fd.default_value.is_null().not() {
                         ref def_val : Expr = fd.default_value
-                        if til_type_name(def_val.expr_til_type()).len() > 0 { ftype = til_type_name(def_val.expr_til_type()) }
+                        if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len() > 0 {
                                 ref callee : Expr = def_val.children[0]
@@ -1885,7 +1885,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         if def_val.node_type.is_literal_num() { ftype = "I64" }
                         else if def_val.node_type.is_literal_str() { ftype = "Str" }
                         else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
-                        else if til_type_name(def_val.expr_til_type()).len() > 0 { ftype = til_type_name(def_val.expr_til_type()) }
+                        else if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len() > 0 {
                                 ref callee : Expr = def_val.children[0]
@@ -2169,15 +2169,15 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         if rhs.children.len() > 0 {
             ref io1 : Expr = rhs.children[0]
             if io1.node_type.is(NodeType.Ident) {
-                if til_type_name(io1.expr_til_type()).eq("StructDef").or(til_type_name(io1.expr_til_type()).eq("EnumDef")) {
+                if til_type_name(io1.til_type()).eq("StructDef").or(til_type_name(io1.til_type()).eq("EnumDef")) {
                     init_ns1 = true
                 }
             }
         }
-        if init_ns1.and(rhs.expr_til_type().is(Type.Enum)) {
+        if init_ns1.and(rhs.til_type().is(Type.Enum)) {
             mut enum_name := ""
             if rhs.children.len() > 0 {
-                enum_name = til_type_name(rhs.children[0].expr_til_type())
+                enum_name = til_type_name(rhs.children[0].til_type())
             }
             out_type = Type.Enum(enum_name.clone())
             return true
@@ -2187,8 +2187,8 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         ref callee : Expr = rhs.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn):
-            if til_type_name(rhs.expr_til_type()).len().gt(0).and(cn.ident_name().eq(til_type_name(rhs.expr_til_type()))) {
-                out_type = Type.Struct(til_type_name(rhs.expr_til_type()))
+            if til_type_name(rhs.til_type()).len().gt(0).and(cn.ident_name().eq(til_type_name(rhs.til_type()))) {
+                out_type = Type.Struct(til_type_name(rhs.til_type()))
                 return true
             }
             ref fb : TypeBinding = scope.get_binding(cn.ident_name())
@@ -2200,13 +2200,13 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
             if callee.children.len() > 0 {
                 ref io2 : Expr = callee.children[0]
                 if io2.node_type.is(NodeType.Ident) {
-                    if til_type_name(io2.expr_til_type()).eq("StructDef").or(til_type_name(io2.expr_til_type()).eq("EnumDef")) {
+                    if til_type_name(io2.til_type()).eq("StructDef").or(til_type_name(io2.til_type()).eq("EnumDef")) {
                         init_ns2 = true
                     }
                 }
             }
-            if init_ns2.and(til_type_name(rhs.expr_til_type()).len().gt(0)).and(rhs.expr_til_type().is(Type.Enum)) {
-                out_type = Type.Enum(til_type_name(rhs.expr_til_type()))
+            if init_ns2.and(til_type_name(rhs.til_type()).len().gt(0)).and(rhs.til_type().is(Type.Enum)) {
+                out_type = Type.Enum(til_type_name(rhs.til_type()))
                 return true
             }
             return false
@@ -2305,15 +2305,15 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
     init_rename_ident_in_place(e, renamings)
     // `for x : LocalInfo in xs { ... }` stores the loop's explicit type
     // on the ForIn node's payload as Type.Custom("LocalInfo") (read back
-    // via expr_til_type). No Declaration is involved (parser.til:1428),
+    // via til_type). No Declaration is involved (parser.til:1428),
     // so init_rename_decl_in_place misses it; patch the Type.Custom
     // payload here.
-    custom_t := e.expr_til_type()
+    custom_t := e.til_type()
     switch custom_t {
     case Type.Custom(custom_name):
         new_custom := init_lookup_name(renamings, custom_name)
         if new_custom.len() > 0 {
-            e.set_expr_til_type(Type.Custom(new_custom.clone()))
+            e.set_til_type(Type.Custom(new_custom.clone()))
         }
     case:
     }
@@ -4505,7 +4505,7 @@ is_pod_enum_clone_of := func(e: Expr, edef: Expr) returns Bool {
     if enum_has_payloads(edef).not() { return true }
     ref arg : Expr = e.children[1]
     if arg.node_type.is(NodeType.FieldAccess).not() { return false }
-    if arg.expr_til_type().is(Type.Enum).not() { return false }
+    if arg.til_type().is(Type.Enum).not() { return false }
     mut vname := ""
     switch arg.node_type {
     case NodeType.FieldAccess(vn): vname = Str.clone(vn.field_access_name())

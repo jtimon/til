@@ -8,7 +8,7 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
     ref obj : Expr = e.children[0]
     switch obj.node_type {
     case NodeType.Ident(id):
-        obj_type_name := til_type_name(obj.expr_til_type())
+        obj_type_name := til_type_name(obj.til_type())
         if obj_type_name.eq("StructDef").or(obj_type_name.eq("EnumDef")) {
             return true
         }

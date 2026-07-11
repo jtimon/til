@@ -170,7 +170,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
     // variant FieldAccess (Color.<variant>) so the builder emits a
     // compile-time compound literal `&(Color){.tag = Color_TAG_<variant>}`.
     // Bail (return NULL) for payload variants or anything we can't map.
-    src_t := src.expr_til_type()
+    src_t := src.til_type()
     if src_t.is(Type.Enum) {
         // Case A: no-payload variant. The interpreter resolves a no-payload
         // variant access (Color.Green) via the EnumDef ns_decls default_value
@@ -195,10 +195,10 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                         ref vname : Str = edd.variants[etag.to_usize()]
                         // Build the inner variant FieldAccess Color.Green.
                         mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        recv.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                        recv.set_til_type(Type.Enum(til_type_name(src_t)))
                         mut fa := Expr.new(field_access_node(vname), src.line, src.col)
                         fa.add_child(own recv)
-                        fa.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                        fa.set_til_type(Type.Enum(til_type_name(src_t)))
                         // Wrap as Color.clone(Color.Green) -- mirrors the typer's
                         // handling of `c := Color.Green` so the builder's
                         // is_pod_enum_clone_call path emits a stack value with
@@ -206,13 +206,13 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                         // delete). Without the wrap, the Decl emits a pointer to a
                         // stack compound literal that the heap-delete would free.
                         mut clone_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        clone_recv.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                        clone_recv.set_til_type(Type.Enum(til_type_name(src_t)))
                         mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
                         clone_callee.add_child(own clone_recv)
                         mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
                         clone_call.add_child(own clone_callee)
                         clone_call.add_child(own fa)
-                        clone_call.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                        clone_call.set_til_type(Type.Enum(til_type_name(src_t)))
                         return clone_call
                     }
                 case:
@@ -263,13 +263,13 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 if payload_expr.is_null() { return NULL }
                 ref vname2 : Str = edd2.variants[etag2.to_usize()]
                 mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                variant_recv.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                variant_recv.set_til_type(Type.Enum(til_type_name(src_t)))
                 mut variant_callee := Expr.new(field_access_node(vname2), src.line, src.col)
                 variant_callee.add_child(own variant_recv)
                 mut variant_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
                 variant_call.add_child(own variant_callee)
                 variant_call.add_child(own payload_expr)
-                variant_call.set_expr_til_type(Type.Enum(til_type_name(src_t)))
+                variant_call.set_til_type(Type.Enum(til_type_name(src_t)))
                 return variant_call
             case:
             }
@@ -280,35 +280,35 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
     switch val {
     case Value.Int(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.I64))
+        e.set_til_type(Type.Primitive(Primitive.I64))
         return e
     case Value.Byte(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.U8))
+        e.set_til_type(Type.Primitive(Primitive.U8))
         return e
     case Value.Sbyte(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.I8))
+        e.set_til_type(Type.Primitive(Primitive.I8))
         return e
     case Value.Short(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.I16))
+        e.set_til_type(Type.Primitive(Primitive.I16))
         return e
     case Value.Ushort(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.U16))
+        e.set_til_type(Type.Primitive(Primitive.U16))
         return e
     case Value.Int32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.I32))
+        e.set_til_type(Type.Primitive(Primitive.I32))
         return e
     case Value.Uint32(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.U32))
+        e.set_til_type(Type.Primitive(Primitive.U32))
         return e
     case Value.Uint64(x):
         mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.U64))
+        e.set_til_type(Type.Primitive(Primitive.U64))
         return e
     case Value.Float(x):
         // F32.to_repr emits 9 significant digits, which round-trips back
@@ -316,7 +316,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // (the literal is re-parsed) and codegen (emitted verbatim as a C
         // float literal). So folded F32 results are faithful.
         mut e := Expr.new(literal_num_node(x.to_repr()), src.line, src.col)
-        e.set_expr_til_type(Type.Primitive(Primitive.F32))
+        e.set_til_type(Type.Primitive(Primitive.F32))
         return e
     case Value.Struct(si):
         if si.to_str() == "Str" {
@@ -363,7 +363,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         case NodeType.StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
             mut callee := Expr.new(ident_node(si.to_str()), src.line, src.col)
-            callee.set_expr_til_type(Type.Struct(si.to_str()))
+            callee.set_til_type(Type.Struct(si.to_str()))
             ctor.add_child(own callee)
             for fd : Declaration in sfd.fields {
                 // Owned/ref fields are not POD; the compound-literal path
@@ -388,7 +388,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 if farg.is_null() { return NULL }
                 ctor.add_child(own farg)
             }
-            ctor.set_expr_til_type(Type.Struct(si.to_str()))
+            ctor.set_til_type(Type.Struct(si.to_str()))
             return ctor
         case:
             return NULL
@@ -435,7 +435,7 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
 priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
     switch e.node_type {
     case NodeType.Literal(Literal.Num(num)):
-        lit_t := e.expr_til_type()
+        lit_t := e.til_type()
         switch lit_t {
         case Type.Primitive(Primitive.U8):  return Value.Byte(num.to_u8())
         case Type.Primitive(Primitive.U32): return Value.Uint32(num.to_u32())
@@ -711,7 +711,7 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
 
 // For a FieldAccess callee like `recv.method`, derive the type name
 // to dispatch on. If recv is an Ident that names a struct/enum (e.g.
-// `Str.size`), use the Ident text. Otherwise fall back to recv.expr_til_type()
+// `Str.size`), use the Ident text. Otherwise fall back to recv.til_type()
 // so method calls on values (`x.add(y)` where x: I64) still resolve.
 priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
     if callee.children.len() == 0 { return "" }
@@ -724,7 +724,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
         if probe.is_null().not() { return Str.clone(ident.ident_name()) }
     case:
     }
-    return til_type_name_c(recv.expr_til_type())
+    return til_type_name_c(recv.til_type())
 }
 
 // Fast path: if the callee is a nullary function whose body trivially
@@ -766,7 +766,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     ref lit : Expr = extract_trivial_literal_return(fc_fdef)
     if lit.is_null() { return NULL }
     mut lit_clone := lit.clone()
-    lit_clone.set_expr_til_type(fcall.expr_til_type())
+    lit_clone.set_til_type(fcall.til_type())
     // Return the owned clone directly: the previous malloc + move into a
     // second heap Expr both double-allocated and abandoned _lit_clone's
     // node (a per-fold leak), and forced callers to clone-and-drop.
@@ -859,7 +859,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // skip it for non-macro folds. Macros (require_known) may run compile-time
     // effects and must still evaluate.
     if require_known.not() {
-        ret_tname := til_type_name(fcall.expr_til_type())
+        ret_tname := til_type_name(fcall.til_type())
         is_container := ret_tname.starts_with("Vec__")
                        .or(ret_tname.starts_with("Array__"))
                        .or(ret_tname.starts_with("Map__"))
@@ -869,7 +869,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // Build a call with literal args for the interpreter
     nargs := fcall.children.len() - 1
     mut ec := Expr.new(NodeType.FCall(FCallData()), fcall.line, fcall.col)
-    ec.set_expr_til_type(fcall.expr_til_type())
+    ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
 
     for i in 0..nargs {
@@ -888,42 +888,42 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     switch cell.val {
                     case Value.Int(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.I64))
+                        lit.set_til_type(Type.Primitive(Primitive.I64))
                         ec.add_child(own lit)
                         continue
                     case Value.Byte(bv):
                         mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.U8))
+                        lit.set_til_type(Type.Primitive(Primitive.U8))
                         ec.add_child(own lit)
                         continue
                     case Value.Sbyte(bv):
                         mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.I8))
+                        lit.set_til_type(Type.Primitive(Primitive.I8))
                         ec.add_child(own lit)
                         continue
                     case Value.Short(sv):
                         mut lit := Expr.new(literal_num_node(sv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.I16))
+                        lit.set_til_type(Type.Primitive(Primitive.I16))
                         ec.add_child(own lit)
                         continue
                     case Value.Ushort(uv):
                         mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.U16))
+                        lit.set_til_type(Type.Primitive(Primitive.U16))
                         ec.add_child(own lit)
                         continue
                     case Value.Int32(iv):
                         mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.I32))
+                        lit.set_til_type(Type.Primitive(Primitive.I32))
                         ec.add_child(own lit)
                         continue
                     case Value.Uint32(uv):
                         mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.U32))
+                        lit.set_til_type(Type.Primitive(Primitive.U32))
                         ec.add_child(own lit)
                         continue
                     case Value.Uint64(uv):
                         mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_expr_til_type(Type.Primitive(Primitive.U64))
+                        lit.set_til_type(Type.Primitive(Primitive.U64))
                         ec.add_child(own lit)
                         continue
                     case Value.Boolean(bv):
@@ -947,7 +947,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             //     matches Type.Custom/Type.Struct/Type.Enum by payload name, so
             //     til_type_name picks up the right name regardless of which
             //     variant is constructed.
-            if is_type_metatype(arg.expr_til_type()) {
+            if is_type_metatype(arg.til_type()) {
                 switch arg.node_type {
                 case NodeType.FCall:
                     ec.add_child(own arg.clone())
@@ -956,14 +956,14 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     atok_name := Str.clone(atok_id.ident_name())
                     if atok_name.len().gt(0).and(atok_name.eq("Type").not()) {
                         mut atok_recv := Expr.new(ident_node("Type"), arg.line, arg.col)
-                        atok_recv.set_expr_til_type(Type.Enum("Type"))
+                        atok_recv.set_til_type(Type.Enum("Type"))
                         mut atok_fa := Expr.new(field_access_node("Custom"), arg.line, arg.col)
                         atok_fa.add_child(own atok_recv)
                         mut atok_strlit := Expr.new(NodeType.Literal(Literal.Str(atok_name)), arg.line, arg.col)
                         mut atok_ctor := Expr.new(NodeType.FCall(FCallData()), arg.line, arg.col)
                         atok_ctor.add_child(own atok_fa)
                         atok_ctor.add_child(own atok_strlit)
-                        atok_ctor.set_expr_til_type(Type.Enum("Type"))
+                        atok_ctor.set_til_type(Type.Enum("Type"))
                         ec.add_child(own atok_ctor)
                         continue
                     }
@@ -1043,11 +1043,11 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // value_to_expr deep-copied result's payload into the LiteralStr, so the
     // eval_expr-owned `result` is reclaimed by the garbager's deep
     // Value.delete at its last use (just above) -- no manual free.
-    // Preserve fcall.expr_til_type(). value_to_expr derives til_type from the
+    // Preserve fcall.til_type(). value_to_expr derives til_type from the
     // runtime Value variant (Uint32 -> U32), but the original fcall might
     // have been typed as USize/U64/... at typer time. Surrounding code
     // (re-typing, codegen) expects the original til_type.
-    lit_local.set_expr_til_type(fcall.expr_til_type())
+    lit_local.set_til_type(fcall.til_type())
     // Return an owned clone (value_to_expr returns a borrowed ref). The
     // previous malloc + move into a separate heap Expr leaked the abandoned
     // block and forced callers to clone-and-drop.
@@ -1299,7 +1299,7 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
             if aborted.not() {
                 mut lit : Expr = value_to_expr(result, child, ctx)
                 if lit.is_null().not() {
-                    lit.set_expr_til_type(child.expr_til_type())
+                    lit.set_til_type(child.til_type())
                     e.children[i] = lit
                 }
             }
@@ -1422,7 +1422,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                         break
                     }
                 }
-                if all_comptime.and(result_type_can_fold_to_expr(child.expr_til_type(), ctx)) {
+                if all_comptime.and(result_type_can_fold_to_expr(child.til_type(), ctx)) {
                     mut lit : Expr = try_fast_fold_call(scope, child, ctx)
                     if lit.is_null().not() {
                         e.children[i] = lit

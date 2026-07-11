@@ -531,6 +531,13 @@ InterpSession := struct {
     // width mismatch a hard type error on 64-bit.
     user_argc : USize = 0
     retained_programs := Vec(DynPtrBox).new()
+    // Display paths of imported (non-entry) units whose top-level globals
+    // have already been evaluated into `global`. The REPL evaluates the
+    // entry root incrementally but must run an imported unit's global
+    // initializers once (e.g. std/doc's __til_*_blob__), the same role
+    // core_evaluated plays for core_units. Keyed by path so a mid-session
+    // import (added via the full-load path) is picked up on its first turn.
+    evaluated_units := Set(Str).new()
 }
 
 // Return-value / control-flow state and namespace fields now live on
@@ -852,7 +859,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
         free(own buf)
         return v
     case NodeType.Literal(Literal.Num(num_str)):
-        lit_t := e.expr_til_type()
+        lit_t := e.til_type()
         switch lit_t {
         case Type.Primitive(Primitive.U8):  return Value.Byte(num_str.to_u8())
         case Type.Primitive(Primitive.I8):  return Value.Sbyte(num_str.to_i8())
@@ -899,7 +906,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 // name. Prefer the typer-set til_type (always reliable);
                 // fall back to the EnumInstance's own enum_name if for
                 // some reason the obj_expr is type-stripped.
-                sname = til_type_name(e.children[0].expr_til_type())
+                sname = til_type_name(e.children[0].til_type())
                 if sname.len() == 0 {
                     sname = ei.enum_name
                 }
@@ -908,14 +915,14 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 // for an alias receiver it already holds the resolved target
                 // struct name); fall back to the literal Ident name, then to
                 // til_type_name_c for primitive receivers (LiteralNum I64).
-                sname = til_type_name(e.children[0].expr_til_type())
+                sname = til_type_name(e.children[0].til_type())
                 if sname.len() == 0 {
                     switch e.children[0].node_type {
                     case NodeType.Ident(ident):
                         sname = Str.clone(ident.ident_name())
                     case:
                         // Primitive receiver (LiteralNum I64, etc.).
-                        sname = til_type_name_c(e.children[0].expr_til_type())
+                        sname = til_type_name_c(e.children[0].til_type())
                     }
                 }
             }
@@ -925,7 +932,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                 case Value.Int(iv):     return Value.Int(iv)
                 case Value.Int32(iv):   return Value.Int32(iv)
                 case Value.Func(fptr):
-                    if e.expr_til_type().is(Type.Enum) {
+                    if e.til_type().is(Type.Enum) {
                         ref fdef : Expr = deref(fptr)
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
@@ -964,7 +971,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
             exit(1)
         }
         if is_value_ptr(obj) {
-            obj_t := e.children[0].expr_til_type()
+            obj_t := e.children[0].til_type()
             switch obj_t {
             case Type.Struct(obj_sname):
                 resolve_ptr_to_struct(obj, scope, obj_sname, ctx)
@@ -1243,7 +1250,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     // not a tagged value, so it can't be eval'd for the key. int/char/bool
     // labels are constant expressions and evaluate directly.
     is_enum_subj := subj.is(Value.Enum)
-    mut sname := til_type_name(stmt.children[0].expr_til_type())
+    mut sname := til_type_name(stmt.children[0].til_type())
     if sname.is_empty() {
         switch subj {
         case Value.Enum(ei): sname = ei.enum_name
@@ -1289,7 +1296,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
 
 priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx: Context) {
     ref rhs : Expr = stmt.children[0]
-    if stmt.expr_til_type().is(Type.None) {
+    if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return }
     }
     if dd.own_type.is(OwnType.Ref) {
@@ -1497,7 +1504,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 interp_error(stmt, format("undefined variable '", ad.name, "'"), ctx)
                 exit(1)
             }
-            if stmt.expr_til_type().is(Type.Dynamic) {
+            if stmt.til_type().is(Type.Dynamic) {
                 if rhs.node_type.is(NodeType.Ident) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_ident):
@@ -1926,9 +1933,9 @@ priv delete_body_has_custom_logic := func(e: Expr) returns Bool {
 }
 
 priv interp_concrete_expr_type_name := func(e: Expr) returns Str {
-    expr_type := til_type_name(e.expr_til_type())
+    expr_type := til_type_name(e.til_type())
     if expr_type.len().gt(0).and(expr_type.eq("unknown").not()).and(expr_type.eq("?").not()).and(expr_type.eq("Dynamic").not()).and(expr_type.eq("None").not()) { return expr_type }
-    expr_type_c := til_type_name_c(e.expr_til_type())
+    expr_type_c := til_type_name_c(e.til_type())
     if expr_type_c.eq("unknown").not().and(expr_type_c.eq("?").not()).and(expr_type_c.eq("Dynamic").not()).and(expr_type_c.eq("None").not()) {
         return expr_type_c
     }
@@ -2012,7 +2019,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     // the COPY and the original buffer leaks. Route to the cache-driven
     // per-element deep free using the resolved delete's `own self` param type --
     // identical to the container's own teardown, no copy, no double free.
-    if callee_expr.node_type.is(NodeType.FieldAccess).and(callee_expr.expr_til_type().is_funcptr()) {
+    if callee_expr.node_type.is(NodeType.FieldAccess).and(callee_expr.til_type().is_funcptr()) {
         fp_recv_type := funcptr_delete_recv_type(func_def)
         if fp_recv_type.len().gt(0).and(e.children.len().gt(2)) {
             mut fp_call_free := true
@@ -2176,7 +2183,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         }
     }
 
-    if callee_expr.expr_til_type().is_funcptr().not() {
+    if callee_expr.til_type().is_funcptr().not() {
         if guard_own_param_skip(caller_scope, e, func_def) { return val_none() }
     }
     call_scope := scope_new(parent_scope)
@@ -2310,7 +2317,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         ref func_def : Expr = deref(fn_ptr)
 
         // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.expr_til_type().is_funcptr() {
+        if callee_expr.til_type().is_funcptr() {
             mut fp_func_type := FuncType.Func
             switch func_def.node_type {
             case NodeType.FuncDef(fp_fdef):
@@ -2347,7 +2354,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             UNREACHABLE()
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
-            parent_sname := til_type_name(callee_expr.children[0].expr_til_type())
+            parent_sname := til_type_name(callee_expr.children[0].til_type())
             ref tc : Cell = scope_get(scope, parent_sname)
             if tc.is_null().not() {
                 switch tc.val {
@@ -2403,12 +2410,12 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                 case:
                 }
             }
-            mut sn := til_type_name(callee_expr.children[0].expr_til_type())
+            mut sn := til_type_name(callee_expr.children[0].til_type())
             // til_type_name returns "" for primitives. For ext_func
             // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
             // `I64_sub(0, 1)`), fall back to til_type_name_c.
             if sn.is_empty() {
-                tn := til_type_name_c(callee_expr.children[0].expr_til_type())
+                tn := til_type_name_c(callee_expr.children[0].til_type())
                 if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
                     sn = tn
                 }
@@ -3993,7 +4000,7 @@ priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bo
 // for Dynamic). Returns NULL when the rhs isn't an Ident or isn't
 // Dynamic, signalling "evaluate the expression normally".
 priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
-    if val_expr.expr_til_type().is(Type.Dynamic).not() { return NULL }
+    if val_expr.til_type().is(Type.Dynamic).not() { return NULL }
     switch val_expr.node_type {
     case NodeType.Ident(vi): return scope_get(scope, vi.ident_name())
     case:
@@ -4003,7 +4010,7 @@ priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns
 
 priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     ref obj_expr : Expr = e.children[0]
-    sname := til_type_name(obj_expr.expr_til_type())
+    sname := til_type_name(obj_expr.til_type())
     if sname.len() > 0 { return interp_fa_is_ns_inner(scope, e, sname) }
     switch obj_expr.node_type {
     case NodeType.Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name())
@@ -4011,7 +4018,7 @@ priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
-    tn := til_type_name_c(obj_expr.expr_til_type())
+    tn := til_type_name_c(obj_expr.til_type())
     if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
         return interp_fa_is_ns_inner(scope, e, tn)
     }
@@ -4681,7 +4688,7 @@ priv interpret_register_defs := func(mut global: Scope, prog: Expr) {
 priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.expr_til_type().is(Type.None).not() { }
+        else if stmt.til_type().is(Type.None).not() { }
         else if stmt.children.len() == 0 { }
         else {
             switch stmt.children[0].node_type {
@@ -4713,7 +4720,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
 priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
-        else if stmt.expr_til_type().is(Type.None).not() { }
+        else if stmt.til_type().is(Type.None).not() { }
         else if stmt.children.len() == 0 { }
         else {
             switch stmt.children[0].node_type {
@@ -4749,6 +4756,7 @@ interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
     session.core_evaluated = false
     session.user_argc = 0
     session.retained_programs = Vec(DynPtrBox).new()
+    session.evaluated_units = Set(Str).new()
     if user_argv.is_null().not() { session.user_argc = user_argv.len() }
 }
 
@@ -4762,6 +4770,8 @@ interp_session_free := func(mut session: InterpSession) {
     }
     free(own session.retained_programs.data)
     memset(session.retained_programs, 0, Vec(DynPtrBox).size())
+    own session.evaluated_units.delete(false)
+    memset(session.evaluated_units, 0, Set(Str).size())
     session.core_evaluated = false
     session.user_argc = 0
 }
@@ -4888,6 +4898,27 @@ interp_session_eval_user_units := proc(session: InterpSession, mut lp: LoadedPro
     interp_reset_control_flow(lp.ctx)
 }
 
+// REPL-only: run the top-level global initializers of every imported unit
+// (all units except the last, which is the entry root the REPL evaluates
+// incrementally) exactly once per session. Without this an imported unit's
+// globals -- e.g. std/doc's __til_info_blob__/__til_docs_blob__, which the
+// injected help() import brings in -- are never declared in `global`, so the
+// doc-init assignment hits an undefined variable. Keyed by path so a unit
+// added mid-session (a user import via the full-load path) runs on its first
+// appearance and never re-runs.
+interp_session_eval_imported_once := proc(mut session: InterpSession, mut lp: LoadedProgram) {
+    if lp.units.len() < 2 { return }
+    for i in 0..lp.units.len().sub(1) {
+        ref u : ProgramUnit = lp.units[i]
+        if session.evaluated_units.has(u.path) { continue }
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        context_enter_file(lp.ctx, u.path)
+        eval_body(session.global, iu.ast, lp.ctx)
+        session.evaluated_units.add(own u.path.clone())
+    }
+    interp_reset_control_flow(lp.ctx)
+}
+
 priv interp_body_slice := func(mut program: Expr, start_idx: USize, count: USize, mut out: Expr) {
     free(own out.children.data)
     out.children.data = ptr_add(program.children.data, start_idx.mul(Expr.size()))
@@ -4935,10 +4966,15 @@ priv interp_eval_exact_line := proc(session: InterpSession, mut lp: LoadedProgra
     interp_eval_program_slice(session, lp, program, start, count)
 }
 
-interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool) {
+// doc_init_line is the source line of the REPL's injected doc-init call
+// (doc_init_cache_files, which populates the help() blobs). It sits above
+// block_start_line so the normal slice skips it; when eval_doc_line is set
+// it is evaluated by exact line. The caller owns the preamble layout and
+// passes the line, so this stays correct if that layout changes.
+interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) {
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]
-    if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, 2) }
+    if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, doc_init_line) }
     start_idx := interp_first_stmt_at_line(iu.ast, block_start_line)
     interp_eval_program_slice(session, lp, iu.ast, start_idx, iu.ast.children.len().sub(start_idx))
     interp_reset_control_flow(lp.ctx)
@@ -5561,7 +5597,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     // and rebuild the matching scalar Value variant; otherwise
     // value_to_u64 hits its default `case: return 0` and the widening
     // cast silently returns zero.
-    src_tn := til_type_name_c(e.children[1].expr_til_type())
+    src_tn := til_type_name_c(e.children[1].til_type())
     switch v {
     case Value.Ref(p):
         if src_tn == "I8" { ref tmp : I8 = p; v = Value.Sbyte(tmp) }
@@ -5593,7 +5629,7 @@ priv h_cast := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         else if src_tn == "U64" { ref tmp : U64 = p; v = Value.Uint64(tmp) }
     case:
     }
-    tn := til_type_name_c(e.expr_til_type())
+    tn := til_type_name_c(e.til_type())
     // Issue #58: cast(value, FuncSig) where target is a user FuncSig
     // resolves to Type.FuncPtr ("Fn"). The runtime cast is a pointer
     // re-tag: the source slot already stores the function pointer, we
@@ -6384,7 +6420,7 @@ priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
         mut raw_field_slot : Dynamic = 0
         switch base {
         case Value.Struct(bsi):
-            mut base_struct_name := til_type_name(field_base_expr.expr_til_type())
+            mut base_struct_name := til_type_name(field_base_expr.til_type())
             if base_struct_name.len() == 0 { base_struct_name = bsi.struct_name }
             if base_struct_name.eq("Str").and(bsi.borrowed.not()).and(fa.field_access_name().eq("c_str")) {
                 free_owned_cstr = true
@@ -6830,7 +6866,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns B
 
     // Build fake AST: Type.method(args...)
     mut type_ident := Expr.new(ident_node(type_name), e.line, e.col)
-    type_ident.set_expr_til_type(Type.Struct(type_name.clone()))
+    type_ident.set_til_type(Type.Struct(type_name.clone()))
 
     mut field_access := Expr.new(field_access_node(method), e.line, e.col)
     field_access.add_child(own type_ident)
@@ -6862,7 +6898,7 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
     }
     // Build fake call: Type.size()
     mut type_ident := Expr.new(ident_node(type_name), src.line, src.col)
-    type_ident.set_expr_til_type(Type.Struct(type_name.clone()))
+    type_ident.set_til_type(Type.Struct(type_name.clone()))
 
     mut field_access := Expr.new(field_access_node("size"), src.line, src.col)
     field_access.add_child(own type_ident)

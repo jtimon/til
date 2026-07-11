@@ -102,11 +102,18 @@ ProgramUnit := struct {
 priv resolve_import_disps := proc(import_paths: Vec(Str), base_dir: Str, lib_dir: Str, cwd: Str) returns Vec(Str) {
     mut out := Vec(Str).new()
     for import_path : Str in import_paths {
-        mut try_path := base_dir.format("/", import_path)
-        mut abs := realpath_str(try_path)
-        if abs.eq("").and(lib_dir.len().gt(0)) {
-            try_path = lib_dir.format("/", import_path)
+        // An absolute import path is used as-is (the REPL injects one for
+        // std/doc, since its tmp file's directory floats with the cwd).
+        mut abs := ""
+        if import_path.starts_with("/") {
+            abs = realpath_str(import_path)
+        } else {
+            mut try_path := base_dir.format("/", import_path)
             abs = realpath_str(try_path)
+            if abs.eq("").and(lib_dir.len().gt(0)) {
+                try_path = lib_dir.format("/", import_path)
+                abs = realpath_str(try_path)
+            }
         }
         if abs == "" { continue }
         out.push(own display_path(abs, cwd))
@@ -170,12 +177,18 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
     mut units: Vec(ProgramUnit), lib_dir: Str,
     mut ctx: Context, default_mode: Str, cwd: Str) returns I32 {
         for import_path : Str in import_paths {
-            // Try relative to importing file's directory, then lib_dir
-            mut try_path := base_dir.format("/", import_path)
-            mut abs := realpath_str(try_path)
-            if abs.eq("").and(lib_dir.len().gt(0)) {
-                try_path = lib_dir.format("/", import_path)
+            // Absolute paths are used as-is (REPL std/doc injection); else
+            // try relative to the importing file's directory, then lib_dir
+            mut abs := ""
+            if import_path.starts_with("/") {
+                abs = realpath_str(import_path)
+            } else {
+                mut try_path := base_dir.format("/", import_path)
                 abs = realpath_str(try_path)
+                if abs.eq("").and(lib_dir.len().gt(0)) {
+                    try_path = lib_dir.format("/", import_path)
+                    abs = realpath_str(try_path)
+                }
             }
             if abs == "" {
                 println(format("error: could not find import '", import_path, "' (from ", base_dir, "/)"))
@@ -1321,7 +1334,7 @@ priv til_type_user := func(t: Type) returns Str {
 
 // Append "name<0x01>value<0x02>" to packed. 0x01/0x02 are control bytes
 // that won't appear in identifiers or /// doc text, so they make safe
-// field/record separators for __doc_lookup__ in core/doc.til.
+// field/record separators for __doc_lookup__ in std/doc.til.
 priv append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
     packed.push_str(Str.from_byte(1))
@@ -2232,7 +2245,7 @@ priv lazy_build_guard_chain := func(body: Expr, i: USize, n: USize) returns Expr
 }
 
 // The expression a lazy body inlines to, freshly owned, or NULL when the body
-// shape is not inlinable. Mirrors lazy_body_inlinable (src/core/ast.til):
+// shape is not inlinable. Mirrors lazy_body_inlinable (src/self/context.til):
 //   { return <expr> }                          -> <expr>
 //   { if cond { return X } else { return Y } }  -> match cond { true: X : Y }
 //   { if c1 {return X1} ... if ck {return Xk} return Y }  -> nested match
@@ -2353,7 +2366,7 @@ priv lazy_variadic_subs := func(call: Expr, is_method: Bool, fdef: Expr,
 
 // Issue #262: genuinely-variadic lazy callables (vand/vor). A lazy def with a
 // trailing variadic param whose body passes lazy_variadic_body_unrollable
-// (src/core/ast.til: the param is consumed only by `for <v> in xs { <guards> }`
+// (src/self/context.til: the param is consumed only by `for <v> in xs { <guards> }`
 // loops) is unrolled at each call site over the compile-time-known operand
 // list: every such loop becomes its guard statements repeated once per
 // operand with <v> substituted by the operand expression (call-by-name), and

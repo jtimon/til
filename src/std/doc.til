@@ -1,8 +1,10 @@
 mode lib
 
-import("bool")
-import("numbers")
-import("str")
+// Runtime doc registry and help(). Moved out of core (#215/#216
+// direction) so restricted modes don't carry it implicitly; the REPL
+// injects an absolute-path import("<bin_dir>/src/std/doc") into every
+// program it loads (see run_repl_session in src/til.til), so help()
+// stays ambient there.
 
 // Packed registry blobs populated by the loader at startup. Each blob
 // uses 0x01 as field-sep and 0x02 as record-sep:

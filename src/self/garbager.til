@@ -1212,7 +1212,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
                         case NodeType.Ident(clone_arg_name):
                             if clone_arg_name.ident_name() == local.name {
                                 mut bare := Expr.new(ident_node(local.name), fa_rhs.line, fa_rhs.col)
-                                bare.set_expr_til_type(local.type.clone())
+                                bare.set_til_type(local.type.clone())
                                 stmt.children[1] = bare
                                 // A Shallow (value) field deref-copies the move
                                 // source (`field = *local`), so the inner data
@@ -1275,7 +1275,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
                             if clone_arg_name.ident_name().eq(local.name)
                                 .and(var_aliases_target(local.name, assign_target, preceding).not()) {
                                 mut bare_ident := Expr.new(ident_node(local.name), assign_rhs.line, assign_rhs.col)
-                                bare_ident.set_expr_til_type(local.type.clone())
+                                bare_ident.set_til_type(local.type.clone())
                                 stmt.children[0] = bare_ident
                                 continue
                             }
@@ -1313,7 +1313,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             if is_aggregate(local.type) {
                 if rhs_depends_on_var(stmt.children[0], vname, new_ch) {
                     ad.save_old_delete = true
-                    stmt.set_expr_til_type(local.type.clone())
+                    stmt.set_til_type(local.type.clone())
                 } else {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                         del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)

@@ -740,7 +740,7 @@ make_get_payload_fcall := func(own arg: Expr, shallow payload_type: Type, line: 
     mut gc := Expr.new(NodeType.FCall(FCallData()), line, col)
     gc.add_child(own gp)
     gc.add_child(own arg)
-    gc.set_expr_til_type(payload_type)
+    gc.set_til_type(payload_type)
     return gc
 }
 
@@ -1405,7 +1405,7 @@ ast_print := proc(e: Expr, indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    et := e.expr_til_type()
+    et := e.til_type()
     if et.is(Type.Unknown).not() {
         print(":", til_type_name_c(et))
     }

@@ -90,14 +90,14 @@ test_method_call := test() {
 }
 
 test_method_call_on_subscript_receiver := test() {
-    root := parse_src("e.children[0].set_expr_til_type(t)")
+    root := parse_src("e.children[0].set_til_type(t)")
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
     ref callee : Expr = call.children[0]
     assert_eq(Str, node_name(callee.node_type), "field_access")
     switch callee.node_type {
     case NodeType.FieldAccess(cf):
-        assert_eq(Str, cf.field_access_name(), "set_expr_til_type")
+        assert_eq(Str, cf.field_access_name(), "set_til_type")
     case:
         UNREACHABLE()
     }
