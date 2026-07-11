@@ -2237,16 +2237,32 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         UNREACHABLE()
     }
     c.has_return = false
+    saved_ret_is_ref := c.interp_ret_is_ref
+    mut callee_ret_is_ref := false
+    switch func_def.node_type {
+    case NodeType.FuncDef(ret_fd):
+        callee_ret_is_ref = ret_fd.return_own_type.is(OwnType.Ref)
+    case:
+    }
+    c.interp_ret_is_ref = callee_ret_is_ref
     eval_body(call_scope, body, ctx)
+    c.interp_ret_is_ref = saved_ret_is_ref
     mut result := val_none()
     if c.has_return {
-        if value_is_borrowed(c.return_value) {
+        if callee_ret_is_ref.and(value_is_borrowed(c.return_value)) {
+            // `returns ref`: keep the borrow -- the value points into
+            // storage that outlives this call, and the caller may write
+            // through it. Cloning (and materialize_str_result) would
+            // detach it.
+            result = shallow_copy_value(c.return_value)
+        } else if value_is_borrowed(c.return_value) {
             result = c.return_value.clone()
             free_temp_arg_value(c.return_value)
+            materialize_str_result(result)
         } else {
             result = shallow_copy_value(c.return_value)
+            materialize_str_result(result)
         }
-        materialize_str_result(result)
         memcpy(c.return_value, val_none(), Value.size())
         c.has_return = false
     }
@@ -3251,6 +3267,12 @@ priv free_owned_value := func(shallow v: Value) {
 // move-out idiom).
 priv reclone_return := func(mut ctx: Context) {
     if ctx.has_return.not() { return }
+    // `returns ref` callee: the value aliases storage that outlives the
+    // function (typer-enforced), so it survives every dying block scope
+    // as-is. Cloning would detach the caller's ref from the real payload
+    // -- writes through it (the parser's `ref sdd = structdef_of(def)`
+    // then sdd.fields.push) were silently lost.
+    if ctx.interp_ret_is_ref.and(value_is_borrowed(ctx.return_value)) { return }
     moved := ctx.return_value.clone()
     free_owned_value(ctx.return_value)
     memcpy(ctx.return_value, moved, Value.size())
@@ -6588,6 +6610,55 @@ priv h_is_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
     return true
 }
 
+// For a FIELD-ACCESS get_payload argument (`get_payload(def.nt)`, the
+// switch lowering's shape when the subject is an enum field), resolve
+// the REAL enum storage inside the base struct: eval_expr would return
+// a detached COPY of the field, so a payload ref taken from it could
+// not write back -- the parser mutates parsed defs exactly that way
+// (`ref sdd : StructDef = structdef_of(def)` then sdd.fields.push),
+// and interpreted parses read back StructDefs with 0 fields. Returns
+// the enum data buffer (tag at +0), or NULL when the shape doesn't
+// match (non-Ident receiver, non-enum field), letting the caller fall
+// back to the copying path.
+priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns Dynamic {
+    if arg.node_type.is(NodeType.FieldAccess).not() { return NULL }
+    if arg.children.len() != 1 { return NULL }
+    mut fname := ""
+    switch arg.node_type {
+    case NodeType.FieldAccess(fan):
+        fname = Str.clone(fan.field_access_name())
+    case:
+    }
+    switch arg.children[0].node_type {
+    case NodeType.Ident(base_id):
+        ref cell : Cell = scope_get(s, base_id.ident_name())
+        if cell.is_null() { return NULL }
+        switch cell.val {
+        case Value.Struct(si):
+            if si.data.is_null() { return NULL }
+            ref fl : FieldLayout = ctx_field_layout(si.struct_name, fname, ctx)
+            if fl.is_null() { return NULL }
+            if fl.is_enum.not() { return NULL }
+            if fl.own_type.is(OwnType.Own).or(fl.own_type.is(OwnType.Ref)) {
+                // Own/Ref enum fields store a heap EnumInstance pointer;
+                // its data buffer pointer sits at offset 8 (see write_field).
+                ref heap_ei : Dynamic = deref(ptr_add(si.data, fl.offset))
+                if heap_ei.is_null() { return NULL }
+                ref pd : Dynamic = deref(ptr_add(heap_ei, 8))
+                // ptr_add(pd, 0): mint an owned pointer VALUE from the
+                // borrowed ref (non-ref return).
+                return ptr_add(pd, 0)
+            }
+            // Shallow enum field: the tag+payload bytes live inline.
+            return ptr_add(si.data, fl.offset)
+        case:
+            return NULL
+        }
+    case:
+        return NULL
+    }
+}
+
 // get_payload core_func handler: a core_func has no body to run and is not
 // FFI-registered, so the interpreter evaluates the desugarer's payload
 // accessor here. Bare get_payload calls are rejected by the typer (this
@@ -6595,6 +6666,11 @@ priv h_is_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 // for payload aliasing: the payload storage sits ENUM_PAYLOAD_OFFSET bytes
 // past the tag (see the #211 payload-alias machinery).
 priv h_get_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
+    fa_payload : Dynamic = get_payload_field_addr(s, e.children[1], ctx)
+    if fa_payload.is_null().not() {
+        r = Value.Ref(ptr_add(fa_payload, ENUM_PAYLOAD_OFFSET))
+        return true
+    }
     v := eval_expr(s, e.children[1], ctx)
     r = Value.Ref(ptr_add(value_c_arg_ptr(v), ENUM_PAYLOAD_OFFSET))
     return true

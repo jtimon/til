@@ -352,6 +352,13 @@ Context := struct {
     has_break := false
     has_continue := false
     return_value := Value.None
+    // True while the interpreter runs the body of a `returns ref`
+    // function (saved/restored per call in eval_user_func_call).
+    // reclone_return and the call-boundary return handling consult it:
+    // a ref return aliases storage that outlives the call (the typer
+    // rejects ref returns of locals), so deep-cloning it would detach
+    // the caller's ref from the real payload and lose writes.
+    interp_ret_is_ref := false
     constfold_active := false
     constfold_aborted := false
     ns_fields := Map(Str, Value).new()

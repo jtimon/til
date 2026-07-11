@@ -518,12 +518,12 @@ main := proc(args: ..Str) {
     add_both(tests, "test/operators.til", flags)
     add_both(tests, "test/flow.til", flags)
     add_both(tests, "test/asting.til", flags)
-    // parsing.til drives the self-parser itself; compiled-only for now.
-    // The inline-enum-payload use-after-free that used to crash it is
-    // fixed, but interpretation still miscounts a parsed StructDef's
-    // fields Vec (test_struct_def reads len 0 where compiled reads 1) --
-    // a separate interpreter payload bug.
-    add_both(tests, "test/parsing.til", format(flags, " -no-interp"))
+    // parsing.til drives the self-parser itself. It ran compiled-only
+    // until the interpreter learned (a) inline-enum-payload ownership
+    // and (b) borrow-preserving `returns ref` (payload refs used to be
+    // detached copies, so the parser's push-through-structdef_of writes
+    // were lost). Both backends now.
+    add_both(tests, "test/parsing.til", flags)
     add_both(tests, "test/structs.til", flags)
     add_both(tests, "test/interfaces.til", flags)
     add_both(tests, "test/types.til", flags)

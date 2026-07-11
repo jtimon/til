@@ -1410,6 +1410,7 @@ typedef struct Context {
     Bool has_break;
     Bool has_continue;
     Value return_value;
+    Bool interp_ret_is_ref;
     Bool constfold_active;
     Bool constfold_aborted;
     Map__Str_Value ns_fields;
@@ -3735,6 +3736,7 @@ Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, Value * r, 
 void * priv___src_self_interpreter_til__value_c_arg_ptr(Value * v);
 Bool priv___src_self_interpreter_til__h_is_null(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_is_n(Scope * s, Expr * e, Value * r, Context * ctx);
+void * priv___src_self_interpreter_til__get_payload_field_addr(Scope * s, Expr * arg, Context * ctx);
 Bool priv___src_self_interpreter_til__h_get_payload(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, Value * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, Value * r, Context * ctx);

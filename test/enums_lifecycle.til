@@ -92,3 +92,35 @@ test_inline_enum_payload_overwrite := test() {
         UNREACHABLE()
     }
 }
+
+// `returns ref` payload alias across a call boundary: mutations through
+// the returned ref must land in the STORED payload. The interpreter used
+// to deep-clone borrowed return values at every block/call boundary, so
+// the parser's `ref sdd = structdef_of(def)` + sdd.fields.push writes
+// were silently lost (parsed StructDefs read back with 0 fields).
+BagHolder := struct {
+    pb := PayloadBox.Empty
+}
+
+priv bag_of := func(bh: BagHolder) returns ref WordBag {
+    switch bh.pb {
+    case PayloadBox.Bag(bag):
+        return bag
+    case:
+        UNREACHABLE()
+        return NULL
+    }
+}
+
+test_ref_return_payload_alias := test() {
+    bh := BagHolder(pb = PayloadBox.Bag(WordBag()))
+    ref wb : WordBag = bag_of(bh)
+    wb.items.push(own "added")
+    switch bh.pb {
+    case PayloadBox.Bag(bag2):
+        assert_eq(USize, bag2.items.len(), 1)
+        assert_eq(Str, bag2.items[0], "added")
+    case:
+        UNREACHABLE()
+    }
+}
