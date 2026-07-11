@@ -1,0 +1,74 @@
+# priority: low
+# category: features
+** OPEN #310 expr_macro / str_macro: compile-time macros that emit AST or source
+
+Two new macro forms that produce code at compile time, folded in by the
+constfolder. They generalise today's ~macro~ (which returns an ordinary
+value that the constfolder splices as a literal) to macros that return
+*program fragments*:
+
+- ~expr_macro~ returns an ~Expr~. At each call site the constfolder
+  replaces the call node with the returned ~Expr~ (AST substitution),
+  then continues folding/typing the spliced tree. Structured and robust:
+  the macro builds AST nodes directly (Expr.new / the node-builder
+  helpers in src/self/parser.til), so there is no re-lex/re-parse step
+  and node provenance is explicit.
+
+- ~str_macro~ returns a ~Str~. At each call site the constfolder parses
+  the returned string as til source and splices the resulting AST.
+  Easier to author (you write source text, not node constructors) but
+  fragile -- see open questions.
+
+*** Why this belongs in the language (and why Expr stays in core)
+~Expr~ is already a first-class value users can hold: reflection
+assembles ~StructDef~/~EnumDef~ (src/core/dyn.til), and first-class code
+passes ~Expr~ around. ~expr_macro~ is the natural next step -- a macro
+whose *return value* is an ~Expr~ the compiler splices. That makes the
+AST types part of the surface language, not just compiler internals, so
+~Expr~ / ~NodeType~ / ~Type~ / ~Literal~ must remain in ~src/core/~
+(ast.til). This issue is the concrete reason the core->std audit stops
+short of moving ast.til out of core: the helper *functions* over those
+types moved to src/self/ (commit "Slim ast.til ..."), but the *types*
+stay core precisely so an ~expr_macro~ can return one.
+
+*** Sketch (shape, not final syntax)
+#+begin_src til
+  // expr_macro: build and return an AST node
+  double_it := expr_macro(e: Expr) returns Expr {
+      return make_binop_add(e, e)   // e + e, as AST
+  }
+  y := double_it(x)                 // constfolder replaces call with (x + x)
+
+  // str_macro: return source text, constfolder parses it
+  getter := str_macro(field: Str) returns Str {
+      return format("func(self: T) returns I64 { return self.", field, " }")
+  }
+#+end_src
+
+*** Relationship to existing machinery
+Macros already evaluate at compile time and the constfolder already
+rewrites macro calls (src/self/constfolder.til). These forms reuse that
+path; the new work is (a) letting a macro's declared return type be
+~Expr~ / ~Str~ with splice-rather-than-literal semantics, and (b) the
+str_macro re-parse step.
+
+*** Open questions
+- *Splice granularity*: does a macro emit a single expression, or a
+  statement list / multiple decls? expr_macro returning one ~Expr~ is the
+  simplest start; block/statement splicing is a larger design.
+- *str_macro error locations*: a parse error (or a later type error) in
+  the returned text must map back to something the user can act on. Naive
+  parsing points into synthesized source with no real file/line. Needs a
+  provenance/location-remapping story before str_macro is usable.
+- *Hygiene*: neither form has hygiene yet. str_macro is textual (capture
+  by name is possible); expr_macro builds nodes but still shares the
+  caller's scope. Decide whether v1 is unhygienic-by-design (documented)
+  or gets gensym support.
+- *Typing order*: the spliced AST must be typed after substitution. Fits
+  the constfolder-then-typer flow, but recursion (a macro whose output
+  contains another macro call) needs a fold-to-fixpoint guard.
+- *Purity*: macro bodies must stay pure (no host side effects) so builds
+  are deterministic -- same constraint as today's macros.
+
+Start with ~expr_macro~ returning a single ~Expr~ (the robust, no-reparse
+case); add ~str_macro~ once the location-remapping story is settled.

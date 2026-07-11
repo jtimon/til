@@ -62,6 +62,7 @@
 *** [[./open/274.org][#274]] Generated eq/to_str should support own/ref fields deeply
 *** [[./open/279.org][#279]] Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
 *** [[./open/290.org][#290]] Tooling gap: no regex / text-processing library for source-rewriting tasks
+*** [[./open/310.org][#310]] expr_macro / str_macro: compile-time macros that emit AST or source
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
