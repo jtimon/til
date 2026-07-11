@@ -163,6 +163,26 @@ priv is_stack_local := func(name: Str, ctx: Context) returns Bool {
     return ctx.builder_func.stack_locals.has(name)
 }
 
+// #302 stage 1 transition assert: on the Decl paths whose stack choice
+// mirrors a garbager carve-out (the LiteralStr pair, fcall_is_shallow_
+// return / fcall_returns_shallow, is_pod_enum_clone_call /
+// is_pod_enum_clone_wrap), the recorded GcStorage must agree with the
+// shape the builder is about to emit. A HeapBox record on one of these
+// paths means the twin predicates drifted: fail loudly here instead of
+// emitting C whose delete call_free disagrees with its storage (a
+// stack free / leak at runtime). Paths that KNOWINGLY diverge today --
+// the POD-struct ctor stack shortcut, the can_hoist `_hp` deref
+// copies, the POD-struct user-clone value copy (each records HeapBox
+// but emits stack, compensated by the delete shims /
+// is_noop_delete_stmt) -- stay unasserted until stages 4/6 collapse
+// the compensation.
+priv assert_gc_stack := func(dd: Declaration, shape: Str) {
+    if dd.gc_storage.is(GcStorage.HeapBox) {
+        panic(__LOC__, ": #302 storage record mismatch: garbager recorded HeapBox for '", dd.name,
+            "' but the builder emits it as a stack ", shape, " value")
+    }
+}
+
 priv is_stack_lit_str_local := func(name: Str, ctx: Context) returns Bool {
     return ctx.builder_func.stack_lit_str_locals.has(name)
 }
@@ -1947,6 +1967,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         emit_ctor_fields(f, dd.name, rhs, depth, ctx)
                     }
                 } else if rhs.node_type.is_literal_str().and(is_global.not()) {
+                    assert_gc_stack(dd, "LiteralStr")
                     // Str literal: emit a wrapper value -- no malloc, no Str_lit. Pairs with the
                     // typer's hoist/promote pass keeping LiteralStr decls
                     // Shallow so make_delete_call emits call_free=false and
@@ -1987,6 +2008,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                             f.write(dd.name).write(" = "); emit_deref(f, rhs, depth, ctx); f.write(";\n")
                         }
                     } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
+                        assert_gc_stack(dd, "shallow-return")
                         // Shallow returns are by-value -- always stack-alloc.
                         // The malloc'd-and-deref'd path leaks the heap box (the
                         // typer doesn't track these for delete).
@@ -1997,6 +2019,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         ctx.builder_func.stack_locals.add(own dd.name.clone())
                         ctx.builder_func.stack_local_types.set(dd.name, own htype.clone())
                     } else if can_hoist.and(is_pod_enum_clone_call(rhs, ctx)) {
+                        assert_gc_stack(dd, "POD-enum-clone")
                         // POD enum clone wrap: typer wraps
                         // `c := Color.Red` as `c := Color.clone(Color.Red)`
                         // for ownership semantics.  For payload-less
@@ -2027,6 +2050,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         ctx.builder_func.stack_locals.add(own dd.name.clone())
                         ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if is_pod_enum_clone_call(rhs, ctx).and(is_global.not()) {
+                        assert_gc_stack(dd, "POD-enum-clone")
                         // POD-enum heap-Decl variant: emit as stack
                         // value, garbager skips heap-promote, delete
                         // gets elided by is_noop_delete_stmt.
@@ -2767,6 +2791,29 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         //    call_free=true)` -- the same ASAP path the typer would
         //    have taken if the temp had survived.
         if e.til_type().is(Type.None).not() {
+            // #302 stage 1: shallow-return aggregates reach this arm now.
+            // With the shallow-return promote override gone, their temp
+            // deletes are trivial (call_free=0), so body DCE drops the
+            // temp and hands us the bare call. The C result is a BY-VALUE
+            // struct/enum -- no heap box exists, so the returns-own wrap
+            // below (T_delete(<call>, 1)) would pass a value where a
+            // pointer is expected AND free a non-allocation. Bind the
+            // result to a block-local value and run the value cleanup
+            // (call_free=0); for POD types the delete is a no-op the C
+            // compiler drops.
+            if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) {
+                if fcall_is_shallow_return(e, ctx) {
+                    tname := type_to_name(e.til_type())
+                    if tname.len() > 0 {
+                        mut htype := fcall_return_ctype(e, ctx)
+                        if htype.len() == 0 { htype = tname.clone() }
+                        f.write("{ ").write(htype).write(" _disc = ")
+                        emit_expr(f, e, depth, ctx)
+                        f.write("; ").write(tname).write("_delete(&_disc, ").write(delete_call_free_lit(tname, false, ctx)).write("); }\n")
+                        return
+                    }
+                }
+            }
             if fcall_returns_own(e, ctx.scope) {
                 tname := type_to_name(e.til_type())
                 if tname.len() > 0 {

@@ -498,7 +498,10 @@ priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr))
 
 // Mirrors builder.til's is_pod_enum_clone_call; resolves the enum def
 // via TypeScope instead of Context.
-priv is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
+// Not priv: constfolder.til's restamp_folded_decl_storage reuses this
+// exact predicate when a fold rewrites a Decl RHS into the POD-enum
+// clone shape (#302 stage 1) -- one predicate, all consumers.
+is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     tname := clone_call_type_name(e)
     if tname.len() == 0 { return false }
     return is_pod_enum_clone_of(e, scope.get_struct(tname))
@@ -1351,6 +1354,15 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
             // uses call_free=false / arg_is_own=false and the destructor
             // becomes a true no-op (`Color_delete(&c, &(Bool){0});`).
             if is_pod_enum_clone_wrap(rhs0, ctx.scope) { continue }
+            // #302 stage 1: shallow-return FCall RHS -- the builder
+            // stack-allocates these (fcall_is_shallow_return), and
+            // collect_scope_locals already forced is_heap=false for
+            // exactly that reason. Re-promoting here undid the force
+            // and recorded HeapBox for a stack value; the stage-1
+            // builder assert caught it on the compiler's own
+            // hoisted__TokenType temps (lookup_single_char is
+            // `returns shallow TokenType`). Keep the Stack decision.
+            if rhs0.node_type.is(NodeType.FCall).and(fcall_returns_shallow(rhs0, ctx.scope).neq(0)) { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -1495,6 +1507,32 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
     }
 }
 
+// #302 stage 1: stamp the settled storage decision on each Decl's
+// Declaration (GcStorage). Runs after promote_own_transferred_locals,
+// the last pass that mutates LocalInfo.is_heap, so the record IS the
+// decision the delete insertion below executes. Ref bindings stay
+// Unset: they are borrows, neither stack-owned values nor heap boxes
+// of their own. The builder's transition asserts (emit_stmt_decl)
+// compare their re-derived twin shape checks against this record and
+// panic loudly on disagreement.
+priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
+    for local : LocalInfo in locals {
+        if local.decl_index < 0 { continue }
+        ref stmt : Expr = body.children[local.decl_index.to_usize()]
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if dd.own_type.is(OwnType.Ref) { continue }
+            if local.is_heap {
+                dd.gc_storage = GcStorage.HeapBox
+            } else {
+                dd.gc_storage = GcStorage.Stack
+            }
+        case:
+        }
+    }
+}
+
 priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_null()
@@ -1506,6 +1544,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     extend_ref_local_lifetimes(body, locals_vec, scope)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
+    record_storage_decisions(body, locals_vec)
     sink_conditional_transfer_deletes(body, locals_vec, scope, ctx)
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later

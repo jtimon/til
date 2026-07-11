@@ -111,6 +111,13 @@ OwnType := enum {
 
 // --- Declaration struct ---
 
+// #302 stage 1: the storage decision the garbager settles for a local
+// Decl, RECORDED on the Declaration so downstream stages (builder,
+// interpreter) execute it instead of re-deriving it from expression
+// shapes. Unset = the pass did not classify the binding (params, ref
+// locals, bodies the garbager never processed).
+GcStorage := enum { Unset, Stack, HeapBox }
+
 /// Variable/field/parameter declaration node.
 Declaration := struct {
     name := ""
@@ -133,6 +140,10 @@ Declaration := struct {
     // stripping the trailing "_<orig_name>" from the mangled `name`)
     // in source terms instead of leaking the synthetic mangled name.
     orig_name := ""
+    // #302 stage 1: settled by the garbager (record_storage_decisions)
+    // after promotion; see GcStorage above. Appended at the END so the
+    // committed boot's Declaration layout stays stable.
+    gc_storage := GcStorage.Unset
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }

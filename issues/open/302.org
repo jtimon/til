@@ -656,7 +656,42 @@ let the ownership pass insert temps itself; start with the check.
     as a Vec method (needs an API-shape decision, e.g.
     Vec.delete_marked); constfolder's scope_free(own va_scope) is
     interp-island machinery (stage 7).
-  - [ ] Stage 1: single-source storage classification.
+  - [X] 2026-07-10 stage 1 first slice: the storage decision is now
+    RECORDED (Declaration.gc_storage Unset/Stack/HeapBox, stamped by
+    garbager record_storage_decisions after promotion settles), and
+    the builder ASSERTS record-vs-rederivation agreement on the
+    twin-mirrored Decl paths (LiteralStr, shallow-return,
+    POD-enum-clone; assert_gc_stack panics loudly on drift). The
+    knowingly-divergent paths (POD-struct ctor stack shortcut,
+    can_hoist _hp copies, POD-struct user clone -- each records
+    HeapBox but emits stack behind delete-shim compensation) stay
+    unasserted until stages 4/6. The asserts caught three real
+    re-derivation bugs immediately:
+      1. promote_own_transferred_locals OVERRODE collect's
+         shallow-return force since inception -- every aggregate
+         local bound to a `returns shallow` call was recorded+deleted
+         as a heap box while the builder emitted a stack value
+         (compensated by the emit shims). promote now skips
+         shallow-return FCall RHS like LiteralStr/POD-enum-wrap.
+      2. The constfolder rewrites Decl RHS AFTER recording
+         (garbager_destroy runs before constfolder_imported): folds
+         to Str literals and to the POD-enum clone shape now re-stamp
+         the record (restamp_folded_decl_storage;
+         is_pod_enum_clone_wrap shared, not re-derived a third time).
+      3. Latent discard bug: with shallow-return temp deletes now
+         trivial (call_free=0), scavenger DCE drops the dead temps
+         and hands the builder bare discarded calls; the returns-own
+         wrap emitted `Vector2_delete(GetMouseDelta(), 1)` -- a
+         by-value C struct passed to a pointer param and a free of a
+         non-allocation (caught by build_shootil). The discard arm
+         now emits `{ T _disc = <call>; T_delete(&_disc, 0); }` for
+         shallow-return aggregates.
+    Side effect: dead shallow-return temps now DCE away (the old
+    decl + (void)use + delete triple collapses). Remaining stage-1
+    work: extend the record to the divergent paths as their
+    compensations collapse, then delete the builder's re-derived twin
+    predicates and consume gc_storage in emit_stmt_decl.
+  - [ ] Stage 1 (rest): single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.
   - [ ] Stage 4: explicit moves + unified reassign deletes.

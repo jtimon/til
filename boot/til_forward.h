@@ -68,6 +68,12 @@ typedef enum {
     OwnType_TAG_Shallow
 } OwnType_tag;
 typedef struct OwnType OwnType;
+typedef enum {
+    GcStorage_TAG_Unset,
+    GcStorage_TAG_Stack,
+    GcStorage_TAG_HeapBox
+} GcStorage_tag;
+typedef struct GcStorage GcStorage;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
@@ -450,6 +456,10 @@ struct OwnType {
     U8 tag;
 };
 
+struct GcStorage {
+    U8 tag;
+};
+
 typedef struct Declaration {
     Str name;
     Str doc;
@@ -462,6 +472,7 @@ typedef struct Declaration {
     Type til_type;
     Expr *default_value;
     Str orig_name;
+    GcStorage gc_storage;
 } Declaration;
 
 
@@ -1677,6 +1688,10 @@ Bool OwnType_eq(OwnType * self, OwnType * other);
 void OwnType_delete(OwnType * self, Bool call_free);
 OwnType * OwnType_clone(OwnType * self);
 U64 OwnType_size(void);
+Bool GcStorage_eq(GcStorage * self, GcStorage * other);
+void GcStorage_delete(GcStorage * self, Bool call_free);
+GcStorage * GcStorage_clone(GcStorage * self);
+U64 GcStorage_size(void);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool call_free);
 U64 Declaration_size(void);
@@ -2799,7 +2814,7 @@ Bool priv___src_self_garbager_til__expr_has_owning_str_decl(Expr * e, Str * name
 Bool priv___src_self_garbager_til__expr_has_unproven_str_def(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__str_clone_to_move_provably_safe(Str * name, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__Expr * preceding);
-Bool priv___src_self_garbager_til__is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
+Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
 void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
@@ -2817,6 +2832,7 @@ Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
 Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___src_self_garbager_til__LocalInfo * local, Expr * src);
 Bool priv___src_self_garbager_til__sink_nontransfer_paths(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__record_storage_decisions(Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);
@@ -2867,6 +2883,7 @@ void priv___src_self_constfolder_til__fold_va_calls(Scope * scope, Expr * e, Str
 Bool priv___src_self_constfolder_til__is_delete_call_on(Expr * s, Str * name);
 I32 priv___src_self_constfolder_til__va_stmt_class(Expr * s, Str * va, Str * ek, Str * eo, Context * ctx);
 void priv___src_self_constfolder_til__va_build_dce(Expr * body, Vec__Str * va_done, Context * ctx);
+void priv___src_self_constfolder_til__restamp_folded_decl_storage(Expr * e, U64 i, Context * ctx);
 void priv___src_self_constfolder_til__fold_subtree(Scope * scope, Expr * e, Context * ctx);
 void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
@@ -3082,6 +3099,7 @@ Expr * priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * na
 Expr * priv___src_self_builder_til__resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_builder_til__fcall_fn_sig(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__is_stack_local(Str * name, Context * ctx);
+void priv___src_self_builder_til__assert_gc_stack(Declaration * dd, Str * shape);
 Bool priv___src_self_builder_til__is_stack_lit_str_local(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_current_func_param(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_value_global(Str * name, Context * ctx);

@@ -1387,6 +1387,33 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
 // literal. Issue #191: macros are always folded (typer already rejected
 // non-comptime args). Funcs fold when all args are comptime. Procs are
 // never folded.
+// #302 stage 1: a fold that replaces a Decl's RHS with a Str literal
+// changes the decl's storage reality AFTER the garbager recorded it
+// (garbager_destroy runs before constfolder_imported in
+// init_and_type_program): the builder stack-allocates LiteralStr
+// decls, so the stale HeapBox record would trip assert_gc_stack.
+// Re-stamp the record to match the post-fold shape. The garbager-
+// inserted delete keeps its pre-fold call_free and is defused by the
+// emit-time stack shims -- pre-existing compensation, a stage 4/6
+// collapse target.
+priv restamp_folded_decl_storage := func(mut e: Expr, i: USize, ctx: Context) {
+    if i.neq(0) { return }
+    if e.node_type.is(NodeType.Decl).not() { return }
+    mut folded_stack := e.children[0].node_type.is_literal_str()
+    if folded_stack.not() {
+        // Pure enum-returning calls fold to the POD-enum clone shape
+        // (mk_color() -> Color.clone(Color.Green)), which the builder
+        // also stack-allocates. Same predicate the garbager uses.
+        folded_stack = is_pod_enum_clone_wrap(e.children[0], ctx.scope)
+    }
+    if folded_stack.not() { return }
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        if dd.gc_storage.is(GcStorage.HeapBox) { dd.gc_storage = GcStorage.Stack }
+    case:
+    }
+}
+
 priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
     for i in 0..e.children.len() {
         ref child : Expr = e.children[i]
@@ -1436,6 +1463,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             }
             // Procs/ext_procs are intentionally never folded.
         }
+        restamp_folded_decl_storage(e, i, ctx)
         // Forward-track Decl literals so siblings can fold calls through
         // them. Track ALL non-mut, non-ref Decls. Use the known-only
         // tracker so body-local payloads don't get aliased into `scope`
