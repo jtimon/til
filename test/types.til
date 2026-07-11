@@ -53,12 +53,12 @@ takes_u64 := func(n: U64) returns U64 { return n }
 takes_i64 := func(n: I64) returns I64 { return n }
 
 test_implicit_widen := test() {
-    // U32 → U64 widening
+    // U32 -> U64 widening
     a : U32 = 42
     assert_eq(Str, takes_u64(a.cast(U64)).to_str(), "42")
-    // U32 → I64 widening
+    // U32 -> I64 widening
     assert_eq(I64, takes_i64(a.to_i64()), 42)
-    // U8 → U64 widening
+    // U8 -> U64 widening
     b : U8 = 200
     assert_eq(Str, takes_u64(b.cast(U64)).to_str(), "200")
 }

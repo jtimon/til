@@ -252,7 +252,7 @@ test_join := test() {
     assert_eq(Str, result, "aaa\nbbb\nccc")
 }
 
-// mut param concat — reproduces use-after-free bug
+// mut param concat -- reproduces use-after-free bug
 greet := func(mut out: Str) {
     out = format(out, " world")
 }
