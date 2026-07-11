@@ -2,7 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/hashmap")
-import("../lib/hash")
+import("../src/std/hash")
 
 // Microbench for Map vs HashMap. Reports wall-clock ms for insert,
 // has, and get over N keys, for both I64 and Str key types. Run via

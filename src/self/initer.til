@@ -3782,7 +3782,7 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
 // #154: a template/generic body is cloned into the INSTANTIATING unit
 // before typing, so symbol reads inside it never produce a use edge for
 // the DECLARING file's own imports (e.g. hashmap.til's fnv1a default
-// from lib/hash). Credit them here, syntactically, before expansion
+// from std/hash). Credit them here, syntactically, before expansion
 // drops or clones the defs. Over-approximates (shadowed names count as
 // uses), which only makes the unused-import check quieter, never wrong.
 priv note_template_decl_use := func(d: Declaration, scope: TypeScope, ctx: Context) {
