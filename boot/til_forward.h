@@ -941,6 +941,7 @@ typedef struct {
     ffi_type *rtype;
     U32 bytes;
     U32 flags;
+    U32 extra_cif_fields;
 } ffi_cif;
 
 
@@ -3642,6 +3643,7 @@ U64 FFITypePtrBox_size(void);
 void ffi_reset(Context * ctx);
 ffi_type * priv___src_self_interpreter_til__ffi_type_ref(Str * name);
 void * priv___src_self_interpreter_til__ffi_alloc_cif(void);
+I32 priv___src_self_interpreter_til__ffi_host_default_abi(void);
 Bool priv___src_self_interpreter_til__ffi_cif_rtype_is_struct(ffi_cif * cif);
 U8 * priv___src_self_interpreter_til__ffi_dlsym(Str * name);
 void priv___src_self_interpreter_til__ffi_init_link_libs(Str * link_flags);

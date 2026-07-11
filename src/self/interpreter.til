@@ -5128,6 +5128,30 @@ priv ffi_type_ref := func(name: Str) returns ref ffi_type {
 
 priv ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
 
+// ffi_abi is a per-architecture C enum and FFI_DEFAULT_ABI's VALUE
+// differs per arch (vendor/libffi/src/*/ffitarget.h). The binding
+// constant FFI_DEFAULT_ABI=2 is only correct for the x86-64 family
+// (linux/mac FFI_UNIX64=2, mingw FFI_GNUW64=2). On aarch64 the enum
+// is FFI_SYSV=1, FFI_WIN64=2 -- so passing 2 selected the
+// Windows-on-ARM calling convention for every interpreter FFI call: a
+// near-miss on linux-arm64 (til's pointer-heavy signatures happen to
+// marshal identically) and memory corruption on darwin-arm64, whose
+// variadic/stack rules diverge from WIN64 (issue #25). Resolve the
+// abi from host_arch() -- the compile-time arch of THIS binary, which
+// is what its linked libffi was built for (and, unlike uname or
+// detect_current_target, free: this runs once per ext_func
+// registration, and detect_current_target's two uname spawns here
+// doubled the whole suite's wall time). Panic on arches whose value
+// has not been audited against ffitarget.h yet, so a new native host
+// cannot silently inherit a wrong ABI.
+priv ffi_host_default_abi := proc() returns I32 {
+    arch := host_arch()
+    if arch == "x64" { return FFI_DEFAULT_ABI }
+    if arch == "arm64" { return 1 }
+    panic(__LOC__, "FFI_DEFAULT_ABI not audited for this arch; add its value from vendor/libffi/src/<arch>/ffitarget.h")
+    return 0
+}
+
 priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     expect(cif.rtype.is_null().not(), "cif.rtype is null")
     ref rt : ffi_type = cif.rtype
@@ -7468,7 +7492,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
                 rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }
         }
-        ffi_prep_cif(entry.cif, FFI_DEFAULT_ABI, np.to_u32(), rtype, entry.arg_types)
+        ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
 
         // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
         // internally (ELEM_BOXED), so `name` can be passed directly; the

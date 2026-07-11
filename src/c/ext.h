@@ -208,6 +208,7 @@ I64 get_thread_count(void);
 U64 peak_rss_bytes(void);
 U64 current_rss_bytes(I64 pid);
 Str *host_os(void);
+Str *host_arch(void);
 I32 mkdir_p(const Str *path);
 I32 copy_file(const Str *src, const Str *dst);
 I32 copy_tree(const Str *src, const Str *dst);

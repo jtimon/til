@@ -15,6 +15,7 @@ get_thread_count := ext_proc() returns shallow I64 {}
 peak_rss_bytes := ext_proc() returns shallow U64 {}
 current_rss_bytes := ext_proc(shallow pid: I64) returns shallow U64 {}
 host_os := ext_proc() returns Str {}
+host_arch := ext_proc() returns Str {}
 mkdir_p := ext_proc(path: Str) returns shallow I32 {}
 copy_file := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 copy_tree := ext_proc(src: Str, dst: Str) returns shallow I32 {}

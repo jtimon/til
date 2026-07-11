@@ -110,6 +110,14 @@ ffi_sarg := I64
 
 ffi_abi := I32
 
+// These are the X86-64 enum values (src/x86/ffitarget.h); ffi_abi is a
+// per-architecture enum and the SAME names have different values on
+// other arches (aarch64: FFI_SYSV=1, FFI_WIN64=2, default SYSV). Do
+// NOT pass FFI_DEFAULT_ABI to libffi on a non-x86-64 host -- use
+// ffi_host_default_abi() (src/self/interpreter.til), which resolves
+// the value for the running host and panics on unaudited ones. On
+// aarch64 this constant selected the Windows-on-ARM ABI and corrupted
+// memory on darwin (issue #25).
 FFI_FIRST_ABI : I32 = 1
 FFI_UNIX64 : I32 = 2
 FFI_WIN64 : I32 = 3
@@ -163,6 +171,19 @@ FFI_BAD_TYPEDEF : I32 = 1
 FFI_BAD_ABI : I32 = 2
 FFI_BAD_ARGTYPE : I32 = 3
 
+// The C ffi_cif ends with FFI_EXTRA_CIF_FIELDS, a per-target macro:
+// `unsigned aarch64_nfixedargs` on darwin-arm64, `unsigned is_variadic`
+// on windows-arm64, empty everywhere else (vendor/libffi/src/aarch64/
+// ffitarget.h). ffi_prep_cif_machdep WRITES that field, so a mirror
+// without it under-allocates by 4 bytes on those targets and every
+// ffi_prep_cif corrupts the neighboring heap chunk -- the darwin-arm64
+// intermittent-crash root cause of issue #25, caught by Guard Malloc
+// inside ffi_prep_cif_machdep. Model the union of the per-target
+// layouts: the trailing slot is dead weight on targets whose C struct
+// lacks it (libffi never touches it there) and keeps ffi_cif.size()
+// large enough on the ones that have it. The prefix field offsets are
+// identical everywhere. Keep this when regenerating the bindings; the
+// binder cannot see through the ifdef.
 ffi_cif := ext_struct {
     abi : ffi_abi = 0
     nargs : U32 = 0
@@ -170,6 +191,7 @@ ffi_cif := ext_struct {
     ref rtype : ffi_type = NULL
     bytes : U32 = 0
     flags : U32 = 0
+    extra_cif_fields : U32 = 0
 }
 
 /* ---- Definitions for the raw API -------------------------------------- */

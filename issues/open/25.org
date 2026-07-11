@@ -230,10 +230,44 @@
      Fixed: the dump step prints a compact per-report digest
      (procName/exception/frames) instead of raw cats; full reports
      still go to the artifact.
-   - Next: read the ASAN/gmalloc culprit digest from the next mac run,
-     fix it, iterate until the suite is green on both arches; then the
-     gui suite natively on a mac (phase 3) and the `timeout`
-     dependency.
+   - ROOT CAUSE FOUND (run 29125521558, the first with working
+     forensics): Guard Malloc caught plain til SIGSEGVing INSIDE
+     ffi_prep_cif_machdep, called from the interpreter's ffi_register
+     during constfold scanning; ASAN's free-not-malloced reports sat
+     in the same ffi_register neighborhood. til's ffi_cif ext_struct
+     mirror (vendor/bindings/libffi.til) was 32 bytes, but the C
+     ffi_cif ends with FFI_EXTRA_CIF_FIELDS -- `unsigned
+     aarch64_nfixedargs` on darwin-arm64 (also `unsigned is_variadic`
+     on windows-arm64), empty elsewhere -- and ffi_prep_cif_machdep
+     WRITES it (vendor/libffi/src/aarch64/ffi.c:617). So every
+     ext_func registration on darwin-arm64 wrote 4 bytes past the
+     malloc, silently corrupting the neighboring heap chunk; the crash
+     then surfaced wherever the corrupted neighbor got used/freed --
+     hence victims like the user_argv Vec epilogue abort, the churn
+     across commits (binary layout shifts move the neighbor), and why
+     linux-arm64 (no extra field) stayed green. Fix: the mirror now
+     models the union of per-target layouts with a trailing
+     extra_cif_fields slot; dead weight where the C struct lacks it,
+     correct size where it matters. Only ffi_alloc_cif ever allocates
+     by ffi_cif.size(); all other uses are pointer-based with
+     unchanged prefix offsets.
+   - SECOND ROOT CAUSE, same class: the binding constant
+     FFI_DEFAULT_ABI=2 carries the x86-64 enum value (FFI_UNIX64).
+     ffi_abi is a PER-ARCHITECTURE enum: on aarch64 it is FFI_SYSV=1,
+     FFI_WIN64=2 -- so every interpreter ffi_prep_cif on an aarch64
+     host requested the Windows-on-ARM calling convention. On
+     linux-arm64 til's pointer-heavy signatures happen to marshal the
+     same under both ABIs (that is the only reason the linux-arm64
+     suite is green); on darwin-arm64 the WIN64-vs-Apple divergence
+     (variadic/stack rules, the aarch64_nfixedargs machinery) breaks
+     argument marshalling -- the ASAN free-not-malloced inside
+     ffi_register (til_asan digests, run 29125521558) is this bug's
+     signature. Fix: ffi_host_default_abi() in interpreter.til
+     resolves the abi from the running host and panics on unaudited
+     hosts; the binding constant now carries a do-not-use warning.
+   - Next: land both FFI fixes, read the next mac run's arm64 job;
+     iterate to green on both arches; then phase 3 (gui archives,
+     `timeout`, nng).
 
 *** macOS plan
 

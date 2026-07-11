@@ -979,6 +979,31 @@ Str *host_os(void) {
 #endif
 }
 
+// Architecture this binary was COMPILED for, from predefined macros --
+// deliberately NOT uname: under emulation (Rosetta, qemu-user) uname
+// reports the kernel's arch while this binary, and the libffi linked
+// into it, are the compiled arch, which is what FFI ABI selection
+// needs. It also runs in hot paths (once per ext_func registration),
+// so it must not spawn processes the way detect_current_target does.
+// Names mirror target_to_str() arch segments.
+Str *host_arch(void) {
+#if defined(__x86_64__) || defined(_M_X64)
+    return Str_clone(&(Str){.c_str = (I8*)"x64", .count = 3, .cap = CAP_LIT});
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return Str_clone(&(Str){.c_str = (I8*)"arm64", .count = 5, .cap = CAP_LIT});
+#elif defined(__riscv) && defined(__riscv_xlen) && (__riscv_xlen == 64)
+    return Str_clone(&(Str){.c_str = (I8*)"riscv64", .count = 7, .cap = CAP_LIT});
+#elif defined(__riscv)
+    return Str_clone(&(Str){.c_str = (I8*)"riscv32", .count = 7, .cap = CAP_LIT});
+#elif defined(__arm__)
+    return Str_clone(&(Str){.c_str = (I8*)"arm32", .count = 5, .cap = CAP_LIT});
+#elif defined(__i386__) || defined(_M_IX86)
+    return Str_clone(&(Str){.c_str = (I8*)"x86", .count = 3, .cap = CAP_LIT});
+#else
+    return Str_clone(&(Str){.c_str = (I8*)"unknown", .count = 7, .cap = CAP_LIT});
+#endif
+}
+
 // Issue #302 stage 0: filter for the garbager's decision-audit dump.
 // TIL_GC_AUDIT=<path-substring> makes the asap pass print its per-body
 // decisions (the LocalInfo table and the destructor sites present after
