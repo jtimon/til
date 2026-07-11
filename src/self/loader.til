@@ -3428,10 +3428,28 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
     return nc
 }
 
+// Resolve a call-site name through the local alias map to the canonical
+// thunk-lowered def it stands for. Returns the name unchanged when it is not an
+// alias (or is a shadow, stored as ""). Aliases are stored fully resolved, so a
+// single lookup suffices (transitive `h := g := f` chains are flattened when
+// each Decl is recorded).
+priv lazy_alias_resolve := func(name: Str, aliases: Map(Str, Str)) returns Str {
+    if aliases.has(name) {
+        ref v : Str = aliases.get(name)!
+        if v.len() > 0 { return v.clone() }
+    }
+    return name.clone()
+}
+
 // Walk all exprs; for every FCall (bare `f(a, b)` or UFCS `a.f(b)`) naming a
-// thunk-lowered def with matching (non-variadic, exact) effective arity, rebuild
-// it as a bare call with each effective argument wrapped in a thunk closure.
-priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), depth: I32) {
+// thunk-lowered def -- directly, or through a local value alias `g := f`
+// (first-class #262) -- rebuild it as a bare call with each effective argument
+// wrapped in a thunk closure. `aliases` maps a local name to the canonical
+// lowered def it stands for (or "" once a later decl shadows an inherited alias
+// with a non-lazy value). It is cloned on descent so a nested block's aliases
+// never leak to an outer sibling -- e.g. a different function that reuses the
+// name for an unrelated value.
+priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), mut aliases: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
@@ -3445,25 +3463,54 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                 is_method = true
             case:
             }
-            if lname.len().gt(0).and(lowered.has(lname)) {
-                ref fdef : Expr = scope.lookup_func(lname)
-                if fdef.is_null().not() {
-                    mut nparams : USize = 0
-                    switch fdef.node_type {
-                    case NodeType.FuncDef(fd): nparams = fd.params.len()
-                    case:
-                    }
-                    // Effective args: bare `f(a, b)` has children.len()-1 args;
-                    // UFCS `a.f(b)` adds the receiver, so children.len().
-                    mut eff_count : USize = c.children.len().sub(1)
-                    if is_method { eff_count = c.children.len() }
-                    if eff_count.eq(nparams) {
-                        e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
+            if lname.len() > 0 {
+                canon := lazy_alias_resolve(lname, aliases)
+                if lowered.has(canon) {
+                    // Look the signature up under the CANONICAL def (an alias
+                    // has no func_def of its own); emit the call through the
+                    // call-site name (`lname`) so a first-class alias keeps
+                    // dispatching through its funcptr value.
+                    ref fdef : Expr = scope.lookup_func(canon)
+                    if fdef.is_null().not() {
+                        mut nparams : USize = 0
+                        switch fdef.node_type {
+                        case NodeType.FuncDef(fd): nparams = fd.params.len()
+                        case:
+                        }
+                        // Effective args: bare `f(a, b)` has children.len()-1 args;
+                        // UFCS `a.f(b)` adds the receiver, so children.len().
+                        mut eff_count : USize = c.children.len().sub(1)
+                        if is_method { eff_count = c.children.len() }
+                        if eff_count.eq(nparams) {
+                            e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
+                        }
                     }
                 }
             }
         }
-        lazy_wrap_thunk_calls(e.children[i], scope, lowered, depth + 1)
+        mut child_aliases := aliases.clone()
+        lazy_wrap_thunk_calls(e.children[i], scope, lowered, child_aliases, depth + 1)
+        // A Decl `x := y` where `y` resolves to a lowered def makes `x` a
+        // first-class alias visible to later siblings; any other Decl of `x`
+        // shadows an inherited alias (recorded as "").
+        ref cc : Expr = e.children[i]
+        switch cc.node_type {
+        case NodeType.Decl(dd):
+            if dd.name.len().gt(0).and(cc.children.len().gt(0)) {
+                switch cc.children[0].node_type {
+                case NodeType.Ident(rid):
+                    ycanon := lazy_alias_resolve(rid.ident_name(), aliases)
+                    if lowered.has(ycanon) {
+                        aliases.set(dd.name, own ycanon)
+                    } else {
+                        aliases.set(dd.name, own "")
+                    }
+                case:
+                    aliases.set(dd.name, own "")
+                }
+            }
+        case:
+        }
     }
 }
 
@@ -3513,14 +3560,17 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     if lowered.len() == 0 { return }
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, 0)
+            mut ca := Map(Str, Str).new()
+            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, ca, 0)
         }
     }
     for uu : ProgramUnit in lp.units {
-        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, 0)
+        mut ua := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, ua, 0)
     }
     for mf : Str in lp.mode_files {
-        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, 0)
+        mut ma := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, ma, 0)
     }
 }
 

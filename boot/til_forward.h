@@ -3016,7 +3016,8 @@ void priv___src_self_loader_til__lazy_thunk_classify_capture(Str * name, TypeSco
 void priv___src_self_loader_til__lazy_thunk_collect_captures(Expr * e, TypeScope * scope, Set__Str * bound, Vec__Declaration * caps);
 Expr * priv___src_self_loader_til__lazy_make_thunk(Expr * eff, Str * ret_type, TypeScope * scope);
 Expr * priv___src_self_loader_til__lazy_build_thunk_call(Expr * call, Expr * fdef, Str * name, Bool is_method, TypeScope * scope);
-void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * scope, Set__Str * lowered, I32 depth);
+Str * priv___src_self_loader_til__lazy_alias_resolve(Str * name, Map__Str_Str * aliases);
+void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * scope, Set__Str * lowered, Map__Str_Str * aliases, I32 depth);
 void priv___src_self_loader_til__lazy_thunk_lower_unit(LoadedProgram * lp, Str * unit_path, Set__Str * lowered, Set__Str * seen);
 void priv___src_self_loader_til__expand_lazy_thunks_in_program(LoadedProgram * lp);
 void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp);

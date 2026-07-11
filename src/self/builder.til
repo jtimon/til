@@ -52,6 +52,11 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
             if bfd.is_null().not() { return bfd }
         case:
         }
+        // A transitive first-class alias `h := g` where `g := f` is itself a
+        // local funcptr value (#262): chase `g`'s signature captured at its
+        // own emit_stmt_decl into local_fn_sigs, so `h` resolves the same sig.
+        ref via_local_alias : Expr = resolve_local_fn_sig(ctx, rhs_name.ident_name())
+        if via_local_alias.is_null().not() { return via_local_alias }
     case NodeType.FCall:
         ref fdef : Expr = resolve_fn_sig(rhs, scope)
         if fdef.is_null().not() { return fdef }
@@ -2836,7 +2841,13 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
                     arg_sname := til_type_name(arg.til_type())
                     if arg_sname.len() > 0 { arg_c = arg_sname }
                 }
-                if arg_shallow.not() { arg_c = format(arg_c, " *") }
+                // A funcptr/closure arg is already `TilClosure *`; the closure
+                // ABI passes it BY VALUE (the param_ctype the wrapper declares
+                // is the funcsig typedef, not a pointer-to-it), so it must NOT
+                // get the extra by-address ` *` value types take. Matches the
+                // thunk arg `&_lambda_N` (a `TilClosure *`) a first-class lazy
+                // call emits (#262).
+                if arg_shallow.not().and(arg.til_type().is_funcptr().not()) { arg_c = format(arg_c, " *") }
             }
             f.write(arg_c)
         }

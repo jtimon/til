@@ -1412,7 +1412,11 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                                 ai++
                                 continue
                             }
-                            if arg.til_type().is(expected).not() {
+                            // #58 / #147: use the same wildcard-aware funcptr
+                            // comparison validate_fcall_arg uses -- a bare
+                            // FuncPtr (e.g. a thunk wrapping a first-class lazy
+                            // arg, #262) matches any named FuncPtrSig param.
+                            if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected).not()) {
                                 e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type())), ctx)
                             }
                             ai++

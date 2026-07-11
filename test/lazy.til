@@ -470,6 +470,44 @@ test_thunk_shadowing_short_circuits := test() {
     assert_eq(I64, eval_count, 1)
 }
 
+# --- FIRST-CLASS (#262): a thunk-lowered lazy func used as a VALUE. Binding it
+#     to a local (`g := both`) or aliasing that binding (`h := g`) and calling
+#     THROUGH the value thunk-wraps the args exactly like a direct call, so
+#     short-circuit is preserved. The loader tracks the local alias so it wraps
+#     the value call's args; the typer's funcptr-call arg-check accepts the
+#     thunk args (a bare FuncPtr matches the `_Fn_ret_T` param sig); the builder
+#     resolves the value's signature -- transitively for a chain -- to emit the
+#     closure call cast without the spurious extra pointer. ---
+
+test_first_class_value := test() {
+    g := both
+    expect(g(true, true), "g := both; g(T,T)")
+    expect(g(true, false).not(), "g(T,F)")
+    expect(g(false, true).not(), "g(F,T)")
+}
+
+test_first_class_chain := test() {
+    g := both
+    h := g
+    expect(h(true, true), "h := g := both; h(T,T)")
+    expect(h(false, true).not(), "h(F,T)")
+}
+
+test_first_class_short_circuits := test() {
+    # a=false -> the value call short-circuits before `b` is forced, so the
+    # side-effecting bump() arg never runs -- laziness survives the indirection.
+    eval_count = 0
+    g := both
+    r := g(false, bump())
+    expect(r.not(), "g(false, bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+    # a=true -> the trailing `return b` forces bump() exactly once.
+    eval_count = 0
+    r2 := g(true, bump())
+    expect(r2, "g(true, bump()) forces bump once")
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
 #     (a side-effecting expression). ---
 

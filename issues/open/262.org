@@ -70,12 +70,34 @@ Status summary (what is merged):
   call is an arity error.
 
   REMAINING -- each blocked on a separate prerequisite or a non-goal:
-    1. FIRST-CLASS / escaping lazy callables (store/return/pass a lazy func
-       as a value, call it after its defining scope exits -- needed for
-       infinite structures and alpha-beta game trees). The thunks capture by
-       reference, so #54's escape checks correctly reject this today. Blocked
-       on #54's escaping-closure work (shallow/own captures, broader
-       stored-closure escape paths).
+    1. FIRST-CLASS lazy callables. PARTLY DONE. A thunk-lowered lazy func can
+       now be bound to a LOCAL VALUE and called through that value with full
+       short-circuit, in both the interpreter and the C backend:
+         g := both        # value binding of a thunk-lowered lazy func
+         h := g           # transitive alias
+         g(false, bump()) # short-circuits: bump() never runs
+       Mechanism (all keyed off the loader's `_Fn_ret_T` thunk lowering, no new
+       runtime cost): the loader's call-wrapping pass (lazy_wrap_thunk_calls,
+       src/self/loader.til) tracks local `x := <lowered-def>` aliases -- scoped
+       by clone-on-descent so a name reused in another function does not leak --
+       and wraps the value call's args in thunk closures exactly like a direct
+       call; the typer's funcptr-call arg-check (src/self/typer.til) accepts the
+       thunk args via the wildcard-aware funcptr_eq (a bare FuncPtr matches the
+       named `_Fn_ret_T` param sig); the builder resolves the value's signature
+       -- transitively for a chain, via resolve_local_fn_sig -- and emits the
+       closure-call cast treating an `_Fn_ret_T` (= `TilClosure *`) arg by value
+       instead of appending a spurious extra pointer. Tests: test/lazy.til
+       (test_first_class_value / _chain / _short_circuits).
+       STILL REMAINING: first-class through an EXPLICITLY-NAMED funcsig type --
+       returning a lazy func (`func() returns MySig { return both }`), a struct
+       field of that type, or a HOF param. These need the user's surface funcsig
+       (`func(Bool, Bool)`) to be lowered to the thunk signature
+       (`func(_Fn_ret_Bool, _Fn_ret_Bool)`) -- i.e. a lazy-funcsig-type lowering
+       and call-through-lazy-funcsig-value wrapping -- which is a distinct piece
+       (new surface: a `lazy_func(...)` bodyless funcsig). Escaping thunks that
+       capture locals BY REFERENCE remain gated by #54's escape checks (shallow/
+       own captures); and passing a lazy func through an EAGER HOF cannot
+       preserve the HOF's own arg short-circuit by semantics.
     2. Param-name shadowing inside a thunk-lowered body: currently the def is
        left lazy (hard-errors) rather than risk mis-rewriting a shadowed use.
        A minor self-imposed limitation; needs scope-aware auto-force. Low
