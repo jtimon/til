@@ -894,8 +894,8 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
     root_dir := lp.ext_c_path.strip_suffix("/src/c/ext.c")
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
-    // and push_take kept stmts (no clone); the trailing delete drops the
-    // dropped link directives.
+    // and push_take kept stmts (no clone); old_children's garbager-inserted
+    // delete after the loop drops the dropped link directives (#302).
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         base_dir := dir_of(u.path)
@@ -941,7 +941,6 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
             }
             if keep { new_children.push_take(old_children, idx) }
         }
-        own old_children.delete()
         iu.ast.children = new_children
     }
 }

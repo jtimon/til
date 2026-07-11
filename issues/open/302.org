@@ -639,6 +639,23 @@ let the ownership pass insert temps itself; start with the check.
     scopes per compile) passes with zero hand-written deletes --
     proving the calls were pre-garbager history, not a gap.
     garbager.til's two stale call-order comments updated.
+  - [X] 2026-07-10 two more ordinary-code sites drained (suite-proven
+    like the TypeScope 11): (1) loader.til strip_link_directives'
+    `own old_children.delete()` removed -- old_children is an ordinary
+    owned local, the pass inserts its delete after the loop; (2)
+    constfolder.til's per-FuncDef snapshot restore -- the hand-rolled
+    move-assign (Map.clear + free(keys.data) + free(values.data) +
+    memcpy + memset-to-defuse, census class c on a Map field) is now
+    ONE `move(Map(Str, Value), ctx.constfolder_known, own
+    snapshot_fd)`: the post-fold map (entries, buffers, box) rides
+    src's own-param deep delete inside move(). First class-c kill in
+    ordinary code via the move ruling; 2 frees + 1 manual delete + a
+    memcpy/memset pair gone. Remaining candidates in pass code:
+    scavenger.til children_filter_expr/decl do element deletes +
+    compaction on v.data directly -- container surgery that belongs
+    as a Vec method (needs an API-shape decision, e.g.
+    Vec.delete_marked); constfolder's scope_free(own va_scope) is
+    interp-island machinery (stage 7).
   - [ ] Stage 1: single-source storage classification.
   - [ ] Stage 2: return normalization.
   - [ ] Stage 3: the CFG ownership pass.

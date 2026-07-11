@@ -1395,27 +1395,15 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         if child.node_type.is(NodeType.FuncDef) {
             snapshot_fd := ctx.constfolder_known.clone()
             fold_subtree(scope, child, ctx)
-            // Drop every entry in `known` before restoring the snapshot.
-            // Map.clear runs Value.delete (now deep) on each value, so the
-            // payloads -- inherited and inner-fold-added -- are reclaimed
-            // without a manual sweep. Safe because body-local
-            // track_literal_known_only does not share Value payloads with
-            // `scope`.
-            ctx.constfolder_known.clear()
-            // Map.clear drops the entries but keeps the key/value backing
-            // buffers allocated. The memcpy below overwrites the whole Map
-            // struct (including the data pointers) with snapshot_fd's, so
-            // free the now-empty buffers first -- otherwise every FuncDef
-            // body orphans a full constfolder_known buffer (a large per-body leak).
-            free(own ctx.constfolder_known.keys.data)
-            free(own ctx.constfolder_known.values.data)
-            // Transfer snapshot_fd into known via memcpy (avoids the
-            // implicit Map.clone that til codegen would emit for a plain
-            // `known = snapshot_fd`, which would leak a second deep
-            // copy of every value). memset snapshot_fd to zero so its
-            // scope-end Map.delete becomes a no-op.
-            memcpy(ctx.constfolder_known, snapshot_fd, Map(Str, Value).size())
-            memset(snapshot_fd, 0, Map(Str, Value).size())
+            // Restore the snapshot by MOVE (#302): the field adopts
+            // snapshot_fd's Map, and the post-fold `known` -- entries
+            // (inherited and inner-fold-added) plus backing buffers --
+            // rides snapshot_fd's own-param deep delete inside move().
+            // Replaces the hand-rolled clear + free(keys.data/values.data)
+            // + memcpy + memset-to-defuse dance. Safe for the same reason
+            // the old clear was: body-local track_literal_known_only does
+            // not share Value payloads with `scope`.
+            move(Map(Str, Value), ctx.constfolder_known, own snapshot_fd)
             continue
         }
         fold_subtree(scope, child, ctx)

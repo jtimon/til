@@ -2858,6 +2858,7 @@ void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void constfolder_register_core_constants(Scope * global, Str * usize_name);
+void move__Map__Str_Value(Map__Str_Value * dest, Map__Str_Value * src);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
