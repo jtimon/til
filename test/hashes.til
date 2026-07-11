@@ -1,7 +1,7 @@
 mode test
 
 import("../src/core/dyn")
-import("../lib/hash")
+import("../src/std/hash")
 
 // Issue #236: a file-level `mut X : HashFn = fnv1a` decl was emitted as
 // a fresh function-local in main() that shadowed the global. The fix in

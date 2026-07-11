@@ -10,7 +10,7 @@ mode lib
 // that stores the per-entry chain link. Separate chaining over arrays,
 // no per-entry malloc. Adapted from rstil's src/std/hashmap.til.
 
-import("../../lib/hash")
+import("hash")
 
 HASHMAP_INIT_BUCKETS : USize = 16
 
