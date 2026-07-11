@@ -518,12 +518,13 @@ main := proc(args: ..Str) {
     add_both(tests, "test/operators.til", flags)
     add_both(tests, "test/flow.til", flags)
     add_both(tests, "test/asting.til", flags)
-    // parsing.til drives the self-parser itself. It ran compiled-only
-    // until the interpreter learned (a) inline-enum-payload ownership
-    // and (b) borrow-preserving `returns ref` (payload refs used to be
-    // detached copies, so the parser's push-through-structdef_of writes
-    // were lost). Both backends now.
-    add_both(tests, "test/parsing.til", flags)
+    // parsing.til drives the whole self-parser; interpreting it costs
+    // ~15s for coverage the compiled run and every other test's parse
+    // step already give. Compile-only. The interpreter payload bugs it
+    // exposed (inline-enum-payload ownership, borrow-preserving ref
+    // returns) are covered cheaply by test/enums_lifecycle.til's
+    // regression tests, which stay on both backends.
+    add_both(tests, "test/parsing.til", format(flags, " -no-interp"))
     add_both(tests, "test/structs.til", flags)
     add_both(tests, "test/interfaces.til", flags)
     add_both(tests, "test/types.til", flags)
