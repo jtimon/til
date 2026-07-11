@@ -753,14 +753,27 @@ priv read_enum_tag_value := func(p: Dynamic, tdef: Expr) returns Value {
 priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
     if type_name == "I64"  { return I64.size() }
     if type_name == "U8"   { return U8.size() }
+    if type_name == "I8"   { return I8.size() }
     if type_name == "I16"  { return I16.size() }
     if type_name == "U16"  { return U16.size() }
     if type_name == "I32"  { return I32.size() }
     if type_name == "U32"  { return U32.size() }
+    if type_name == "U64"  { return U64.size() }
+    // Width aliases: build_argv_array runs at interpret time, where
+    // host == target, so this compiler's own sizes are the right widths.
+    if type_name == "USize" { return USize.size() }
+    if type_name == "UPtr" { return UPtr.size() }
+    // Missing F32 fell through to the old `return 8` default, so ..F32
+    // variadic elems were written at stride 8 but read at stride 4:
+    // every element after the first came back as garbage under interpret.
+    if type_name == "F32"  { return F32.size() }
     if type_name == "Bool" { return Bool.size() }
     // #192: Str's size is target-dependent (its count/cap are USize); read it
     // from ctx so a U32-built til_boot folding U64 core uses the source width.
     if type_name == "Str"  { return ctx_total_size(ctx.cached_str_name, ctx) }
+    // The loader restricts variadic main() elem types to the set above;
+    // anything else here is a bug -- fail loud, not with a wrong stride.
+    panic("elem_size_for_type: unhandled element type '", type_name, "'")
     return 8
 }
 
@@ -4034,6 +4047,15 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     case Value.Ushort(v):  if type_name == "U16"  { memcpy(dest, v, 2); return }
     case Value.Int32(v):   if type_name == "I32"  { memcpy(dest, v, 4); return }
     case Value.Uint32(v):  if type_name == "U32"  { memcpy(dest, v, 4); return }
+    // U64 covers the bare type plus the width aliases: parse_cli_arg
+    // yields Uint64 for USize/UPtr at interpret time (host == target,
+    // 64-bit) and elem_size_for_type sizes those slots at 8. Missing
+    // this case left `main(args: ..U64)` element buffers unwritten
+    // under `til interpret` (printed zeros where the compiled binary
+    // printed the arguments).
+    case Value.Uint64(v):
+        if (type_name == "U64").or(type_name == "USize").or(type_name == "UPtr") { memcpy(dest, v, 8); return }
+    case Value.Float(v):   if type_name == "F32"  { memcpy(dest, v, 4); return }
     case Value.Boolean(v): if type_name == "Bool" { memcpy(dest, v, 1); return }
     case Value.Struct(si):
         switch lookup_interp_type_def(si.struct_name, si.ctx).node_type {
@@ -4050,12 +4072,18 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
                 memcpy(dest, csi.data, sz)
                 free(own csi.data)
                 csi.data = NULL
+                return
             case:
             }
         case:
         }
     case:
     }
+    // Every supported value/type pair returns above. Reaching here means
+    // an element buffer would stay unwritten -- the silent version of
+    // this fallthrough is exactly how the missing Uint64/Float cases
+    // shipped broken `..U64` / `..F32` variadic interpret args.
+    panic("value_to_buf: unhandled value for element type '", type_name, "'")
 }
 
 priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_type: Str, ctx: Context) returns shallow Value {
