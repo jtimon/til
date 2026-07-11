@@ -1,5 +1,9 @@
 mode test
 
+// node_name, til_type_name_c and func_type_name live in
+// src/self/parser.til since the ast.til slimming.
+import("../src/self/parser")
+
 test_node_name := test() {
     assert_eq(Str, node_name(NodeType.Body), "body")
     assert_eq(Str, node_name(NodeType.FCall), "fcall")

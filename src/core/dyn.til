@@ -37,10 +37,25 @@ dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dyn
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
+dyn_type_to_str := ext_func(type: Type) returns Str {}
+
+// Extract the struct/enum/custom name carried in a Type's payload.
+// Returns empty Str for any other variant. Lives here (not ast.til) as
+// the Type-to-name half of the introspection API: the *_def_of
+// assemblers below take the name this returns.
+til_type_name := func(t: Type) returns Str {
+    switch t {
+    case Type.Struct(s):     return s.clone()
+    case Type.Enum(s):       return s.clone()
+    case Type.Custom(s):     return s.clone()
+    case Type.FuncPtrSig(s): return s.clone()
+    case: return ""
+    }
+}
 
 // Struct introspection primitives (issue #56/#58). Query the loaded
 // program for a registered struct type's field metadata by name. Used
-// by struct_def_of in ast.til. Indexing is 0-based over the struct's
+// by struct_def_of below. Indexing is 0-based over the struct's
 // declared fields (data members only, not namespace items).
 struct_field_count := ext_func(type_name: Str) returns shallow I64 {}
 struct_field_name := ext_func(type_name: Str, shallow index: I64) returns Str {}
@@ -69,6 +84,63 @@ func_sig_return_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_return_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
 func_sig_throw_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_throw_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
+
+// Issue #56/#58: assemble a StructDef value for a registered struct type
+// by querying the loaded program through the struct_field_* introspection
+// primitives above. Each field becomes a Declaration carrying its name,
+// mutability, and declared type. Mirrors rstil's struct_def_of.
+struct_def_of := func(type_name: Str) returns StructDef {
+    mut def := StructDef()
+    n := struct_field_count(type_name)
+    for i in 0..n {
+        mut decl := Declaration()
+        decl.name = struct_field_name(type_name, i)
+        decl.is_mut = struct_field_is_mut(type_name, i) == 1
+        decl.explicit_type = struct_field_type(type_name, i)
+        def.fields.push(own decl)
+    }
+    return def
+}
+
+// Issue #57/#58: assemble an EnumDef value for a registered enum type via
+// the enum_variant_* primitives above. Variant names go into `variants`;
+// payload-bearing variants record their type in `payload_types` keyed by
+// variant index. Mirrors rstil's enum_def_of.
+enum_def_of := func(type_name: Str) returns EnumDef {
+    mut def := EnumDef()
+    n := enum_variant_count(type_name)
+    for i in 0..n {
+        def.variants.push(own enum_variant_name(type_name, i))
+        if enum_variant_has_payload(type_name, i) == 1 {
+            pt := enum_variant_payload_type(type_name, i)
+            def.payload_types.set(i, own pt)
+        }
+    }
+    return def
+}
+
+// Issue #58: assemble a FunctionDef (signature) value for a registered
+// FuncSig type via the func_sig_* primitives above. Parameter Declarations
+// carry only their type (signatures have no parameter names); a single
+// return type and the throw-type list are filled when present. Mirrors
+// rstil's func_sig_of.
+func_sig_of := func(type_name: Str) returns FunctionDef {
+    mut sig := FunctionDef()
+    pn := func_sig_param_count(type_name)
+    for i in 0..pn {
+        mut decl := Declaration()
+        decl.explicit_type = func_sig_param_type(type_name, i)
+        sig.params.push(own decl)
+    }
+    if func_sig_return_count(type_name) == 1 {
+        sig.return_type = func_sig_return_type(type_name, 0)
+    }
+    tn := func_sig_throw_count(type_name)
+    for i in 0..tn {
+        sig.throw_types.push(own func_sig_throw_type(type_name, i))
+    }
+    return sig
+}
 
 // Default function pointer values for container struct fields
 CloneFn := func(Dynamic) returns Dynamic

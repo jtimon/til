@@ -1339,3 +1339,155 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
     }
     return true
 }
+
+// --- Type / AST helpers moved from src/core/ast.til ---
+// Cross-phase helper funcs over the core AST types. They live here (the
+// cross-phase home) rather than in src/core/ast.til so the core file stays
+// focused on the AST structs and enums themselves.
+
+// True when ~t~ is one of the scalar primitive types. Every scalar now
+// lives under ~Type.Primitive(Primitive)~, so this is a single tag check.
+is_primitive := func(t: Type) returns Bool {
+    return t.is(Type.Primitive)
+}
+
+// Issue #58 / #147 step 5: a FuncSig-typed value can carry the alias
+// name in ~Type.FuncPtrSig: Str~ or remain anonymous as ~Type.FuncPtr~.
+// Callers asking "is this a function pointer at all?" use this helper
+// so callsites work transparently across both shapes during the
+// migration that moves the FuncSig name off ~Declaration.explicit_type~
+// and onto the type itself.
+is_funcptr := func(t: Type) returns Bool {
+    return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig))
+}
+
+// Compound aggregate type: user-defined struct or enum that the codegen
+// represents as a multi-field record (and typically heap-allocates /
+// dispatches a generated delete on). Primitives are Type.Primitive, so
+// they fall out naturally -- no primitive guard needed.
+is_aggregate := func(t: Type) returns Bool {
+    return t.is(Type.Struct).or(t.is(Type.Enum))
+}
+
+// #254 range cases: true when `e` is a `Range.new(lo, hi)` FCall -- the AST
+// shape a `lo..hi` range pattern parses to. Used by the C-like switch path to
+// recognise a `case lo..hi:` arm (emitted as a C case range `lo ... hi`).
+is_range_new_call := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() != 3 { return false }
+    ref callee : Expr = e.children[0]
+    // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
+    // rewrite later collapses it to a bare `Range` (Ident). Accept both.
+    switch callee.node_type {
+    case NodeType.Ident(id): return id.ident_name() == "Range"
+    case NodeType.FieldAccess(fa):
+        if fa.field_access_name().eq("new").not() { return false }
+        if callee.children.len() == 0 { return false }
+        switch callee.children[0].node_type {
+        case NodeType.Ident(bid): return bid.ident_name() == "Range"
+        case: return false
+        }
+    case: return false
+    }
+}
+
+// Debug pretty-printer for an AST subtree (s-expression-ish, one node per
+// line). Not called by the compiler passes; kept for interactive debugging.
+ast_print := proc(e: Expr, indent: U32) {
+    for _ in 0..indent {
+        print("  ")
+    }
+    print("(", node_name(e.node_type))
+    et := e.expr_til_type()
+    if et.is(Type.Unknown).not() {
+        print(":", til_type_name_c(et))
+    }
+    switch e.node_type {
+    case NodeType.Ident(s):      print(" \"", s.ident_name(), "\"")
+    case NodeType.Literal(Literal.Str(s)): print(" \"", s, "\"")
+    case NodeType.Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
+    case NodeType.Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
+    case NodeType.ForIn(fi):
+        if fi.is_mut { print(" mut") }
+        print(" \"", fi.name, "\"")
+    case NodeType.Decl(decl):
+        if decl.is_mut { print(" mut") }
+        print(" ", decl.name)
+    case NodeType.Assign(a):     print(" ", a.name)
+    case NodeType.NamedArg(s):   print(" ", s)
+    case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
+    case: // nothing
+    }
+    if e.children.len() > 0 {
+        println("")
+        for e_i : Expr in e.children {
+            ast_print(e_i, indent + 1)
+        }
+        for _ in 0..indent {
+            print("  ")
+        }
+    }
+    println(")")
+}
+
+// Per-call count of kwargs args. After desugar puts the FCall in
+// param-aligned form, kwargs args are the trailing children block --
+// kwargs is always the last parameter (the parser forbids any
+// parameter after it) and NamedArg nodes only survive to that block
+// (the NamedArg-to-fixed-slot matching at desugar time unwraps any
+// NamedArg whose name matches a non-kwargs param). The count is
+// therefore the consecutive trailing NamedArg child count: pre-rewrite
+// = the kwargs args, post-rewrite = 0 (the rewrite replaces the
+// NamedArg children with a single KwargsMap-setter ident).
+fcall_kwargs_count := func(fcall: Expr) returns USize {
+    switch fcall.node_type {
+    case NodeType.FCall:
+        mut count : USize = 0
+        ref ch : Vec(Expr) = fcall.children
+        mut i : USize = ch.len()
+        while i > 0 {
+            i--
+            ref c : Expr = ch[i]
+            if c.node_type.is(NodeType.NamedArg).not() { break }
+            count++
+        }
+        return count
+    case:
+        UNREACHABLE()
+        return 0
+    }
+}
+
+// Per-call count of variadic args. Unlike kwargs, the variadic block
+// is not always trailing: default-valued params may follow a variadic
+// (parser.til allows it via the `has_default` guard), so the count
+// cannot be derived from children length alone. It needs the callee's
+// param count, plus whether the callee has a kwargs param (since
+// kwargs trails the variadic when both are present and shifts the
+// trailing-children accounting).
+//
+// Derivation (post-desugar param-aligned children, pre-variadic-rewrite):
+//   children = 1 (callee) + (nparam - 1 - callee_has_kwargs)
+//              + variadic_count + kwargs_count
+// Solving for variadic_count:
+//   - callee_has_kwargs : variadic_count
+//       = children.len() - nparam + 1 - kwargs_count
+//   - no kwargs         : variadic_count = children.len() - nparam
+// kwargs_count comes from the structural trailing-NamedArg count
+// (see fcall_kwargs_count) so neither path needs a stored kwargs index.
+// Caller must guarantee the callee has a variadic param; the function
+// is only meaningful in that case (no field check survives now that
+// FCallData.variadic_index has been derived away).
+fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool) returns USize {
+    switch fcall.node_type {
+    case NodeType.FCall:
+        if callee_has_kwargs {
+            kc := fcall_kwargs_count(fcall)
+            return fcall.children.len().add(1).sub(nparam) - kc
+        }
+        return fcall.children.len() - nparam
+    case:
+        UNREACHABLE()
+        return 0
+    }
+}

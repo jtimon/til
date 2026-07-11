@@ -1,7 +1,6 @@
 mode lib
 
 import("bool")
-import("dyn")
 import("map")
 import("numbers")
 import("str")
@@ -60,70 +59,11 @@ Type := enum {
     Body,
 }
 
-til_type_name_c := func(t: Type) returns Str {
-    switch t {
-    case Type.Unknown:   return "unknown"
-    case Type.None:      return "None"
-    case Type.Primitive(Primitive.I64):       return "I64"
-    case Type.Primitive(Primitive.U8):        return "U8"
-    case Type.Primitive(Primitive.I8):        return "I8"
-    case Type.Primitive(Primitive.I16):       return "I16"
-    case Type.Primitive(Primitive.U16):       return "U16"
-    case Type.Primitive(Primitive.I32):       return "I32"
-    case Type.Primitive(Primitive.U32):       return "U32"
-    case Type.Primitive(Primitive.U64):       return "U64"
-    case Type.Primitive(Primitive.F32):       return "F32"
-    case Type.Primitive(Primitive.Bool):      return "Bool"
-    case Type.Struct:    return "Struct"
-    case Type.StructDef: return "StructDef"
-    case Type.Enum:      return "Enum"
-    case Type.EnumDef:   return "EnumDef"
-    case Type.FuncDef:   return "FunctionDef"
-    case Type.FuncPtr:   return "Fn"
-    case Type.FuncPtrSig: return "Fn"
-    case Type.Body:      return "Body"
-    case Type.Dynamic:   return "Dynamic"
-    case Type.Custom(name): return name.clone()
-    }
-}
-
-// Extract the struct/enum/custom name carried in a Type's payload.
-// Returns empty Str for any other variant.
-til_type_name := func(t: Type) returns Str {
-    switch t {
-    case Type.Struct(s):     return s.clone()
-    case Type.Enum(s):       return s.clone()
-    case Type.Custom(s):     return s.clone()
-    case Type.FuncPtrSig(s): return s.clone()
-    case: return ""
-    }
-}
-
-// True when ~t~ is one of the scalar primitive types. Every scalar now
-// lives under ~Type.Primitive(Primitive)~, so this is a single tag check.
-is_primitive := func(t: Type) returns Bool {
-    return t.is(Type.Primitive)
-}
-
-// Issue #58 / #147 step 5: a FuncSig-typed value can carry the alias
-// name in ~Type.FuncPtrSig: Str~ or remain anonymous as ~Type.FuncPtr~.
-// Callers asking "is this a function pointer at all?" use this helper
-// so callsites work transparently across both shapes during the
-// migration that moves the FuncSig name off ~Declaration.explicit_type~
-// and onto the type itself.
-is_funcptr := func(t: Type) returns Bool {
-    return t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig))
-}
-
-// Compound aggregate type: user-defined struct or enum that the codegen
-// represents as a multi-field record (and typically heap-allocates /
-// dispatches a generated delete on). Primitives are Type.Primitive, so
-// they fall out naturally -- no primitive guard needed.
-is_aggregate := func(t: Type) returns Bool {
-    return t.is(Type.Struct).or(t.is(Type.Enum))
-}
-
-dyn_type_to_str := ext_func(type: Type) returns Str {}
+// The compiler-facing Type helper funcs (til_type_name_c, is_primitive,
+// is_funcptr, is_aggregate) live in src/self/context.til; dyn_type_to_str,
+// til_type_name and the reflection assemblers (struct_def_of, enum_def_of,
+// func_sig_of) live in src/core/dyn.til next to the introspection
+// primitives they wrap.
 
 // --- FuncType enum ---
 /// Classifies a til function declaration: func, proc, test, macro, or external.
@@ -143,6 +83,25 @@ FuncType := enum {
     // compiler-known match expansion at parse-time call sites). Appended at
     // the END so existing tag values stay stable for til_boot's boot/.
     CoreLazyFunc,
+namespace:
+    // Enum-variant-name form (as written in the FuncType enum above), for
+    // NodeType.head_str / Expr.to_str output. Distinct from func_type_name
+    // (src/self/parser.til) which returns the til keyword (snake_case).
+    variant_name := func(self: FuncType) returns Str {
+        switch self {
+        case FuncType.Func:    return "Func"
+        case FuncType.Proc:    return "Proc"
+        case FuncType.Test:    return "Test"
+        case FuncType.Macro:   return "Macro"
+        case FuncType.ExtFunc: return "ExtFunc"
+        case FuncType.ExtProc: return "ExtProc"
+        case FuncType.LazyFunc: return "LazyFunc"
+        case FuncType.LazyProc: return "LazyProc"
+        case FuncType.CoreFunc: return "CoreFunc"
+        case FuncType.CoreProc: return "CoreProc"
+        case FuncType.CoreLazyFunc: return "CoreLazyFunc"
+        }
+    }
 }
 
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).
@@ -249,7 +208,7 @@ FCallData := struct {
     swap_replace := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
-    // set_fcall_til_type helper at FCall infer time, and
+    // set_expr_til_type method at FCall infer time, and
     // ~expr_til_type~ reads it back via the chokepoint's FCall
     // dispatch case. Callees declared without a ~returns~ clause
     // resolve to ~Type.None~ -- common for callees written as
@@ -280,6 +239,7 @@ namespace:
     to_u64 := func(self: LiteralNumData) returns U64 { return self.text.to_u64() }
     to_usize := func(self: LiteralNumData) returns USize { return self.text.to_usize() }
     to_f32 := func(self: LiteralNumData) returns F32 { return self.text.to_f32() }
+    literal_num_text := func(self: LiteralNumData) returns Str { return self.text.clone() }
 }
 
 IdentData := struct {
@@ -296,6 +256,7 @@ namespace:
     strip_suffix := func(self: IdentData, suffix: Str) returns Str { return self.name.strip_suffix(suffix) }
     unsafe_get := func(self: IdentData, i: USize) returns ref I8 { return self.name.unsafe_get(i) }
     get := func(self: IdentData, i: USize) returns ref I8 { return self.name.get(i) }
+    ident_name := func(self: IdentData) returns ref Str { return self.name }
 }
 
 FieldAccessData := struct {
@@ -308,55 +269,7 @@ namespace:
     is_empty := func(self: FieldAccessData) returns Bool { return self.name.is_empty() }
     starts_with := func(self: FieldAccessData, prefix: Str) returns Bool { return self.name.starts_with(prefix) }
     replace := func(self: FieldAccessData, old: Str, new: Str) returns Str { return self.name.replace(old, new) }
-}
-
-literal_num_text := func(n: LiteralNumData) returns Str { return n.text.clone() }
-ident_name := func(id: IdentData) returns ref Str { return id.name }
-field_access_name := func(fa: FieldAccessData) returns ref Str { return fa.name }
-
-set_own_arg := func(mut fcall: Expr, arg_index: USize) {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        fcd.own_args = fcd.own_args.bor(bit)
-    case:
-        UNREACHABLE()
-    }
-}
-
-get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        return fcd.own_args.band(bit) > 0
-    case:
-        UNREACHABLE()
-        return false
-    }
-}
-
-// #254 range cases: true when `e` is a `Range.new(lo, hi)` FCall -- the AST
-// shape a `lo..hi` range pattern parses to. Used by the C-like switch path to
-// recognise a `case lo..hi:` arm (emitted as a C case range `lo ... hi`).
-is_range_new_call := func(e: Expr) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() != 3 { return false }
-    ref callee : Expr = e.children[0]
-    // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
-    // rewrite later collapses it to a bare `Range` (Ident). Accept both.
-    switch callee.node_type {
-    case NodeType.Ident(id): return id.ident_name() == "Range"
-    case NodeType.FieldAccess(fa):
-        if fa.field_access_name().eq("new").not() { return false }
-        if callee.children.len() == 0 { return false }
-        switch callee.children[0].node_type {
-        case NodeType.Ident(bid): return bid.ident_name() == "Range"
-        case: return false
-        }
-    case: return false
-    }
+    field_access_name := func(self: FieldAccessData) returns ref Str { return self.name }
 }
 
 /// Struct definition: field declarations, namespace methods, c_tag.
@@ -464,63 +377,6 @@ namespace:
         return a.total_size.eq(b.total_size).and(a.align.eq(b.align))
     }
     to_str := func(self: StructLayout) returns Str { return self.total_size.to_str() }
-}
-
-// Issue #56/#58: assemble a StructDef value for a registered struct type
-// by querying the loaded program through the struct_field_* introspection
-// primitives (src/core/dyn.til). Each field becomes a Declaration carrying
-// its name, mutability, and declared type. Mirrors rstil's struct_def_of.
-struct_def_of := func(type_name: Str) returns StructDef {
-    mut def := StructDef()
-    n := struct_field_count(type_name)
-    for i in 0..n {
-        mut decl := Declaration()
-        decl.name = struct_field_name(type_name, i)
-        decl.is_mut = struct_field_is_mut(type_name, i) == 1
-        decl.explicit_type = struct_field_type(type_name, i)
-        def.fields.push(own decl)
-    }
-    return def
-}
-
-// Issue #57/#58: assemble an EnumDef value for a registered enum type via
-// the enum_variant_* primitives. Variant names go into `variants`;
-// payload-bearing variants record their type in `payload_types` keyed by
-// variant index. Mirrors rstil's enum_def_of.
-enum_def_of := func(type_name: Str) returns EnumDef {
-    mut def := EnumDef()
-    n := enum_variant_count(type_name)
-    for i in 0..n {
-        def.variants.push(own enum_variant_name(type_name, i))
-        if enum_variant_has_payload(type_name, i) == 1 {
-            pt := enum_variant_payload_type(type_name, i)
-            def.payload_types.set(i, own pt)
-        }
-    }
-    return def
-}
-
-// Issue #58: assemble a FunctionDef (signature) value for a registered
-// FuncSig type via the func_sig_* primitives. Parameter Declarations
-// carry only their type (signatures have no parameter names); a single
-// return type and the throw-type list are filled when present. Mirrors
-// rstil's func_sig_of.
-func_sig_of := func(type_name: Str) returns FunctionDef {
-    mut sig := FunctionDef()
-    pn := func_sig_param_count(type_name)
-    for i in 0..pn {
-        mut decl := Declaration()
-        decl.explicit_type = func_sig_param_type(type_name, i)
-        sig.params.push(own decl)
-    }
-    if func_sig_return_count(type_name) == 1 {
-        sig.return_type = func_sig_return_type(type_name, 0)
-    }
-    tn := func_sig_throw_count(type_name)
-    for i in 0..tn {
-        sig.throw_types.push(own func_sig_throw_type(type_name, i))
-    }
-    return sig
 }
 
 // --- NodeType payload enum (25 variants) ---
@@ -704,6 +560,58 @@ namespace:
         case: return false
         }
     }
+    // Head string used inside the parentheses by Expr.to_str: the NodeType's
+    // variant name plus any inline payload (identifier, literal text, decl
+    // name, etc.). Names are kept as written in the enum (no case conversion).
+    head_str := func(self: NodeType) returns Str {
+        switch self {
+        case NodeType.Body:           return "Body"
+        case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
+        case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", s.literal_num_text())
+        case NodeType.Literal(Literal.Bool(b)):
+            if b { return "LiteralBool true" }
+            return "LiteralBool false"
+        case NodeType.Literal(Literal.Null):    return "LiteralNull"
+        case NodeType.Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
+        case NodeType.Decl(d):
+            if d.is_mut { return format("Decl mut ", d.name) }
+            return format("Decl ", d.name)
+        case NodeType.Assign(a):      return format("Assign ", a.name)
+        case NodeType.FCall:          return "FCall"
+        case NodeType.FuncDef(f):     return format("FuncDef ", f.func_type.variant_name())
+        case NodeType.StructDef:      return "StructDef"
+        case NodeType.EnumDef:        return "EnumDef"
+        case NodeType.FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
+        case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
+        case NodeType.Return:         return "Return"
+        case NodeType.If:             return "If"
+        case NodeType.While:          return "While"
+        case NodeType.ForIn(fi):
+            mut head := "ForIn "
+            if fi.is_mut { head = "ForIn mut " }
+            if fi.name2.len() > 0 {
+                mut tail := format(", ", fi.name2)
+                if fi.is_mut2 { tail = format(", mut ", fi.name2) }
+                return format(head, fi.name, tail)
+            }
+            return format(head, fi.name)
+        case NodeType.NamedArg(s):    return format("NamedArg ", s)
+        case NodeType.Break:          return "Break"
+        case NodeType.Continue:       return "Continue"
+        case NodeType.Literal(Literal.MapLit):         return "MapLit"
+        case NodeType.Literal(Literal.SetLit):         return "SetLit"
+        case NodeType.Switch:         return "Switch"
+        case NodeType.Match:          return "Match"
+        case NodeType.Case:           return "Case"
+        case NodeType.NoDefaultArg:   return "NoDefaultArg"
+        case NodeType.Loc:            return "Loc"
+        case NodeType.Throw:          return "Throw"
+        case NodeType.Catch:          return "Catch"
+        case NodeType.CaptureBlock:   return "CaptureBlock"
+        case NodeType.BodyValue:      return "BodyValue"
+        case: return "?"
+        }
+    }
 }
 
 // --- Expr struct ---
@@ -780,353 +688,102 @@ namespace:
         TODO("Expr.eq")
         return false
     }
-    to_str := func(self: Expr) returns Str {
-        return expr_to_str_indent(self, 0)
-    }
-}
-
-ident_node := func(name: Str) returns NodeType {
-    return NodeType.Ident(IdentData(name = name.clone()))
-}
-
-literal_num_node := func(text: Str) returns NodeType {
-    return NodeType.Literal(Literal.Num(LiteralNumData(text = text.clone())))
-}
-
-field_access_node := func(name: Str) returns NodeType {
-    return NodeType.FieldAccess(FieldAccessData(name = name.clone()))
-}
-
-expr_til_type := func(e: Expr) returns Type {
-    switch e.node_type {
-    case NodeType.Body:        return Type.None
-    case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
-    case NodeType.Literal(Literal.Num(nd)):
-        if nd.til_type.is(Type.Unknown) { return Type.Primitive(Primitive.I64) }
-        return nd.til_type.clone()
-    case NodeType.Literal(Literal.Bool): return Type.Primitive(Primitive.Bool)
-    case NodeType.Literal(Literal.Null): return Type.Dynamic
-    case NodeType.Ident(id):   return id.til_type.clone()
-    case NodeType.Decl(dd):    return dd.til_type.clone()
-    case NodeType.Assign:
-        if e.children.len() == 0 { return Type.Unknown }
-        return e.children[0].expr_til_type()
-    case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
-    case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
-    case NodeType.NamedArg:
-        if e.children.len() == 0 { return Type.Unknown }
-        return e.children[0].expr_til_type()
-    case NodeType.FCall(fcd):  return fcd.til_type.clone()
-    case NodeType.FuncDef:     return Type.FuncPtr
-    case NodeType.BodyValue:   return Type.Body
-    case NodeType.StructDef:   return Type.Struct("StructDef")
-    case NodeType.EnumDef:     return Type.Struct("EnumDef")
-    case NodeType.FieldAccess(fd): return fd.til_type.clone()
-    case NodeType.FieldAssign: return Type.None
-    case NodeType.Return:
-        if e.children.len() == 0 { return Type.None }
-        return e.children[0].expr_til_type()
-    case NodeType.If:          return Type.None
-    case NodeType.While:       return Type.None
-    case NodeType.ForIn(fd):   return fd.til_type.clone()
-    case NodeType.Break:       return Type.None
-    case NodeType.Continue:    return Type.None
-    case NodeType.Switch:      return Type.None
-    case NodeType.Match(md):   return md.til_type.clone()
-    case NodeType.Case:        return Type.None
-    case NodeType.NoDefaultArg:return Type.Unknown
-    // Issue #281: the __LOC__ sentinel stands in for a Str location literal
-    // until infer_expr / the default-fill resolves it, so it types as Str.
-    case NodeType.Loc:         return Type.Struct("Str")
-    case NodeType.Throw:
-        if e.children.len() == 0 { return Type.None }
-        return e.children[0].expr_til_type()
-    case NodeType.Catch:       return Type.None
-    case NodeType.RestPattern: return Type.Unknown
-    case NodeType.ListPattern: return Type.Unknown
-    case NodeType.CaptureBlock: return Type.None
-    }
-    return Type.Unknown
-}
-
-set_expr_til_type := func(mut e: Expr, shallow t: Type) {
-    switch e.node_type {
-    case NodeType.Literal(Literal.Num(nd)):
-        nd.til_type = t
-    case NodeType.Ident(id):
-        id.til_type = t
-    case NodeType.Decl(dd):
-        dd.til_type = t
-    case NodeType.FCall(fcd):
-        fcd.til_type = t
-    case NodeType.FieldAccess(fd):
-        fd.til_type = t
-    case NodeType.ForIn(fd):
-        fd.til_type = t
-    case NodeType.Match(md):
-        md.til_type = t
-    case NodeType.Throw:
-        if e.children.len() > 0 {
-            e.children[0].set_expr_til_type(t)
+    expr_til_type := func(self: Expr) returns Type {
+        switch self.node_type {
+        case NodeType.Body:        return Type.None
+        case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
+        case NodeType.Literal(Literal.Num(nd)):
+            if nd.til_type.is(Type.Unknown) { return Type.Primitive(Primitive.I64) }
+            return nd.til_type.clone()
+        case NodeType.Literal(Literal.Bool): return Type.Primitive(Primitive.Bool)
+        case NodeType.Literal(Literal.Null): return Type.Dynamic
+        case NodeType.Ident(id):   return id.til_type.clone()
+        case NodeType.Decl(dd):    return dd.til_type.clone()
+        case NodeType.Assign:
+            if self.children.len() == 0 { return Type.Unknown }
+            return self.children[0].expr_til_type()
+        case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
+        case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
+        case NodeType.NamedArg:
+            if self.children.len() == 0 { return Type.Unknown }
+            return self.children[0].expr_til_type()
+        case NodeType.FCall(fcd):  return fcd.til_type.clone()
+        case NodeType.FuncDef:     return Type.FuncPtr
+        case NodeType.BodyValue:   return Type.Body
+        case NodeType.StructDef:   return Type.Struct("StructDef")
+        case NodeType.EnumDef:     return Type.Struct("EnumDef")
+        case NodeType.FieldAccess(fd): return fd.til_type.clone()
+        case NodeType.FieldAssign: return Type.None
+        case NodeType.Return:
+            if self.children.len() == 0 { return Type.None }
+            return self.children[0].expr_til_type()
+        case NodeType.If:          return Type.None
+        case NodeType.While:       return Type.None
+        case NodeType.ForIn(fd):   return fd.til_type.clone()
+        case NodeType.Break:       return Type.None
+        case NodeType.Continue:    return Type.None
+        case NodeType.Switch:      return Type.None
+        case NodeType.Match(md):   return md.til_type.clone()
+        case NodeType.Case:        return Type.None
+        case NodeType.NoDefaultArg:return Type.Unknown
+        // Issue #281: the __LOC__ sentinel stands in for a Str location literal
+        // until infer_expr / the default-fill resolves it, so it types as Str.
+        case NodeType.Loc:         return Type.Struct("Str")
+        case NodeType.Throw:
+            if self.children.len() == 0 { return Type.None }
+            return self.children[0].expr_til_type()
+        case NodeType.Catch:       return Type.None
+        case NodeType.RestPattern: return Type.Unknown
+        case NodeType.ListPattern: return Type.Unknown
+        case NodeType.CaptureBlock: return Type.None
         }
-    case:
+        return Type.Unknown
     }
-}
-
-set_fcall_til_type := func(mut fcall: Expr, shallow t: Type) {
-    fcall.set_expr_til_type(t)
-}
-
-// --- func_type_variant_name ---
-// Enum-variant-name form of FuncType (as written in NodeType.FuncDef
-// payload), for Expr.to_str output. Distinct from func_type_name which
-// returns the til keyword (lowercase/snake_case).
-// (The casing is PascalCase because that's how the FuncType enum variants
-// are spelled; it has nothing to do with the Pascal language. til's func
-// vs proc is not Pascal's void-vs-returns split -- the only rule is that
-// a func cannot call a proc.)
-func_type_variant_name := func(ft: FuncType) returns Str {
-    switch ft {
-    case FuncType.Func:    return "Func"
-    case FuncType.Proc:    return "Proc"
-    case FuncType.Test:    return "Test"
-    case FuncType.Macro:   return "Macro"
-    case FuncType.ExtFunc: return "ExtFunc"
-    case FuncType.ExtProc: return "ExtProc"
-    case FuncType.LazyFunc: return "LazyFunc"
-    case FuncType.LazyProc: return "LazyProc"
-    case FuncType.CoreFunc: return "CoreFunc"
-    case FuncType.CoreProc: return "CoreProc"
-    case FuncType.CoreLazyFunc: return "CoreLazyFunc"
-    }
-}
-
-// --- node_head_str ---
-// Head string used inside the parentheses by Expr.to_str: the NodeType's
-// variant name plus any inline payload (identifier, literal text, decl name,
-// etc.). Names are kept as written in the NodeType enum (no case conversion).
-node_head_str := func(data: NodeType) returns Str {
-    switch data {
-    case NodeType.Body:           return "Body"
-    case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
-    case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", s.literal_num_text())
-    case NodeType.Literal(Literal.Bool(b)):
-        if b { return "LiteralBool true" }
-        return "LiteralBool false"
-    case NodeType.Literal(Literal.Null):    return "LiteralNull"
-    case NodeType.Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
-    case NodeType.Decl(d):
-        if d.is_mut { return format("Decl mut ", d.name) }
-        return format("Decl ", d.name)
-    case NodeType.Assign(a):      return format("Assign ", a.name)
-    case NodeType.FCall:          return "FCall"
-    case NodeType.FuncDef(f):     return format("FuncDef ", func_type_variant_name(f.func_type))
-    case NodeType.StructDef:      return "StructDef"
-    case NodeType.EnumDef:        return "EnumDef"
-    case NodeType.FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
-    case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
-    case NodeType.Return:         return "Return"
-    case NodeType.If:             return "If"
-    case NodeType.While:          return "While"
-    case NodeType.ForIn(fi):
-        mut head := "ForIn "
-        if fi.is_mut { head = "ForIn mut " }
-        if fi.name2.len() > 0 {
-            mut tail := format(", ", fi.name2)
-            if fi.is_mut2 { tail = format(", mut ", fi.name2) }
-            return format(head, fi.name, tail)
+    set_expr_til_type := func(mut self: Expr, shallow t: Type) {
+        switch self.node_type {
+        case NodeType.Literal(Literal.Num(nd)):
+            nd.til_type = t
+        case NodeType.Ident(id):
+            id.til_type = t
+        case NodeType.Decl(dd):
+            dd.til_type = t
+        case NodeType.FCall(fcd):
+            fcd.til_type = t
+        case NodeType.FieldAccess(fd):
+            fd.til_type = t
+        case NodeType.ForIn(fd):
+            fd.til_type = t
+        case NodeType.Match(md):
+            md.til_type = t
+        case NodeType.Throw:
+            if self.children.len() > 0 {
+                self.children[0].set_expr_til_type(t)
+            }
+        case:
         }
-        return format(head, fi.name)
-    case NodeType.NamedArg(s):    return format("NamedArg ", s)
-    case NodeType.Break:          return "Break"
-    case NodeType.Continue:       return "Continue"
-    case NodeType.Literal(Literal.MapLit):         return "MapLit"
-    case NodeType.Literal(Literal.SetLit):         return "SetLit"
-    case NodeType.Switch:         return "Switch"
-    case NodeType.Match:          return "Match"
-    case NodeType.Case:           return "Case"
-    case NodeType.NoDefaultArg:   return "NoDefaultArg"
-    case NodeType.Loc:            return "Loc"
-    case NodeType.Throw:          return "Throw"
-    case NodeType.Catch:          return "Catch"
-    case NodeType.CaptureBlock:   return "CaptureBlock"
-    case NodeType.BodyValue:      return "BodyValue"
-    case: return "?"
     }
-}
-
-// --- expr_to_str_indent ---
-// Backing implementation for Expr.to_str. Produces format B-hybrid:
-//   leaf (no children):        (Head)
-//   with children:             ((Head)\n  c1\n  c2 ...)
-// where Head = NodeType variant name + inline payload (see node_head_str).
-expr_to_str_indent := func(self: Expr, indent: U32) returns Str {
-    mut out := ""
-    for _ in 0..indent {
-        out = format(out, "  ")
-    }
-    head := node_head_str(self.node_type)
-    if self.children.len() == 0 {
-        return format(out, "(", head, ")")
-    }
-    out = format(out, "((", head, ")")
-    for c : Expr in self.children {
-        out = format(out, "\n", expr_to_str_indent(c, indent + 1))
-    }
-    return format(out, ")")
-}
-
-// --- node_name ---
-node_name := func(data: NodeType) returns Str {
-    switch data {
-    case NodeType.Body:        return "body"
-    case NodeType.Literal(Literal.Str):  return "str"
-    case NodeType.Literal(Literal.Num):  return "num"
-    case NodeType.Literal(Literal.Bool): return "bool"
-    case NodeType.Literal(Literal.Null): return "null"
-    case NodeType.Ident:       return "ident"
-    case NodeType.Decl:        return "decl"
-    case NodeType.Assign:      return "assign"
-    case NodeType.FCall:       return "fcall"
-    case NodeType.FuncDef:     return "func_def"
-    case NodeType.StructDef:   return "struct_def"
-    case NodeType.EnumDef:     return "enum_def"
-    case NodeType.FieldAccess: return "field_access"
-    case NodeType.FieldAssign: return "field_assign"
-    case NodeType.Return:      return "return"
-    case NodeType.If:          return "if"
-    case NodeType.While:       return "while"
-    case NodeType.ForIn:       return "for_in"
-    case NodeType.NamedArg:    return "named_arg"
-    case NodeType.Break:       return "break"
-    case NodeType.Continue:    return "continue"
-    case NodeType.Literal(Literal.MapLit):      return "map_lit"
-    case NodeType.Literal(Literal.SetLit):      return "set_lit"
-    case NodeType.Switch:      return "switch"
-    case NodeType.Match:       return "match"
-    case NodeType.Case:        return "case"
-    case NodeType.Loc:         return "loc"
-    case NodeType.Throw:       return "throw"
-    case NodeType.Catch:       return "catch"
-    case NodeType.CaptureBlock: return "capture_block"
-    case NodeType.BodyValue: return "body_value"
-    case: return "?"
-    }
-}
-
-// --- func_type_name ---
-func_type_name := func(ft: FuncType) returns Str {
-    switch ft {
-    case FuncType.Func:    return "func"
-    case FuncType.Proc:    return "proc"
-    case FuncType.Test:    return "test"
-    case FuncType.Macro:   return "macro"
-    case FuncType.ExtFunc: return "ext_func"
-    case FuncType.ExtProc: return "ext_proc"
-    case FuncType.LazyFunc: return "lazy_func"
-    case FuncType.LazyProc: return "lazy_proc"
-    case FuncType.CoreFunc: return "core_func"
-    case FuncType.CoreProc: return "core_proc"
-    case FuncType.CoreLazyFunc: return "core_lazy_func"
-    }
-}
-
-// --- ast_print ---
-ast_print := proc(e: Expr, indent: U32) {
-    for _ in 0..indent {
-        print("  ")
-    }
-    print("(", node_name(e.node_type))
-    et := e.expr_til_type()
-    if et.is(Type.Unknown).not() {
-        print(":", til_type_name_c(et))
-    }
-    switch e.node_type {
-    case NodeType.Ident(s):      print(" \"", s.ident_name(), "\"")
-    case NodeType.Literal(Literal.Str(s)): print(" \"", s, "\"")
-    case NodeType.Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
-    case NodeType.Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
-    case NodeType.ForIn(fi):
-        if fi.is_mut { print(" mut") }
-        print(" \"", fi.name, "\"")
-    case NodeType.Decl(decl):
-        if decl.is_mut { print(" mut") }
-        print(" ", decl.name)
-    case NodeType.Assign(a):     print(" ", a.name)
-    case NodeType.NamedArg(s):   print(" ", s)
-    case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
-    case: // nothing
-    }
-    if e.children.len() > 0 {
-        println("")
-        for e_i : Expr in e.children {
-            ast_print(e_i, indent + 1)
-        }
+    // Backing implementation for to_str. Produces format B-hybrid:
+    //   leaf (no children):        (Head)
+    //   with children:             ((Head)\n  c1\n  c2 ...)
+    // where Head = NodeType variant name + inline payload (see
+    // NodeType.head_str).
+    to_str_indent := func(self: Expr, indent: U32) returns Str {
+        mut out := ""
         for _ in 0..indent {
-            print("  ")
+            out = format(out, "  ")
         }
+        head := self.node_type.head_str()
+        if self.children.len() == 0 {
+            return format(out, "(", head, ")")
+        }
+        out = format(out, "((", head, ")")
+        for c : Expr in self.children {
+            out = format(out, "\n", c.to_str_indent(indent + 1))
+        }
+        return format(out, ")")
     }
-    println(")")
-}
-
-// Per-call count of kwargs args. After desugar puts the FCall in
-// param-aligned form, kwargs args are the trailing children block --
-// kwargs is always the last parameter (the parser forbids any
-// parameter after it) and NamedArg nodes only survive to that block
-// (the NamedArg-to-fixed-slot matching at desugar time unwraps any
-// NamedArg whose name matches a non-kwargs param). The count is
-// therefore the consecutive trailing NamedArg child count: pre-rewrite
-// = the kwargs args, post-rewrite = 0 (the rewrite replaces the
-// NamedArg children with a single KwargsMap-setter ident).
-fcall_kwargs_count := func(fcall: Expr) returns USize {
-    switch fcall.node_type {
-    case NodeType.FCall:
-        mut count : USize = 0
-        ref ch : Vec(Expr) = fcall.children
-        mut i : USize = ch.len()
-        while i > 0 {
-            i--
-            ref c : Expr = ch[i]
-            if c.node_type.is(NodeType.NamedArg).not() { break }
-            count++
-        }
-        return count
-    case:
-        UNREACHABLE()
-        return 0
+    to_str := func(self: Expr) returns Str {
+        return self.to_str_indent(0)
     }
 }
 
-// Per-call count of variadic args. Unlike kwargs, the variadic block
-// is not always trailing: default-valued params may follow a variadic
-// (parser.til allows it via the `has_default` guard), so the count
-// cannot be derived from children length alone. It needs the callee's
-// param count, plus whether the callee has a kwargs param (since
-// kwargs trails the variadic when both are present and shifts the
-// trailing-children accounting).
-//
-// Derivation (post-desugar param-aligned children, pre-variadic-rewrite):
-//   children = 1 (callee) + (nparam - 1 - callee_has_kwargs)
-//              + variadic_count + kwargs_count
-// Solving for variadic_count:
-//   - callee_has_kwargs : variadic_count
-//       = children.len() - nparam + 1 - kwargs_count
-//   - no kwargs         : variadic_count = children.len() - nparam
-// kwargs_count comes from the structural trailing-NamedArg count
-// (see fcall_kwargs_count) so neither path needs a stored kwargs index.
-// Caller must guarantee the callee has a variadic param; the function
-// is only meaningful in that case (no field check survives now that
-// FCallData.variadic_index has been derived away).
-fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool) returns USize {
-    switch fcall.node_type {
-    case NodeType.FCall:
-        if callee_has_kwargs {
-            kc := fcall_kwargs_count(fcall)
-            return fcall.children.len().add(1).sub(nparam) - kc
-        }
-        return fcall.children.len() - nparam
-    case:
-        UNREACHABLE()
-        return 0
-    }
-}
