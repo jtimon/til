@@ -1,0 +1,50 @@
+# priority: high
+# category: bugs
+** OPEN #311 Enum payload narrower than 8 bytes mis-extracts in COMPILE mode
+
+A `switch`/`match` case that binds an enum payload reads the WRONG bytes in the
+C backend whenever the payload's natural alignment is under 8. The value comes
+out garbage (often reads as a neighbouring/padding byte), silently. The
+interpreter is correct -- it does not use byte offsets -- so this only bites
+compiled programs.
+
+Minimal repro (compile mode returns the wrong Bool; interpret is fine):
+
+    E := enum { V: Bool, W }
+    pick := func(t: E, dflt: Bool) returns Bool {
+        return match t { case E.V(x): x  case: dflt }
+    }
+    # pick(E.V(true), false)  -> interpret: true (correct); compile: wrong
+
+Root cause (confirmed by reading the generated C):
+  The enum lowers to
+      struct E { U8 tag; union { Bool V; } data; };
+  so `data.V` sits at offset 1 (U8 tag, then a byte-aligned Bool). But the
+  get_payload extraction emits a FIXED byte offset of `sizeof(void *)` (8):
+      Bool *x = ((void *)((U8 *)(t) + sizeof(void *)));
+  Reading offset 8 of a 2-byte struct yields garbage.
+
+  It works by luck for payloads whose alignment forces the union to offset 8 --
+  I64, pointers, Str, and struct payloads (8-aligned) -- which is why every
+  existing enum-payload test (Token.Num(I64), Shape.Dot(Point), ...) passes and
+  this stayed latent. It is broken for any payload narrower/less-aligned than a
+  pointer: Bool, I8/U8, I16/U16, I32/U32, F32.
+
+  The fix is to use the payload union's TRUE offset (an offsetof-style value, or
+  the tag size rounded up to the payload's alignment) instead of the hardcoded
+  `sizeof(void *)`. The constructor already stores at the right place
+  (`r->data.V = *val;`), so only the read side (get_payload emission) is wrong;
+  they must agree.
+
+Where: the get_payload byte-offset codegen (search the builder / get_payload
+lowering for `sizeof(void *)` used as the payload offset). Cross-check against
+`enum_tag_size` -- the tag is U8 here, not pointer-sized, so any offset keyed on
+pointer size is suspect.
+
+Discovered while finishing #262 item 2 (a lazy body binding a param name in a
+case pattern); it is unrelated to lazy_func -- reproduces on the plain non-lazy
+`pick` above. #262's tests deliberately use an I64 payload to dodge this bug.
+
+Regression test when fixed: add a Bool-payload (and ideally an I32-payload)
+enum match to test/enums.til asserting the extracted value under BOTH interpret
+and compile.

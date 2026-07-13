@@ -1,4 +1,6 @@
 * Bugs
+** High
+*** [[./open/311.org][#311]] Enum payload narrower than 8 bytes mis-extracts in COMPILE mode
 ** Medium
 *** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
 * Cleanups
