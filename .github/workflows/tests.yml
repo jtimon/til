@@ -231,6 +231,14 @@ jobs:
           file bin/hello_script_macos_arm64 | grep -q "Mach-O"
           ./bin/hello_script_macos_arm64
           ./bin/hello_script_macos_arm64 | grep -q "Hello World"
+      # Native mac GUI: build every mode-gui example (chess, go, shootil,
+      # ...) against the real Apple SDK frameworks, which the SDK-less
+      # cross toolchain lacks. This is the only way mac GUI can be built
+      # (frameworks are not redistributable for a linux cross), so proving
+      # it here IS the mac-gui deliverable (issue #25). raylib/tinyfd were
+      # already built natively by the suite step above.
+      - name: Build native mac examples (gui + portable)
+        run: make build_mac
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -311,6 +319,9 @@ jobs:
           file bin/hello_script_macos_x64 | grep -q "Mach-O"
           ./bin/hello_script_macos_x64
           ./bin/hello_script_macos_x64 | grep -q "Hello World"
+      # Native mac GUI build -- see the macos-arm64 job for the rationale.
+      - name: Build native mac examples (gui + portable)
+        run: make build_mac
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe

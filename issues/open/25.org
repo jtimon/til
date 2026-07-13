@@ -54,11 +54,20 @@
     there (needs mingw gcc on the runner) to prove it end-to-end
     natively rather than under wine. The same libffi-win64 also unlocks
     runtime ext_func in cross-compiled user programs.
-  - macOS: not started in practice. Plumbing exists in
-    [[file:../../src/self/targets.til][src/self/targets.til]] (Target.MacosX64/MacosArm64, clang -target
-    flags, -lm -lpthread), but nothing has ever been built or tested
-    on a Mac, and cross from Linux cannot work as-is: no Apple SDK on
-    the host. Detailed plan below.
+  - macOS: DONE on both arches (arm64 + x64). CLI (cli/script/pure/lib)
+    cross-compiles from Linux via the SDK-less vendored toolchain
+    (vendor/macos: zig darwin headers + libSystem.tbd) AND builds
+    natively; the mac native ASAN suites run green on the CI runners
+    (macos-15-intel + macos-latest). GUI (the 15 mode-gui examples) and
+    the nng custom modes (sender/receiver/publisher/subscriber) build
+    NATIVELY on a mac -- gui links the real Apple frameworks, the nng
+    modes link the natively-built libnng; make build_mac covers all of
+    them and both mac CI jobs run it. The one thing that is NOT
+    possible (Apple, not us) is GUI CROSS from Linux: raylib's mac
+    backend is Objective-C over Cocoa/OpenGL whose headers + framework
+    .tbd stubs are Apple-SDK and not redistributable (unlike
+    Microsoft's GL/GDI import libs that make the windows gui cross
+    work). Native mac gui is the supported path.
   - TempleOS: deferred, split out to [[./151.org][#151]]. #12 is fixed so the hard
     dependency is satisfied; what remains is the HolyC backend itself
     (Lang.HolyC and the holyc toolchain entry are placeholders today).

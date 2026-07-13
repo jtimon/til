@@ -386,16 +386,34 @@ bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til
 # build_sender/build_receiver/... tests in src/tests.til); building it
 # directly redefines the built-in modes.
 MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
-MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(wildcard examples/*.til))
+# Native sweep (mac host): the portable modes PLUS gui -- a real mac has
+# the Apple frameworks the SDK-less cross toolchain lacks, so the 15
+# mode-gui examples (chess, go, shootil, ...) link natively against the
+# freshly-built vendor/raylib + vendor/tinyfd. mode server / the nng
+# custom modes still need a native libnng (phase 3), so the same
+# cli|script|pure|lib|gui whitelist as the cross sweep, plus gui.
+# raylib.til (direct-FFI demo, linux link() paths) and bench_hashmap.til
+# (does not parse) stay out.
+MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til,$(shell grep -l -E '^mode (cli|script|pure|lib|gui)$$' examples/*.til))
 # Whitelist by mode: gui needs Apple frameworks (SDK-bound), server and
 # the nng custom modes (publisher/subscriber/...) link the linux-built
 # vendored libnng.a. Only the portable modes cross-compile.
 MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib)$$' examples/*.til))
 
+# The nng custom-mode examples (mode sender/receiver/publisher/
+# subscriber) are consumed via --extra-modes=custom_modes.til and link
+# the native mac libnng (nng's posix/mac backend needs only libSystem,
+# no frameworks), so on a mac host they build like the linux
+# build_sender/... suite tests -- just with the mac target.
+MAC_SERVER_EXAMPLES := examples/sender.til examples/receiver.til examples/publisher.til examples/subscriber.til
+
 ifeq ($(UNAME_S),Darwin)
-build_mac: bin/til
+build_mac: bin/til $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB)
 	for f in $(MAC_EXAMPLES_SRC); do \
 	  bin/til build --target=$(MAC_TARGET) $$f || exit 1; \
+	done
+	for f in $(MAC_SERVER_EXAMPLES); do \
+	  bin/til build --target=$(MAC_TARGET) --extra-modes=examples/custom_modes.til $$f || exit 1; \
 	done
 else
 build_mac: bin/til
