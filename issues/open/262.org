@@ -98,10 +98,28 @@ Status summary (what is merged):
        capture locals BY REFERENCE remain gated by #54's escape checks (shallow/
        own captures); and passing a lazy func through an EAGER HOF cannot
        preserve the HOF's own arg short-circuit by semantics.
-    2. Param-name shadowing inside a thunk-lowered body: currently the def is
-       left lazy (hard-errors) rather than risk mis-rewriting a shadowed use.
-       A minor self-imposed limitation; needs scope-aware auto-force. Low
-       value (shadowing a param inside a lazy body is rare).
+    2. Param-name shadowing inside a thunk-lowered body: DONE. Every shadowing
+       form is now handled scope-aware by the auto-force pass so the def
+       thunk-lowers instead of hard-erroring: a Decl of the name, a for-in loop
+       variable, a catch binding, and (this commit) a case/switch pattern that
+       BINDS the param name. For the case-binding form the auto-force adds the
+       pattern-bound names to the arm's shadow set (lazy_autoforce_match_switch,
+       src/self/loader.til) -- the binder is left as-is while the match SUBJECT
+       still forces. Landing it exposed and fixed a PRE-EXISTING general codegen
+       bug (not lazy-specific): a case payload binding whose name occurs in the
+       subject expression emitted `ref T a = get_payload(a)`, which
+       self-references in C (the block's `a` shadows the subject before its own
+       initializer runs). make_payload_ref_decls (src/self/context.til) now
+       splits it into a fresh-named payload ref + a user-named alias so the
+       subject resolves to the outer binding; verified for plain non-lazy
+       functions too. Tests: test/lazy.til (test_thunk_case_binding_shadow /
+       _short_circuits). The only remaining thunk walls -- ASSIGNING a param
+       (`p = x`) or FIELD-ASSIGNING through one (`p.f = x`) -- stay hard errors
+       by design: a call-by-name thunk / forced temporary is not an assignable
+       lvalue (terr_bad_lazy).
+       (Separately noted, NOT part of this item: an enum with a Bool payload
+       mis-extracts its value in COMPILE mode -- orthogonal to lazy, reproduces
+       on a plain `match t { case E.V(x): x }`; I-payload enums are unaffected.)
     3. call-by-need / memoization: a NON-GOAL under the chosen call-by-name
        semantics (see below) -- it would break the inline == thunk
        equivalence and only helps params reused within a body.

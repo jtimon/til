@@ -2687,13 +2687,18 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                             case:
                                             }
                                         }
-                                        mut bind_decl := make_payload_ref_decl(own sw_id2, binding_name, payload_type, sw_line, sw_col, bind_is_mut)
+                                        bind_ln := match_expr.children[1].line
+                                        bind_cl := match_expr.children[1].col
+                                        fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
+                                        mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut)
 
                                         mut old := Vec(Expr).new()
                                         old.move_from(case_body.children)
 
                                         mut new_ch := Vec(Expr).new()
-                                        new_ch.push(own bind_decl)
+                                        for bd in 0..bind_decls.len() {
+                                            new_ch.push_take(bind_decls, bd)
+                                        }
                                         for bi in 0..old.len() {
                                             new_ch.push_take(old, bi)
                                         }
@@ -3164,12 +3169,17 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
             if rb.is_mut { rb.written = true }
         }
     }
-    mut bind_decl := make_payload_ref_decl(own sw_expr.clone(), binding_name, payload_type, case_node.line, case_node.col, bind_is_mut)
+    bind_ln := pat.children[1].line
+    bind_cl := pat.children[1].col
+    fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
+    mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut)
     ref mut body : Expr = case_node.children[1]
     mut old := Vec(Expr).new()
     old.move_from(body.children)
     mut new_ch := Vec(Expr).new()
-    new_ch.push(own bind_decl)
+    for bd in 0..bind_decls.len() {
+        new_ch.push_take(bind_decls, bd)
+    }
     for bi in 0..old.len() {
         new_ch.push_take(old, bi)
     }

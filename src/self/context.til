@@ -806,6 +806,43 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
     return decl
 }
 
+// True when `name` occurs as an Ident anywhere in `e`.
+priv expr_contains_ident_named := func(e: Expr, name: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        if idn.ident_name() == name { return true }
+    case:
+    }
+    for c : Expr in e.children {
+        if expr_contains_ident_named(c, name) { return true }
+    }
+    return false
+}
+
+// Build the case-body payload binding decl(s) to prepend, given the subject
+// expr `arg` and the pattern's binding name. Normally one decl
+// `ref T bind_name = get_payload(arg)`. But when `bind_name` also occurs in
+// `arg` (e.g. `match a { case V(a): }`, or a thunk-forced `a()` under #262),
+// that single decl self-references in C: the block's `bind_name` shadows the
+// subject before its own initializer is evaluated. Split it so the subject is
+// read into a FRESH-named ref first (where `bind_name` still resolves to the
+// outer binding/param), then alias the user name to that ref -- a ref-to-ref,
+// so the arm body's uses of `bind_name` need no rewriting. `fresh_name` must be
+// unique (callers derive it from the binding's source location).
+make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Vec(Expr) {
+    mut out := Vec(Expr).new()
+    if expr_contains_ident_named(arg, bind_name) {
+        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut))
+        mut alias_rhs := Expr.new(ident_node(fresh_name), line, col)
+        mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut)), line, col)
+        alias_decl.add_child(own alias_rhs)
+        out.push(own alias_decl)
+    } else {
+        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut))
+    }
+    return out
+}
+
 // True when ~t~ is exactly ~Type.Primitive(p)~. The runtime ~.is()~ is
 // tag-only on the outer Type tag, so it can't tell two primitives apart;
 // destructure and compare the inner Primitive (payload-free, so its own

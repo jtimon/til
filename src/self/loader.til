@@ -3111,33 +3111,33 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
 // field-assigning through one / case patterns binding a param name
 // (lazy_thunk_blocked), which stay hard errors.
 
-// True when a case FCall pattern (enum payload binding `Type.Variant(x)` or
-// struct pattern `Point(x = nx)`) BINDS a name equal to a lazy param name.
-// Binder idents are not uses -- forcing one would destroy the binding -- and
-// binder-aware forcing is not worth the complexity for this rare shape.
-priv lazy_case_binds_param := func(pat: Expr, pnames: Set(Str)) returns Bool {
-    if pat.node_type.is(NodeType.FCall).not() { return false }
+// Collect into `bound` every name a case FCall pattern BINDS (enum payload
+// binding `Type.Variant(x)` or struct pattern `Point(x = nx)`) that equals a
+// lazy param name. Binder idents are not uses -- forcing one would destroy the
+// binding -- so the auto-force pass treats them as shadowing the param inside
+// the arm (guard + body), the same scope-aware handling for-in and catch get.
+priv lazy_collect_case_bound := func(pat: Expr, pnames: Set(Str), mut bound: Set(Str)) {
+    if pat.node_type.is(NodeType.FCall).not() { return }
     for i in 1..pat.children.len() {
         ref a : Expr = pat.children[i]
         switch a.node_type {
         case NodeType.Ident(bn):
-            if pnames.has(bn.ident_name()) { return true }
+            if pnames.has(bn.ident_name()) { bound.add(own Str.clone(bn.ident_name())) }
         case NodeType.NamedArg:
             if a.children.len() > 0 {
                 switch a.children[0].node_type {
                 case NodeType.Ident(nbn):
-                    if pnames.has(nbn.ident_name()) { return true }
+                    if pnames.has(nbn.ident_name()) { bound.add(own Str.clone(nbn.ident_name())) }
                 case NodeType.FCall:
-                    if lazy_case_binds_param(a.children[0], pnames) { return true }
+                    lazy_collect_case_bound(a.children[0], pnames, bound)
                 case:
                 }
             }
         case NodeType.FCall:
-            if lazy_case_binds_param(a, pnames) { return true }
+            lazy_collect_case_bound(a, pnames, bound)
         case:
         }
     }
-    return false
 }
 
 // The root receiver of a FieldAccess chain (`p.x.f` -> `p`), else NULL.
@@ -3156,7 +3156,8 @@ priv lazy_fieldaccess_root := func(e: Expr) returns ref Expr {
 //     SHADOWING the param -- rename the local instead.
 //   - a FIELD-ASSIGN whose receiver chain roots in a param (`p.f = x`: the
 //     forced call yields a temporary, so the write would be lost).
-//   - a case pattern BINDING a param name (see lazy_case_binds_param).
+// A case pattern that BINDS a param name is NOT blocked: the binding shadows
+// the param inside its arm, handled scope-aware by lazy_autoforce_match_switch.
 priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns Bool {
     if depth > 256 { return true }
     switch e.node_type {
@@ -3171,10 +3172,6 @@ priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns B
                 if pnames.has(rn.ident_name()) { return true }
             case:
             }
-        }
-    case NodeType.Case:
-        if e.children.len() >= 2 {
-            if lazy_case_binds_param(e.children[0], pnames) { return true }
         }
     case:
     }
@@ -3238,10 +3235,41 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
             lazy_autoforce_body(c.children[2], pnames, catch_shadowed, depth + 1)
         }
         return
+    case NodeType.Match:
+        lazy_autoforce_match_switch(c, pnames, shadowed, depth + 1)
+        return
+    case NodeType.Switch:
+        lazy_autoforce_match_switch(c, pnames, shadowed, depth + 1)
+        return
     case:
     }
     for j in 0..c.children.len() {
         lazy_autoforce_node(c, j, pnames, shadowed, depth + 1)
+    }
+}
+
+// Auto-force a match/switch: children[0] is the subject (forced with the outer
+// shadow set), children[1..] are Case arms. Each arm's pattern may BIND names
+// equal to a param; those bindings shadow the param inside that arm only (its
+// pattern's non-binder value-uses, guard, and body). A binder Ident sits in
+// the shadow set, so it is left as-is while a genuine param value-use in the
+// same arm still forces -- the same scope-aware rule for-in / catch use.
+priv lazy_autoforce_match_switch := func(mut node: Expr, pnames: Set(Str),
+        shadowed: Set(Str), depth: I32) {
+    if depth > 256 { return }
+    if node.children.len() >= 1 {
+        lazy_autoforce_node(node, 0, pnames, shadowed, depth + 1)
+    }
+    for ci in 1..node.children.len() {
+        ref arm : Expr = node.children[ci]
+        if arm.node_type.is(NodeType.Case).not() { continue }
+        mut arm_shadowed := shadowed.clone()
+        if arm.children.len() >= 1 {
+            lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed)
+        }
+        for k in 0..arm.children.len() {
+            lazy_autoforce_node(arm, k, pnames, arm_shadowed, depth + 1)
+        }
     }
 }
 

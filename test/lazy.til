@@ -470,6 +470,46 @@ test_thunk_shadowing_short_circuits := test() {
     assert_eq(I64, eval_count, 1)
 }
 
+# --- thunk fallback (#262 item 2) with a CASE-BINDING that shadows a param:
+#     `case LzTok.Num(a): a` rebinds `a` inside its arm, shadowing the lazy
+#     param `a`. Auto-force is scope-aware -- it leaves the arm's `a` (the
+#     payload binding) alone while still forcing the match SUBJECT `a` (the
+#     thunk). The case desugar splits the payload binding into a fresh-named
+#     ref + a user-named alias, so the shadowing name does not self-reference
+#     the (forced) subject in C. Previously this shape was a hard error. ---
+
+LzTok := enum { Num: I64, Eof }
+
+bumpI := func() returns I64 { eval_count = eval_count.add(1); return 7 }
+
+casebind := lazy_func(a: LzTok, b: I64) returns I64 {
+    for _ in 0..2 {
+        return match a {
+        case LzTok.Num(a): a
+        case: b
+        }
+    }
+    return b
+}
+
+test_thunk_case_binding_shadow := test() {
+    assert_eq(I64, casebind(LzTok.Num(42), 0), 42)
+    assert_eq(I64, casebind(LzTok.Eof, 9), 9)
+}
+
+test_thunk_case_binding_short_circuits := test() {
+    # Num arm returns the bound payload `a`; the param `b` (bumpI) is never
+    # forced. Eof arm forces `b` exactly once.
+    eval_count = 0
+    r := casebind(LzTok.Num(42), bumpI())
+    assert_eq(I64, r, 42)
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r2 := casebind(LzTok.Eof, bumpI())
+    assert_eq(I64, r2, 7)
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- FIRST-CLASS (#262): a thunk-lowered lazy func used as a VALUE. Binding it
 #     to a local (`g := both`) or aliasing that binding (`h := g`) and calling
 #     THROUGH the value thunk-wraps the args exactly like a direct call, so
