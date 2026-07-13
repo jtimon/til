@@ -2867,7 +2867,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
-            fdef.return_type = resolved_return_type
+            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { fdef.return_type = resolved_return_type }
             // Issue #223 step 2: forbid redundant 'shallow' on a primitive
             // funcptr return. COMMENTED OUT during rollout (see infer_func_def_expr).
             // NOTE: infer_func_sig_expr is a func with no ctx, so enabling this
@@ -2886,7 +2886,11 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
         for param : Declaration in fdef.params {
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
-            param.explicit_type = resolved_ptype
+            // Keep USize/UPtr as their alias name ONLY when the two widths
+            // actually differ (a --usize=32 / 32-bit build): there the coercion
+            // must recognize size vs pointer params. When they are equal (the
+            // default), resolve to the primitive as before -- byte-identical.
+            if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { param.explicit_type = resolved_ptype }
             param.til_type =til_type_from_explicit_type(resolved_ptype)
             // Issue #58 / #147 step 5: if the param's type resolves to a
             // FuncSig alias (a bodyless FuncDef in scope), upgrade
@@ -3118,7 +3122,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
-            fdef.return_type = resolved_return_type
+            if is_usize_name(return_type_name).or(is_uptr_name(return_type_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { fdef.return_type = resolved_return_type }
             check_priv_type_name(expr, resolved_return_type, scope, ctx)
             // Issue #223 step 2: an explicit 'shallow' on a primitive return is
             // redundant (auto-shallow handles it). Reject it. Test the parser's
@@ -3146,7 +3150,11 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             ref mut param : Declaration = fdef.params[i]
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
-            param.explicit_type = resolved_ptype
+            // Keep USize/UPtr as their alias name ONLY when the two widths
+            // actually differ (a --usize=32 / 32-bit build): there the coercion
+            // must recognize size vs pointer params. When they are equal (the
+            // default), resolve to the primitive as before -- byte-identical.
+            if is_usize_name(ptype_name).or(is_uptr_name(ptype_name)).and(resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()).not() { param.explicit_type = resolved_ptype }
             param.til_type =til_type_from_explicit_type(resolved_ptype)
             ref ptn : Str = param.explicit_type
             pt := type_from_name_at(ptn, scope, expr, ctx)
