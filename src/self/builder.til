@@ -2099,17 +2099,6 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         UNREACHABLE()
     }
 }
-priv builder_get_c_return_type := func(ctx: Context) returns Str {
-    ref cf : Expr = ctx.current_fdef
-    if cf.is_null().not() {
-        switch cf.node_type {
-        case NodeType.FuncDef(fd):
-            return func_return_ctype(fd, ctx)
-        case:
-        }
-    }
-    return "void *"
-}
 
 priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
     ref cf : Expr = ctx.current_fdef
@@ -2130,10 +2119,6 @@ priv emit_return_box := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     emit_expr(f, rv, depth, ctx)
     if ctype == "Str" { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
     f.write(";\n")
-    for i in 1..e.children.len() {
-        emit_indent(f, depth)
-        emit_stmt(f, e.children[i], depth, ctx)
-    }
     emit_indent(f, depth)
     f.write("return _r; }\n")
 }
@@ -2153,10 +2138,6 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     ctype := c_type_name(rv.til_type(), rv_sname, ctx)
                     f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write("));\n")
                     emit_ctor_fields(f, "_r", rv, depth, ctx)
-                    for i in 1..e.children.len() {
-                        emit_indent(f, depth)
-                        emit_stmt(f, e.children[i], depth, ctx)
-                    }
                     emit_indent(f, depth); f.write("return _r; }\n")
                     return
                 }
@@ -2169,26 +2150,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             switch cf2.node_type {
             case NodeType.FuncDef(fd):
                 if fd.return_own_type.is(OwnType.Ref) {
-                    if e.children.len() > 1 {
-                        ctype := builder_get_c_return_type(ctx)
-                        f.write("{ ").write(ctype).write(" _ret_val = "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                        emit_indent(f, depth); f.write("return _ret_val; }\n")
-                    } else {
-                        f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
-                    }
+                    f.write("return "); emit_as_ptr(f, rv, depth, false, ctx); f.write(";\n")
                     return
                 }
                 if fd.return_own_type.is(OwnType.Shallow) {
                     if rv.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rv, ctx)) {
-                        if e.children.len() > 1 {
-                            ctype := builder_get_c_return_type(ctx)
-                            f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                            emit_indent(f, depth); f.write("return _ret_val; }\n")
-                        } else {
-                            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                        }
+                        f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
                         return
                     }
                     // Asap fix: shallow return of a hoisted compiler temp
@@ -2207,21 +2174,13 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                                 ctype := emit_return_ctype(rv, ctx)
                                 cname := builder_resolve_c_ident_name(rv_name.ident_name(), ctx)
                                 f.write("{ ").write(ctype).write(" _ret = DEREF(").write(cname).write("); free(").write(cname).write(");\n")
-                                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                                 emit_indent(f, depth); f.write("return _ret; }\n")
                                 return
                             }
                         case:
                         }
                     }
-                    if e.children.len() > 1 {
-                        ctype := builder_get_c_return_type(ctx)
-                        f.write("{ ").write(ctype).write(" _ret_val = "); emit_deref(f, rv, depth, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                        emit_indent(f, depth); f.write("return _ret_val; }\n")
-                    } else {
-                        f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n")
-                    }
+                    f.write("return "); emit_deref(f, rv, depth, ctx); f.write(";\n")
                     return
                 }
             case:
@@ -2254,27 +2213,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write("{ ").write(ctype).write(" *_r = malloc(sizeof(").write(ctype).write(")); *_r = ").write(cname)
                         if ctype == "Str" { f.write("; if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }") }
                         f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                         emit_indent(f, depth); f.write("return _r; }\n")
-                    } else {
-                        if e.children.len() > 1 {
-                            ctype := builder_get_c_return_type(ctx)
-                            f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                            for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                            emit_indent(f, depth); f.write("return _ret_val; }\n")
-                        } else {
-                            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                        }
-                    }
-                } else {
-                    if e.children.len() > 1 {
-                        ctype := builder_get_c_return_type(ctx)
-                        f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                        for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                        emit_indent(f, depth); f.write("return _ret_val; }\n")
                     } else {
                         f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
                     }
+                } else {
+                    f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
                 }
             case:
                 UNREACHABLE()
@@ -2285,20 +2229,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
                 f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
-                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
                 emit_indent(f, depth); f.write("return _r; }\n")
             case:
                 UNREACHABLE()
             }
         } else {
-            if e.children.len() > 1 {
-                ctype := builder_get_c_return_type(ctx)
-                f.write("{ ").write(ctype).write(" _ret_val = "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-                for i in 1..e.children.len() { emit_indent(f, depth); emit_stmt(f, e.children[i], depth, ctx) }
-                emit_indent(f, depth); f.write("return _ret_val; }\n")
-            } else {
-                f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
-            }
+            f.write("return "); emit_expr(f, rv, depth, ctx); f.write(";\n")
         }
     }
 }

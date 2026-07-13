@@ -692,7 +692,23 @@ let the ownership pass insert temps itself; start with the check.
     compensations collapse, then delete the builder's re-derived twin
     predicates and consume gc_storage in emit_stmt_decl.
   - [ ] Stage 1 (rest): single-source storage classification.
-  - [ ] Stage 2: return normalization.
+  - [X] 2026-07-11 Stage 2 DONE: return normalization. The garbager no
+    longer attaches exit deletes as EXTRA CHILDREN of Return nodes
+    (insert_exit_deletes' nested-return path now push()es them to the
+    body's new_ch like the top-level insert_exit_deletes_into_stmt
+    already did) -- so every Return is a CFG leaf carrying only its
+    operand. The deletes run just before the Return; the garbager
+    already excludes any local used or aliased by the return operand,
+    so this is order-equivalent to the old capture-then-delete shape.
+    The builder's emit_stmt_return + emit_return_box collapse: all ~10
+    `if e.children.len() > 1 { T _ret = <expr>; <deletes>; return
+    _ret; }` wrappers and their `for i in 1..` delete loops are gone
+    (returns have no children[1..]), each branch is now a plain
+    `return <expr>` / box, and the now-unused builder_get_c_return_type
+    helper is deleted. gc_audit golden updated (return-attached lines
+    became plain preceding-statement sites). This is the Stage 3
+    precondition: Return is now a leaf, not a cleanup carrier.
+    make clean && make test_two_pass 173/173.
   - [ ] Stage 3: the CFG ownership pass.
   - [ ] Stage 4: explicit moves + unified reassign deletes.
   - [ ] Stage 5: temp-contract enforcement.

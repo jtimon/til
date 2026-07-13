@@ -3198,7 +3198,6 @@ Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
 Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
 void priv___src_self_builder_til__emit_pod_compound_literal(File * f, Expr * ctor, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt_decl(File * f, Expr * e, I32 depth, Context * ctx);
-Str * priv___src_self_builder_til__builder_get_c_return_type(Context * ctx);
 Str * priv___src_self_builder_til__emit_return_ctype(Expr * rv, Context * ctx);
 void priv___src_self_builder_til__emit_return_box(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt_return(File * f, Expr * e, I32 depth, Context * ctx);

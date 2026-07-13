@@ -237,13 +237,6 @@ priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), m
             if fad.save_old_delete {
                 println("GC-AUDIT site ", prefix, i.to_str(), " fieldassign-old-delete ", gc_audit_name(fad.name, names, counts))
             }
-        case NodeType.Return:
-            for ri in 1..s.children.len() {
-                rline := gc_audit_destructor_line(s.children[ri], names, counts)
-                if rline.len() > 0 {
-                    println("GC-AUDIT site ", prefix, i.to_str(), " return-attached ", rline)
-                }
-            }
         case NodeType.If:
             for ci in 1..s.children.len() {
                 gc_audit_sites(s.children[ci], format(prefix, i.to_str(), ".if", ci.sub(1).to_str(), "."), names, counts)
@@ -994,24 +987,20 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                         continue
                     }
                 }
+                // #302 stage 2: exit deletes are always PRECEDING statements,
+                // never Return children. The garbager already excludes any
+                // local used (or aliased) by the return operand above, so
+                // running the deletes just before the Return is
+                // order-equivalent to the old capture-then-delete-then-return
+                // shape -- and it makes Return a CFG leaf (a stage-3
+                // precondition) that the builder emits without the per-shape
+                // `{ T _ret = <expr>; <deletes>; return _ret; }` wrapper.
                 if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                     del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
-                    if del.is_null().not() {
-                        if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
-                            stmt.add_child(own del)
-                        } else {
-                            new_ch.push(own del)
-                        }
-                    }
+                    if del.is_null().not() { new_ch.push(own del) }
                 } else if local.is_heap {
                     del := make_free_call(local.name, local.type, stmt)
-                    if del.is_null().not() {
-                        if stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0)) {
-                            stmt.add_child(own del)
-                        } else {
-                            new_ch.push(own del)
-                        }
-                    }
+                    if del.is_null().not() { new_ch.push(own del) }
                 }
             }
         }
