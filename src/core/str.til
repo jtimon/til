@@ -462,7 +462,14 @@ namespace:
     /// Split the string on `delim`, returning a Vec of Str clones.
     split := func(self: Str, delim: Str) returns Vec(Str) {
         parts := Vec(Str).new()
-        if delim.len() == 0 {
+        // delim empty, or self too short to contain it: no split point
+        // exists, self is the sole part. The self.len() < delim.len()
+        // guard also stops the `pos <= self.len() - delim.len()` bound
+        // below from underflowing (both are unsigned USize) into a
+        // near-infinite loop -- which is exactly what hung every windows
+        // and macos cross-compile of a link-flag-less program, whose
+        // empty link_flags reached split(" ") (issue #25).
+        if delim.len().eq(0).or(self.len().lt(delim.len())) {
             parts.push(own self.clone())
             return parts
         }
