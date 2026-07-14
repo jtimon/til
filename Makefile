@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize64
 
 all: bin/til
 
@@ -207,39 +207,38 @@ bin/tests: bin/til $(CORE) $(STD) $(SELF) src/tests.til
 
 # --- Test suite ---
 
-test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize32
+test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize64
 	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
-# Issue #309 regression: --usize=32 forces the USize container-width alias to
-# U32 even on this 64-bit host (Str.size() 24 -> 16) while UPtr stays 64-bit.
-# test/usize32.til asserts the narrowed widths and round-trips strings/vecs,
-# exiting non-zero on any mismatch. Run both interpreted (compile-time
-# constfold + interpreter fold code at U32) and compiled (-DTIL_USIZE32 in the
-# emitted C). Not part of the src/tests.til corpus -- it targets U32, not the
-# default U64.
+# Issue #309 regression: USize defaults to U32, so the whole suite above runs
+# at U32. This target covers the --usize=64 OPT-OUT: it forces the USize
+# container-width alias back to U64 on this 64-bit host (Str.size() 16 -> 24)
+# while the compiler binary itself stays U32. test/usize64.til asserts the wide
+# widths and round-trips strings/vecs, exiting non-zero on any mismatch. Run
+# both interpreted (compile-time constfold + interpreter fold code at U64) and
+# compiled (-DTIL_USIZE64 in the emitted C).
 #
-# test/usize32_comptime.til guards the compile-time interpreter's Str-view
-# folding at U32: its macro body folds replace/find/contains (CAP_VIEW views)
-# on this 64-bit host at the U32 target width. Built under ASAN so the
-# heap-use-after-free from mis-widened ownership sentinels aborts the compile;
-# the plain compiler must land the same width prerequisite the U32-default flip
-# depends on (til_boot, a U64 binary, must fold U32 source cleanly).
-check_usize32: bin/til bin/til_asan tmp
-	bin/til --usize=32 test/usize32.til
-	bin/til build --usize=32 -o tmp/usize32 test/usize32.til
-	tmp/usize32
-	bin/til build --usize=32 -o tmp/usize32_sizes test/usize32_sizes.til
-	tmp/usize32_sizes
-	bin/til_asan build --usize=32 -o tmp/usize32_comptime test/usize32_comptime.til
-	tmp/usize32_comptime
+# test/usize64_comptime.til guards the compile-time interpreter's Str-view
+# folding at the OPPOSITE divergence -- a U32-host compiler folding U64-target
+# code: its macro body folds replace/find/contains (CAP_VIEW views) at the U64
+# target width. Built under ASAN so a heap-use-after-free from mis-widened
+# ownership sentinels aborts the compile.
+check_usize64: bin/til bin/til_asan tmp
+	bin/til --usize=64 test/usize64.til
+	bin/til build --usize=64 -o tmp/usize64 test/usize64.til
+	tmp/usize64
+	bin/til build --usize=64 -o tmp/usize64_sizes test/usize64_sizes.til
+	tmp/usize64_sizes
+	bin/til_asan build --usize=64 -o tmp/usize64_comptime test/usize64_comptime.til
+	tmp/usize64_comptime
 
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
 # compiled test/example binaries run without sanitizer instrumentation, so the
 # suite is faster at the cost of not catching compiler or program leaks / heap
 # errors. Use for quick iteration; `make test` remains the default before
 # committing.
-test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize32
+test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64
 	$(XVFB_RUN) bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 

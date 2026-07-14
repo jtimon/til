@@ -548,8 +548,8 @@ usage := proc() {
     println("  help       Print this message")
     println("")
     println("Options:")
-    println("  --usize=32  Force U32 container index/size widths, saving memory on a")
-    println("              64-bit host (default follows the target's pointer width).")
+    println("  --usize=64  Opt into U64 container index/size widths (default is U32,")
+    println("              which saves memory; UPtr always follows pointer width).")
 }
 
 CliArgs := struct {
@@ -564,8 +564,9 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
-    // #309: --usize=32 forces the USize container-width alias to U32 even on
-    // a 64-bit host (UPtr stays pointer-width). 0 = follow the target default.
+    // #309: --usize overrides the USize container-width alias. 0 = follow the
+    // source default (U32); 32 pins U32; 64 opts back into U64 even on a
+    // 64-bit host (UPtr always stays pointer-width).
     usize_bits : I64 = 0
     // #154: unused-import type errors, on by default;
     // --check-unused-imports=false disables for one invocation.

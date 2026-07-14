@@ -58,7 +58,7 @@ test_tuple_type_at := test() {
     ref sz0 : USize = t.size_at(0)
     ref sz1 : USize = t.size_at(1)
     assert_eq(USize, sz0, 8)
-    assert_eq(USize, sz1, 24)
+    assert_eq(USize, sz1, 16)
 }
 
 test_tuple_clone := test() {

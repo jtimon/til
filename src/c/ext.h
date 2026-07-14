@@ -30,16 +30,15 @@ typedef float F32;
 typedef bool Bool;
 // container sizes (count, cap, elem_size) and raw pointer/byte widths.
 // UPtr always follows the C pointer width (real pointer arithmetic needs
-// it). USize follows pointer width too by default, but `til --usize=32`
-// passes -DTIL_USIZE32 to cc so a 64-bit host can build U32-wide container
-// fields while UPtr stays 64-bit (issue #309). When TIL_USIZE32 is not
-// defined this block is byte-identical to the old pointer-width typedef.
-#if defined(TIL_USIZE32)
-typedef U32 USize;
-#elif UINTPTR_MAX == 0xffffffff
-typedef U32 USize;
-#else
+// it). USize defaults to U32 (issue #309): container index/count/cap/size
+// fields stay 32-bit even on a 64-bit host, so containers are smaller while
+// UPtr keeps pointer width. `til --usize=64` passes -DTIL_USIZE64 to cc for
+// the opt-out (U64 container fields, matching the source alias the compiler
+// used at typecheck/constfold).
+#if defined(TIL_USIZE64)
 typedef U64 USize;
+#else
+typedef U32 USize;
 #endif
 #if UINTPTR_MAX == 0xffffffff
 typedef U32 UPtr;

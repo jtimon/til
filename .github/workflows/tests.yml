@@ -28,6 +28,30 @@ jobs:
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
 
+  # Issue #309: USize now defaults to U32, so every other job exercises the
+  # U32 width. This job keeps U64 coverage on Linux: it runs the --usize=64
+  # opt-out regression AND rebuilds the whole compiler at --usize=64 (a U32
+  # host folding U64-target code -- the reverse of the default divergence),
+  # then uses that U64 compiler to build and run a program.
+  linux-x64-usize64:
+    name: linux-x64 (--usize=64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build compiler (default U32)
+        run: make
+      - name: usize=64 opt-out regression
+        run: make check_usize64
+      - name: Rebuild the compiler at --usize=64 and use it
+        run: |
+          ./bin/til build --usize=64 -o bin/til_u64 src/til.til
+          ./bin/til_u64 build -o bin/hello_via_u64 examples/hello_script.til
+          ./bin/hello_via_u64 | grep -q "Hello World"
+
   # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
   # runners), running the full suite. Blocking like every other linux
   # job: its bring-up failures (plain-char signedness) were fixed by

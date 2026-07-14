@@ -1,0 +1,39 @@
+mode script
+
+// Issue #309 regression, COMPILE-ONLY. Built with --usize=64, the emitted
+// structs use U64 container widths (via ext.h -DTIL_USIZE64), and the size
+// intrinsics (X.size() / dyn_size_of) emit C sizeof on a width-mismatched
+// target, so they report that wide width. Str = ptr(8)+count(8)+cap(8) = 24
+// (16 at the U32 default); Vec = ptr(8)+count(8)+cap(8) = 24.
+//
+// This file is driven ONLY as a compiled binary by the Makefile check_usize64
+// target -- NOT interpreted: the compile-time interpreter manipulates the
+// compiler's own HOST-resident structs (the compiler is U32 now), so X.size()
+// is the host width (16) under the interpreter. Asserting 24 therefore only
+// holds for compiled code.
+
+check := proc(label: Str, got: USize, want: USize) {
+    if got.neq(want) {
+        println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
+        exit(1)
+    }
+}
+
+check("Str.size()", Str.size(), 24)
+check("Vec(Str).size()", Vec(Str).size(), 24)
+check("Vec(I64).size()", Vec(I64).size(), 24)
+check("dyn_size_of Str", dyn_size_of("Str"), 24)
+
+// A vec must stride at the wide width too: 3 pushes stay addressable and
+// round-trip (a host-width 16-byte stride over 24-byte structs would misplace
+// elements).
+mut v := Vec(Str).new()
+v.push(own "a")
+v.push(own "bb")
+v.push(own "ccc")
+check("vec len", v.len(), 3)
+ref e0 : Str = v.unsafe_get(0)
+ref e2 : Str = v.unsafe_get(2)
+if e0.eq("a").not().or(e2.eq("ccc").not()) { println("FAIL: vec stride"); exit(1) }
+
+println("usize64 sizes OK")

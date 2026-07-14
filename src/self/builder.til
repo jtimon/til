@@ -5701,7 +5701,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     return 0
 }
 
-priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool, usize32: Bool) returns I32 {
+priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, asan: Bool, usize64: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -5727,9 +5727,10 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_pat
     if asan {
         asan_flags = " -fsanitize=address -fno-omit-frame-pointer"
     }
-    // --usize=32 (issue #309): force U32 container fields in the emitted C.
+    // --usize=64 (issue #309): opt back into U64 container fields in the
+    // emitted C (U32 is the default). No flag needed for the U32 default.
     mut usize_flags := ""
-    if usize32 { usize_flags = " -DTIL_USIZE32" }
+    if usize64 { usize_flags = " -DTIL_USIZE64" }
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -5802,7 +5803,7 @@ priv is_gui_auto_import := func(auto_import: Str) returns Bool {
     return auto_import.eq("gui").or(auto_import.eq("src/modes/gui")).or(auto_import.ends_with("/gui"))
 }
 
-priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool, usize32: Bool) returns I32 {
+priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, mode_auto_import: Str, asan: Bool, prof: Bool, usize64: Bool) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -5862,13 +5863,13 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         }
     }
 
-    // --usize=32 (issue #309): -DTIL_USIZE32 makes ext.h typedef USize as
-    // U32 while UPtr stays pointer-width, so the emitted program's container
-    // fields match the U32 layout the compiler used at typecheck/constfold.
+    // --usize=64 (issue #309): -DTIL_USIZE64 makes ext.h typedef USize as
+    // U64 (opting out of the U32 default), so the emitted program's container
+    // fields match the U64 layout the compiler used at typecheck/constfold.
     // The generated .c and ext.c are compiled in one cc invocation below, so
-    // a single define covers both.
+    // a single define covers both. The U32 default needs no flag.
     mut usize_flags := ""
-    if usize32 { usize_flags = " -DTIL_USIZE32" }
+    if usize64 { usize_flags = " -DTIL_USIZE64" }
 
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
@@ -8173,13 +8174,14 @@ priv print_translate_success := proc(paths: BuildPaths) {
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    // --usize=32 (issue #309): pass -DTIL_USIZE32 to cc so the emitted C's
-    // container widths match the alias width used at typecheck/constfold.
-    usize32 := lp.usize_override_bits.eq(32)
+    // --usize=64 (issue #309): pass -DTIL_USIZE64 to cc so the emitted C's
+    // container widths match the U64 alias width used at typecheck/constfold
+    // (the opt-out from the U32 default; the default needs no flag).
+    usize64 := lp.usize_override_bits.eq(64)
     if paths.do_lib {
-        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan, usize32)
+        return compile_lib(paths.c_path, paths.name, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, asan, usize64)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize32)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, lp.link_flags, lp.include_flags, target, cc_override, lp.cur_mode.auto_import, asan, prof, usize64)
 }
 
 cmd_translate := proc(lp: LoadedProgram, custom_c: Str, target: Target) returns I32 {

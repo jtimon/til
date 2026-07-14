@@ -138,9 +138,12 @@ test_dyn_vec_get_oob_reports_caller := test() {
 test_dyn_vec_size := test() {
     assert_eq(USize, I64.size(), 8)
     assert_eq(USize, U8.size(), 1)
-    assert_eq(USize, Str.size(), 24)
+    // #309: USize defaults to U32. Str = 16; DynVec = data(8)+count(4)+cap(4)
+    // +elem_size(4)+elem_kind(4)+elem_clone(8)+elem_delete(8) = 40 (24/56
+    // respectively under --usize=64).
+    assert_eq(USize, Str.size(), 16)
     assert_eq(USize, Bool.size(), 1)
-    assert_eq(USize, DynVec.size(), 56)
+    assert_eq(USize, DynVec.size(), 40)
 }
 
 test_dyn_vec_dynamic := test() {

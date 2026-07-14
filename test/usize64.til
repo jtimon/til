@@ -1,0 +1,66 @@
+mode script
+
+// Issue #309 regression. Driven by the Makefile check_usize64 target with
+// --usize=64, which opts the USize container-width alias back to U64 on this
+// 64-bit host (U32 is the default). Two things are checked:
+//
+//  1. USize is really U64. 0xFFFFFFFF + 1 == 0x100000000 (4294967296), where a
+//     U32 USize would wrap to 0. This is the direct, host-independent proof
+//     that the override took effect, both interpreted and compiled. (The
+//     compiler binary itself is U32 now, so under the interpreter the width is
+//     driven by the target alias, not the host struct -- Str.size()/dyn_size_of
+//     report the TARGET width in COMPILED code but the HOST width (16) under
+//     the interpreter, which is why the size assertions live compile-only in
+//     test/usize64_sizes.til; here we only use the U64-arithmetic proof, which
+//     holds in both modes.)
+//
+//  2. Real container/string work round-trips at the wider width, exercising
+//     the ctx-driven layout in the reverse direction (a U32-host compiler
+//     folding U64-target code: count/cap read at 8 bytes, not 4).
+//
+// Deliberately NOT registered in src/tests.til: check (1) fails at the default
+// U32 width, so this file only makes sense under --usize=64.
+
+check := proc(label: Str, got: USize, want: USize) {
+    if got.neq(want) {
+        println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
+        exit(1)
+    }
+}
+
+// USize is U64: 0xFFFFFFFF + 1 == 4294967296 (a U32 USize would wrap to 0).
+mut wrapped : USize = 4294967295
+wrapped = wrapped + 1
+check("USize no-wrap (U64)", wrapped, 4294967296)
+
+// Real work at the wide width: strings and a vec must round-trip, exercising
+// the ctx-driven layout (count/cap read at 8 bytes on the U32 host).
+mut v := Vec(Str).new()
+v.push(own "alpha")
+v.push(own "beta")
+v.push(own "gamma")
+check("vec len", v.len(), 3)
+ref first : Str = v.unsafe_get(0)
+if first.eq("alpha").not() { println("FAIL: v[0]"); exit(1) }
+ref third : Str = v.unsafe_get(2)
+if third.eq("gamma").not() { println("FAIL: v[2]"); exit(1) }
+
+s := format("til", "-", "usize", "64")
+check("str len", s.len(), 11)
+if s.eq("til-usize64").not() { println(format("FAIL: str = ", s)); exit(1) }
+
+// #309: a `mut USize` parameter must WRITE BACK to the caller's variable. The
+// emitter boxes by-value USize args (USIZE_REF/UPTR_REF) whenever USize keeps
+// its alias name (widths differ, i.e. here at --usize=64 with a U32 compiler);
+// a `mut` (write-back) param must instead receive the caller's real lvalue
+// address, else the callee's writes land in a throwaway temp. That exact bug
+// desynced infer_body_stmt's statement cursor and corrupted the whole
+// compiler's flow analysis at a mismatched width -- so exercise it here in
+// BOTH interpret and compiled modes (check_usize64 runs both).
+advance := func(mut n: USize, by: USize) { n = n + by }
+mut acc : USize = 0
+advance(acc, 2)
+advance(acc, 3)
+check("mut USize write-back", acc, 5)
+
+println("usize64 OK")

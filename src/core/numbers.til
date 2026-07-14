@@ -803,11 +803,14 @@ IntegerOverflow := struct {
     msg: Str = ""
 }
 
-// USize is a target-width unsigned integer alias used by all collection
-// types for indices, lengths, capacities, and sizes. On 64-bit targets it
-// maps to U64; the loader retargets it to U32 for 32-bit targets (see
-// retarget_loaded_aliases). Mirrors UPtr.
-USize := U64
+// USize is the container-width unsigned integer alias used by all collection
+// types for indices, lengths, capacities, and sizes. Issue #309: it defaults
+// to U32 -- container fields stay 32-bit even on a 64-bit host, halving
+// their size/index/count/cap footprint -- while UPtr keeps full pointer
+// width. This source alias is the single source of truth for the width (read
+// per build via find_alias_rhs_in_ast); `til --usize=64` retargets it back to
+// U64 for the opt-out, and the loader forces U32 on 32-bit targets anyway.
+USize := U32
 
 /// UPtr is the target-native unsigned integer for raw pointer arithmetic,
 /// address calculations, and byte counts that must match pointer width.

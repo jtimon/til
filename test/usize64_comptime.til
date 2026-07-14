@@ -1,0 +1,36 @@
+mode script
+
+// Issue #309 regression: the COMPILE-TIME interpreter (constfolder) must fold
+// core Str VIEW operations correctly at a wide --usize=64 target on this (now
+// U32) 64-bit host -- the REVERSE width divergence from the U32 default.
+// substr/find/replace build CAP_VIEW views; the interpreter lays Str out at
+// the HOST width (ctx.struct_layouts, 16 bytes on the U32 compiler) yet writes
+// USize scalars -- including the CAP_VIEW/CAP_LIT ownership sentinels -- at the
+// TARGET width. str_usize_read_width reads exactly the low target-width bytes
+// (capped at the host slot) and sign-extends so both host- and target-written
+// sentinels map back to the host sentinel; a mismatch frees a shared view's
+// c_str (heap-use-after-free, visible under ASAN + --usize=64).
+//
+// A `macro` body is evaluated by the interpreter at compile time, so the
+// replace/find/contains calls below fold on the host at the U64 target width,
+// exercising exactly that path. This mirrors src/til.til's get_version macro
+// (git hash -> replace) that first surfaced the bug. Drive it with
+//   bin/til_asan build --usize=64 -o tmp/x test/usize64_comptime.til
+// (compile alone is enough to trigger the fold; running verifies the output).
+
+// Fold a chain of Str view operations at compile time.
+comptime_label := macro() returns shallow Str {
+    mut s := "aXbXcX"
+    s = s.replace("X", "-")
+    if s.contains("b-").not() { return "BAD_CONTAINS" }
+    if s.find("c-") != 4 { return "BAD_FIND" }
+    return format("v", s)
+}
+
+LABEL := comptime_label()
+
+if LABEL.eq("va-b-c-").not() {
+    println(format("FAIL: comptime fold = ", LABEL, ", want va-b-c-"))
+    exit(1)
+}
+println("usize64 comptime OK")
