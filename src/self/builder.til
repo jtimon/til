@@ -5930,17 +5930,33 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // on darwin). On windows/wasm the linux archives go and
         // -latomic stays (mingw ships libatomic).
         is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
+        is_win := target.is(Target.WindowsX64)
         tokens := lf.split(" ")
         mut new_lf := ""
+        mut has_nng := false
         for t : Str in tokens {
             if t.len() == 0 { continue }
             if t.eq("-ldl").or(t.eq("-lrt")).or(t.eq("-lpthread")).or(t.eq("-lm")) { continue }
-            if is_macos.and(t.eq("-latomic")) { continue }
+            // -latomic: nonexistent on darwin, and nng's linux-only dep
+            // that the mingw nng build does not need either.
+            if is_macos.or(is_win).and(t.eq("-latomic")) { continue }
             if is_macos.not() {
                 if t.ends_with("libraylib.a").or(t.ends_with("libtinyfd.a")) { continue }
             }
+            // Windows nng: swap the linux libnng.a (from nng_base.til's
+            // link()) for the mingw cross-build; remember to append the
+            // winsock libs and ucrtbase. nng requires the UCRT (its posix
+            // shim calls timespec_get -> __imp__timespec64_get), which the
+            // default msvcrt mingw link does not pull; -lucrtbase resolves
+            // it. Verified running under wine (nng_version + socket open).
+            if is_win.and(t.ends_with("libnng.a")) {
+                has_nng = true
+                new_lf = new_lf.format(" vendor/nng/build-win64/libnng.a")
+                continue
+            }
             new_lf = new_lf.format(" ", t)
         }
+        if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32 -lucrtbase") }
         lf = new_lf
     }
     if wasm_gui { lf = "" }

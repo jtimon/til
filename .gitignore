@@ -15,6 +15,7 @@ vendor/tinyfiledialogs/libtinyfd.a
 vendor/tinyfiledialogs/libtinyfd-win64.a
 vendor/nng/libnng.a
 vendor/nng/build/
+vendor/nng/build-win64/
 vendor/emscripten/
 *~
 \#*\#

@@ -27,33 +27,46 @@
     libraylib-win64.a / libtinyfd-win64.a; mode gui links
     gdi32/opengl32/winmm/...; [[file:../../src/c/ext.c][src/c/ext.c]] has full _WIN32 coverage
     (CreateProcess, LoadLibrary/GetProcAddress FFI loading, psapi
-    RSS). CI cross-builds hello_script.exe and runs it on a real
-    windows-latest runner. make build_win sweeps all examples except
-    the ones that link Linux-only libs directly (raylib.til FFI demo,
-    nng_*.til -- no Windows nng build yet). 32-bit windows-x86 is
-    tracked in [[./232.org][#232]].
+    RSS). nng cross-builds for win64 too (cmake + mingw, Makefile
+    NNG_WIN_LIB), so the nng mode-server examples (sender/receiver/
+    publisher/subscriber) build for windows. nng requires the UCRT, so
+    the win64 build forces -D_UCRT and the builder appends -lucrtbase +
+    the winsock libs (ws2_32/mswsock/advapi32) to the program link. CI
+    cross-builds hello_script.exe and runs it on a real windows-latest
+    runner. make build_win sweeps every example (37 .exe): the portable
+    ones via the bin/%.exe pattern rule, the nng mode-server ones via
+    win_server (--extra-modes + the win64 nng); only the direct-FFI
+    raylib.til demo and the standalone-unbuildable custom_modes.til /
+    bench_hashmap.til are excluded. 32-bit windows-x86 is tracked in
+    [[./232.org][#232]].
   - wasm32 (bonus target beyond the 4): DONE via emscripten
     (make build_wasm, single-file .html output; was #228).
-  - Windows as a host (bin/til.exe compiling programs ON Windows):
-    the compiler now cross-builds and RUNS on windows. til.exe
-    interprets and translates (verified under wine: live ext_func
-    dispatch works). What it took (all issue-#25 FFI-portability work):
-    (1) libffi 3.7.1 cross-built for win64 -- Makefile LIBFFI_WIN_LIB
-    target + target_ffi_lib returning its stable mingw-triple path;
-    (2) -Wl,--export-all-symbols on the windows link (mingw's
-    -rdynamic): without it the PE has no export table, so the
-    interpreter's ffi_global_symbol (GetProcAddress) resolves nothing
-    and ffi_prep_cif faults on a NULL ffi_type; (3) detect_current_target
-    reads host_os()/host_arch() (compile-time) instead of spawning
-    uname, which does not exist on windows -- til.exe was defaulting to
-    a linux target and emitting linux link flags; (4) toolchain_command
-    picks plain gcc on a windows host vs the x86_64-w64-mingw32- cross
-    prefix elsewhere. `make build_win_host` builds bin/til.exe.
-    STILL OPEN: an nng-win64 build for mode server, and a CI job that
-    ships til.exe to a windows runner and has it compile+run a program
-    there (needs mingw gcc on the runner) to prove it end-to-end
-    natively rather than under wine. The same libffi-win64 also unlocks
-    runtime ext_func in cross-compiled user programs.
+  - Windows as a host (bin/til.exe running ON Windows): DONE. The
+    compiler cross-builds for windows and runs there -- til.exe
+    interprets and translates natively. The CI windows-x64-host-run job
+    downloads the cross-built til.exe to a real windows-latest runner
+    and runs both (also verified locally under wine). What it took (all
+    issue-#25 FFI-portability work): (1) libffi 3.7.1 cross-built for
+    win64 -- Makefile LIBFFI_WIN_LIB target + target_ffi_lib returning
+    its stable mingw-triple path, statically linked into til.exe so
+    ext_func dispatch works; (2) -Wl,--export-all-symbols on the windows
+    link (mingw's -rdynamic): without it the PE has no export table, so
+    the interpreter's ffi_global_symbol (GetProcAddress) resolves
+    nothing and ffi_prep_cif faults on a NULL ffi_type;
+    (3) detect_current_target reads host_os()/host_arch() (compile-time)
+    instead of spawning uname, which does not exist on windows --
+    til.exe was defaulting to a linux target and emitting linux link
+    flags; (4) toolchain_command picks plain gcc on a windows host vs
+    the x86_64-w64-mingw32- cross prefix elsewhere. `make build_win_host`
+    builds bin/til.exe. Interpret and translate are the host proof
+    because neither needs a C toolchain on the runner; `til.exe build`
+    on a real windows box additionally needs a native gcc (mingw/MSVC),
+    left to whoever runs it there. Separately, the same CI job runs the
+    cross-built nng sender.exe on the windows runner -- proving nng
+    works on real winsock, which wine cannot (its winsock is
+    incomplete: nng loads and the socket opens under wine, but listen
+    returns "Not supported"). The libffi-win64 also unlocks runtime
+    ext_func in cross-compiled user programs.
   - macOS: DONE on both arches (arm64 + x64). CLI (cli/script/pure/lib)
     cross-compiles from Linux via the SDK-less vendored toolchain
     (vendor/macos: zig darwin headers + libSystem.tbd) AND builds
@@ -302,6 +315,25 @@
      (quarantine_size_mb) or -j1.
    - Next: read the -j2 run; if green, mac phase 1 is DONE and the
      jobs stay blocking; then phase 3 (gui archives, `timeout`, nng).
+   - Windows nng + windows-host CI proof landed. (1) nng cross-builds
+     for win64 (Makefile NNG_WIN_LIB: cmake with the mingw toolchain,
+     -D_UCRT, forced NNG_HAVE_* since nng rejects "legacy mingw"). The
+     builder swaps the linux libnng.a for vendor/nng/build-win64/
+     libnng.a on a windows target and appends -lucrtbase + the winsock
+     libs -- nng's posix shim calls timespec_get -> the UCRT, which the
+     default msvcrt mingw link does not pull. win_server builds the four
+     nng mode-server examples; build_win now sweeps all 37 examples
+     green. (2) A windows-x64-host CI build/run pair cross-builds til.exe
+     (build_win_host) and the nng sender.exe on linux, then a
+     windows-latest job runs `til.exe interpret` + `til.exe translate`
+     (the host proof -- no C toolchain needed) and sender.exe (the
+     nng-on-real-winsock proof, which wine cannot give). Verified
+     locally under wine: til.exe interprets/translates, sender.exe
+     prints "nng version 1.11.0" and opens its socket (wine's listen
+     fails only on incomplete winsock). Root cause of the earlier mac+
+     windows CI hang -- the Str.split USize underflow on empty input --
+     was fixed separately and is what unblocked every link-flag-less
+     cross-compile.
 
 *** macOS plan
 

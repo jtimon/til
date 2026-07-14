@@ -190,6 +190,63 @@ jobs:
           ./hello_script.exe
           ./hello_script.exe | grep -q "Hello World"
 
+  # Issue #25: til itself running on a windows HOST. bin/til.exe is the
+  # compiler cross-built for windows (build_win_host) on linux, then run
+  # on a real windows runner: `til.exe interpret` and `til.exe translate`
+  # prove the interpreter and codegen run natively on windows -- neither
+  # needs a C toolchain, and the win64 libffi is statically linked so
+  # ext_func dispatch works. sender.exe is the nng mode-server example,
+  # cross-built against the win64 nng (UCRT via -lucrtbase); running it
+  # here proves nng works on real winsock -- wine's winsock is incomplete
+  # and cannot, so this job IS the nng-on-windows proof.
+  windows-x64-host-build:
+    name: windows-x64 host (cross-build til.exe + nng on linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri mingw-w64 cmake
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-build til.exe (windows host compiler) and nng server
+        run: |
+          make build_win_host win_server
+          file bin/til.exe | grep -q "PE32+"
+          file bin/sender.exe | grep -q "PE32+"
+      - name: Upload windows-host artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: til-windows-host
+          path: |
+            bin/til.exe
+            bin/sender.exe
+
+  windows-x64-host-run:
+    name: windows-x64 host (run til.exe + nng on windows)
+    needs: windows-x64-host-build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download windows-host artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: til-windows-host
+          path: winhost
+      - name: Interpret and translate on windows
+        shell: bash
+        run: |
+          ./winhost/til.exe interpret examples/hello_script.til
+          ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
+          ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
+          test -s tmp_hello.c
+      - name: Run nng mode-server example on windows
+        shell: bash
+        run: |
+          ./winhost/sender.exe
+          ./winhost/sender.exe | grep -q "nng version"
+
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
   # bug is fixed. Runners are headless (no windowing session for

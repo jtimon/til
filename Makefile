@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win build_win_host build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc doc_cache summary help install tmp two_pass check_usize32
 
 all: bin/til
 
@@ -348,15 +348,43 @@ $(LIBFFI_WIN_LIB): vendor/libffi/.built
 	cd $(LIBFFI_DIR) && ./configure --host=x86_64-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)/x86_64-w64-mingw32
 
-# raylib.til is a "direct raylib FFI" demo with hardcoded Linux link()
-# paths -- it deliberately doesn't use mode gui. nng_pair.til and
-# nng_pubsub.til likewise link the Linux libnng.a directly and there is
-# no Windows nng build. All three are excluded from the cross-compile
-# sweep; the other examples cover the Windows build.
-WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/nng_pair.til examples/nng_pubsub.til,$(wildcard examples/*.til))
+# nng cross-built for win64 (mode server / the nng custom modes). nng
+# requires the UCRT and rejects "legacy mingw", so the check symbols it
+# probes (timespec_get, condvar, snprintf) are forced -- they exist in
+# UCRT, which -D_UCRT selects at compile and -lucrtbase links (the
+# builder appends the winsock libs + ucrtbase to the final program
+# link). Built in its own build-win64/ dir so the native nng build is
+# untouched. Verified: a cross-built sender.exe runs under wine
+# (nng_version + socket open).
+NNG_WIN_LIB := vendor/nng/build-win64/libnng.a
+$(NNG_WIN_LIB):
+	cmake -S vendor/nng -B vendor/nng/build-win64 -DCMAKE_BUILD_TYPE=Release \
+	  -DBUILD_SHARED_LIBS=OFF -DNNG_TESTS=OFF -DNNG_ENABLE_NNGCAT=OFF -DNNG_ENABLE_TLS=OFF \
+	  -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+	  -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
+	  -DCMAKE_C_FLAGS="-D_UCRT" -DNNG_HAVE_TIMESPEC_GET=1 -DNNG_HAVE_CONDVAR=1 -DNNG_HAVE_SNPRINTF=1
+	cmake --build vendor/nng/build-win64 --parallel
+
+# The nng custom-mode examples (sender/receiver/publisher/subscriber),
+# consumed via --extra-modes and linking libnng, are shared by the win
+# and mac server sweeps.
+SERVER_EXAMPLES := examples/sender.til examples/receiver.til examples/publisher.til examples/subscriber.til
+
+# Excluded from the bin/%.exe pattern sweep (mirrors the mac sweep):
+# raylib.til is a direct-FFI demo with hardcoded Linux link() paths (not
+# mode gui); custom_modes.til is a mode-DEFINITIONS file consumed via
+# --extra-modes, not a standalone program; bench_hashmap.til has a stale
+# parse error on every platform. The server examples need --extra-modes
+# + the win64 nng, so they build via win_server below.
+WIN_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/custom_modes.til examples/bench_hashmap.til $(SERVER_EXAMPLES),$(wildcard examples/*.til))
 WIN_EXAMPLES := $(patsubst examples/%.til,bin/%.exe,$(WIN_EXAMPLES_SRC))
 
-build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES)
+build_win: $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB) $(WIN_EXAMPLES) win_server
+win_server: bin/til $(NNG_WIN_LIB)
+	for f in $(SERVER_EXAMPLES); do \
+	  bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til \
+	    -o bin/$$(basename $$f .til).exe $$f || exit 1; \
+	done
 
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
@@ -409,19 +437,16 @@ MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til,
 # vendored libnng.a. Only the portable modes cross-compile.
 MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib)$$' examples/*.til))
 
-# The nng custom-mode examples (mode sender/receiver/publisher/
-# subscriber) are consumed via --extra-modes=custom_modes.til and link
-# the native mac libnng (nng's posix/mac backend needs only libSystem,
-# no frameworks), so on a mac host they build like the linux
-# build_sender/... suite tests -- just with the mac target.
-MAC_SERVER_EXAMPLES := examples/sender.til examples/receiver.til examples/publisher.til examples/subscriber.til
-
+# The nng custom-mode examples (SERVER_EXAMPLES, defined by the windows
+# section above) build on a mac host against the native mac libnng
+# (nng's posix/mac backend needs only libSystem, no frameworks), like
+# the linux build_sender/... suite tests -- just with the mac target.
 ifeq ($(UNAME_S),Darwin)
 build_mac: bin/til $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB)
 	for f in $(MAC_EXAMPLES_SRC); do \
 	  bin/til build --target=$(MAC_TARGET) $$f || exit 1; \
 	done
-	for f in $(MAC_SERVER_EXAMPLES); do \
+	for f in $(SERVER_EXAMPLES); do \
 	  bin/til build --target=$(MAC_TARGET) --extra-modes=examples/custom_modes.til $$f || exit 1; \
 	done
 else
