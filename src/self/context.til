@@ -335,6 +335,14 @@ Context := struct {
     eval_heap := EvalHeap.new()
     target_usize_pname := "U64"
     target_uptr_pname := "U64"
+    // Target USize width in bytes, kept in lockstep with target_usize_pname
+    // (context_register_target_int_alias_types). A SCALAR mirror of the pname
+    // so the Str-ownership hot path (str_usize_read_width -> str_has_owned_
+    // storage) can read the target width WITHOUT dereferencing an owned heap
+    // Str: that path also runs during Context teardown, where the owned
+    // target_usize_pname field is freed before the interned Value tables whose
+    // delete calls it -- reading it there is a heap-use-after-free (#309).
+    target_usize_bytes : USize = 8
     anon_type_counter : I64 = 0
     // Issue #54: true when the program is headed for the C backend
     // (build/run/translate/install/test) rather than the interpreter.
@@ -598,6 +606,8 @@ Context := struct {
 context_register_target_int_alias_types := func(mut ctx: Context, usize_name: Str, uptr_name: Str) {
     ctx.target_usize_pname = usize_name.clone()
     ctx.target_uptr_pname = uptr_name.clone()
+    ctx.target_usize_bytes = 8
+    if usize_name == "U32" { ctx.target_usize_bytes = 4 }
     ctx.scope.target_usize_pname = usize_name.clone()
     ctx.scope.target_uptr_pname = uptr_name.clone()
 }

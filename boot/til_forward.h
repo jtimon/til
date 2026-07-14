@@ -1414,6 +1414,7 @@ typedef struct Context {
     EvalHeap eval_heap;
     Str target_usize_pname;
     Str target_uptr_pname;
+    USize target_usize_bytes;
     I64 anon_type_counter;
     Bool compile_mode;
     Map__Str_FuncType constfolder_foldables;
@@ -3634,6 +3635,7 @@ void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, Value val
 void interpreter_free_ns(Context * ctx);
 void priv___src_self_interpreter_til__str_write_count_cap(void * inst_data, U64 count_val, U64 cap_val, Context * ctx);
 void priv___src_self_interpreter_til__str_write_cap_at(void * str_base, U64 cap_val, Context * ctx);
+U64 priv___src_self_interpreter_til__str_usize_read_width(U64 field_size, Context * ctx);
 U64 str_cap_at(void * str_base, Context * ctx);
 U64 str_count_at(void * str_base, Context * ctx);
 U64 priv___src_self_interpreter_til__str_usize_field_at(void * str_base, U64 offset, U64 size);

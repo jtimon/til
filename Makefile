@@ -218,12 +218,21 @@ test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize32
 # constfold + interpreter fold code at U32) and compiled (-DTIL_USIZE32 in the
 # emitted C). Not part of the src/tests.til corpus -- it targets U32, not the
 # default U64.
-check_usize32: bin/til tmp
+#
+# test/usize32_comptime.til guards the compile-time interpreter's Str-view
+# folding at U32: its macro body folds replace/find/contains (CAP_VIEW views)
+# on this 64-bit host at the U32 target width. Built under ASAN so the
+# heap-use-after-free from mis-widened ownership sentinels aborts the compile;
+# the plain compiler must land the same width prerequisite the U32-default flip
+# depends on (til_boot, a U64 binary, must fold U32 source cleanly).
+check_usize32: bin/til bin/til_asan tmp
 	bin/til --usize=32 test/usize32.til
 	bin/til build --usize=32 -o tmp/usize32 test/usize32.til
 	tmp/usize32
 	bin/til build --usize=32 -o tmp/usize32_sizes test/usize32_sizes.til
 	tmp/usize32_sizes
+	bin/til_asan build --usize=32 -o tmp/usize32_comptime test/usize32_comptime.til
+	tmp/usize32_comptime
 
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
 # compiled test/example binaries run without sanitizer instrumentation, so the

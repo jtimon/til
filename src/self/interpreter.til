@@ -4269,6 +4269,28 @@ priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
     write_field(str_base, cap_d, cap_fl.offset, cap_fl.size, Value.Uint64(cap_val.to_u64()), ctx)
 }
 
+// #192/#309: the byte width at which a Str's USize field (count/cap) must be
+// read. ctx.struct_layouts lays Str out at the HOST width (initer.til's
+// compute_struct_layout: the interpreter runs host-compiled Str helpers and
+// must match their ABI), so the field's slot is host-sized (8 on a 64-bit
+// host). But INTERPRETED core code (substr, from_c_str, ...) writes its USize
+// scalars -- including the CAP_VIEW/CAP_LIT sentinels -- at the TARGET width,
+// landing the value in the field's low target-width bytes. Reading the full
+// host slot then ZERO-extends a U32-target sentinel (0xFFFFFFFE) instead of
+// recovering the host sentinel (0xFF..FE), so str_has_owned_storage mistakes a
+// view for owned storage and frees a shared c_str (heap-use-after-free). Read
+// exactly the low target-width bytes (never more than the slot) and let
+// str_usize_field_at sign-extend so both host-written and target-written
+// sentinels map back to the full-width host sentinel.
+priv str_usize_read_width := func(field_size: USize, ctx: Context) returns USize {
+    // ctx.target_usize_bytes (a SCALAR mirror of target_usize_pname) -- NOT the
+    // owned target_usize_pname Str: this runs during Context teardown too, where
+    // that Str is already freed (#309).
+    tw := ctx.target_usize_bytes
+    if tw < field_size { return tw }
+    return field_size
+}
+
 // #192: read a Str instance's `cap` field at the ctx layout offset. The Str
 // type the compiler is built with may put cap at a different offset than the
 // source it compiles (cap@12 for U32, cap@16 for U64), so the compiled
@@ -4277,7 +4299,7 @@ priv str_write_cap_at := func(str_base: Dynamic, cap_val: USize, ctx: Context) {
 // CAP_LIT sentinels, which fit in 32 bits).
 str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
     ref cap_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "cap", ctx)
-    return str_usize_field_at(str_base, cap_fl.offset, cap_fl.size)
+    return str_usize_field_at(str_base, cap_fl.offset, str_usize_read_width(cap_fl.size, ctx))
 }
 
 // #192: read a Str's `count` field at the CTX layout, honouring the TARGET
@@ -4288,7 +4310,7 @@ str_cap_at := func(str_base: Dynamic, ctx: Context) returns USize {
 // high word -- a garbage huge value that crashes the buffer clone's memcpy.
 str_count_at := func(str_base: Dynamic, ctx: Context) returns USize {
     ref count_fl : FieldLayout = ctx_field_layout(ctx.cached_str_name, "count", ctx)
-    return str_usize_field_at(str_base, count_fl.offset, count_fl.size)
+    return str_usize_field_at(str_base, count_fl.offset, str_usize_read_width(count_fl.size, ctx))
 }
 
 // #192: read a USize-typed field (Str count/cap) at exactly the CTX field
