@@ -1,0 +1,98 @@
+# priority: low
+# category: features
+** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+
+#309 made USize (container width: sizes, counts, indices, caps) default to U32,
+which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time
+~7% for free. That worked because a size is just a number -- it never has to
+hold a real machine address, so it is a pure `typedef` swap.
+
+This issue asks the analogous question for UPtr (pointer width), i.e. can we
+represent pointers in 32 bits on a 64-bit host to squeeze the remaining 64-bit
+fields (data buffers, GC links, `own`/`ref` payloads)? The answer is "yes, but
+not as a typedef, and it depends on a lower-level backend." Filed as a low
+priority feature to capture the design space; NOT actionable while we emit C
+with real machine pointers.
+
+*** Why this is NOT a typedef (unlike USize)
+
+UPtr genuinely holds an address. On a 64-bit host `malloc`/`mmap` return real
+64-bit values, so `typedef U32 UPtr` cannot hold them. Shrinking UPtr requires
+changing HOW memory is addressed, not just how wide a field is. There are two
+real mechanisms, below.
+
+*** Option A: ILP32-on-64-bit ABIs via a compiler flag (real, but effectively dead)
+
+The "obscure gcc/clang flag" does exist:
+
+- x86-64: the x32 ABI, `gcc/clang -mx32`. CPU stays in 64-bit mode (all 16
+  registers, 64-bit arithmetic) but pointers are 32-bit (ILP32).
+- AArch64: `-mabi=ilp32` (the AArch64 ILP32 ABI). Same idea.
+
+These do EXACTLY "32-bit pointers on a 64-bit arch," process-wide, for free
+struct/cache density. The catch is fatal for general use:
+
+- It is a whole separate target ABI. Needs a kernel built with the x32 syscall
+  ABI (`CONFIG_X86_X32`) and an ILP32 userland: x32 builds of libc and EVERY
+  shared library the program links. Mainstream distros never shipped / dropped
+  the x32 multilib; the kernel maintainers discussed removing x32 outright. The
+  AArch64 ILP32 port is similarly moribund.
+- All-or-nothing and process-wide: no mixing 32- and 64-bit pointers, 4GB
+  address-space cap, and it changes the target triple -- not a per-build toggle
+  like `--usize=64`.
+
+So Option A is not a switch we can flip on a normal 64-bit host today; it needs
+an ILP32 runtime that modern systems no longer provide. Would only ever be
+reachable through a dedicated lower-level backend targeting such an ABI.
+
+*** Option B: pointer compression (cage + base + 32-bit offset) -- the real path
+
+This is the proven technique from the JS/JVM world (see prior art). Reserve one
+large contiguous region ("cage") with a single `base` pointer; store pointers
+as 32-bit OFFSETS into it. Deref becomes `*(T*)(base + offset)`; store becomes
+`offset = addr - base`. The JVM extends reach to ~32GB by shifting the offset
+by the object alignment (`base + (offset << 3)`).
+
+It is viable and would pay off, but it is a genuine backend/runtime project,
+much harder than #309, because:
+
+- Every deref changes. Codegen currently emits real C `T*` and DEREF; each
+  dereference would become base+offset arithmetic -- touches the whole pointer
+  model, GC, and `own`/`ref` machinery.
+- The FFI wall. til calls C (libc etc.), which returns real 64-bit pointers that
+  cannot be compressed. So UPtr cannot be uniformly 32-bit; you need TWO pointer
+  kinds -- compressed (into our cage) vs native (for FFI) -- as distinct types.
+  That is a type-system change, not a width flag.
+- Cap and arena discipline. Everything a compressed pointer can reach must live
+  in the one <=4GB (or <=32GB shifted) reservation, so GC and all allocators
+  must allocate exclusively from that region.
+
+*** Prior art
+
+- V8 pointer compression: 32-bit offsets from a base register (R13); ~40%
+  average heap reduction; the "Node.js cut its memory roughly in half" result.
+  https://v8.dev/blog/pointer-compression
+- JVM compressed oops (`-XX:+UseCompressedOops`): same base+offset, default
+  under 32GB heaps, alignment-shift trick to extend reach.
+- asm.js / Emscripten: the extreme form -- ALL of memory is one JS typed array
+  (ArrayBuffer) and a "pointer" is a 32-bit index into it.
+  https://github.com/emscripten-core/emscripten/wiki/Code-Generation-Modes
+- WebAssembly `wasm32`: linear memory addressed by 32-bit offsets even on a
+  64-bit host (the modern continuation of the asm.js idea).
+
+*** Nuance: most of the density win is already captured
+
+The big compression payoff in V8/JVM comes from squeezing the MANY size/index/
+reference fields in data structures. In til most of those were USize (len/cap/
+index), which #309 already halved for free. The remaining 64-bit fields are
+genuine pointers (data buffers, GC links); compressing THOSE is the hard,
+high-cost ~20%. Worth weighing before investing.
+
+*** Dependency / when to revisit
+
+Blocked on til gaining a lower-level backend where we control pointer
+representation (direct machine code, LLVM, or a custom arena allocator that
+owns the cage). While we emit C with real machine pointers, neither option is
+reachable. Revisit when such a backend exists; at that point prototype Option B
+(cage + offset) first, since Option A's ILP32 runtime is unavailable in
+practice.

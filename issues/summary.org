@@ -65,6 +65,7 @@
 *** [[./open/279.org][#279]] Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
 *** [[./open/290.org][#290]] Tooling gap: no regex / text-processing library for source-rewriting tasks
 *** [[./open/310.org][#310]] expr_macro / str_macro: compile-time macros that emit AST or source
+*** [[./open/313.org][#313]] Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
