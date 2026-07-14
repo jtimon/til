@@ -1,6 +1,53 @@
 # priority: medium
 # category: features
-** OPEN #309 --usize=32 flag: force U32 container widths on 64-bit builds
+** FIXED #309 --usize=32 flag: force U32 container widths on 64-bit builds
+
+*** Post-mortem
+
+Delivered in three merged pieces, then taken one step BEYOND the original
+scope: USize is now U32 by DEFAULT (the issue title/body below still describe
+it as an opt-in knob "not a new default" -- that framing is superseded).
+
+1. The `--usize=32` flag itself (loader override + ext.h -DTIL_USIZE32 split +
+   builder -D threading), so a 64-bit host can build U32-wide container fields
+   while UPtr stays U64.
+2. Size intrinsics report the TARGET width in compiled code: `X.size()` /
+   `dyn_size_of` emit C `sizeof(...)` on a width-mismatched target instead of a
+   baked host literal (`size_intrinsics_use_sizeof`), so containers actually
+   shrink instead of over-striding.
+3. The DEFAULT flip to U32 (`numbers.til: USize := U32`; ext.h defaults U32
+   with `-DTIL_USIZE64` as the opt-out), as a Two-pass commit.
+
+Two latent U32-correctness bugs blocked the flip and had to be root-caused and
+fixed first (each with a regression):
+
+- Constfold self-host tail: the compile-time interpreter lays Str out at the
+  HOST width but writes USize scalars -- including the CAP_VIEW/CAP_LIT
+  ownership sentinels -- at the TARGET width, so `str_cap_at` read the sentinel
+  zero-extended and `str_has_owned_storage` freed a shared view's c_str
+  (heap-use-after-free). Fixed by reading count/cap at the target width and
+  sign-extending (`str_usize_read_width`), with the width cached as a scalar
+  `Context.target_usize_bytes` so the ownership hot path stays teardown-safe.
+  Regression: test/usize64_comptime.til.
+- mut-USize write-back: the USIZE_REF/UPTR_REF boxing spelled a `mut` USize/UPtr
+  arg as a pointer to a throwaway temp, and the interpreter's `needs_widen`
+  cloned rather than borrowed such a param (because it compared a Uint32 value
+  against the un-resolved alias name "USize"). Both dropped the callee's
+  write-back; the codegen one desynced `infer_body_stmt`'s statement cursor and
+  produced ~26k bogus flow-analysis errors when the compiler ran at U32. Fixed
+  by excluding write-back params from boxing (`callee_param_writes_back`) and
+  resolving the alias in `needs_widen`. Regression: the mut-USize write-back
+  assertion in test/usize64.til.
+
+Coverage: `make test` runs the whole suite at the U32 default;
+`make check_usize64` and the `linux-x64-usize64` CI job keep U64 coverage (they
+also rebuild the compiler at --usize=64, exercising the reverse divergence).
+Size assertions across the suite were updated for U32 (Str 24->16, Vec 24->16,
+DynVec 56->40, size_at/dyn_size_of of Str 24->16, gc_audit golden). Perf: the
+per-object win is Str 24->16, Vec 24->16, DynVec 56->40; totals show interp/
+compile/total and self-host memory down ~5-6% with self-host time ~6% faster.
+
+Follow-up filed: #312 (pre-existing top-level for-loop typer crash, unrelated).
 
 Add a compiler/interpreter flag ~--usize=32~ (default ~64~) that forces the
 ~USize~ alias to ~U32~ even on a 64-bit host, while ~UPtr~ stays ~U64~. This
