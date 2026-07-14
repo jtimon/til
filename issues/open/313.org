@@ -90,9 +90,14 @@ high-cost ~20%. Worth weighing before investing.
 
 *** Dependency / when to revisit
 
-Blocked on til gaining a lower-level backend where we control pointer
-representation (direct machine code, LLVM, or a custom arena allocator that
-owns the cage). While we emit C with real machine pointers, neither option is
-reachable. Revisit when such a backend exists; at that point prototype Option B
-(cage + offset) first, since Option A's ILP32 runtime is unavailable in
-practice.
+Depends on #314 (pluggable custom allocators). Option B's cage is just a custom
+arena allocator that owns one contiguous region -- there is nowhere for the
+cage to live until til has a pluggable allocator interface, so #314 must land
+first.
+
+Also blocked on til gaining a lower-level backend where we control pointer
+representation (direct machine code, LLVM, or the custom arena of #314 owning
+the cage). While we emit C with real machine pointers, neither option is
+reachable. Revisit when both #314 and such a backend exist; at that point
+prototype Option B (cage + offset) first, since Option A's ILP32 runtime is
+unavailable in practice.

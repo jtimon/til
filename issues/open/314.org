@@ -1,0 +1,87 @@
+# priority: low
+# category: features
+** OPEN #314 Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
+
+til has a fixed allocation path today (one global allocation strategy, plus the
+GC). This issue proposes a pluggable allocator interface so the ALLOCATION
+STRATEGY is chosen by the caller, not hardcoded -- the way Zig and Odin do it.
+That unlocks arena/bump/fixed-buffer allocators (allocate many, free once; no
+per-object frees; bulk lifetime management) and, importantly, is the substrate
+that #313 (32-bit pointer compression) needs: a "cage" is just a custom arena
+that owns one contiguous region. #313 is marked as depending on this issue.
+
+*** Prior art: how Zig and Odin do it
+
+Two different designs for the same idea (caller decides the allocation strategy):
+
+**Zig -- explicit allocator parameter.** `std.mem.Allocator` is an interface: a
+type-erased pointer to the allocator impl plus a vtable of `alloc` / `resize` /
+`free`. Every allocator implements it -- `GeneralPurposeAllocator`,
+`page_allocator`, `FixedBufferAllocator`, `ArenaAllocator`, the testing
+allocator. Any function that allocates takes an `Allocator` parameter and does
+not know or care which one it got. Key concrete allocators to mirror:
+
+  - ArenaAllocator: wraps a child allocator, lets you allocate many times and
+    free once; `deinit()` frees everything, individual `free()` is a no-op.
+    Internally a singly linked list of buffers from the child allocator.
+  - FixedBufferAllocator: allocates out of a fixed buffer, makes NO heap
+    allocations, returns OutOfMemory when the buffer is exhausted. Useful for
+    kernels / no-heap contexts and for hard memory bounds.
+  - Bump/arena core: one pointer starts at the buffer front and bumps forward
+    per allocation; reset the pointer to free everything at once.
+
+**Odin -- implicit `context` allocator.** Each scope has an implicit `context`
+passed by pointer to any Odin-calling-convention procedure; `context.allocator`
+is the current allocator. Built-ins are a heap allocator and a growing arena
+allocator; custom allocators are supported at any granularity -- you can even
+override `context.allocator` for a single statement/block, and the context's
+copy-on-write semantics keep the override local (and stop third-party code from
+back-propagating a bad allocator). Arenas group allocations with the same
+lifetime; destroy the arena to free them all at once.
+
+*** Design axes for til to decide
+
+1. Explicit parameter (Zig) vs implicit ambient context (Odin). Explicit is
+   simpler and honest about who allocates; implicit is ergonomic and lets you
+   redirect third-party/library allocation without threading a parameter
+   everywhere. til has no ambient context today, so Zig-style explicit is the
+   smaller step; an Odin-style context is a larger language change.
+2. Interface shape: a vtable/interface value of `alloc(size, align)` /
+   `resize` / `free(ptr)` -- matches til's existing interface/`own`/`ref`
+   machinery? Needs a concrete til-level `Allocator` interface type.
+3. Interaction with the GC. This is the main open question. Options: allocators
+   manage NON-GC regions (arenas freed in bulk) that coexist with the GC for
+   `own`/`ref` values; or a subset of types opt into arena allocation with no
+   GC tracking. Must define how `own`/`ref`, drop/`delete`, and GC roots behave
+   for arena-allocated objects (likely: no per-object drop, whole-arena
+   teardown).
+4. Alignment handling (arenas must honor type alignment on the bump pointer).
+
+*** Why this matters beyond ergonomics
+
+- Performance: bump/arena allocation is close to free (pointer add), and bulk
+  free avoids per-object teardown -- a direct win for short-lived batches of
+  allocations (parser scratch, per-request data, etc.).
+- Hard memory bounds: FixedBufferAllocator-style caps for constrained contexts.
+- Enables #313: pointer compression needs a single contiguous reservation
+  ("cage") that all compressible objects are allocated from. That cage is a
+  custom arena allocator. Without a pluggable allocator there is nowhere for the
+  cage to live.
+
+*** Prior art links
+
+- Zig allocators overview: https://zig.guide/standard-library/allocators/
+- Zig ArenaAllocator source:
+  https://github.com/ziglang/zig/blob/master/lib/std/heap/arena_allocator.zig
+- Odin context system (gingerBill):
+  https://www.gingerbill.org/article/2025/12/15/odins-most-misunderstood-feature-context/
+- Odin arenas / temporary allocator (Karl Zylinski):
+  https://zylinski.se/posts/temporary-allocator-your-first-arena/
+- Odin core/mem package: https://pkg.odin-lang.org/core/mem/
+
+*** Scope note
+
+Foundational and forward-looking; the hard part is the GC interaction (axis 3),
+not the bump allocator itself. Prototype an explicit Zig-style `Allocator`
+interface with an arena + fixed-buffer impl first, decide the GC boundary, then
+#313 can build the cage on top.
