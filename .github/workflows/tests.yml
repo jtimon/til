@@ -530,6 +530,10 @@ jobs:
         run: |
           brew install mingw-w64
           brew tap messense/macos-cross-toolchains
+          # Homebrew's tap-trust check blocks third-party formulae until
+          # the tap is explicitly trusted; the linux cross-gcc lives in
+          # this tap (homebrew-core ships no linux cross-gcc).
+          brew trust messense/macos-cross-toolchains
           brew install x86_64-unknown-linux-gnu
       - name: Build bin/til (native)
         run: make

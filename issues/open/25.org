@@ -363,6 +363,34 @@
      these green, the 3x4 host x target matrix is complete except the
      splits (TempleOS -> #151, windows-x86 -> #232) and the Apple-SDK
      gui-cross block.
+   - First CI run of those cells was RED -- three real defects, none
+     caught locally, now fixed (NOT yet re-validated; #25 stays open
+     until the reruns are green): (1) windows-x64-host-build failed --
+     bin/til.exe links the win64 libnng (like the native compiler) but
+     the Makefile target lacked the NNG_WIN_LIB prerequisite, so a clean
+     checkout never built it (mingw-ld: cannot find build-win64/libnng.a);
+     it only passed on the dev box because that lib was pre-staged. Added
+     the prereq; verified from a scrubbed clean state. (2)
+     macos-host-cross-build failed -- Homebrew's tap-trust check refused
+     the messense linux cross-gcc; added `brew trust`. (3) `make
+     build_mac` on a linux box WITHOUT lld died with the cryptic clang
+     "invalid linker name in argument '-fuse-ld=lld'"; added a build_mac
+     preflight that names the missing tool with the apt hint. Lesson:
+     local "it works" hid a missing build dep that a clean runner
+     exposes -- the windows-host cell was never actually green in CI
+     before this.
+   - DECISION (do not re-litigate): clang + lld for the linux/windows ->
+     macOS cross are a documented INSTALL (`apt-get install clang lld`),
+     like mingw-w64 for the windows cross -- deliberately NOT vendored.
+     lld is used only to emit Mach-O and ad-hoc-sign arm64, and only on
+     that one axis (targets.til macos_is_cross: a mac target AND a
+     non-mac host; a mac host builds mac with Apple's native ld64, no
+     lld). Vendoring it would not even remove the install step -- the
+     mac cross also needs clang (gcc cannot emit Mach-O), so it would
+     mean shipping a whole LLVM toolchain, i.e. the zig-in-a-box
+     approach #25 explicitly rejected. vendor/ stays library sources +
+     the macOS header/tbd text stubs, no toolchain binaries. The clear
+     build_mac preflight is the supported UX.
 
 *** macOS plan
 

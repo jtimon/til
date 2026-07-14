@@ -390,12 +390,14 @@ bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
 # til.exe: the compiler itself cross-built for a windows HOST (issue
-# #25). Links the win64 libffi so the interpreter/constfolder ext_func
-# dispatch works when til runs ON windows. Not part of build_win (that
-# sweeps example programs); this is the compiler.
+# #25). Like the native compiler it links the win64 libffi AND libnng so
+# the interpreter/constfolder ext_func dispatch works when til runs ON
+# windows -- hence both are prerequisites (without NNG_WIN_LIB the link
+# fails: mingw-ld cannot find vendor/nng/build-win64/libnng.a). Not part
+# of build_win (that sweeps example programs); this is the compiler.
 build_win_host: bin/til.exe
 
-bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
+bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(NNG_WIN_LIB) $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
 	bin/til build --target=windows-x64 -o bin/til.exe src/til.til
 
 # --- macOS builds (issue #25) ---
@@ -450,7 +452,14 @@ build_mac: bin/til $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB)
 	  bin/til build --target=$(MAC_TARGET) --extra-modes=examples/custom_modes.til $$f || exit 1; \
 	done
 else
+# Linux -> macOS cross needs clang plus the LLVM linker lld (the SDK-less
+# toolchain links Mach-O and ad-hoc-signs arm64 via -fuse-ld=lld). A bare
+# checkout often has clang but not lld, so clang dies with the cryptic
+# "invalid linker name in argument '-fuse-ld=lld'"; check up front and
+# say what to install instead.
 build_mac: bin/til
+	@command -v clang  >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS and needs clang -- install it with: apt-get install clang lld"; exit 1; }
+	@command -v ld.lld >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS via 'clang -fuse-ld=lld' and needs the lld linker -- install it with: apt-get install lld"; exit 1; }
 	for f in $(MAC_CROSS_EXAMPLES_SRC); do \
 	  b=$$(basename $$f .til); \
 	  bin/til build --target=macos-arm64 -o bin/$$b-macos-arm64 $$f || exit 1; \
