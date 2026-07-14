@@ -3603,7 +3603,7 @@ Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scop
 Value priv___src_self_interpreter_til__make_struct_value(Str * sname, void * data, Bool borrowed, Context * ctx);
 Bool priv___src_self_interpreter_til__value_is_borrowed(Value * v);
 Value * priv___src_self_interpreter_til__widen_numeric(Value * v, Str * ptype, Context * ctx);
-Cell * scope_get(Scope * s, Str * name);
+Cell * scope_get(Scope * s, Str * name, I64 * _err_kind, KeyNotFound * _err_KeyNotFound);
 Cell * priv___src_self_interpreter_til__scope_get_return_move_cell(Scope * s, Str * name);
 Scope * scope_new(Scope * parent);
 Scope * priv___src_self_interpreter_til__scope_new_boxed(Scope * parent);

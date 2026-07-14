@@ -583,7 +583,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         case:
         }
         if ctx.constfolder_known.has(name.ident_name()) { return false }
-        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())
+        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())? catch (knf: KeyNotFound) { }
         if cell.is_null().not() {
             // The Ident resolves to something in constfolder scope. If it's
             // a Func, walk its body too -- the surface body may only
@@ -735,7 +735,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
     case NodeType.Ident(ci):
-        ref cell : Cell = scope_get(scope, ci.ident_name())
+        ref cell : Cell = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) { }
         if cell.is_null().not() {
             switch cell.val {
             case Value.Func(p): fc_fp = p
@@ -788,7 +788,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
-        ref fn_cell : Cell = scope_get(scope, callee_ident.ident_name())
+        ref fn_cell : Cell = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) { }
         if fn_cell.is_null().not() {
             switch fn_cell.val {
             case Value.Func(p): fp = p
@@ -883,7 +883,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
-                ref cell : Cell = scope_get(scope, arg_id.ident_name())
+                ref cell : Cell = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) { }
                 if cell.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
                     switch cell.val {
                     case Value.Int(iv):

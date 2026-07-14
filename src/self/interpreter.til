@@ -830,8 +830,10 @@ priv is_value_ptr := func(v: Value) returns Bool {
 // to read from.
 priv resolve_ptr_to_struct := func(mut obj: Value, scope: Scope, obj_sname: Str, ctx: Context) {
     if obj_sname.len() == 0 { return }
-    ref tc : Cell = scope_get(scope, obj_sname)
-    if tc.is_null() { return }
+    // Probe: obj_sname may be a Custom/unresolved or builtin type name with
+    // no scope binding -- absent just means "not a struct to reinterpret".
+    ref tc : Cell = scope_get(scope, obj_sname)?
+    catch (e: KeyNotFound) { return }
     switch tc.val {
     case Value.Func(tptr):
         ref tdef : Expr = deref(tptr)
@@ -889,7 +891,7 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
     case NodeType.Literal(Literal.Null):
         return Value.Ref(NULL)
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(scope, ident.ident_name())
+        ref cell : Cell = scope_get(scope, ident.ident_name())!
         if cell.is_null() {
             interp_error(e, format("undefined variable '", Str.clone(ident.ident_name()), "'"), ctx)
             exit(1)
@@ -950,9 +952,9 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                         switch fdef.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc) {
-                                ref tc : Cell = scope_get(scope, sname)
-                                if tc.is_null().not() {
-                                    switch tc.val {
+                                ref tc : Cell = scope_get(scope, sname)?
+                                catch (e: KeyNotFound) { return borrow_value(nsv) }
+                                switch tc.val {
                                     case Value.Func(eptr):
                                         ref edef : Expr = deref(eptr)
                                         if edef.node_type.is(NodeType.EnumDef) {
@@ -971,7 +973,6 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                         }
                                     case:
                                     }
-                                }
                             }
                         case:
                         }
@@ -1020,13 +1021,15 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 }
 
 priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(scope, type_name)
-    if tc.is_null().not() {
-        switch tc.val {
-        case Value.Func(fptr):
-            return deref(fptr)
-        case:
-        }
+    // Probe: type_name is empty for a primitive scrutinee (switch on I64)
+    // and unbound for a builtin; the absent case falls through to the
+    // interp type-def registry.
+    ref tc : Cell = scope_get(scope, type_name)?
+    catch (e: KeyNotFound) { return lookup_interp_type_def(type_name, ctx) }
+    switch tc.val {
+    case Value.Func(fptr):
+        return deref(fptr)
+    case:
     }
     return lookup_interp_type_def(type_name, ctx)
 }
@@ -1146,7 +1149,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
         if e.children.len() <= 1 { return false }
         switch e.children[1].node_type {
         case NodeType.Ident(arg_ident):
-            ref fc : Cell = scope_get(scope, arg_ident.ident_name())
+            ref fc : Cell = scope_get(scope, arg_ident.ident_name())!
             if fc.is_null() { return false }
             if fc.val.is(Value.None) { return true }
             switch fc.val {
@@ -1168,7 +1171,7 @@ priv guard_own_param_skip := func(scope: Scope, e: Expr, func_def: Expr) returns
 priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref Dynamic {
     switch obj_expr.node_type {
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(scope, ident.ident_name())
+        ref cell : Cell = scope_get(scope, ident.ident_name())!
         if cell.is_null() { return NULL }
         switch cell.val {
         case Value.Struct(si):
@@ -1184,7 +1187,7 @@ priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref
 priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr) returns ref Expr {
     switch obj_expr.node_type {
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(scope, ident.ident_name())
+        ref cell : Cell = scope_get(scope, ident.ident_name())!
         if cell.is_null() { return NULL }
         switch cell.val {
         case Value.Struct(si):
@@ -1315,7 +1318,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     if dd.own_type.is(OwnType.Ref) {
         switch rhs.node_type {
         case NodeType.Ident(rhs_ident):
-            ref src : Cell = scope_get(scope, rhs_ident.ident_name())
+            ref src : Cell = scope_get(scope, rhs_ident.ident_name())!
             scope_set_borrowed(scope, dd.name, src)
             return
         case:
@@ -1324,7 +1327,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     mut val := val_none()
     switch rhs.node_type {
     case NodeType.Ident(rhs_ident):
-        ref src : Cell = scope_get(scope, rhs_ident.ident_name())
+        ref src : Cell = scope_get(scope, rhs_ident.ident_name())!
         if src.is_null() {
             interp_error(rhs, format("undefined variable '", Str.clone(rhs_ident.ident_name()), "'"), ctx)
             exit(1)
@@ -1430,8 +1433,8 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
-            ref sw_tcell : Cell = scope_get(scope, sw_target)
-            ref sw_scell : Cell = scope_get(scope, sw_src)
+            ref sw_tcell : Cell = scope_get(scope, sw_target)!
+            ref sw_scell : Cell = scope_get(scope, sw_src)!
             if sw_tcell.is_null().not().and(sw_scell.is_null().not()) {
                 sw_tcell.val = val_none()
                 memcpy(sw_tcell.val, sw_scell.val, Value.size())
@@ -1512,7 +1515,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             eval_declaration(scope, stmt, dd, ctx)
         case NodeType.Assign(ad):
             ref rhs : Expr = stmt.children[0]
-            ref cell : Cell = scope_get(scope, ad.name)
+            ref cell : Cell = scope_get(scope, ad.name)!
             if cell.is_null() {
                 interp_error(stmt, format("undefined variable '", ad.name, "'"), ctx)
                 exit(1)
@@ -1521,7 +1524,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 if rhs.node_type.is(NodeType.Ident) {
                     switch rhs.node_type {
                     case NodeType.Ident(rhs_ident):
-                        ref src : Cell = scope_get(scope, rhs_ident.ident_name())
+                        ref src : Cell = scope_get(scope, rhs_ident.ident_name())!
                         memcpy(cell.val, src.val, Value.size())
                         if src.val.is(Value.Func).not() {
                             memcpy(src.val, val_none(), Value.size())
@@ -1600,7 +1603,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     pipe_u := pipe_pos.to_usize()
                     enum_var_name := payload_alias.substr(0, pipe_u)
                     type_name := payload_alias.substr(pipe_u + 1, payload_alias.len().sub(pipe_u) - 1)
-                    ref enum_cell : Cell = scope_get(scope, enum_var_name)
+                    ref enum_cell : Cell = scope_get(scope, enum_var_name)!
                     if enum_cell.is_null().not() {
                         switch enum_cell.val {
                         case Value.Enum(ei):
@@ -1739,7 +1742,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 mut cur_sname : Str = ""
                 switch stmt.children[0].node_type {
                 case NodeType.Ident(obj_ident):
-                    ref obj_cell : Cell = scope_get(scope, obj_ident.ident_name())
+                    ref obj_cell : Cell = scope_get(scope, obj_ident.ident_name())!
                     if obj_cell.is_null().not() {
                         switch obj_cell.val {
                         case Value.Struct(obj_si):
@@ -1771,7 +1774,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                     switch cur.node_type {
                     case NodeType.Ident(root_ident):
-                        ref cell : Cell = scope_get(scope, root_ident.ident_name())
+                        ref cell : Cell = scope_get(scope, root_ident.ident_name())!
                         if cell.is_null().not() {
                             switch cell.val {
                             case Value.Struct(si):
@@ -2098,7 +2101,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 case:
                 }
             }
-            ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())
+            ref recv_cell : Cell = scope_get(caller_scope, recv_id.ident_name())!
             if recv_cell.is_null().not() {
                 if call_free.not().and(get_own_arg(e, 1)).and(is_value_ptr(recv_cell.val)) {
                     mut recv_type0 := delete_ptr_receiver_type(e.children[1], ctx)
@@ -2217,7 +2220,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
             ref arg_expr : Expr = e.children[pi + 1]
             switch arg_expr.node_type {
             case NodeType.Ident(arg_ident):
-                ref arg_cell : Cell = scope_get(caller_scope, arg_ident.ident_name())
+                ref arg_cell : Cell = scope_get(caller_scope, arg_ident.ident_name())!
                 if arg_cell.is_null() {
                     interp_error(arg_expr, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
                     exit(1)
@@ -2377,8 +2380,10 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         }
         if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
             parent_sname := til_type_name(callee_expr.children[0].til_type())
-            ref tc : Cell = scope_get(scope, parent_sname)
-            if tc.is_null().not() {
+            // Probe: parent_sname is empty for a primitive receiver; the
+            // absent Cell defaults to val = Value.None, so the switch below
+            // hits its default arm and falls through to flat-name dispatch.
+            ref tc : Cell = scope_get(scope, parent_sname)? catch (e: KeyNotFound) { }
                 switch tc.val {
                 case Value.Func(tc_fptr):
                     ref tc_edef : Expr = deref(tc_fptr)
@@ -2392,7 +2397,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                                     if oa.node_type.is(NodeType.Ident).and(get_own_arg(e, oi)) {
                                         switch oa.node_type {
                                         case NodeType.Ident(oa_ident):
-                                            ref oc : Cell = scope_get(scope, oa_ident.ident_name())
+                                            ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
                                             if oc.is_null().not() {
                                                 // enum_method_dispatch byte-copied this own arg's
                                                 // WHOLE payload (psz = ctx_total_size) into
@@ -2431,7 +2436,6 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                     }
                 case:
                 }
-            }
             mut sn := til_type_name(callee_expr.children[0].til_type())
             // til_type_name returns "" for primitives. For ext_func
             // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
@@ -2477,12 +2481,15 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     // Ext function dispatch
     mut ext_result := val_none()
     if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
-        ref ext_cell : Cell = scope_get(scope, name.ident_name())
+        // Probe: a pure builtin (U64_bnot, ...) has no FuncDef cell; on the
+        // miss ext_cell defaults to NULL and the is_null guard below skips
+        // the param-ownership check.
+        ref ext_cell : Cell = scope_get(scope, name.ident_name())? catch (e: KeyNotFound) { }
         for oi in 1..e.children.len() {
             if get_own_arg(e, oi) {
                 switch e.children[oi].node_type {
                 case NodeType.Ident(oa_ident):
-                    ref oc : Cell = scope_get(scope, oa_ident.ident_name())
+                    ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
                     if oc.is_null().not() {
                         // An own arg whose CALLEE PARAM is `own` was genuinely
                         // handed to C, which owns (and may free) its buffer:
@@ -2528,7 +2535,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     }
 
     // User-defined function or struct instantiation
-    ref fn_cell : Cell = scope_get(scope, name.ident_name())
+    ref fn_cell : Cell = scope_get(scope, name.ident_name())? catch (knf: KeyNotFound) { }
     if fn_cell.is_null() {
         interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
         exit(1)
@@ -2587,7 +2594,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                         mut val := val_none()
                         switch arg.node_type {
                         case NodeType.Ident(arg_ident):
-                            ref src : Cell = scope_get(scope, arg_ident.ident_name())
+                            ref src : Cell = scope_get(scope, arg_ident.ident_name())!
                             if src.is_null() {
                                 interp_error(arg, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
                                 exit(1)
@@ -3314,7 +3321,7 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
             ref param : Declaration = fdef.params[pi]
             if param.own_type.is(OwnType.Own) { continue }
             if call_expr.children[pi + 1].node_type.is(NodeType.Ident) { continue }
-            ref cell : Cell = scope_get(call_scope, param.name)
+            ref cell : Cell = scope_get(call_scope, param.name)!
             if cell.is_null().not() {
                 free_temp_arg_value(cell.val)
                 memcpy(cell.val, val_none(), Value.size())
@@ -3537,16 +3544,23 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     return v.clone()
 }
 
-scope_get := func(mut s: Scope, name: Str) returns ref Cell {
+// Resolve `name` to its Cell, walking the scope chain inner->outer in a
+// SINGLE traversal. A name unbound in every scope throws KeyNotFound --
+// no NULL to guard against. The typer rejects undefined symbols, so
+// must-be-present callers use `scope_get(...)!` (panic loud on a miss);
+// the genuinely bimodal callers -- a name that may instead be a
+// builtin/ext with no scope binding, or an empty/primitive type name --
+// use `scope_get(...)? catch (e: KeyNotFound) { <absent> }` to handle the
+// miss in the same one walk, not a separate has-probe.
+scope_get := func(mut s: Scope, name: Str) returns ref Cell throws KeyNotFound {
     ref mut cur : Scope = s
-    while true {
-        if cur.is_null() { return NULL }
+    while cur.is_null().not() {
         if cur.bindings.has(name) {
             return cur.bindings[name].cell
         }
         cur = cur.parent
     }
-    return NULL
+    throw KeyNotFound(msg = format("scope_get: unbound name '", name, "'"))
 }
 
 priv scope_get_return_move_cell := func(mut s: Scope, name: Str) returns ref Cell {
@@ -3835,7 +3849,7 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope) returns Value {
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         for cap : Declaration in fd.captures {
-            ref src : Cell = scope_get(scope, cap.name)
+            ref src : Cell = scope_get(scope, cap.name)!
             if cap.own_type.is(OwnType.Ref) {
                 scope_set_borrowed(env, cap.name, src)
             } else if cap.own_type.is(OwnType.Shallow) {
@@ -3849,7 +3863,7 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope) returns Value {
         }
     case NodeType.BodyValue(bd):
         for cap2 : Declaration in bd.captures {
-            ref src2 : Cell = scope_get(scope, cap2.name)
+            ref src2 : Cell = scope_get(scope, cap2.name)!
             if cap2.own_type.is(OwnType.Ref) {
                 scope_set_borrowed(env, cap2.name, src2)
             } else if cap2.own_type.is(OwnType.Shallow) {
@@ -3996,7 +4010,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
 
 priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
     ref obj_expr : Expr = e.children[0]
-    ref tc : Cell = scope_get(scope, sname)
+    ref tc : Cell = scope_get(scope, sname)!
     if tc.is_null() { return false }
     switch tc.val {
     case Value.Func(fptr):
@@ -4024,7 +4038,7 @@ priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bo
 priv field_assign_dyn_move_src := func(mut scope: Scope, val_expr: Expr) returns ref Cell {
     if val_expr.til_type().is(Type.Dynamic).not() { return NULL }
     switch val_expr.node_type {
-    case NodeType.Ident(vi): return scope_get(scope, vi.ident_name())
+    case NodeType.Ident(vi): return scope_get(scope, vi.ident_name())!
     case:
         return NULL
     }
@@ -4752,7 +4766,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
         else {
             switch stmt.children[0].node_type {
             case NodeType.Ident(rhs_ident):
-                ref src : Cell = scope_get(global, rhs_ident.ident_name())
+                ref src : Cell = scope_get(global, rhs_ident.ident_name())!
                 if src.is_null().not() {
                     switch src.val {
                     case Value.Func(fptr):
@@ -4786,7 +4800,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
             case NodeType.Ident(rhs_ident):
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    ref tc : Cell = scope_get(global, rhs_ident.ident_name())
+                    ref tc : Cell = scope_get(global, rhs_ident.ident_name())!
                     if tc.is_null().not() {
                         switch tc.val {
                         case Value.Func(fptr):
@@ -5142,7 +5156,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
     if lp.run_tests.not() { if lp.cur_mode.is_null().not() { if lp.cur_mode.needs_main {
-        ref main_cell : Cell = scope_get(session.global, "main")
+        ref main_cell : Cell = scope_get(session.global, "main")!
         if main_cell.is_null().or(main_cell.val.is(Value.Func).not()) {
             eprint_single(lp.path)
             eprint_single(": error: this mode requires a 'main' proc\n")
@@ -5889,7 +5903,7 @@ priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
 priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)
+    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
     if tc.is_null() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
@@ -5987,7 +6001,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
 priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)
+    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
     if tc.is_null() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
@@ -6085,7 +6099,7 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
 priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)
+    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
     if tc.is_null() {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
@@ -6457,7 +6471,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
 priv h_free := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case NodeType.Ident(ident):
-        ref cell : Cell = scope_get(s, ident.ident_name())
+        ref cell : Cell = scope_get(s, ident.ident_name())!
         free_value_full(cell.val)
         memcpy(cell.val, val_none(), Value.size())
     case NodeType.FieldAccess(fa):
@@ -6566,7 +6580,7 @@ priv free_callable_storage := func(mut v: Value) {
 priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case NodeType.Ident(id):
-        ref cell : Cell = scope_get(s, id.ident_name())
+        ref cell : Cell = scope_get(s, id.ident_name())!
         if cell.is_null() { panic("til_closure_delete: undefined ", Str.clone(id.ident_name())) }
         free_callable_storage(cell.val)
         memcpy(cell.val, val_none(), Value.size())
@@ -6575,7 +6589,7 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, mut r: Value, ctx: Context)
             ref obj_expr : Expr = e.children[1].children[0]
             switch obj_expr.node_type {
             case NodeType.Ident(obj_id):
-                ref obj_cell : Cell = scope_get(s, obj_id.ident_name())
+                ref obj_cell : Cell = scope_get(s, obj_id.ident_name())!
                 if obj_cell.is_null().not() {
                     switch obj_cell.val {
                     case Value.Struct(si):
@@ -6726,7 +6740,7 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
     }
     switch arg.children[0].node_type {
     case NodeType.Ident(base_id):
-        ref cell : Cell = scope_get(s, base_id.ident_name())
+        ref cell : Cell = scope_get(s, base_id.ident_name())!
         if cell.is_null() { return NULL }
         switch cell.val {
         case Value.Struct(si):
@@ -7541,7 +7555,7 @@ priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, 
     nv := value_as_i64(cur).add(delta)
     switch e.children[1].node_type {
     case NodeType.Ident(id):
-        ref cell : Cell = scope_get(scope, id.ident_name())
+        ref cell : Cell = scope_get(scope, id.ident_name())!
         if cell.is_null() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name()) }
         sv : Value = scalar_build(type_str, nv)
         memcpy(cell.val, sv, Value.size())
