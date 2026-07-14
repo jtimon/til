@@ -4009,6 +4009,26 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // typed and lowered as ordinary code.
     expand_lazy_calls_in_program(lp)
 
+    // Register + extend every throwing function's signature across ALL
+    // units BEFORE any body type-checking. The per-file pass inside
+    // type_check_unit runs during the bodies sweep in import-topological
+    // order, which is too late for a caller whose throwing callee lives
+    // in a unit typed later: e.g. constfolder.til (typed before
+    // interpreter.til, since loader imports constfolder and interpreter
+    // imports loader) catching interpreter's `scope_get`. Doing it here
+    // makes ctx.throws_global complete -- and every throwing callee's
+    // params already err-out-extended -- for every call site in the
+    // program. extend_throwing_func_sigs is idempotent, so the
+    // per-unit call in the bodies sweep is a no-op re-walk.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[u.path].ast)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[u.path].ast)
+    }
+
     // Type checking (rstil-style): recursive imports per file.
     mut type_errors : I32 = 0
     if lp.skip_core.not() {

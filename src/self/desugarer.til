@@ -677,16 +677,39 @@ priv subtree_has_throw_catch := func(e: Expr) returns Bool {
 // guard against (unlike a bare throw or a propagating `?`-call). A
 // bang nested in a while/if body would otherwise spuriously wrap the
 // statements after the loop in `if _err_kind == 0`.
+//
+// A `catch` also resets _err_kind (lower_catch_node sets it to 0), so a
+// throwing call whose catch is in the SAME body leaves nothing pending
+// once the body finishes. This is computed as a NET pending count over a
+// Body's statements in order (a throwing call sets pending, a catch
+// clears it), so `switch t { case X: v := f()? catch (e:T) {} ... }`
+// does not spuriously wrap the statements after the switch -- the
+// throw is fully handled inside the case body. Without this, the
+// trailing `return` gets wrapped in `if _err_kind == 0 { return }`,
+// an if with no else that check_all_paths_return correctly flags as
+// able to fall through.
 priv subtree_has_pending_throw := func(e: Expr) returns Bool {
-    if e.node_type.is(NodeType.Throw).or(e.node_type.is(NodeType.Catch)) {
-        return true
-    }
-    if e.node_type.is(NodeType.FCall) {
-        switch e.node_type {
-        case NodeType.FCall(fcd):
-            if fcd.does_throw { return true }
-        case:
+    switch e.node_type {
+    case NodeType.Body:
+        // Net pending over the body's statements in source order: a
+        // throwing statement sets pending, a catch clears it.
+        mut pending := false
+        for c : Expr in e.children {
+            if c.node_type.is(NodeType.Catch) {
+                pending = false
+            } else if subtree_has_pending_throw(c) {
+                pending = true
+            }
         }
+        return pending
+    case NodeType.Throw:
+        return true
+    case NodeType.Catch:
+        // A catch resets _err_kind; on its own it leaves nothing pending.
+        return false
+    case NodeType.FCall(fcd):
+        if fcd.does_throw { return true }
+    case:
     }
     for c : Expr in e.children {
         if subtree_has_pending_throw(c) { return true }
