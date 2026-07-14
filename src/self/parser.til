@@ -751,8 +751,13 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         def.add_child(own parse_block(p))
     } else {
-        // Bodyless = FuncSig type definition (only for func/proc)
-        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not()) {
+        // Bodyless = FuncSig type definition. Allowed for func/proc and (issue
+        // #262 first-class) lazy_func/lazy_proc: a `Sig := lazy_func(Bool, Bool)
+        // returns Bool` names a lazy funcsig type. The loader lowers it to the
+        // thunk signature `func(_Fn_ret_Bool, _Fn_ret_Bool) returns Bool` and
+        // wraps args at calls through a value of that type.
+        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not())
+        .and(ft.is(FuncType.LazyFunc).not()).and(ft.is(FuncType.LazyProc).not()) {
             panic(p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
                 ": ", func_type_name(ft), " requires a body")
         }

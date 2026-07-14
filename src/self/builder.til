@@ -2789,22 +2789,33 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     }
 }
 
-priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
+// The C return type a funcptr/closure call yields, matching the cast's cast
+// type exactly (so a `<ret> til_closure_result = <call>` binding is well-typed).
+// "void" when the sig returns nothing.
+priv funcptr_call_ret_ctype := func(e: Expr, sig: Expr) returns Str {
     switch sig.node_type {
     case NodeType.FuncDef(sfd):
         ret_shallow := sfd.return_own_type.is(OwnType.Shallow)
-        mut ret_c := "void *"
-        if sfd.return_type.len() == 0 {
-            ret_c = "void"
-        } else if e.til_type().is(Type.None).not().and(e.til_type().is(Type.Unknown).not())
-        .and(e.til_type().is(Type.Dynamic).not()) {
-            ret_c = til_type_to_c(e.til_type())
-            if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) {
-                e_sname := til_type_name(e.til_type())
-                if e_sname.len() > 0 { ret_c = e_sname }
-            }
-            if ret_shallow.not() { ret_c = format(ret_c, " *") }
+        if sfd.return_type.len() == 0 { return "void" }
+        if e.til_type().is(Type.None).or(e.til_type().is(Type.Unknown)).or(e.til_type().is(Type.Dynamic)) {
+            return "void *"
         }
+        mut ret_c := til_type_to_c(e.til_type())
+        if e.til_type().is(Type.Struct).or(e.til_type().is(Type.Enum)) {
+            e_sname := til_type_name(e.til_type())
+            if e_sname.len() > 0 { ret_c = e_sname }
+        }
+        if ret_shallow.not() { ret_c = format(ret_c, " *") }
+        return ret_c
+    case:
+        return "void *"
+    }
+}
+
+priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
+    switch sig.node_type {
+    case NodeType.FuncDef(sfd):
+        ret_c := funcptr_call_ret_ctype(e, sig)
         f.write("((")
         f.write(ret_c)
         f.write(" (*)(")
@@ -2840,7 +2851,32 @@ priv emit_fcall_funcptr_cast := proc(f: File, e: Expr, sig: Expr) {
 }
 
 emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth: I32, ctx: Context) {
-    f.write("({ TilClosure *til_closure = (TilClosure *)(")
+    // #262 first-class: when a call THROUGH a funcptr value passes capturing
+    // thunk args, hoist each into til_closure_arg_<i>, run the call, then
+    // drop+free them -- exactly like the direct-call path
+    // (emit_user_fcall_with_inline_closure_cleanup). Non-capturing thunks lift
+    // to static closures (no free), so the common path stays byte-identical.
+    has_cap := fcall_has_inline_capturing_func_arg(e)
+    mut ret_ctype := ""
+    if has_cap {
+        rc := funcptr_call_ret_ctype(e, sig)
+        if rc.eq("void").not() { ret_ctype = rc.clone() }
+    }
+    f.write("({ ")
+    if has_cap {
+        for hi in 1..e.children.len() {
+            switch e.children[hi].node_type {
+            case NodeType.FuncDef(hfd):
+                if hfd.captures.len() > 0 {
+                    f.write("TilClosure *til_closure_arg_"); emit_i32(f, hi.to_i32()); f.write(" = ")
+                    emit_expr(f, e.children[hi], depth, ctx)
+                    f.write("; ")
+                }
+            case:
+            }
+        }
+    }
+    f.write("TilClosure *til_closure = (TilClosure *)(")
     switch callee.node_type {
     case NodeType.Ident(cname):
         if is_ref_local(cname.ident_name(), ctx) {
@@ -2852,13 +2888,28 @@ emit_fcall_closure_call := proc(f: File, e: Expr, callee: Expr, sig: Expr, depth
         emit_expr(f, callee, depth, ctx)
     }
     f.write("); ")
+    if has_cap.and(ret_ctype.len() > 0) { f.fwrite(ret_ctype, " til_closure_result = ") }
     emit_fcall_funcptr_cast(f, e, sig)
     f.write("))til_closure->call)(til_closure->env")
     if e.children.len() > 1 {
         f.write(", ")
-        emit_fcall_funcptr_args(f, e, sig, depth, ctx)
+        emit_fcall_funcptr_args(f, e, sig, depth, ctx, has_cap)
     }
-    f.write("); })")
+    f.write("); ")
+    if has_cap {
+        for ci in 1..e.children.len() {
+            switch e.children[ci].node_type {
+            case NodeType.FuncDef(cfd):
+                if cfd.captures.len() > 0 {
+                    emit_til_closure_cleanup(f, format("til_closure_arg_", ci.to_str()))
+                    f.write(" ")
+                }
+            case:
+            }
+        }
+        if ret_ctype.len() > 0 { f.write("til_closure_result; ") }
+    }
+    f.write("})")
 }
 
 emit_body_closure_call := proc(f: File, callee: Expr, depth: I32, ctx: Context) {
@@ -2867,11 +2918,27 @@ emit_body_closure_call := proc(f: File, callee: Expr, depth: I32, ctx: Context) 
     f.write("); ((void (*)(void *))til_closure->call)(til_closure->env); })")
 }
 
-priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ctx: Context) {
+priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, ctx: Context, wrap_inline_closures: Bool) {
     switch sig.node_type {
     case NodeType.FuncDef(sfd):
         for i in 1..e.children.len() {
             if i > 1 { f.write(", ") }
+            // A capturing thunk arg (#262 first-class) was hoisted into
+            // til_closure_arg_<i> by the caller so it can be freed after the
+            // call; reference that TilClosure* (by value) instead of building
+            // and leaking a fresh one here.
+            mut emitted_inline := false
+            if wrap_inline_closures {
+                switch e.children[i].node_type {
+                case NodeType.FuncDef(fd):
+                    if fd.captures.len() > 0 {
+                        f.write("til_closure_arg_"); emit_i32(f, i.to_i32())
+                        emitted_inline = true
+                    }
+                case:
+                }
+            }
+            if emitted_inline { continue }
             mut arg_shallow := false
             if i - 1 < sfd.params.len() {
                 ref p : Declaration = sfd.params[i - 1]

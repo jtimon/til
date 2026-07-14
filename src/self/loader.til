@@ -3358,6 +3358,83 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
     lp.ctx.scope.set_func_def(name, fdef)
 }
 
+// Issue #262 first-class: lower a bodyless `Sig := lazy_func(T, ...) returns R`
+// funcsig type in place. Like a thunk-lowered def's params, each param `T`
+// becomes `_Fn_ret_T` and the func_type flips LazyFunc->Func / LazyProc->Proc,
+// so the funcsig's C typedef (`TilClosure *Sig`) is emitted and its resolved
+// signature matches a thunk-lowered def assigned/returned as that type. The
+// name is recorded in `lazy_sigs`; a call through any value of that type gets
+// its args thunk-wrapped by lazy_wrap_thunk_calls.
+priv lazy_lower_funcsig := func(mut lp: LoadedProgram, unit_path: Str,
+        name: Str, mut fdef: Expr, mut lazy_sigs: Set(Str), mut seen: Set(Str)) {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index >= 0 { return }   // variadic funcsig: out of scope
+        if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
+        else if fd.func_type.is(FuncType.LazyProc) { fd.func_type = FuncType.Proc }
+        else { return }
+        for i in 0..fd.params.len() {
+            ref mut param : Declaration = fd.params[i]
+            ret_type := param.explicit_type.clone()
+            lazy_register_fn_ret_alias(lp, unit_path, ret_type, fdef.line, fdef.col, seen)
+            param.explicit_type = format("_Fn_ret_", ret_type)
+            param.til_type = til_type_from_explicit_type(param.explicit_type)
+        }
+    case:
+        return
+    }
+    lazy_sigs.add(own name.clone())
+    lp.ctx.scope.set_func_def(name, fdef)
+}
+
+// If `call` (an FCall / UFCS method call) targets a function whose declared
+// return type is a lazy funcsig, return that funcsig name, else "". Lets a
+// `g := returns_a_lazy_func()` decl mark `g` first-class so its own calls wrap.
+priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(Str)) returns Str {
+    if call.node_type.is(NodeType.FCall).not() { return "" }
+    if call.children.len() == 0 { return "" }
+    mut callee_name := ""
+    switch call.children[0].node_type {
+    case NodeType.Ident(idn): callee_name = Str.clone(idn.ident_name())
+    case NodeType.FieldAccess(fa): callee_name = Str.clone(fa.field_access_name())
+    case:
+    }
+    if callee_name.len() == 0 { return "" }
+    ref cfd : Expr = scope.lookup_func(callee_name)
+    if cfd.is_null() { return "" }
+    switch cfd.node_type {
+    case NodeType.FuncDef(fd):
+        if lazy_sigs.has(fd.return_type) { return fd.return_type.clone() }
+    case:
+    }
+    return ""
+}
+
+// If `call` builds a struct value -- a constructor `S(...)` (callee is a struct
+// name) or a call to a struct-returning function -- return that struct's name,
+// else "". Lets `h := S(...)` mark `h` so a later `h.fn(...)` field call can
+// resolve its lazy-funcsig field.
+priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
+    if call.node_type.is(NodeType.FCall).not() { return "" }
+    if call.children.len() == 0 { return "" }
+    mut name := ""
+    switch call.children[0].node_type {
+    case NodeType.Ident(idn): name = Str.clone(idn.ident_name())
+    case NodeType.FieldAccess(fa): name = Str.clone(fa.field_access_name())
+    case:
+    }
+    if name.len() == 0 { return "" }
+    if scope.get_struct(name).is_null().not() { return name.clone() }
+    ref cfd : Expr = scope.lookup_func(name)
+    if cfd.is_null() { return "" }
+    switch cfd.node_type {
+    case NodeType.FuncDef(fd):
+        if scope.get_struct(fd.return_type).is_null().not() { return fd.return_type.clone() }
+    case:
+    }
+    return ""
+}
+
 // Classify one name referenced inside a thunk arg expression against the
 // program ROOT scope (lp.ctx.scope at this phase). A name is a CAPTURE iff it
 // is not bound inside the thunk body and is not resolvable at root scope: at
@@ -3456,6 +3533,65 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
     return nc
 }
 
+// Build a call through a FIELD funcptr `recv.fn(thunk(a0), thunk(a1), ...)`
+// (a lazy-funcsig struct field, #262 first-class). Unlike lazy_build_thunk_call
+// the callee is the original FieldAccess (`recv.fn`), NOT a bare name, and the
+// receiver is NOT an effective arg -- the field IS the funcptr, so args are just
+// children[1..]. Per-param ret_type recovered from the sig's `_Fn_ret_T`.
+priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: TypeScope) returns Expr {
+    line := call.line
+    col := call.col
+    mut nc := Expr.new(NodeType.FCall(FCallData()), line, col)
+    nc.add_child(own call.children[0].clone())
+    switch sig_fdef.node_type {
+    case NodeType.FuncDef(fd):
+        for j in 0..fd.params.len() {
+            ref param : Declaration = fd.params[j]
+            ret_type := param.explicit_type.strip_prefix("_Fn_ret_")
+            nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope))
+        }
+    case:
+    }
+    return nc
+}
+
+// For a field call `recv.fn(...)`, return the lazy funcsig name of field `fn`
+// when `recv` is a local of a known struct type (tracked in `struct_of`) whose
+// `fn` field is typed as a lazy funcsig, else "".
+priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: TypeScope, lazy_sigs: Set(Str)) returns Str {
+    if call.children.len() == 0 { return "" }
+    ref callee : Expr = call.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    if callee.children.len() == 0 { return "" }
+    mut field_name := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(fa): field_name = Str.clone(fa.field_access_name())
+    case:
+    }
+    mut recv_name := ""
+    switch callee.children[0].node_type {
+    case NodeType.Ident(rn): recv_name = Str.clone(rn.ident_name())
+    case:
+    }
+    if recv_name.len().eq(0).or(field_name.len().eq(0)) { return "" }
+    if struct_of.has(recv_name).not() { return "" }
+    ref sname : Str = struct_of.get(recv_name)!
+    if sname.len() == 0 { return "" }
+    ref sdef : Expr = scope.get_struct(sname)
+    if sdef.is_null() { return "" }
+    switch sdef.node_type {
+    case NodeType.StructDef(sdd):
+        for fld : Declaration in sdd.fields {
+            if fld.name.eq(field_name) {
+                if lazy_sigs.has(fld.explicit_type) { return fld.explicit_type.clone() }
+                return ""
+            }
+        }
+    case:
+    }
+    return ""
+}
+
 // Resolve a call-site name through the local alias map to the canonical
 // thunk-lowered def it stands for. Returns the name unchanged when it is not an
 // alias (or is a shadow, stored as ""). Aliases are stored fully resolved, so a
@@ -3477,64 +3613,123 @@ priv lazy_alias_resolve := func(name: Str, aliases: Map(Str, Str)) returns Str {
 // with a non-lazy value). It is cloned on descent so a nested block's aliases
 // never leak to an outer sibling -- e.g. a different function that reuses the
 // name for an unrelated value.
-priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), mut aliases: Map(Str, Str), depth: I32) {
+priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), lazy_sigs: Set(Str), mut aliases: Map(Str, Str), mut struct_of: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
+    // Entering a FuncDef: seed its params. A param typed as a lazy funcsig is a
+    // first-class lazy value (alias -> sig); a param typed as a struct lets a
+    // `p.fn(...)` field call resolve its lazy-sig field. `aliases`/`struct_of`
+    // are per-subtree clones from the parent, so this does not leak out.
+    switch e.node_type {
+    case NodeType.FuncDef(efd):
+        for p : Declaration in efd.params {
+            if p.explicit_type.len() == 0 { continue }
+            if lazy_sigs.has(p.explicit_type) {
+                aliases.set(p.name, own p.explicit_type.clone())
+            } else if scope.get_struct(p.explicit_type).is_null().not() {
+                struct_of.set(p.name, own p.explicit_type.clone())
+            }
+        }
+    case:
+    }
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
-            mut lname := ""
-            mut is_method := false
-            switch c.children[0].node_type {
-            case NodeType.Ident(idn): lname = Str.clone(idn.ident_name())
-            case NodeType.FieldAccess(fa):
-                lname = Str.clone(fa.field_access_name())
-                is_method = true
-            case:
-            }
-            if lname.len() > 0 {
-                canon := lazy_alias_resolve(lname, aliases)
-                if lowered.has(canon) {
-                    // Look the signature up under the CANONICAL def (an alias
-                    // has no func_def of its own); emit the call through the
-                    // call-site name (`lname`) so a first-class alias keeps
-                    // dispatching through its funcptr value.
-                    ref fdef : Expr = scope.lookup_func(canon)
-                    if fdef.is_null().not() {
-                        mut nparams : USize = 0
-                        switch fdef.node_type {
-                        case NodeType.FuncDef(fd): nparams = fd.params.len()
-                        case:
-                        }
-                        // Effective args: bare `f(a, b)` has children.len()-1 args;
-                        // UFCS `a.f(b)` adds the receiver, so children.len().
-                        mut eff_count : USize = c.children.len().sub(1)
-                        if is_method { eff_count = c.children.len() }
-                        if eff_count.eq(nparams) {
-                            e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
+            // First-class struct-field call `recv.fn(...)` where `fn` is a
+            // lazy-funcsig field: the field IS the funcptr, so the receiver is
+            // not an effective arg.
+            fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs)
+            if fsig.len() > 0 {
+                ref sfd : Expr = scope.lookup_func(fsig)
+                if sfd.is_null().not() {
+                    mut fnparams : USize = 0
+                    switch sfd.node_type {
+                    case NodeType.FuncDef(fd): fnparams = fd.params.len()
+                    case:
+                    }
+                    if c.children.len().sub(1).eq(fnparams) {
+                        e.children[i] = lazy_build_field_thunk_call(c, sfd, scope)
+                    }
+                }
+            } else {
+                mut lname := ""
+                mut is_method := false
+                switch c.children[0].node_type {
+                case NodeType.Ident(idn): lname = Str.clone(idn.ident_name())
+                case NodeType.FieldAccess(fa):
+                    lname = Str.clone(fa.field_access_name())
+                    is_method = true
+                case:
+                }
+                if lname.len() > 0 {
+                    canon := lazy_alias_resolve(lname, aliases)
+                    // A thunk-lowered def called directly / through a local alias
+                    // (`lowered`), or a value of a lazy funcsig type (`lazy_sigs`,
+                    // #262 first-class). Both resolve their lowered signature --
+                    // `_Fn_ret_T` params -- through scope.lookup_func(canon); emit
+                    // the call through the call-site name so the funcptr value keeps
+                    // dispatching.
+                    if lowered.has(canon).or(lazy_sigs.has(canon)) {
+                        ref fdef : Expr = scope.lookup_func(canon)
+                        if fdef.is_null().not() {
+                            mut nparams : USize = 0
+                            switch fdef.node_type {
+                            case NodeType.FuncDef(fd): nparams = fd.params.len()
+                            case:
+                            }
+                            // Effective args: bare `f(a, b)` has children.len()-1 args;
+                            // UFCS `a.f(b)` adds the receiver, so children.len().
+                            mut eff_count : USize = c.children.len().sub(1)
+                            if is_method { eff_count = c.children.len() }
+                            if eff_count.eq(nparams) {
+                                e.children[i] = lazy_build_thunk_call(c, fdef, lname, is_method, scope)
+                            }
                         }
                     }
                 }
             }
         }
         mut child_aliases := aliases.clone()
-        lazy_wrap_thunk_calls(e.children[i], scope, lowered, child_aliases, depth + 1)
-        // A Decl `x := y` where `y` resolves to a lowered def makes `x` a
-        // first-class alias visible to later siblings; any other Decl of `x`
-        // shadows an inherited alias (recorded as "").
+        mut child_struct := struct_of.clone()
+        lazy_wrap_thunk_calls(e.children[i], scope, lowered, lazy_sigs, child_aliases, child_struct, depth + 1)
+        // Record first-class bindings a Decl introduces for later siblings:
+        //   - an explicit lazy-funcsig type `x: Sig` (alias); or an explicit
+        //     struct type `x: S` (struct_of);
+        //   - `x := y` where `y` resolves to a lowered def or a lazy-sig value;
+        //   - `x := f(...)` where `f` returns a lazy funcsig (alias) or a struct
+        //     -- a struct constructor `S(...)` or a struct-returning call.
+        // Any other Decl of `x` shadows an inherited alias (recorded as "").
         ref cc : Expr = e.children[i]
         switch cc.node_type {
         case NodeType.Decl(dd):
-            if dd.name.len().gt(0).and(cc.children.len().gt(0)) {
-                switch cc.children[0].node_type {
-                case NodeType.Ident(rid):
-                    ycanon := lazy_alias_resolve(rid.ident_name(), aliases)
-                    if lowered.has(ycanon) {
-                        aliases.set(dd.name, own ycanon)
-                    } else {
+            if dd.name.len() > 0 {
+                if dd.explicit_type.len().gt(0).and(lazy_sigs.has(dd.explicit_type)) {
+                    aliases.set(dd.name, own dd.explicit_type.clone())
+                } else if dd.explicit_type.len().gt(0).and(scope.get_struct(dd.explicit_type).is_null().not()) {
+                    struct_of.set(dd.name, own dd.explicit_type.clone())
+                } else if cc.children.len() > 0 {
+                    switch cc.children[0].node_type {
+                    case NodeType.Ident(rid):
+                        ycanon := lazy_alias_resolve(rid.ident_name(), aliases)
+                        if lowered.has(ycanon).or(lazy_sigs.has(ycanon)) {
+                            aliases.set(dd.name, own ycanon)
+                        } else if struct_of.has(rid.ident_name()) {
+                            aliases.set(dd.name, own "")
+                            struct_of.set(dd.name, own struct_of.get(rid.ident_name())!.clone())
+                        } else {
+                            aliases.set(dd.name, own "")
+                        }
+                    case NodeType.FCall:
+                        sig := lazy_call_returns_sig(cc.children[0], scope, lazy_sigs)
+                        if sig.len() > 0 {
+                            aliases.set(dd.name, own sig)
+                        } else {
+                            st := lazy_call_struct_type(cc.children[0], scope)
+                            if st.len() > 0 { struct_of.set(dd.name, own st) }
+                            else { aliases.set(dd.name, own "") }
+                        }
+                    case:
                         aliases.set(dd.name, own "")
                     }
-                case:
-                    aliases.set(dd.name, own "")
                 }
             }
         case:
@@ -3545,7 +3740,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
 // Find and lower every non-inlinable top-level lazy def in one unit AST, then
 // collect the lowered names. Defs are the direct top-level Decl children.
 priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
-        mut lowered: Set(Str), mut seen: Set(Str)) {
+        mut lowered: Set(Str), mut lazy_sigs: Set(Str), mut seen: Set(Str)) {
     ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
     n := unit_ast.children.len()
     for i in 0..n {
@@ -3560,6 +3755,12 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         ref fdef : Expr = stmt.children[0]
         ft := func_def_type(fdef)
         if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { continue }
+        // A bodyless lazy funcsig `Sig := lazy_func(T, ...) returns R` (#262
+        // first-class): lower the TYPE, not a def.
+        if fdef.children.len() == 0 {
+            lazy_lower_funcsig(lp, unit_path, lname, fdef, lazy_sigs, seen)
+            continue
+        }
         ref body : Expr = fdef.children[0]
         if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) { continue }
         lazy_thunk_lower_def(lp, unit_path, lname, fdef, lowered, seen)
@@ -3573,32 +3774,36 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
 // the call-wrapping here already handled them.
 priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     mut lowered := Set(Str).new()
+    mut lazy_sigs := Set(Str).new()
     mut seen := Set(Str).new()
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            lazy_thunk_lower_unit(lp, cu.path, lowered, seen)
+            lazy_thunk_lower_unit(lp, cu.path, lowered, lazy_sigs, seen)
         }
     }
     for uu : ProgramUnit in lp.units {
-        lazy_thunk_lower_unit(lp, uu.path, lowered, seen)
+        lazy_thunk_lower_unit(lp, uu.path, lowered, lazy_sigs, seen)
     }
     for mf : Str in lp.mode_files {
-        lazy_thunk_lower_unit(lp, mf, lowered, seen)
+        lazy_thunk_lower_unit(lp, mf, lowered, lazy_sigs, seen)
     }
-    if lowered.len() == 0 { return }
+    if lowered.len().eq(0).and(lazy_sigs.len().eq(0)) { return }
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             mut ca := Map(Str, Str).new()
-            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, ca, 0)
+            mut cs := Map(Str, Str).new()
+            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ca, cs, 0)
         }
     }
     for uu : ProgramUnit in lp.units {
         mut ua := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, ua, 0)
+        mut us := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ua, us, 0)
     }
     for mf : Str in lp.mode_files {
         mut ma := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, ma, 0)
+        mut ms := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, lazy_sigs, ma, ms, 0)
     }
 }
 

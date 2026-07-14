@@ -88,16 +88,27 @@ Status summary (what is merged):
        closure-call cast treating an `_Fn_ret_T` (= `TilClosure *`) arg by value
        instead of appending a spurious extra pointer. Tests: test/lazy.til
        (test_first_class_value / _chain / _short_circuits).
-       STILL REMAINING: first-class through an EXPLICITLY-NAMED funcsig type --
-       returning a lazy func (`func() returns MySig { return both }`), a struct
-       field of that type, or a HOF param. These need the user's surface funcsig
-       (`func(Bool, Bool)`) to be lowered to the thunk signature
-       (`func(_Fn_ret_Bool, _Fn_ret_Bool)`) -- i.e. a lazy-funcsig-type lowering
-       and call-through-lazy-funcsig-value wrapping -- which is a distinct piece
-       (new surface: a `lazy_func(...)` bodyless funcsig). Escaping thunks that
-       capture locals BY REFERENCE remain gated by #54's escape checks (shallow/
-       own captures); and passing a lazy func through an EAGER HOF cannot
-       preserve the HOF's own arg short-circuit by semantics.
+       ALSO DONE now: first-class through an EXPLICITLY-NAMED lazy funcsig type.
+       New surface -- a bodyless `Sig := lazy_func(Bool, Bool) returns Bool`
+       (parser accepts a bodyless lazy_func/lazy_proc funcsig). The loader
+       lowers that TYPE like a def's params (`Bool` -> `_Fn_ret_Bool`, func_type
+       LazyFunc->Func so its `TilClosure *` typedef emits) and records it in a
+       `lazy_sigs` set (lazy_lower_funcsig, src/self/loader.til). A thunk-lowered
+       def then stores/returns/passes as that type, and lazy_wrap_thunk_calls
+       wraps args at any call THROUGH such a value -- resolving the value's
+       lazy-sig from: an explicit `x: Sig` annotation, a param typed `Sig`, a
+       `x := f()` whose callee returns `Sig`, or a lazy-sig struct field
+       `h.fn(...)` (via a receiver `struct_of` map + lazy_build_field_thunk_call,
+       where the field IS the funcptr so the receiver is not an arg). Verified
+       in BOTH backends with short-circuit for: explicitly-typed local, HOF
+       param, returned value, and struct field. Tests: test/lazy.til
+       (test_lazysig_explicit_local / _hof_param / _returned / _struct_field).
+       Remaining nuances (NOT blocking): escaping thunks that capture locals BY
+       REFERENCE are still gated by #54's escape checks (shallow/own captures);
+       and passing a lazy func through an EAGER HOF cannot preserve the HOF's
+       OWN argument short-circuit by semantics (the eager call evaluates them
+       before the lazy body runs) -- the value is correct, only the HOF-arg
+       side effects are not deferred.
     2. Param-name shadowing inside a thunk-lowered body: DONE. Every shadowing
        form is now handled scope-aware by the auto-force pass so the def
        thunk-lowers instead of hard-erroring: a Decl of the name, a for-in loop

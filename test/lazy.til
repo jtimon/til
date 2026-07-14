@@ -548,6 +548,53 @@ test_first_class_short_circuits := test() {
     assert_eq(I64, eval_count, 1)
 }
 
+# --- FIRST-CLASS via a lazy funcsig TYPE (#262 item 1). A bodyless
+#     `BothSig := lazy_func(Bool, Bool) returns Bool` names a lazy funcsig; the
+#     loader lowers it to the thunk signature `func(_Fn_ret_Bool, _Fn_ret_Bool)
+#     returns Bool` so a thunk-lowered def (`both`) can be stored/returned/passed
+#     as that type, and any call THROUGH such a value thunk-wraps its args and
+#     short-circuits. Covers an explicitly-typed local, a HOF param, a returned
+#     value, and a struct field. ---
+
+BothSig := lazy_func(a: Bool, b: Bool) returns Bool
+
+get_both := func() returns BothSig { return both }
+apply_both := func(f: BothSig, p: Bool, q: Bool) returns Bool { return f(p, q) }
+BothHolder := struct { fn: BothSig }
+
+test_lazysig_explicit_local := test() {
+    g : BothSig = both
+    expect(g(true, true), "explicit g(T,T)")
+    expect(g(false, true).not(), "explicit g(F,T)")
+}
+
+test_lazysig_hof_param := test() {
+    expect(apply_both(both, true, true), "apply_both(T,T)")
+    expect(apply_both(both, false, true).not(), "apply_both(F,T)")
+}
+
+test_lazysig_returned := test() {
+    g := get_both()
+    expect(g(true, true), "returned g(T,T)")
+    expect(g(false, true).not(), "returned g(F,T)")
+    # short-circuit survives the return: a=false never forces bump()
+    eval_count = 0
+    r := g(false, bump())
+    expect(r.not(), "returned g(false, bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+}
+
+test_lazysig_struct_field := test() {
+    h := BothHolder(fn = both)
+    expect(h.fn(true, true), "h.fn(T,T)")
+    expect(h.fn(true, false).not(), "h.fn(T,F)")
+    # the field IS the funcptr (h is not an arg); short-circuit holds
+    eval_count = 0
+    r := h.fn(false, bump())
+    expect(r.not(), "h.fn(false, bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+}
+
 # --- lazy_proc: like lazy_func but its deferred argument may be a proc call
 #     (a side-effecting expression). ---
 
