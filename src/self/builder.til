@@ -843,6 +843,27 @@ priv callee_param_is_own := func(callee_name: Str, arg_index: USize, ctx: Contex
     }
 }
 
+// Issue #309: a `mut` (or ref) USize/UPtr param is passed by pointer and the
+// callee WRITES BACK through it. The USIZE_REF/UPTR_REF boxing spells the arg
+// as a pointer to a fresh temporary (the alias-facing ABI for by-VALUE size
+// args); boxing a write-back param would send the callee's writes to that
+// throwaway temp and lose them -- at --usize=32 this desynced every
+// `mut i: USize` loop cursor (e.g. infer_body_stmt's statement index),
+// corrupting the typer's flow analysis. Such params must receive the caller's
+// real lvalue address instead, so exclude them from boxing (like `own`).
+priv callee_param_writes_back := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
+    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
+    if fdef.is_null() { return false }
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if arg_index >= fd.params.len() { return false }
+        ref p : Declaration = fd.params[arg_index]
+        return p.is_mut.or(p.own_type.is(OwnType.Ref))
+    case:
+        return false
+    }
+}
+
 priv callee_param_explicit_type := func(callee_name: Str, arg_index: USize, ctx: Context) returns Str {
     ref fdef : Expr = find_callee_fdef(callee_name, ctx)
     if fdef.is_null() { return "" }
@@ -1440,9 +1461,9 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
         if emitted_inline_closure { continue }
         if callee_param_is_shallow(callee_name, i - 1, ctx) {
             emit_deref(f, arg, depth, ctx)
-        } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()) {
+        } else if callee_param_is_usize(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
             f.write("USIZE_REF(").emit_deref(arg, depth, ctx).write(")")
-        } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()) {
+        } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
             mut own_arg := get_own_arg(e, i)
@@ -3248,9 +3269,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         if i > 1 { f.write(", ") }
                         if callee_param_is_shallow(flat, i - 1, ctx) {
                             emit_deref(f, e.children[i], depth, ctx)
-                        } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()) {
+                        } else if callee_param_is_usize(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
                             f.write("USIZE_REF(").emit_deref(e.children[i], depth, ctx).write(")")
-                        } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()) {
+                        } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
                             f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                         } else {
                             mut own_arg := get_own_arg(e, i)

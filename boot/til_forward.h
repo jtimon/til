@@ -3148,6 +3148,7 @@ Bool priv___src_self_builder_til__callee_param_is_shallow(Str * callee_name, U64
 Bool priv___src_self_builder_til__callee_param_is_usize(Str * callee_name, U64 arg_index, Context * ctx);
 Bool priv___src_self_builder_til__callee_param_is_uptr(Str * callee_name, U64 arg_index, Context * ctx);
 Bool priv___src_self_builder_til__callee_param_is_own(Str * callee_name, U64 arg_index, Context * ctx);
+Bool priv___src_self_builder_til__callee_param_writes_back(Str * callee_name, U64 arg_index, Context * ctx);
 Str * priv___src_self_builder_til__callee_param_explicit_type(Str * callee_name, U64 arg_index, Context * ctx);
 Bool priv___src_self_builder_til__fcall_is_shallow_return(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__fcall_returns_dynamic(Expr * fcall, Context * ctx);
@@ -3596,7 +3597,8 @@ void priv___src_self_interpreter_til__free_temp_arg_value(Value v);
 void priv___src_self_interpreter_til__free_owned_value(Value v);
 void priv___src_self_interpreter_til__reclone_return(Context * ctx);
 void priv___src_self_interpreter_til__free_non_own_temp_args(Scope * call_scope, Expr * call_expr, Expr * func_def);
-Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype);
+Bool priv___src_self_interpreter_til__scalar_needs_widen_to(Value * val, Str * pt);
+Bool priv___src_self_interpreter_til__needs_widen(Value * val, Str * ptype, Context * ctx);
 Value priv___src_self_interpreter_til__shallow_copy_value(Value * v);
 Value priv___src_self_interpreter_til__borrow_value(Value * v);
 Value * priv___src_self_interpreter_til__box_scalar_to_dynamic(Scope * call_scope, Value * v, Bool track_for_free);

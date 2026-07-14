@@ -48,4 +48,16 @@ s := format("til", "-", "usize", "32")
 check("str len", s.len(), 11)
 if s.eq("til-usize32").not() { println(format("FAIL: str = ", s)); exit(1) }
 
+// #309: a `mut USize` parameter must WRITE BACK to the caller's variable. The
+// emitter boxes by-value USize args (USIZE_REF) under --usize=32; a `mut`
+// (write-back) param must instead receive the caller's real lvalue address,
+// else the callee's writes land in a throwaway temp. That exact bug desynced
+// infer_body_stmt's statement cursor and corrupted the whole compiler's flow
+// analysis when it ran at U32 -- so this must be exercised as COMPILED code.
+advance := func(mut n: USize, by: USize) { n = n + by }
+mut acc : USize = 0
+advance(acc, 2)
+advance(acc, 3)
+check("mut USize write-back", acc, 5)
+
 println("usize32 OK")

@@ -2241,7 +2241,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     mut arg := reinterpret_ptr_value(arg_cell.val, param.explicit_type, caller_scope, ctx, false)
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     scope_set_owned(call_scope, param.name, arg)
-                } else if needs_widen(arg_cell.val, param.explicit_type) {
+                } else if needs_widen(arg_cell.val, param.explicit_type, ctx) {
                     mut arg := arg_cell.val.clone()
                     arg = widen_numeric(arg, param.explicit_type, ctx)
                     scope_set_owned(call_scope, param.name, arg)
@@ -3331,25 +3331,46 @@ priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def
     }
 }
 
-priv needs_widen := func(val: Value, ptype: Str) returns Bool {
-    expect(ptype.is_null().not(), "ptype is null")
-    if ptype.len() == 0 { return false }
+// True when a narrow scalar `val` must be widened to reach the concrete
+// primitive name `pt`. Split out of needs_widen so the USize/UPtr alias
+// resolution can pass a BORROWED (ref) resolved name without needs_widen
+// owning it.
+priv scalar_needs_widen_to := func(val: Value, pt: Str) returns Bool {
     if val.is(Value.Byte) {
-        return ptype.eq("U8").not()
+        return pt.eq("U8").not()
     }
     if val.is(Value.Short) {
-        return ptype.eq("I16").not()
+        return pt.eq("I16").not()
     }
     if val.is(Value.Ushort) {
-        return ptype.eq("U16").not()
+        return pt.eq("U16").not()
     }
     if val.is(Value.Int32) {
-        return ptype.eq("I32").not()
+        return pt.eq("I32").not()
     }
     if val.is(Value.Uint32) {
-        return ptype.eq("U32").not()
+        return pt.eq("U32").not()
     }
     return false
+}
+
+priv needs_widen := func(val: Value, ptype: Str, ctx: Context) returns Bool {
+    expect(ptype.is_null().not(), "ptype is null")
+    if ptype.len() == 0 { return false }
+    // #309: compare against the RESOLVED concrete width for the USize/UPtr
+    // aliases. After the alias-identity fix a USize/UPtr param keeps its ALIAS
+    // name at --usize=32; a value already at the matching concrete width (a
+    // Uint32 for a U32-wide USize) must NOT be reported as needing a widen.
+    // Reporting one made the caller CLONE the arg instead of borrowing it,
+    // which broke `mut USize` params' write-back into the caller's variable
+    // (the interpreter mirror of the codegen boxing bug). resolve_type_alias
+    // returns a BORROW into the scope's alias table -- bind it `ref`, never
+    // own it, or its scope-end delete frees into that table (invalid free).
+    if ptype.eq("USize").or(ptype.eq("UPtr")) {
+        ref resolved : Str = resolve_type_alias(ctx.scope, ptype)
+        return scalar_needs_widen_to(val, resolved)
+    }
+    return scalar_needs_widen_to(val, ptype)
 }
 
 priv shallow_copy_value := func(v: Value) returns shallow Value {
