@@ -58,10 +58,13 @@
     til.exe was defaulting to a linux target and emitting linux link
     flags; (4) toolchain_command picks plain gcc on a windows host vs
     the x86_64-w64-mingw32- cross prefix elsewhere. `make build_win_host`
-    builds bin/til.exe. Interpret and translate are the host proof
-    because neither needs a C toolchain on the runner; `til.exe build`
-    on a real windows box additionally needs a native gcc (mingw/MSVC),
-    left to whoever runs it there. Separately, the same CI job runs the
+    builds bin/til.exe. Interpret and translate need no C toolchain; the
+    CI windows-x64-host-run job now also installs mingw gcc and runs
+    `til.exe build` (compile + link) natively, producing and running a
+    real .exe -- the full-compiler-on-windows proof (get_bin_dir walks
+    up from the download dir to the checkout root, so src/c/ext.c and
+    boot/ resolve; hello_script uses no runtime ext_func so no libffi is
+    needed). Separately, the same CI job runs the
     cross-built nng sender.exe on the windows runner -- proving nng
     works on real winsock, which wine cannot (its winsock is
     incomplete: nng loads and the socket opens under wine, but listen
@@ -81,6 +84,15 @@
     .tbd stubs are Apple-SDK and not redistributable (unlike
     Microsoft's GL/GDI import libs that make the windows gui cross
     work). Native mac gui is the supported path.
+  - macOS as a HOST targeting the others: the macos-host-cross-build CI
+    job builds bin/til natively on a mac, then cross-compiles
+    hello_script for windows (brew mingw-w64 -> the x86_64-w64-mingw32
+    cross-gcc toolchain_command already selects) and for linux (a
+    prebuilt cross-gcc from the messense tap, via --cc); the artifacts
+    run on real windows / linux runners. No cross libffi is needed --
+    compiled programs bind ext_func to direct C symbols and never
+    reference it. This closes the last two matrix cells (the CLI path;
+    gui cross from a mac is the same Apple-SDK block as elsewhere).
   - TempleOS: deferred, split out to [[./151.org][#151]]. #12 is fixed so the hard
     dependency is satisfied; what remains is the HolyC backend itself
     (Lang.HolyC and the holyc toolchain entry are placeholders today).
@@ -334,6 +346,23 @@
      windows CI hang -- the Str.split USize underflow on empty input --
      was fixed separately and is what unblocked every link-flag-less
      cross-compile.
+   - Last two matrix cells wired in CI (pending first green run, since
+     they only execute on the mac/windows runners after a master push).
+     (1) Windows as a host, full build: the windows-x64-host-run job now
+     installs mingw gcc and runs `til.exe build` on the windows runner,
+     compiling+linking a native .exe and running it -- previously only
+     interpret/translate were proven. (2) macOS as a host cross to the
+     others: a new macos-host-cross-build job builds bin/til on a mac,
+     cross-compiles hello_script for windows (brew mingw-w64) and linux
+     (messense-tap cross-gcc via --cc), and the two run-pair jobs
+     execute the artifacts on real windows/linux runners. Key enabler:
+     compiled til programs never reference libffi (ext_func binds to
+     direct C symbols; libffi is the interpreter's mechanism only, and
+     the builder's realpath gate omits an absent libffi.a), so none of
+     these need a cross-built libffi -- only the target toolchain. With
+     these green, the 3x4 host x target matrix is complete except the
+     splits (TempleOS -> #151, windows-x86 -> #232) and the Apple-SDK
+     gui-cross block.
 
 *** macOS plan
 

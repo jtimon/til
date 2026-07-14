@@ -246,6 +246,27 @@ jobs:
         run: |
           ./winhost/sender.exe
           ./winhost/sender.exe | grep -q "nng version"
+      # Full compiler on windows: til.exe BUILDS (compiles + links) a
+      # program natively, the last host capability beyond interpret/
+      # translate. It needs a C toolchain -- `til.exe build` invokes
+      # `gcc` (toolchain_command picks plain gcc on a windows host), so
+      # ensure mingw's gcc is present. get_bin_dir walks up from
+      # winhost/ to the checkout root, so src/c/ext.c and boot/ resolve
+      # there; hello_script uses no runtime ext_func, so no libffi.
+      - name: Build a program with til.exe on windows
+        shell: bash
+        run: |
+          if ! command -v gcc >/dev/null 2>&1; then
+            choco install mingw -y --no-progress >/dev/null
+          fi
+          if ! command -v gcc >/dev/null 2>&1; then
+            gcc_exe=$(find /c/ProgramData/chocolatey/lib/mingw /c/ProgramData/mingw64 /c/mingw64 -name gcc.exe 2>/dev/null | head -1)
+            export PATH="$(dirname "$gcc_exe"):$PATH"
+          fi
+          gcc --version
+          ./winhost/til.exe build -o hello_native.exe examples/hello_script.til
+          ./hello_native.exe
+          ./hello_native.exe | grep -q "Hello World"
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
@@ -487,3 +508,74 @@ jobs:
           chmod +x hello_script-macos-x64
           ./hello_script-macos-x64
           ./hello_script-macos-x64 | grep -q "Hello World"
+
+  # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes (the
+  # last two matrix cells). The mac runner builds bin/til natively, then
+  # cross-builds hello_script for windows and linux. Windows uses the
+  # brew mingw-w64 cross-gcc, which toolchain_command already selects
+  # for a windows target from any non-windows host. Linux uses a
+  # prebuilt cross-gcc (messense tap) via --cc, the same override the
+  # riscv32 job uses. Compiled programs bind ext_func to direct C
+  # symbols and never reference libffi, so no cross libffi is needed.
+  # The artifacts run on real windows / linux runners -- the build/run
+  # pair shape used by the windows and macos-cross jobs.
+  macos-host-cross-build:
+    name: macos host (cross-build for windows + linux)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Install cross toolchains
+        run: |
+          brew install mingw-w64
+          brew tap messense/macos-cross-toolchains
+          brew install x86_64-unknown-linux-gnu
+      - name: Build bin/til (native)
+        run: make
+      - name: Cross-compile hello_script for windows-x64
+        run: |
+          ./bin/til build --target=windows-x64 -o bin/hello_script-from-mac.exe examples/hello_script.til
+          file bin/hello_script-from-mac.exe | grep -q "PE32+"
+      - name: Cross-compile hello_script for linux-x64
+        run: |
+          ./bin/til build --target=linux-x64 --cc=x86_64-unknown-linux-gnu-gcc \
+            -o bin/hello_script-from-mac-linux examples/hello_script.til
+          file bin/hello_script-from-mac-linux | grep -q "ELF 64-bit"
+      - name: Upload cross artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello_script-from-mac
+          path: |
+            bin/hello_script-from-mac.exe
+            bin/hello_script-from-mac-linux
+
+  macos-host-cross-win-run:
+    name: macos host cross (run .exe on windows)
+    needs: macos-host-cross-build
+    runs-on: windows-latest
+    steps:
+      - name: Download cross artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hello_script-from-mac
+      - name: Run mac-built .exe
+        shell: bash
+        run: |
+          ./hello_script-from-mac.exe
+          ./hello_script-from-mac.exe | grep -q "Hello World"
+
+  macos-host-cross-linux-run:
+    name: macos host cross (run ELF on linux)
+    needs: macos-host-cross-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download cross artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hello_script-from-mac
+      - name: Run mac-built ELF
+        run: |
+          chmod +x hello_script-from-mac-linux
+          ./hello_script-from-mac-linux
+          ./hello_script-from-mac-linux | grep -q "Hello World"
