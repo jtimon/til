@@ -192,6 +192,53 @@ bug302_sw_transfer := proc(n: I64) returns I64 {
     return r
 }
 
+// #302 stage 3: the switch sink must insert a DEEP delete for an owned
+// aggregate, not a shallow free -- a Vec(Str) or an enum with an owned
+// Str payload transferred in one case would otherwise leak its inner
+// buffers (elements / payload c_str) on the non-transfer cases. These
+// pin that: ASAN catches an indirect (inner) leak, which a shallow
+// free-of-wrapper would miss. Probed 2026-07-11 across Str/Vec/enum;
+// this locks the owned-element breadth of the merged fix.
+bug302_sw_sink_vec := func(own v: Vec(Str)) returns I64 { return v.len().to_i64() }
+bug302_sw_vec := proc(n: I64) returns I64 {
+    print_flush()
+    mut v := Vec(Str).new()
+    v.push(own Str.clone("elemone"))
+    v.push(own Str.clone("elemtwo"))
+    mut r : I64 = 0
+    switch n {
+    case 1: r = bug302_sw_sink_vec(own v)
+    case: r = 99
+    }
+    return r
+}
+
+test_bug302_switch_transfer_vec := test() {
+    assert(bug302_sw_vec(1) == 2)
+    assert(bug302_sw_vec(2) == 99)
+}
+
+BugSwNode := enum { Leaf: Str, Empty }
+bug302_sw_sink_enum := func(own n: BugSwNode) returns I64 {
+    if n.is(BugSwNode.Leaf) { return 1 }
+    return 0
+}
+bug302_sw_enum := proc(k: I64) returns I64 {
+    print_flush()
+    n := BugSwNode.Leaf(Str.clone("heappayload"))
+    mut r : I64 = 0
+    switch k {
+    case 1: r = bug302_sw_sink_enum(own n)
+    case: r = 99
+    }
+    return r
+}
+
+test_bug302_switch_transfer_enum := test() {
+    assert(bug302_sw_enum(1) == 1)
+    assert(bug302_sw_enum(2) == 99)
+}
+
 test_bug302_switch_transfer := test() {
     assert(bug302_sw_transfer(1) == 10)
     assert(bug302_sw_transfer(2) == 2)
