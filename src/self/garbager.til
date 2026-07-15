@@ -1447,10 +1447,41 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
         return then_done.and(else_done)
     }
 
+    if node.node_type.is(NodeType.Switch) {
+        // Same path-split as If, per case. A case that transfers the local
+        // is already covered (its own transfer consumes it); every other
+        // case leaf gets the delete. A C-like switch with no default leaks
+        // the local on an unmatched scrutinee, so synthesize a `case:`
+        // default carrying just the delete when none exists. (Enum switches
+        // are exhaustive and desugar to if/elif before this pass, so this
+        // path handles the integer/char C-like switches only.)
+        mut all_done := true
+        mut has_default := false
+        for ci in 1..node.children.len() {
+            ref mut case_node : Expr = node.children[ci]
+            if case_node.node_type.is(NodeType.Case).not() { continue }
+            if case_node.children.len() == 1 { has_default = true }
+            cbi := case_node.children.len() - 1
+            ref mut case_body : Expr = case_node.children[cbi]
+            mut case_done := sink_nontransfer_paths(case_body, local, scope, ctx)
+            if case_done.not() { case_done = add_delete_to_branch(case_body, local, node) }
+            all_done = all_done.and(case_done)
+        }
+        if has_default.not() {
+            mut default_body := Expr.new(NodeType.Body, node.line, node.col)
+            if add_delete_to_branch(default_body, local, node) {
+                mut default_case := Expr.new(NodeType.Case, node.line, node.col)
+                default_case.add_child(own default_body)
+                node.add_child(own default_case)
+            }
+        }
+        return all_done
+    }
+
     if node.node_type.is(NodeType.Body).not() { return false }
     for mut child : Expr in node.children {
         if is_compile_directive(child) { continue }
-        if child.node_type.is(NodeType.If).and(expr_transfers_own(child, local.name, scope, ctx)) {
+        if child.node_type.is(NodeType.If).or(child.node_type.is(NodeType.Switch)).and(expr_transfers_own(child, local.name, scope, ctx)) {
             if sink_nontransfer_paths(child, local, scope, ctx) { return true }
             continue
         }
@@ -1491,7 +1522,7 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         if local.last_use > local.own_transfer { continue }
         if local.own_transfer >= body.children.len().to_i32() { continue }
         ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
-        if tstmt.node_type.is(NodeType.If).not() { continue }
+        if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)).not() { continue }
         sink_nontransfer_paths(tstmt, local, scope, ctx)
     }
 }

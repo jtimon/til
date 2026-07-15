@@ -709,7 +709,47 @@ let the ownership pass insert temps itself; start with the check.
     became plain preceding-statement sites). This is the Stage 3
     precondition: Return is now a leaf, not a cleanup carrier.
     make clean && make test_two_pass 173/173.
-  - [ ] Stage 3: the CFG ownership pass.
+  - [X] 2026-07-11 Stage 3 (first path-correctness fix, ahead of the
+    full CFG pass): conditional transfer inside a C-like `switch`
+    leaked. sink_conditional_transfer_deletes / sink_nontransfer_paths
+    only handled `if`; an owned local transferred in one `case` (e.g.
+    `switch n { case 1: sink(own s) case 2: ... case: ... }`) stood the
+    asap pass down on ALL paths, so every non-transferring case -- and
+    an unmatched scrutinee with no default -- leaked the local (126
+    bytes in the repro, ASAN-confirmed on the compiled path; interp
+    masked it). The sink now covers `switch`: each non-transferring
+    case leaf gets the local's delete, and a `case:` default is
+    synthesized to carry it when the switch has none (enum switches are
+    exhaustive and desugar to if/elif before this pass, so only the
+    integer/char C-like switches reach here). Regression:
+    test/regression.til test_bug302_switch_transfer (transfer case +
+    two non-transfer cases, ASAN both modes). make clean &&
+    make test_two_pass 173/173.
+    Two adjacent cases were probed the same day and FOUND, DEFERRED to
+    the full CFG pass (each needs path-sensitive liveness the index
+    model + targeted sink cannot express safely):
+      * Desugared-switch-with-break: a switch carrying a case-level
+        `break` is NOT C-like, so it desugars to a Body-wrapped if/elif
+        chain; own_transfer points at the Body, which the If/Switch
+        gate skips, leaking a loop-local on the non-transfer iterations
+        (ASAN-confirmed). Broadening the gate to fire on a Body tstmt
+        fixes THAT leak but double-frees elsewhere: a Body at
+        own_transfer is also a desugared for-in wrapper / bare block,
+        and the sink then adds a delete where the local is already
+        consumed (verified: `free(): double free` while building
+        bin/til_asan). Narrowing safely needs the dataflow, not a node
+        sniff.
+      * False-positive use-after-transfer: `switch n {
+        case 1: return f(own s) case: ... }; use s` rejects valid code
+        (last_use > own_transfer) though the transfer case returns and
+        the later use is the non-transfer path. Suppressing the
+        diagnostic alone LEAKS (verified): on the fall-through s is used
+        then never freed -- the sink's `last_use > own_transfer` gate
+        stands down and no fall-through delete is inserted. The fix
+        needs the dataflow to see s live-owned on the fall-through and
+        free it after last use; the conservative rejection is safe
+        until then.
+  - [ ] Stage 3 (rest): the CFG ownership pass.
   - [ ] Stage 4: explicit moves + unified reassign deletes.
   - [ ] Stage 5: temp-contract enforcement.
   - [ ] Stage 6: builder compensation removal.

@@ -167,6 +167,37 @@ test_bug302_cond_param_paths := test() {
     assert(bug302_early_param(own d, true) == 0)
 }
 
+// #302 stage 3: sink_conditional_transfer_deletes only handled `if`,
+// not a C-like `switch`. An owned local transferred in one case leaked
+// on every other case (and on an unmatched scrutinee when the switch
+// had no default). The sink now covers switch: each non-transferring
+// case leaf gets the local's delete, and a `case:` default is
+// synthesized to carry it for the unmatched path. ASAN verifies no leak
+// on the non-transfer cases, no double-free on the transfer case.
+// Proc + print_flush so the constfolder cannot fold the calls away.
+bug302_sw_sink := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+bug302_sw_transfer := proc(n: I64) returns I64 {
+    print_flush()
+    base := "heapstring"
+    s := Str.clone(base)
+    mut r : I64 = 0
+    switch n {
+    case 1: r = bug302_sw_sink(own s)
+    case 2: r = 2
+    case: r = 3
+    }
+    return r
+}
+
+test_bug302_switch_transfer := test() {
+    assert(bug302_sw_transfer(1) == 10)
+    assert(bug302_sw_transfer(2) == 2)
+    assert(bug302_sw_transfer(3) == 3)
+}
+
 // --- #302: typed locals from raw allocators (raw_alloc provenance) ----
 //
 // Original bug: `buf : U8 = malloc(n)` MEANT different things depending
