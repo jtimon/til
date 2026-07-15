@@ -3584,18 +3584,24 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 }
             } else if name.ident_name().eq("get_payload").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // get_payload core_func: the switch payload-binding accessor
-                // the desugarer inserts -- an enum's payload storage sits one
-                // pointer past the tag, so lower to native arithmetic,
-                // ((void *)((U8 *)(e) + sizeof(void *))), mirroring ext.c's
-                // implementation (the void* cast keeps the result assignable
-                // to the payload's typed pointer). ext.c keeps the symbol for
-                // pass-1 til_boot, which predates this inline and emits a real
-                // call; the interpreter evaluates it via the registered
-                // h_get_payload handler (a core_func is not FFI-registered),
-                // so both modes agree.
+                // the desugarer inserts. The enum lowers to
+                //   struct E { <tag> tag; union { ... } data; };
+                // so the payload sits at the `data` field's offset, which the
+                // payload's own alignment decides (offset 1 for a Bool payload,
+                // 8 for a pointer/I64). #311: the old lowering hardcoded
+                // `sizeof(void *)` (8), which reads garbage for any payload
+                // narrower/less-aligned than a pointer (Bool, I8/U8, I16/U16,
+                // I32/U32, F32) -- it only worked by luck when alignment forced
+                // `data` to offset 8. `offsetof(E, data)` is the constructor's
+                // own offset (the ctor stores `r->data.V = *val;` at exactly
+                // `&r->data`), so read and write always agree. The interpreter
+                // evaluates get_payload via the registered h_get_payload handler
+                // (a core_func is not FFI-registered) using Values, not byte
+                // offsets, so both modes agree for every payload width.
+                ename := til_type_name(e.children[1].til_type())
                 f.write("((void *)((U8 *)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write(") + sizeof(void *)))")
+                f.write(") + offsetof(").write(ename).write(", data)))")
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
@@ -7969,7 +7975,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     f := File.new(c_output_path, true)
     expect(f.is_null().not(), "f is null")
 
-    f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n")
+    f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
 
     mut is_script := true
     if mode.is_null().not() {

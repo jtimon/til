@@ -1,6 +1,4 @@
 * Bugs
-** High
-*** [[./open/311.org][#311]] Enum payload narrower than 8 bytes mis-extracts in COMPILE mode
 ** Medium
 *** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
 *** [[./open/312.org][#312]] Top-level numeric for-loop in a `mode script` panics OutOfBounds in the typer

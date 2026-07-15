@@ -738,6 +738,14 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             del_call.add_child(own del_acc)
 
             mut self_arg := Expr.new(ident_node("self"), line, col)
+            // #311: the C backend reads the payload at `offsetof(<enum>, data)`,
+            // so the get_payload receiver must carry the enum type. This FCall is
+            // pre-typed to the payload type (make_get_payload_fcall sets it), and
+            // it is passed as an own-arg to <T>_delete, so the typer's arg pass
+            // skips inferring it (needs_infer only fires on Unknown til_type) and
+            // `self` would stay untyped -> `offsetof(, data)`. Set the receiver's
+            // enum type here; the switch/clone/eq paths get it via Decl inference.
+            self_arg.set_til_type(Type.Enum(ename.clone()))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)

@@ -697,9 +697,18 @@ priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context
 }
 
 priv val_enum_flat := func(enum_name: Str, etag: I64, payload_data: Dynamic, payload_size: USize, total_enum_size: USize, str_payload: Bool, move_src: Bool, ctx: Context) returns shallow Value {
+    // The interpreter's flat enum value places the payload at the fixed
+    // ENUM_PAYLOAD_OFFSET (8), independent of the C struct's tighter layout: a
+    // Bool/I8..I32/F32 payload packs right after a 1-byte tag, so its C size
+    // (total_enum_size) is 2..8, not 8 + payload_size. Sizing the buffer by
+    // total_enum_size therefore leaves the offset-8 payload write below past
+    // the end for any payload narrower than a pointer (#311). Reserve the tag
+    // region plus the payload at its fixed offset; payload_size == 0 keeps the
+    // historical 8-byte floor for tag-only values.
     mut alloc_size : USize = total_enum_size
-    if alloc_size < 8 {
-        alloc_size = 8
+    payload_end : USize = ENUM_PAYLOAD_OFFSET + payload_size
+    if alloc_size < payload_end {
+        alloc_size = payload_end
     }
     data : Dynamic = EvalHeap.heap_alloc(alloc_size)
     // #264 follow-up: write the enum's full tag width (1/2/4/8 bytes) so a

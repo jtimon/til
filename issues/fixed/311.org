@@ -1,6 +1,39 @@
 # priority: high
 # category: bugs
-** OPEN #311 Enum payload narrower than 8 bytes mis-extracts in COMPILE mode
+** FIXED #311 Enum payload narrower than 8 bytes mis-extracts in COMPILE mode
+
+Post-mortem
+-----------
+Root cause: two separate spots hardcoded a pointer-sized (8) payload offset
+instead of the payload union's true offset.
+
+1. Compile mode (the reported bug). The get_payload lowering in
+   src/self/builder.til emitted a fixed `sizeof(void *)` byte offset for the
+   payload read. The enum lowers to `struct E { <tag> tag; union {...} data; }`,
+   so `data` sits at whatever offset the payload's alignment forces -- 1 for a
+   byte-aligned Bool, 8 only for pointer/I64/Str/struct payloads. Reading offset
+   8 of a 2-byte struct returned garbage. Fix: emit `offsetof(<enum>, data)` --
+   the constructor's own offset (it stores `r->data.V = *val;`), so read and
+   write always agree -- and add `#include <stddef.h>`. The enum name comes from
+   the get_payload receiver's til_type. The auto-generated `<enum>_delete`
+   method passes get_payload as a pre-typed own-arg, which the typer's arg pass
+   skips (it only infers Unknown-typed args), so its `self` receiver arrived
+   untyped and produced `offsetof(, data)`; src/self/initer.til now sets the
+   receiver's enum type at the source in the delete generator.
+
+2. Interpret mode (latent, surfaced by the regression test under ASAN). The
+   interpreter's flat enum value stores the payload at a fixed
+   ENUM_PAYLOAD_OFFSET (8), decoupled from the tighter C layout, but
+   val_enum_flat sized the buffer by the C struct size (2 for a Bool payload).
+   Writing the payload at offset 8 then overflowed the buffer -- a heap-buffer-
+   overflow ASAN caught (the value was still correct: write@8, read@8). Fix:
+   size the buffer to ENUM_PAYLOAD_OFFSET + payload_size (floor 8 for tag-only
+   values) in src/self/interpreter.til.
+
+Regression test: test/enums.til `test_switch_payload_bool` (Bool payload via
+`match`) and `test_switch_payload_i32` (I32 payload via `switch`), asserting the
+extracted value under both interpret and compile.
+
 
 A `switch`/`match` case that binds an enum payload reads the WRONG bytes in the
 C backend whenever the payload's natural alignment is under 8. The value comes

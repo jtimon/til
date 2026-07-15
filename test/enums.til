@@ -284,6 +284,39 @@ test_switch_payload_with_default := test() {
     assert_eq(Str, result, "other")
 }
 
+# --- issue #311: enum payloads narrower/less-aligned than a pointer must
+# extract correctly under BOTH interpret and compile. The C backend read a
+# fixed `sizeof(void *)` (8) offset for the payload, so a Bool/I32/... payload
+# -- whose union sits at offset 1/4, not 8 -- came out as garbage in compile
+# mode while interpret (which uses Values, not byte offsets) was correct. Every
+# prior payload test used an 8-aligned payload (I64, Str, Point), which forced
+# the union to offset 8 and hid the bug. These use narrow payloads so the tests
+# fail in compile mode unless get_payload reads the union's true offset.
+
+NarrowBool := enum { V: Bool, W }
+
+pick_bool := func(t: NarrowBool, dflt: Bool) returns Bool {
+    return match t { case NarrowBool.V(x): x  case: dflt }
+}
+
+test_switch_payload_bool := test() {
+    expect(pick_bool(NarrowBool.V(true), false), "bool payload true extracts true")
+    expect(pick_bool(NarrowBool.V(false), true).not(), "bool payload false extracts false")
+    expect(pick_bool(NarrowBool.W, true), "W falls through to default true")
+    expect(pick_bool(NarrowBool.W, false).not(), "W falls through to default false")
+}
+
+NarrowI32 := enum { N: I32, Nil }
+
+test_switch_payload_i32 := test() {
+    mut got : I32 = -1
+    switch NarrowI32.N(1234567) {
+    case NarrowI32.N(v): got = v
+    case NarrowI32.Nil: got = 0
+    }
+    assert_eq(I32, got, 1234567)
+}
+
 # --- switch on enum without payload extraction ---
 
 test_switch_payload_tag_only := test() {
