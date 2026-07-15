@@ -837,6 +837,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
         "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
 
+    // Issue #312: a top-level numeric for-in loop in a `mode script` unit must
+    // type-check (both interpreted and compiled) instead of panicking
+    // OutOfBounds in infer_body_unit.
+    File.writefile(format(exp, "bug312.out"),
+        format("0", NL, "1", NL, "2", NL, "after", NL, "3", NL, "2", NL, "1", NL))
+    add_cli_pair(tests, "bug312", "test/bug312.til",
+        "", 0, format(exp, "bug312.out"), til_bin, asan_flag)
+
     File.writefile(format(exp, "cli_typed_alice42.out"), format("alice 42", NL))
     add_cli_pair(tests, "cli_typed_alice42", "examples/cli_typed.til",
         "alice 42", 0, format(exp, "cli_typed_alice42.out"), til_bin, asan_flag)

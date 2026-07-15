@@ -5022,11 +5022,21 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
     body.set_til_type(Type.None)
     mut i : USize = 0
     while i < body.children.len() {
-        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
         // Issue #158: record foldable macro/func names as we walk the final
         // top-level decls (lambdas already lifted, methods already generated),
         // so constfolder reuses ctx.constfolder_foldables instead of re-scanning.
-        constfolder_classify_stmt(body.children[i], ctx)
+        // Issue #312: classify the index this iteration started on, captured
+        // BEFORE infer_body_stmt runs. infer_body_stmt takes `mut i` by
+        // reference and rewinds it (i--) to reprocess a statement it desugared
+        // in place -- e.g. a top-level `for i in 0..N` whose single ForIn sits
+        // at index 0, where the i-- underflows the USize. Reading
+        // body.children[i] after the call would then go OutOfBounds. The
+        // pre-call index is always in bounds and names the statement processed
+        // (classify only records top-level def Decls, so the desugared Body
+        // block it may now see is a harmless no-op).
+        classify_idx := i
+        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
+        constfolder_classify_stmt(body.children[classify_idx], ctx)
         i++
     }
     if body_pre_passes(ctx, body, scope, owns_scope) {

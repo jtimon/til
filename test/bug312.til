@@ -1,0 +1,23 @@
+mode script
+
+// Regression for issue #312: a top-level numeric `for i in 0..N` loop in a
+// `mode script` unit crashed the typer with an OutOfBounds panic instead of
+// type-checking (identically interpreted and compiled).
+//
+// infer_body_unit walked the top-level statements with a `while i < len` loop
+// and, after each infer_body_stmt, read body.children[i] for
+// constfolder_classify_stmt. infer_body_stmt takes `mut i` by reference and
+// rewinds it (i--) to reprocess a statement it desugared: a single top-level
+// ForIn desugars to a Body block and the i-- underflowed the USize index, so
+// the trailing body.children[i] read went OutOfBounds. Function bodies went
+// through infer_body, which has no trailing children[i] read, so only
+// top-level `mode script` units crashed. The classify pass now runs over the
+// finished body once, after the walk.
+
+for i in 0..3 {
+    println(i.to_str())
+}
+println("after")
+for j in 3..0 {
+    println(j.to_str())
+}

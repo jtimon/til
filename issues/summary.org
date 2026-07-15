@@ -1,7 +1,6 @@
 * Bugs
 ** Medium
 *** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
-*** [[./open/312.org][#312]] Top-level numeric for-loop in a `mode script` panics OutOfBounds in the typer
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
