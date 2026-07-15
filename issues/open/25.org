@@ -78,12 +78,15 @@
     the nng custom modes (sender/receiver/publisher/subscriber) build
     NATIVELY on a mac -- gui links the real Apple frameworks, the nng
     modes link the natively-built libnng; make build_mac covers all of
-    them and both mac CI jobs run it. The one thing that is NOT
-    possible (Apple, not us) is GUI CROSS from Linux: raylib's mac
-    backend is Objective-C over Cocoa/OpenGL whose headers + framework
-    .tbd stubs are Apple-SDK and not redistributable (unlike
-    Microsoft's GL/GDI import libs that make the windows gui cross
-    work). Native mac gui is the supported path.
+    them and both mac CI jobs run it. GUI CROSS from Linux is NOT yet
+    wired but IS feasible (green-lit phase 3, see the plan below) -- the
+    Cocoa/OpenGL frameworks are the same kind of always-present system
+    lib as libSystem, so the vendored-.tbd-stub trick that makes the CLI
+    cross work extends to them; only a mac-built libraylib.a + trimmed
+    framework stubs need producing, both vendorable. (An earlier note
+    here wrongly called gui cross impossible; corrected.) Until phase 3
+    lands, the linux make build_mac skips the 15 gui examples and native
+    mac gui is the supported path.
   - macOS as a HOST targeting the others: the macos-host-cross-build CI
     job builds bin/til natively on a mac, then cross-compiles
     hello_script for windows (brew mingw-w64 -> the x86_64-w64-mingw32
@@ -511,11 +514,43 @@
 
 **** Phase 3: the rest of the mac matrix
 
-     - mode gui cross from Linux stays blocked on Apple frameworks
-       (the Cocoa/OpenGL .tbd stubs are SDK content). GUI programs for
-       macOS are built natively on a Mac (Phase 1 covers that);
-       document osxcross plus user-supplied SDK for whoever needs gui
-       cross builds.
+     - mode gui cross from Linux (GREEN-LIT -- correcting the earlier
+       "SDK-bound, impossible" note, which was wrong): DOABLE with the
+       same tbd-stub trick already used for libSystem. A .tbd is just a
+       text symbol-list stub (Apple's own SDK ships frameworks as .tbd
+       stubs; `tapi` makes them), and the real Cocoa/OpenGL/... dylibs
+       live on EVERY mac -- they bind at runtime exactly like libSystem
+       (vendor/macos/libSystem.tbd). So no user SDK is needed to LINK;
+       only to produce two build-once artifacts, both of which fit the
+       vendor model (committed like libraylib-win64.a + libSystem.tbd):
+       1. libraylib-macos-arm64.a / -x64.a -- raylib built for macOS.
+          The ONLY step that genuinely needs a real SDK: raylib's mac
+          backend is Objective-C that #includes Cocoa/OpenGL headers.
+          So build it on the mac CI runner (Apple SDK present) and
+          commit the archives (raylib is zlib-licensed, freely
+          redistributable, exactly like the committed libraylib-win64.a).
+          Regenerate on a raylib upgrade.
+       2. Minimal framework .tbd stubs for exactly the frameworks raylib
+          pulls (Cocoa/OpenGL/IOKit/CoreVideo/CoreAudio). Derive them
+          from the mac raylib.a's own undefined symbols (llvm-nm -u,
+          which runs on linux against the committed Mach-O archive),
+          mapped to their owning framework; vendor under
+          vendor/macos/frameworks/ next to libSystem.tbd. Same category
+          of artifact as the vendored libSystem.tbd -- do the per-file
+          license diligence the vendor/macos README already flags.
+       Then extend the builder: for a mac gui target add the mac
+       raylib.a + `-framework OpenGL -framework Cocoa -framework IOKit
+       -framework CoreAudio -framework CoreVideo` + the stub search path
+       (-F vendor/macos/frameworks), and drop mode gui from the linux
+       MAC_CROSS_EXAMPLES_SRC exclusion so `make build_mac` sweeps the
+       15 gui examples on linux too -- the mac analogue of build_win
+       sweeping windows gui via the redistributable mingw import libs.
+       CI: a linux job cross-builds the gui examples (file -> Mach-O),
+       the mac runner launches them (headless caveat, same as native
+       gui). osxcross with a user SDK stays a documented fallback, never
+       a dependency. Mechanism web-verified: a .tbd stub plus the
+       runtime-present framework links + runs with no full SDK
+       (developer.apple.com stub-library docs; wailsapp/wails #4267).
      - macOS as a host targeting the others: windows-x64 via
        brew mingw-w64; linux-* needs a Linux cross toolchain on the
        mac (Apple clang cannot link glibc ELF without a sysroot --

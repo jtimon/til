@@ -341,6 +341,27 @@ jobs:
       # already built natively by the suite step above.
       - name: Build native mac examples (gui + portable)
         run: make build_mac
+      # Issue #25 phase 3 recon: emit the mac-native raylib archive plus
+      # the exact symbols it needs from the Apple frameworks. Only the
+      # mac runner has the SDK to build raylib's Cocoa/OpenGL backend, so
+      # these get produced here and uploaded; they are the inputs for the
+      # vendored framework .tbd stubs that will let a LINUX host
+      # cross-link mac gui (see the phase 3 plan in issues/open/25.org).
+      # The archive is raylib's own zlib-licensed code; the symbol dump
+      # drives stub generation.
+      - name: Emit mac raylib.a + framework symbols (phase 3 recon)
+        run: |
+          arch=$(uname -m | sed 's/x86_64/x64/')
+          cp vendor/raylib/src/libraylib.a "bin/libraylib-macos-$arch.a"
+          nm -u vendor/raylib/src/libraylib.a | sort -u > "bin/raylib-macos-$arch-undefined.txt"
+          echo "undefined symbols needed from system libs/frameworks: $(wc -l < bin/raylib-macos-$arch-undefined.txt)"
+      - name: Upload phase 3 recon artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raylib-macos-recon-${{ runner.arch }}
+          path: |
+            bin/libraylib-macos-*.a
+            bin/raylib-macos-*-undefined.txt
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -424,6 +445,20 @@ jobs:
       # Native mac GUI build -- see the macos-arm64 job for the rationale.
       - name: Build native mac examples (gui + portable)
         run: make build_mac
+      # Issue #25 phase 3 recon -- see the macos-arm64 job for the why.
+      - name: Emit mac raylib.a + framework symbols (phase 3 recon)
+        run: |
+          arch=$(uname -m | sed 's/x86_64/x64/')
+          cp vendor/raylib/src/libraylib.a "bin/libraylib-macos-$arch.a"
+          nm -u vendor/raylib/src/libraylib.a | sort -u > "bin/raylib-macos-$arch-undefined.txt"
+          echo "undefined symbols needed from system libs/frameworks: $(wc -l < bin/raylib-macos-$arch-undefined.txt)"
+      - name: Upload phase 3 recon artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raylib-macos-recon-${{ runner.arch }}
+          path: |
+            bin/libraylib-macos-*.a
+            bin/raylib-macos-*-undefined.txt
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe
