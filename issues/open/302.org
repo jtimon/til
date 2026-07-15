@@ -749,6 +749,63 @@ let the ownership pass insert temps itself; start with the check.
         needs the dataflow to see s live-owned on the fall-through and
         free it after last use; the conservative rejection is safe
         until then.
+  - [X] 2026-07-15 scavenger container-surgery drained into a Vec method
+    (the candidate named in the 2026-07-10 entry). scavenger.til's
+    children_filter_expr / children_filter_decl -- two type-specialized
+    copies that reached into v.data / v.count to delete the marked
+    elements and compact the survivors -- collapse into one generic
+    Vec(T).delete_marked(marks) in vec.til (placement home 2: the
+    container owns element teardown). The three call sites become
+    program.children.delete_marked(pm) / scv_ns2.delete_marked(scv_nm2)
+    / e.children.delete_marked(marks); the redundant n arg drops (the
+    method uses self.count). Two hand-written element-delete sites plus
+    the raw data/count mark/sweep/compact leave the scavenger pass. make
+    clean && make test 173/173 (the self-translate exercises the
+    scavenger across the whole compiler). Plain commit: moving the logic
+    into a method changes no emit rule, so pass 1 == pass 2.
+  - [X] 2026-07-15 seven more ordinary-pass owned-local manual deletes
+    drained (extends the TypeScope x11 / loader / constfolder-move
+    precedent): scavenger.til dce_one_body's refs / candidates /
+    candidates_replace / dropped Set(Str) locals, and constfolder.til's
+    fuug_visiting Set(Str) (freed after its last use ahead of an early
+    return), dead Vec(Str) and va_done Vec(Str). All are plain owned
+    locals the garbager frees at scope exit; the hand-written
+    own X.delete(true) tails were pre-garbager cruft. make clean &&
+    make test 173/173 (ASAN on; scavenger/constfolder run thousands of
+    times per self-compile). Plain commit: removing source deletes
+    changes the garbager's input, not its algorithm, so pass 1 == pass 2.
+    Builder's own X.delete() bookkeeping locals (items / done /
+    emitted_h / emitted_mh / dyn_methods / has_methods / coll_infos /
+    body_refs) are the same class; deferred to a focused follow-up since
+    several free mid-function across early-return paths.
+  - [X] 2026-07-15 the deferred builder bookkeeping drains done (11 sites,
+    8 locals): items Vec(Dynamic) + done Array(Bool) (topo emit),
+    emitted_h / emitted_mh Set(Str), dyn_methods / has_methods /
+    coll_infos Vec (each in two emit functions), and body_refs Set(Str).
+    All are collect-then-emit bookkeeping the garbager frees at scope
+    exit; the mid-function own X.delete() calls (several ahead of more
+    emission, one per-iteration in an else-block) confirmed the exit-edge
+    machinery already covers owned locals regardless of where the manual
+    delete sat. These are ordinary owned-local cruft, NOT the D3/D4
+    re-derivation compensation stage 6 targets (stack_locals, CAP
+    laundering, is_noop_delete). make clean && make test 173/173 (ASAN).
+    Plain commit (garbager input, not algorithm; pass 1 == pass 2).
+  - [X] 2026-07-15 last easily-drainable pass-code manual delete folded
+    into a Vec method: parser.til shrank active_type_params back to a
+    saved mark with a `while len > start { own pop().delete(true) }`
+    loop -- pop-and-free-the-tail container surgery. New Vec(T).truncate(n)
+    (drop+elem_delete of [n, count), set count) replaces it; the call
+    becomes p.active_type_params.truncate(start). check_unused_locals
+    forbade simply deleting the manual free (the popped `dropped` would
+    be unused), so this is the correct home, not cruft removal. Bonus:
+    truncate panics if n > count where the loop silently no-op'd on a
+    violated invariant (fail-loud). After this the ordinary compiler
+    passes (scavenger / constfolder / builder-bookkeeping / parser) are
+    drained of removable owned-local manual frees; what remains is gated
+    -- the interpreter shadow layer (#286, stage 7), the builder D3/D4
+    re-derivation compensation (stage 6, needs stages 1-5), and the
+    Dynamic-never-owns migration (stage 3's CFG pass). make clean &&
+    make test 173/173 (ASAN). Plain commit.
   - [ ] Stage 3 (rest): the CFG ownership pass.
   - [ ] Stage 4: explicit moves + unified reassign deletes.
   - [ ] Stage 5: temp-contract enforcement.

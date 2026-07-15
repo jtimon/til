@@ -43,6 +43,37 @@ namespace:
         self.count = 0
     }
 
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    delete_marked := func(mut self: Vec(T), marks: Dynamic) {
+        n := self.count
+        mut i : USize = 0
+        while i < n {
+            ref mark : Bool = ptr_add(marks, i)
+            if mark {
+                T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+                memset(ptr_add(self.data, i.mul(T.size())), 0, T.size())
+            }
+            i++
+        }
+        mut w : USize = 0
+        mut r : USize = 0
+        while r < n {
+            ref mark : Bool = ptr_add(marks, r)
+            if mark.not() {
+                if w != r {
+                    memcpy(ptr_add(self.data, w.mul(T.size())), ptr_add(self.data, r.mul(T.size())), T.size())
+                }
+                w++
+            }
+            r++
+        }
+        self.count = w
+    }
+
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {
@@ -160,6 +191,20 @@ namespace:
         }
         self.count = tail_count
         return Vec(T)(data = prefix_data, count = n, cap = prefix_cap)
+    }
+
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    truncate := func(mut self: Vec(T), n: USize) {
+        if n > self.count {
+            panic("Vec.truncate: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        for i in n..self.count {
+            T.delete(own ptr_add(self.data, i.mul(T.size())), false)
+        }
+        self.count = n
     }
 
     /// Overwrite the element at index `i` without a bounds check, dropping

@@ -4341,7 +4341,6 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 f.write("    (void)").write(p.name).write(";\n")
             }
         }
-        own body_refs.delete(true)
         lp.ctx.in_func_def = true
         lp.ctx.current_fdef = func_def
         builder_reset_func_scratch(lp.ctx)
@@ -4792,8 +4791,6 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
         }
     }
 
-    own items.delete()
-    own done.delete()
 }
 
 // Resolve the C return type for a FunctionDef; "void" when the proc
@@ -5101,7 +5098,6 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted_h := Set(Str).new()
     seed_primitive_names(emitted_h)
     topo_emit_struct_enum_defs_lp(f, emitted_h, lp)
-    own emitted_h.delete()
 
     // Function forward declarations
     if lp.skip_core.not() {
@@ -6206,7 +6202,6 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     mut emitted_mh := Set(Str).new()
     seed_primitive_names(emitted_mh)
     topo_emit_struct_enum_defs_lp(f, emitted_mh, lp)
-    own emitted_mh.delete()
 
     // Emit function declarations
     if lp.skip_core.not() {
@@ -6564,7 +6559,6 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         f.write("Str *dyn_type_to_str(Type *type);\n")
     }
     f.write("\n")
-    own dyn_methods.delete()
 
     // Forward declarations for dyn_has_method dispatch functions
     mut dyn_has_shallow := false
@@ -6629,7 +6623,6 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         f.write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *type_name);\n")
     }
     if has_methods.len() > 0 { f.write("\n") }
-    own has_methods.delete()
 
     // Forward declarations for array/vec builtin helpers
     mut coll_infos := Vec(CollectionInfo).new()
@@ -6653,7 +6646,6 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         f.write(ret).write(" *").write(prefix).write("_of_").write(ci.type_name).write("(int count, ...);\n")
     }
     if coll_infos.len() > 0 { f.write("\n") }
-    own coll_infos.delete()
 }
 
 priv emit_dyn_fn_wrapper := proc(f: File, type_name: Str, method_name: Str, fd: FunctionDef, ctx: Context) {
@@ -7454,7 +7446,6 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
         f.write("    exit(1);\n")
         f.write("}\n\n")
     }
-    own dyn_methods.delete()
 }
 
 priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
@@ -7576,7 +7567,6 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
         else { f.write("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n") }
         f.write("}\n\n")
     }
-    own has_methods.delete()
 }
 
 priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
@@ -7654,7 +7644,6 @@ priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
             f.write("}\n\n")
         }
     }
-    own coll_infos.delete()
 }
 
 priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
