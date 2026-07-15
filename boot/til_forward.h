@@ -445,6 +445,7 @@ struct Type {
         Str Custom;
         Primitive Primitive;
         Str FuncPtrSig;
+        void *_til_payload_align;
     } data;
 };
 
@@ -544,6 +545,7 @@ struct Literal {
         Str Str;
         LiteralNumData Num;
         Bool Bool;
+        void *_til_payload_align;
     } data;
 };
 
@@ -687,6 +689,7 @@ struct ScopeFind {
     U8 tag;
     union {
         TypeBinding Found;
+        void *_til_payload_align;
     } data;
 };
 
@@ -1028,6 +1031,7 @@ struct Value {
         I8 Sbyte;
         U16 Ushort;
         InterpClosure Closure;
+        void *_til_payload_align;
     } data;
 };
 
@@ -1380,6 +1384,7 @@ struct NodeType {
         MatchData Match;
         CaptureBlockData CaptureBlock;
         CaptureBlockData BodyValue;
+        void *_til_payload_align;
     } data;
 };
 
@@ -1501,6 +1506,7 @@ struct priv___src_self_typer_til__CtorArg {
     U8 tag;
     union {
         Expr Filled;
+        void *_til_payload_align;
     } data;
 };
 

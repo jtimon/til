@@ -74,6 +74,18 @@ static void stdio_capture_fail(const char *op) {
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <dlfcn.h>
+// RTLD_DEFAULT is a GNU/Darwin extension the header only exposes at the right
+// feature level: glibc hides it without _GNU_SOURCE and some cross toolchains
+// targeting linux do not expose it, while macOS gates it behind __DARWIN_C_FULL.
+// ext.c deliberately avoids _GNU_SOURCE (see the dladdr lookup below), so supply
+// the platform-correct value when the header did not (glibc/musl: 0, macOS: -2).
+#ifndef RTLD_DEFAULT
+#  ifdef __APPLE__
+#    define RTLD_DEFAULT ((void *)-2)
+#  else
+#    define RTLD_DEFAULT ((void *)0)
+#  endif
+#endif
 #endif
 #endif
 
