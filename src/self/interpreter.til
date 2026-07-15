@@ -4511,12 +4511,21 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, ctx
     if ftype == "USize" {
         ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
         if usize_name == "U32" { ref v : U32 = ptr; return Value.Uint32(v) }
+        // #309: the target USize is U64, but the interpreter's struct storage
+        // is laid out at the HOST compiler's USize width (write_field writes
+        // at the host-width slot `fsz`). When the host compiler is U32 the
+        // field slot is 4 bytes -- reading a full U64 here pulls the
+        // neighbouring field into the high word (a garbage huge count that
+        // crashed Vec.push's memcpy with a wildly out-of-bounds dest). Read
+        // exactly the host-width slot and widen to the U64 target value.
+        if USize.size().eq(4) { ref v : U32 = ptr; return Value.Uint64(v.to_u64()) }
         ref v : U64 = ptr
         return Value.Uint64(v)
     }
     if ftype == "UPtr" {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         if uptr_name == "U32" { ref v : U32 = ptr; return Value.Uint32(v) }
+        if UPtr.size().eq(4) { ref v : U32 = ptr; return Value.Uint64(v.to_u64()) }
         ref v : U64 = ptr
         return Value.Uint64(v)
     }
