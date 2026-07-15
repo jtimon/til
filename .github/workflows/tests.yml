@@ -349,12 +349,23 @@ jobs:
       # cross-link mac gui (see the phase 3 plan in issues/open/25.org).
       # The archive is raylib's own zlib-licensed code; the symbol dump
       # drives stub generation.
-      - name: Emit mac raylib.a + framework symbols (phase 3 recon)
+      - name: Emit mac raylib.a + framework stubs (phase 3 recon)
         run: |
           arch=$(uname -m | sed 's/x86_64/x64/')
           cp vendor/raylib/src/libraylib.a "bin/libraylib-macos-$arch.a"
           nm -u vendor/raylib/src/libraylib.a | sort -u > "bin/raylib-macos-$arch-undefined.txt"
-          echo "undefined symbols needed from system libs/frameworks: $(wc -l < bin/raylib-macos-$arch-undefined.txt)"
+          # Generate one minimal framework .tbd stub per framework from
+          # raylib.a's undefined symbols + their source frameworks (nm -m
+          # gives "(from OpenGL)" tags; xcrun supplies real install-names).
+          # These vendored stubs are what a linux host cross-links mac gui
+          # against (issue #25 phase 3). Separate files: lld resolves only
+          # the first doc of a multi-doc .tbd. Print them to the log so
+          # they are retrievable without downloading the artifact.
+          mkdir -p "bin/frameworks-$arch"
+          nm -m vendor/raylib/src/libraylib.a | python3 vendor/macos/gen_framework_stubs.py "bin/frameworks-$arch"
+          echo "=== BEGIN framework stubs ($arch) ==="
+          for f in bin/frameworks-$arch/*.tbd; do echo "----- $f -----"; cat "$f"; done
+          echo "=== END framework stubs ($arch) ==="
       - name: Upload phase 3 recon artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -362,6 +373,8 @@ jobs:
           path: |
             bin/libraylib-macos-*.a
             bin/raylib-macos-*-undefined.txt
+            bin/frameworks-*/*.tbd
+            bin/framework-stubs-*.tbd
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -446,12 +459,16 @@ jobs:
       - name: Build native mac examples (gui + portable)
         run: make build_mac
       # Issue #25 phase 3 recon -- see the macos-arm64 job for the why.
-      - name: Emit mac raylib.a + framework symbols (phase 3 recon)
+      - name: Emit mac raylib.a + framework stubs (phase 3 recon)
         run: |
           arch=$(uname -m | sed 's/x86_64/x64/')
           cp vendor/raylib/src/libraylib.a "bin/libraylib-macos-$arch.a"
           nm -u vendor/raylib/src/libraylib.a | sort -u > "bin/raylib-macos-$arch-undefined.txt"
-          echo "undefined symbols needed from system libs/frameworks: $(wc -l < bin/raylib-macos-$arch-undefined.txt)"
+          mkdir -p "bin/frameworks-$arch"
+          nm -m vendor/raylib/src/libraylib.a | python3 vendor/macos/gen_framework_stubs.py "bin/frameworks-$arch"
+          echo "=== BEGIN framework stubs ($arch) ==="
+          for f in bin/frameworks-$arch/*.tbd; do echo "----- $f -----"; cat "$f"; done
+          echo "=== END framework stubs ($arch) ==="
       - name: Upload phase 3 recon artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -459,6 +476,7 @@ jobs:
           path: |
             bin/libraylib-macos-*.a
             bin/raylib-macos-*-undefined.txt
+            bin/frameworks-*/*.tbd
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe
