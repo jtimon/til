@@ -203,6 +203,7 @@ struct Type {
         Str Custom;
         Primitive Primitive;
         Str FuncPtrSig;
+        void *_til_payload_align;
     } data;
 };
 
@@ -291,6 +292,7 @@ struct Literal {
         Str Str;
         LiteralNumData Num;
         Bool Bool;
+        void *_til_payload_align;
     } data;
 };
 
@@ -362,6 +364,7 @@ struct Token {
     union {
         I64 Num;
         Str Name;
+        void *_til_payload_align;
     } data;
 };
 
@@ -432,6 +435,7 @@ struct NodeType {
         MatchData Match;
         CaptureBlockData CaptureBlock;
         CaptureBlockData BodyValue;
+        void *_til_payload_align;
     } data;
 };
 
