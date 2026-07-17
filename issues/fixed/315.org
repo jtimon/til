@@ -1,0 +1,135 @@
+# priority: medium
+# category: bugs
+** FIXED #315 Forward-referenced foldable macro leaks a `hoisted__Type` temp (classify/desugar order coupling)
+
+*** Post-mortem
+
+Root cause as filed below: the desugarer's arg hoister skips a macro call's
+args via `is_macro_call` (which reads `ctx.constfolder_foldables`), but that
+table was populated per-statement AS `infer_body_unit` walked the top-level
+unit. Nested bodies are desugared mid-walk (`infer_body_stmt` -> `infer_body`
+-> `body_pre_passes`), so a macro used by an earlier body but declared later
+at the top level was not yet classified when the caller was desugared -> its
+`Type` arg was hoisted into a `hoisted__Type_N` temp and the constfolder then
+folded the macro against the temp -> `enum_variant_count: type
+'hoisted__Type_N' not found`.
+
+Fix: `infer_body_unit` (src/self/typer.til) now classifies EVERY top-level
+statement into `constfolder_foldables` in a single pass BEFORE the
+type-check walk, instead of once per statement during it. Lambdas are lifted
+and struct/enum methods generated in the earlier `type_decls_file` sweep, so
+`body.children` already holds every top-level def when the bodies sweep runs
+`infer_body_unit`; classifying up front makes the foldable table complete
+before any nested body is desugared, so forward references fold correctly.
+Classification order does not change the table's contents (it was already
+byte-identical whether run before, during, or after the walk) -- only its
+timing relative to the mid-walk desugar, which is what this bug hinged on.
+
+This also subsumes the #312 fix: the pre-walk pass no longer reads
+`body.children[i]` inside the walk, so the top-level `for i in 0..N`
+OutOfBounds (the `i--` USize underflow) cannot recur. See issues/fixed/312.org.
+
+Regression test: `test/bug315.til` -- a `mode test` fixture whose `func` body
+and `test()` body both call a foldable `Type`-arg macro declared below them,
+registered via `add_both` so it runs interpreted and compiled.
+
+A nested body (`func`/`proc`/`test`) that calls a foldable macro DECLARED
+LATER at the top level fails to fold the macro: its non-literal arg is
+hoisted into a `hoisted__` temp, and the constfolder then expands the macro
+with the temp instead of the real argument. For a `Type` arg this surfaces
+as a hard error; the same source with the macro declared BEFORE its caller
+compiles and runs fine. It fails identically interpreted and compiled.
+
+*** Reproduction
+
+  #+begin_src til
+  mode script
+
+  get_count := func() returns I64 {
+      return count_variants_macro(NamedColor3M)   // used here...
+  }
+  println(get_count().to_str())
+
+  NamedColor3M := enum { Red, Green, Blue }
+  count_variants_macro := macro(T: Type) returns I64 {   // ...declared later
+      return enum_variant_count(til_type_name(T))
+  }
+  #+end_src
+
+    $ bin/til interpret repro.til
+    repro.til:10:12: error: enum_variant_count: type 'hoisted__Type_6965' not found
+    $ bin/til build -o /tmp/repro repro.til
+    repro.til:10:12: error: enum_variant_count: type 'hoisted__Type_6965' not found
+
+Move the `count_variants_macro` / `NamedColor3M` decls ABOVE `get_count` and
+it prints `3`. So the failure is purely about top-level declaration ORDER
+relative to the caller, not about the macro or the enum themselves. The same
+shape inside a `test()` body fails the same way.
+
+*** Root cause
+
+The desugarer's argument hoister skips hoisting the args of macro calls so
+the constfolder can expand them (src/self/desugarer.til, around the
+`hoist_fcall_args` path):
+
+  #+begin_src til
+  // Issue #57: don't hoist args of macro calls.
+  if is_macro_call(expr, ctx) { return }
+  #+end_src
+
+`is_macro_call` (src/self/constfolder.til) answers from
+`ctx.constfolder_foldables`, the foldable-name table. That table is
+populated INCREMENTALLY by the typer's top-level walk: `infer_body_unit`
+(src/self/typer.til) calls `constfolder_classify_stmt` on each top-level
+statement AS it walks them, in source order. But that same walk also
+type-checks each nested body via `infer_body_stmt` -> `infer_body` ->
+`body_pre_passes`, and `body_pre_passes` runs the desugar/hoist pass on the
+body THERE, mid-walk.
+
+So when the walk reaches `get_count` (an earlier top-level statement) and
+desugars its body, `count_variants_macro` (a LATER top-level statement) has
+not been classified yet -> `is_macro_call` returns false -> the hoister
+treats the call as an ordinary call and hoists `NamedColor3M` into
+`hoisted__Type_<N> := <Type NamedColor3M>`. The constfolder later folds the
+macro with that temp as `T`, so `til_type_name(T)` yields the literal string
+`"hoisted__Type_<N>"` and `enum_variant_count` cannot resolve it.
+
+When the macro is declared BEFORE its caller, it is already classified by
+the time the caller's body is desugared, `is_macro_call` returns true, the
+arg is left un-hoisted, and the fold sees the real `NamedColor3M`.
+
+*** How it was found
+
+Surfaced while fixing #312. An attempt there to move
+`constfolder_classify_stmt` out of the walk into a single post-walk loop
+over `body.children` produced byte-identical `constfolder_foldables` yet
+regressed `test/first_class.til` with exactly this symptom -- because
+post-walk classification populates the table only AFTER every nested body in
+the unit has already been desugared, so NO foldable macro is visible to the
+hoister. The #312 fix kept the classify interleaved for this reason; this
+issue is the underlying order coupling that made post-walk unsafe, and it
+is independently reachable on master via a forward reference.
+
+*** Workaround
+
+Declare the foldable macro (and any type it takes as a `Type` arg) above the
+function/test that calls it.
+
+*** Suggested fix (not verified)
+
+Decouple foldable-name classification from the walk order so the table is
+complete before ANY body is desugared. Options to evaluate:
+
+- Pre-scan the unit's top-level def Decls into `constfolder_foldables` in a
+  cheap pass BEFORE `infer_body_unit`'s walk (a classify pre-pass), leaving
+  the walk to only type-check. This is the mirror image of the failed #312
+  post-walk attempt: the table must be ready EARLIER, not later.
+- Or have the desugarer's `is_macro_call` resolve the callee through the
+  type scope bindings (which already hold every top-level def regardless of
+  walk position) instead of the incrementally-populated foldables table.
+
+*** Regression test
+
+Once fixed, add a fixture with a forward-referenced foldable macro (Type arg)
+called from both a `func` body and a `test()` body, exercised interpreted
+and compiled.

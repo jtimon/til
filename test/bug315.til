@@ -1,0 +1,33 @@
+mode test
+
+// Regression for issue #315: a nested body (func/proc/test) that calls a
+// foldable macro DECLARED LATER at the top level must still fold the macro.
+//
+// The desugarer's argument hoister skips hoisting a macro call's args (so the
+// constfolder can expand the macro) based on is_macro_call, which answers from
+// ctx.constfolder_foldables. That table used to be populated per-statement as
+// the typer walked the top-level unit, so a macro referenced by an earlier
+// body but declared later was not yet recorded when that body was desugared
+// mid-walk -> its Type arg was hoisted into a `hoisted__Type_N` temp and the
+// fold mis-resolved it ("enum_variant_count: type 'hoisted__Type_N' not
+// found"). infer_body_unit now classifies every top-level def BEFORE the walk,
+// so forward references fold correctly. Both callers below appear ABOVE the
+// macro and enum they use, and are exercised interpreted and compiled.
+
+count_via_func := func() returns I64 {
+    return count_variants_macro(NamedColor3)
+}
+
+test_forward_ref_macro_in_func_body := test() {
+    assert_eq(I64, count_via_func(), 3)
+}
+
+test_forward_ref_macro_in_test_body := test() {
+    assert_eq(I64, count_variants_macro(NamedColor3), 3)
+}
+
+NamedColor3 := enum { Red, Green, Blue }
+
+count_variants_macro := macro(T: Type) returns I64 {
+    return enum_variant_count(til_type_name(T))
+}

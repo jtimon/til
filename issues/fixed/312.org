@@ -39,6 +39,19 @@ regressed `test/first_class.til` (a macro Type-arg leaked a `hoisted__Type`
 temp), so the classify was kept interleaved with the walk; only the
 OutOfBounds index was corrected.
 
+Follow-up (#315): that post-walk regression was not a mystery -- it exposed
+a real order coupling. The desugarer's arg hoister skips a macro call's args
+based on `is_macro_call` (`constfolder_foldables`), and nested bodies are
+desugared mid-walk via `body_pre_passes`, so classifying too late leaves
+forward-referenced macros invisible to the hoister. The same coupling was
+independently reachable on master via a forward reference (a body calling a
+macro declared later at top level), filed and fixed as #315. As part of that
+fix `infer_body_unit` now classifies every top-level def in ONE pass BEFORE
+the walk (not per-statement inside it), which both fixes #315 and subsumes
+this #312 OutOfBounds -- there is no longer any `body.children[i]` read in
+the walk to go out of bounds. The `classify_idx` shape described above was
+the interim #312 fix; see issues/fixed/315.org for the final form.
+
 Regression test: `test/bug312.til` (a `mode script` fixture with a
 top-level ascending and descending `for _ in a..b` loop plus a trailing
 statement), registered via `add_cli_pair` in src/tests.til so it runs both
