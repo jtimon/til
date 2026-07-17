@@ -17,11 +17,38 @@ Default behavior: make the smallest safe change that addresses the reported prob
 Ask for explicit approval only when a decision materially changes one of these:
 
 - External behavior or UX (new flags, different defaults, different output, backward compatibility)
-- Public APIs or file layout that downstream users might rely on
+- Public APIs, file layout, generated artifacts, file formats, caches, or
+  source-of-truth structure that downstream users or future maintainers might rely on
 - Significant scope, refactors, or performance tradeoffs
 - Risky/destructive operations (deleting data, rewriting history, force-push to shared branches)
 
 If you need information to reproduce a bug, gather it by running commands and reading logs first. Only ask the user when a required fact cannot be obtained from the repo or environment.
+
+### Explicit Approval For New Surfaces
+
+A broad feature request is NOT approval to invent new project surfaces.
+Before adding any of these, ask in plain chat and get explicit approval:
+
+- new file formats or file extensions
+- new generated files or generated directories
+- new persistent caches, indexes, manifests, or registries
+- new CLI commands, flags, config knobs, environment variables, or install layout
+- new public APIs or alternate source-of-truth paths
+- new dependencies or tooling assumptions
+
+Regenerating existing approved artifacts is fine. Introducing a new path,
+format, cache, or source of truth is not fine, even if it is "internal",
+"small", "temporary", "faster", or "cleaner".
+
+The proposal must say what will be created, who writes it, who reads it,
+why existing artifacts are not enough, how it is regenerated/installed,
+and what tradeoff it adds. If the user's approval is not a clear yes to
+that specific proposal, do not implement it.
+
+If an implementation would add a second representation of data already
+available elsewhere, stop and ask. The question must explicitly name the
+duplication. Example: "This would add a REPL-only doc cache in addition
+to doc/gen/*.org; do you want that?"
 
 NEVER use the AskUserQuestion / interrogation interface. This is
 absolute and has no exceptions: do NOT call the `AskUserQuestion` tool
@@ -56,6 +83,9 @@ Specifically forbidden without an explicit user instruction:
 - Adding files to the commit that the user did not touch and did not ask you to touch ("while I'm here let me also fix...").
 - "Polishing" surrounding code, removing comments you think are stale, reformatting whitespace, tightening tests, etc., in a commit whose stated purpose is something else.
 - Inventing a new branch / file / directory / config knob to "be organized" instead of using the one that already exists.
+- Inventing a new generated artifact, cache, file format, file extension,
+  index, manifest, registry, or second source of truth because it seems
+  convenient for the implementation.
 
 If you catch yourself about to do one of these because it would be "cleaner" or "more organized" or "match the convention": stop. The literal instruction beats your judgment about hygiene. If you genuinely think a deviation is warranted, ask in plain chat BEFORE acting — do not commit-and-explain after.
 

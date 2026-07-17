@@ -22,6 +22,6 @@ namespace:
     func hash(self: Mode, hasher: HashFn) returns shallow U64
     func eq(self: Mode, other: Mode) returns shallow Bool
     func to_str(self: Mode) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src

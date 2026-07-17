@@ -161,6 +161,26 @@ FFI_TYPE_POINTER is a I64
 FFI_TYPE_COMPLEX is a I64
 #+end_src
 
+* FFI_TYPE_UINT128
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_UINT128
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+FFI_TYPE_UINT128 is a I64
+#+end_src
+
+* FFI_TYPE_SINT128
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_TYPE_SINT128
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+FFI_TYPE_SINT128 is a I64
+#+end_src
+
 * ffi_arg
 :PROPERTIES:
 :CUSTOM_ID: til.vendor.bindings.libffi.ffi_arg
@@ -319,14 +339,14 @@ FFI_64_BIT_MAX is a I64
 
 #+begin_src til
 struct ffi_type {
-    mut size : U32
-    mut alignment : I16
-    mut type : I16
+    mut size : USize
+    mut alignment : U16
+    mut type : U16
     ref mut elements : Dynamic
 namespace:
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -394,10 +414,11 @@ struct ffi_cif {
     ref mut rtype : ffi_type
     mut bytes : U32
     mut flags : U32
+    mut extra_cif_fields : U32
 namespace:
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -468,7 +489,7 @@ ext_proc ffi_raw_to_ptrarray(mut cif: ffi_cif, mut raw: Dynamic, mut args: Dynam
 :END:
 
 #+begin_src til
-ext_proc ffi_raw_size(mut cif: ffi_cif) returns shallow U32
+ext_proc ffi_raw_size(mut cif: ffi_cif) returns shallow USize
 #+end_src
 
 * ffi_java_raw_call
@@ -508,7 +529,57 @@ ext_proc ffi_java_raw_to_ptrarray(mut cif: ffi_cif, mut raw: Dynamic, mut args: 
 :END:
 
 #+begin_src til
-ext_proc ffi_java_raw_size(mut cif: ffi_cif) returns shallow U32
+ext_proc ffi_java_raw_size(mut cif: ffi_cif) returns shallow USize
+#+end_src
+
+* FFI_VERSION_NUMBER
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.FFI_VERSION_NUMBER
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+FFI_VERSION_NUMBER is a I64
+#+end_src
+
+* ffi_get_version
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_version
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_func ffi_get_version() returns ref I8
+#+end_src
+
+* ffi_get_version_number
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_version_number
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_func ffi_get_version_number() returns shallow I64
+#+end_src
+
+* ffi_get_default_abi
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_default_abi
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_func ffi_get_default_abi() returns shallow I32
+#+end_src
+
+* ffi_get_closure_size
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_closure_size
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_func ffi_get_closure_size() returns shallow USize
 #+end_src
 
 * ffi_closure
@@ -525,7 +596,7 @@ namespace:
     func hash(self: ffi_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_closure, _other: ffi_closure) returns shallow Bool
     func to_str(_self: ffi_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -536,7 +607,7 @@ namespace:
 :END:
 
 #+begin_src til
-ext_proc ffi_closure_alloc(shallow size: U32, mut code: Dynamic) returns Dynamic
+ext_proc ffi_closure_alloc(shallow size: USize, mut code: Dynamic) returns Dynamic
 #+end_src
 
 * ffi_closure_free
@@ -573,7 +644,7 @@ namespace:
     func hash(self: ffi_raw_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_raw_closure, _other: ffi_raw_closure) returns shallow Bool
     func to_str(_self: ffi_raw_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -591,7 +662,7 @@ namespace:
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_java_raw_closure, _other: ffi_java_raw_closure) returns shallow Bool
     func to_str(_self: ffi_java_raw_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -649,7 +720,7 @@ namespace:
     func hash(self: ffi_go_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_go_closure, _other: ffi_go_closure) returns shallow Bool
     func to_str(_self: ffi_go_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -703,6 +774,54 @@ ext_proc ffi_prep_cif_var(mut cif: ffi_cif, shallow abi: I32, shallow nfixedargs
 ext_proc ffi_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
 #+end_src
 
+* ffi_call_plan
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call_plan
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+struct ffi_call_plan {
+namespace:
+    func clone(_self: ffi_call_plan) returns ffi_call_plan
+    func delete(own self: ffi_call_plan, shallow call_free: Bool)
+    func hash(self: ffi_call_plan, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_call_plan, _other: ffi_call_plan) returns shallow Bool
+    func to_str(_self: ffi_call_plan) returns Str
+    func size() returns shallow USize
+}
+#+end_src
+
+* ffi_call_plan_alloc
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call_plan_alloc
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_proc ffi_call_plan_alloc(mut cif: ffi_cif) returns ref ffi_call_plan
+#+end_src
+
+* ffi_call_plan_invoke
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call_plan_invoke
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_proc ffi_call_plan_invoke(mut plan: ffi_call_plan, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
+#+end_src
+
+* ffi_call_plan_free
+:PROPERTIES:
+:CUSTOM_ID: til.vendor.bindings.libffi.ffi_call_plan_free
+:group: Vendor bindings
+:END:
+
+#+begin_src til
+ext_proc ffi_call_plan_free(mut plan: ffi_call_plan)
+#+end_src
+
 * ffi_get_struct_offsets
 :PROPERTIES:
 :CUSTOM_ID: til.vendor.bindings.libffi.ffi_get_struct_offsets
@@ -710,5 +829,5 @@ ext_proc ffi_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue
 :END:
 
 #+begin_src til
-ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: U32) returns shallow I32
+ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: USize) returns shallow I32
 #+end_src

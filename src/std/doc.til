@@ -30,15 +30,15 @@ __doc_init__ := func(info_data: Str, docs_data: Str) {
     __til_docs_blob__ = docs_data.clone()
 }
 
-doc_cache_read_unescape := ext_proc(path: Str) returns Str {}
-doc_cache_lookup := ext_func(blob: Str, name: Str) returns Str {}
+doc_org_load_core_info := ext_proc(index_path: Str) returns Str {}
+doc_org_load_core_docs := ext_proc(index_path: Str) returns Str {}
+doc_blob_lookup := ext_func(blob: Str, name: Str) returns Str {}
 
-/// Runtime doc init for the REPL. The core cache files contain escaped string
-/// literal payloads, so unescape them once after reading instead of injecting
-/// the whole cache as source on every help() replay.
-doc_init_cache_files := proc(info_path: Str, docs_path: Str, user_info_data: Str, user_docs_data: Str) {
-    core_info := doc_cache_read_unescape(info_path)
-    core_docs := doc_cache_read_unescape(docs_path)
+/// Runtime doc init for the REPL. Core docs are packed from the generated
+/// org documentation on the first help() turn, then kept in the session.
+doc_init_org_files := proc(index_path: Str, user_info_data: Str, user_docs_data: Str) {
+    core_info := doc_org_load_core_info(index_path)
+    core_docs := doc_org_load_core_docs(index_path)
     __til_info_blob__ = format(core_info, user_info_data)
     __til_docs_blob__ = format(core_docs, user_docs_data)
 }
@@ -47,7 +47,7 @@ doc_init_cache_files := proc(info_path: Str, docs_path: Str, user_info_data: Str
 // "" if not found. Implemented in C because REPL help() searches the
 // packed core cache interactively.
 __doc_lookup__ := func(blob: Str, name: Str) returns Str {
-    return doc_cache_lookup(blob, name)
+    return doc_blob_lookup(blob, name)
 }
 
 /// Print the doc comment and the kind/signature info for a top-level

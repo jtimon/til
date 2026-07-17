@@ -71,13 +71,49 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.til.repl_capture_eval_current">
 <h2>repl_capture_eval_current</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool) returns Str
+<pre><code class="language-til">proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_capture_eval_tail">
+<h2>repl_capture_eval_tail</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_source_line_count">
 <h2>repl_source_line_count</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
 <pre><code class="language-til">func repl_source_line_count(s: Str) returns shallow U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_ast_has_loader_directive">
+<h2>repl_ast_has_loader_directive</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_ast_has_loader_directive(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_ast_has_lazy_def">
+<h2>repl_ast_has_lazy_def</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_ast_has_known_variadic_call">
+<h2>repl_ast_has_known_variadic_call</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_delta_from_source">
+<h2>repl_delta_from_source</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.til.repl_peek_needs_expr_wrap">
+<h2>repl_peek_needs_expr_wrap</h2>
+<dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
+<pre><code class="language-til">func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.repl_parse_allows_wrap">
@@ -133,15 +169,17 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut target_str : Str
     mut cc : Str
     mut install_prefix : Str
-    mut path_idx : U32
+    mut path_idx : USize
     mut early_return : Bool
     mut asan : Bool
     mut prof : Bool
-    own mut extra_modes
+    mut usize_bits : I64
+    mut check_unused_imports : Bool
+    own mut extra_modes : Vec__Str
 namespace:
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -154,7 +192,7 @@ namespace:
 <article class="doc-entry" id="til.src.til.collect_user_argv">
 <h2>collect_user_argv</h2>
 <dl class="meta"><dt>Group</dt><dd>CLI</dd></dl>
-<pre><code class="language-til">func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U32) returns Vec__Str
+<pre><code class="language-til">func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: USize) returns Vec__Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.til.main">

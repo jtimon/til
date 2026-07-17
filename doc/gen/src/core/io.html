@@ -44,12 +44,6 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">ext_proc print_flush()
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.core.io.in_read_line">
-<h2>in_read_line</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_proc in_read_line(mut line: Str) returns shallow Bool
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.core.io.println">
 <h2>println</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
@@ -66,125 +60,6 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <p>Print strings to stdout without a newline.</p>
 </div>
 <pre><code class="language-til">proc print(parts: ..Str)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_open">
-<h2>cfile_open</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_open(path: Str, shallow is_write: Bool) returns ref Dynamic
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_open_update">
-<h2>cfile_open_update</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_open_update(path: Str) returns ref Dynamic
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_close">
-<h2>cfile_close</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_close(handle: Dynamic)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_write_str">
-<h2>cfile_write_str</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_proc cfile_write_str(handle: Dynamic, s: Str)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_read_all">
-<h2>cfile_read_all</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_read_all(handle: Dynamic) returns Str
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_tell">
-<h2>cfile_tell</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_tell(handle: Dynamic) returns shallow I64
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_seek">
-<h2>cfile_seek</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_proc cfile_seek(handle: Dynamic, shallow pos: I64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_seek_cur">
-<h2>cfile_seek_cur</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_proc cfile_seek_cur(handle: Dynamic, shallow delta: I64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_seek_end">
-<h2>cfile_seek_end</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_proc cfile_seek_end(handle: Dynamic, shallow delta: I64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.cfile_read_n">
-<h2>cfile_read_n</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func cfile_read_n(handle: Dynamic, shallow count: I64) returns Str
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.io.File">
-<h2>File</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<div class="doc-body">
-<p>File handle for reading or writing on disk.</p>
-</div>
-<pre><code class="language-til">struct File {
-    ref mut handle : U8
-    mut is_write : Bool
-    mut is_update : Bool
-namespace:
-    ext_proc readfile(path: Str) returns Str
-    ext_proc writefile(path: Str, content: Str)
-    /// Open a file at `path` for reading or writing.
-    func new(path: Str, shallow is_write: Bool) returns File
-    /// Open a file at `path` for in-place update: reads and writes are
-    /// both allowed and the cursor can be moved with `seek`, so small
-    /// regions can be patched without rewriting the whole file. The file
-    /// must already exist.
-    func update(path: Str) returns File
-    /// Write a string to the file and return `self` so writes chain via
-    /// UFCS: `f.write(&quot;a&quot;).write(&quot;b&quot;).write(&quot;c&quot;)`. Panics unless opened
-    /// for writing or update.
-    proc write(self: File, s: Str) returns ref File
-    /// Read the entire file contents into a Str. Panics if opened
-    /// write-only.
-    func read_all(self: File) returns Str
-    /// Read up to `count` bytes starting at the current cursor position
-    /// and advance the cursor. The result is shorter than `count` near
-    /// end-of-file. Panics if opened write-only.
-    func read(self: File, shallow count: I64) returns Str
-    /// Return the current cursor position as a byte offset from the start
-    /// of the file.
-    func tell(self: File) returns shallow I64
-    /// Move the cursor to an absolute byte offset from the start of the
-    /// file. Returns `self` so calls chain via UFCS.
-    proc seek(self: File, pos: I64) returns ref File
-    /// Move the cursor by `delta` bytes relative to its current position
-    /// (`delta` may be negative). Returns `self` so calls chain via UFCS.
-    proc seek_cur(self: File, delta: I64) returns ref File
-    /// Move the cursor to `delta` bytes relative to the end of the file
-    /// (`delta` is typically &lt;= 0). `f.seek_end(0)` followed by `f.tell()`
-    /// yields the file size. Returns `self` so calls chain via UFCS.
-    proc seek_end(self: File, delta: I64) returns ref File
-    /// Close the underlying file handle and NULL it. Private: invoked
-    /// only from `delete`, which the garbager inserts after a File
-    /// local's last use.
-    func close(mut self: File)
-    /// Release the File: close the handle, then free the struct shell
-    /// unless the caller still owns it (`call_free = false` for a
-    /// stack/value local). The garbager inserts this call right after the
-    /// File's last use.
-    func delete(own self: File, shallow call_free: Bool)
-    proc fwrite(self: File, parts: ..Str) returns ref File
-    func clone(self: File) returns File
-    func size() returns shallow U32
-}
 </code></pre>
 </article>
 </main>

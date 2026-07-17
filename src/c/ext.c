@@ -597,58 +597,594 @@ void File_writefile(Str *path, Str *content) {
     fclose(f);
 }
 
-Str *doc_cache_unescape(const Str *raw) {
-    char *buf = malloc((size_t)raw->count + 1);
-    if (!buf) {
-        fprintf(stderr, "doc_cache_unescape: allocation failed\n");
-        exit(1);
-    }
+typedef struct {
+    char *data;
+    size_t len;
+    size_t cap;
+} DocBuf;
 
-    USize j = 0;
-    for (USize i = 0; i < raw->count; i++) {
-        char c = (char)raw->c_str[i];
-        if (c == '\\') {
-            i++;
-            if (i >= raw->count) {
-                fprintf(stderr, "doc_cache_unescape: unterminated escape\n");
-                exit(1);
-            }
-            char esc = (char)raw->c_str[i];
-            switch (esc) {
-            case 'n':  buf[j++] = '\n'; break;
-            case 't':  buf[j++] = '\t'; break;
-            case '\\': buf[j++] = '\\'; break;
-            case '"':  buf[j++] = '"'; break;
-            default:
-                fprintf(stderr, "doc_cache_unescape: invalid escape '%c'\n", esc);
-                exit(1);
-            }
-        } else {
-            buf[j++] = c;
-        }
-    }
-    buf[j] = '\0';
+typedef struct {
+    char **items;
+    size_t len;
+    size_t cap;
+} DocPageList;
 
+typedef struct {
+    const char *since;
+    size_t since_len;
+    const char *deprecated;
+    size_t deprecated_len;
+    int hidden;
+} DocProps;
+
+static char *doc_org_cached_path = NULL;
+static DocBuf doc_org_cached_info = {0};
+static DocBuf doc_org_cached_docs = {0};
+
+static void doc_die_alloc(const char *what) {
+    fprintf(stderr, "%s: allocation failed\n", what);
+    exit(1);
+}
+
+static Str *str_from_bytes(const char *data, size_t len, const char *what) {
+    char *buf = malloc(len + 1);
+    if (!buf) doc_die_alloc(what);
+    memcpy(buf, data, len);
+    buf[len] = '\0';
     Str *s = malloc(sizeof(Str));
-    if (!s) {
-        fprintf(stderr, "doc_cache_unescape: Str allocation failed\n");
-        exit(1);
-    }
+    if (!s) doc_die_alloc(what);
     s->c_str = (I8 *)buf;
-    s->count = j;
-    s->cap = j;
+    s->count = (USize)len;
+    s->cap = (USize)len;
     return s;
 }
 
-Str *doc_cache_read_unescape(const Str *path) {
-    Str *raw = File_readfile((Str *)path);
-    Str *result = doc_cache_unescape(raw);
-    free(raw->c_str);
-    free(raw);
-    return result;
+static void doc_buf_free(DocBuf *buf) {
+    free(buf->data);
+    buf->data = NULL;
+    buf->len = 0;
+    buf->cap = 0;
 }
 
-Str *doc_cache_lookup(const Str *blob, const Str *name) {
+static void doc_buf_reserve(DocBuf *buf, size_t add) {
+    if (add > SIZE_MAX - buf->len) doc_die_alloc("doc_buf_reserve");
+    size_t need = buf->len + add;
+    if (need <= buf->cap) return;
+    size_t cap = buf->cap ? buf->cap : 4096;
+    while (cap < need) {
+        if (cap > SIZE_MAX / 2) {
+            cap = need;
+            break;
+        }
+        cap *= 2;
+    }
+    char *data = realloc(buf->data, cap);
+    if (!data) doc_die_alloc("doc_buf_reserve");
+    buf->data = data;
+    buf->cap = cap;
+}
+
+static void doc_buf_append(DocBuf *buf, const char *data, size_t len) {
+    if (len == 0) return;
+    doc_buf_reserve(buf, len);
+    memcpy(buf->data + buf->len, data, len);
+    buf->len += len;
+}
+
+static void doc_buf_append_cstr(DocBuf *buf, const char *s) {
+    doc_buf_append(buf, s, strlen(s));
+}
+
+static void doc_buf_append_ch(DocBuf *buf, char ch) {
+    doc_buf_reserve(buf, 1);
+    buf->data[buf->len++] = ch;
+}
+
+static void doc_pack_entry(DocBuf *packed, const char *name, size_t name_len, const char *value, size_t value_len) {
+    if (name_len == 0 || value_len == 0) return;
+    doc_buf_append(packed, name, name_len);
+    doc_buf_append_ch(packed, 1);
+    doc_buf_append(packed, value, value_len);
+    doc_buf_append_ch(packed, 2);
+}
+
+static void trim_range(const char **start, const char **end) {
+    while (*start < *end && ((*start)[0] == '\n' || (*start)[0] == '\r')) (*start)++;
+    while (*end > *start && ((*end)[-1] == '\n' || (*end)[-1] == '\r')) (*end)--;
+}
+
+static void trim_spaces(const char **start, const char **end) {
+    while (*start < *end && ((*start)[0] == ' ' || (*start)[0] == '\t')) (*start)++;
+    while (*end > *start && ((*end)[-1] == ' ' || (*end)[-1] == '\t')) (*end)--;
+}
+
+static int range_starts_with(const char *start, const char *end, const char *prefix) {
+    size_t n = strlen(prefix);
+    return (size_t)(end - start) >= n && memcmp(start, prefix, n) == 0;
+}
+
+static int range_eq_cstr(const char *start, const char *end, const char *s) {
+    size_t n = strlen(s);
+    return (size_t)(end - start) == n && memcmp(start, s, n) == 0;
+}
+
+static const char *find_bytes_range(const char *start, const char *end, const char *needle) {
+    size_t n = strlen(needle);
+    if (n == 0) return start;
+    for (const char *p = start; p + n <= end; p++) {
+        if (memcmp(p, needle, n) == 0) return p;
+    }
+    return NULL;
+}
+
+static const char *find_line_prefix(const char *start, const char *end, const char *prefix) {
+    size_t n = strlen(prefix);
+    for (const char *p = start; p + n <= end; p++) {
+        if ((p == start || p[-1] == '\n') && memcmp(p, prefix, n) == 0) return p;
+    }
+    return NULL;
+}
+
+static char *read_file_cstr_or_die(const char *path, size_t *len_out) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "doc_org_load: could not open '%s'\n", path);
+        exit(1);
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fprintf(stderr, "doc_org_load: could not seek '%s'\n", path);
+        exit(1);
+    }
+    long len = ftell(f);
+    if (len < 0) {
+        fprintf(stderr, "doc_org_load: could not tell '%s'\n", path);
+        exit(1);
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fprintf(stderr, "doc_org_load: could not rewind '%s'\n", path);
+        exit(1);
+    }
+    char *buf = malloc((size_t)len + 1);
+    if (!buf) doc_die_alloc("doc_org_load");
+    if (fread(buf, 1, (size_t)len, f) != (size_t)len) {
+        fprintf(stderr, "doc_org_load: could not read '%s'\n", path);
+        exit(1);
+    }
+    fclose(f);
+    buf[len] = '\0';
+    *len_out = (size_t)len;
+    return buf;
+}
+
+static char *dirname_dup_cstr(const char *path) {
+    const char *slash = strrchr(path, '/');
+#ifdef _WIN32
+    const char *backslash = strrchr(path, '\\');
+    if (backslash && (!slash || backslash > slash)) slash = backslash;
+#endif
+    if (!slash) return dup_n(".", 1);
+    return dup_n(path, (size_t)(slash - path));
+}
+
+static int page_is_core_org(const char *page, size_t len) {
+    const char *prefix = "src/core/";
+    const char *suffix = ".org";
+    size_t prefix_len = strlen(prefix);
+    size_t suffix_len = strlen(suffix);
+    return len > prefix_len + suffix_len
+        && memcmp(page, prefix, prefix_len) == 0
+        && memcmp(page + len - suffix_len, suffix, suffix_len) == 0;
+}
+
+static int page_list_has(DocPageList *pages, const char *page, size_t len) {
+    for (size_t i = 0; i < pages->len; i++) {
+        if (strlen(pages->items[i]) == len && memcmp(pages->items[i], page, len) == 0) return 1;
+    }
+    return 0;
+}
+
+static void page_list_add(DocPageList *pages, const char *page, size_t len) {
+    if (page_list_has(pages, page, len)) return;
+    if (pages->len == pages->cap) {
+        size_t cap = pages->cap ? pages->cap * 2 : 32;
+        char **items = realloc(pages->items, cap * sizeof(char *));
+        if (!items) doc_die_alloc("page_list_add");
+        pages->items = items;
+        pages->cap = cap;
+    }
+    pages->items[pages->len++] = dup_n(page, len);
+    if (!pages->items[pages->len - 1]) doc_die_alloc("page_list_add");
+}
+
+static void page_list_free(DocPageList *pages) {
+    for (size_t i = 0; i < pages->len; i++) free(pages->items[i]);
+    free(pages->items);
+    pages->items = NULL;
+    pages->len = 0;
+    pages->cap = 0;
+}
+
+static void parse_index_pages(const char *index, size_t len, DocPageList *pages) {
+    const char *end = index + len;
+    const char *p = index;
+    while ((p = find_bytes_range(p, end, "[[file:")) != NULL) {
+        const char *page_start = p + 7;
+        const char *page_end = find_bytes_range(page_start, end, "::#");
+        if (!page_end) {
+            fprintf(stderr, "doc_org_load: malformed file link in index\n");
+            exit(1);
+        }
+        size_t page_len = (size_t)(page_end - page_start);
+        if (page_is_core_org(page_start, page_len)) page_list_add(pages, page_start, page_len);
+        p = page_end + 3;
+    }
+    if (pages->len == 0) {
+        fprintf(stderr, "doc_org_load: no src/core org pages found in index\n");
+        exit(1);
+    }
+}
+
+static void parse_property_line(const char *line_start, const char *line_end, DocProps *props) {
+    const char *start = line_start;
+    const char *end = line_end;
+    trim_spaces(&start, &end);
+    if (range_starts_with(start, end, ":since:")) {
+        start += 7;
+        trim_spaces(&start, &end);
+        props->since = start;
+        props->since_len = (size_t)(end - start);
+    } else if (range_starts_with(start, end, ":deprecated:")) {
+        start += 12;
+        trim_spaces(&start, &end);
+        props->deprecated = start;
+        props->deprecated_len = (size_t)(end - start);
+    }
+}
+
+static void parse_properties(const char *start, const char *end, DocProps *props) {
+    const char *p = start;
+    while (p < end) {
+        const char *line_end = memchr(p, '\n', (size_t)(end - p));
+        if (!line_end) line_end = end;
+        parse_property_line(p, line_end, props);
+        p = line_end < end ? line_end + 1 : end;
+    }
+}
+
+static int line_false_value(const char *start, const char *end) {
+    trim_spaces(&start, &end);
+    return range_eq_cstr(start, end, "false") || range_eq_cstr(start, end, "nil") || range_eq_cstr(start, end, "no");
+}
+
+static void parse_raw_doc_meta_line(const char *line_start, const char *line_end, DocProps *props, DocBuf *body) {
+    const char *start = line_start;
+    const char *end = line_end;
+    trim_spaces(&start, &end);
+    if (range_starts_with(start, end, "#+doc:")) {
+        start += 6;
+        if (line_false_value(start, end)) props->hidden = 1;
+        return;
+    }
+    if (range_starts_with(start, end, "#+since:")) {
+        start += 8;
+        trim_spaces(&start, &end);
+        props->since = start;
+        props->since_len = (size_t)(end - start);
+        return;
+    }
+    if (range_starts_with(start, end, "#+deprecated:")) {
+        start += 13;
+        trim_spaces(&start, &end);
+        props->deprecated = start;
+        props->deprecated_len = (size_t)(end - start);
+        return;
+    }
+    if (range_starts_with(start, end, "#+group:")) return;
+    if (body->len > 0) doc_buf_append_ch(body, '\n');
+    doc_buf_append(body, line_start, (size_t)(line_end - line_start));
+}
+
+static void append_doc_value(DocBuf *value, DocProps props, const char *body_start, const char *body_end) {
+    trim_range(&body_start, &body_end);
+    if (props.since_len > 0) {
+        doc_buf_append_cstr(value, "Since: ");
+        doc_buf_append(value, props.since, props.since_len);
+        doc_buf_append_ch(value, '\n');
+    }
+    if (props.deprecated_len > 0) {
+        doc_buf_append_cstr(value, "Deprecated: ");
+        doc_buf_append(value, props.deprecated, props.deprecated_len);
+        doc_buf_append_ch(value, '\n');
+    }
+    if (value->len > 0 && body_start < body_end) doc_buf_append_ch(value, '\n');
+    doc_buf_append(value, body_start, (size_t)(body_end - body_start));
+}
+
+static void pack_doc_from_body(DocBuf *docs, const char *name, size_t name_len, DocProps props, const char *body_start, const char *body_end) {
+    if (props.hidden) return;
+    DocBuf value = {0};
+    append_doc_value(&value, props, body_start, body_end);
+    doc_pack_entry(docs, name, name_len, value.data, value.len);
+    doc_buf_free(&value);
+}
+
+static void pack_doc_from_raw(DocBuf *docs, const char *name, size_t name_len, const char *raw, size_t raw_len) {
+    DocProps props = {0};
+    DocBuf body = {0};
+    const char *p = raw;
+    const char *end = raw + raw_len;
+    while (p < end) {
+        const char *line_end = memchr(p, '\n', (size_t)(end - p));
+        if (!line_end) line_end = end;
+        parse_raw_doc_meta_line(p, line_end, &props, &body);
+        p = line_end < end ? line_end + 1 : end;
+    }
+    if (!props.hidden) {
+        DocBuf value = {0};
+        const char *body_start = body.data ? body.data : "";
+        const char *body_end = body_start + body.len;
+        append_doc_value(&value, props, body_start, body_end);
+        doc_pack_entry(docs, name, name_len, value.data, value.len);
+        doc_buf_free(&value);
+    }
+    doc_buf_free(&body);
+}
+
+static int method_kind_len(const char *line, const char *end) {
+    const char *kinds[] = {"func", "proc", "test", "macro", "ext_func", "ext_proc", "core_func", "core_proc"};
+    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+        size_t n = strlen(kinds[i]);
+        if ((size_t)(end - line) > n && memcmp(line, kinds[i], n) == 0 && line[n] == ' ') return (int)n;
+    }
+    return 0;
+}
+
+static void pack_pending_member_doc(DocBuf *docs, const char *member_name, size_t member_name_len, DocBuf *pending_doc) {
+    if (pending_doc->len > 0) {
+        pack_doc_from_raw(docs, member_name, member_name_len, pending_doc->data, pending_doc->len);
+        pending_doc->len = 0;
+    }
+}
+
+static void append_qualified_info(DocBuf *out, const char *prefix, const char *type_name, size_t type_len, const char *member, size_t member_len, const char *suffix, size_t suffix_len) {
+    doc_buf_append_cstr(out, prefix);
+    doc_buf_append(out, type_name, type_len);
+    doc_buf_append_ch(out, '.');
+    doc_buf_append(out, member, member_len);
+    doc_buf_append(out, suffix, suffix_len);
+}
+
+static void parse_struct_field_line(DocBuf *info, DocBuf *docs, const char *type_name, size_t type_len, const char *line, const char *line_end, DocBuf *pending_doc) {
+    const char *name = line;
+    while (name < line_end) {
+        const char *word_end = name;
+        while (word_end < line_end && *word_end != ' ' && *word_end != '\t' && *word_end != ':') word_end++;
+        if ((range_eq_cstr(name, word_end, "own") || range_eq_cstr(name, word_end, "ref") || range_eq_cstr(name, word_end, "shallow") || range_eq_cstr(name, word_end, "mut")) && word_end < line_end) {
+            name = word_end;
+            while (name < line_end && (*name == ' ' || *name == '\t')) name++;
+        } else {
+            break;
+        }
+    }
+    const char *name_end = name;
+    while (name_end < line_end && *name_end != ' ' && *name_end != '\t' && *name_end != ':') name_end++;
+    if (name == name_end) return;
+    DocBuf qual = {0};
+    append_qualified_info(&qual, "", type_name, type_len, name, (size_t)(name_end - name), "", 0);
+    DocBuf value = {0};
+    doc_buf_append_cstr(&value, "field ");
+    doc_buf_append(&value, line, (size_t)(name - line));
+    doc_buf_append(&value, qual.data, qual.len);
+    doc_buf_append(&value, name_end, (size_t)(line_end - name_end));
+    doc_pack_entry(info, qual.data, qual.len, value.data, value.len);
+    pack_pending_member_doc(docs, qual.data, qual.len, pending_doc);
+    doc_buf_free(&qual);
+    doc_buf_free(&value);
+}
+
+static void parse_enum_variant_line(DocBuf *info, DocBuf *docs, const char *type_name, size_t type_len, const char *line, const char *line_end, DocBuf *pending_doc) {
+    const char *name = line;
+    const char *name_end = name;
+    while (name_end < line_end && *name_end != ' ' && *name_end != '\t' && *name_end != ':') name_end++;
+    if (name == name_end) return;
+    DocBuf qual = {0};
+    append_qualified_info(&qual, "", type_name, type_len, name, (size_t)(name_end - name), "", 0);
+    DocBuf value = {0};
+    append_qualified_info(&value, "variant ", type_name, type_len, name, (size_t)(name_end - name), name_end, (size_t)(line_end - name_end));
+    doc_pack_entry(info, qual.data, qual.len, value.data, value.len);
+    pack_pending_member_doc(docs, qual.data, qual.len, pending_doc);
+    doc_buf_free(&qual);
+    doc_buf_free(&value);
+}
+
+static void parse_namespace_member_line(DocBuf *info, DocBuf *docs, const char *type_name, size_t type_len, const char *line, const char *line_end, DocBuf *pending_doc) {
+    int kind_len = method_kind_len(line, line_end);
+    const char *name = line;
+    const char *prefix = "member ";
+    size_t prefix_len = strlen(prefix);
+    if (kind_len > 0) {
+        name = line + kind_len + 1;
+        prefix = line;
+        prefix_len = (size_t)kind_len + 1;
+    }
+    const char *name_end = name;
+    while (name_end < line_end && *name_end != ' ' && *name_end != '\t' && *name_end != '(' && *name_end != ':') name_end++;
+    if (name == name_end) return;
+    DocBuf qual = {0};
+    append_qualified_info(&qual, "", type_name, type_len, name, (size_t)(name_end - name), "", 0);
+    DocBuf value = {0};
+    doc_buf_append(&value, prefix, prefix_len);
+    doc_buf_append(&value, type_name, type_len);
+    doc_buf_append_ch(&value, '.');
+    doc_buf_append(&value, name, (size_t)(name_end - name));
+    doc_buf_append(&value, name_end, (size_t)(line_end - name_end));
+    doc_pack_entry(info, qual.data, qual.len, value.data, value.len);
+    pack_pending_member_doc(docs, qual.data, qual.len, pending_doc);
+    doc_buf_free(&qual);
+    doc_buf_free(&value);
+}
+
+static void append_members_from_info(DocBuf *info_blob, DocBuf *docs_blob, const char *entry_name, size_t entry_name_len, const char *info, size_t info_len) {
+    const char *end = info + info_len;
+    int is_struct = range_starts_with(info, end, "struct ");
+    int is_enum = range_starts_with(info, end, "enum ");
+    if (!is_struct && !is_enum) return;
+    const char *p = memchr(info, '\n', info_len);
+    if (!p) return;
+    p++;
+    int in_namespace = 0;
+    DocBuf pending_doc = {0};
+    while (p < end) {
+        const char *line_end = memchr(p, '\n', (size_t)(end - p));
+        if (!line_end) line_end = end;
+        const char *line = p;
+        trim_spaces(&line, &line_end);
+        if (line < line_end) {
+            if (range_eq_cstr(line, line_end, "}")) break;
+            if (range_eq_cstr(line, line_end, "namespace:")) {
+                in_namespace = 1;
+            } else if (range_starts_with(line, line_end, "///")) {
+                const char *doc_start = line + 3;
+                if (doc_start < line_end && *doc_start == ' ') doc_start++;
+                if (pending_doc.len > 0) doc_buf_append_ch(&pending_doc, '\n');
+                doc_buf_append(&pending_doc, doc_start, (size_t)(line_end - doc_start));
+            } else if (in_namespace) {
+                parse_namespace_member_line(info_blob, docs_blob, entry_name, entry_name_len, line, line_end, &pending_doc);
+            } else if (is_struct) {
+                parse_struct_field_line(info_blob, docs_blob, entry_name, entry_name_len, line, line_end, &pending_doc);
+            } else {
+                parse_enum_variant_line(info_blob, docs_blob, entry_name, entry_name_len, line, line_end, &pending_doc);
+            }
+        }
+        p = line_end < end ? line_end + 1 : end;
+    }
+    doc_buf_free(&pending_doc);
+}
+
+static const char *next_org_heading(const char *start, const char *end) {
+    for (const char *p = start; p + 3 <= end; p++) {
+        if (p[0] == '\n' && p[1] == '*' && p[2] == ' ') return p + 1;
+    }
+    return end;
+}
+
+static void parse_org_entry(DocBuf *info_blob, DocBuf *docs_blob, const char *name, size_t name_len, const char *section_start, const char *section_end) {
+    DocProps props = {0};
+    const char *body_start = section_start;
+    if (range_starts_with(body_start, section_end, ":PROPERTIES:\n")) {
+        const char *props_start = body_start + strlen(":PROPERTIES:\n");
+        const char *props_end = find_line_prefix(props_start, section_end, ":END:");
+        if (!props_end) {
+            fprintf(stderr, "doc_org_load: unterminated property drawer for '%.*s'\n", (int)name_len, name);
+            exit(1);
+        }
+        parse_properties(props_start, props_end, &props);
+        const char *props_line_end = memchr(props_end, '\n', (size_t)(section_end - props_end));
+        body_start = props_line_end ? props_line_end + 1 : section_end;
+        if (body_start < section_end && *body_start == '\n') body_start++;
+    }
+
+    const char *last_begin = NULL;
+    const char *last_end = NULL;
+    const char *search = body_start;
+    while (search < section_end) {
+        const char *begin = find_line_prefix(search, section_end, "#+begin_src");
+        if (!begin) break;
+        const char *end_marker = find_line_prefix(begin, section_end, "#+end_src");
+        if (!end_marker) {
+            fprintf(stderr, "doc_org_load: unterminated source block for '%.*s'\n", (int)name_len, name);
+            exit(1);
+        }
+        last_begin = begin;
+        last_end = end_marker;
+        const char *end_line = memchr(end_marker, '\n', (size_t)(section_end - end_marker));
+        search = end_line ? end_line + 1 : section_end;
+    }
+
+    const char *body_end = last_begin ? last_begin : section_end;
+    pack_doc_from_body(docs_blob, name, name_len, props, body_start, body_end);
+
+    if (last_begin) {
+        const char *begin_line_end = memchr(last_begin, '\n', (size_t)(section_end - last_begin));
+        if (!begin_line_end) {
+            fprintf(stderr, "doc_org_load: malformed source block for '%.*s'\n", (int)name_len, name);
+            exit(1);
+        }
+        const char *info_start = begin_line_end + 1;
+        const char *info_end = last_end;
+        trim_range(&info_start, &info_end);
+        doc_pack_entry(info_blob, name, name_len, info_start, (size_t)(info_end - info_start));
+        append_members_from_info(info_blob, docs_blob, name, name_len, info_start, (size_t)(info_end - info_start));
+    }
+}
+
+static void parse_org_page(const char *path, DocBuf *info_blob, DocBuf *docs_blob) {
+    size_t len = 0;
+    char *content = read_file_cstr_or_die(path, &len);
+    const char *end = content + len;
+    const char *p = content;
+    while (p < end) {
+        if ((p == content || p[-1] == '\n') && p + 2 <= end && p[0] == '*' && p[1] == ' ') {
+            const char *line_end = memchr(p, '\n', (size_t)(end - p));
+            if (!line_end) line_end = end;
+            const char *name_start = p + 2;
+            const char *name_end = line_end;
+            trim_spaces(&name_start, &name_end);
+            const char *section_start = line_end < end ? line_end + 1 : end;
+            const char *section_end = next_org_heading(section_start, end);
+            parse_org_entry(info_blob, docs_blob, name_start, (size_t)(name_end - name_start), section_start, section_end);
+            p = section_end;
+        } else {
+            const char *line_end = memchr(p, '\n', (size_t)(end - p));
+            p = line_end ? line_end + 1 : end;
+        }
+    }
+    free(content);
+}
+
+static void doc_org_rebuild_cache(const char *index_path) {
+    size_t index_len = 0;
+    char *index = read_file_cstr_or_die(index_path, &index_len);
+    DocPageList pages = {0};
+    parse_index_pages(index, index_len, &pages);
+
+    char *base_dir = dirname_dup_cstr(index_path);
+    doc_buf_free(&doc_org_cached_info);
+    doc_buf_free(&doc_org_cached_docs);
+    for (size_t i = 0; i < pages.len; i++) {
+        char *full = path_join(base_dir, pages.items[i]);
+        if (!full) doc_die_alloc("doc_org_load");
+        parse_org_page(full, &doc_org_cached_info, &doc_org_cached_docs);
+        free(full);
+    }
+    free(base_dir);
+    free(index);
+    page_list_free(&pages);
+}
+
+static void doc_org_ensure_cache(const Str *index_path) {
+    char *path = dup_n(index_path->c_str, index_path->count);
+    if (!path) doc_die_alloc("doc_org_load");
+    if (doc_org_cached_path && strcmp(doc_org_cached_path, path) == 0) {
+        free(path);
+        return;
+    }
+    free(doc_org_cached_path);
+    doc_org_cached_path = path;
+    doc_org_rebuild_cache(doc_org_cached_path);
+}
+
+Str *doc_org_load_core_info(const Str *index_path) {
+    doc_org_ensure_cache(index_path);
+    return str_from_bytes(doc_org_cached_info.data ? doc_org_cached_info.data : "", doc_org_cached_info.len, "doc_org_load_core_info");
+}
+
+Str *doc_org_load_core_docs(const Str *index_path) {
+    doc_org_ensure_cache(index_path);
+    return str_from_bytes(doc_org_cached_docs.data ? doc_org_cached_docs.data : "", doc_org_cached_docs.len, "doc_org_load_core_docs");
+}
+
+Str *doc_blob_lookup(const Str *blob, const Str *name) {
     USize i = 0;
     while (i < blob->count) {
         USize sep1 = i;
@@ -662,7 +1198,7 @@ Str *doc_cache_lookup(const Str *blob, const Str *name) {
             USize len = sep2 - sep1 - 1;
             char *buf = malloc((size_t)len + 1);
             if (!buf) {
-                fprintf(stderr, "doc_cache_lookup: allocation failed\n");
+                fprintf(stderr, "doc_blob_lookup: allocation failed\n");
                 exit(1);
             }
             memcpy(buf, blob->c_str + sep1 + 1, (size_t)len);
@@ -670,7 +1206,7 @@ Str *doc_cache_lookup(const Str *blob, const Str *name) {
 
             Str *s = malloc(sizeof(Str));
             if (!s) {
-                fprintf(stderr, "doc_cache_lookup: Str allocation failed\n");
+                fprintf(stderr, "doc_blob_lookup: Str allocation failed\n");
                 exit(1);
             }
             s->c_str = (I8 *)buf;

@@ -22,8 +22,7 @@ realpath_str := ext_proc(path: Str) returns Str {}
 
 // --- Leaf helpers ---
 
-REPL_CORE_INFO_CACHE := "doc/repl_core_info.esc"
-REPL_CORE_DOCS_CACHE := "doc/repl_core_docs.esc"
+REPL_DOC_INDEX := "doc/gen/index.org"
 
 priv normalize_mode_name := func(mode_name: Str) returns Str {
     if mode_name.len() > 0 {
@@ -1791,40 +1790,11 @@ build_doc_init_line := func(packed_info: Str, packed_docs: Str) returns Str {
     return format("__doc_init__(\"", esc_info, "\", \"", esc_docs, "\")\n")
 }
 
-// Same as build_doc_init_line, but the core blobs are already escaped by the
-// generated REPL doc cache. Only user blobs are escaped on each REPL turn.
-build_doc_init_line_cached := func(escaped_core_info: Str, escaped_core_docs: Str, packed_user_info: Str, packed_user_docs: Str) returns Str {
-    if escaped_core_info.is_empty().and(escaped_core_docs.is_empty()).and(packed_user_info.is_empty()).and(packed_user_docs.is_empty()) { return "" }
+build_doc_init_line_org_files := func(index_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str {
+    esc_index_path := escape_doc_for_literal_str(index_path)
     esc_user_info := escape_doc_for_literal_str(packed_user_info)
     esc_user_docs := escape_doc_for_literal_str(packed_user_docs)
-    return format("__doc_init__(\"", escaped_core_info, esc_user_info, "\", \"", escaped_core_docs, esc_user_docs, "\")\n")
-}
-
-build_doc_init_line_cache_files := func(core_info_path: Str, core_docs_path: Str, packed_user_info: Str, packed_user_docs: Str) returns Str {
-    esc_info_path := escape_doc_for_literal_str(core_info_path)
-    esc_docs_path := escape_doc_for_literal_str(core_docs_path)
-    esc_user_info := escape_doc_for_literal_str(packed_user_info)
-    esc_user_docs := escape_doc_for_literal_str(packed_user_docs)
-    return format("doc_init_cache_files(\"", esc_info_path, "\", \"", esc_docs_path, "\", \"", esc_user_info, "\", \"", esc_user_docs, "\")\n")
-}
-
-ReplCoreDocCache := struct {
-    escaped_info := ""
-    escaped_docs := ""
-}
-
-build_repl_core_doc_cache := func(lp: LoadedProgram) returns ReplCoreDocCache {
-    mut core_merged := Expr.new(NodeType.Body, 0, 0)
-    for u : ProgramUnit in lp.core_units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children { core_merged.add_child(own stmt.clone()) }
-    }
-    mut packed_info := Str.with_capacity(262144)
-    mut packed_docs := Str.with_capacity(262144)
-    collect_decl_packed(core_merged, lp.ctx.scope, packed_info, packed_docs)
-    return ReplCoreDocCache(
-        escaped_info = escape_doc_for_literal_str(packed_info),
-        escaped_docs = escape_doc_for_literal_str(packed_docs))
+    return format("doc_init_org_files(\"", esc_index_path, "\", \"", esc_user_info, "\", \"", esc_user_docs, "\")\n")
 }
 
 // Run init/typecheck/constfolder/scavenge on the loaded program. Sets

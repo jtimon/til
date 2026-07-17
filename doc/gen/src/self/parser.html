@@ -35,7 +35,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.parser.builtin_primitive_size_align">
 <h2>builtin_primitive_size_align</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func builtin_primitive_size_align(prim: Primitive, mut sz: U32, mut al: U32)
+<pre><code class="language-til">func builtin_primitive_size_align(prim: Primitive, mut sz: USize, mut al: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.builtin_type_from_name">
@@ -62,17 +62,65 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.parser.til_type_name_c">
+<h2>til_type_name_c</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func til_type_name_c(t: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.node_name">
+<h2>node_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func node_name(data: NodeType) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.ident_node">
+<h2>ident_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func ident_node(name: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.literal_num_node">
+<h2>literal_num_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func literal_num_node(text: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.field_access_node">
+<h2>field_access_node</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func field_access_node(name: Str) returns NodeType
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.set_own_arg">
+<h2>set_own_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func set_own_arg(mut fcall: Expr, shallow arg_index: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.get_own_arg">
+<h2>get_own_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func get_own_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.func_type_name">
+<h2>func_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func func_type_name(ft: FuncType) returns Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.parser.Set__Str">
 <h2>Set__Str</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">struct Set__Str {
     own mut data : U8
-    mut count : U32
-    mut cap : U32
+    mut count : USize
+    mut cap : USize
 namespace:
     /// Create an empty Set. T must implement `cmp`.
     func new() returns Set__Str
-    func len(self: Set__Str) returns shallow U32
+    func len(self: Set__Str) returns shallow USize
     /// Drop all live elements but keep the allocated storage so the Set can be reused.
     func clear(mut self: Set__Str)
     /// True if the set contains an element equal to `val`.
@@ -82,7 +130,7 @@ namespace:
     func add(mut self: Set__Str, own val: Str)
     func delete(own self: Set__Str, shallow call_free: Bool)
     func clone(self: Set__Str) returns Set__Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -96,7 +144,7 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_Str
-    func len(self: Map__Str_Str) returns shallow U32
+    func len(self: Map__Str_Str) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_Str)
     /// True if a value exists for the given key.
@@ -110,7 +158,7 @@ namespace:
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
     func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>

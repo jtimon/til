@@ -8267,10 +8267,6 @@ priv install_compiler_support := proc(lp: LoadedProgram, prefix: Str) returns I3
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/boot"), format(dst_root, "/boot"), "install compiler boot files")
     if rc != 0 { return rc }
-    rc = install_file(root.format("/", REPL_CORE_INFO_CACHE), dst_root.format("/", REPL_CORE_INFO_CACHE), "install REPL doc info cache")
-    if rc != 0 { return rc }
-    rc = install_file(root.format("/", REPL_CORE_DOCS_CACHE), dst_root.format("/", REPL_CORE_DOCS_CACHE), "install REPL doc docs cache")
-    if rc != 0 { return rc }
     return 0
 }
 
@@ -9202,18 +9198,5 @@ cmd_doc := proc(lp: LoadedProgram) returns I32 {
     for u : ProgramUnit in lp.units { emit_unit_doc(u, catalog) }
     emit_doc_index(catalog)
     emit_doc_search(catalog)
-    return 0
-}
-
-cmd_doc_cache := proc(lp: LoadedProgram) returns I32 {
-    cache := build_repl_core_doc_cache(lp)
-
-    ensure_parent_dir(REPL_CORE_INFO_CACHE)
-    File.writefile(REPL_CORE_INFO_CACHE, cache.escaped_info)
-    println(format("Generated: ", REPL_CORE_INFO_CACHE))
-
-    ensure_parent_dir(REPL_CORE_DOCS_CACHE)
-    File.writefile(REPL_CORE_DOCS_CACHE, cache.escaped_docs)
-    println(format("Generated: ", REPL_CORE_DOCS_CACHE))
     return 0
 }

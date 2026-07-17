@@ -25,7 +25,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\n1 + 1\n")
+    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
@@ -34,14 +34,17 @@ main := proc() {
     n := count_matches(output, needle)
     bad := count_matches(output, "undefined symbol: println")
     missing := count_matches(output, "undefined symbol 'missing'")
+    bad_y := count_matches(output, "undefined symbol: y")
     two := count_matches(output, "til[script]> 2\n")
     a := count_matches(output, "til[script]> a\n")
     seven := count_matches(output, "til[script]> 7\n")
-    if n.eq(1).and(bad.eq(0)).and(missing.eq(1)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)) {
+    user_info := count_matches(output, "y is a I64")
+    member_doc := count_matches(output, "Unchecked element access: ref to the element at index `i`")
+    if n.eq(2).and(bad.eq(0)).and(missing.eq(1)).and(bad_y.eq(0)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)).and(user_info.eq(1)).and(member_doc.eq(1)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)

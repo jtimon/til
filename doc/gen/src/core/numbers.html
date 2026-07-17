@@ -36,7 +36,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 namespace:
     ext_func to_i64(shallow val: U8) returns shallow I64
     ext_func to_i32(shallow val: U8) returns shallow I32
-    ext_func to_usize(shallow val: U8) returns shallow U32
+    ext_func to_usize(shallow val: U8) returns shallow USize
     ext_func to_f32(shallow val: U8) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: U8) returns Str
@@ -45,8 +45,8 @@ namespace:
     core_func mul(shallow a: U8, shallow b: U8) returns shallow U8
     core_func div(shallow a: U8, shallow b: U8) returns shallow U8
     core_func mod(shallow a: U8, shallow b: U8) returns shallow U8
-    func inc(mut self: U8)
-    func dec(mut self: U8)
+    core_func inc(mut self: U8)
+    core_func dec(mut self: U8)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U8) returns shallow U8
     core_func eq(shallow a: U8, shallow b: U8) returns shallow Bool
@@ -66,7 +66,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U8, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U8.add for the wrapping variant.
     func safe_add(shallow a: U8, shallow b: U8, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U8
@@ -101,8 +101,8 @@ namespace:
     core_func mul(shallow a: U16, shallow b: U16) returns shallow U16
     core_func div(shallow a: U16, shallow b: U16) returns shallow U16
     core_func mod(shallow a: U16, shallow b: U16) returns shallow U16
-    func inc(mut self: U16)
-    func dec(mut self: U16)
+    core_func inc(mut self: U16)
+    core_func dec(mut self: U16)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U16) returns shallow U16
     core_func eq(shallow a: U16, shallow b: U16) returns shallow Bool
@@ -119,7 +119,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U16, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U16.add for the wrapping variant.
     func safe_add(shallow a: U16, shallow b: U16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U16
@@ -157,8 +157,8 @@ namespace:
     core_func mul(shallow a: U32, shallow b: U32) returns shallow U32
     core_func div(shallow a: U32, shallow b: U32) returns shallow U32
     core_func mod(shallow a: U32, shallow b: U32) returns shallow U32
-    func inc(mut self: U32)
-    func dec(mut self: U32)
+    core_func inc(mut self: U32)
+    core_func dec(mut self: U32)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U32) returns shallow U32
     core_func eq(shallow a: U32, shallow b: U32) returns shallow Bool
@@ -178,7 +178,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U32, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U32.add for the wrapping variant.
     func safe_add(shallow a: U32, shallow b: U32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U32
@@ -208,7 +208,7 @@ namespace:
     ext_func to_i32(shallow val: U64) returns shallow I32
     ext_func to_i64(shallow val: U64) returns shallow I64
     ext_func to_u64(shallow val: U64) returns shallow U64
-    ext_func to_usize(shallow val: U64) returns shallow U32
+    ext_func to_usize(shallow val: U64) returns shallow USize
     ext_func to_f32(shallow val: U64) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: U64) returns Str
@@ -217,8 +217,8 @@ namespace:
     core_func mul(shallow a: U64, shallow b: U64) returns shallow U64
     core_func div(shallow a: U64, shallow b: U64) returns shallow U64
     core_func mod(shallow a: U64, shallow b: U64) returns shallow U64
-    func inc(mut self: U64)
-    func dec(mut self: U64)
+    core_func inc(mut self: U64)
+    core_func dec(mut self: U64)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: U64) returns shallow U64
     core_func eq(shallow a: U64, shallow b: U64) returns shallow Bool
@@ -238,7 +238,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: U64, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U64.add for the wrapping variant.
     func safe_add(shallow a: U64, shallow b: U64, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow U64
@@ -272,8 +272,8 @@ namespace:
     core_func mul(shallow a: I8, shallow b: I8) returns shallow I8
     core_func div(shallow a: I8, shallow b: I8) returns shallow I8
     core_func mod(shallow a: I8, shallow b: I8) returns shallow I8
-    func inc(mut self: I8)
-    func dec(mut self: I8)
+    core_func inc(mut self: I8)
+    core_func dec(mut self: I8)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I8) returns shallow I8
     core_func eq(shallow a: I8, shallow b: I8) returns shallow Bool
@@ -297,7 +297,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I8, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Minimum representable value.
     MIN : I8
     /// Maximum representable value.
@@ -324,8 +324,8 @@ namespace:
     core_func mul(shallow a: I16, shallow b: I16) returns shallow I16
     core_func div(shallow a: I16, shallow b: I16) returns shallow I16
     core_func mod(shallow a: I16, shallow b: I16) returns shallow I16
-    func inc(mut self: I16)
-    func dec(mut self: I16)
+    core_func inc(mut self: I16)
+    core_func dec(mut self: I16)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I16) returns shallow I16
     core_func eq(shallow a: I16, shallow b: I16) returns shallow Bool
@@ -346,7 +346,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I16, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I16.add for the wrapping variant.
     func safe_add(shallow a: I16, shallow b: I16, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I16
@@ -373,7 +373,7 @@ namespace:
 <pre><code class="language-til">struct I32 {
 namespace:
     ext_func to_u64(shallow val: I32) returns shallow U64
-    ext_func to_usize(shallow val: I32) returns shallow U32
+    ext_func to_usize(shallow val: I32) returns shallow USize
     ext_func to_f32(shallow val: I32) returns shallow F32
     /// Convert to decimal string representation.
     func to_str(shallow val: I32) returns Str
@@ -382,8 +382,8 @@ namespace:
     core_func mul(shallow a: I32, shallow b: I32) returns shallow I32
     core_func div(shallow a: I32, shallow b: I32) returns shallow I32
     core_func mod(shallow a: I32, shallow b: I32) returns shallow I32
-    func inc(mut self: I32)
-    func dec(mut self: I32)
+    core_func inc(mut self: I32)
+    core_func dec(mut self: I32)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I32) returns shallow I32
     core_func eq(shallow a: I32, shallow b: I32) returns shallow Bool
@@ -407,7 +407,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I32, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I32.add for the wrapping variant.
     func safe_add(shallow a: I32, shallow b: I32, mut _err_kind: I64, mut _err_IntegerOverflow: IntegerOverflow, loc: Str) returns shallow I32
@@ -443,15 +443,15 @@ namespace:
     /// Convert to USize (target-width unsigned integer). Backed by the
     /// C-level cast (USize)val so it tracks ext.h's USize typedef once it
     /// becomes target-driven on 64-bit; see issue #192.
-    ext_func to_usize(shallow val: I64) returns shallow U32
+    ext_func to_usize(shallow val: I64) returns shallow USize
     ext_func to_f32(shallow val: I64) returns shallow F32
     core_func add(shallow a: I64, shallow b: I64) returns shallow I64
     core_func sub(shallow a: I64, shallow b: I64) returns shallow I64
     core_func mul(shallow a: I64, shallow b: I64) returns shallow I64
     core_func div(shallow a: I64, shallow b: I64) returns shallow I64
     core_func mod(shallow a: I64, shallow b: I64) returns shallow I64
-    func inc(mut self: I64)
-    func dec(mut self: I64)
+    core_func inc(mut self: I64)
+    core_func dec(mut self: I64)
     /// Return the multiplicative identity (1) for this type.
     func unity(shallow _self: I64) returns shallow I64
     core_func eq(shallow a: I64, shallow b: I64) returns shallow Bool
@@ -475,7 +475,7 @@ namespace:
     /// Absolute difference between two values, useful for Range iteration.
     func distance(a: Dynamic, b: Dynamic) returns shallow U64
     func delete(own self: I64, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Issue #198: division that throws DivideByZero when dividing by
     /// zero. Use I64.div for the panicking variant.
     func safe_div(shallow a: I64, shallow b: I64, mut _err_kind: I64, mut _err_DivideByZero: DivideByZero, loc: Str) returns shallow I64
@@ -523,7 +523,7 @@ namespace:
     ext_func cmp(shallow a: F32, shallow b: F32) returns shallow I64
     ext_func clone(val: F32) returns shallow F32
     func delete(own self: F32, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
     /// Division that throws DivideByZero when dividing by zero.
     /// Reuses the DivideByZero type defined below.
     /// Use F32.div for the silent (NaN/Inf) variant.
@@ -552,7 +552,7 @@ namespace:
     func hash(self: DivideByZero, hasher: HashFn) returns shallow U64
     func eq(self: DivideByZero, other: DivideByZero) returns shallow Bool
     func to_str(self: DivideByZero) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -573,7 +573,7 @@ namespace:
     func hash(self: IntegerOverflow, hasher: HashFn) returns shallow U64
     func eq(self: IntegerOverflow, other: IntegerOverflow) returns shallow Bool
     func to_str(self: IntegerOverflow) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>

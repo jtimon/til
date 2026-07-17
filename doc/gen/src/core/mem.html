@@ -47,25 +47,25 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.mem.malloc">
 <h2>malloc</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func malloc(shallow count: U64) returns Dynamic
+<pre><code class="language-til">ext_func malloc(shallow count: UPtr) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.calloc">
 <h2>calloc</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
+<pre><code class="language-til">ext_func calloc(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.realloc">
 <h2>realloc</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
+<pre><code class="language-til">ext_func realloc(own buf: Dynamic, shallow count: UPtr) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.ptr_add">
 <h2>ptr_add</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func ptr_add(buf: Dynamic, shallow offset: U64) returns ref Dynamic
+<pre><code class="language-til">core_func ptr_add(buf: Dynamic, shallow offset: UPtr) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.deref">
@@ -143,25 +143,25 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.mem.memcpy">
 <h2>memcpy</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
+<pre><code class="language-til">ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memmove">
 <h2>memmove</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
+<pre><code class="language-til">ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memset">
 <h2>memset</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
+<pre><code class="language-til">ext_func memset(dest: Dynamic, shallow val: I32, shallow len: UPtr)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.memcmp">
 <h2>memcmp</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: U64) returns shallow I32
+<pre><code class="language-til">ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: UPtr) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.ptr_eq">
@@ -173,7 +173,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.core.mem.is_null">
 <h2>is_null</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func is_null(p: Dynamic) returns shallow Bool
+<pre><code class="language-til">core_func is_null(p: Dynamic) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.mem.to_ptr">
@@ -182,16 +182,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">ext_func to_ptr(a: Dynamic) returns ref Dynamic
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.core.mem.swap">
-<h2>swap</h2>
+<article class="doc-entry" id="til.src.core.mem.swap_bytes">
+<h2>swap_bytes</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func swap(a: Dynamic, b: Dynamic, shallow size: U64)
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.core.mem.move">
-<h2>move</h2>
-<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func move(dest: Dynamic, src: Dynamic, shallow size: U64)
+<div class="doc-body">
+<p>Compiler-internal raw byte swap: the desugarer lowers `param = rhs`
+for mut aggregate params to `swap_bytes(param, temp, T.size())`
+(hoist_param_swap_assign), which runs after generic instantiation and
+so cannot call the typed swap below. Not for user code -- it has no
+ownership semantics by itself (the lowering pairs it with the temp's
+scheduled delete). Dies with #302 stage 4's first-class move marker.</p>
+</div>
+<pre><code class="language-til">func swap_bytes(a: Dynamic, b: Dynamic, shallow size: UPtr)
 </code></pre>
 </article>
 </main>

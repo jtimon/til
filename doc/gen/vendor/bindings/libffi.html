@@ -122,6 +122,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">FFI_TYPE_COMPLEX is a I64
 </code></pre>
 </article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.FFI_TYPE_UINT128">
+<h2>FFI_TYPE_UINT128</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">FFI_TYPE_UINT128 is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.FFI_TYPE_SINT128">
+<h2>FFI_TYPE_SINT128</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">FFI_TYPE_SINT128 is a I64
+</code></pre>
+</article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_arg">
 <h2>ffi_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
@@ -216,14 +228,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>ffi_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct ffi_type {
-    mut size : U32
-    mut alignment : I16
-    mut type : I16
+    mut size : USize
+    mut alignment : U16
+    mut type : U16
     ref mut elements : Dynamic
 namespace:
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -267,10 +279,11 @@ namespace:
     ref mut rtype : ffi_type
     mut bytes : U32
     mut flags : U32
+    mut extra_cif_fields : U32
 namespace:
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -313,7 +326,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_raw_size">
 <h2>ffi_raw_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc ffi_raw_size(mut cif: ffi_cif) returns shallow U32
+<pre><code class="language-til">ext_proc ffi_raw_size(mut cif: ffi_cif) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_java_raw_call">
@@ -337,7 +350,37 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_java_raw_size">
 <h2>ffi_java_raw_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc ffi_java_raw_size(mut cif: ffi_cif) returns shallow U32
+<pre><code class="language-til">ext_proc ffi_java_raw_size(mut cif: ffi_cif) returns shallow USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.FFI_VERSION_NUMBER">
+<h2>FFI_VERSION_NUMBER</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">FFI_VERSION_NUMBER is a I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_version">
+<h2>ffi_get_version</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_func ffi_get_version() returns ref I8
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_version_number">
+<h2>ffi_get_version_number</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_func ffi_get_version_number() returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_default_abi">
+<h2>ffi_get_default_abi</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_func ffi_get_default_abi() returns shallow I32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_closure_size">
+<h2>ffi_get_closure_size</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_func ffi_get_closure_size() returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure">
@@ -350,14 +393,14 @@ namespace:
     func hash(self: ffi_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_closure, _other: ffi_closure) returns shallow Bool
     func to_str(_self: ffi_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure_alloc">
 <h2>ffi_closure_alloc</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc ffi_closure_alloc(shallow size: U32, mut code: Dynamic) returns Dynamic
+<pre><code class="language-til">ext_proc ffi_closure_alloc(shallow size: USize, mut code: Dynamic) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure_free">
@@ -382,7 +425,7 @@ namespace:
     func hash(self: ffi_raw_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_raw_closure, _other: ffi_raw_closure) returns shallow Bool
     func to_str(_self: ffi_raw_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -396,7 +439,7 @@ namespace:
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_java_raw_closure, _other: ffi_java_raw_closure) returns shallow Bool
     func to_str(_self: ffi_java_raw_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -434,7 +477,7 @@ namespace:
     func hash(self: ffi_go_closure, hasher: HashFn) returns shallow U64
     func eq(_self: ffi_go_closure, _other: ffi_go_closure) returns shallow Bool
     func to_str(_self: ffi_go_closure) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 </code></pre>
 </article>
@@ -468,10 +511,42 @@ namespace:
 <pre><code class="language-til">ext_proc ffi_call(mut cif: ffi_cif, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
 </code></pre>
 </article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_call_plan">
+<h2>ffi_call_plan</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">struct ffi_call_plan {
+namespace:
+    func clone(_self: ffi_call_plan) returns ffi_call_plan
+    func delete(own self: ffi_call_plan, shallow call_free: Bool)
+    func hash(self: ffi_call_plan, hasher: HashFn) returns shallow U64
+    func eq(_self: ffi_call_plan, _other: ffi_call_plan) returns shallow Bool
+    func to_str(_self: ffi_call_plan) returns Str
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_call_plan_alloc">
+<h2>ffi_call_plan_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc ffi_call_plan_alloc(mut cif: ffi_cif) returns ref ffi_call_plan
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_call_plan_invoke">
+<h2>ffi_call_plan_invoke</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc ffi_call_plan_invoke(mut plan: ffi_call_plan, fn: Dynamic, mut rvalue: Dynamic, mut avalue: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.vendor.bindings.libffi.ffi_call_plan_free">
+<h2>ffi_call_plan_free</h2>
+<dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
+<pre><code class="language-til">ext_proc ffi_call_plan_free(mut plan: ffi_call_plan)
+</code></pre>
+</article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_struct_offsets">
 <h2>ffi_get_struct_offsets</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: U32) returns shallow I32
+<pre><code class="language-til">ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: USize) returns shallow I32
 </code></pre>
 </article>
 </main>

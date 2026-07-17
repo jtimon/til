@@ -306,7 +306,6 @@ typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
 typedef struct DocMeta DocMeta;
-typedef struct ReplCoreDocCache ReplCoreDocCache;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
 typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
@@ -844,12 +843,6 @@ typedef struct DocMeta {
     Str deprecated;
     Bool hidden;
 } DocMeta;
-
-
-typedef struct ReplCoreDocCache {
-    Str escaped_info;
-    Str escaped_docs;
-} ReplCoreDocCache;
 
 
 typedef struct priv___src_self_loader_til__ImportCheckEntry {
@@ -2986,12 +2979,7 @@ void priv___src_self_loader_til__collect_member_method_packed(Str * type_name, D
 void priv___src_self_loader_til__collect_struct_members_packed(Str * type_name, StructDef * sdef, Str * info, Str * docs);
 void priv___src_self_loader_til__collect_enum_members_packed(Str * type_name, EnumDef * edef, Str * info, Str * docs);
 void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs);
-Str * build_doc_init_line_cache_files(Str * core_info_path, Str * core_docs_path, Str * packed_user_info, Str * packed_user_docs);
-ReplCoreDocCache * ReplCoreDocCache_clone(ReplCoreDocCache * self);
-void ReplCoreDocCache_delete(ReplCoreDocCache * self, Bool call_free);
-U64 ReplCoreDocCache_hash(ReplCoreDocCache * self, HashFn hasher);
-USize ReplCoreDocCache_size(void);
-ReplCoreDocCache * build_repl_core_doc_cache(LoadedProgram * lp);
+Str * build_doc_init_line_org_files(Str * index_path, Str * packed_user_info, Str * packed_user_docs);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Str * decl_name, Context * ctx, Str * resolved_path, Set__Str * ns_alias_names, Set__Str * ns_alias_members, Map__Str_Str * ns_alias_paths);
 void priv___src_self_loader_til__collect_case_pattern_binders(Expr * pat, Set__Str * out);
 void priv___src_self_loader_til__ns_alias_rewrite_child(Expr * e, USize i, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed);
@@ -3403,7 +3391,6 @@ Str * priv___src_self_builder_til__til_doc_html_out_path(Str * unit_path);
 void priv___src_self_builder_til__ensure_parent_dir(Str * path);
 void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, DocCatalog * catalog);
 I32 cmd_doc(LoadedProgram * lp);
-I32 cmd_doc_cache(LoadedProgram * lp);
 Vec__DynCallInfo * Vec__DynCallInfo_new(void);
 USize Vec__DynCallInfo_len(Vec__DynCallInfo * self);
 void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);
@@ -4049,8 +4036,7 @@ extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
-extern Str REPL_CORE_INFO_CACHE;
-extern Str REPL_CORE_DOCS_CACHE;
+extern Str REPL_DOC_INDEX;
 extern I64 lazy_stmt_temp_counter;
 extern I64 FFI_TYPE_VOID;
 extern I64 FFI_TYPE_INT;

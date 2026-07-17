@@ -12,11 +12,11 @@ struct EvalHeap {
     mut unused : U8
 namespace:
     func new() returns shallow EvalHeap
-    func heap_alloc(shallow size: U32) returns Dynamic
+    func heap_alloc(shallow size: USize) returns Dynamic
     func heap_free(own ptr: Dynamic)
     func delete(own self: EvalHeap, shallow call_free: Bool)
-    func set_bytes(ptr: Dynamic, src: Dynamic, shallow n: U32)
-    func get_bytes(ptr: Dynamic, dst: Dynamic, shallow n: U32)
+    func set_bytes(ptr: Dynamic, src: Dynamic, shallow n: USize)
+    func get_bytes(ptr: Dynamic, dst: Dynamic, shallow n: USize)
     func set_i64(ptr: Dynamic, shallow val: I64)
     func get_i64(ptr: Dynamic) returns shallow I64
     func set_u64(ptr: Dynamic, shallow val: U64)
@@ -31,6 +31,6 @@ namespace:
     func hash(shallow self: EvalHeap, hasher: HashFn) returns shallow U64
     func eq(shallow self: EvalHeap, shallow other: EvalHeap) returns shallow Bool
     func to_str(shallow self: EvalHeap) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src

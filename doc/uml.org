@@ -27,7 +27,7 @@
 *** Neq
 *** Lt
 *** LtEq
-*** ... (55 more)
+*** ... (56 more)
 ** Token: StructDef
 *** const type := TokenType.Eof
 *** const start : USize = 0
@@ -71,10 +71,15 @@
 *** LazyProc
 *** CoreFunc
 *** CoreProc
+*** CoreLazyFunc
 ** OwnType: EnumDef
 *** Own
 *** Ref
 *** Shallow
+** GcStorage: EnumDef
+*** Unset
+*** Stack
+*** HeapBox }
 ** Declaration: StructDef
 *** name := ""
 *** doc := ""
@@ -87,6 +92,7 @@
 *** til_type := Type.Unknown
 *** own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
 *** orig_name := ""
+*** gc_storage := GcStorage.Unset
 ** FunctionDef: StructDef
 *** func_type := FuncType.Func
 *** params := Vec(Declaration).new()
@@ -198,7 +204,7 @@
 *** RestPattern
 *** CaptureBlock:CaptureBlockData
 *** Loc
-*** BodyValue:CaptureBlockData
+*** ... (2 more)
 ** Expr: StructDef
 *** node_type := NodeType.Body
 *** children := Vec(Expr).new()
@@ -272,27 +278,27 @@
 *** eval_heap := EvalHeap.new()
 *** target_usize_pname := "U32"
 *** target_uptr_pname := "U64"
+*** target_usize_bytes : USize = 4
 *** anon_type_counter : I64 = 0
 *** compile_mode := false
-*** imported := Map(Str, ImportUnit).new()
-*** imports_init_seed_done := Set(Str).new()
-*** imports_init_active := Set(Str).new()
-*** imports_init_done := Set(Str).new()
-*** imports_typer_decls_done := Set(Str).new()
-*** imports_typer_bodies_done := Set(Str).new()
-*** type_gen_synths := Set(Str).new()
-*** generic_funcs := Map(Str, Expr).new()
-*** generic_func_synths := Set(Str).new()
-*** scope := TypeScope()
-*** is_repl := false
-*** struct_layouts := Map(Str, StructLayout).new()
 *** constfolder_foldables := Map(Str, FuncType).new()
 *** constfolder_known := Map(Str, Value).new()
 *** constfolder_assigned := Set(Str).new()
 *** has_return := false
 *** has_break := false
 *** has_continue := false
-*** ... (57 more)
+*** return_value := Value.None
+*** interp_ret_is_ref := false
+*** constfold_active := false
+*** constfold_aborted := false
+*** ns_fields := Map(Str, Value).new()
+*** ns_keys := Vec(Dynamic).new()
+*** ns_inited := false
+*** imported := Map(Str, ImportUnit).new()
+*** check_unused_imports := false
+*** import_use_edges := Set(Str).new()
+*** imports_init_seed_done := Set(Str).new()
+*** ... (60 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -306,6 +312,7 @@
 *** LinuxArm32
 *** LinuxRiscv32
 *** WindowsX64
+*** WindowsX86
 *** MacosX64
 *** MacosArm64
 *** Wasm32
@@ -330,18 +337,23 @@
 *** include_flags := ""
 *** link_c_paths := ""
 *** run_tests := false
+*** usize_override_bits : I64 = 0
 ** DeclRef: StructDef
 *** path := ""
-*** idx : U32 = 0
+*** idx : USize = 0
 ** DocMeta: StructDef
 *** body := ""
 *** group := ""
 *** since := ""
 *** deprecated := ""
 *** hidden := false
-** ReplCoreDocCache: StructDef
-*** escaped_info := ""
-*** escaped_docs := ""
+** ImportCheckEntry: StructDef
+*** path := ""       // importing unit's display path
+*** line : U32 = 0
+*** col : U32 = 0
+*** label := ""      // import path literal as written, for the message
+*** dep := ""        // resolved display path of the imported file
+*** decl_name := ""  // non-empty for `name := import(...)` form
 * typer
 ** CtorArg: EnumDef
 *** Unfilled
@@ -359,6 +371,8 @@
 *** own_transfer : I32 = -1
 *** skip_scope_delete := false
 *** is_heap := false
+*** dtor_transfer := false
+*** raw_alloc := false
 * builder
 ** CollectionInfo: StructDef
 *** ref type_name : Str = NULL
@@ -402,6 +416,7 @@
 *** data_size : USize = 0
 *** borrowed := false
 *** is_str := false
+*** ref ctx : Context = NULL
 ** InterpClosure: StructDef
 *** ref func_def : Expr = NULL
 *** ref env : Scope = NULL
@@ -448,10 +463,13 @@
 *** ref_primitive_ptrs := Map(Str, Dynamic).new()
 *** box_owned_dynamics := Vec(DynPtrBox).new()
 *** box_owned_callables := Vec(DynPtrBox).new()
+*** is_call_scope := false
 ** InterpSession: StructDef
 *** ref global : Scope = NULL
 *** core_evaluated := false
-*** user_argc : U32 = 0
+*** user_argc : USize = 0
+*** retained_programs := Vec(DynPtrBox).new()
+*** evaluated_units := Set(Str).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** ExtStr: StructDef

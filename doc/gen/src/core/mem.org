@@ -38,7 +38,7 @@ ext_func til_closure_slot_delete(slot: Dynamic)
 :END:
 
 #+begin_src til
-ext_func malloc(shallow count: U64) returns Dynamic
+ext_func malloc(shallow count: UPtr) returns Dynamic
 #+end_src
 
 * calloc
@@ -48,7 +48,7 @@ ext_func malloc(shallow count: U64) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
+ext_func calloc(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic
 #+end_src
 
 * realloc
@@ -58,7 +58,7 @@ ext_func calloc(shallow nmemb: U64, shallow size: U64) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
+ext_func realloc(own buf: Dynamic, shallow count: UPtr) returns Dynamic
 #+end_src
 
 * ptr_add
@@ -68,7 +68,7 @@ ext_func realloc(own buf: Dynamic, shallow count: U64) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func ptr_add(buf: Dynamic, shallow offset: U64) returns ref Dynamic
+core_func ptr_add(buf: Dynamic, shallow offset: UPtr) returns ref Dynamic
 #+end_src
 
 * deref
@@ -198,7 +198,7 @@ ext_func write_bool(dest: Dynamic, shallow val: Bool)
 :END:
 
 #+begin_src til
-ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
+ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 #+end_src
 
 * memmove
@@ -208,7 +208,7 @@ ext_func memcpy(dest: Dynamic, src: Dynamic, shallow len: U64)
 :END:
 
 #+begin_src til
-ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
+ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: UPtr)
 #+end_src
 
 * memset
@@ -218,7 +218,7 @@ ext_func memmove(dest: Dynamic, src: Dynamic, shallow len: U64)
 :END:
 
 #+begin_src til
-ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
+ext_func memset(dest: Dynamic, shallow val: I32, shallow len: UPtr)
 #+end_src
 
 * memcmp
@@ -228,7 +228,7 @@ ext_func memset(dest: Dynamic, shallow val: I32, shallow len: U64)
 :END:
 
 #+begin_src til
-ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: U64) returns shallow I32
+ext_func memcmp(a: Dynamic, b: Dynamic, shallow len: UPtr) returns shallow I32
 #+end_src
 
 * ptr_eq
@@ -248,7 +248,7 @@ ext_func ptr_eq(a: Dynamic, b: Dynamic) returns shallow Bool
 :END:
 
 #+begin_src til
-func is_null(p: Dynamic) returns shallow Bool
+core_func is_null(p: Dynamic) returns shallow Bool
 #+end_src
 
 * to_ptr
@@ -261,22 +261,19 @@ func is_null(p: Dynamic) returns shallow Bool
 ext_func to_ptr(a: Dynamic) returns ref Dynamic
 #+end_src
 
-* swap
+* swap_bytes
 :PROPERTIES:
-:CUSTOM_ID: til.src.core.mem.swap
+:CUSTOM_ID: til.src.core.mem.swap_bytes
 :group: Core
 :END:
 
-#+begin_src til
-func swap(a: Dynamic, b: Dynamic, shallow size: U64)
-#+end_src
-
-* move
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.mem.move
-:group: Core
-:END:
+Compiler-internal raw byte swap: the desugarer lowers `param = rhs`
+for mut aggregate params to `swap_bytes(param, temp, T.size())`
+(hoist_param_swap_assign), which runs after generic instantiation and
+so cannot call the typed swap below. Not for user code -- it has no
+ownership semantics by itself (the lowering pairs it with the temp's
+scheduled delete). Dies with #302 stage 4's first-class move marker.
 
 #+begin_src til
-func move(dest: Dynamic, src: Dynamic, shallow size: U64)
+func swap_bytes(a: Dynamic, b: Dynamic, shallow size: UPtr)
 #+end_src

@@ -4,7 +4,7 @@
 
 *   Current state:
     - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
-    - Packed blobs for runtime ~help()~ (linear lookup).
+    - Packed blobs for runtime ~help()~ (linear lookup), loaded from generated org docs for core declarations and rebuilt from live REPL declarations when user docs change.
     - ~til doc~ -> org-mode and searchable static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated grouped indexes, resolved ~[[til:...]]~ doc links, and HTML source-block rendering.
     - ~make test~ extracts ~#+begin_src til :doctest~ blocks from selected doc comments and runs them through interpreted and compiled test mode.
 
@@ -19,14 +19,15 @@
 
 *   Progress:
     - First slice landed org-style doc metadata parsing/rendering and runtime filtering.
-    - Second slice pre-generates escaped core ~help()~ blobs under ~doc/~ so ~til repl~ no longer walks and escapes core docs on the first successful turn.
+    - Second slice explored pre-generated escaped core ~help()~ blobs under ~doc/~; this was superseded by loading the visible generated org docs directly.
     - Third slice generated ~doc/gen/index.org~ as the first navigation layer over public docs, grouped by ~#+group:~.
     - Fourth slice factored ~til doc~ through a reusable in-memory catalog so org pages, the index, and later HTML/search output share one collected doc model.
     - Fifth slice added stable org anchors and default groups for the generated docs index.
     - Sixth slice resolved ~[[til:Name]]~ doc-comment links through the catalog into generated org links.
     - Seventh slice emitted static HTML pages and an HTML index from the same doc catalog.
     - Eighth slice emitted ~doc/gen/search.js~ and wired a client-side search box into the generated HTML.
-    - Current slice renders org source blocks in HTML and adds a test-suite-only doctest MVP.
+    - Ninth slice rendered org source blocks in HTML and added a test-suite-only doctest MVP.
+    - Current slice removes the ad-hoc ~.esc~ REPL doc cache files. ~help()~ lazily packs core docs from ~doc/gen/*.org~, reuses them in the session, and refreshes user docs only after declarations change.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:

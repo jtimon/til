@@ -1,6 +1,16 @@
 #+TITLE: src/self/desugarer.til
 #+OPTIONS: toc:t
 
+* desugar_fcall_args_for_fdef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.desugar_fcall_args_for_fdef
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc desugar_fcall_args_for_fdef(mut e: Expr, display_name: Str, fdef_data: FunctionDef, ctx: Context) returns shallow Bool
+#+end_src
+
 * desugar_user_func_fcall_args
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.desugarer.desugar_user_func_fcall_args
@@ -128,7 +138,7 @@ func stmt_contains_match(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func splice_stmts_before(mut body: Expr, shallow idx: U32, mut pre: Vec__Expr)
+func splice_stmts_before(mut body: Expr, shallow idx: USize, mut pre: Vec__Expr)
 #+end_src
 
 * collect_switch_case_bindings
@@ -158,7 +168,7 @@ func make_switch_case_condition(scope: TypeScope, mut case_body: Expr, match_exp
 :END:
 
 #+begin_src til
-func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+func replace_switch_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own block: Expr)
 #+end_src
 
 * append_switch_else_if
@@ -208,7 +218,7 @@ func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_nod
 :END:
 
 #+begin_src til
-func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: U32, own block: Expr)
+func replace_body_stmt_with_block(mut body: Expr, shallow stmt_idx: USize, own block: Expr)
 #+end_src
 
 * make_for_in_range_while_body

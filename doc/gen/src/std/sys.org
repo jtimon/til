@@ -91,6 +91,16 @@ ext_proc current_rss_bytes(shallow pid: I64) returns shallow U64
 ext_proc host_os() returns Str
 #+end_src
 
+* host_arch
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.host_arch
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc host_arch() returns Str
+#+end_src
+
 * mkdir_p
 :PROPERTIES:
 :CUSTOM_ID: til.src.std.sys.mkdir_p
@@ -139,6 +149,16 @@ ext_proc stdio_capture_begin(path: Str)
 
 #+begin_src til
 ext_proc stdio_capture_end()
+#+end_src
+
+* in_read_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.in_read_line
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc in_read_line(mut line: Str) returns shallow Bool
 #+end_src
 
 * wait_cmd

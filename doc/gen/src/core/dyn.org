@@ -10,7 +10,7 @@
 #+begin_src til
 struct Dynamic {
 namespace:
-    func size() returns shallow U32
+    func size() returns shallow USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, shallow call_free: Bool)
 }
@@ -23,7 +23,7 @@ namespace:
 :END:
 
 #+begin_src til
-ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
+core_func is_n(self: Dynamic, other: Dynamic, shallow size: USize) returns shallow Bool
 #+end_src
 
 * get_payload
@@ -33,7 +33,7 @@ ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow 
 :END:
 
 #+begin_src til
-ext_func get_payload(self: Dynamic) returns ref Dynamic
+core_func get_payload(self: Dynamic) returns ref Dynamic
 #+end_src
 
 * dyn_call
@@ -73,7 +73,27 @@ ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func dyn_size_of(type_name: Str) returns shallow U32
+ext_func dyn_size_of(type_name: Str) returns shallow USize
+#+end_src
+
+* dyn_type_to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_type_to_str
+:group: Core
+:END:
+
+#+begin_src til
+ext_func dyn_type_to_str(type: Type) returns Str
+#+end_src
+
+* til_type_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.til_type_name
+:group: Core
+:END:
+
+#+begin_src til
+func til_type_name(t: Type) returns Str
 #+end_src
 
 * struct_field_count
@@ -216,6 +236,36 @@ ext_func func_sig_throw_count(type_name: Str) returns shallow I64
 ext_func func_sig_throw_type(type_name: Str, shallow index: I64) returns Str
 #+end_src
 
+* struct_def_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.struct_def_of
+:group: Core
+:END:
+
+#+begin_src til
+func struct_def_of(type_name: Str) returns StructDef
+#+end_src
+
+* enum_def_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.enum_def_of
+:group: Core
+:END:
+
+#+begin_src til
+func enum_def_of(type_name: Str) returns EnumDef
+#+end_src
+
+* func_sig_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.func_sig_of
+:group: Core
+:END:
+
+#+begin_src til
+func func_sig_of(type_name: Str) returns FunctionDef
+#+end_src
+
 * CloneFn
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.CloneFn
@@ -263,7 +313,7 @@ func IncFn(: Dynamic)
 :END:
 
 #+begin_src til
-func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
+func DistanceFn(: Dynamic, : Dynamic) returns shallow USize
 #+end_src
 
 * HashFn
@@ -273,7 +323,7 @@ func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
 :END:
 
 #+begin_src til
-func HashFn(: Dynamic, shallow : U32) returns shallow U64
+func HashFn(: Dynamic, shallow : USize) returns shallow U64
 #+end_src
 
 * TypeHashFn
@@ -333,7 +383,7 @@ func default_inc(_v: Dynamic)
 :END:
 
 #+begin_src til
-func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U32
+func default_distance(_a: Dynamic, _b: Dynamic) returns shallow USize
 #+end_src
 
 * default_type_hash

@@ -16,12 +16,12 @@ namespace:
     C
     HolyC
     TIL
-    func is(self: Lang, other: Lang) returns shallow Bool
+    core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -40,6 +40,7 @@ enum Target {
     LinuxArm32
     LinuxRiscv32
     WindowsX64
+    WindowsX86
     MacosX64
     MacosArm64
     Wasm32
@@ -52,16 +53,17 @@ namespace:
     LinuxArm32
     LinuxRiscv32
     WindowsX64
+    WindowsX86
     MacosX64
     MacosArm64
     Wasm32
     TempleosX86
-    func is(self: Target, other: Target) returns shallow Bool
+    core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -73,6 +75,16 @@ namespace:
 
 #+begin_src til
 func target_from_str(s: Str) returns Target
+#+end_src
+
+* is_windows_target
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.is_windows_target
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func is_windows_target(target: Target) returns shallow Bool
 #+end_src
 
 * target_uptr_name
@@ -102,7 +114,17 @@ func target_usize_name(target: Target) returns Str
 :END:
 
 #+begin_src til
-func toolchain_command(target: Target, lang: Lang) returns Str
+proc toolchain_command(target: Target, lang: Lang) returns Str
+#+end_src
+
+* target_link_extra_args
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.target_link_extra_args
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc target_link_extra_args(target: Target) returns Str
 #+end_src
 
 * toolchain_extra_args
@@ -112,7 +134,7 @@ func toolchain_command(target: Target, lang: Lang) returns Str
 :END:
 
 #+begin_src til
-func toolchain_extra_args(target: Target, compiler: Str) returns Str
+proc toolchain_extra_args(target: Target) returns Str
 #+end_src
 
 * executable_extension
@@ -123,6 +145,16 @@ func toolchain_extra_args(target: Target, compiler: Str) returns Str
 
 #+begin_src til
 func executable_extension(target: Target) returns Str
+#+end_src
+
+* shared_lib_extension
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.targets.shared_lib_extension
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func shared_lib_extension(target: Target) returns Str
 #+end_src
 
 * target_system_libs
@@ -152,7 +184,7 @@ func target_ffi_lib(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_gui_libs(target: Target) returns Str
+proc target_gui_libs(target: Target) returns Str
 #+end_src
 
 * detect_current_target

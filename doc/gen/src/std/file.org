@@ -1,0 +1,164 @@
+#+TITLE: src/std/file.til
+#+OPTIONS: toc:t
+
+* cfile_open
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_open
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_open(path: Str, shallow is_write: Bool) returns ref Dynamic
+#+end_src
+
+* cfile_open_update
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_open_update
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_open_update(path: Str) returns ref Dynamic
+#+end_src
+
+* cfile_close
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_close
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_close(handle: Dynamic)
+#+end_src
+
+* cfile_write_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_write_str
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cfile_write_str(handle: Dynamic, s: Str)
+#+end_src
+
+* cfile_read_all
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_read_all
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_read_all(handle: Dynamic) returns Str
+#+end_src
+
+* cfile_tell
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_tell
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_tell(handle: Dynamic) returns shallow I64
+#+end_src
+
+* cfile_seek
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_seek
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cfile_seek(handle: Dynamic, shallow pos: I64)
+#+end_src
+
+* cfile_seek_cur
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_seek_cur
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cfile_seek_cur(handle: Dynamic, shallow delta: I64)
+#+end_src
+
+* cfile_seek_end
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_seek_end
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cfile_seek_end(handle: Dynamic, shallow delta: I64)
+#+end_src
+
+* cfile_read_n
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cfile_read_n
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cfile_read_n(handle: Dynamic, shallow count: I64) returns Str
+#+end_src
+
+* File
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.File
+:group: Standard library
+:END:
+
+File handle for reading or writing on disk.
+
+#+begin_src til
+struct File {
+    ref mut handle : U8
+    mut is_write : Bool
+    mut is_update : Bool
+namespace:
+    ext_proc readfile(path: Str) returns Str
+    ext_proc writefile(path: Str, content: Str)
+    /// Open a file at `path` for reading or writing.
+    func new(path: Str, shallow is_write: Bool) returns File
+    /// Open a file at `path` for in-place update: reads and writes are
+    /// both allowed and the cursor can be moved with `seek`, so small
+    /// regions can be patched without rewriting the whole file. The file
+    /// must already exist.
+    func update(path: Str) returns File
+    /// Write a string to the file and return `self` so writes chain via
+    /// UFCS: `f.write("a").write("b").write("c")`. Panics unless opened
+    /// for writing or update.
+    proc write(self: File, s: Str) returns ref File
+    /// Read the entire file contents into a Str. Panics if opened
+    /// write-only.
+    func read_all(self: File) returns Str
+    /// Read up to `count` bytes starting at the current cursor position
+    /// and advance the cursor. The result is shorter than `count` near
+    /// end-of-file. Panics if opened write-only.
+    func read(self: File, shallow count: I64) returns Str
+    /// Return the current cursor position as a byte offset from the start
+    /// of the file.
+    func tell(self: File) returns shallow I64
+    /// Move the cursor to an absolute byte offset from the start of the
+    /// file. Returns `self` so calls chain via UFCS.
+    proc seek(self: File, pos: I64) returns ref File
+    /// Move the cursor by `delta` bytes relative to its current position
+    /// (`delta` may be negative). Returns `self` so calls chain via UFCS.
+    proc seek_cur(self: File, delta: I64) returns ref File
+    /// Move the cursor to `delta` bytes relative to the end of the file
+    /// (`delta` is typically <= 0). `f.seek_end(0)` followed by `f.tell()`
+    /// yields the file size. Returns `self` so calls chain via UFCS.
+    proc seek_end(self: File, delta: I64) returns ref File
+    /// Close the underlying file handle and NULL it. Private: invoked
+    /// only from `delete`, which the garbager inserts after a File
+    /// local's last use.
+    func close(mut self: File)
+    /// Release the File: close the handle, then free the struct shell
+    /// unless the caller still owns it (`call_free = false` for a
+    /// stack/value local). The garbager inserts this call right after the
+    /// File's last use.
+    func delete(own self: File, shallow call_free: Bool)
+    proc fwrite(self: File, parts: ..Str) returns ref File
+    func clone(self: File) returns File
+    func size() returns shallow USize
+}
+#+end_src

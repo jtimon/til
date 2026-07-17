@@ -58,5 +58,15 @@ func constfolder_register_fold_scope(mut global: Scope, prog: Expr, ctx: Context
 :END:
 
 #+begin_src til
-func constfolder_register_core_constants(mut global: Scope)
+func constfolder_register_core_constants(mut global: Scope, usize_name: Str)
+#+end_src
+
+* move__Map__Str_Value
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.move__Map__Str_Value
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func move__Map__Str_Value(mut dest: Map__Str_Value, own src: Map__Str_Value)
 #+end_src

@@ -78,7 +78,7 @@ proc compute_struct_layout(name: Str, mut struct_def: Expr, scope: TypeScope, ct
 :END:
 
 #+begin_src til
-proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow U32
+proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns shallow USize
 #+end_src
 
 * ctx_total_size
@@ -88,7 +88,7 @@ proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Conte
 :END:
 
 #+begin_src til
-func ctx_total_size(name: Str, ctx: Context) returns shallow U32
+func ctx_total_size(name: Str, ctx: Context) returns shallow USize
 #+end_src
 
 * ctx_field_layout
@@ -98,7 +98,7 @@ func ctx_total_size(name: Str, ctx: Context) returns shallow U32
 :END:
 
 #+begin_src til
-func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns FieldLayout
+func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref FieldLayout
 #+end_src
 
 * init_declarations_global
@@ -118,7 +118,7 @@ func init_declarations_global(ctx: Context, program: Expr, scope: TypeScope) ret
 :END:
 
 #+begin_src til
-func count_ast_imports(body: Expr) returns shallow U32
+func count_ast_imports(body: Expr) returns shallow USize
 #+end_src
 
 * init_file
@@ -129,6 +129,16 @@ func count_ast_imports(body: Expr) returns shallow U32
 
 #+begin_src til
 proc init_file(path: Str, ctx: Context) returns shallow I32
+#+end_src
+
+* init_repl_delta
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_repl_delta
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_repl_delta(path: Str, program: Expr, ctx: Context) returns shallow I32
 #+end_src
 
 * clone_call_type_name
@@ -151,82 +161,6 @@ func clone_call_type_name(e: Expr) returns Str
 func is_pod_enum_clone_of(e: Expr, edef: Expr) returns shallow Bool
 #+end_src
 
-* Vec__I32
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.initer.Vec__I32
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-struct Vec__I32 {
-    own mut data : U8
-    mut count : U32
-    mut cap : U32
-namespace:
-    /// Create a new empty Vec for elements of type T.
-    func new() returns Vec__I32
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
-    func with_capacity(shallow n: U32) returns Vec__I32
-    func len(self: Vec__I32) returns shallow U32
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__I32)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__I32, own val: I32)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__I32, own other: Vec__I32)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__I32, mut other: Vec__I32)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__I32, i: U32) returns ref I32
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__I32, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref I32
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__I32) returns shallow I32
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__I32, shallow n: U32) returns Vec__I32
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__I32, shallow i: U32, own val: I32)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__I32, shallow i: U32, own val: I32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__I32, mut src: Vec__I32, shallow i: U32)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__I32, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__I32) returns Vec__I32
-    func size() returns shallow U32
-}
-#+end_src
-
 * Map__Str_I64
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.Map__Str_I64
@@ -241,7 +175,7 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_I64
-    func len(self: Map__Str_I64) returns shallow U32
+    func len(self: Map__Str_I64) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_I64)
     /// True if a value exists for the given key.
@@ -255,6 +189,6 @@ namespace:
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src

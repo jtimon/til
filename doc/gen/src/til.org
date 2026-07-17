@@ -78,7 +78,17 @@ proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 :END:
 
 #+begin_src til
-proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool) returns Str
+proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32) returns Str
+#+end_src
+
+* repl_capture_eval_tail
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_capture_eval_tail
+:group: CLI
+:END:
+
+#+begin_src til
+proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize) returns Str
 #+end_src
 
 * repl_source_line_count
@@ -89,6 +99,56 @@ proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram
 
 #+begin_src til
 func repl_source_line_count(s: Str) returns shallow U32
+#+end_src
+
+* repl_ast_has_loader_directive
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_ast_has_loader_directive
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_ast_has_loader_directive(e: Expr) returns shallow Bool
+#+end_src
+
+* repl_ast_has_lazy_def
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_ast_has_lazy_def
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_ast_has_lazy_def(e: Expr) returns shallow Bool
+#+end_src
+
+* repl_ast_has_known_variadic_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_ast_has_known_variadic_call
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
+#+end_src
+
+* repl_delta_from_source
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_delta_from_source
+:group: CLI
+:END:
+
+#+begin_src til
+proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64) returns Expr
+#+end_src
+
+* repl_peek_needs_expr_wrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.repl_peek_needs_expr_wrap
+:group: CLI
+:END:
+
+#+begin_src til
+func repl_peek_needs_expr_wrap(block: Str, tokens: Vec__Token) returns shallow Bool
 #+end_src
 
 * repl_parse_allows_wrap
@@ -176,15 +236,17 @@ struct CliArgs {
     mut target_str : Str
     mut cc : Str
     mut install_prefix : Str
-    mut path_idx : U32
+    mut path_idx : USize
     mut early_return : Bool
     mut asan : Bool
     mut prof : Bool
-    own mut extra_modes
+    mut usize_bits : I64
+    mut check_unused_imports : Bool
+    own mut extra_modes : Vec__Str
 namespace:
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, shallow call_free: Bool)
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -205,7 +267,7 @@ proc parse_args(args: Array__Str) returns CliArgs
 :END:
 
 #+begin_src til
-func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: U32) returns Vec__Str
+func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, shallow start_idx: USize) returns Vec__Str
 #+end_src
 
 * main

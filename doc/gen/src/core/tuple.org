@@ -12,29 +12,29 @@ Heterogeneous sequence of values with mixed types.
 #+begin_src til
 struct Tuple {
     own mut data : U8
-    mut total_size : U32
-    mut cap : U32
+    mut total_size : USize
+    mut cap : USize
     mut type_names : Vec__Str
     mut type_sizes : Vec__U32
 namespace:
     /// Create an empty Tuple.
     func new() returns Tuple
-    func len(self: Tuple) returns shallow U32
+    func len(self: Tuple) returns shallow USize
     /// Internal helper that keeps tuple metadata as string type names.
     func push_type_name(mut self: Tuple, own elem_type: Str, own val: Dynamic)
     /// Append a value of the given type. `val` is owned.
     func push(mut self: Tuple, T: Type, own val: Dynamic)
     /// Ref to element at index `i`. Panics if out of bounds.
-    func get(self: Tuple, i: U32) returns ref Dynamic
+    func get(self: Tuple, i: USize) returns ref Dynamic
     /// Type name of the element at index `i`. Panics if `i` is past
     /// the end.
-    func type_at(self: Tuple, i: U32) returns ref Str
+    func type_at(self: Tuple, i: USize) returns ref Str
     /// Byte size of the element at index `i`. Panics if `i` is past
     /// the end.
-    func size_at(self: Tuple, i: U32) returns ref U32
+    func size_at(self: Tuple, i: USize) returns ref USize
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
 
@@ -47,8 +47,8 @@ namespace:
 #+begin_src til
 struct Vec__U32 {
     own mut data : U8
-    mut count : U32
-    mut cap : U32
+    mut count : USize
+    mut cap : USize
 namespace:
     /// Create a new empty Vec for elements of type T.
     func new() returns Vec__U32
@@ -58,11 +58,17 @@ namespace:
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
     /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
     /// in push/append never starts from zero (n=0 behaves like new()).
-    func with_capacity(shallow n: U32) returns Vec__U32
-    func len(self: Vec__U32) returns shallow U32
+    func with_capacity(shallow n: USize) returns Vec__U32
+    func len(self: Vec__U32) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
     func clear(mut self: Vec__U32)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__U32, marks: Dynamic)
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
     func push(mut self: Vec__U32, own val: U32)
@@ -81,35 +87,40 @@ namespace:
     /// This is the unchecked core that `get` wraps; for-in uses it
     /// directly because its `_fi < len()` termination test already
     /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__U32, i: U32) returns ref U32
+    func unsafe_get(self: Vec__U32, i: USize) returns ref U32
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__U32, i: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref U32
+    func get(self: Vec__U32, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref U32
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__U32) returns shallow U32
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__U32, shallow n: U32) returns Vec__U32
+    func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__U32, shallow n: USize)
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i < self.count`; the write-side
     /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__U32, shallow i: U32, own val: U32)
+    func unsafe_set(mut self: Vec__U32, shallow i: USize, own val: U32)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__U32, shallow i: U32, own val: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__U32, shallow i: USize, own val: U32, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: U32)
+    func push_take(mut self: Vec__U32, mut src: Vec__U32, shallow i: USize)
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__U32, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__U32) returns Vec__U32
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src

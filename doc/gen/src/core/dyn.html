@@ -31,7 +31,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
 <pre><code class="language-til">struct Dynamic {
 namespace:
-    func size() returns shallow U32
+    func size() returns shallow USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, shallow call_free: Bool)
 }
@@ -40,13 +40,13 @@ namespace:
 <article class="doc-entry" id="til.src.core.dyn.is_n">
 <h2>is_n</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func is_n(self: Dynamic, other: Dynamic, shallow size: U32) returns shallow Bool
+<pre><code class="language-til">core_func is_n(self: Dynamic, other: Dynamic, shallow size: USize) returns shallow Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.get_payload">
 <h2>get_payload</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func get_payload(self: Dynamic) returns ref Dynamic
+<pre><code class="language-til">core_func get_payload(self: Dynamic) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.dyn_call">
@@ -70,7 +70,19 @@ namespace:
 <article class="doc-entry" id="til.src.core.dyn.dyn_size_of">
 <h2>dyn_size_of</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">ext_func dyn_size_of(type_name: Str) returns shallow U32
+<pre><code class="language-til">ext_func dyn_size_of(type_name: Str) returns shallow USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.dyn_type_to_str">
+<h2>dyn_type_to_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">ext_func dyn_type_to_str(type: Type) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.til_type_name">
+<h2>til_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func til_type_name(t: Type) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.struct_field_count">
@@ -157,6 +169,24 @@ namespace:
 <pre><code class="language-til">ext_func func_sig_throw_type(type_name: Str, shallow index: I64) returns Str
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.core.dyn.struct_def_of">
+<h2>struct_def_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func struct_def_of(type_name: Str) returns StructDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.enum_def_of">
+<h2>enum_def_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func enum_def_of(type_name: Str) returns EnumDef
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.dyn.func_sig_of">
+<h2>func_sig_of</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func func_sig_of(type_name: Str) returns FunctionDef
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.core.dyn.CloneFn">
 <h2>CloneFn</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
@@ -184,13 +214,13 @@ namespace:
 <article class="doc-entry" id="til.src.core.dyn.DistanceFn">
 <h2>DistanceFn</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func DistanceFn(: Dynamic, : Dynamic) returns shallow U32
+<pre><code class="language-til">func DistanceFn(: Dynamic, : Dynamic) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.HashFn">
 <h2>HashFn</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func HashFn(: Dynamic, shallow : U32) returns shallow U64
+<pre><code class="language-til">func HashFn(: Dynamic, shallow : USize) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.TypeHashFn">
@@ -226,7 +256,7 @@ namespace:
 <article class="doc-entry" id="til.src.core.dyn.default_distance">
 <h2>default_distance</h2>
 <dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
-<pre><code class="language-til">func default_distance(_a: Dynamic, _b: Dynamic) returns shallow U32
+<pre><code class="language-til">func default_distance(_a: Dynamic, _b: Dynamic) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.core.dyn.default_type_hash">

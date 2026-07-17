@@ -24,6 +24,6 @@ namespace:
     func hash(self: Range, hasher: HashFn) returns shallow U64
     func eq(self: Range, other: Range) returns shallow Bool
     func to_str(self: Range) returns Str
-    func size() returns shallow U32
+    func size() returns shallow USize
 }
 #+end_src
