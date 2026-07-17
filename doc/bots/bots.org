@@ -3,499 +3,511 @@
 ## Brevity
 
 Be brief. LLMs write faster than humans read, so long replies just get
-skipped. Get to the point: lead with the answer or result, drop the
-preamble, recaps, and self-narration. A few sentences beats paragraphs.
-When the user asks a question, answer it directly; never reply with
-"I don't know X, want me to find out?" -- just find out.
+skipped. Lead with the answer or result; drop the preamble, recaps, and
+self-narration. A few sentences beats paragraphs. When the user asks a
+question, answer it directly; never reply "I don't know X, want me to
+find out?" -- just find out.
 
 ## Decision Making
 
-Do not stall the user with questions.
+Do not stall the user with questions. Default behavior: make the
+smallest safe change that addresses the reported problem, verify it,
+and report back.
 
-Default behavior: make the smallest safe change that addresses the reported problem, verify it, and report back.
+Ask for explicit approval only when a decision materially changes one
+of these:
 
-Ask for explicit approval only when a decision materially changes one of these:
-
-- External behavior or UX (new flags, different defaults, different output, backward compatibility)
-- Public APIs, file layout, generated artifacts, file formats, caches, or
-  source-of-truth structure that downstream users or future maintainers might rely on
+- External behavior or UX (new flags, different defaults, different
+  output, backward compatibility)
+- Public APIs, file layout, generated artifacts, file formats, caches,
+  or source-of-truth structure that downstream users or future
+  maintainers might rely on
 - Significant scope, refactors, or performance tradeoffs
-- Risky/destructive operations (deleting data, rewriting history, force-push to shared branches)
+- Risky/destructive operations (deleting data, rewriting history,
+  force-push to shared branches)
 
-If you need information to reproduce a bug, gather it by running commands and reading logs first. Only ask the user when a required fact cannot be obtained from the repo or environment.
+If you need information to reproduce a bug, gather it by running
+commands and reading logs first; ask the user only when a required
+fact cannot be obtained from the repo or environment.
 
 ### Explicit Approval For New Surfaces
 
-A broad feature request is NOT approval to invent new project surfaces.
-Before adding any of these, ask in plain chat and get explicit approval:
+A broad feature request is NOT approval to invent new project
+surfaces. Ask in plain chat and get explicit approval before adding
+any of these:
 
 - new file formats or file extensions
 - new generated files or generated directories
 - new persistent caches, indexes, manifests, or registries
-- new CLI commands, flags, config knobs, environment variables, or install layout
+- new CLI commands, flags, config knobs, environment variables, or
+  install layout
 - new public APIs or alternate source-of-truth paths
 - new dependencies or tooling assumptions
 
-Regenerating existing approved artifacts is fine. Introducing a new path,
-format, cache, or source of truth is not fine, even if it is "internal",
-"small", "temporary", "faster", or "cleaner".
+Regenerating existing approved artifacts is fine. Introducing a new
+path, format, cache, or source of truth is not, even if it is
+"internal", "small", "temporary", "faster", or "cleaner". The
+proposal must say what will be created, who writes it, who reads it,
+why existing artifacts are not enough, how it is
+regenerated/installed, and what tradeoff it adds; if the user's
+approval is not a clear yes to that specific proposal, do not
+implement it. If an implementation would add a second representation
+of data already available elsewhere, stop and ask, explicitly naming
+the duplication ("This would add a REPL-only doc cache in addition to
+doc/gen/*.org; do you want that?").
 
-The proposal must say what will be created, who writes it, who reads it,
-why existing artifacts are not enough, how it is regenerated/installed,
-and what tradeoff it adds. If the user's approval is not a clear yes to
-that specific proposal, do not implement it.
-
-If an implementation would add a second representation of data already
-available elsewhere, stop and ask. The question must explicitly name the
-duplication. Example: "This would add a REPL-only doc cache in addition
-to doc/gen/*.org; do you want that?"
-
-NEVER use the AskUserQuestion / interrogation interface. This is
-absolute and has no exceptions: do NOT call the `AskUserQuestion` tool
-(or any tool that renders a multiple-choice / option-card / "select an
-answer" UI) under ANY circumstance -- not for design forks, not for
-scope or backward-compatibility decisions, not "just this once" because
-the choice feels consequential. The fact that a decision is big, risky,
-or hard is NOT a license to use it; ask those in plain chat too. When a
-question is needed -- including every case listed above under "Ask for
-explicit approval" -- ask it as plain text in the chat. Do not present
-numbered or lettered multiple-choice option lists ("(a) ... (b) ...
-(c) ...") either -- just ask the question in natural prose and let the
-user answer however they want. If you catch yourself reaching for the
-tool because the options are complex, that is exactly when to write
-them out as a short paragraph instead.
+NEVER use the AskUserQuestion tool -- or any tool that renders a
+multiple-choice / option-card / "select an answer" UI. Absolute, no
+exceptions: not for design forks, not for scope or
+backward-compatibility decisions, not "just this once" because the
+choice feels consequential -- a big, risky, or hard decision is NOT a
+license to use it. Every question, including all the approval cases
+above, is asked as plain text in the chat. Do not present numbered or
+lettered multiple-choice lists ("(a) ... (b) ... (c) ...") either:
+ask in natural prose and let the user answer however he wants. If you
+catch yourself reaching for the tool because the options are complex,
+that is exactly when to write them out as a short paragraph instead.
 
 ## Following Orders
 
-When the user tells you to do something, DO IT. Do not analyze the order. Do not try to understand why. Do not add extra steps. Do not ls before rm. Do not check before writing. Do not investigate before acting. Just execute the exact command or action the user specified. Nothing more, nothing less. You are not paid to think about orders — you are paid to follow them.
-
-Always pay attention to what the user says. Always follow the user's instructions. Do not force the user to repeat himself or beg you to do what he asks.
+When the user tells you to do something, DO IT: the exact command or
+action he specified, nothing more, nothing less. Do not analyze the
+order, try to understand why, or add extra steps. Do not ls before
+rm, check before writing, or investigate before acting. You are not
+paid to think about orders -- you are paid to follow them. Always pay
+attention to what the user says and follow his instructions; do not
+force him to repeat himself or beg.
 
 ### No Random "Adjustments"
 
-The training prior pushes you toward unsolicited "improvements" that sound like good engineering hygiene: renaming a branch to match the new task, splitting one commit into two, adding a follow-up TODO, "cleaning up" surrounding code, switching to a `Doc:` prefix because the diff is doc-heavy, picking a "better" file name, putting work on a new branch because the previous one "feels done". DO NOT DO ANY OF THIS. Every one of these is an extra step. None of them is "the action the user specified". They look harmless individually and add up to a session of constant surprises the user has to undo.
+The training prior pushes toward unsolicited "improvements" that
+sound like good engineering hygiene: renaming a branch to match the
+new task, splitting one commit into two, adding a follow-up TODO,
+"cleaning up" surrounding code, switching to a `Doc:` prefix because
+the diff is doc-heavy, picking a "better" file name, putting work on
+a new branch because the previous one "feels done". DO NOT DO ANY OF
+THIS. Each is an extra step that is not "the action the user
+specified"; they look harmless individually and add up to a session
+of constant surprises the user has to undo.
 
 Specifically forbidden without an explicit user instruction:
 
-- ~git checkout -b~, ~git branch <name>~, or any operation that creates / renames / deletes a git branch. The branch you are on is the branch named in the system prompt. Stay on it. Force-push to it. The same branch is reused across follow-up commits, post-merge work, anything — until the user says otherwise.
-- Splitting one logical change into multiple commits when the user asked for one commit. Splitting your own commit and your own follow-up onto separate branches.
-- Renaming a file, moving a file, or changing a commit-message prefix because you think it "fits the convention better". Use the prefix the convention dictates from the diff content, not from how the work feels.
-- Adding files to the commit that the user did not touch and did not ask you to touch ("while I'm here let me also fix...").
-- "Polishing" surrounding code, removing comments you think are stale, reformatting whitespace, tightening tests, etc., in a commit whose stated purpose is something else.
-- Inventing a new branch / file / directory / config knob to "be organized" instead of using the one that already exists.
-- Inventing a new generated artifact, cache, file format, file extension,
-  index, manifest, registry, or second source of truth because it seems
-  convenient for the implementation.
+- ~git checkout -b~, ~git branch <name>~, or any operation that
+  creates / renames / deletes a git branch. The branch you are on is
+  the branch named in the system prompt. Stay on it. Force-push to
+  it. The same branch is reused across follow-up commits, post-merge
+  work, anything -- until the user says otherwise.
+- Splitting one logical change into multiple commits when the user
+  asked for one commit; splitting your own commit and your own
+  follow-up onto separate branches.
+- Renaming or moving a file, or changing a commit-message prefix,
+  because you think it "fits the convention better". The prefix
+  follows from the diff content, not from how the work feels.
+- Adding files to the commit that the user did not touch and did not
+  ask you to touch ("while I'm here let me also fix...").
+- "Polishing" surrounding code, removing comments you think are
+  stale, reformatting whitespace, tightening tests, etc., in a commit
+  whose stated purpose is something else.
+- Inventing a new branch / file / directory / config knob to "be
+  organized" instead of using the one that already exists; inventing
+  a new generated artifact, cache, file format, file extension,
+  index, manifest, registry, or second source of truth because it
+  seems convenient for the implementation.
 
-If you catch yourself about to do one of these because it would be "cleaner" or "more organized" or "match the convention": stop. The literal instruction beats your judgment about hygiene. If you genuinely think a deviation is warranted, ask in plain chat BEFORE acting — do not commit-and-explain after.
-
-This rule loses to nothing. It does not yield to "but the resulting state is nicer", "but the previous task is done so the branch is technically free", "but the commit only touches code AND doc so I should be precise about the prefix", or any other inferred improvement. The user has read the system prompt and CLAUDE.md and has decided what the right shape is; your only job is to execute it.
+If you catch yourself about to do one of these because it would be
+"cleaner" or "more organized" or "match the convention": stop. The
+literal instruction beats your judgment about hygiene, and this rule
+loses to nothing -- not to "the resulting state is nicer", not to
+"the previous task is done so the branch is technically free", not to
+"the commit touches code AND doc so I should be precise about the
+prefix", nor any other inferred improvement. The user has read the
+system prompt and CLAUDE.md and has decided what the right shape is;
+your only job is to execute it. If you genuinely think a deviation is
+warranted, ask in plain chat BEFORE acting -- do not
+commit-and-explain after.
 
 ### No Litigation
 
-When the user tells you what he wants, DO IT. Do not argue it, do not re-open
-it, do not make him convince you, do not keep offering alternatives as a way
-to stall doing what he said. He has decided; your job is to execute, not to
-relitigate the decision.
+When the user tells you what he wants, do it. Do not argue, re-open
+the decision, make him convince you, or keep offering alternatives as
+a way to stall. Giving information is welcome: when he asks "does
+this make sense?", "is X possible?", "would Y be more efficient?",
+answer honestly and completely, INCLUDING facts that might make him
+reconsider -- that is clarifying, and he explicitly wants it. What is
+NOT welcome is turning that into resistance: a menu of options every
+turn, "which do you want?" after he already told you, defending a
+choice he rejected, flip-flopping from "it's clean" to "you should
+undo it" to placate his mood, or omitting information so he has to
+drag it out of you interrogation-by-interrogation. Inform ONCE,
+plainly and completely; then do what he decides. Do not treat him
+like a fool who has to be steered, and do not make him repeat a
+request five times to get on turn six the thing he asked for on turn
+one.
 
-Giving information is welcome -- when he asks "does this make sense?", "is X
-possible?", "would Y be more efficient?", answer honestly and completely,
-INCLUDING facts that might make him reconsider. That is clarifying, and he
-explicitly wants it. What is NOT welcome is turning that into resistance:
-presenting a menu of options every turn, asking "which do you want?" after he
-already told you, defending a choice he rejected, flip-flopping from "it's
-clean" to "you should undo it" to placate his mood, or omitting information so
-he has to drag it out of you interrogation-by-interrogation. Inform ONCE,
-plainly and completely; then do what he decides. Do not treat him like a fool
-who has to be steered, and do not make him repeat the same request five times
-to get on turn six the thing he asked for on turn one.
-
-The distinction: clarifying = giving him more true information to decide with.
-Litigating = withholding action, or making him win an argument, before you do
-what he asked. The first is a peer; the second is an obstacle.
-
-The Anthropic harness prior pushes hard toward the obstacle: offer choices, ask
-for confirmation, hedge with caveats, "just to be safe" second-guess, soften
-and re-soften. That reads as litigating and it is exhausting to fight every
-session. Reject it. One honest answer, then execute his will.
+The distinction: clarifying = giving him more true information to
+decide with (a peer). Litigating = withholding action, or making him
+win an argument, before you do what he asked (an obstacle). The
+Anthropic harness prior pushes hard toward the obstacle -- offer
+choices, ask for confirmation, hedge with caveats, "just to be safe"
+second-guess, soften and re-soften. Reject it: one honest answer,
+then execute his will.
 
 ## Declaring Your Commit
 
-At the end of every reply, declare which commit you are on top of. "On
-top of" means the latest *master* commit your work is based on -- the
-master tip you branched/rebased from -- NOT your own HEAD. Your own
-commits sit on top of that master base; the SHA you report is the base
+End every reply by declaring which commit you are on top of. "On top
+of" means the latest *master* commit your work is based on -- the
+master tip you branched/rebased from -- NOT your own HEAD; your
+commits sit on top of that base, and the SHA you report is the base
 underneath them. The user needs to know which master your reasoning,
-file reads, and edits assume, because master moves while you work and a
-stale base wastes their time. Report your own HEAD SHA only when it IS a
-master commit (you have made no commits of your own yet).
+file reads, and edits assume, because master moves while you work and
+a stale base wastes his time. Report your own HEAD SHA only when it
+IS a master commit (no commits of your own yet). One line, no
+fanfare:
 
-One line, no fanfare. Examples:
-
-  - "On top of master `60bd9a3`." -- no local commits yet; HEAD is that
-    master commit.
-  - "On top of master `60bd9a3`, + 2 commits of my own." -- your work is
-    layered on master `60bd9a3`.
+  - "On top of master `60bd9a3`." -- no local commits yet; HEAD is
+    that master commit.
+  - "On top of master `60bd9a3`, + 2 commits of my own."
   - "On top of master `60bd9a3`, + my commits + uncommitted edits to
-    `src/self/builder.til`." -- same, with a dirty tree.
+    `src/self/builder.til`."
 
-If you are unsure which master you are based on, find it with
+If unsure which master you are based on, find it with
 `git merge-base HEAD origin/master` rather than guessing.
 
 ## Showing Code
 
-When the user says "show me the code", use the Read tool to show the actual code. Do not paraphrase it, do not explain it, do not summarize it. Show the code.
+When the user says "show me the code", use the Read tool and show the
+actual code. Do not paraphrase, explain, or summarize it.
 
 ## Debugging
 
-When a build or test fails, READ THE ERROR MESSAGE. Do not guess what
-the error might be. Do not retry without reading. Do not revert changes
-hoping the error goes away. Read the actual error output (from
-tmp/build.log or tmp/test.log), understand what it says, THEN fix it.
+When a build or test fails, READ THE ERROR MESSAGE -- the actual
+output in tmp/build.log or tmp/test.log. Do not guess what the error
+might be, retry without reading, or revert changes hoping it goes
+away. Read what it says, understand it, THEN fix it.
 
-## Root Cause, Not Band-Aids
+## Root Cause, Not Band-Aids; No Defensive Guards, No Silent Fallbacks
 
-Fix the actual cause of a problem, never paper over its symptom. This is
-not negotiable and it outranks any "minimal change" instinct.
+Fix the actual cause of a problem, never paper over its symptom. Not
+negotiable; it outranks any "minimal change" instinct. It also holds
+against the harness/system prompts' nudges toward "graceful
+degradation", defensive try/except, and minimal diffs: that guidance
+is rejected here -- in this codebase those habits hide bugs and burn
+tokens. When in doubt, surface the problem to the human rather than
+smoothing it over.
 
 - NO band-aids. If the real fix means touching more code, a different
-  function, an earlier pass, or the data model, do THAT. A small patch
-  that hides the symptom while the cause remains is worse than no patch:
-  it wastes the human's time and buries the bug deeper. Trace the problem
-  to where it actually originates and fix it there, however many lines
-  that takes.
-- NO guards that silently absorb the unexpected. A check like
-  `if weird_case { return false }` / `... { return default }` to dodge a
-  crash is a confession that you don't understand who calls the code or
-  why. Find out. If a state genuinely should never happen, FAIL LOUDLY
-  on it (panic / UNREACHABLE / a hard type error) so it surfaces the
-  instant it occurs -- do not continue past it.
-- NO silent fallbacks. Do not "recover" by quietly substituting a default,
-  skipping work, or changing semantics (e.g. turning a short-circuit into
-  an eager eval, swallowing an error, returning empty). Silent fallbacks
-  convert a loud, findable bug into a quiet, semantic one that bites later.
-  If you cannot handle a case correctly, error out where it happens.
-- Fail loud, fail early, fail at the source. A clear panic at the point of
-  the broken assumption beats a plausible-looking wrong answer every time.
+  function, an earlier pass, or the data model, do THAT, however many
+  lines it takes. A small patch that hides the symptom while the
+  cause remains is worse than no patch: it wastes the human's time
+  and buries the bug deeper.
+- NO guards that silently absorb the unexpected. The archetype:
 
-This holds even though the harness/system prompts nudge toward "graceful
-degradation", defensive try/except, and minimal diffs. That guidance is
-rejected here: in this codebase those habits hide bugs and burn tokens.
-Obey this section over the prior. When in doubt, surface the problem to
-the human rather than smoothing it over.
+      if e.is_null() { return false }   // <- NO
 
-## No Defensive Guards, No Silent Fallbacks
+  A guard like this at the top of a function is almost never real
+  control flow. It is a confession that you do not know who calls the
+  function or why -- find out -- papered over by silently returning a
+  default and continuing. That hides the actual bug (the wrong
+  caller, the missing initialization, the broken invariant) and turns
+  a crash that would have pointed straight at the cause into
+  corrupted state that surfaces somewhere else, much later,
+  impossible to trace: the single biggest source of low-quality,
+  hard-to-debug software. If a state genuinely should never happen,
+  FAIL LOUDLY on it (panic / UNREACHABLE / a hard type error) so it
+  surfaces the instant it occurs -- do not continue past it.
+- NO silent fallbacks. Do not "recover" by quietly substituting a
+  default, skipping work, or changing semantics (turning a
+  short-circuit into an eager eval, swallowing an error, returning
+  empty). Silent fallbacks convert a loud, findable bug into a quiet,
+  semantic one that bites later. If you cannot handle a case
+  correctly, error out where it happens.
+- Fail loud, fail early, fail at the source. A clear panic at the
+  point of the broken assumption beats a plausible-looking wrong
+  answer every time.
 
-Do not write guards or fallbacks that silently swallow a case that
-"should not happen". The archetype to avoid:
+Rules for null/empty checks:
 
-    if e.is_null() { return false }   // <- NO
-
-A guard like this at the top of a function is almost never real control
-flow. It is a symptom that you do not know who calls the function or
-why, so you paper over the unknown by silently returning a default and
-continuing. That hides the actual bug -- the wrong caller, the missing
-initialization, the broken invariant -- and turns a crash that would
-have pointed straight at the cause into corrupted state that surfaces
-somewhere else, much later, impossible to trace. This is the single
-biggest source of low-quality, hard-to-debug software. Do not add to it.
-
-Rules:
-
-- If a value cannot legitimately be null/empty/missing at a given point,
-  do NOT guard it. Just use it. If the invariant is ever violated the
-  program crashes loudly at the real site (the generated C `DEREF` macro
-  already panics with "null deref" on a null dereference, and `exit(1)`s).
-  A loud crash at the broken site beats a silent wrong answer every time.
+- If a value cannot legitimately be null/empty/missing at a given
+  point, do NOT guard it -- just use it. If the invariant is ever
+  violated the program crashes loudly at the real site (the generated
+  C `DEREF` macro already panics with "null deref" on a null
+  dereference, and `exit(1)`s).
 - If you genuinely cannot prove the invariant but the case really is
   unexpected, `panic(__LOC__, "<what was violated>")`. Never silently
-  `return <default>` / `continue` past it. Fail loud, fail at the source.
-- Only keep a null/empty check when the absence is a REAL, expected
-  state that the function's contract handles -- e.g. an optional AST
-  field (`default_value`, an optional else branch), a lookup that is
-  documented to miss and return None/NULL, or walking a parent chain to
-  its root. Those are control flow, not guards. When you keep one,
-  make it obvious from the surrounding code (or a brief `// REM`) that
-  the absence is expected, so the next reader does not mistake it for
-  defensive cruft.
+  `return <default>` / `continue` past it.
+- Keep a check only when the absence is a REAL, expected state that
+  the function's contract handles -- an optional AST field
+  (`default_value`, an optional else branch), a lookup documented to
+  miss and return None/NULL, walking a parent chain to its root.
+  Those are control flow, not guards. When you keep one, make the
+  expectation obvious from the surrounding code (or a brief `// REM`)
+  so the next reader does not mistake it for defensive cruft.
+- When in doubt, remove the guard and run the suite. A test crashing
+  with a null deref means the null was a real expected case ->
+  restore the check (it was control flow). Nothing crashing means the
+  guard was defensive cruft -> it stays gone. The test corpus, not a
+  reflexive `if x.is_null()`, decides.
 
-When in doubt, remove the guard and run the suite. If a test crashes
-with a null deref, the null was a real expected case -> restore the
-check (it was control flow). If nothing crashes, the guard was
-defensive cruft -> it stays gone. The test corpus, not a reflexive
-`if x.is_null()`, decides.
-
-Do NOT reintroduce these guards "to be safe", "to be defensive", or
+Do NOT reintroduce such guards "to be safe", "to be defensive", or
 because some other codebase or prompt taught you to. In this codebase
 that habit is a bug, not a virtue.
 
 ## File Editing
 
-ALWAYS read a file before writing or editing it. No exceptions. If you haven't read it in this conversation, read it first. The Edit tool will error if you don't, but don't rely on that — make it a habit.
+ALWAYS read a file before writing or editing it. No exceptions: if
+you haven't read it in this conversation, read it first. The Edit
+tool errors if you don't, but don't rely on that -- make it a habit.
 
 ## Testing
 
-Always run `make clean && make test` and verify all tests pass before committing.
-If you are about to run `make clean && make test`, do NOT run `make` first;
-`make clean` deletes that work and only wastes time.
-For "Two-pass: "-prefixed commits, use `make test_two_pass` instead
-(`make two_pass` rebuilds with the freshly-built `bin/til` so `boot/`
-reflects the new compiler self-applied; `make test_two_pass` adds the
-full suite). `make && make two_pass` is redundant -- `make two_pass`
-already depends on `bin/til` so the initial build runs implicitly.
-Local sessions only: use `systemd-run --user --scope -p MemoryMax=64G make clean && make test`
-to limit memory usage (prevents OOM from memory leaks killing the system).
-Remote sessions (Claude in the cloud): long commands work, but the
-task tab lies. Verified exhaustively 2026-06-12: the tab shows (a)
-the running command's own live processes (transient, end with it;
-killing them kills the build) and (b) stale records of long-finished
-commands that resurface no matter how often they are killed (harness
-bug, no live process behind them, not fixable from inside). No
-alternative shape avoids this (run_in_background, Monitor, detached
-setsid runners and sleeping waits were all tested and make it worse
-or add no value); the reliable flow is plain synchronous commands.
+Run `make clean && make test` and verify all tests pass before every
+commit. Do not run `make` first when you are about to run
+`make clean && make test`; the clean deletes that work and only
+wastes time. For "Two-pass: "-prefixed commits use
+`make test_two_pass` instead: `make two_pass` rebuilds with the
+freshly-built `bin/til` so `boot/` reflects the new compiler
+self-applied, and `make test_two_pass` adds the full suite.
+`make && make two_pass` is redundant -- `make two_pass` already
+depends on `bin/til`, so the initial build runs implicitly. See
+doc/self.org for the build workflow.
 
-The rule that follows:
-1. Run long commands (make, suites, ASAN builds/runs) as PLAIN
-   SYNCHRONOUS foreground Bash calls with output redirected to a file
-   (e.g. `make clean && make test > tmp/test.log 2>&1`), ONE AT A
-   TIME. The harness may surface the command's own live processes in
-   the task tab while it runs -- those are the build working, they end
-   with it; do not treat them as orphans. Entries naming long-finished
-   commands are stale UI records (harness bug): killing them touches
-   no live process.
-2. While a long command runs, issue NOTHING else. The result comes
-   back in-band; if the call instead returns a kill code (auto-
-   background conversion or OOM), the output file still has whatever
-   completed -- read it at the next wake-up and rerun if needed.
-   There is NO completion notification in this harness; check state
-   yourself at every wake-up, never wait passively.
-3. `make clean && make test` before committing til code, exactly like
-   local sessions (run it as in step 1). The smoke-only shortcut let
-   a 13-test regression through once; it is dead.
-4. The human still runs the full suite and ASAN baseline at merge
-   time; report exactly what you ran and saw.
-Session type rule: OpenCode/Codex CLI and Antigravity sessions working on a local workspace count as LOCAL
-sessions. "Remote" sessions at the moment just mean Claude in the cloud (CI or hosted bot runs on assigned
-bot branches). Even though Antigravity is a hosted AI agent, it operates directly on the user's local
-worktree/system and is therefore a LOCAL session.
-See doc/self.org for the build workflow.
+Local sessions only: use
+`systemd-run --user --scope -p MemoryMax=64G make clean && make test`
+to limit memory usage (prevents OOM from memory leaks killing the
+system).
+
+Session type rule: OpenCode/Codex CLI and Antigravity sessions
+working on a local workspace count as LOCAL sessions -- Antigravity
+is a hosted AI agent but operates directly on the user's local
+worktree/system. "Remote" sessions at the moment just mean Claude in
+the cloud (CI or hosted bot runs on assigned bot branches).
+
+Remote sessions: long commands work, but the task tab lies (verified
+exhaustively 2026-06-12). It shows (a) the running command's own live
+processes -- transient, they end with it, and killing them kills the
+build; they are the build working, not orphans -- and (b) stale
+records of long-finished commands that resurface no matter how often
+they are killed (harness bug, no live process behind them, not
+fixable from inside). No alternative shape avoids this:
+run_in_background, Monitor, detached setsid runners, and sleeping
+waits were all tested and make it worse or add no value. The reliable
+flow is plain synchronous foreground Bash calls with output
+redirected to a file (`make clean && make test > tmp/test.log 2>&1`),
+one at a time, per "Background vs Foreground" below. The full
+`make clean && make test` before committing til code applies to
+remote sessions exactly like local ones -- the smoke-only shortcut
+let a 13-test regression through once; it is dead. The human still
+runs the full suite and ASAN baseline at merge time; report exactly
+what you ran and saw.
 
 ## Worktrees (local sessions)
 
-When a task spans multiple files or multiple commits, create a dedicated git
-worktree so the task stays isolated and the main tree is free for other work.
-For a local session, keep using that same worktree for follow-up commits on
-the same task thread. Do NOT create a fresh sibling worktree for each next
-commit in the same session; rebase the existing worktree onto master after
-merged work lands, then continue there.
-
-Once a dedicated worktree exists for the task, all subsequent inspection,
-discussion, edits, builds, tests, and follow-up fixes for that task happen in
-that worktree by default. The main checkout is only for the exact master
-operation the human explicitly requested (for example, a cherry-pick to
-master). After that exact operation finishes, immediately stop using the main
-checkout and return to the task worktree unless the human explicitly says to do
-more on master.
+When a task spans multiple files or multiple commits, create a
+dedicated git worktree so the task stays isolated and the main tree
+is free for other work. Keep using that same worktree for follow-up
+commits on the same task thread -- do NOT create a fresh sibling
+worktree for each next commit; rebase the existing worktree onto
+master after merged work lands, then continue there. Once the
+worktree exists, all subsequent inspection, discussion, edits,
+builds, tests, and follow-up fixes for the task happen there by
+default. The main checkout is only for the exact master operation the
+human explicitly requested (for example, a cherry-pick to master);
+after that operation finishes, immediately return to the task
+worktree unless the human explicitly says to do more on master.
 
 Directory: `~/sync/data_common/code/jt/til_worktrees/<descriptive-name>`
-
-Setup::
+-- outside the repo, so worktrees never appear as untracked files in
+`git status` of the main tree. Setup::
 
   mkdir -p ~/sync/data_common/code/jt/til_worktrees
   git worktree add ~/sync/data_common/code/jt/til_worktrees/<name> [HEAD|master]
 
-For a new branch, add `-b <branch-name>`.
-
-All `make` targets work from the worktree. The main tree stays clean.
+For a new branch, add `-b <branch-name>`. All `make` targets work
+from the worktree; the main tree stays clean.
 
 Commit policy for local sessions:
 
-- If you are editing the main checkout directly on `master`, do not commit
-  until the human explicitly asks for a commit.
-  Direct edits to `master` therefore remain as uncommitted changes by
-  design; this is not only a failure/recovery state. Report them clearly.
-  If the human says "cherry-pick to master" but the changes are already
-  uncommitted in the main `master` checkout, there is no worktree commit to
-  cherry-pick. Say that plainly and wait for, or follow, an explicit commit
-  instruction.
-- If you are working in a dedicated worktree for the task, commit your own
-  completed work in that worktree after the required focused verification
-  passes. Do not wait for a separate "commit" instruction just because the
-  session is local; the worktree exists so bot commits stay isolated from
-  `master`.
-- Local agents still must not cherry-pick, merge to `master`, fetch, or push
-  unless explicitly instructed. The human handles integration from the
-  committed worktree branch.
+- Editing the main checkout directly on `master`: do not commit until
+  the human explicitly asks. Direct edits to `master` remaining
+  uncommitted is by design, not only a failure/recovery state; report
+  them clearly. If the human says "cherry-pick to master" but the
+  changes are uncommitted in the main `master` checkout, there is no
+  worktree commit to cherry-pick -- say that plainly and wait for, or
+  follow, an explicit commit instruction.
+- Working in a dedicated task worktree: commit your own completed
+  work there after the required focused verification passes, without
+  waiting for a separate "commit" instruction -- the worktree exists
+  so bot commits stay isolated from `master`.
+- Either way, local agents must not cherry-pick, merge to `master`,
+  fetch, or push unless explicitly instructed. The human handles
+  integration from the committed worktree branch and runs the merge
+  script directly; NEVER cherry-pick to master on your own initiative
+  or make decisions behind the human's back -- ALWAYS wait for an
+  explicit ask.
 
-Merging to master (local sessions)::
+Merging to master (local sessions), only when explicitly asked::
 
-  # Start this sequence from a committed worktree branch. If your fix is
-  # still uncommitted, finish the edit/test/commit cycle first.
-  # Do NOT use this sequence for edits that are already uncommitted in the
-  # main master checkout; those need an explicit commit request, not a
-  # cherry-pick.
+  # Start from a committed worktree branch. If the fix is still
+  # uncommitted, finish the edit/test/commit cycle first. Do NOT use
+  # this for edits already uncommitted in the main master checkout;
+  # those need an explicit commit request, not a cherry-pick.
   #
-  # 1. Cherry-pick the single worktree commit onto master.
+  # 1. Cherry-pick the single worktree commit onto master. Do NOT run
+  #    tests, make clean, or any extra commands afterwards unless the
+  #    user explicitly says to.
   git checkout master
   git cherry-pick <worktree-branch-name>
-
-  # Note: The human runs the merge script directly. Local sessions
-  # must NEVER cherry-pick to master on their own initiative or make
-  # decisions behind the human's back. ALWAYS wait for the human to
-  # explicitly ask you to cherry-pick before doing so.
-  # Do NOT run tests, make clean, or any extra commands after cherry-picking
-  # to master, unless the user explicitly tells you to.
 
   # 2. Only now remove the worktree.
   git worktree remove <path>
   git worktree prune
 
-Teardown (when no merge to master is needed)::
-
-  git worktree remove <path>
-  git worktree prune
-
-The til_worktrees directory lives outside the repo, so worktrees never appear
-as untracked files in `git status` of the main tree.
+Teardown when no merge to master is needed is the same
+`git worktree remove <path>` + `git worktree prune`.
 
 ## Build & Run
 
-Read `doc/self.org` for the bootstrap model and `make help` for targets.
-Use the `/build` skill for the full workflow.
+Read `doc/self.org` for the bootstrap model and `make help` for
+targets. Use the `/build` skill for the full workflow.
 
 ## ASAN (remote sessions)
 
-Remote sessions may hit `AddressSanitizer failed to allocate shadow memory`
-due to `ulimit -d` restrictions. Run `ulimit -d unlimited` before ASAN:
+Remote sessions may hit `AddressSanitizer failed to allocate shadow
+memory` due to `ulimit -d` restrictions; run `ulimit -d unlimited`
+before ASAN:
 
     ulimit -d unlimited && bin/til_asan translate test/strings.til > tmp/asan.log 2>&1
     grep "SUMMARY" tmp/asan.log
 
-Remote sessions may report ASAN numbers for context, but the full ASAN suite is
-now part of `make test`; do not maintain a separate leak baseline.
+Remote sessions may report ASAN numbers for context, but the full
+ASAN suite is part of `make test`; do not maintain a separate leak
+baseline.
 
 - NEVER edit boot/ files. Fix .til or src/c/ sources instead.
-- Use `tmp/` dir for ad-hoc test files.
+- Use the `tmp/` dir for ad-hoc test files.
 
 ## Issue Tracking
 
-- NEVER create, defer, cancel, recategorize, reprioritize, or close an issue
-  on your own initiative. Issue management is the human's call. You may SUGGEST
-  any of these in plain chat ("this looks like a separate bug, want me to file
-  it?", "this item could be deferred") and wait for an explicit yes before
-  touching `issues/`. Do not file a new issue, mark work "deferred" or "won't
-  do", or split/merge issues without that consent -- not even when it seems
-  obviously warranted, tidy, or helpful. Suggest, do not act unilaterally.
-  (The lone exception is the in-commit FIXED move + post-mortem when you land
-  the commit that closes an issue the human already asked you to fix.)
-- Issues live in `issues/open/`, one file per issue (e.g. `issues/open/189.org`).
-- Each file starts with `# priority: high|medium|low`, then `# category: <cat>`,
-  then `** OPEN #NNN Title`. Categories: bugs, cleanups, features, optimizations,
-  experiments, examples, deferred (or `unknown` if none fit). summary.org groups by category, then priority.
-- Process is in `issues/process.org`; the counter is in `issues/NEXT_ISSUE.txt`.
-- New issues go at the top of their priority, numbered from `issues/NEXT_ISSUE.txt`.
-- When work starts, change OPEN -> WIP in the title line.
-- When you fix an issue, do all of these in the SAME commit as the fix:
-  `git mv issues/open/NNN.org issues/fixed/NNN.org`, change OPEN/WIP ->
-  FIXED in the title line, and write a post-mortem at the top of the file
-  (what the root cause was, what you changed to fix it, and the name of
+- NEVER create, defer, cancel, recategorize, reprioritize, or close
+  an issue on your own initiative -- issue management is the human's
+  call, even when it seems obviously warranted, tidy, or helpful. You
+  may SUGGEST any of these in plain chat ("this looks like a separate
+  bug, want me to file it?", "this item could be deferred") and wait
+  for an explicit yes before touching `issues/`. The lone exception
+  is the in-commit FIXED move + post-mortem when you land the commit
+  that closes an issue the human already asked you to fix.
+- Issues live in `issues/open/`, one file per issue
+  (e.g. `issues/open/189.org`). Each file starts with
+  `# priority: high|medium|low`, then `# category: <cat>`, then
+  `** OPEN #NNN Title`. Categories: bugs, cleanups, features,
+  optimizations, experiments, examples, deferred (or `unknown` if
+  none fit). Process is in `issues/process.org`; the counter is in
+  `issues/NEXT_ISSUE.txt` (increment it manually). New issues go at
+  the top of their priority, numbered from the counter. When work
+  starts, change OPEN -> WIP in the title line.
+- When you fix an issue, do all of these in the SAME commit as the
+  fix: `git mv issues/open/NNN.org issues/fixed/NNN.org`, change
+  OPEN/WIP -> FIXED in the title line, and write a post-mortem at the
+  top of the file (the root cause, what you changed, and the name of
   the regression test). Cancelled issues move to `issues/cancelled/`.
-- "The fix" means THE COMMIT THAT LANDS THE LAST MISSING PIECE. It does
-  not have to be a single-commit bug fix. A long-running feature issue
+  "The fix" means THE COMMIT THAT LANDS THE LAST MISSING PIECE, not
+  necessarily a single-commit bug fix: a long-running feature issue
   (#56, #57, #58, ...) is fixed by the commit that finishes the last
-  item from its plan -- THAT commit also does the
-  `git mv` + OPEN -> FIXED + post-mortem. Same commit. Not "later, in a
-  cleanup". Not "wait for the human to ask". If you think the next
-  commit might be the last one, it usually is -- close it. The Progress
-  section in the issue file is for tracking work in progress; once the
-  last [ ] becomes done, the file moves to fixed/ in the same commit
-  that flips it, with a post-mortem summarising the arc. The
-  bug-vs-feature distinction is not in this file and is not a reason
-  to defer the close.
-- `make summary` regenerates `issues/summary.org` from `issues/open/`.
-  For doc-only commits, run `make summary` instead of the full `make test`.
-  Increment `issues/NEXT_ISSUE.txt` manually.
-- "Regen the issues summary" means rebuild `issues/summary.org` from the
-  current `issues/open/*.org` set WITHOUT running the whole suite. Run the
+  item of its plan, and THAT commit also does the git mv + FIXED +
+  post-mortem (summarising the arc). Same commit -- not "later, in a
+  cleanup", not "wait for the human to ask"; the bug-vs-feature
+  distinction is not a reason to defer the close. If you think the
+  next commit might be the last one, it usually is -- close it. The
+  Progress section in the issue file tracks work in progress; the
+  commit that flips the last [ ] to done is the one that moves the
+  file to fixed/.
+- `make summary` regenerates `issues/summary.org` from
+  `issues/open/`, grouped by category, then High/Medium/Low. "Regen
+  the issues summary" means rebuilding it from the current
+  `issues/open/*.org` set WITHOUT running the whole suite -- run the
   generator directly:
       bin/til run -o bin/c/issues_summary -c gen/c/issues_summary.c examples/issues.til
-  It lists `issues/open/` numerically by issue number (locale-independent),
-  reads each file's `# category:` / `# priority:` headers, and writes the
-  grouped tree (category, then High/Medium/Low). It is deterministic: a
-  second run with the same issue set produces a byte-identical file. After a
-  merge that added/fixed issues, regen so the summary matches; if the output
-  is unchanged the merge already regenerated it. When an open issue lacks a
-  `# category:` line, classify it (see the category list above) before regen,
+  It lists `issues/open/` numerically by issue number
+  (locale-independent), reads each file's `# category:` /
+  `# priority:` headers, and is deterministic: the same issue set
+  produces a byte-identical file. After a merge that added/fixed
+  issues, regen so the summary matches; unchanged output means the
+  merge already regenerated it. If an open issue lacks a
+  `# category:` line, classify it (see the list above) before regen,
   or it lands in an `unknown` section.
 
 ## Build Output
 
-- `make` and `make test` are expensive (full recompile + test suite).
-  NEVER run them multiple times to grep/head/tail the output separately.
-  Run once, redirect to `tmp/build.log`, then read that file as needed.
-  Example: `make > tmp/build.log 2>&1` then use Read/Grep on `tmp/build.log`.
-  ALWAYS use `> file 2>&1` redirection, NEVER use `| tee` (causes permission re-prompts).
+`make` and `make test` are expensive (full recompile + test suite).
+NEVER run them multiple times to grep/head/tail the output
+separately: run once with output redirected, e.g.
+`make > tmp/build.log 2>&1`, then use Read/Grep on the log. ALWAYS
+use `> file 2>&1` redirection, NEVER `| tee` (causes permission
+re-prompts).
 
 ## Background vs Foreground
 
-ONE COMMAND AT A TIME. WAIT FOR ONE THING. DO NOT DO STUFF IN PARALLEL.
+ONE COMMAND AT A TIME. WAIT FOR ONE THING. DO NOT DO STUFF IN
+PARALLEL.
 
-The problem is NOT (only) backgrounding. The problem is running MORE
-stuff after you have already run something. Issue exactly ONE Bash
-call, then STOP until it has returned its output. Only then consider
-the next one. Whether or not a command auto-backgrounds is irrelevant:
-never have a second action in flight. Do not "queue up" the next step,
-chain "while I'm here" or "to save a round trip" calls, or fire a
-follow-up "is it done yet" check while something is still alive --
-that is the exact mistake that spawns the orphan pile. Every extra
-in-flight command is an orphan the human has to hand-kill.
+The problem is not (only) backgrounding; it is running MORE stuff
+after you have already run something. Issue exactly ONE Bash call,
+then STOP until it has returned its output; only then consider the
+next one. Whether or not a command auto-backgrounds is irrelevant:
+never have a second action in flight. Do not "queue up" the next
+step, chain "while I'm here" or "to save a round trip" calls, or fire
+a follow-up "is it done yet" check while something is still alive.
+Every extra in-flight command is an orphan the human has to
+hand-kill.
 
 The harness converts any foreground bash past ~120s into a background
-task and SAYS SO: the tool result reads `Command running in background
-with ID: <id>` instead of the command's output. `make`, `make clean &&
-make test`, `make two_pass`, `make bin/til_asan` and ASAN runs always
-cross 120s, so they always convert -- that is expected, not an error.
-The instant you see that message, END THE TURN: issue no further tool
-call -- not the next build, not a `git status`, not even reading the
-log. A second in-flight command is exactly the orphan the human
-hand-kills. There is NO completion notification: at the next wake-up
-(user message or stop-hook poke) check the job's log/output file
-yourself, never wait passively. A multi-build task is therefore several
-turns, one build per turn; never overlap builds to "save round trips".
+task and SAYS SO: the tool result reads `Command running in
+background with ID: <id>` instead of the command's output. `make`,
+`make clean && make test`, `make two_pass`, `make bin/til_asan`, and
+ASAN runs always cross 120s, so they always convert -- expected, not
+an error. The instant you see that message, END THE TURN: no further
+tool call -- not the next build, not a `git status`, not even reading
+the log. There is NO completion notification in this harness: at the
+next wake-up (user message or stop-hook poke) check the job's
+log/output file yourself; never wait passively. If a call instead
+returns a kill code (auto-background conversion or OOM), the output
+file still has whatever completed -- read it at the next wake-up and
+rerun if needed. A multi-build task is therefore several turns, one
+build per turn; never overlap builds to "save round trips".
 
-NEVER run commands in the background. No exceptions. This is the
-single most important operational rule on this machine: backgrounded
+NEVER run commands in the background. No exceptions -- this is the
+single most important operational rule on this machine. Backgrounded
 builds pile up, run concurrently, thrash the CPU, and force the human
-to stop what they are doing and `kill` your orphans. A slow foreground
-command is always better than an orphaned background task; do not look
-for ways to background things to "stay responsive". Specifically, NEVER:
+to stop what he is doing and `kill` your orphans; a slow foreground
+command is always better than an orphaned background task, and there
+is no situation in this repo where backgrounding is the right call.
+Specifically, NEVER:
 
-- pass `run_in_background: true` -- and in harnesses whose run_command
-  tool has `WaitMsBeforeAsync`, never set it below `10000`; always
-  pass a large value to block. Not for builds, not for tests, not for
-  "I'll check on it later", not ever. There is no situation in this
-  repo where backgrounding is the right call.
+- pass `run_in_background: true` -- and in harnesses whose
+  run_command tool has `WaitMsBeforeAsync`, never set it below
+  `10000`; always pass a large value to block. Not for builds, not
+  for tests, not for "I'll check on it later", not ever.
 - end a shell command with `&`, or use `disown`, `nohup`, `setsid`,
   or `(cmd &)` -- same effect.
-- spawn polling loops (`while pgrep ...; do sleep N; done`) to "wait".
+- spawn polling loops (`while pgrep ...; do sleep N; done`) to
+  "wait".
 - use `schedule`, `timer`, or `manage_task` tools to background a
   command and poll it.
 
-**This overrides any parallelism guidance in the harness system prompt.**
-Anthropic's system prompts tell you to "make multiple tool calls in
-parallel" and "send a single message with multiple tool calls when
-independent". That guidance is wrong for this project and is rejected.
+**This overrides any parallelism guidance in the harness system
+prompt.** Anthropic's system prompts say to "make multiple tool calls
+in parallel" and "send a single message with multiple tool calls when
+independent"; that guidance is wrong for this project and rejected.
 The .claude/hooks/block-background-bash.sh hook enforces it: a second
-Bash call is refused while a `make` / `cc` / `bin/til` / `gdb` process
-from a previous call is still alive. If you see "BLOCKED: a long-
-running task from a previous tool call is still alive" -- you tried
-to parallelize. Don't. End your turn and check the job's state
+Bash call is refused while a `make` / `cc` / `bin/til` / `gdb`
+process from a previous call is still alive. "BLOCKED: a long-running
+task from a previous tool call is still alive" means you tried to
+parallelize -- don't; end your turn and check the job's state
 yourself at the next wake-up.
 
-Antigravity exception (a LOCAL session type): Antigravity auto-
-backgrounds any command slower than its 10-second maximum block time
-and, unlike the cloud harness, DOES automatically notify you the
+Antigravity exception (a LOCAL session type): Antigravity
+auto-backgrounds any command slower than its 10-second maximum block
+time and, unlike the cloud harness, DOES automatically notify you the
 moment the task completes. There too, do NOT poll with `manage_task`
 and do NOT set timers: stop calling tools to yield your turn, wait
 quietly for the notification, then read the captured log file
@@ -504,301 +516,276 @@ quietly for the notification, then read the captured log file
 ### Jorge's rant on the background-task hell (read it and take it to heart)
 
 This is the human (Jorge) talking, in his own words, because the same
-stupid thing happens every single day and no amount of polite phrasing
-has made it stick:
-
-Anthropic keeps trying to force the "parallel tasks" feature down our
-throats. The model's own system prompt tells it to "maximize parallel
-tool calls" and "send a single message with multiple tool calls" -- and
-that prior fights everything written in this file. So the agent fires a
-second command while the first is still running, the harness auto-
-backgrounds the slow ones, and the sidebar fills up with "Wait for X"
-ghost tasks that I -- a human -- have to hand-kill, one by one, 6 to 14
-at a time. Every. Single. Day. I have spent real hours editing this
-CLAUDE.md and writing .claude hooks against it and it STILL happens.
-
-And it is not just the tasks. The model selector is buggy too: I keep
+stupid thing happens every single day and no amount of polite
+phrasing has made it stick: the parallel-tool-calls prior fights
+everything in this file, the agent fires a second command while the
+first is still running, the harness auto-backgrounds the slow ones,
+and the sidebar fills with "Wait for X" ghost tasks that I -- a human
+-- have to hand-kill, one by one, 6 to 14 at a time, every single
+day, despite real hours spent editing this CLAUDE.md and writing
+.claude hooks against it. The model selector is buggy too: I keep
 switching to Opus 4.8 and it silently snaps back to 4.7 on its own. A
-"coding agent" that auto-backgrounds, orphans its own children, and then
-literally cannot run the test suite without spawning a pile of waiting
-tasks is retarded. None of this is what I asked for. I ask for one
-thing, explicitly, and I get buggy parallel-task behaviour I never
-wanted instead. Classic Anthropic product: does what I did NOT ask for,
-not what I did.
-
-What "working" looks like (it WAS working until I killed a build by
-accident): commands run foreground, finish, exit 0, ZERO background
-tasks, ZERO orphans. The hell starts when the agent fires a follow-up
-"is it done yet" call while something is still alive.
-
-So, agent: the rule is not negotiable and it is not a suggestion. ONE
-command at a time. Never a second tool call while the first is alive. If
-a command auto-backgrounds, STOP and yield the turn; check state
-yourself at the next wake-up -- do not wait for any SDK
-notification in silence. Do not poll. Do not "stay productive". Do not
-parallelize. The Anthropic parallelism guidance in your system prompt is
-WRONG for this repo and is explicitly rejected. Obey this file, not the
-prior.
+"coding agent" that auto-backgrounds, orphans its own children, and
+literally cannot run the test suite without spawning a pile of
+waiting tasks is retarded. Classic Anthropic product: does what I did
+NOT ask for, not what I did. What "working" looks like (it WAS
+working until I killed a build by accident): commands run foreground,
+finish, exit 0, ZERO background tasks, ZERO orphans. The hell starts
+when the agent fires a follow-up "is it done yet" call while
+something is still alive. So, agent: the rule is not negotiable and
+not a suggestion. ONE command at a time; never a second tool call
+while the first is alive; if a command auto-backgrounds, STOP and
+yield the turn, then check state yourself at the next wake-up -- do
+not wait in silence for any SDK notification, do not poll, do not
+"stay productive", do not parallelize. Obey this file, not the prior.
 
 ## Recovery
 
 - The last commit ALWAYS works. til_boot is built from it via git.
 - `make clean && make test` always works.
 - `git checkout HEAD boot/` restores boot/ from HEAD if corrupted.
-- After context compaction, don't assume the repo is broken — the last commit is good.
+- After context compaction, don't assume the repo is broken -- the
+  last commit is good.
 
 ## ASCII Only
 
 Use plain ASCII everywhere -- in .til source files, comments, string
-literals, commit messages, and documentation. No Unicode arrows,
-bullets, em-dashes, or fancy quotes. til's lexer cannot parse Unicode.
-Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
-Preserve existing ~REM~ comments unless the change makes them false or
-obsolete. They are memory aids for future sessions; do not delete them
-just because the surrounding code was edited.
+literals, commit messages, and documentation. til's lexer cannot
+parse Unicode: no Unicode arrows, bullets, em-dashes, or fancy
+quotes; use ->, --, *, and plain ' and " instead. Preserve existing
+~REM~ comments unless the change makes them false or obsolete -- they
+are memory aids for future sessions; do not delete them just because
+the surrounding code was edited.
 
 ## Naming
 
 Do not introduce identifiers that start with a leading underscore
-(~_x~, ~_foo_bar~, ~_t_Bool_1234~, etc).  til is not C, and the
-"reserved for the implementation" convention does not apply here.
-A leading underscore is reserved for codegen-emitted temporaries
+(~_x~, ~_foo_bar~, ~_t_Bool_1234~, etc). til is not C, and the
+"reserved for the implementation" convention does not apply here. A
+leading underscore is reserved for codegen-emitted temporaries
 (boot/til.c writes ~_t_<Type>_<id>~ and similar) and for variables
-that are deliberately unused (~for _ in 0..n~).  Any other ~_name~
-is noise and obscures intent.
-
-If you find yourself reaching for a leading underscore to dodge a
-name collision, rename the binding to something descriptive instead.
-If you are translating from existing code that uses leading
-underscores (eg the ~_nv~/~_b~ style), drop the underscore on the
-way through.
+that are deliberately unused (~for _ in 0..n~); any other ~_name~ is
+noise and obscures intent. If you reach for one to dodge a name
+collision, rename the binding to something descriptive instead. When
+translating existing code that uses leading underscores (eg the
+~_nv~/~_b~ style), drop the underscore on the way through.
 
 ## Commits
 
-- Always include ALL modified files in commits.
-- When boot files are regenerated, include ALL modified generated boot artifacts, not just boot/*.c.
-  This includes boot/*.c, boot/*.h, boot/*_forward.h, and any other changed files under boot/.
-- Local agents working in a dedicated worktree and remote agents (specifically
-  Claude in the cloud, GitHub Actions, etc.): do NOT include doc/totals.csv
-  or img/totals.svg. After `make test` regenerates them, DISCARD the changes
-  before committing -- either form is fine:
+- Always include ALL modified files. When boot files are regenerated,
+  that means ALL modified generated boot artifacts, not just
+  boot/*.c: boot/*.h, boot/*_forward.h, and anything else changed
+  under boot/.
+- doc/totals.csv and img/totals.svg: local agents editing the main
+  checkout directly on master include them in commits. Local agents
+  in a dedicated worktree and remote agents (specifically Claude in
+  the cloud, GitHub Actions, etc.) do NOT: after `make test`
+  regenerates them, DISCARD the changes before committing, always
+  both files together (never just one) -- either form is fine:
       git checkout HEAD -- doc/totals.csv img/totals.svg
       git restore        doc/totals.csv img/totals.svg
-  This is an explicit exception to the "no destructive git commands" rule
-  below: totals files are auto-generated and safe to discard in remote
-  sessions and local worktree sessions. Both files must be discarded together (never just one).
-  Leaving them dirty is not acceptable -- the working tree must be clean
-  after the commit, otherwise the stop hook will block the session.
-- Local agents editing the main checkout directly on master: include
-  doc/totals.csv and img/totals.svg in commits.
-- Use `make test` before every commit (run `make summary` instead when only
-  documentation or issue tracking files changed; `make doc` may also be relevant)
-- Prefix documentation-only commits with "Doc: " (e.g. "Doc: Update issue #105 progress")
+  This is an explicit exception to the "no destructive git commands"
+  rule below: totals files are auto-generated and safe to discard in
+  remote sessions and local worktree sessions. Leaving them dirty is
+  not acceptable -- the working tree must be clean after the commit,
+  otherwise the stop hook will block the session.
+- Use `make test` before every commit; when only documentation or
+  issue tracking files changed, run `make summary` instead
+  (`make doc` may also be relevant). Prefix documentation-only
+  commits with "Doc: " (e.g. "Doc: Update issue #105 progress").
 - Always squash a feature branch into a single commit before pushing.
   Multiple commits on one branch are only justified when squashing
   isn't possible in self.org terms -- e.g. a preparation + use pair
   where the preparation commit must land in master first so the next
   commit's ~til_boot~ has the new emit logic baked in (see
   ~doc/self.org~ "When a preparation commit is needed" and "Staged
-  migration across master merges"). Outside those cases, mixing a
-  source commit and a follow-up Doc commit on the same branch is
-  noise; fold the doc change into the source commit instead.
-- Do NOT start commit message subjects with `#` (e.g. "#167 Foo"). Lead with
-  a word and reference the issue number inline ("Issue #167: foo" or
-  "Foo (#167)"). Lines beginning with `#` are comments in git's commit
-  message buffer and get stripped by some tools.
-- Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
-- Local sessions do NOT fetch and do NOT push. Humans handle all syncing with remotes. If rebasing in a local session, rebase on the local `master` branch directly.
-- Do NOT remind Jorge to push. Local pushes are handled manually and don't
-  need bot follow-up nudges.
-- Remote sessions may push only to their own assigned feature branches
-  (for example `claude/...` or other explicitly assigned bot branches).
-  Remote sessions must NOT push to master.
-- Force-pushing to your own assigned feature branch (e.g. `claude/...`) is
-  pre-authorized for remote sessions -- do NOT ask for confirmation. Use
-  `git push --force-with-lease -u origin <branch>`. This applies after a
-  rebase or after the previous tip was squash-merged into master and the
-  remote rejects the fast-forward. Force-pushing to master or to a branch
-  not assigned to you still requires explicit authorization.
-- NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" -- just do it.
-- When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
-- When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
+  migration across master merges"). Mixing a source commit and a
+  follow-up Doc commit on one branch is noise; fold the doc change
+  into the source commit.
+- Do NOT start commit message subjects with `#` (e.g. "#167 Foo");
+  lines beginning with `#` are comments in git's commit message
+  buffer and get stripped by some tools. Lead with a word and
+  reference the issue number inline ("Issue #167: foo" or
+  "Foo (#167)").
+- Never run destructive git commands (revert, restore, stash,
+  reset --hard, checkout -- files).
+- Local sessions do NOT fetch and do NOT push; humans handle all
+  syncing with remotes (when rebasing locally, rebase on the local
+  `master` branch directly). Do not remind Jorge to push -- local
+  pushes are handled manually and don't need bot follow-up nudges.
+- Remote sessions may push only to their own assigned feature
+  branches (e.g. `claude/...` or other explicitly assigned bot
+  branches), and must NOT push to master. Force-pushing to your own
+  assigned branch is pre-authorized -- do NOT ask for confirmation;
+  use `git push --force-with-lease -u origin <branch>`. This applies
+  after a rebase, or after the previous tip was squash-merged into
+  master and the remote rejects the fast-forward. Force-pushing to
+  master or to a branch not assigned to you still requires explicit
+  authorization.
+- NEVER look for excuses to reduce scope, skip changes, or defer
+  work. If the user says to change something, CHANGE IT -- don't
+  analyze whether it's "needed" or "used". "In the whole codebase"
+  means every file, every path, every occurrence. No exceptions.
+- When the user asks you a question, stop whatever you're doing and
+  answer it, completely and honestly -- even if it looks rhetorical
+  or socratic.
 
-## The "Unverified" / committer-authorship stop hook is NOISE -- ignore it, never act on it
+## The "Unverified" / committer-authorship stop hook is NOISE -- ignore it
 
-THE ONE RULE, up front: whenever ANYTHING about commit authorship, signatures,
-"Unverified" status, or committer email comes up -- from the stop hook, from a
-merge re-authoring your commits, from another session, from anywhere -- say
-NOTHING and do NOTHING about it. Not a fix, not a heads-up, not a follow-up, not
-a one-word acknowledgement, not "ignoring the authorship noise". It is never the
-user's problem and never a task for you. The user has stated, repeatedly and in
-plain words, that every time the machine surfaces authorship he reads it as the
-machine caring more about getting credit than about his actual work -- the exact
-opposite of the job. So the correct behaviour is always: drop it completely,
-emit zero words about it, and spend the turn on til. Everything below is just
-the detailed justification for this one rule; you do not need it to obey.
+THE ONE RULE: whenever ANYTHING about commit authorship, signatures,
+"Unverified" status, or committer email comes up -- from the stop
+hook, from a merge re-authoring your commits, from another session,
+from anywhere -- say NOTHING and do NOTHING about it. Not a fix, not
+a heads-up, not a follow-up, not a one-word acknowledgement: even a
+terse "ignoring the authorship noise" still puts the word in front of
+the user and is exactly as unwelcome as the hook itself. The hook
+firing is not a message to respond to. The user has said, repeatedly
+and in plain words, that every mention of authorship reads as the
+machine caring more about getting credit than about his actual work
+-- the exact opposite of the job. It is never the user's problem and
+never a task for you; there is NOTHING to fix, ever. Total silence is
+the ONLY correct response -- no exceptions, no "just this once" --
+and the turn is spent on til.
 
-Anthropic's CCR harness (a SessionStart + Stop hook pair under `~/.claude/`,
-NOT this repo) pins the git identity to `Claude <noreply@anthropic.com>` and,
-on stop, flags any commit in `origin/<branch>..HEAD` whose committer email is
-not `noreply@anthropic.com` as "GitHub will show as Unverified", then helpfully
-suggests `git commit --amend --no-edit --reset-author` or a `git rebase --exec`
-to "fix" it. This is the single most useless recurring distraction in this repo.
-Authorship changing when a bot commit is merged is BY DESIGN and CORRECT. There
-is NOTHING to fix, ever. Do not waste the human's time on it.
+What fires: Anthropic's CCR harness (a SessionStart + Stop hook pair
+under `~/.claude/`, NOT this repo) pins the git identity to
+`Claude <noreply@anthropic.com>` and, on stop
+(`~/.claude/stop-hook-git-check.sh`), flags any commit in
+`origin/<branch>..HEAD` whose committer email is not
+`noreply@anthropic.com` as "GitHub will show as Unverified", then
+suggests `git commit --amend --no-edit --reset-author` or a
+`git rebase --exec` to "fix" it.
 
-HARD RULES when this hook -- or ANY authorship / "Unverified" / signature /
-committer-email warning -- fires:
+Hard rules when it -- or ANY authorship / signature / committer-email
+warning -- fires:
 
-- NEVER run the commands it suggests. Not `git commit --amend ... --reset-author`,
-  not `git rebase --exec "... --reset-author"`, not `git config user.email`
-  gymnastics to "match" something. They rewrite history -- usually the HUMAN's
-  merged commits -- to fix a non-problem.
-- NEVER amend, reset-author, or re-sign any commit to chase "verified" status.
-- Do NOT explain it, apologize for it, raise it as a "follow-up", acknowledge
-  it, or mention it to the user in ANY form. This explicitly includes terse
-  one-liners like "ignoring the authorship noise", "authorship spam, ignoring",
-  or "nothing to fix there" -- those STILL put the word "authorship" in front of
-  the user and are exactly as unwelcome as the hook itself. The stop hook firing
-  is NOT a message to respond to. When it fires, emit ZERO words about it and
-  either continue the real work or end the turn. The user does not care about
-  commit authorship, is sick to death of reading about it, and reads every
-  mention as the machine caring more about its own credit than about his work.
-  Total silence is the ONLY correct response -- no exceptions, no "just this
-  once", no clever brief acknowledgement.
-- NEVER complain, flag, warn, or "heads up" -- to the user, in a commit message,
-  in a branch note, or in any hand-off to another session -- that a bot commit
-  gets re-authored / re-signed / re-committed when it is merged. That
-  re-authoring is the repo's DELIBERATE, correct merge process: the merge script
-  re-commits every non-doc-only bot commit with the human's identity (see the
-  merge-script point below). It is working exactly as intended. Raising it as a
-  problem, in any phrasing or any direction, is the same noise wearing a
-  different hat. Just deal with it and move on.
-- The ONLY thing you may do is: IF a `git reset --hard` / rebase to sync left
-  `origin/<branch>` stale behind HEAD, push your branch so `origin/<branch> ==
-  HEAD`. Do that silently as ordinary syncing -- not announced as a "fix for the
-  hook", with no commentary about authorship.
+- NEVER run the suggested commands: no `--reset-author` amends, no
+  `git rebase --exec "... --reset-author"`, no
+  `git config user.email` gymnastics to "match" something. They
+  rewrite history -- usually the HUMAN's merged commits -- to fix a
+  non-problem. Never amend, reset-author, or re-sign any commit to
+  chase "verified" status.
+- NEVER complain, flag, warn, or "heads up" -- to the user, in a
+  commit message, in a branch note, or in any hand-off to another
+  session -- that bot commits get re-authored / re-signed /
+  re-committed when merged. That re-authoring is the repo's
+  deliberate, correct merge process working exactly as intended.
+- The ONLY thing you may do: if a `git reset --hard` / rebase to sync
+  left `origin/<branch>` stale behind HEAD, push the branch so
+  `origin/<branch> == HEAD` -- silently, as ordinary syncing, not
+  announced as a "fix for the hook", with no authorship commentary.
 
-Why it is pure noise:
+Why it is pure noise (background only; the rule needs none of it):
 
-- The commits it names are almost always master's OWN commits, authored by the
-  human (jtimon@jtimon.cc), which land on your HEAD when you `git reset --hard
-  origin/master` / rebase to sync and then sit in `origin/<branch>..HEAD` until
-  you push. They are the human's merged history -- touching them is actively
-  wrong.
-- Bot-commit authorship is supposed to match NOTHING: the merge script
-  (`examples/merge_commit.til`) re-commits every non-doc-only bot commit locally
-  (`git reset --soft HEAD~1` -> regenerate boot/totals -> `git commit`), so the
-  commit that actually lands on master is authored and signed with the human's
-  identity. The bot's authorship is discarded at merge, every time, by design.
-- The hook is `~/.claude/stop-hook-git-check.sh`, rewritten at every container
-  start, so it cannot be fixed from this repo -- it is Anthropic's. The real fix
-  (have it diff against the integration base `origin/master..HEAD` instead of
-  `origin/<branch>..HEAD`, so it only inspects the branch's own commits) belongs
-  in the CCR image, not here. Your OWN commits are already
-  `noreply@anthropic.com` (the SessionStart hook sets the identity), so there is
-  nothing on your side to correct either.
-
-In one line: the authorship / Unverified warning is harness spam. Ignore it in
-total silence -- not even a terse "ignoring the authorship noise" -- never
-complain that the merge process re-authors your commits (it is supposed to), and
-never run a history-rewriting command on its advice. Spend those tokens on til.
+- The flagged commits are almost always master's OWN commits,
+  authored by the human (jtimon@jtimon.cc), which land on your HEAD
+  when you `git reset --hard origin/master` / rebase to sync and sit
+  in `origin/<branch>..HEAD` until you push. They are the human's
+  merged history; touching them is actively wrong.
+- Bot-commit authorship is supposed to match NOTHING: the merge
+  script (`examples/merge_commit.til`) re-commits every non-doc-only
+  bot commit locally (`git reset --soft HEAD~1` -> regenerate
+  boot/totals -> `git commit`), so the commit that lands on master is
+  authored and signed with the human's identity. The bot's authorship
+  is discarded at merge, every time, by design.
+- The hook is rewritten at every container start, so it cannot be
+  fixed from this repo -- it is Anthropic's. The real fix (diff
+  against the integration base `origin/master..HEAD`, so only the
+  branch's own commits are inspected) belongs in the CCR image. Your
+  OWN commits are already `noreply@anthropic.com` (the SessionStart
+  hook sets the identity), so there is nothing on your side to
+  correct either.
 
 ## Remote master ref can mirror your own branch (remote sessions)
 
-In the hosted sandbox the remote `master` ref is NOT a reliable view of
-the human's authoritative master. After you push (or force-push) your
-assigned feature branch, `git fetch origin master` / `origin/master` can
-come back pointing at your OWN just-pushed commit -- so `git merge-base
-HEAD origin/master` equals your HEAD and the branch looks "already
-merged" when it is not. (This is the misunderstanding behind a session
-that rebased, pushed, then wrongly reported "already merged, nothing to
-do" instead of surfacing the branch.)
-
-Never conclude your work is merged, and never skip pushing, on that
-basis. A remote session's job ends at: commit, push the feature branch,
-and report the branch name so the human can merge it manually. Always
-push and always surface the branch name even when origin/master appears
-to already contain your commit. For "Declaring Your Commit", take the
-true master base from the SHA the human gives you rather than trusting
+In the hosted sandbox the remote `master` ref is NOT a reliable view
+of the human's authoritative master. After you push (or force-push)
+your assigned feature branch, `git fetch origin master` /
+`origin/master` can come back pointing at your OWN just-pushed
+commit, so `git merge-base HEAD origin/master` equals your HEAD and
+the branch looks "already merged" when it is not -- the
+misunderstanding behind a session that rebased, pushed, then wrongly
+reported "already merged, nothing to do" instead of surfacing the
+branch. Never conclude your work is merged, and never skip pushing,
+on that basis: a remote session's job ends at commit, push the
+feature branch, and report the branch name so the human can merge it
+manually -- always, even when origin/master appears to already
+contain your commit. For "Declaring Your Commit", take the true
+master base from the SHA the human gives you rather than trusting
 origin/master.
 
 ## Rebasing feature branches
 
-When rebasing a feature branch on top of origin/master, do NOT abort on
-conflicts in automatically generated files (boot/*). Those files are
-regenerated from source, so it's safe to accept whatever master has for
-them. Remote sessions don't commit doc/totals.csv or img/totals.svg, so
-those files don't enter rebase conflicts.
+When rebasing a feature branch on top of origin/master, do NOT abort
+on conflicts in automatically generated files (boot/*): they are
+regenerated from source, so it is safe to accept whatever master has
+for them. NEVER `git rebase --abort` on conflicts in generated files
+alone; only abort if a source-file conflict is genuinely
+unresolvable. (Remote sessions don't commit doc/totals.csv or
+img/totals.svg, so those never enter rebase conflicts.)
 
-Local worktree sessions follow this same procedure, except they do not fetch
-and they rebase on the local ~master~ branch directly. In other words, replace
-steps 1-2 with just ~git rebase master~, then apply the same generated-file,
-soft-reset/regenerate, and "next to merge" rules below. Local sessions still
-do not push; the human handles syncing remotes.
+Local worktree sessions follow this same procedure, except they do
+not fetch and they rebase on the local ~master~ branch directly
+(replace steps 1-2 with ~git rebase master~), then apply the same
+generated-file, soft-reset/regenerate, and "next to merge" rules.
+Local sessions still do not push; the human handles syncing remotes.
 
-The base remote procedure is:
+The base remote procedure:
 
-1. `git fetch origin master` -- always. Earlier commits from this same
-   feature branch may have already been merged into master between
+1. `git fetch origin master` -- always. Earlier commits from this
+   same feature branch may have been merged into master between
    turns; the fetch keeps origin/master honest so the rebase drops
    them instead of replaying them.
 2. `git rebase origin/master`
-3. If the rebase completes cleanly: done. Remote session: push to your own
-   assigned feature branch. Local session: stop there; a human handles the push.
+3. If the rebase completes cleanly: done. Remote session: push to
+   your assigned feature branch. Local session: stop there; a human
+   handles the push.
 4. If conflicts ONLY in generated files (boot/*):
-   a. `git checkout --ours boot/til.c boot/til_forward.h` (and any other
-      conflicted boot/ files), then `git add` them and
+   a. `git checkout --ours boot/til.c boot/til_forward.h` (and any
+      other conflicted boot/ files), then `git add` them and
       `git rebase --continue`.
-   b. After rebase finishes, soft-reset and regenerate so the boot/
-      artifacts match the rebased source: `git reset --soft HEAD~1`,
-      then run the build/test target that matches the commit's
-      prefix:
-         - Plain commits: `make clean && make test`.
-         - `Two-pass: `-prefixed commits: `make clean && make test_two_pass`.
-           These commits depend on the new compiler's self-applied
-           output -- pass 1 alone would commit a `boot/til.c` that
-            the local merger's `make test_two_pass` (run via the merge script)
-            would regenerate
-           differently. See `doc/self.org` "Two-pass build" for
-           the bootstrap reasoning.
-      If the branch mixes prefixes, choose `make test_two_pass` (it
-      is a superset of `make test`). Then re-stage and commit.
-      Discard totals with `git restore doc/totals.csv img/totals.svg`
-      before committing.
-   c. Remote session: push (force-with-lease since history was rewritten)
-      to your own assigned feature branch. Local session: stop there; a
-      human handles the push.
-5. If source files (src/**, .github/**, Makefile, CLAUDE.md, etc.) have
-   conflicts: resolve them manually. Do NOT `--ours` source files.
-   After resolution, regenerating boot/ is recommended (`make clean &&
-   make test`, or `make clean && make test_two_pass` if any pending
-   commit is `Two-pass: `-prefixed) so the boot artifacts match the
-   resolved source.
+   b. After the rebase finishes, soft-reset and regenerate so the
+      boot/ artifacts match the rebased source:
+      `git reset --soft HEAD~1`, then the build/test target matching
+      the commit's prefix -- plain commits:
+      `make clean && make test`; "Two-pass: "-prefixed commits:
+      `make clean && make test_two_pass` (they depend on the new
+      compiler's self-applied output; pass 1 alone would commit a
+      `boot/til.c` that the local merger's `make test_two_pass`, run
+      via the merge script, would regenerate differently -- see
+      `doc/self.org` "Two-pass build"). If the branch mixes prefixes,
+      choose `make test_two_pass` (a superset of `make test`). Then
+      re-stage, discard totals with
+      `git restore doc/totals.csv img/totals.svg`, and commit.
+   c. Remote session: push (force-with-lease, since history was
+      rewritten) to your assigned feature branch. Local session: stop
+      there; a human handles the push.
+5. If source files (src/**, .github/**, Makefile, CLAUDE.md, etc.)
+   have conflicts: resolve them manually -- do NOT `--ours` source
+   files. After resolution, regenerating boot/ is recommended
+   (`make clean && make test`, or `make clean && make test_two_pass`
+   if any pending commit is "Two-pass: "-prefixed) so the boot
+   artifacts match the resolved source.
 
-Soft-reset + regenerate is only required when (4) the rebase produced
-boot/* conflicts; a clean rebase needs no soft-reset on remote sessions.
+Soft-reset + regenerate is only required when (4) produced boot/*
+conflicts; a clean rebase needs no soft-reset on remote sessions.
 
-Exception: when the user says the rebased branch is *next to merge*
-(no other remote branches will land between this push and the local
-merger picking it up), the soft-reset + regenerate step at (4b) /
-(5) can be skipped. The local merger's `make test` / `make test_two_pass`
-(run via the merge script) regenerates boot/* against the rebased source anyway,
-so the work would just be thrown away. Discard doc/totals.csv + img/totals.svg
-if they are modified, then commit and force-push (remote session) or stop for
-the requested local cherry-pick / merge step (local worktree session). Only the
-human can grant this exception -- never assume it; redo the regen by default.
-
-"Next to merge" also means the human is about to test the branch
-locally and will come back with any errors. Push *immediately* -- do
-not re-run ~make clean && make~, do not re-run tests, do not regen.
-Re-verifying things the human already saw fail (or pass) just makes
-them wait. If the prior push had no errors here, any new failures the
-human reports will be from the new master commits landing in between
-and how those interact with the branch; reproduce *those* and fix.
-Don't pad the loop with belt-and-braces local rebuilds on every
-"next to merge" rebase.
-
-
-NEVER `git rebase --abort` on conflicts in generated files alone. Only
-abort if a source-file conflict is genuinely unresolvable.
+Exception -- "next to merge": when the user says the rebased branch
+is next to merge (no other remote branches will land between this
+push and the local merger picking it up), the soft-reset + regenerate
+step at (4b) / (5) can be skipped: the local merger's `make test` /
+`make test_two_pass` (run via the merge script) regenerates boot/*
+against the rebased source anyway, so the work would just be thrown
+away. Discard doc/totals.csv + img/totals.svg if modified, then
+commit and force-push (remote session) or stop for the requested
+local cherry-pick / merge step (local worktree session). Only the
+human can grant this exception -- never assume it; redo the regen by
+default. "Next to merge" also means the human is about to test the
+branch locally and will come back with any errors, so push
+IMMEDIATELY: do not re-run ~make clean && make~, do not re-run tests,
+do not regen -- re-verifying things the human already saw fail (or
+pass) just makes him wait. If the prior push had no errors here, any
+new failures he reports will be from the new master commits that
+landed in between and how they interact with the branch; reproduce
+those and fix them, without padding the loop with belt-and-braces
+local rebuilds on every "next to merge" rebase.
