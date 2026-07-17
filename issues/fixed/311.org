@@ -30,9 +30,42 @@ instead of the payload union's true offset.
    size the buffer to ENUM_PAYLOAD_OFFSET + payload_size (floor 8 for tag-only
    values) in src/self/interpreter.til.
 
-Regression test: test/enums.til `test_switch_payload_bool` (Bool payload via
-`match`) and `test_switch_payload_i32` (I32 payload via `switch`), asserting the
-extracted value under both interpret and compile.
+Regression tests: test/enums.til `test_switch_payload_bool` (Bool payload via
+`match`) and `test_switch_payload_i32` (I32 payload via `switch`) assert the
+extracted value under both interpret and compile;
+`test_narrow_enum_struct_field`, `test_narrow_enum_struct_clone`, and
+`test_narrow_enum_by_value_and_ref` cover a narrow-payload enum stored inline
+BY VALUE (struct field, struct clone, by-value / ref-bound parameter), which the
+offset-8 buffer overran in the interpreter until the pinning below made every
+side agree.
+
+Update -- read/write ABI unified via pointer-pinning (commit 77e1b89)
+---------------------------------------------------------------------
+The `offsetof(<enum>, data)` read above made compile-mode extraction agree with
+the C struct's NATURAL layout, but three other readers of the enum ABI still
+assumed a FIXED offset of sizeof(void *) (8 on a 64-bit host): ext.c's
+`get_payload()`, the interpreter's `ENUM_PAYLOAD_OFFSET`, and `X.size()` /
+`ctx.struct_layouts` (used for container striding). A narrow payload (Bool,
+I8/U8, I16/U16, I32/U32, F32, or a USize payload under `--usize=32`) sits below
+offset 8 in the natural layout, so those readers missed it -- and, in the
+interpreter, the offset-8 flat value overran the tighter C-sized struct field it
+was copied into (an ASAN heap-buffer-overflow; the value survived because write
+and read both used 8).
+
+Rather than teach every reader the per-enum natural offset, 77e1b89 pins the
+payload to sizeof(void *) on BOTH sides so the fixed offset is always correct
+(and supersedes the `offsetof` read):
+  - `emit_enum_struct_body` emits a `void *_til_payload_align` sentinel in the
+    payload union, forcing `data` to pointer alignment and >= pointer size, so
+    it always starts at offset 8; the pattern-match binds
+    `(U8 *)self + sizeof(void *)` again.
+  - `compute_enum_layout` places the payload at `UPtr.size()` with a slot of at
+    least `UPtr.size()`, so a folded `X.size()` / container stride matches the
+    emitted `sizeof`.
+Enums that already carry a pointer/Str/U64/struct payload are byte-for-byte
+unchanged (their `data` was pointer-aligned and >= 8 already). This is the
+current implementation; the `offsetof` read and the offset-8 buffer sizing
+described above were interim steps.
 
 
 A `switch`/`match` case that binds an enum payload reads the WRONG bytes in the

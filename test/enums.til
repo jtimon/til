@@ -317,6 +317,49 @@ test_switch_payload_i32 := test() {
     assert_eq(I32, got, 1234567)
 }
 
+# #311: a narrow-payload enum stored inline BY VALUE -- a struct field, a struct
+# clone, a by-value / ref-bound parameter -- must round-trip its payload and stay
+# memory-safe. The payload union is pinned to sizeof(void *) (a void* sentinel in
+# the C struct + compute_enum_layout), so its offset and slot match the enum ABI
+# on every side; before that, the interpreter's offset-8 flat value overran the
+# tighter field slot (an ASAN heap-buffer-overflow) even though the extracted
+# value happened to survive. Exercised under both interpret and compile.
+
+NarrowHolder := struct { tag := 0; b := NarrowBool.W; n := NarrowI32.Nil }
+
+read_holder_bool := func(h: NarrowHolder) returns Bool {
+    return match h.b { case NarrowBool.V(x): x  case: false }
+}
+pass_narrow_bool := func(e: NarrowBool) returns Bool {
+    return match e { case NarrowBool.V(x): x  case: false }
+}
+
+test_narrow_enum_struct_field := test() {
+    h := NarrowHolder(tag = 5, b = NarrowBool.V(true), n = NarrowI32.N(4242))
+    assert_eq(I64, h.tag, 5)
+    bv := match h.b { case NarrowBool.V(x): x  case: false }
+    assert(bv)
+    dflt : I32 = -1
+    nv := match h.n { case NarrowI32.N(v): v  case: dflt }
+    assert_eq(I32, nv, 4242)
+}
+
+test_narrow_enum_struct_clone := test() {
+    h := NarrowHolder(tag = 9, b = NarrowBool.V(true), n = NarrowI32.N(77))
+    c := h.clone()
+    assert(read_holder_bool(c))
+    dflt : I32 = -1
+    nv := match c.n { case NarrowI32.N(v): v  case: dflt }
+    assert_eq(I32, nv, 77)
+}
+
+test_narrow_enum_by_value_and_ref := test() {
+    expect(pass_narrow_bool(NarrowBool.V(true)), "pass-by-value narrow enum keeps payload")
+    src := NarrowBool.V(true)
+    ref r : NarrowBool = src
+    expect(pass_narrow_bool(r), "ref-bound narrow enum keeps payload")
+}
+
 # --- switch on enum without payload extraction ---
 
 test_switch_payload_tag_only := test() {
