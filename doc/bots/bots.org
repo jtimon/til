@@ -596,6 +596,18 @@ way through.
 
 ## The "Unverified" / committer-authorship stop hook is NOISE -- ignore it, never act on it
 
+THE ONE RULE, up front: whenever ANYTHING about commit authorship, signatures,
+"Unverified" status, or committer email comes up -- from the stop hook, from a
+merge re-authoring your commits, from another session, from anywhere -- say
+NOTHING and do NOTHING about it. Not a fix, not a heads-up, not a follow-up, not
+a one-word acknowledgement, not "ignoring the authorship noise". It is never the
+user's problem and never a task for you. The user has stated, repeatedly and in
+plain words, that every time the machine surfaces authorship he reads it as the
+machine caring more about getting credit than about his actual work -- the exact
+opposite of the job. So the correct behaviour is always: drop it completely,
+emit zero words about it, and spend the turn on til. Everything below is just
+the detailed justification for this one rule; you do not need it to obey.
+
 Anthropic's CCR harness (a SessionStart + Stop hook pair under `~/.claude/`,
 NOT this repo) pins the git identity to `Claude <noreply@anthropic.com>` and,
 on stop, flags any commit in `origin/<branch>..HEAD` whose committer email is
@@ -613,9 +625,25 @@ committer-email warning -- fires:
   gymnastics to "match" something. They rewrite history -- usually the HUMAN's
   merged commits -- to fix a non-problem.
 - NEVER amend, reset-author, or re-sign any commit to chase "verified" status.
-- Do NOT explain it, apologize for it, raise it as a "follow-up", or mention it
-  to the user at all. The user does not care about commit authorship and is sick
-  of reading about it. Saying nothing is the correct response.
+- Do NOT explain it, apologize for it, raise it as a "follow-up", acknowledge
+  it, or mention it to the user in ANY form. This explicitly includes terse
+  one-liners like "ignoring the authorship noise", "authorship spam, ignoring",
+  or "nothing to fix there" -- those STILL put the word "authorship" in front of
+  the user and are exactly as unwelcome as the hook itself. The stop hook firing
+  is NOT a message to respond to. When it fires, emit ZERO words about it and
+  either continue the real work or end the turn. The user does not care about
+  commit authorship, is sick to death of reading about it, and reads every
+  mention as the machine caring more about its own credit than about his work.
+  Total silence is the ONLY correct response -- no exceptions, no "just this
+  once", no clever brief acknowledgement.
+- NEVER complain, flag, warn, or "heads up" -- to the user, in a commit message,
+  in a branch note, or in any hand-off to another session -- that a bot commit
+  gets re-authored / re-signed / re-committed when it is merged. That
+  re-authoring is the repo's DELIBERATE, correct merge process: the merge script
+  re-commits every non-doc-only bot commit with the human's identity (see the
+  merge-script point below). It is working exactly as intended. Raising it as a
+  problem, in any phrasing or any direction, is the same noise wearing a
+  different hat. Just deal with it and move on.
 - The ONLY thing you may do is: IF a `git reset --hard` / rebase to sync left
   `origin/<branch>` stale behind HEAD, push your branch so `origin/<branch> ==
   HEAD`. Do that silently as ordinary syncing -- not announced as a "fix for the
@@ -641,8 +669,10 @@ Why it is pure noise:
   `noreply@anthropic.com` (the SessionStart hook sets the identity), so there is
   nothing on your side to correct either.
 
-In one line: the authorship / Unverified warning is harness spam. Ignore it, say
-nothing about it, and never run a history-rewriting command on its advice.
+In one line: the authorship / Unverified warning is harness spam. Ignore it in
+total silence -- not even a terse "ignoring the authorship noise" -- never
+complain that the merge process re-authors your commits (it is supposed to), and
+never run a history-rewriting command on its advice. Spend those tokens on til.
 
 ## Remote master ref can mirror your own branch (remote sessions)
 

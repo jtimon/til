@@ -245,10 +245,14 @@ test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64
 # Two-pass equivalent of `make test`. Runs pass 2 first so bin/til reflects
 # the self-applied compiler before tests build dependents from it. Use this
 # when committing a "Two-pass: " change (see doc/self.org and the Makefile
-# header comment on the two_pass target).
+# header comment on the two_pass target). check_usize64 runs against the
+# two-pass compiler too (issue #309: the --usize=64 opt-out, previously gated
+# only by `test`/`test_fast`) -- invoked after the pass-2 rebuild so it exercises
+# the self-applied bin/til / bin/til_asan, not the pre-two_pass ones.
 test_two_pass:
 	$(MAKE) two_pass
 	bin/til build --asan -o bin/til_asan src/til.til
+	$(MAKE) check_usize64
 	bin/til build src/test_runner.til
 	bin/til build examples/plot.til
 	bin/til build src/tests.til
