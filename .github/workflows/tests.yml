@@ -179,7 +179,7 @@ jobs:
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32 | grep -q "Hello World"
 
   windows-x64-build:
-    name: windows-x64 (cross-compile on linux)
+    name: windows-x64/x86 (cross-compile on linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -189,30 +189,37 @@ jobs:
         run: mkdir -p tmp
       - name: Build bin/til (native)
         run: make
-      - name: Cross-compile for windows-x64
+      - name: Cross-compile for windows-x64 and windows-x86
         run: |
           ./bin/til build --target=windows-x64 -o bin/hello_script.exe examples/hello_script.til
           file bin/hello_script.exe | grep -q "PE32+"
-      - name: Upload .exe artifact
+          # windows-x86 (32-bit, mingw i686) -- issue #232
+          ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
+          file bin/hello_script-x86.exe | grep -q "Intel 80386"
+      - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hello_script-windows-x64
-          path: bin/hello_script.exe
+          name: hello_script-windows
+          path: |
+            bin/hello_script.exe
+            bin/hello_script-x86.exe
 
   windows-x64-run:
-    name: windows-x64 (run .exe on windows)
+    name: windows-x64/x86 (run .exe on windows)
     needs: windows-x64-build
     runs-on: windows-latest
     steps:
-      - name: Download .exe artifact
+      - name: Download .exe artifacts
         uses: actions/download-artifact@v4
         with:
-          name: hello_script-windows-x64
-      - name: Run .exe
+          name: hello_script-windows
+      - name: Run .exe (x64 + x86 via WOW64)
         shell: bash
         run: |
           ./hello_script.exe
           ./hello_script.exe | grep -q "Hello World"
+          ./hello_script-x86.exe
+          ./hello_script-x86.exe | grep -q "Hello World"
 
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run

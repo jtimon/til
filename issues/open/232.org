@@ -44,11 +44,26 @@
   - CI jobs added for linux-x86 (file + qemu) and linux-arm32 (file).
   - riscv32: target defined, but no standard sysroot package exists
     for linking 32-bit RISC-V binaries on CI yet.
+*** Windows progress
+
+  - ~Target.WindowsX86~ added to the enum and wired through every
+    targets.til switch: target_from_str/to_str, target_is_32bit (so
+    UPtr/USize resolve to U32), toolchain_command ->
+    i686-w64-mingw32-gcc, executable/shared extensions, system libs
+    (-lpsapi), and the ffi_lib path. A new ~is_windows_target~ helper
+    folds the builder's mingw link handling (--export-all-symbols, the
+    linux->win link-flag rewrite, the nng swap) onto both windows
+    targets at once.
+  - til cross-compiles a CLI program to a 32-bit windows .exe:
+    ~til build --target=windows-x86 examples/hello_script.til~ produces
+    a PE32 Intel 80386 binary with clean KERNEL32+msvcrt imports. The
+    32-bit codegen itself was already correct (linux-x86 shares it). CI's
+    windows-x64/x86 build job cross-compiles it and the run job executes
+    it on windows-latest via WOW64.
+
 *** Remaining
 
-  - Add and test ~Target.WindowsX86~.
-  - Build a simple 32-bit Windows .exe and run it under Wine if
-    available.
   - Verify linux-arm32 and linux-riscv32 sysroot/toolchain assumptions
     on the actual CI image.
-  - Build 32-bit vendor libs needed for GUI/FFI support.
+  - Build 32-bit vendor libs (raylib/tinyfd/libffi for windows-x86 and
+    the linux 32-bit targets) needed for GUI + runtime-FFI support.

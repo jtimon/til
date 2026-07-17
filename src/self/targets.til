@@ -32,6 +32,7 @@ Target := enum {
     LinuxArm32,
     LinuxRiscv32,
     WindowsX64,
+    WindowsX86,
     MacosX64,
     MacosArm64,
     Wasm32,
@@ -61,6 +62,10 @@ target_from_str := func(s: Str) returns Target {
     case "windows-x64":     return Target.WindowsX64
     case "windows-x86_64":  return Target.WindowsX64
     case "win64":           return Target.WindowsX64
+    case "windows-x86":     return Target.WindowsX86
+    case "windows-i686":    return Target.WindowsX86
+    case "windows-i386":    return Target.WindowsX86
+    case "win32":           return Target.WindowsX86
     case "macos-x64":       return Target.MacosX64
     case "macos-x86_64":    return Target.MacosX64
     case "darwin-x64":      return Target.MacosX64
@@ -73,7 +78,7 @@ target_from_str := func(s: Str) returns Target {
     case "templeos-x86":    return Target.TempleosX86
     case "templeos":        return Target.TempleosX86
     }
-    panic("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
+    panic("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, macos-x64, macos-arm64, wasm32, templeos-x86")
     return Target.LinuxX64
 }
 
@@ -86,6 +91,7 @@ priv target_to_str := func(target: Target) returns Str {
     case Target.LinuxArm32:   return "linux-arm32"
     case Target.LinuxRiscv32: return "linux-riscv32"
     case Target.WindowsX64:   return "windows-x64"
+    case Target.WindowsX86:   return "windows-x86"
     case Target.MacosX64:     return "macos-x64"
     case Target.MacosArm64:   return "macos-arm64"
     case Target.Wasm32:       return "wasm32"
@@ -99,10 +105,18 @@ priv target_is_32bit := func(target: Target) returns Bool {
     case Target.LinuxX86: return true
     case Target.LinuxArm32: return true
     case Target.LinuxRiscv32: return true
+    case Target.WindowsX86: return true
     case Target.Wasm32: return true
     case Target.TempleosX86: return true
     case: return false
     }
+}
+
+// True for any Windows target (x64 or x86). The builder uses it to gate
+// the mingw-specific link handling (--export-all-symbols, the linux->win
+// link-flag rewrite, the nng swap) on all Windows targets at once.
+is_windows_target := func(target: Target) returns Bool {
+    return target.is(Target.WindowsX64).or(target.is(Target.WindowsX86))
 }
 
 target_uptr_name := func(target: Target) returns Str {
@@ -165,6 +179,9 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
     case Target.WindowsX64:
         if host_os() == "windows" { return "gcc" }
         return "x86_64-w64-mingw32-gcc"
+    case Target.WindowsX86:
+        if host_os() == "windows" { return "gcc" }
+        return "i686-w64-mingw32-gcc"
     case Target.MacosX64:     return "clang"
     case Target.MacosArm64:   return "clang"
     case Target.Wasm32:       return "clang"
@@ -234,6 +251,7 @@ toolchain_extra_args := proc(target: Target) returns Str {
 executable_extension := func(target: Target) returns Str {
     switch target {
     case Target.WindowsX64: return ".exe"
+    case Target.WindowsX86: return ".exe"
     case Target.Wasm32:     return ".wasm"
     case: return ""
     }
@@ -242,6 +260,7 @@ executable_extension := func(target: Target) returns Str {
 shared_lib_extension := func(target: Target) returns Str {
     switch target {
     case Target.WindowsX64: return ".dll"
+    case Target.WindowsX86: return ".dll"
     case Target.MacosX64:   return ".dylib"
     case Target.MacosArm64: return ".dylib"
     case: return ".so"
@@ -260,6 +279,7 @@ target_system_libs := func(target: Target) returns Str {
     case Target.LinuxArm32:   return "-ldl -lrt -lm -lpthread"
     case Target.LinuxRiscv32: return "-ldl -lrt -lm -lpthread"
     case Target.WindowsX64:   return "-lpsapi"
+    case Target.WindowsX86:   return "-lpsapi"
     // On darwin, libm/libpthread are pure aliases of libSystem, which
     // clang's darwin driver always links implicitly -- and the vendored
     // cross toolchain (vendor/macos) ships ONLY libSystem.tbd, so the
@@ -293,6 +313,7 @@ target_ffi_lib := func(target: Target) returns Str {
     // interpreter dispatch) and runtime ext_func in cross-built user
     // programs (issue #25).
     case Target.WindowsX64:   return "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
+    case Target.WindowsX86:   return "vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
     case: return ""
     }
     return ""
@@ -364,7 +385,10 @@ detect_current_target := proc() returns Target {
         if arch == "arm64" { return Target.MacosArm64 }
         return Target.MacosX64
     }
-    if os == "windows" { return Target.WindowsX64 }
+    if os == "windows" {
+        if arch == "x86" { return Target.WindowsX86 }
+        return Target.WindowsX64
+    }
     if os == "linux" {
         if arch == "arm64"   { return Target.LinuxArm64 }
         if arch == "riscv64" { return Target.LinuxRiscv64 }

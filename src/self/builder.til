@@ -5869,7 +5869,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // both are set; CPU profiling still works.
     mut prof_flags := ""
     mut prof_link_flags := ""
-    if prof.and(target.is(Target.WindowsX64).not()) {
+    if prof.and(is_windows_target(target).not()) {
         prof_flags = " -finstrument-functions"
         if asan.not() {
             prof_flags = format(prof_flags, " -DTIL_PROF_ALLOC")
@@ -5937,7 +5937,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // any cross-built program that calls ext_func at runtime (issue #25).
     // wasm has no runtime symbol table / FFI, so it stays bare.
     mut dyn_flag := " -rdynamic"
-    if target.is(Target.WindowsX64) { dyn_flag = " -Wl,--export-all-symbols" }
+    if is_windows_target(target) { dyn_flag = " -Wl,--export-all-symbols" }
     if target.is(Target.Wasm32) { dyn_flag = "" }
 
     // For Windows/wasm cross-compiles, rewrite link_flags inherited
@@ -5959,14 +5959,14 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // ./src/self/ token once reached the mac linker). Matching whole
     // tokens by suffix drops both spellings; anything unrecognized is
     // kept and fails loudly at link with its real name.
-    if target.is(Target.WindowsX64).or(target.is(Target.Wasm32))
+    if is_windows_target(target).or(target.is(Target.Wasm32))
         .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
         // On macos the archive paths stay (native archives live at the
         // same paths on a mac host) and -latomic must go (no such lib
         // on darwin). On windows/wasm the linux archives go and
         // -latomic stays (mingw ships libatomic).
         is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
-        is_win := target.is(Target.WindowsX64)
+        is_win := is_windows_target(target)
         tokens := lf.split(" ")
         mut new_lf := ""
         mut has_nng := false

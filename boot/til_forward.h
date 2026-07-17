@@ -285,6 +285,7 @@ typedef enum {
     Target_TAG_LinuxArm32,
     Target_TAG_LinuxRiscv32,
     Target_TAG_WindowsX64,
+    Target_TAG_WindowsX86,
     Target_TAG_MacosX64,
     Target_TAG_MacosArm64,
     Target_TAG_Wasm32,
@@ -2460,6 +2461,7 @@ USize Target_size(void);
 Target * target_from_str(Str * s);
 Str * priv___src_self_targets_til__target_to_str(Target * target);
 Bool priv___src_self_targets_til__target_is_32bit(Target * target);
+Bool is_windows_target(Target * target);
 Str * target_uptr_name(Target * target);
 Str * target_usize_name(Target * target);
 Lang * priv___src_self_targets_til__default_lang_for_target(Target * target);
@@ -4003,6 +4005,7 @@ Target *Target_LinuxX86();
 Target *Target_LinuxArm32();
 Target *Target_LinuxRiscv32();
 Target *Target_WindowsX64();
+Target *Target_WindowsX86();
 Target *Target_MacosX64();
 Target *Target_MacosArm64();
 Target *Target_Wasm32();
