@@ -239,6 +239,7 @@ jobs:
           make build_win_host win_server
           file bin/til.exe | grep -q "PE32+"
           file bin/sender.exe | grep -q "PE32+"
+          file bin/receiver.exe | grep -q "PE32+"
       - name: Upload windows-host artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -246,6 +247,7 @@ jobs:
           path: |
             bin/til.exe
             bin/sender.exe
+            bin/receiver.exe
 
   windows-x64-host-run:
     name: windows-x64 host (run til.exe + nng on windows)
@@ -261,21 +263,32 @@ jobs:
       - name: Interpret and translate on windows
         shell: bash
         run: |
-          # Diagnostic (issue #25): this step has exited 127 with no output.
-          # Show the downloaded layout + binary type to tell "exe not at
-          # this path" apart from "exe present but fails to load" before the
-          # real invocation below.
-          ls -la winhost
-          file winhost/til.exe || true
           ./winhost/til.exe interpret examples/hello_script.til
           ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
           ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
           test -s tmp_hello.c
-      - name: Run nng mode-server example on windows
+      - name: Run nng sender+receiver over real winsock on windows
         shell: bash
         run: |
-          ./winhost/sender.exe
-          ./winhost/sender.exe | grep -q "nng version"
+          # Prove nng works on a REAL windows host, which wine cannot (its
+          # winsock is incomplete -- listen returns "Not supported"). sender
+          # listens on tcp://127.0.0.1:5555 and sends one message, then
+          # closes; receiver dials, receives (3s recv-timeout so it can
+          # never hang), and prints it. sender's nng_send blocks until a
+          # peer takes the message, so run sender in the background and let
+          # receiver drive the exchange -- running sender alone would hang.
+          ./winhost/sender.exe > sender.out 2>&1 &
+          spid=$!
+          sleep 3
+          ./winhost/receiver.exe | tee receiver.out
+          # receiver has finished (or hit its 3s recv-timeout). If the
+          # exchange failed, sender is still blocked in nng_send, so reap
+          # it rather than wait on it -- the step must never hang.
+          kill "$spid" 2>/dev/null || true
+          wait "$spid" 2>/dev/null || true
+          echo "--- sender output ---"; cat sender.out
+          grep -q "nng version" receiver.out
+          grep -q "received: hello from til over nng" receiver.out
       # Full compiler on windows: til.exe BUILDS (compiles + links) a
       # program natively, the last host capability beyond interpret/
       # translate. It needs a C toolchain -- `til.exe build` invokes
