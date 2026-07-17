@@ -660,3 +660,116 @@ jobs:
           chmod +x hello_script-from-mac-linux
           ./hello_script-from-mac-linux
           ./hello_script-from-mac-linux | grep -q "Hello World"
+
+  # Issue #25 phase 3: prove mac GUI cross from Linux end to end. The
+  # macos-arm64 recon job emits the mac-native raylib.a plus the generated
+  # framework .tbd stubs; this job downloads them, drops them at the
+  # vendored paths the builder expects, cross-builds a mode-gui example
+  # (hello_gui) for macos-arm64 on Linux (clang + lld, no SDK -- the stubs
+  # stand in for Cocoa/OpenGL/... which bind at runtime on a real mac,
+  # same as libSystem), and asserts a valid arm64 Mach-O. tinyfd is
+  # cross-built here (it only needs libc); only raylib needs the mac, hence
+  # the download. This is the mac analogue of build_win sweeping windows
+  # gui via the redistributable mingw import libs.
+  macos-gui-cross:
+    name: macos gui (cross-compile on linux)
+    needs: [macos-arm64, macos-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang lld llvm
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build bin/til (native)
+        run: make
+      - name: Download mac raylib.a + framework stubs (phase 3 recon, arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: raylib-macos-recon-ARM64
+          path: recon-arm64
+      - name: Download mac raylib.a + framework stubs (phase 3 recon, x64)
+        uses: actions/download-artifact@v4
+        with:
+          name: raylib-macos-recon-X64
+          path: recon-x64
+      - name: Place vendored mac gui artifacts
+        run: |
+          cp recon-arm64/libraylib-macos-arm64.a vendor/raylib/src/libraylib-macos-arm64.a
+          cp recon-x64/libraylib-macos-x64.a vendor/raylib/src/libraylib-macos-x64.a
+          # The generated stubs declare both arch targets and list the
+          # frameworks/symbols raylib references (arch-independent), so one
+          # set serves both cross-builds; take the arm64 set.
+          mkdir -p vendor/macos/frameworks
+          cp recon-arm64/frameworks-arm64/*.tbd vendor/macos/frameworks/
+          make vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a
+          echo "framework stubs:"; ls vendor/macos/frameworks/
+      - name: Cross-compile a mode-gui example for both mac arches
+        run: |
+          ./bin/til build --target=macos-arm64 -o bin/hello_gui-macos-arm64 examples/hello_gui.til
+          file bin/hello_gui-macos-arm64 | grep -q "Mach-O 64-bit arm64"
+          ./bin/til build --target=macos-x64 -o bin/hello_gui-macos-x64 examples/hello_gui.til
+          file bin/hello_gui-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+      - name: Upload mac gui artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello_gui-macos
+          path: |
+            bin/hello_gui-macos-arm64
+            bin/hello_gui-macos-x64
+
+  # Issue #25 phase 3 finish -- vendor the prebuilt mac raylib.a (both
+  # arches) + the framework .tbd stubs and enable the build_mac gui cross
+  # sweep. raylib's Cocoa/OpenGL backend compiles only on a mac, so unlike
+  # the mingw-cross win raylib (built from source) it must be committed
+  # prebuilt. This runs on demand (workflow_dispatch on the feature
+  # branch); it reuses the raylib.a + stubs the macos-arm64/macos-x64 jobs
+  # already emit as recon artifacts, flips the Makefile toggle to include
+  # gui, and commits the lot straight to the branch -- no manual binary
+  # shuffling. Dispatch once, then merge the branch: build_mac then sweeps
+  # the mode-gui examples offline on any linux host.
+  vendor-mac-raylib:
+    name: vendor mac raylib.a + stubs (dispatch)
+    if: github.event_name == 'workflow_dispatch'
+    needs: [macos-arm64, macos-x64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Download mac raylib.a + stubs (arm64 recon)
+        uses: actions/download-artifact@v4
+        with:
+          name: raylib-macos-recon-ARM64
+          path: recon-arm64
+      - name: Download mac raylib.a + stubs (x64 recon)
+        uses: actions/download-artifact@v4
+        with:
+          name: raylib-macos-recon-X64
+          path: recon-x64
+      - name: Vendor archives + stubs, enable gui toggle
+        run: |
+          set -eux
+          cp recon-arm64/libraylib-macos-arm64.a vendor/raylib/src/libraylib-macos-arm64.a
+          cp recon-x64/libraylib-macos-x64.a     vendor/raylib/src/libraylib-macos-x64.a
+          rm -rf vendor/macos/frameworks
+          mkdir -p vendor/macos/frameworks
+          cp recon-arm64/frameworks-arm64/*.tbd vendor/macos/frameworks/
+          python3 - <<'PY'
+          p = "Makefile"; s = open(p).read()
+          old = "MAC_CROSS_GUI_MODE :="; new = "MAC_CROSS_GUI_MODE := |gui"
+          if old + "\n" in s:
+              open(p, "w").write(s.replace(old + "\n", new + "\n", 1))
+          PY
+          ls -la vendor/macos/frameworks
+      - name: Commit to the branch
+        run: |
+          set -eux
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/raylib/src/libraylib-macos-arm64.a vendor/raylib/src/libraylib-macos-x64.a vendor/macos/frameworks/*.tbd Makefile
+          if git diff --cached --quiet; then echo "nothing new to vendor"; exit 0; fi
+          git commit -m "Issue #25 phase 3: vendor mac raylib.a + stubs, enable build_mac gui sweep"
+          git push origin HEAD:${{ github.ref_name }}

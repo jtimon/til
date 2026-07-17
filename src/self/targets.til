@@ -299,9 +299,10 @@ target_ffi_lib := func(target: Target) returns Str {
 }
 
 // raylib + tinyfd + windowing-system libs for `mode gui`. Builder appends
-// these only when the program declared mode gui. Empty on targets where
-// GUI cross-builds don't exist yet.
-target_gui_libs := func(target: Target) returns Str {
+// these only when the program declared mode gui. A proc because the macOS
+// case is host-aware (macos_is_cross). Empty on targets where GUI
+// cross-builds don't exist yet.
+target_gui_libs := proc(target: Target) returns Str {
     switch target {
     case Target.LinuxX64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
@@ -317,13 +318,27 @@ target_gui_libs := func(target: Target) returns Str {
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
     case Target.Wasm32:
         return "vendor/raylib/src/libraylib-web.a -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html"
-    // Native mac builds only (issue #25 phase 1): on a mac host the
-    // vendored raylib/tinyfd recipes produce mac-native .a files at the
-    // same paths as on Linux; the desktop frameworks are what raylib
-    // needs at final link. Cross gui builds stay SDK-bound (phase 3).
+    // macOS. On a mac HOST (native) the vendored raylib/tinyfd recipes
+    // produce mac-native .a files at the same paths as on Linux, and the
+    // real Apple frameworks satisfy the final link. A NON-mac host
+    // CROSS-links instead against the vendored mac raylib archive
+    // (libraylib-macos-<arch>.a, built on the mac CI) + a mac tinyfd
+    // (cross-built on any host -- it only needs libc) + the framework
+    // .tbd stubs (vendor/macos/frameworks/*.tbd, generated from raylib.a's
+    // undefined symbols). The stubs make the linker resolve Cocoa/OpenGL/
+    // ... symbols the same way libSystem.tbd does; the real frameworks
+    // bind at runtime on the target mac (issue #25 phase 3). The *.tbd
+    // glob is expanded by the shell (system_cmd runs the link via
+    // system()).
     case Target.MacosX64:
+        if macos_is_cross(target) {
+            return "vendor/raylib/src/libraylib-macos-x64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a vendor/macos/frameworks/*.tbd"
+        }
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo"
     case Target.MacosArm64:
+        if macos_is_cross(target) {
+            return "vendor/raylib/src/libraylib-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/macos/frameworks/*.tbd"
+        }
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo"
     case: return ""
     }

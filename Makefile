@@ -332,6 +332,22 @@ $(TINYFD_WIN_LIB):
 	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
 
+# tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross). Unlike
+# raylib's Objective-C/Cocoa backend, tinyfd is one .c file that only
+# needs libc (it shells out to osascript), so it cross-compiles on ANY
+# host against the SDK-less vendored headers -- no mac required. (raylib
+# for mac cannot be built this way -- it needs the Cocoa/OpenGL headers --
+# and is instead vendored prebuilt from the mac CI as
+# libraylib-macos-<arch>.a, together with the framework .tbd stubs.)
+TINYFD_MAC_ARM64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-arm64.a
+TINYFD_MAC_X64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-x64.a
+$(TINYFD_MAC_ARM64_LIB): | tmp
+	clang -target arm64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-arm64.o
+	llvm-ar rcs $@ tmp/tinyfd-macos-arm64.o
+$(TINYFD_MAC_X64_LIB): | tmp
+	clang -target x86_64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-x64.o
+	llvm-ar rcs $@ tmp/tinyfd-macos-x64.o
+
 # libffi cross-built for win64. Needed to cross-compile til.exe itself
 # (the compiler links libffi for its ext_func interpreter dispatch --
 # windows AS A HOST, issue #25) and any windows program that calls
@@ -433,10 +449,17 @@ MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
 # raylib.til (direct-FFI demo, linux link() paths) and bench_hashmap.til
 # (does not parse) stay out.
 MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til,$(shell grep -l -E '^mode (cli|script|pure|lib|gui)$$' examples/*.til))
-# Whitelist by mode: gui needs Apple frameworks (SDK-bound), server and
-# the nng custom modes (publisher/subscriber/...) link the linux-built
-# vendored libnng.a. Only the portable modes cross-compile.
-MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib)$$' examples/*.til))
+# Cross sweep whitelist by mode. cli|script|pure|lib always cross-compile
+# (portable, no desktop libs). mode gui also cross-compiles, but only once
+# the prebuilt mac raylib.a + framework .tbd stubs are vendored: raylib's
+# Cocoa/OpenGL backend builds only on a mac (unlike the mingw-cross win
+# raylib), so the vendor-mac-raylib CI job (workflow_dispatch) commits the
+# per-arch archives + stubs and flips MAC_CROSS_GUI_MODE to |gui in the
+# same commit. Until that lands the toggle is empty and gui stays out (its
+# raylib.a is not in-tree). server / the nng custom modes link the
+# linux-built vendored libnng.a via the SERVER path, not this sweep.
+MAC_CROSS_GUI_MODE :=
+MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib$(MAC_CROSS_GUI_MODE))$$' examples/*.til))
 
 # The nng custom-mode examples (SERVER_EXAMPLES, defined by the windows
 # section above) build on a mac host against the native mac libnng
@@ -456,7 +479,7 @@ else
 # checkout often has clang but not lld, so clang dies with the cryptic
 # "invalid linker name in argument '-fuse-ld=lld'"; check up front and
 # say what to install instead.
-build_mac: bin/til
+build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB))
 	@command -v clang  >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS and needs clang -- install it with: apt-get install clang lld"; exit 1; }
 	@command -v ld.lld >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS via 'clang -fuse-ld=lld' and needs the lld linker -- install it with: apt-get install lld"; exit 1; }
 	for f in $(MAC_CROSS_EXAMPLES_SRC); do \
