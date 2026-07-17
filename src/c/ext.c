@@ -562,7 +562,7 @@ void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr)
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
-Str *File_readfile(Str *path) {
+Str *File_readfile(const Str *path) {
     char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
@@ -584,7 +584,7 @@ Str *File_readfile(Str *path) {
     return s;
 }
 
-void File_writefile(Str *path, Str *content) {
+void File_writefile(const Str *path, const Str *content) {
     char *p = dup_n((const char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
