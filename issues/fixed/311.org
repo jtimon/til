@@ -30,9 +30,47 @@ instead of the payload union's true offset.
    size the buffer to ENUM_PAYLOAD_OFFSET + payload_size (floor 8 for tag-only
    values) in src/self/interpreter.til.
 
-Regression test: test/enums.til `test_switch_payload_bool` (Bool payload via
-`match`) and `test_switch_payload_i32` (I32 payload via `switch`), asserting the
-extracted value under both interpret and compile.
+Regression tests: test/enums.til `test_switch_payload_bool` (Bool payload via
+`match`) and `test_switch_payload_i32` (I32 payload via `switch`) assert the
+extracted value under both interpret and compile;
+`test_narrow_enum_struct_field`, `test_narrow_enum_struct_clone`, and
+`test_narrow_enum_by_value_and_ref` cover a narrow-payload enum stored inline
+BY VALUE (struct field, struct clone, by-value / ref-bound parameter), which the
+interpreter's offset-8 flat value overran until the host-side pinning below made
+every reader agree.
+
+Update -- host offset pinned, target reads stay offsetof (commit 77e1b89)
+-------------------------------------------------------------------------
+The `offsetof(<enum>, data)` read above fixed the emitted TARGET code, but three
+HOST-side readers of the enum ABI still assumed a FIXED offset of sizeof(void *)
+(8 on a 64-bit host): ext.c's `get_payload()`, the interpreter's
+`ENUM_PAYLOAD_OFFSET`, and `X.size()` / `ctx.struct_layouts` (container
+striding). A narrow payload (Bool, I8/U8, I16/U16, I32/U32, F32, or a USize
+payload under `--usize=32`) sits below offset 8 in the natural C layout, so those
+readers missed it -- and the interpreter's offset-8 flat value overran the
+tighter C-sized struct field slot it was copied into (an ASAN heap-buffer-
+overflow; the extracted value survived because write and read both used 8).
+
+Rather than teach every host reader the per-enum natural offset, 77e1b89 pins
+the HOST layout so the fixed offset is always right there:
+  - `emit_enum_struct_body` emits a `void *_til_payload_align` sentinel in the
+    payload union, forcing `data` to pointer alignment and >= pointer size, so
+    on the host it always starts at offset 8.
+  - `compute_enum_layout` sizes the enum as `ENUM_PAYLOAD_OFFSET + slot` with a
+    slot of at least pointer size, so a folded `X.size()` / container stride
+    matches both the flat interpreter buffer and the emitted host `sizeof`.
+    (It derives the offset from the shared `ENUM_PAYLOAD_OFFSET` in
+    src/self/context.til rather than recomputing `UPtr.size()`, so the two
+    cannot drift.)
+
+The two mechanisms are complementary, NOT competing: the pinning keeps the host
+layout at ENUM_PAYLOAD_OFFSET so raw enum buffers can cross between the
+interpreter and compiled host code (dyn dispatch), while emitted target code
+never uses that constant -- it reads/writes payloads via `offsetof(E, data)`,
+which is what keeps narrower target layouts (32-bit targets, `--usize=32`)
+correct. Enums carrying a pointer/Str/U64/struct payload are byte-for-byte
+unchanged either way (their `data` was pointer-aligned and >= 8 already). See
+the ENUM_PAYLOAD_OFFSET comment in src/self/context.til for the invariants.
 
 
 A `switch`/`match` case that binds an enum payload reads the WRONG bytes in the
