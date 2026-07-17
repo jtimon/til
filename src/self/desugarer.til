@@ -4362,6 +4362,11 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // value behind a name that the macro eval's sub-scope can't resolve.
     // Match rstil's pattern: macros take args verbatim (precomp.rs 821-847
     // builds the call with Identifier args, not via the hoister).
+    // NOTE (#315): is_macro_call answers from ctx.constfolder_foldables, which
+    // must be fully populated before this desugar runs. infer_body_unit
+    // classifies every top-level def up front for exactly this reason -- a
+    // forward-referenced macro missed here would have its args hoisted and then
+    // be force-expanded against the temp.
     if is_macro_call(expr, ctx) { return }
 
     expr_sname := til_type_name(expr.til_type())

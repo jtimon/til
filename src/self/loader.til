@@ -3961,8 +3961,9 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
         desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
     }
 
-    // Issue #158: the typer populates the foldable-name sets during its
-    // walk (constfolder_classify_stmt); clear any stale state up front so a
+    // Issue #158: the typer populates the foldable-name sets via
+    // constfolder_classify_stmt (a pre-pass in infer_body_unit, before it walks
+    // each unit's bodies -- see #315); clear any stale state up front so a
     // fresh build (or REPL re-eval reusing this Context) starts clean.
     constfolder_reset_state(lp.ctx)
 

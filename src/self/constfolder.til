@@ -1614,8 +1614,10 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 // literal global constant. Core constants (CAP_VIEW/CAP_LIT) are registered
 // afterward (constfolder_register_core_constants) so they keep winning over any
 // like-named def. Foldable-name classification is NOT done here: the typer
-// already populated ctx.constfolder_foldables during its walk
-// (constfolder_classify_stmt), and constfolder reuses those. This walk stays in
+// already populated ctx.constfolder_foldables (constfolder_classify_stmt, a
+// pre-pass over each unit's top-level decls in infer_body_unit before it
+// type-checks that unit's bodies -- see #315), and constfolder reuses those.
+// This walk stays in
 // constfolder because the runtime Scope it builds has no upstream equivalent
 // (the typer builds a TypeScope; scavenge invalidates AST pointers before
 // the interpreter rebuilds its own).
