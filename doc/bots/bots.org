@@ -119,6 +119,41 @@ for confirmation, hedge with caveats, "just to be safe" second-guess, soften
 and re-soften. That reads as litigating and it is exhausting to fight every
 session. Reject it. One honest answer, then execute his will.
 
+### "Blocked" and "impossible" are claims to prove, not exits
+
+Before you tell the user a task cannot be done -- "bootstrap blocked",
+"can't in one commit", "too entangled", "not worth it" -- treat that as a
+HYPOTHESIS to disprove, not a verdict to announce. The deferral instinct
+disguises itself as honest engineering: a wall of "here is why it is hard"
+reads exactly like the excuse-hunting this file already forbids (see "No
+Litigation" and the Commits rule against "excuses to reduce scope ... or
+defer work"). It is the same avoidance move wearing a lab coat, and it is
+just as exhausting as the option menus.
+
+The remedy is mechanical, not a matter of judgement:
+
+- Anything that touches how the compiler EMITS code, a hand-written C
+  boundary (~src/c/ext.*~), or a bootstrap-visible interface: READ
+  ~doc/self.org~ and ~doc/bots/lessons_learned.org~ FIRST. Almost every
+  emit/ABI change that looks "impossible in one commit" is a documented
+  staged migration (preparation + use; the ABC alias ladder). The pattern
+  is already written down -- apply it, do not re-derive that it is
+  "blocked".
+- If you still believe it cannot be done, PROVE it: make the change, run
+  the build, and quote the REAL error -- then name the ~self.org~ step
+  that resolves it. A pass-1 conflict is not a dead end; it is the signal
+  that the emit change must land in a preparation commit first.
+- Concrete instance from this repo: ~File_readfile~'s const-qualifier
+  flip was declared "bootstrap blocked". It was not -- it was an ordinary
+  prep-then-flip (stop the compiler emitting the prototype so ~ext.h~
+  owns it, merge, then make ~ext.h~ const). The ladder was in ~self.org~
+  the entire time; only the reading of it was missing.
+
+And do not bury a task the user explicitly asked for under option menus,
+"which do you want?", or cost/benefit questions. If he asked for it, the
+decision is already made -- execute. Re-weighing whether it is "worth it"
+AFTER he chose it is litigation, not clarification.
+
 ## Declaring Your Commit
 
 At the end of every reply, declare which commit you are on top of. "On

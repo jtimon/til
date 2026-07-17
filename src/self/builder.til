@@ -396,6 +396,22 @@ priv is_ext_h_type := func(name: Str) returns Bool {
     return false
 }
 
+// Namespace ext methods whose C prototype AND definition come from the
+// built-in ext.h / ext.c, so the forward-decl pass must NOT re-emit a
+// prototype for them -- ext.h is their sole declaration. Analogous to
+// is_ext_h_type for primitive types. The CORE forward-decl pass already
+// skips ALL core namespace ext methods (that's why e.g. U8.clone stays
+// const via ext.h with no clash); File lives in std/file.til, so it
+// reaches the USER pass, which would otherwise emit a second prototype
+// that pins the signature (blocking any ext.h const-qualifier change).
+// User FFI methods (link_c-backed, e.g. examples/ffi's Pair_*) are NOT
+// listed here: nothing else declares them, so the emitter must.
+priv is_ext_h_func := func(name: Str) returns Bool {
+    if name == "File_readfile" { return true }
+    if name == "File_writefile" { return true }
+    return false
+}
+
 // print_single / print_flush have hand-written prototypes emitted as
 // part of the standard prelude (see emit_header_defs_and_funcs_lp);
 // suppressing the ext_proc-side emission avoids a duplicate decl.
@@ -4821,6 +4837,11 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     if lazy_recursive_variadic_def(fdef) { return }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
+        // Built-in namespace ext methods (File_readfile/writefile) are
+        // declared solely by ext.h; do not re-emit a prototype for them.
+        // See is_ext_h_func. This lets ext.h own their signature (so a
+        // const-qualifier change lands with only ext.h/ext.c edits).
+        if is_ext_h_func(name) { return }
         // Issue #176: top-level ext_func / ext_proc prototypes are emitted by
         // emit_ext_func_declarations (with the FFI const convention). Skip
         // them here so til_forward.h / monolithic headers don't contain a

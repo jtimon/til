@@ -1897,8 +1897,6 @@ Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
 U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
-Str * File_readfile(Str * path);
-void File_writefile(Str * path, Str * content);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
 void File_close(File * self);
@@ -3120,6 +3118,7 @@ void priv___src_self_builder_til__emit_pod_enum_clone_arg(File * f, Expr * e, I3
 Bool priv___src_self_builder_til__is_pod_struct(Str * struct_name, Context * ctx);
 Bool priv___src_self_builder_til__is_funcsig_type(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
+Bool priv___src_self_builder_til__is_ext_h_func(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
 Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
