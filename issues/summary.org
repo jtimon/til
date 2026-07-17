@@ -64,6 +64,8 @@
 *** [[./open/310.org][#310]] expr_macro / str_macro: compile-time macros that emit AST or source
 *** [[./open/313.org][#313]] Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 *** [[./open/314.org][#314]] Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
+*** [[./open/317.org][#317]] MLIR backend alongside the C backend
+*** [[./open/318.org][#318]] Portable SIMD vector type like Mojo's SIMD[dtype, width]
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

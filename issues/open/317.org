@@ -1,0 +1,56 @@
+# priority: low
+# category: features
+** OPEN #317 MLIR backend alongside the C backend
+
+Add MLIR (Multi-Level Intermediate Representation, part of the LLVM
+project, https://mlir.llvm.org/) as a codegen backend next to the C
+backend. Filed as a low priority feature to capture the design space;
+the C backend stays the default and the bootstrap path.
+
+*** Why MLIR
+
+- MLIR is organized around "dialects" (func, arith, scf/cf, memref,
+  vector, gpu, llvm, ...) and progressive lowering: high-level ops stay
+  target-independent until late, then lower dialect-by-dialect to LLVM
+  IR and finally per-target machine code. One input IR can target x86
+  (SSE/AVX/AVX-512), ARM (NEON/SVE), RISC-V vectors, and GPUs
+  (NVVM/ROCDL) from the same source.
+- Mojo is the proof that a small language can ride this: the whole
+  language is a thin frontend over MLIR (Lattner's team; see the 2025
+  LLVM devmtg talk "Building Modern Language Frontends with MLIR:
+  Lessons from Mojo"). Mojo gets state-of-the-art CPU/GPU codegen and
+  performance portability without owning any of that infrastructure.
+- For til it opens what C emission cannot express directly: real vector
+  types with target legalization (issue #318 is the first customer),
+  GPU kernels, and compiler optimization passes below the C level.
+
+*** Fit with existing til structure
+
+- Issue #288 already drew the portability boundary with MLIR explicitly
+  in mind: ~core_func~ is the mandatory primitive ISA every backend
+  must lower inline (C -> ~a*b~, MLIR -> ~arith.muli~), ~ext_func~ is
+  the per-backend symbol layer. That contract is the backend interface.
+- ~Lang~ in src/self/targets.til already enumerates codegen languages
+  (C, HolyC, TIL). MLIR would be a new ~Lang~ variant plus an emitter
+  alongside the C emitter in src/self/builder.til, selected per target
+  the same way HolyC is.
+
+*** Shape (sketch, to be decided at implementation time)
+
+- Emit the textual .mlir format into gen/, exactly like the C backend
+  emits textual C today. Drive external tools (~mlir-opt~,
+  ~mlir-translate~, ~clang~/~llc~) to get objects; no need to link
+  MLIR's C++ libraries into til itself, at least initially.
+- Start with the smallest dialect subset that runs a hello world
+  (func + arith + cf + llvm/memref), then grow until the test suite
+  passes under the new backend.
+- Bootstrap is untouched: boot/ stays generated C, self-hosting keeps
+  compiling through the C backend. The MLIR backend is purely additive.
+
+*** References
+
+- https://mlir.llvm.org/ and https://mlir.llvm.org/docs/Dialects/
+- https://llvm.org/devmtg/2025-10/slides/technical_talks/lattner_zhu.pdf
+- https://en.wikipedia.org/wiki/Mojo_(programming_language)
+- Mojo HPC kernels paper: https://arxiv.org/abs/2509.21039
+- https://hexshift.medium.com/how-mojo-mlir-infrastructure-delivers-performance-python-cannot-reach-a1d07aa644df

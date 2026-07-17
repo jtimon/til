@@ -1,0 +1,71 @@
+# priority: low
+# category: features
+** OPEN #318 Portable SIMD vector type like Mojo's SIMD[dtype, width]
+
+Give til first-class SIMD vectors that compile to the native vector
+instructions of each target, the way Mojo does it. Depends on #317
+(MLIR backend) for the full portable lowering; a C-backend subset is
+possible earlier (see below). Low priority feature.
+
+*** How Mojo does it (state as of mid-2026)
+
+- ~SIMD[dtype, width]~ is a first-class parametric stdlib type: element
+  dtype plus a compile-time width, width restricted to powers of two.
+- Scalars ARE vectors: ~Float32~ is an alias for
+  ~SIMD[DType.float32, 1]~, so all arithmetic is defined once,
+  elementwise, on the SIMD type.
+- ~sys.info.simdwidthof[dtype]()~ returns the native vector width of
+  the compilation target (e.g. 16 f32 lanes on AVX-512, 4 on NEON).
+  Code parameterized on that width specializes per target: the same
+  source compiles to SSE/AVX/AVX-512 on x86, NEON/SVE on ARM, and GPU
+  lanes, with no intrinsics in user code. Stdlib helpers
+  (~algorithm.vectorize~) wrap loops in simdwidth-sized chunks.
+- Lowering: SIMD ops map onto MLIR's target-independent ~vector~
+  dialect (fixed-shape virtual vectors), which lowers late to LLVM
+  vector IR; LLVM legalizes to the real ISA, splitting vectors wider
+  than the hardware and selecting instructions. That late binding is
+  what makes the type portable instead of an x86 intrinsic wrapper.
+
+*** What til would need
+
+- A parametric value type, e.g. ~Simd(F32, 8)~: element type plus a
+  compile-time integer width. The compile-time width parameter is the
+  main language-design piece (til types today are not parameterized by
+  integers).
+- Elementwise arithmetic/comparison ops on it, treated as ~core_func~
+  primitives per the #288 boundary: every backend lowers them inline,
+  no runtime symbols.
+- A target-native width query builtin. It must answer for the TARGET,
+  not the build host, so it belongs with src/self/targets.til's
+  Target/cross-compilation data, not with a host cpuid probe.
+- Full lowering via #317: emit MLIR ~vector~ dialect ops and let
+  LLVM's legalization do the per-ISA work. This is the Mojo path and
+  the reason #318 depends on #317.
+- Possible C-backend stopgap: GCC/Clang vector extensions
+  (~__attribute__((vector_size(N)))~) give portable elementwise SIMD
+  from plain C on x86 and ARM, with the C compiler doing instruction
+  selection. Covers the elementwise subset (no portable
+  shuffle/gather story) and would let a Simd type land and be tested
+  before #317 exists, with the MLIR backend later taking over for
+  full generality.
+- Interpreter semantics: the interpreter runs the same ops as a scalar
+  loop over the lanes, so interpreted and compiled programs agree.
+
+*** Open questions
+
+- Syntax and typing of the compile-time width parameter, and how it
+  interacts with generics/dyn.
+- Whether scalars unify with width-1 vectors like Mojo (probably not
+  worth it for til; a separate Simd type is less invasive).
+- Which width the query builtin reports for targets with scalable
+  vectors (SVE, RISC-V V), where the width is not a compile-time
+  constant.
+
+*** References
+
+- https://docs.modular.com/mojo/stdlib/builtin/simd/
+- https://docs.modular.com/mojo/reference/mojo-numeric-types/
+- Mojo stdlib source: https://github.com/modular/modular (simd.mojo)
+- https://fnands.com/blog/2023/mojo-simd/
+- MLIR vector dialect: https://mlir.llvm.org/docs/Dialects/Vector/
+- https://www.modular.com/blog/mojo-vs-rust (first-class SIMD pitch)
