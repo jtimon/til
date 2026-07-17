@@ -1,0 +1,125 @@
+# priority: high
+# category: optimizations
+** OPEN #316 Elide payload objects for fieldless thrown errors
+
+  ~KeyNotFound~ (the existing type corresponding to "NotFound" in the
+  proposal) and ~OutOfBounds~ currently carry only ~msg: Str~. Every throwing
+  function nevertheless gets both an error tag and an error-value out-param:
+
+  : mut _err_kind: I64
+  : mut _err_KeyNotFound: KeyNotFound
+  : mut _err_OutOfBounds: OutOfBounds
+
+  Every caller constructs and later deletes those slots even when the call
+  succeeds. The current profiling snapshot in ~doc/profiling.org~ shows the
+  cost directly: ~OutOfBounds_delete~ runs 10.0M times (773.8 ms self) and
+  ~KeyNotFound_delete~ runs 2.4M times (187.8 ms self) while translating
+  ~test/maps.til~. Generated C for an already-fieldless test error such as
+  ~AAAError~ still mallocs the initial slot, mallocs the thrown replacement,
+  swaps it into the slot, and deletes both objects.
+
+  Make payload-free errors tag-only. The core errors become:
+
+  #+begin_src til
+  KeyNotFound := struct {}
+  OutOfBounds := struct {}
+  #+end_src
+
+  and their throw sites use ~throw KeyNotFound()~ / ~throw OutOfBounds()~
+  without eagerly constructing a message. A catch that needs a diagnostic can
+  format it in the taken catch body, where the call's key/index/container and
+  ~__LOC__~ are available. Most compiler catches only map these errors to an
+  absent result and need no string at all. Payload-bearing errors continue to
+  carry their values exactly as today.
+
+*** Important finding: bang already needs no payload
+
+  The suspected hard part, postfix ~!~, already has the required semantics.
+  ~build_bang_lowered~ in ~src/self/desugarer.til~ emits:
+
+  : if _err_kind == tag { _err_kind = 0; panic(call_location, "ErrorType") }
+
+  It deliberately does not read ~err.msg~ (issue #202 made the bang generic
+  rather than requiring every error to have a particular field). The call AST
+  supplies the location and the throws registry supplies the type name, so a
+  fieldless error preserves the current bang output. For-in's manual
+  panic-on-throw lowering follows the same type-name rule. No error-specific
+  compiler formatting or second diagnostic channel is needed.
+
+*** Semantic target
+
+  - Optimize every resolved fieldless struct used as a throw type, not just
+    ~KeyNotFound~ and ~OutOfBounds~. The existing fieldless errors in
+    ~test/errors.til~ should receive the same ABI.
+  - Keep ~_err_kind~ as the sole cross-call state for fieldless errors. Stable
+    global tags and all control-flow guards remain unchanged.
+  - Do not add an ~_err_<T>~ parameter, caller local, constructor, assignment,
+    clone, or delete for a fieldless error.
+  - Keep the current payload slot for primitives, enums, and structs with one
+    or more fields. A mixed ~throws EmptyError, RichError~ signature therefore
+    has ~_err_kind~ plus only ~_err_RichError~.
+  - Preserve a referenced catch binding. If ~catch (e: EmptyError)~ uses ~e~,
+    construct ~e: EmptyError = EmptyError()~ inside the tag-matched catch arm,
+    so it exists only on the error path. If the body does not use ~e~, emit no
+    value at all.
+  - A direct ~throw EmptyError()~ can lower to the tag assignment alone. An
+    arbitrary expression returning an empty struct must still be evaluated
+    for side effects and have its ownership discharged on the throw path; do
+    not silently erase evaluation merely because its result has no fields.
+
+*** Implementation plan
+
+  1. Add one shared throw-payload predicate in the throw/catch lowering. Resolve
+     a named struct through the type scope and classify it as payload-free only
+     when its ~StructDef.fields~ is empty. Non-struct throw types are
+     payload-bearing. Use the same predicate at every ABI producer and
+     consumer so signatures and calls cannot disagree.
+  2. Teach ~append_err_out_params~ to append ~_err_kind~ plus only payloadful
+     ~_err_<T>~ params. Preserve the existing placement before trailing
+     default arguments and the original throw-type order.
+  3. Teach ~inject_err_args_on_one_fcall_consolidated~ and the function-body
+     slot prelude to skip fieldless slots. Update throw lowering to omit the
+     slot assignment for a direct fieldless constructor. Update
+     ~lower_catch_node~ to use the tag only and to create a catch-local empty
+     value on the taken path only when the source binding is referenced.
+  4. Update the hand-built for-in throwing-get path in
+     ~desugar_for_in_collection_stmt~. It must count, declare, and pass only
+     payloadful throw slots when extending a custom collection's ~get~ method;
+     its existing ~_forin_err_kind_*~ check and type-name panic remain.
+  5. Simplify the post-inference variadic ~Array.set~ path. ~OutOfBounds~ is
+     fieldless, so ~build_variadic_err_slots~ needs only the ~*_ek~ tag slot,
+     and ~build_variadic_array_set~ passes no ~*_eo~ argument. Remove the now
+     single-use ~build_resolved_struct_default~ helper. Update the constfolder's
+     variadic-array materialization and DCE model, which currently recognizes
+     and binds both ~*_ek~ and ~*_eo~.
+  6. Make ~KeyNotFound~ and ~OutOfBounds~ empty in ~src/core/str.til~. Replace
+     formatted throws in ~Map~/~DynMap~, ~Array~/~DynArray~, and
+     ~Vec~/~DynVec~ with empty constructors. Remove their now-unused trailing
+     ~loc: Str = __LOC__~ parameters; bang diagnostics get their location from
+     the call node, while explicit catches format only if they choose to.
+  7. Update message-field tests in ~test/errors.til~, ~test/arrays.til~,
+     ~test/vecs.til~, and the dynamic-container tests to assert catch behavior
+     without ~err.msg~. Add coverage for a referenced fieldless catch binding,
+     mixed fieldless/payloadful throws, propagation, nested bang, return bang,
+     and both interpreted and compiled execution.
+  8. This changes the compiler's generated throw ABI and then applies that new
+     ABI to the compiler's own ubiquitous Map/Vec calls. Land it as a
+     ~Two-pass:~ commit and verify with ~make clean && make test_two_pass~ so
+     the self-applied ~boot/~ output converges.
+
+*** Acceptance
+
+  - Generated C for a fieldless throwing function and its successful caller
+    contains ~_err_kind~ but no ~_err_<Empty>~ parameter/local and no empty-error
+    malloc, clone, swap, or delete. A payload-bearing error in the same throws
+    list still has its slot and preserves its caught fields.
+  - ~Map.get~, ~Vec.get/set~, ~Array.get/set~, and their dynamic counterparts
+    retain success, catch, propagation, ownership, and bang behavior under both
+    backends. Bang still reports its call location and error type.
+  - Formatting placed in a catch runs only when that catch is taken; catches
+    that only return an absent/default result allocate no diagnostic string.
+  - A refreshed ~bin/til_prof translate test/maps.til~ has no hot-path
+    ~OutOfBounds_delete~ / ~KeyNotFound_delete~ calls; compare total translation
+    time and allocation counts with the snapshot above.
+  - ~make clean && make test_two_pass~ passes and the second generated pass is
+    byte-identical.
