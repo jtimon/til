@@ -1,4 +1,5 @@
 mode lib
+
 import("context")
 
 // Constfolder: constant folding for macros and pure functions
@@ -191,7 +192,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 switch edef.node_type {
                 case NodeType.EnumDef(edd):
                     if etag.to_usize().lt(edd.variants.len())
-                       .and(edd.payload_types.has(etag.cast(I64)).not()) {
+                    .and(edd.payload_types.has(etag.cast(I64)).not()) {
                         ref vname : Str = edd.variants[etag.to_usize()]
                         // Build the inner variant FieldAccess Color.Green.
                         mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
@@ -583,7 +584,11 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         case:
         }
         if ctx.constfolder_known.has(name.ident_name()) { return false }
-        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())? catch (knf: KeyNotFound) { }
+        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())? catch (knf: KeyNotFound) {
+            // REM: an unbound name is an expected miss -- a builtin, an ext, or a
+            // not-yet-bound global. cell stays NULL and the guard below skips the
+            // resolves-to-a-func body walk.
+        }
         if cell.is_null().not() {
             // The Ident resolves to something in constfolder scope. If it's
             // a Func, walk its body too -- the surface body may only
@@ -650,8 +655,8 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
         if ret.children.len() == 0 { return NULL }
         ref rv : Expr = ret.children[0]
         if rv.node_type.is_literal_num()
-            .or(rv.node_type.is_literal_str())
-            .or(rv.node_type.is_literal_bool()) {
+        .or(rv.node_type.is_literal_str())
+        .or(rv.node_type.is_literal_bool()) {
             return rv
         }
         return NULL
@@ -670,8 +675,8 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
                 if ret_name.ident_name().eq(dd.name).not() { return NULL }
                 ref rhs : Expr = decl.children[0]
                 if rhs.node_type.is_literal_num()
-                    .or(rhs.node_type.is_literal_str())
-                    .or(rhs.node_type.is_literal_bool()) {
+                .or(rhs.node_type.is_literal_str())
+                .or(rhs.node_type.is_literal_bool()) {
                     return rhs
                 }
             case:
@@ -735,7 +740,11 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
     case NodeType.Ident(ci):
-        ref cell : Cell = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) { }
+        ref cell : Cell = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) {
+            // REM: an unbound name is an expected miss -- the callee may be a
+            // builtin or a typer-flattened name absent from scope. cell stays
+            // NULL and control falls through to the ns_lookup_flat fallback below.
+        }
         if cell.is_null().not() {
             switch cell.val {
             case Value.Func(p): fc_fp = p
@@ -788,7 +797,11 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
-        ref fn_cell : Cell = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) { }
+        ref fn_cell : Cell = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) {
+            // REM: an unbound name is an expected miss -- the callee may be a
+            // builtin/ext with no scope binding. fn_cell stays NULL and the guard
+            // below leaves fp at 0 (probe found nothing).
+        }
         if fn_cell.is_null().not() {
             switch fn_cell.val {
             case Value.Func(p): fp = p
@@ -860,8 +873,8 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     if require_known.not() {
         ret_tname := til_type_name(fcall.til_type())
         is_container := ret_tname.starts_with("Vec__")
-                       .or(ret_tname.starts_with("Array__"))
-                       .or(ret_tname.starts_with("Map__"))
+        .or(ret_tname.starts_with("Array__"))
+        .or(ret_tname.starts_with("Map__"))
         if is_container { return NULL }
     }
 
@@ -882,7 +895,11 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
-                ref cell : Cell = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) { }
+                ref cell : Cell = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) {
+                    // REM: an unbound arg name is an expected miss -- a builtin/ext
+                    // or a not-yet-bound global. cell stays NULL and the guard
+                    // below skips the known-value substitution.
+                }
                 if cell.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
                     switch cell.val {
                     case Value.Int(iv):
@@ -1627,8 +1644,8 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Cont
         if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
         is_def := rhs.node_type.is(NodeType.FuncDef)
-            .or(rhs.node_type.is(NodeType.StructDef))
-            .or(rhs.node_type.is(NodeType.EnumDef))
+        .or(rhs.node_type.is(NodeType.StructDef))
+        .or(rhs.node_type.is(NodeType.EnumDef))
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if is_def {

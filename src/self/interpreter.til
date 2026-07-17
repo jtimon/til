@@ -1,6 +1,6 @@
 mode lib
-import("context")
 
+import("context")
 import("loader")
 import("builder")
 import("../std/sys")
@@ -330,7 +330,7 @@ namespace:
     clone := func(self: EnumInstance) returns EnumInstance {
         if self.data.is_null() {
             return EnumInstance(ctx = self.ctx, enum_name = self.enum_name,
-                                data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
+                data = NULL, data_size = self.data_size, borrowed = false, is_str = self.is_str)
         }
         pdata : Dynamic = EvalHeap.heap_alloc(self.data_size)
         memcpy(pdata, self.data, self.data_size)
@@ -338,7 +338,7 @@ namespace:
         // copy payload structs/enums so the clone owns independent heap.
         enum_payload_deep_clone(self.enum_name, pdata, self.ctx)
         return EnumInstance(ctx = self.ctx, enum_name = self.enum_name,
-                            data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
+            data = pdata, data_size = self.data_size, borrowed = false, is_str = self.is_str)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {
         // Deep delete: free the payload buffer unless this is a borrowed
@@ -964,24 +964,24 @@ eval_expr := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
                                 ref tc : Cell = scope_get(scope, sname)?
                                 catch (e: KeyNotFound) { return borrow_value(nsv) }
                                 switch tc.val {
-                                    case Value.Func(eptr):
-                                        ref edef : Expr = deref(eptr)
-                                        if edef.node_type.is(NodeType.EnumDef) {
-                                            total_size : USize = ctx_total_size(sname, ctx)
-                                            tag := enum_variant_tag(edef, fname.field_access_name())
-                                            if tag >= 0 {
-                                                if enum_has_payloads(edef) {
-                                                    return val_enum_flat(sname, tag, NULL, 0, total_size, false, false, ctx)
-                                                } else {
-                                                    // #264 follow-up: a U64 (8-byte) tag may exceed I32,
-                                                    // so carry it as a full I64; narrower tags stay Int32.
-                                                    if enum_tag_size(edef) > 4 { return Value.Int(tag) }
-                                                    return Value.Int32(tag.to_i32())
-                                                }
+                                case Value.Func(eptr):
+                                    ref edef : Expr = deref(eptr)
+                                    if edef.node_type.is(NodeType.EnumDef) {
+                                        total_size : USize = ctx_total_size(sname, ctx)
+                                        tag := enum_variant_tag(edef, fname.field_access_name())
+                                        if tag >= 0 {
+                                            if enum_has_payloads(edef) {
+                                                return val_enum_flat(sname, tag, NULL, 0, total_size, false, false, ctx)
+                                            } else {
+                                                // #264 follow-up: a U64 (8-byte) tag may exceed I32,
+                                                // so carry it as a full I64; narrower tags stay Int32.
+                                                if enum_tag_size(edef) > 4 { return Value.Int(tag) }
+                                                return Value.Int32(tag.to_i32())
                                             }
                                         }
-                                    case:
                                     }
+                                case:
+                                }
                             }
                         case:
                         }
@@ -1304,7 +1304,7 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
             matched = value_switch_key(eval_expr(scope, cn.children[0], ctx)) == subj_i
         }
         if matched {
-            case_scope := scope_new(scope)
+        case_scope := scope_new(scope)
             eval_body(case_scope, cn.children[1], ctx)
             reclone_return(c)
             scope_free(own case_scope)
@@ -2348,134 +2348,139 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
             free_temp_arg_value(fn_val)
             return result
         case Value.Func(fn_ptr):
-        ref func_def : Expr = deref(fn_ptr)
+            ref func_def : Expr = deref(fn_ptr)
 
-        // FuncPtr field: stored function may be ext_func from another type
-        if callee_expr.til_type().is_funcptr() {
-            mut fp_func_type := FuncType.Func
+            // FuncPtr field: stored function may be ext_func from another type
+            if callee_expr.til_type().is_funcptr() {
+                mut fp_func_type := FuncType.Func
+                switch func_def.node_type {
+                case NodeType.FuncDef(fp_fdef):
+                    fp_func_type = fp_fdef.func_type
+                case:
+                    UNREACHABLE()
+                }
+                if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
+                    for qn, nsv in c.ns_fields {
+                        switch nsv {
+                        case Value.Func(nsv_fptr):
+                            ref nsv_fdef : Expr = deref(nsv_fptr)
+                            if nsv_fdef.ptr_eq(func_def) {
+                                fp_flat := qn.replace(".", "_")
+                                orig_callee := callee_expr.clone()
+                                mut flat_ident := callee_expr.clone()
+                                flat_ident.node_type = ident_node(fp_flat)
+                                e.children[0] = flat_ident
+                                result := eval_call(scope, e, ctx)
+                                e.children[0] = orig_callee
+                                return result
+                            }
+                        case:
+                        }
+                    }
+                }
+            }
+            // Direct ext_func namespace method -- dispatch by flat name
+            mut fdef_func_type := FuncType.Func
             switch func_def.node_type {
-            case NodeType.FuncDef(fp_fdef):
-                fp_func_type = fp_fdef.func_type
+            case NodeType.FuncDef(fdef_ns):
+                fdef_func_type = fdef_ns.func_type
             case:
                 UNREACHABLE()
             }
-            if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
-                for qn, nsv in c.ns_fields {
-                    switch nsv {
-                    case Value.Func(nsv_fptr):
-                        ref nsv_fdef : Expr = deref(nsv_fptr)
-                        if nsv_fdef.ptr_eq(func_def) {
-                            fp_flat := qn.replace(".", "_")
-                            orig_callee := callee_expr.clone()
-                            mut flat_ident := callee_expr.clone()
-                            flat_ident.node_type = ident_node(fp_flat)
-                            e.children[0] = flat_ident
-                            result := eval_call(scope, e, ctx)
-                            e.children[0] = orig_callee
-                            return result
+            if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
+                parent_sname := til_type_name(callee_expr.children[0].til_type())
+                ref tc : Cell = scope_get(scope, parent_sname)? catch (e: KeyNotFound) {
+                    // REM: parent_sname is unbound for a primitive receiver
+                    // (til_type_name returns "" for primitives) -- an expected miss.
+                    // tc stays NULL, the guard below skips namespace-method dispatch,
+                    // and control falls through to the flat-name dispatch.
+                }
+                // Guard required: tc.val on a NULL tc (the caught miss) would null-deref.
+                if tc.is_null().not() {
+                    switch tc.val {
+                    case Value.Func(tc_fptr):
+                        ref tc_edef : Expr = deref(tc_fptr)
+                        if tc_edef.node_type.is(NodeType.EnumDef) {
+                            switch callee_expr.node_type {
+                            case NodeType.FieldAccess(callee_ident):
+                                mut eresult := val_none()
+                                if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, eresult, ctx) {
+                                    for oi in 1..e.children.len() {
+                                        ref oa : Expr = e.children[oi]
+                                        if oa.node_type.is(NodeType.Ident).and(get_own_arg(e, oi)) {
+                                            switch oa.node_type {
+                                            case NodeType.Ident(oa_ident):
+                                                ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
+                                                if oc.is_null().not() {
+                                                    // enum_method_dispatch byte-copied this own arg's
+                                                    // WHOLE payload (psz = ctx_total_size) into
+                                                    // eresult's own buffer, sharing every inlined
+                                                    // nested heap pointer -- a nested Str's c_str, not
+                                                    // just a top-level one (Issue #109/#299). A deep
+                                                    // delete of oc.val recurses through struct_deep_free
+                                                    // and frees those shared pointers, dangling eresult
+                                                    // (a heap-use-after-free read in the constfolder's
+                                                    // value_to_expr / needs_source_escape). Clearing the
+                                                    // top is_str only covered a DIRECT Str arg, whose
+                                                    // c_str val_enum_flat already moved out. Free only
+                                                    // this now-redundant wrapper buffer (the bytes live
+                                                    // in eresult's copy) and leave the shared inlined
+                                                    // pointers for eresult to own.
+                                                    switch oc.val {
+                                                    case Value.Struct(osi):
+                                                        if osi.borrowed.not().and(osi.data.is_null().not()) {
+                                                            EvalHeap.heap_free(own osi.data)
+                                                        }
+                                                        memcpy(oc.val, val_none(), Value.size())
+                                                    case:
+                                                        oc.val = val_none()
+                                                    }
+                                                }
+                                            case:
+                                                UNREACHABLE()
+                                            }
+                                        }
+                                    }
+                                    return eresult
+                                }
+                            case:
+                                UNREACHABLE()
+                            }
                         }
                     case:
                     }
                 }
-            }
-        }
-        // Direct ext_func namespace method -- dispatch by flat name
-        mut fdef_func_type := FuncType.Func
-        switch func_def.node_type {
-        case NodeType.FuncDef(fdef_ns):
-            fdef_func_type = fdef_ns.func_type
-        case:
-            UNREACHABLE()
-        }
-        if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
-            parent_sname := til_type_name(callee_expr.children[0].til_type())
-            // Probe: parent_sname is empty for a primitive receiver; the
-            // absent Cell defaults to val = Value.None, so the switch below
-            // hits its default arm and falls through to flat-name dispatch.
-            ref tc : Cell = scope_get(scope, parent_sname)? catch (e: KeyNotFound) { }
-                switch tc.val {
-                case Value.Func(tc_fptr):
-                    ref tc_edef : Expr = deref(tc_fptr)
-                    if tc_edef.node_type.is(NodeType.EnumDef) {
-                        switch callee_expr.node_type {
-                        case NodeType.FieldAccess(callee_ident):
-                            mut eresult := val_none()
-                            if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, eresult, ctx) {
-                                for oi in 1..e.children.len() {
-                                    ref oa : Expr = e.children[oi]
-                                    if oa.node_type.is(NodeType.Ident).and(get_own_arg(e, oi)) {
-                                        switch oa.node_type {
-                                        case NodeType.Ident(oa_ident):
-                                            ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
-                                            if oc.is_null().not() {
-                                                // enum_method_dispatch byte-copied this own arg's
-                                                // WHOLE payload (psz = ctx_total_size) into
-                                                // eresult's own buffer, sharing every inlined
-                                                // nested heap pointer -- a nested Str's c_str, not
-                                                // just a top-level one (Issue #109/#299). A deep
-                                                // delete of oc.val recurses through struct_deep_free
-                                                // and frees those shared pointers, dangling eresult
-                                                // (a heap-use-after-free read in the constfolder's
-                                                // value_to_expr / needs_source_escape). Clearing the
-                                                // top is_str only covered a DIRECT Str arg, whose
-                                                // c_str val_enum_flat already moved out. Free only
-                                                // this now-redundant wrapper buffer (the bytes live
-                                                // in eresult's copy) and leave the shared inlined
-                                                // pointers for eresult to own.
-                                                switch oc.val {
-                                                case Value.Struct(osi):
-                                                    if osi.borrowed.not().and(osi.data.is_null().not()) {
-                                                        EvalHeap.heap_free(own osi.data)
-                                                    }
-                                                    memcpy(oc.val, val_none(), Value.size())
-                                                case:
-                                                    oc.val = val_none()
-                                                }
-                                            }
-                                        case:
-                                            UNREACHABLE()
-                                        }
-                                    }
-                                }
-                                return eresult
-                            }
-                        case:
-                            UNREACHABLE()
-                        }
+                mut sn := til_type_name(callee_expr.children[0].til_type())
+                // til_type_name returns "" for primitives. For ext_func
+                // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
+                // `I64_sub(0, 1)`), fall back to til_type_name_c.
+                if sn.is_empty() {
+                    tn := til_type_name_c(callee_expr.children[0].til_type())
+                    if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
+                        sn = tn
                     }
+                }
+                switch callee_expr.node_type {
+                case NodeType.FieldAccess(fn_name):
+                    // If the receiver type is unknown (eg Dynamic), fall back to
+                    // the unqualified top-level name. Required for and/or/not.
+                    mut flat_str := Str.clone(fn_name.field_access_name())
+                    if sn.len() > 0 {
+                        flat_str = sn.concat3("_", fn_name.field_access_name())
+                    }
+                    orig_callee_val := callee_expr.clone()
+                    mut flat_ident2 := callee_expr.clone()
+                    flat_ident2.node_type = ident_node(flat_str)
+                    e.children[0] = flat_ident2
+                    result := eval_call(scope, e, ctx)
+                    e.children[0] = orig_callee_val
+                    return result
                 case:
-                }
-            mut sn := til_type_name(callee_expr.children[0].til_type())
-            // til_type_name returns "" for primitives. For ext_func
-            // dispatch on a primitive receiver (e.g. `0.sub(1)` ->
-            // `I64_sub(0, 1)`), fall back to til_type_name_c.
-            if sn.is_empty() {
-                tn := til_type_name_c(callee_expr.children[0].til_type())
-                if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
-                    sn = tn
+                    UNREACHABLE()
                 }
             }
-            switch callee_expr.node_type {
-            case NodeType.FieldAccess(fn_name):
-                // If the receiver type is unknown (eg Dynamic), fall back to
-                // the unqualified top-level name. Required for and/or/not.
-                mut flat_str := Str.clone(fn_name.field_access_name())
-                if sn.len() > 0 {
-                    flat_str = sn.concat3("_", fn_name.field_access_name())
-                }
-                orig_callee_val := callee_expr.clone()
-                mut flat_ident2 := callee_expr.clone()
-                flat_ident2.node_type = ident_node(flat_str)
-                e.children[0] = flat_ident2
-                result := eval_call(scope, e, ctx)
-                e.children[0] = orig_callee_val
-                return result
-            case:
-                UNREACHABLE()
-            }
-        }
 
-        return eval_user_func_call(scope, e, func_def, scope, ctx)
+            return eval_user_func_call(scope, e, func_def, scope, ctx)
         case:
             interp_error(e, "namespace field is not a function", ctx)
             exit(1)
@@ -2487,171 +2492,178 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
     switch callee_expr.node_type {
     case NodeType.Ident(name):
 
-    // Ext function dispatch
-    mut ext_result := val_none()
-    if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
-        // Probe: a pure builtin (U64_bnot, ...) has no FuncDef cell; on the
-        // miss ext_cell defaults to NULL and the is_null guard below skips
-        // the param-ownership check.
-        ref ext_cell : Cell = scope_get(scope, name.ident_name())? catch (e: KeyNotFound) { }
-        for oi in 1..e.children.len() {
-            if get_own_arg(e, oi) {
-                switch e.children[oi].node_type {
-                case NodeType.Ident(oa_ident):
-                    ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
-                    if oc.is_null().not() {
-                        // An own arg whose CALLEE PARAM is `own` was genuinely
-                        // handed to C, which owns (and may free) its buffer:
-                        // MOVE the cell to None WITHOUT deep-deleting -- a deep
-                        // free here would double-free what C already owns (e.g.
-                        // an ext delete's `own self`).
-                        //
-                        // But a non-own param only BORROWS the arg. The variadic
-                        // `..T` lowering passes its synthesized marshalling array
-                        // `own` at the call site, yet a C variadic callee
-                        // (`I64 *sum_all(Array__I64 *args)`) never frees it -- so
-                        // nulling without freeing orphaned that array (an interpret
-                        // leak the compiled backend does not have, since it
-                        // reclaims the caller temp after the call). Deep-free it
-                        // here when the param is confirmed non-own; default to the
-                        // null-only path otherwise so an own param is never
-                        // double-freed.
-                        mut param_borrows := false
-                        if ext_cell.is_null().not() {
-                            switch ext_cell.val {
-                            case Value.Func(efp):
-                                ref efd : Expr = deref(efp)
-                                switch efd.node_type {
-                                case NodeType.FuncDef(efdef):
-                                    if oi.sub(1).lt(efdef.params.len()) {
-                                        if efdef.params[oi.sub(1)].own_type.is(OwnType.Own).not() {
-                                            param_borrows = true
+        // Ext function dispatch
+        mut ext_result := val_none()
+        if ext_function_dispatch(name.ident_name(), scope, e, ext_result, ctx) {
+            ref ext_cell : Cell = scope_get(scope, name.ident_name())?
+            catch (e: KeyNotFound) {
+                // REM: a pure builtin (U64_bnot, ...) has no FuncDef cell -- an
+                // expected miss. ext_cell stays NULL and the is_null guard below
+                // skips the param-ownership check.
+            }
+            for oi in 1..e.children.len() {
+                if get_own_arg(e, oi) {
+                    switch e.children[oi].node_type {
+                    case NodeType.Ident(oa_ident):
+                        ref oc : Cell = scope_get(scope, oa_ident.ident_name())!
+                        if oc.is_null().not() {
+                            // An own arg whose CALLEE PARAM is `own` was genuinely
+                            // handed to C, which owns (and may free) its buffer:
+                            // MOVE the cell to None WITHOUT deep-deleting -- a deep
+                            // free here would double-free what C already owns (e.g.
+                            // an ext delete's `own self`).
+                            //
+                            // But a non-own param only BORROWS the arg. The variadic
+                            // `..T` lowering passes its synthesized marshalling array
+                            // `own` at the call site, yet a C variadic callee
+                            // (`I64 *sum_all(Array__I64 *args)`) never frees it -- so
+                            // nulling without freeing orphaned that array (an interpret
+                            // leak the compiled backend does not have, since it
+                            // reclaims the caller temp after the call). Deep-free it
+                            // here when the param is confirmed non-own; default to the
+                            // null-only path otherwise so an own param is never
+                            // double-freed.
+                            mut param_borrows := false
+                            if ext_cell.is_null().not() {
+                                switch ext_cell.val {
+                                case Value.Func(efp):
+                                    ref efd : Expr = deref(efp)
+                                    switch efd.node_type {
+                                    case NodeType.FuncDef(efdef):
+                                        if oi.sub(1).lt(efdef.params.len()) {
+                                            if efdef.params[oi.sub(1)].own_type.is(OwnType.Own).not() {
+                                                param_borrows = true
+                                            }
                                         }
+                                    case:
                                     }
                                 case:
                                 }
-                            case:
                             }
+                            if param_borrows { free_temp_arg_value(oc.val) }
+                            memcpy(oc.val, val_none(), Value.size())
                         }
-                        if param_borrows { free_temp_arg_value(oc.val) }
-                        memcpy(oc.val, val_none(), Value.size())
+                    case:
                     }
-                case:
                 }
             }
+            return ext_result
         }
-        return ext_result
-    }
 
-    // User-defined function or struct instantiation
-    ref fn_cell : Cell = scope_get(scope, name.ident_name())? catch (knf: KeyNotFound) { }
-    if fn_cell.is_null() {
-        interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
-        exit(1)
-    }
+        // User-defined function or struct instantiation
+        // A miss means the callee name is bound nowhere -- undefined. The typer
+        // rejects undefined names, so this only fires under the constfolder's
+        // speculative eval, where the exit is caught via ctx.constfold_active in
+        // h_exit. On success scope_get returns a non-null cell, so no guard is
+        // needed past the catch.
+        ref fn_cell : Cell = scope_get(scope, name.ident_name())?
+        catch (knf: KeyNotFound) {
+            interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
+            exit(1)
+        }
 
-    // An ext_func reaching here did not dispatch above (not a builtin and
-    // not FFI-registered -- e.g. a user .so not dlopen'd at constfolder time).
-    // It has no body to execute, so refuse rather than falling through to
-    // the bodyless-func path. Lets constfolder's try_eval_call bail cleanly via
-    // can_convert.not() instead of crashing.
-    switch fn_cell.val {
-    case Value.Func(ext_fp):
-        ref ext_def : Expr = deref(ext_fp)
-        switch ext_def.node_type {
-        case NodeType.FuncDef(ext_fd):
-            if ext_fd.func_type.is(FuncType.ExtFunc) { return val_none() }
+        // An ext_func reaching here did not dispatch above (not a builtin and
+        // not FFI-registered -- e.g. a user .so not dlopen'd at constfolder time).
+        // It has no body to execute, so refuse rather than falling through to
+        // the bodyless-func path. Lets constfolder's try_eval_call bail cleanly via
+        // can_convert.not() instead of crashing.
+        switch fn_cell.val {
+        case Value.Func(ext_fp):
+            ref ext_def : Expr = deref(ext_fp)
+            switch ext_def.node_type {
+            case NodeType.FuncDef(ext_fd):
+                if ext_fd.func_type.is(FuncType.ExtFunc) { return val_none() }
+            case:
+            }
         case:
         }
-    case:
-    }
 
-    // Struct instantiation
-    switch fn_cell.val {
-    case Value.Func(si_fptr):
-        ref si_edef : Expr = deref(si_fptr)
-        if si_edef.node_type.is(NodeType.StructDef) {
-            switch si_edef.node_type {
-            case NodeType.StructDef(sdd):
-                inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx))
-                mut inst := val_none()
-                switch e.node_type {
-                case NodeType.FCall(fcd_ctor):
-                    switch fcd_ctor.til_type {
-                    case Type.Struct(es):
-                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
-                    case Type.Enum(es):
-                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
-                    case Type.Custom(es):
-                        if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
-                        else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
+        // Struct instantiation
+        switch fn_cell.val {
+        case Value.Func(si_fptr):
+            ref si_edef : Expr = deref(si_fptr)
+            if si_edef.node_type.is(NodeType.StructDef) {
+                switch si_edef.node_type {
+                case NodeType.StructDef(sdd):
+                    inst_data : Dynamic = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx))
+                    mut inst := val_none()
+                    switch e.node_type {
+                    case NodeType.FCall(fcd_ctor):
+                        switch fcd_ctor.til_type {
+                        case Type.Struct(es):
+                            if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                            else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
+                        case Type.Enum(es):
+                            if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                            else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
+                        case Type.Custom(es):
+                            if es.len() > 0 { inst = make_struct_value(es, inst_data, false, ctx) }
+                            else              { inst = make_struct_value(name.name, inst_data, false, ctx) }
+                        case:
+                            inst = make_struct_value(name.name, inst_data, false, ctx)
+                        }
                     case:
                         inst = make_struct_value(name.name, inst_data, false, ctx)
                     }
-                case:
-                    inst = make_struct_value(name.name, inst_data, false, ctx)
-                }
-                switch inst {
-                case Value.Struct(si_inst):
-                    mut arg_idx : USize = 1
-                    for fdd : Declaration in sdd.fields {
-                        cur_idx := arg_idx
-                        ref arg : Expr = e.children[cur_idx]
-                        arg_idx++
-                        mut val := val_none()
-                        switch arg.node_type {
-                        case NodeType.Ident(arg_ident):
-                            ref src : Cell = scope_get(scope, arg_ident.ident_name())!
-                            if src.is_null() {
-                                interp_error(arg, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
-                                exit(1)
+                    switch inst {
+                    case Value.Struct(si_inst):
+                        mut arg_idx : USize = 1
+                        for fdd : Declaration in sdd.fields {
+                            cur_idx := arg_idx
+                            ref arg : Expr = e.children[cur_idx]
+                            arg_idx++
+                            mut val := val_none()
+                            switch arg.node_type {
+                            case NodeType.Ident(arg_ident):
+                                ref src : Cell = scope_get(scope, arg_ident.ident_name())!
+                                if src.is_null() {
+                                    interp_error(arg, format("undefined variable '", Str.clone(arg_ident.ident_name()), "'"), ctx)
+                                    exit(1)
+                                }
+                                // Null the source only when THIS arg (cur_idx) is
+                                // marked own. Using the post-increment arg_idx here
+                                // tested the next arg's own-bit, which nulled the
+                                // wrong source cell -- e.g. a global constant like
+                                // ELEM_BOXED passed for `elem_kind` got cleared
+                                // because the following `elem_clone` arg was own,
+                                // leaving every later Vec.new with elem_kind == 0
+                                // (issue #213).
+                                if get_own_arg(e, cur_idx).and(src.val.is(Value.Func).not()) {
+                                    // MOVE: take ownership of the source payload and
+                                    // null the cell WITHOUT freeing (memcpy, not
+                                    // `= val_none()` which save-old-deletes the
+                                    // payload val now owns -> double-free).
+                                    val = shallow_copy_value(src.val)
+                                    memcpy(src.val, val_none(), Value.size())
+                                } else {
+                                    // BORROW: val aliases src.val for the field
+                                    // write (write_field clones); its deep delete
+                                    // must skip the payload the source still owns.
+                                    val = borrow_value(src.val)
+                                }
+                            case:
+                                val = eval_expr(scope, arg, ctx)
                             }
-                            // Null the source only when THIS arg (cur_idx) is
-                            // marked own. Using the post-increment arg_idx here
-                            // tested the next arg's own-bit, which nulled the
-                            // wrong source cell -- e.g. a global constant like
-                            // ELEM_BOXED passed for `elem_kind` got cleared
-                            // because the following `elem_clone` arg was own,
-                            // leaving every later Vec.new with elem_kind == 0
-                            // (issue #213).
-                            if get_own_arg(e, cur_idx).and(src.val.is(Value.Func).not()) {
-                                // MOVE: take ownership of the source payload and
-                                // null the cell WITHOUT freeing (memcpy, not
-                                // `= val_none()` which save-old-deletes the
-                                // payload val now owns -> double-free).
-                                val = shallow_copy_value(src.val)
-                                memcpy(src.val, val_none(), Value.size())
-                            } else {
-                                // BORROW: val aliases src.val for the field
-                                // write (write_field clones); its deep delete
-                                // must skip the payload the source still owns.
-                                val = borrow_value(src.val)
-                            }
-                        case:
-                            val = eval_expr(scope, arg, ctx)
+                            ref ctor_fl : FieldLayout = ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
+                            write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                         }
-                        ref ctor_fl : FieldLayout = ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
-                        write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
+                    case:
+                        UNREACHABLE()
                     }
+                    return inst
                 case:
                     UNREACHABLE()
                 }
-                return inst
-            case:
-                UNREACHABLE()
             }
+        case:
         }
-    case:
-    }
 
-    if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
-        interp_error(e, format(Str.clone(name.ident_name()), " is not a function"), ctx)
-        exit(1)
-    }
+        if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
+            interp_error(e, format(Str.clone(name.ident_name()), " is not a function"), ctx)
+            exit(1)
+        }
 
-    return eval_callable_call(scope, e, fn_cell.val, ctx)
+        return eval_callable_call(scope, e, fn_cell.val, ctx)
     case NodeType.FCall:
         // Issue #58: postfix call on a sub-expression callee, e.g.
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
@@ -3325,19 +3337,19 @@ priv reclone_return := func(mut ctx: Context) {
 }
 
 priv free_non_own_temp_args := func(call_scope: Scope, call_expr: Expr, func_def: Expr) {    switch func_def.node_type {
-    case NodeType.FuncDef(fdef):
-        for pi in 0..fdef.params.len() {
-            ref param : Declaration = fdef.params[pi]
-            if param.own_type.is(OwnType.Own) { continue }
-            if call_expr.children[pi + 1].node_type.is(NodeType.Ident) { continue }
-            ref cell : Cell = scope_get(call_scope, param.name)!
-            if cell.is_null().not() {
-                free_temp_arg_value(cell.val)
-                memcpy(cell.val, val_none(), Value.size())
-            }
+case NodeType.FuncDef(fdef):
+    for pi in 0..fdef.params.len() {
+        ref param : Declaration = fdef.params[pi]
+        if param.own_type.is(OwnType.Own) { continue }
+        if call_expr.children[pi + 1].node_type.is(NodeType.Ident) { continue }
+        ref cell : Cell = scope_get(call_scope, param.name)!
+        if cell.is_null().not() {
+            free_temp_arg_value(cell.val)
+            memcpy(cell.val, val_none(), Value.size())
         }
-    case:
     }
+case:
+}
 }
 
 // True when a narrow scalar `val` must be widened to reach the concrete
@@ -3448,12 +3460,12 @@ priv box_scalar_to_dynamic := func(mut call_scope: Scope, mut v: Value, track_fo
         r_callable2 := Value.Dynamic(dp)
         if track_for_free { call_scope.box_owned_callables.push(own DynPtrBox(p = dynamic_value_payload_copy(r_callable2))) }
         return r_callable2
-    // Non-scalar (struct/enum) bound to a Dynamic param: the value already
-    // carries a heap .data pointer, so there is nothing to box -- the callee
-    // just reads/writes through it. Return a BORROW (not a bare
-    // shallow_copy_value): the caller's cell still owns the payload, so the
-    // callee's cell must not free it. An unflagged copy made two non-borrowed
-    // owners -> double-free once scope teardown frees both (auto.til).
+        // Non-scalar (struct/enum) bound to a Dynamic param: the value already
+        // carries a heap .data pointer, so there is nothing to box -- the callee
+        // just reads/writes through it. Return a BORROW (not a bare
+        // shallow_copy_value): the caller's cell still owns the payload, so the
+        // callee's cell must not free it. An unflagged copy made two non-borrowed
+        // owners -> double-free once scope teardown frees both (auto.til).
     case:
         if track_for_free { return borrow_value(v) }
         moved := shallow_copy_value(v)
@@ -4100,12 +4112,12 @@ priv value_to_buf := func(dest: Dynamic, val: Value, type_name: Str) {
     case Value.Ushort(v):  if type_name == "U16"  { memcpy(dest, v, 2); return }
     case Value.Int32(v):   if type_name == "I32"  { memcpy(dest, v, 4); return }
     case Value.Uint32(v):  if type_name == "U32"  { memcpy(dest, v, 4); return }
-    // U64 covers the bare type plus the width aliases: parse_cli_arg
-    // yields Uint64 for USize/UPtr at interpret time (host == target,
-    // 64-bit) and elem_size_for_type sizes those slots at 8. Missing
-    // this case left `main(args: ..U64)` element buffers unwritten
-    // under `til interpret` (printed zeros where the compiled binary
-    // printed the arguments).
+        // U64 covers the bare type plus the width aliases: parse_cli_arg
+        // yields Uint64 for USize/UPtr at interpret time (host == target,
+        // 64-bit) and elem_size_for_type sizes those slots at 8. Missing
+        // this case left `main(args: ..U64)` element buffers unwritten
+        // under `til interpret` (printed zeros where the compiled binary
+        // printed the arguments).
     case Value.Uint64(v):
         if (type_name == "U64").or(type_name == "USize").or(type_name == "UPtr") { memcpy(dest, v, 8); return }
     case Value.Float(v):   if type_name == "F32"  { memcpy(dest, v, 4); return }
@@ -4698,16 +4710,16 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         return
     }
     switch val {
-    // fsz is the SLOT width from the (host-width) layout, which can be
-    // wider than the value's own box: cross-compiling to 32-bit types a
-    // USize value as Uint32 (target semantics) while the host slot is 8
-    // bytes. memcpy(ptr, v, fsz) then dragged EvalHeap poison in as the
-    // field's top half (clone_container_buffer later read a garbage
-    // count -> ASAN allocation-size-too-big). Widen narrow scalars
-    // through an 8-byte temp (cast sign/zero-extends) and copy fsz low
-    // bytes from that -- exact for fsz == value width, correct
-    // little-endian extension/truncation otherwise. Int/Uint64 boxes
-    // are already 8 bytes, so reading fsz <= 8 from them is safe.
+        // fsz is the SLOT width from the (host-width) layout, which can be
+        // wider than the value's own box: cross-compiling to 32-bit types a
+        // USize value as Uint32 (target semantics) while the host slot is 8
+        // bytes. memcpy(ptr, v, fsz) then dragged EvalHeap poison in as the
+        // field's top half (clone_container_buffer later read a garbage
+        // count -> ASAN allocation-size-too-big). Widen narrow scalars
+        // through an 8-byte temp (cast sign/zero-extends) and copy fsz low
+        // bytes from that -- exact for fsz == value width, correct
+        // little-endian extension/truncation otherwise. Int/Uint64 boxes
+        // are already 8 bytes, so reading fsz <= 8 from them is safe.
     case Value.Int(v):     memcpy(ptr, v, fsz)
     case Value.Byte(v):    wf_u : U64 = v.cast(U64); memcpy(ptr, wf_u, fsz)
     case Value.Sbyte(v):   wf_i : I64 = v.cast(I64); memcpy(ptr, wf_i, fsz)
@@ -5942,8 +5954,11 @@ priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
 // the name is unknown or not a struct. Shared by the struct_field_*
 // introspection handlers (issue #56/#58).
 priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
-    if tc.is_null() {
+    // A miss means `who` asked to introspect a type name with no registered
+    // def -- a not-found error. On success scope_get returns a non-null cell,
+    // so no guard is needed past the catch.
+    ref tc : Cell = scope_get(s, type_name)?
+    catch (knf: KeyNotFound) {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
@@ -6040,8 +6055,11 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
 // the name is unknown or not an enum. Shared by the enum_variant_*
 // introspection handlers (issue #57/#58).
 priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
-    if tc.is_null() {
+    // A miss means `who` asked to introspect a type name with no registered
+    // def -- a not-found error. On success scope_get returns a non-null cell,
+    // so no guard is needed past the catch.
+    ref tc : Cell = scope_get(s, type_name)?
+    catch (knf: KeyNotFound) {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
@@ -6138,8 +6156,11 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
 priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx: Context) returns ref Expr {
-    ref tc : Cell = scope_get(s, type_name)? catch (knf: KeyNotFound) { }
-    if tc.is_null() {
+    // A miss means `who` asked to introspect a type name with no registered
+    // def -- a not-found error. On success scope_get returns a non-null cell,
+    // so no guard is needed past the catch.
+    ref tc : Cell = scope_get(s, type_name)?
+    catch (knf: KeyNotFound) {
         interp_error(e, format(who, ": type '", type_name, "' not found"), ctx)
         exit(1)
     }
@@ -7814,50 +7835,50 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                     switch stmt.children[0].node_type {
                     case NodeType.StructDef(sdd_data):
                         for d_j : Declaration in sdd_data.ns_decls {
-                        ref fdd : Declaration = d_j
-                        ref fdef : Expr = fdd.default_value
-                        if fdef.is_null() { continue }
-                        mut fd_func_type := FuncType.Func
-                        switch fdef.node_type {
-                        case NodeType.FuncDef(fd):
-                            fd_func_type = fd.func_type
-                        case:
-                            continue
-                        }
-                        if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
-                            flat_name := sdd.name.concat3("_", fdd.name)
-                            ref fn_ptr : U8 = ffi_dlsym(flat_name)
-                            if fn_ptr.is_null().not() {
-                                ffi_register(flat_name, fn_ptr, fdef, ctx)
+                            ref fdd : Declaration = d_j
+                            ref fdef : Expr = fdd.default_value
+                            if fdef.is_null() { continue }
+                            mut fd_func_type := FuncType.Func
+                            switch fdef.node_type {
+                            case NodeType.FuncDef(fd):
+                                fd_func_type = fd.func_type
+                            case:
+                                continue
                             }
-                        } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
-                            // Scan function body for nested ext_func/ext_proc.
-                            // A bodyless namespace signature (interface
-                            // method, issue #251) has no body to scan.
-                            if fdef.children.len() == 0 { continue }
-                            ref fbody : Expr = fdef.children[0]
-                            for inner : Expr in fbody.children {
-                                if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
-                                    ref idef : Expr = inner.children[0]
-                                    switch idef.node_type {
-                                    case NodeType.FuncDef(ifd):
-                                        if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
-                                            switch inner.node_type {
-                                            case NodeType.Decl(iname):
-                                                ref ifn : U8 = ffi_dlsym(iname.name)
-                                                if ifn.is_null().not() {
-                                                    ffi_register(iname.name, ifn, idef, ctx)
+                            if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
+                                flat_name := sdd.name.concat3("_", fdd.name)
+                                ref fn_ptr : U8 = ffi_dlsym(flat_name)
+                                if fn_ptr.is_null().not() {
+                                    ffi_register(flat_name, fn_ptr, fdef, ctx)
+                                }
+                            } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
+                                // Scan function body for nested ext_func/ext_proc.
+                                // A bodyless namespace signature (interface
+                                // method, issue #251) has no body to scan.
+                                if fdef.children.len() == 0 { continue }
+                                ref fbody : Expr = fdef.children[0]
+                                for inner : Expr in fbody.children {
+                                    if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
+                                        ref idef : Expr = inner.children[0]
+                                        switch idef.node_type {
+                                        case NodeType.FuncDef(ifd):
+                                            if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
+                                                switch inner.node_type {
+                                                case NodeType.Decl(iname):
+                                                    ref ifn : U8 = ffi_dlsym(iname.name)
+                                                    if ifn.is_null().not() {
+                                                        ffi_register(iname.name, ifn, idef, ctx)
+                                                    }
+                                                case:
+                                                    UNREACHABLE()
                                                 }
-                                            case:
-                                                UNREACHABLE()
                                             }
+                                        case:
                                         }
-                                    case:
                                     }
                                 }
                             }
                         }
-                    }
                     case:
                         UNREACHABLE()
                     }
