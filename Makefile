@@ -363,21 +363,28 @@ $(LIBFFI_WIN_LIB): vendor/libffi/.built
 	cd $(LIBFFI_DIR) && ./configure --host=x86_64-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)/x86_64-w64-mingw32
 
-# nng cross-built for win64 (mode server / the nng custom modes). nng
-# requires the UCRT and rejects "legacy mingw", so the check symbols it
-# probes (timespec_get, condvar, snprintf) are forced -- they exist in
-# UCRT, which -D_UCRT selects at compile and -lucrtbase links (the
-# builder appends the winsock libs + ucrtbase to the final program
-# link). Built in its own build-win64/ dir so the native nng build is
-# untouched. Verified: a cross-built sender.exe runs under wine
-# (nng_version + socket open).
+# nng cross-built for win64 (mode server / the nng custom modes). nng's
+# cmake rejects "legacy mingw" unless three C11 symbols probe true
+# (timespec_get, condvar, snprintf); mingw only exposes timespec_get +
+# its TIME_UTC macro under the UCRT. We do NOT build against the UCRT,
+# though: a UCRT nng imports ucrtbase.dll, and since Ubuntu's mingw
+# startup (crt2.o) is msvcrt, the program ends up importing BOTH
+# ucrtbase.dll and msvcrt.dll -- a dual-CRT binary that real Windows
+# refuses to load (issue #25: the windows-host exit-127; wine tolerated
+# it, which hid the bug). Instead force the three probes true, define
+# TIME_UTC so nng compiles, and let it link the plain msvcrt; the one
+# genuinely-missing function, timespec_get, is supplied by ext.c's
+# msvcrt shim. The final program then imports only msvcrt.dll (verified:
+# the cross-built binaries match the working single-CRT hello_script.exe
+# profile and run under wine). Built in its own build-win64/ dir so the
+# native nng build is untouched.
 NNG_WIN_LIB := vendor/nng/build-win64/libnng.a
 $(NNG_WIN_LIB):
 	cmake -S vendor/nng -B vendor/nng/build-win64 -DCMAKE_BUILD_TYPE=Release \
 	  -DBUILD_SHARED_LIBS=OFF -DNNG_TESTS=OFF -DNNG_ENABLE_NNGCAT=OFF -DNNG_ENABLE_TLS=OFF \
 	  -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
 	  -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
-	  -DCMAKE_C_FLAGS="-D_UCRT" -DNNG_HAVE_TIMESPEC_GET=1 -DNNG_HAVE_CONDVAR=1 -DNNG_HAVE_SNPRINTF=1
+	  -DCMAKE_C_FLAGS="-DTIME_UTC=1" -DNNG_HAVE_TIMESPEC_GET=1 -DNNG_HAVE_CONDVAR=1 -DNNG_HAVE_SNPRINTF=1
 	cmake --build vendor/nng/build-win64 --parallel
 
 # The nng custom-mode examples (sender/receiver/publisher/subscriber),

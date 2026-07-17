@@ -5981,10 +5981,13 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             }
             // Windows nng: swap the linux libnng.a (from nng_base.til's
             // link()) for the mingw cross-build; remember to append the
-            // winsock libs and ucrtbase. nng requires the UCRT (its posix
-            // shim calls timespec_get -> __imp__timespec64_get), which the
-            // default msvcrt mingw link does not pull; -lucrtbase resolves
-            // it. Verified running under wine (nng_version + socket open).
+            // winsock libs. nng needs the C11 timespec_get, which msvcrt
+            // lacks -- but we build nng against msvcrt anyway and supply
+            // timespec_get from ext.c's shim (see the Makefile NNG_WIN_LIB
+            // rule). We must NOT add -lucrtbase here: it would pull
+            // ucrtbase.dll in beside mingw's msvcrt.dll startup, and that
+            // dual-CRT binary fails to load on real Windows (issue #25 --
+            // the windows-host exit-127 that wine masked).
             if is_win.and(t.ends_with("libnng.a")) {
                 has_nng = true
                 new_lf = new_lf.format(" vendor/nng/build-win64/libnng.a")
@@ -5992,7 +5995,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             }
             new_lf = new_lf.format(" ", t)
         }
-        if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32 -lucrtbase") }
+        if has_nng { new_lf = new_lf.format(" -lws2_32 -lmswsock -ladvapi32") }
         lf = new_lf
     }
     if wasm_gui { lf = "" }

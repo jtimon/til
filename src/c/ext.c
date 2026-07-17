@@ -89,6 +89,29 @@ static void stdio_capture_fail(const char *op) {
 #endif
 #endif
 
+// nng's win_clock.c calls the C11 timespec_get(&ts, TIME_UTC), which mingw only
+// declares under the universal CRT (_UCRT). We deliberately build nng against
+// the default msvcrt instead (see the Makefile NNG_WIN_LIB rule): a UCRT nng
+// pulls ucrtbase.dll in alongside mingw's msvcrt.dll startup, and Windows
+// refuses to load the resulting dual-CRT binary (issue #25 -- the exit-127 the
+// windows-host runner hit; wine tolerated it). So supply timespec_get here for
+// nng to link against. Guarded off under _UCRT, where the real one exists.
+#if defined(_WIN32) && !defined(_UCRT)
+#include <time.h>
+int timespec_get(struct timespec *ts, int base) {
+    FILETIME ft;
+    ULARGE_INTEGER u;
+    GetSystemTimeAsFileTime(&ft);
+    u.LowPart = ft.dwLowDateTime;
+    u.HighPart = ft.dwHighDateTime;
+    // FILETIME counts 100ns ticks from 1601-01-01; shift to the Unix epoch.
+    unsigned long long t = u.QuadPart - 116444736000000000ULL;
+    ts->tv_sec = (time_t)(t / 10000000ULL);
+    ts->tv_nsec = (long)((t % 10000000ULL) * 100);
+    return base;
+}
+#endif
+
 #ifdef _WIN32
 static HMODULE ffi_handle;
 #elif defined(__EMSCRIPTEN__)

@@ -721,11 +721,13 @@ jobs:
         run: |
           cp recon-arm64/libraylib-macos-arm64.a vendor/raylib/src/libraylib-macos-arm64.a
           cp recon-x64/libraylib-macos-x64.a vendor/raylib/src/libraylib-macos-x64.a
-          # The generated stubs declare both arch targets and list the
-          # frameworks/symbols raylib references (arch-independent), so one
-          # set serves both cross-builds; take the arm64 set.
+          # arm64 and x64 raylib reference different framework symbols (x64
+          # pulls objc_msgSend_stret, which arm64 has no equivalent for), so
+          # the arm64 stubs alone don't cross-link x64. Merge both arches'
+          # stub sets into one that links either target.
           mkdir -p vendor/macos/frameworks
-          cp recon-arm64/frameworks-arm64/*.tbd vendor/macos/frameworks/
+          python3 vendor/macos/gen_framework_stubs.py --merge vendor/macos/frameworks \
+            recon-arm64/frameworks-arm64 recon-x64/frameworks-x64
           make vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a
           echo "framework stubs:"; ls vendor/macos/frameworks/
       - name: Cross-compile a mode-gui example for both mac arches
@@ -780,7 +782,10 @@ jobs:
           cp recon-x64/libraylib-macos-x64.a     vendor/raylib/src/libraylib-macos-x64.a
           rm -rf vendor/macos/frameworks
           mkdir -p vendor/macos/frameworks
-          cp recon-arm64/frameworks-arm64/*.tbd vendor/macos/frameworks/
+          # Merge both arches' stubs (x64 raylib needs objc_msgSend_stret,
+          # absent on arm64) so the vendored set cross-links either target.
+          python3 vendor/macos/gen_framework_stubs.py --merge vendor/macos/frameworks \
+            recon-arm64/frameworks-arm64 recon-x64/frameworks-x64
           python3 - <<'PY'
           p = "Makefile"; s = open(p).read()
           old = "MAC_CROSS_GUI_MODE :="; new = "MAC_CROSS_GUI_MODE := |gui"

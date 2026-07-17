@@ -88,7 +88,54 @@ def emit_one(fw, symbols, install):
         "...\n"
     )
 
+def parse_tbd(path):
+    """Read one of our single-doc .tbd stubs back into (install-name, [symbols])."""
+    install, symbols = None, []
+    with open(path) as f:
+        for line in f:
+            m = re.match(r"\s*install-name:\s*'?([^'\n]+?)'?\s*$", line)
+            if m:
+                install = m.group(1).strip()
+            m = re.search(r"symbols:\s*\[([^\]]*)\]", line)
+            if m:
+                symbols = [s.strip() for s in m.group(1).split(",") if s.strip()]
+    return install, symbols
+
+def merge_dirs(outdir, indirs):
+    """Union the per-framework symbol lists across several stub dirs into one
+    set of .tbd files. The two mac arches reference different framework
+    symbols (e.g. x86_64 raylib pulls objc_msgSend_stret, which arm64 has no
+    equivalent for), so a single arch's stubs do not cover a cross-build of
+    the other arch; merging both gives one set that links either target."""
+    os.makedirs(outdir, exist_ok=True)
+    merged = {}  # fw -> [install, set(symbols)]
+    for d in indirs:
+        for path in sorted(glob.glob(os.path.join(d, "*.tbd"))):
+            fw = os.path.basename(path)[:-4]
+            install, syms = parse_tbd(path)
+            slot = merged.setdefault(fw, [None, set()])
+            if install and not slot[0]:
+                slot[0] = install
+            slot[1].update(syms)
+    sys.stderr.write("merged frameworks: " + ", ".join(
+        f"{k}={len(v[1])}" for k, v in sorted(merged.items())) + "\n")
+    for fw in sorted(merged):
+        install, syms = merged[fw]
+        if not install:
+            sys.stderr.write(f"WARN: no install-name for framework {fw}; skipping\n")
+            continue
+        path = os.path.join(outdir, f"{fw}.tbd")
+        with open(path, "w") as f:
+            f.write(emit_one(fw, sorted(syms), install))
+        print(path)
+
 if __name__ == "__main__":
+    # Merge mode: gen_framework_stubs.py --merge <outdir> <dir1> <dir2> ...
+    # unions the per-arch stub sets (each mac runner emits its own arch's
+    # stubs) into one set that cross-links either target.
+    if len(sys.argv) > 2 and sys.argv[1] == "--merge":
+        merge_dirs(sys.argv[2], sys.argv[3:])
+        sys.exit(0)
     # Reads `nm -m <macho>` output on stdin, writes one <Framework>.tbd
     # stub per framework into <outdir> (default: current dir). Each is a
     # standalone tapi-tbd -- lld resolves symbols only from the FIRST doc
