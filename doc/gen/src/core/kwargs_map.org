@@ -55,7 +55,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Tuple
+    func get(self: Map__Str_Tuple, key: Str, mut _err_kind: I64) returns ref Tuple
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
     func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
@@ -119,7 +119,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Tuple, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Tuple
+    func get(self: Vec__Tuple, i: USize, mut _err_kind: I64) returns ref Tuple
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Tuple) returns Tuple
@@ -138,7 +138,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Tuple, shallow i: USize, own val: Tuple, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

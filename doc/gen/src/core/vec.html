@@ -59,7 +59,7 @@ namespace:
     func unsafe_get(self: Array__Dynamic, i: USize) returns ref Dynamic
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    func get(self: Array__Dynamic, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Dynamic
+    func get(self: Array__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i &lt; self.cap`; the write-side
     /// mirror of unsafe_get (issue #284).
@@ -67,7 +67,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns shallow USize

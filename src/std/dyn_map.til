@@ -60,7 +60,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    get := func(self: DynMap, key: Dynamic, loc: Str = __LOC__) returns ref Dynamic throws KeyNotFound {
+    get := func(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo < hi {
@@ -72,7 +72,7 @@ namespace:
                 else { return self.values.unsafe_get(mid) }
             }
         }
-        throw KeyNotFound(msg = format(loc, ":DynMap.get: key not found"))
+        throw KeyNotFound()
     }
 
     /// Insert or overwrite the value for `key`. The value is owned.

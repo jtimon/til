@@ -7530,14 +7530,20 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
                 if p.name == "_err_kind" { already_extended = true }
             }
             if already_extended.not() {
-                append_err_out_params(get_def.params, get_def.throw_types)
+                append_err_out_params(get_def.params, get_def.throw_types, ctx)
             }
         }
         // Issue #281: capture any params beyond self + idx (+ the err out-args
         // for a throwing get) -- the trailing defaulted params (e.g. a
         // `loc: Str = __LOC__`) the hand-built call below must fill itself.
         mut forin_filled : USize = 1
-        if get_throws { forin_filled = forin_filled.add(1) + get_throw_types.len() }
+        if get_throws {
+            // _err_kind is always present; fieldless throws carry no slot.
+            forin_filled++
+            for gtn : Str in get_throw_types {
+                if throw_type_has_payload(ctx, gtn) { forin_filled++ }
+            }
+        }
         for tp_i in forin_filled.add(1)..get_def.params.len() {
             get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
         }
@@ -7605,6 +7611,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         kind_decl.add_child(own make_int_lit(0, line, col))
         block.add_child(own kind_decl)
         for gtn : Str in get_throw_types {
+            if throw_type_has_payload(ctx, gtn).not() { continue }
             slot_name := format("_forin_", gtn, "_", counter.to_str())
             mut slot_decl := Expr.new(NodeType.Decl(decl_typed(name = slot_name,
                 explicit_type = gtn,
@@ -7639,6 +7646,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         kind_arg.set_til_type(Type.Primitive(Primitive.I64))
         get_call.add_child(own kind_arg)
         for gtn : Str in get_throw_types {
+            if throw_type_has_payload(ctx, gtn).not() { continue }
             slot_name := format("_forin_", gtn, "_", counter.to_str())
             mut slot_arg := Expr.new(ident_node(slot_name), line, col)
             slot_arg.set_til_type(til_type_from_explicit_type(gtn))

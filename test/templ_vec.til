@@ -44,8 +44,7 @@ namespace:
 
     get := func(self: TemplVec(T), i: USize) returns ref T throws OutOfBounds {
         if i.gte(self.count) {
-            throw OutOfBounds(msg = format(__LOC__, ":TemplVec.get: index ", i.to_str(),
-                  " out of bounds (len ", self.count.to_str(), ")"))
+            throw OutOfBounds()
         }
         return ptr_add(self.data, i.mul(T.size()).cast(U64))
     }

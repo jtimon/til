@@ -1136,10 +1136,9 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
 // ---- Issue #277: fold a DIRECT variadic call like format("a","b","c") ----
 // The typer lowers such a call (before const-folding) to a build region:
 //   _va_Array_N := Array.new(Str, <cap>)
-//   _va_Array_N_ek := 0 ; _va_Array_N_eo := OutOfBounds(...)
+//   _va_Array_N_ek := 0
 //   ...hoisted__ element/count temps...
-//   Array.set(_va_Array_N, j, <val>, &_ek, _eo)   (one per element)
-//   OutOfBounds.delete(_va_Array_N_eo)
+//   Array.set(_va_Array_N, j, <val>, &_ek)   (one per element)
 //   <consumer using _va_Array_N once, e.g. r := format(_va_Array_N)>
 // So by const-fold time the call's only arg is a runtime-built array. We
 // materialise the array by interpreting its build region into the fold scope
@@ -1223,14 +1222,14 @@ priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
 }
 
 // Interpret one of `va`'s OWN build statements into the fold scope: bind the
-// va / `<va>_ek` / `<va>_eo` decls and run an Array.set on va. Every other
-// statement (unrelated hoisted temps for sibling args, OutOfBounds.delete,
-// etc.) is SKIPPED -- evaluating e.g. `hoisted__Bool_N := c.eq(x)` would make
+// va / `<va>_ek` decls and run an Array.set on va. Every other statement
+// (unrelated hoisted temps for sibling args, etc.) is SKIPPED -- evaluating
+// e.g. `hoisted__Bool_N := c.eq(x)` would make
 // eval_expr resolve the runtime `c` and raise "undefined variable 'c'".
-priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, eo: Str, ctx: Context) {
+priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(dd):
-        if dd.name.eq(va).or(dd.name.eq(ek)).or(dd.name.eq(eo)) {
+        if dd.name.eq(va).or(dd.name.eq(ek)) {
             if stmt.children.len() > 0 {
                 bind_known_idents_in(scope, stmt.children[0], ctx)
                 mut v := eval_expr(scope, stmt.children[0], ctx).clone()
@@ -1251,7 +1250,6 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, eo
 // true on success; false if interpreting it aborts (non-comptime element).
 priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, ctx: Context) returns Bool {
     ek := format(va, "_ek")
-    eo := format(va, "_eo")
     ctx.constfold_active = true
     ctx.constfold_aborted = false
     mut k := decl_idx
@@ -1262,7 +1260,7 @@ priv materialize_va := proc(scope: Scope, body: Expr, decl_idx: USize, va: Str, 
         if expr_uses_var_p(s, va, ctx).and(is_va_set(s, va).not()).and(is_va_array_decl(s).not()) {
             break
         }
-        interp_va_build_stmt(scope, s, va, ek, eo, ctx)
+        interp_va_build_stmt(scope, s, va, ek, ctx)
         if ctx.constfold_aborted { break }
         k = k + 1
     }
@@ -1317,6 +1315,10 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
                 if lit.is_null().not() {
                     lit.set_til_type(child.til_type())
                     e.children[i] = lit
+                    // The variadic fold also replaces a Decl RHS after the
+                    // garbager chose its storage. Re-stamp the same way the
+                    // ordinary fold path does before the builder sees it.
+                    restamp_folded_decl_storage(e, i, ctx)
                 }
             }
         }
@@ -1344,28 +1346,28 @@ priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
 }
 
 // Classify a statement w.r.t. one variadic array's machinery (its `va` decl,
-// `<va>_ek`/`<va>_eo` err-slot decls, the Array.set builders, and the trailing
-// delete-calls on any of the three):
+// `<va>_ek` err-slot decl, the Array.set builders, and trailing delete-calls
+// on either):
 //   1  -> machinery, removable
-//   0  -> no reference to va/ek/eo
+//   0  -> no reference to va/ek
 //  -1  -> a LIVE use (e.g. an unfolded consumer) -- DCE must abort for this va.
-priv va_stmt_class := func(s: Expr, va: Str, ek: Str, eo: Str, ctx: Context) returns I32 {
+priv va_stmt_class := func(s: Expr, va: Str, ek: Str, ctx: Context) returns I32 {
     switch s.node_type {
     case NodeType.Decl(dd):
-        if dd.name.eq(va).or(dd.name.eq(ek)).or(dd.name.eq(eo)) { return 1 }
+        if dd.name.eq(va).or(dd.name.eq(ek)) { return 1 }
     case:
     }
     if is_va_set(s, va) { return 1 }
-    if is_delete_call_on(s, va).or(is_delete_call_on(s, ek)).or(is_delete_call_on(s, eo)) { return 1 }
-    if expr_uses_var_p(s, va, ctx).or(expr_uses_var_p(s, ek, ctx)).or(expr_uses_var_p(s, eo, ctx)) {
+    if is_delete_call_on(s, va).or(is_delete_call_on(s, ek)) { return 1 }
+    if expr_uses_var_p(s, va, ctx).or(expr_uses_var_p(s, ek, ctx)) {
         return -1
     }
     return 0
 }
 
 // All-or-nothing DCE: for each materialised array whose consumer folded, drop
-// its full machinery (decl, err-slots, sets, cleanup deletes) ONLY when every
-// statement touching va/ek/eo is machinery. If any live use remains (consumer
+// its full machinery (decl, err slot, sets, cleanup deletes) ONLY when every
+// statement touching va/ek is machinery. If any live use remains (consumer
 // did not fold), leave everything -- the build is dead but valid, never a
 // dangling reference. Orphaned hoisted__ temps are reclaimed by process_body's
 // hoisted__ DCE.
@@ -1374,10 +1376,9 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
     for di in 0..va_done.len() {
         ref va : Str = va_done[di]
         ek := format(va, "_ek")
-        eo := format(va, "_eo")
         mut safe := true
         for r in 0..body.children.len() {
-            if va_stmt_class(body.children[r], va, ek, eo, ctx) == -1 { safe = false; break }
+            if va_stmt_class(body.children[r], va, ek, ctx) == -1 { safe = false; break }
         }
         if safe { dead.push(own va.clone()) }
     }
@@ -1388,8 +1389,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
             for di in 0..dead.len() {
                 ref va : Str = dead[di]
                 ek := format(va, "_ek")
-                eo := format(va, "_eo")
-                if va_stmt_class(body.children[r], va, ek, eo, ctx) == 1 { drop = true; break }
+                if va_stmt_class(body.children[r], va, ek, ctx) == 1 { drop = true; break }
             }
             if drop.not() { keep.push_take(body.children, r) }
         }

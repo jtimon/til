@@ -547,7 +547,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref TypeBinding
+    func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64) returns ref TypeBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
     func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
@@ -575,7 +575,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Mode
+    func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64) returns ref Mode
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
@@ -603,7 +603,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref FuncType
+    func get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64) returns ref FuncType
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
@@ -631,7 +631,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Value
+    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64) returns ref Value
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Value, key: Str, own val: Value)
     func delete(own self: Map__Str_Value, shallow call_free: Bool)
@@ -691,7 +691,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Dynamic
+    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Dynamic) returns Dynamic
@@ -710,7 +710,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -742,7 +742,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref ImportUnit
+    func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64) returns ref ImportUnit
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
@@ -770,7 +770,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Expr, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Expr
+    func get(self: Map__Str_Expr, key: Str, mut _err_kind: I64) returns ref Expr
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Expr, key: Str, own val: Expr)
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
@@ -798,7 +798,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref StructLayout
+    func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64) returns ref StructLayout
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
@@ -826,7 +826,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Vec__Str
+    func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64) returns ref Vec__Str
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
@@ -854,7 +854,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Dynamic
+    func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64) returns ref Dynamic
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
@@ -882,7 +882,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref FFIEntry
+    func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
@@ -910,7 +910,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref ExprPtrBox
+    func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
@@ -970,7 +970,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FFITypePtrBox
+    func get(self: Vec__FFITypePtrBox, i: USize, mut _err_kind: I64) returns ref FFITypePtrBox
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
@@ -989,7 +989,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__FFITypePtrBox, shallow i: USize, own val: FFITypePtrBox, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1053,7 +1053,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__TypeBinding, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref TypeBinding
+    func get(self: Vec__TypeBinding, i: USize, mut _err_kind: I64) returns ref TypeBinding
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__TypeBinding) returns TypeBinding
@@ -1072,7 +1072,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__TypeBinding, shallow i: USize, own val: TypeBinding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__TypeBinding, shallow i: USize, own val: TypeBinding, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1136,7 +1136,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Mode, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Mode
+    func get(self: Vec__Mode, i: USize, mut _err_kind: I64) returns ref Mode
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Mode) returns Mode
@@ -1155,7 +1155,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Mode, shallow i: USize, own val: Mode, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Mode, shallow i: USize, own val: Mode, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1219,7 +1219,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FuncType, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FuncType
+    func get(self: Vec__FuncType, i: USize, mut _err_kind: I64) returns ref FuncType
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FuncType) returns FuncType
@@ -1238,7 +1238,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FuncType, shallow i: USize, own val: FuncType, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__FuncType, shallow i: USize, own val: FuncType, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1302,7 +1302,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Value, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Value
+    func get(self: Vec__Value, i: USize, mut _err_kind: I64) returns ref Value
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Value) returns Value
@@ -1321,7 +1321,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Value, shallow i: USize, own val: Value, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Value, shallow i: USize, own val: Value, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1385,7 +1385,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__ImportUnit, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref ImportUnit
+    func get(self: Vec__ImportUnit, i: USize, mut _err_kind: I64) returns ref ImportUnit
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ImportUnit) returns ImportUnit
@@ -1404,7 +1404,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__ImportUnit, shallow i: USize, own val: ImportUnit, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__ImportUnit, shallow i: USize, own val: ImportUnit, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1468,7 +1468,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__StructLayout, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref StructLayout
+    func get(self: Vec__StructLayout, i: USize, mut _err_kind: I64) returns ref StructLayout
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__StructLayout) returns StructLayout
@@ -1487,7 +1487,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__StructLayout, shallow i: USize, own val: StructLayout, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__StructLayout, shallow i: USize, own val: StructLayout, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1551,7 +1551,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, i: USize, mut _err_kind: I64) returns ref Vec__Str
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
@@ -1570,7 +1570,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__call_Vec_Str, shallow i: USize, own val: Vec__Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__call_Vec_Str, shallow i: USize, own val: Vec__Str, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1634,7 +1634,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__FFIEntry, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref FFIEntry
+    func get(self: Vec__FFIEntry, i: USize, mut _err_kind: I64) returns ref FFIEntry
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFIEntry) returns FFIEntry
@@ -1653,7 +1653,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__FFIEntry, shallow i: USize, own val: FFIEntry, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1717,7 +1717,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref ExprPtrBox
+    func get(self: Vec__ExprPtrBox, i: USize, mut _err_kind: I64) returns ref ExprPtrBox
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
@@ -1736,7 +1736,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__ExprPtrBox, shallow i: USize, own val: ExprPtrBox, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

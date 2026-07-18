@@ -223,20 +223,18 @@ func c_str_len(s: Dynamic) returns shallow USize
 :group: Core
 :END:
 
-Error thrown by the indexed collection accessors (Array.get,
-Vec.get, ...) when the index is past the end. The msg field
-carries a "file:line:col:<method>: index N out of bounds (len M)"
-description set at the throw site.
+Error thrown by indexed collection accessors (Array.get, Vec.get,
+...) when the index is past the end. The throw tag identifies this
+fieldless error, avoiding an allocation on every successful accessor call.
 
 #+begin_src til
 struct OutOfBounds {
-    mut msg : Str
 namespace:
-    func clone(self: OutOfBounds) returns OutOfBounds
+    func clone(_self: OutOfBounds) returns OutOfBounds
     func delete(own self: OutOfBounds, shallow call_free: Bool)
     func hash(self: OutOfBounds, hasher: HashFn) returns shallow U64
-    func eq(self: OutOfBounds, other: OutOfBounds) returns shallow Bool
-    func to_str(self: OutOfBounds) returns Str
+    func eq(_self: OutOfBounds, _other: OutOfBounds) returns shallow Bool
+    func to_str(_self: OutOfBounds) returns Str
     func size() returns shallow USize
 }
 #+end_src
@@ -247,20 +245,17 @@ namespace:
 :group: Core
 :END:
 
-Error type for keyed accessors (Map.get, HashMap.get, ...) when
-the key is not present. The msg field carries a
-"file:line:col:<method>: key not found" description set at the
-throw site.
+Error type for keyed accessors (Map.get, HashMap.get, ...) when the key is
+absent. The throw tag identifies this fieldless error.
 
 #+begin_src til
 struct KeyNotFound {
-    mut msg : Str
 namespace:
-    func clone(self: KeyNotFound) returns KeyNotFound
+    func clone(_self: KeyNotFound) returns KeyNotFound
     func delete(own self: KeyNotFound, shallow call_free: Bool)
     func hash(self: KeyNotFound, hasher: HashFn) returns shallow U64
-    func eq(self: KeyNotFound, other: KeyNotFound) returns shallow Bool
-    func to_str(self: KeyNotFound) returns Str
+    func eq(_self: KeyNotFound, _other: KeyNotFound) returns shallow Bool
+    func to_str(_self: KeyNotFound) returns Str
     func size() returns shallow USize
 }
 #+end_src
@@ -287,7 +282,7 @@ namespace:
     func unsafe_get(self: Array__Str, i: USize) returns ref Str
     /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
     /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    func get(self: Array__Str, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
+    func get(self: Array__Str, i: USize, mut _err_kind: I64) returns ref Str
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i < self.cap`; the write-side
     /// mirror of unsafe_get (issue #284).
@@ -295,7 +290,7 @@ namespace:
     /// Overwrite the element at index `i`. Drops the old value. `val` is
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     func delete(own self: Array__Str, shallow call_free: Bool)
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow USize
@@ -356,7 +351,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Str, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Str
+    func get(self: Vec__Str, i: USize, mut _err_kind: I64) returns ref Str
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Str) returns Str
@@ -375,7 +370,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Str, shallow i: USize, own val: Str, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

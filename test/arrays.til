@@ -96,14 +96,11 @@ test_array_subscript_assign_str := test() {
 test_array_subscript_assign_oob := test() {
     a := Array(Str).new(2)
     mut caught := false
-    mut emsg := ""
     a.set(5, own "unstored")?
     catch (err: OutOfBounds) {
         caught = true
-        emsg = err.msg
     }
     assert(caught)
-    assert(emsg.contains("Array.set"))
 }
 
 test_array_strings := test() {

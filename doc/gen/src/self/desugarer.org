@@ -61,6 +61,16 @@ func subtree_references_name(e: Expr, name: Str) returns shallow Bool
 func subtree_has_bang(e: Expr) returns shallow Bool
 #+end_src
 
+* throw_type_has_payload
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.throw_type_has_payload
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func throw_type_has_payload(ctx: Context, type_name: Str) returns shallow Bool
+#+end_src
+
 * append_err_out_params
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.desugarer.append_err_out_params
@@ -68,7 +78,7 @@ func subtree_has_bang(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str)
+func append_err_out_params(mut params: Vec__Declaration, throw_types: Vec__Str, ctx: Context)
 #+end_src
 
 * make_int_lit

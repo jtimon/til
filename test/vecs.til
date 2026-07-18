@@ -119,14 +119,11 @@ test_vec_subscript_assign_oob := test() {
     v := Vec(Str).new()
     v.push(own "a")
     mut caught := false
-    mut emsg := ""
     v.set(5, own "unstored")?
     catch (err: OutOfBounds) {
         caught = true
-        emsg = err.msg
     }
     assert(caught)
-    assert(emsg.contains("Vec.set"))
 }
 
 test_vec_size := test() {

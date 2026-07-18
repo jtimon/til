@@ -183,7 +183,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref I64
+    func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_I64, key: Str, own val: I64)
     func delete(own self: Map__Str_I64, shallow call_free: Bool)

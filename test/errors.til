@@ -18,8 +18,48 @@ test_simplest_catch := test() {
     assert(catched)
 }
 
+// A fieldless catch binding is constructed only in the taken arm. This keeps
+// ordinary catches tag-only while preserving source-level values when used.
+test_fieldless_catch_binding := test() {
+    mut catched := false
+    throw AAAError()
+    catch (err: AAAError) {
+        assert(err.eq(AAAError()))
+        catched = true
+    }
+    assert(catched)
+}
+
 ErrorWithMessage := struct {
     msg: Str = "default error message"
+}
+
+mixed_throw := func(empty: Bool) throws AAAError, ErrorWithMessage {
+    if empty { throw AAAError() }
+    throw ErrorWithMessage(msg = "rich error")
+}
+
+test_mixed_fieldless_and_payload_errors := test() {
+    mut caught_empty := false
+    mut caught_rich := ""
+    mixed_throw(true)?
+    catch (empty: AAAError) {
+        caught_empty = empty.eq(AAAError())
+    }
+    catch (rich: ErrorWithMessage) {
+        caught_rich = rich.msg
+    }
+    assert(caught_empty)
+    assert(caught_rich.eq(""))
+
+    mixed_throw(false)?
+    catch (empty: AAAError) {
+        caught_empty = empty.eq(AAAError())
+    }
+    catch (rich: ErrorWithMessage) {
+        caught_rich = rich.msg
+    }
+    assert(caught_rich.eq("rich error"))
 }
 
 test_catch_with_fields := test() {
@@ -646,14 +686,11 @@ test_array_get_ok := test() {
 test_array_get_oob := test() {
     arr := array(I64, 10, 20, 30)
     mut caught := false
-    mut emsg := ""
     ref _v : I64 = arr.get(99)?
     catch (err: OutOfBounds) {
         caught = true
-        emsg = err.msg
     }
     assert(caught)
-    assert(emsg.contains("Array.get"))
 }
 
 // The bang form panics on OOB (same as the old behavior). The
@@ -664,25 +701,16 @@ test_array_get_bang_ok := test() {
     assert(v.eq(7))
 }
 
-// Issue #281 follow-up: Vec.get now carries a defaulted `loc: Str = __LOC__`,
-// so its OutOfBounds names the CALL site, not vec.til's throw line. This is the
-// motivating example from the issue, proven on the real core accessor.
-test_vec_get_oob_reports_caller := test() {
+test_vec_get_oob := test() {
     mut v := vec(I64)
     v.push(own 10)
     v.push(own 20)
-    mut caught := ""
-    cl := __LINE__
+    mut caught := false
     ref _x : I64 = v.get(99)?
     catch (e: OutOfBounds) {
-        caught = e.msg.clone()
+        caught = e.eq(OutOfBounds())
     }
-    call_line := cl.add(1)
-    expect(caught.find("errors.til").neq(-1),
-           "Vec.get OOB names the CALLER file, not vec.til")
-    expect(caught.find(format(":", call_line.to_str(), ":")).neq(-1),
-           "Vec.get OOB points at the CALL line, not vec.til's throw")
-    expect(caught.find("Vec.get").neq(-1), "carries the Vec.get message")
+    assert(caught)
 }
 
 // ==========================================================
@@ -791,7 +819,7 @@ test_throwing_helper_reports_caller := test() {
 // its own block, so `acc` / `doubled` below were "undefined" on the next line.
 post_guard_locals := func(x: I64) returns I64 throws OutOfBounds {
     if x.lt(0) {
-        throw OutOfBounds(msg = format(__LOC__, ": negative input"))
+        throw OutOfBounds()
     }
     mut acc : I64 = x
     acc = acc.add(10)

@@ -843,6 +843,18 @@ priv err_slot_name := func(t: Str) returns Str {
     return format("_err_", t)
 }
 
+// A fieldless struct carries no information beyond its stable throw tag. Keep
+// non-struct and unresolved types payload-bearing: only a resolved empty
+// StructDef may use the tag-only ABI.
+throw_type_has_payload := func(ctx: Context, type_name: Str) returns Bool {
+    ref type_def : Expr = ctx.scope.get_struct(type_name)
+    if type_def.is_null() { return true }
+    switch type_def.node_type {
+    case NodeType.StructDef(sdd): return sdd.fields.len() > 0
+    case: return true
+    }
+}
+
 // Issue #198 + #281: append the synthetic _err_kind + _err_<T> out-params a
 // throwing function needs. They go BEFORE any trailing defaulted params, so a
 // defaulted param (e.g. `loc: Str = __LOC__`) stays last: the call site injects
@@ -850,7 +862,7 @@ priv err_slot_name := func(t: Str) returns Str {
 // params while the defaulted param is left for the default-fill. Funcs with no
 // trailing default get them appended at the end, exactly as before. Idempotent
 // callers must guard on an existing _err_kind param before calling this.
-append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str)) {
+append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str), ctx: Context) {
     // Locate where the trailing run of defaulted params begins.
     mut split : USize = params.len()
     while split > 0 {
@@ -867,6 +879,7 @@ append_err_out_params := func(mut params: Vec(Declaration), throw_types: Vec(Str
     params.push(own Declaration(name = "_err_kind", explicit_type = "I64",
         til_type = Type.Primitive(Primitive.I64), is_mut = true, own_type = OwnType.Ref, used = true))
     for tn : Str in throw_types {
+        if throw_type_has_payload(ctx, tn).not() { continue }
         params.push(own decl_typed(name = err_slot_name(tn), explicit_type = tn,
             is_mut = true, own_type = OwnType.Ref, used = true))
     }
@@ -895,6 +908,18 @@ priv make_assign_stmt := func(name: Str, rhs: Expr, line: U32, col: U32) returns
     mut a := Expr.new(NodeType.Assign(AssignData(name = name.clone())), line, col)
     a.add_child(own rhs.clone())
     return a
+}
+
+// A direct empty constructor has no effects and no payload to preserve. Other
+// expressions can carry effects or ownership transfers, so lowering leaves
+// them as a statement before setting the tag.
+priv is_direct_fieldless_throw_ctor := func(e: Expr, type_name: Str) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len().neq(1) { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(idn): return idn.ident_name() == type_name
+    case: return false
+    }
 }
 
 make_default_value_expr := func(type_name: Str, line: U32, col: U32) returns Expr {
@@ -979,16 +1004,30 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
     tag := tag_for_type(ctx, type_name, type_to_tag_names)
     mut new_body := Expr.new(NodeType.Body, line, col)
     new_body.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
-    // Rewrite references to the user's err var inside the catch body
-    // to point at the _err_<T> slot directly. Avoids needing a local
-    // binding (which would trip the unused-variable check when the
-    // body doesn't touch err) and keeps ownership semantics simple.
     ref orig_body : Expr = catch_node.children[2]
-    slot := err_slot_name(type_name)
-    for cb : Expr in orig_body.children {
-        mut cb_clone := cb.clone()
-        rewrite_ident(cb_clone, var_name, slot)
-        new_body.add_child(own cb_clone)
+    if throw_type_has_payload(ctx, type_name) {
+        // Rewrite references to the user's err var inside the catch body
+        // to point at the _err_<T> slot directly. Avoids needing a local
+        // binding (which would trip the unused-variable check when the
+        // body doesn't touch err) and keeps ownership semantics simple.
+        slot := err_slot_name(type_name)
+        for cb : Expr in orig_body.children {
+            mut cb_clone := cb.clone()
+            rewrite_ident(cb_clone, var_name, slot)
+            new_body.add_child(own cb_clone)
+        }
+    } else {
+        // Only materialize a fieldless catch value when the source catch body
+        // observes it. The tag alone is sufficient for the common case.
+        if subtree_references_name(orig_body, var_name) {
+            mut err_decl := Expr.new(NodeType.Decl(decl_typed(name = var_name,
+                explicit_type = type_name)), line, col)
+            err_decl.add_child(own make_default_value_expr(type_name, line, col))
+            new_body.add_child(own err_decl)
+        }
+        for cb : Expr in orig_body.children {
+            new_body.add_child(own cb.clone())
+        }
     }
     mut kind_id := Expr.new(ident_node("_err_kind"), line, col)
     mut cond := make_method_call_fcall(own kind_id, "eq", line, col)
@@ -1080,7 +1119,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                     if p.name == "_err_kind" { already = true }
                 }
                 if already.not() {
-                    append_err_out_params(efd.params, efd.throw_types)
+                    append_err_out_params(efd.params, efd.throw_types, ctx)
                 }
             }
         case:
@@ -1614,6 +1653,7 @@ priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr
     kind_id.set_til_type(Type.Primitive(Primitive.I64))
     e.add_child(own kind_id)
     for tn : Str in tts {
+        if throw_type_has_payload(ctx, tn).not() { continue }
         mut slot_id := Expr.new(ident_node(err_slot_name(tn)), e.line, e.col)
         slot_id.set_til_type(til_type_from_explicit_type(tn))
         e.add_child(own slot_id)
@@ -2191,7 +2231,14 @@ priv process_throw_catch_in_body := proc(
                         register_throw_type(ctx, tn)
                         tag_direct := tag_for_type(ctx, tn, Vec(Str).new())
                         if tag_direct > 0 {
-                            new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
+                            if throw_type_has_payload(ctx, tn) {
+                                new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
+                            } else {
+                                ctx.throw_used_local_names.add(own idn.name.clone())
+                                if is_direct_fieldless_throw_ctor(stmt.children[0], tn).not() {
+                                    new_ch.push(own stmt.children[0].clone())
+                                }
+                            }
                             new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag_direct, stmt_line, stmt_col), stmt_line, stmt_col))
                             vec_str_push_uniq(types_to_declare, tn)
                             vec_str_push_uniq(seen, tn)
@@ -2260,7 +2307,11 @@ priv process_throw_catch_in_body := proc(
                 if tn.len() > 0 { register_throw_type(ctx, tn) }
                 tag := tag_for_type(ctx, tn, Vec(Str).new())
                 if tn.len().gt(0).and(tag.gt(0)) {
-                    new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
+                    if throw_type_has_payload(ctx, tn) {
+                        new_ch.push(own make_assign_stmt(err_slot_name(tn), stmt.children[0], stmt_line, stmt_col))
+                    } else if is_direct_fieldless_throw_ctor(stmt.children[0], tn).not() {
+                        new_ch.push(own stmt.children[0].clone())
+                    }
                     new_ch.push(own make_assign_stmt("_err_kind", make_int_lit(tag, stmt_line, stmt_col), stmt_line, stmt_col))
                     vec_str_push_uniq(types_to_declare, tn)
                     vec_str_push_uniq(seen, tn)
@@ -2443,7 +2494,7 @@ process_throw_catch_in_func_body := proc(
         for ft : Str in fdef_throws {
             if ft == tn { is_param = true }
         }
-        if is_param.not() {
+        if is_param.not().and(throw_type_has_payload(ctx, tn)) {
             new_ch.push(own make_typed_mut_decl(err_slot_name(tn), tn,
                 make_default_value_expr(tn, line, col), line, col))
         }
@@ -3470,51 +3521,16 @@ priv variadic_err_slot_name := func(va_name: Str, suffix: Str) returns Str {
     return format("_", va_name, suffix)
 }
 
-// Build a fully-resolved zero-arg struct constructor `<name>()` for a
-// struct all of whose fields have defaults. build_variadic_err_slots uses
-// it to initialize the OutOfBounds err slot inside a post-inference desugar,
-// where infer_struct_constructor_fcall (a proc) is unreachable from this
-// func chain (a func cannot call a proc). Reads the struct's fields from
-// scope and fills each with its already-typed default (struct field
-// defaults are inferred during type_def typing), so it tracks field
-// changes. Panics if a field has no default or is owned -- either would
-// need a real value / own-arg handling the desugar does not synthesize.
-priv build_resolved_struct_default := func(name: Str, scope: TypeScope, line: U32, col: U32) returns Expr {
-    mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    call.set_til_type(Type.Struct(name.clone()))
-    mut callee := Expr.new(ident_node(name), line, col)
-    callee.set_til_type(Type.Struct(name.clone()))
-    call.add_child(own callee)
-    ref sdef : Expr = scope.get_struct(name)
-    expect(sdef.is_null().not(), "build_resolved_struct_default: struct not registered")
-    switch sdef.node_type {
-    case NodeType.StructDef(sdd):
-        for fd : Declaration in sdd.fields {
-            if fd.own_type.is(OwnType.Own) {
-                panic("build_resolved_struct_default: field '", fd.name, "' of '", name, "' is owned")
-            }
-            if fd.default_value.is_null().or(fd.default_value.node_type.is(NodeType.NoDefaultArg)) {
-                panic("build_resolved_struct_default: field '", fd.name, "' of '", name, "' has no default")
-            }
-            call.add_child(own fd.default_value.clone())
-        }
-    case:
-        UNREACHABLE()
-    }
-    return call
-}
-
 // Issue #225: declare the per-Array error out-arg slots that
-// build_variadic_array_set passes to the throwing `set` as its
-// `_err_kind` / `_err_OutOfBounds` out-args. Named `<va>_ek` / `<va>_eo`
-// and scoped next to the temp Array. The fill is always in bounds, so the
-// set never actually throws -- the slots just satisfy its signature.
+// build_variadic_array_set passes to the throwing `set` as its `_err_kind`
+// out-arg. The fill is always in bounds, so the tag is never set; it only
+// satisfies the tag-only OutOfBounds ABI.
 //
 // Built fully resolved (til_type + resolved init) because this desugar
 // runs inside infer_body: nodes emitted here are NOT re-inferred, so an
-// un-typed decl falls back to I64 in the builder and an un-resolved
-// `OutOfBounds()` init emits a bogus C call. Mirrors build_variadic_array_decl,
-// which likewise hand-resolves its `Array.new(...)` init.
+// un-typed decl falls back to I64 in the builder. Mirrors
+// build_variadic_array_decl, which likewise hand-resolves its `Array.new(...)`
+// init.
 priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context, line: U32, col: U32) {
     // _ek : I64 = 0  -- receives the throwing set's `_err_kind` out-arg
     // (a value out-param, so the builder passes it as `&<va>_ek`).
@@ -3532,23 +3548,6 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     ek.add_child(own ek_init)
     scope.set(variadic_err_slot_name(va_name, "_ek"), Type.Primitive(Primitive.I64), true, ctx.path, line, col, false, OwnType.Shallow)
     new_ch.push(own ek)
-
-    // _eo : own OutOfBounds = OutOfBounds()  -- receives the `_err_OutOfBounds`
-    // out-arg. Owned, so the builder stores it as a heap pointer and passes it
-    // to set directly (matching the throw-lowering slot shape).
-    mut eo := Expr.new(NodeType.Decl(Declaration()), line, col)
-    switch eo.node_type {
-    case NodeType.Decl(eo_dd):
-        eo_dd.name = variadic_err_slot_name(va_name, "_eo")
-        eo_dd.own_type = OwnType.Own
-        eo_dd.is_mut = true
-    case:
-        UNREACHABLE()
-    }
-    eo.set_til_type(Type.Struct("OutOfBounds"))
-    eo.add_child(own build_resolved_struct_default("OutOfBounds", scope, line, col))
-    scope.set(variadic_err_slot_name(va_name, "_eo"), Type.Struct("OutOfBounds"), true, ctx.path, line, col, false, OwnType.Own)
-    new_ch.push(own eo)
 }
 
 priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: USize, ctx: Context) returns Expr {
@@ -3556,9 +3555,8 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     // Issue #225: the variadic-arg collector fills its temp Array with the
     // throwing `set`. This desugar runs after throws-lowering, so the call
     // is not lowered automatically -- wire its error out-args by hand here:
-    // pass the per-array `<va>_ek` / `<va>_eo` slots (declared next to the
-    // Array, see build_variadic_err_slots) as the `_err_kind` /
-    // `_err_<OutOfBounds>` args. `j` is always in bounds, so it never throws.
+    // pass the per-array `<va>_ek` tag slot (declared next to the Array, see
+    // build_variadic_err_slots). `j` is always in bounds, so it never throws.
     mut set_call := make_ns_call(array_type, "set", Type.None, fcall)
 
     mut self_id := Expr.new(ident_node(va_name), fcall.line, fcall.col)
@@ -3593,9 +3591,6 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     mut ek_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_ek")), fcall.line, fcall.col)
     ek_id.set_til_type(Type.Primitive(Primitive.I64))
     set_call.add_child(own ek_id)
-    mut eo_id := Expr.new(ident_node(variadic_err_slot_name(va_name, "_eo")), fcall.line, fcall.col)
-    eo_id.set_til_type(til_type_from_explicit_type("OutOfBounds"))
-    set_call.add_child(own eo_id)
 
     // Issue #281: set() may declare trailing defaulted params (e.g.
     // `loc: Str = __LOC__`, placed after the err out-args by

@@ -535,18 +535,11 @@ c_str_len := func(s: Dynamic) returns USize {
     return n
 }
 
-/// Error thrown by the indexed collection accessors (Array.get,
-/// Vec.get, ...) when the index is past the end. The msg field
-/// carries a "file:line:col:<method>: index N out of bounds (len M)"
-/// description set at the throw site.
-OutOfBounds := struct {
-    msg: Str = ""
-}
+/// Error thrown by indexed collection accessors (Array.get, Vec.get,
+/// ...) when the index is past the end. The throw tag identifies this
+/// fieldless error, avoiding an allocation on every successful accessor call.
+OutOfBounds := struct {}
 
-/// Error type for keyed accessors (Map.get, HashMap.get, ...) when
-/// the key is not present. The msg field carries a
-/// "file:line:col:<method>: key not found" description set at the
-/// throw site.
-KeyNotFound := struct {
-    msg: Str = ""
-}
+/// Error type for keyed accessors (Map.get, HashMap.get, ...) when the key is
+/// absent. The throw tag identifies this fieldless error.
+KeyNotFound := struct {}

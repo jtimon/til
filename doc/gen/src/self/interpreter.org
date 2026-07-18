@@ -302,7 +302,7 @@ proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 :END:
 
 #+begin_src til
-func scope_get(mut s: Scope, name: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound) returns ref Cell
+func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Cell
 #+end_src
 
 * scope_new
@@ -852,7 +852,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_Binding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref Binding
+    func get(self: Map__Str_Binding, key: Str, mut _err_kind: I64) returns ref Binding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Binding, key: Str, own val: Binding)
     func delete(own self: Map__Str_Binding, shallow call_free: Bool)
@@ -884,7 +884,7 @@ namespace:
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64, mut _err_KeyNotFound: KeyNotFound, loc: Str) returns ref HeapBinding
+    func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
     func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
@@ -948,7 +948,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__DynPtrBox, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__DynPtrBox, i: USize, mut _err_kind: I64) returns ref priv___src_self_interpreter_til__DynPtrBox
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
@@ -967,7 +967,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__DynPtrBox, shallow i: USize, own val: priv___src_self_interpreter_til__DynPtrBox, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1035,7 +1035,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Binding, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref Binding
+    func get(self: Vec__Binding, i: USize, mut _err_kind: I64) returns ref Binding
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Binding) returns Binding
@@ -1054,7 +1054,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Binding, shallow i: USize, own val: Binding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__Binding, shallow i: USize, own val: Binding, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
@@ -1122,7 +1122,7 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__HeapBinding, i: USize, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str) returns ref HeapBinding
+    func get(self: Vec__HeapBinding, i: USize, mut _err_kind: I64) returns ref HeapBinding
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
@@ -1141,7 +1141,7 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__HeapBinding, shallow i: USize, own val: HeapBinding, mut _err_kind: I64, mut _err_OutOfBounds: OutOfBounds, loc: Str)
+    func set(mut self: Vec__HeapBinding, shallow i: USize, own val: HeapBinding, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).

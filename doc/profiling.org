@@ -159,10 +159,10 @@ is held live"; use ~--prof~ for churny allocators that allocate and free fast
 and so never dominate a peak snapshot -- the class Type_Primitive belonged to.
 The ~--massif~ mode needs ~valgrind~ and ~ms_print~ on PATH.
 
-** Hot functions snapshot
+** Pre-#316 hot functions snapshot
 
-From ~bin/til_prof translate test/maps.til~ on the current compiler -- the top
-32 CPU and allocation offenders. Refresh per release by running
+From ~bin/til_prof translate test/maps.til~ before #316's fieldless-throw
+optimization -- the top 32 CPU and allocation offenders. Refresh per release by running
 ~bin/til run examples/profile.til test/maps.til 32~ (the absolute numbers
 drift; the ranking is what matters).
 
@@ -179,6 +179,9 @@ non-throwing accessor paths), the typer's ownership walks
 (~expr_transfers_own~ 70s / ~expr_uses_var~ 17.5s / ~fold_subtree~ 19s by
 total_ms -- #302 territory), and the Map(Str, ...) probe costs behind
 ~Str_cmp~.
+
+#316 removed the error-value churn: a fresh profile has neither delete function
+in its CPU or allocation top-32 table.
 
 Top 32 by self time:
 

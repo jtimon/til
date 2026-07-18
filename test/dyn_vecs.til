@@ -114,25 +114,16 @@ test_dyn_vec_subscript_assign_oob := test() {
     assert(caught)
 }
 
-// Issue #281 follow-up: DynVec.get carries a defaulted `loc: Str = __LOC__`,
-// so its OutOfBounds names the CALL site, not dyn_vec.til's throw line -- same
-// caller-reporting as the core Vec.get accessor.
-test_dyn_vec_get_oob_reports_caller := test() {
+test_dyn_vec_get_oob := test() {
     v := DynVec.new(I64)
     v.push(own 10)
     v.push(own 20)
-    mut caught := ""
-    cl := __LINE__
+    mut caught := false
     ref _x : Dynamic = v.get(99)?
     catch (e: OutOfBounds) {
-        caught = e.msg.clone()
+        caught = e.eq(OutOfBounds())
     }
-    call_line := cl.add(1)
-    expect(caught.find("dyn_vecs.til").neq(-1),
-           "DynVec.get OOB names the CALLER file, not dyn_vec.til")
-    expect(caught.find(format(":", call_line.to_str(), ":")).neq(-1),
-           "DynVec.get OOB points at the CALL line, not dyn_vec.til's throw")
-    expect(caught.find("DynVec.get").neq(-1), "carries the DynVec.get message")
+    assert(caught)
 }
 
 test_dyn_vec_size := test() {

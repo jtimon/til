@@ -3602,7 +3602,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Cell throws KeyNotFound {
         }
         cur = cur.parent
     }
-    throw KeyNotFound(msg = format("scope_get: unbound name '", name, "'"))
+    throw KeyNotFound()
 }
 
 priv scope_get_return_move_cell := func(mut s: Scope, name: Str) returns ref Cell {

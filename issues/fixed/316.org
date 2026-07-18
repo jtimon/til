@@ -1,6 +1,32 @@
 # priority: high
 # category: optimizations
-** OPEN #316 Elide payload objects for fieldless thrown errors
+** FIXED #316 Elide payload objects for fieldless thrown errors
+
+   POST-MORTEM:
+
+   The throw ABI allocated an ~_err_<T>~ value slot for every declared error,
+   including structs with no fields. That made successful Map/Vec/Array calls
+   construct, replace, and delete meaningless ~OutOfBounds~ and ~KeyNotFound~
+   objects. The variadic Array builder and its constfolder bookkeeping also
+   hardcoded an ~OutOfBounds~ slot. Making an error struct empty was therefore
+   not sufficient by itself.
+
+   The lowering now classifies resolved fieldless structs as tag-only. It omits
+   their signature params, caller locals, injected args, and throw assignments;
+   a catch constructs an empty binding only when its body uses that binding.
+   ~OutOfBounds~ and ~KeyNotFound~ are now empty, core/dynamic container and
+   scope-lookup throws no longer format messages, and variadic Array lowering
+   retains only its error-kind slot. A scavenger hole surfaced when removing the
+   incidental ~USize.to_str~ calls: monomorphized ~assert_eq__T~ now explicitly
+   retains ~T.to_str~. Variadic constant folding now also re-stamps a folded
+   Decl's GC storage before the builder emits it.
+
+   Regression coverage: ~test/errors.til~ exercises a referenced fieldless
+   catch binding and a mixed fieldless/payloadful throws set; container tests
+   cover catch, bang, propagation, and owned-value cleanup. ~test/gc_audit~
+   records the removed variadic payload slot. ~make clean && make test_two_pass~
+   passed 176/176. A fresh ~bin/til_prof translate test/maps.til~ no longer
+   lists ~OutOfBounds_delete~ or ~KeyNotFound_delete~ among either top-32 table.
 
   ~KeyNotFound~ (the existing type corresponding to "NotFound" in the
   proposal) and ~OutOfBounds~ currently carry only ~msg: Str~. Every throwing

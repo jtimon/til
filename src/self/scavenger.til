@@ -98,6 +98,28 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         push_builtin_methods(refs, "Array", "new", "set", "delete")
                     } else if cn.ident_name() == "vec" {
                         push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                    } else if cn.ident_name().eq("assert_eq").or(cn.ident_name().starts_with("assert_eq__")) {
+                        // assert_eq's generic body emits T.to_str after this
+                        // reachability walk. The concrete type argument is at
+                        // the call site for a direct generic call, or the
+                        // monomorphized callee suffix by this phase. Retain
+                        // just that method rather than every generated to_str.
+                        mut assert_type_name := ""
+                        if cn.ident_name() == "assert_eq" {
+                            switch e.children[1].node_type {
+                            case NodeType.Ident(assert_type):
+                                assert_type_name = Str.clone(assert_type.ident_name())
+                            case:
+                            }
+                        } else {
+                            assert_type_name = cn.ident_name().substr(11, cn.ident_name().len() - 11)
+                        }
+                        if assert_type_name == "USize" { assert_type_name = "U32" }
+                        if assert_type_name == "UPtr" { assert_type_name = "U64" }
+                        if assert_type_name.len() > 0 {
+                            vec_push_str(refs, assert_type_name)
+                            push_qn(refs, assert_type_name, "to_str")
+                        }
                     } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
                         // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
                         // builds a runtime StructDef/EnumDef value by querying

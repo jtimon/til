@@ -146,10 +146,9 @@ namespace:
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    get := func(self: Vec(T), i: USize, loc: Str = __LOC__) returns ref T throws OutOfBounds {
+    get := func(self: Vec(T), i: USize) returns ref T throws OutOfBounds {
         if i >= self.count {
-            throw OutOfBounds(msg = format(loc, ":Vec.get: index ", i.to_str(),
-                  " out of bounds (len ", self.count.to_str(), ")"))
+            throw OutOfBounds()
         }
         return self.unsafe_get(i)
     }
@@ -219,10 +218,9 @@ namespace:
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    set := func(mut self: Vec(T), i: USize, own val: T, loc: Str = __LOC__) throws OutOfBounds {
+    set := func(mut self: Vec(T), i: USize, own val: T) throws OutOfBounds {
         if i >= self.count {
-            throw OutOfBounds(msg = format(loc, ":Vec.set: index ", i.to_str(),
-                  " out of bounds (len ", self.count.to_str(), ")"))
+            throw OutOfBounds()
         }
         self.unsafe_set(i, own val)
     }
