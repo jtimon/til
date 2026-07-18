@@ -6171,14 +6171,27 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
     return call
 }
 
+// The monomorphized container is keyed on the element's CONCRETE type (the
+// type-gen macro resolves the element via its alias_target), so a width alias
+// (USize/UPtr) must resolve here too -- otherwise a `..USize` param types as
+// Array__USize while the generated methods are Array__U32, and the two never
+// match. resolve_type_alias is a no-op for non-alias names.
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_null().not() { return "Array" }
-    return format("Array__", elem_type)
+    // Bind to a local rather than format(resolve_type_alias(...)) directly:
+    // this function is on the compiler's own self-host path, and the
+    // committed til_boot that first rebuilds bin/til predates the
+    // ref-returning-variadic-arg clone fix (build_variadic_array_set), so a
+    // direct ref-call arg here would miscompile the bootstrap compiler. The
+    // owned local sidesteps that; the clone fix covers every other site.
+    resolved := resolve_type_alias(scope, elem_type).clone()
+    return format("Array__", resolved)
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Vec").is_null().not() { return "Vec" }
-    return format("Vec__", elem_type)
+    resolved := resolve_type_alias(scope, elem_type).clone()
+    return format("Vec__", resolved)
 }
 
 // True when `expr` is a syntactic enum-variant construction that supplies a

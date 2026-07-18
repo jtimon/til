@@ -3573,7 +3573,20 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
 
     ref val_in : Expr = fcall.children[vi.add(j.to_i32()).to_usize()]
     mut val := val_in.clone()
-    if val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess)) {
+    // A variadic arg is MOVED into the owned collector Array: unsafe_set
+    // memcpy's the bytes into the slot and memsets the source to zero. An
+    // Ident or FieldAccess is a borrow of a caller local/field, and a
+    // ref-returning call likewise yields a borrow (into a caller local, or
+    // e.g. a scope binding's alias_target field) -- moving either zeros/frees
+    // the referent and corrupts it. Clone-wrap all three so the collector
+    // owns an independent copy. Missing the ref-returning-call case
+    // double-freed args like `format("Array__", resolve_type_alias(...))`:
+    // the borrowed Str was memset to zero, shredding the source string.
+    mut is_borrow_arg := val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess))
+    if val_in.node_type.is(NodeType.FCall).and(fcall_returns_ref(val_in, scope).neq(0)) {
+        is_borrow_arg = true
+    }
+    if is_borrow_arg {
         tname := type_to_name(val_in.til_type())
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
         if tname.len().gt(0).and(val_in.til_type().is_funcptr().not()).and(val_in.til_type().is(Type.Body).not()) {

@@ -1065,7 +1065,11 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 }
 
 priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    concrete := format("Array__", elem_type)
+    // Resolve width aliases (USize/UPtr) so the C type name matches the
+    // monomorphized struct the type-gen macro emitted (Array__U32), not the
+    // alias-spelled Array__USize.
+    resolved := resolve_type_alias(ctx.scope, elem_type).clone()
+    concrete := format("Array__", resolved)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref array_func : Expr = ctx.scope.lookup_func("Array")
     if builder_is_type_gen_macro_def(array_func) { return concrete }
@@ -1074,7 +1078,8 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    concrete := format("Vec__", elem_type)
+    resolved := resolve_type_alias(ctx.scope, elem_type).clone()
+    concrete := format("Vec__", resolved)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref vec_func : Expr = ctx.scope.lookup_func("Vec")
     if builder_is_type_gen_macro_def(vec_func) { return concrete }
@@ -4274,23 +4279,30 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 ref p : Declaration = fd.params[i]
                 ii := i.to_i32()
                 if ii == vi {
-                    // Variadic array
+                    // Variadic array. Resolve width aliases (USize/UPtr) to
+                    // the concrete primitive for every ELEMENT operation
+                    // below -- the element field, stride, parse and the
+                    // `<T>_delete` helper name -- so they match the
+                    // monomorphized Array__U32 struct (which the type-gen
+                    // macro emits resolved). Emitting the alias produced a
+                    // nonexistent `USize_delete` / `Array__USize` type.
+                    elem_c := resolve_type_alias(lp.ctx.scope, p.explicit_type).clone()
                     arr_type := builder_variadic_array_type_name(lp.ctx, p.explicit_type)
                     arr_ctype := type_name_to_c(arr_type, lp.ctx)
                     f.write("    int _va_argc = argc - "); emit_i32(f, argi); f.write(";\n")
                     f.write("    USize _va_cap = _va_argc;\n")
                     f.write("    ").write(arr_ctype).write(" ").write(p.name).write(" = ")
                     if arr_type == "Array" {
-                        f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(p.explicit_type).write("\", .count = "); emit_usize(f, p.explicit_type.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
+                        f.write("Array_new_type_name(&(Str){.c_str = (void *)\"").write(elem_c).write("\", .count = "); emit_usize(f, elem_c.len()); f.write("ULL, .cap = TIL_CAP_LIT}, _va_cap);\n")
                     } else {
                         f.write("malloc(sizeof(").write(arr_type).write("));\n")
-                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(p.explicit_type).write("));\n")
+                        f.write("    ").write(p.name).write("->data = calloc(_va_cap, sizeof(").write(elem_c).write("));\n")
                         f.write("    ").write(p.name).write("->cap = _va_cap;\n")
                     }
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    emit_cli_parse_value(f, "        ", p.explicit_type, "_val", varg)
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg)
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
@@ -4298,9 +4310,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     // break this generated call. The slot is freshly
                     // zero-allocated and `_idx` is always in bounds here, so a
                     // raw memcpy is correct -- identical to the Vec path.
-                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((U64)_idx) * sizeof(").write(p.explicit_type).write("), _val, sizeof(").write(p.explicit_type).write("));\n")
-                    f.write("        memset(_val, 0, sizeof(").write(p.explicit_type).write("));\n")
-                    f.write("        ").write(p.explicit_type).write("_delete(_val, 1);\n")
+                    f.write("        memcpy((U8 *)(").write(p.name).write("->data) + ((U64)_idx) * sizeof(").write(elem_c).write("), _val, sizeof(").write(elem_c).write("));\n")
+                    f.write("        memset(_val, 0, sizeof(").write(elem_c).write("));\n")
+                    f.write("        ").write(elem_c).write("_delete(_val, 1);\n")
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")

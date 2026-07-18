@@ -2440,7 +2440,7 @@ Expr * priv___src_self_initer_til__init_synth_set_inst_decl(Str * elem_type, U32
 Expr * priv___src_self_initer_til__init_synth_map_inst_decl(Str * key_type, Str * val_type, U32 line, U32 col);
 Str * priv___src_self_initer_til__init_set_literal_elem_type(Expr * e);
 Str * priv___src_self_initer_til__init_literal_child_type(Expr * e);
-void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map__Str_Str * seen, Bool synth_array, Bool synth_vec, Bool synth_set, Bool synth_map);
+void priv___src_self_initer_til__init_collect_variadic_arrays(TypeScope * scope, Expr * e, Vec__Expr * synthesized, Map__Str_Str * seen, Bool synth_array, Bool synth_vec, Bool synth_set, Bool synth_map);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
