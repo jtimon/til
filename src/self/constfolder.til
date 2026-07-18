@@ -24,7 +24,6 @@ constfolder_reset_state := func(mut ctx: Context) {
 // conservative program-wide blocklist, which only ever suppresses an
 // optimisation (the scope-read fold), never macro folding via constfolder_known.
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
-    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Assign(ad):
         names.add(own ad.name.clone())
@@ -232,7 +231,6 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         switch val {
         case Value.Enum(ei):
             ref etag_ptr2 : Dynamic = ei.data
-            expect(etag_ptr2.is_null().not(), "etag_ptr2 is null")
             ref etag_ref2 : I32 = etag_ptr2
             etag2 := etag_ref2
             if etag2 < 0 { return NULL }
@@ -354,7 +352,6 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // read_field returns a shallow (borrowed) view into si.data, so the
         // field values are not freed here.
         ref sdef : Expr = lookup_interp_type_def(si.struct_name, ctx)
-        expect(sdef.is_null().not(), "sdef is null")
         // si.to_str() is called fresh per consumer: each builds its own
         // owned Str so no buffer is shared across the Ident and the two
         // Type.Struct payloads (a shared borrow would be freed multiple
@@ -1614,7 +1611,6 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
 }
 
 priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
-    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.Ident(eid):
         if eid.ident_name() == name { return true }

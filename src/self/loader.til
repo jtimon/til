@@ -2170,7 +2170,6 @@ priv desugar_namespace_imports := func(path: Str, mut iu: ImportUnit, ctx: Conte
 // ordinary (eager) call.
 
 priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
-    expect(e.is_null().not(), "e is null")
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         mut replaced := false
@@ -3016,7 +3015,6 @@ priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, ct
 }
 
 priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
-    expect(e.is_null().not(), "e is null")
     if depth > 256 { return }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]

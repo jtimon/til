@@ -145,7 +145,6 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
 }
 
 priv typer_is_lambda_target := func(e: Expr) returns Bool {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef).not() { return false }
     if e.children.len() == 0 { return false }
     // Issue #54: a capturing lambda is NOT lifted to top level -- a lifted
@@ -178,7 +177,6 @@ priv typer_lift_one_default_value := proc(mut dd: Declaration, mut top_level: Ve
 }
 
 priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), mut counter: I64) returns I64 {
-    expect(e.is_null().not(), "e is null")
     // Issue #57: don't descend into template macro bodies -- a func literal
     // inside `macro(T: Type) returns FuncDef { return func(x: T) ... }` is
     // a template that initer's pre-pass substitutes and lifts at each call
@@ -280,7 +278,6 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 }
 
 typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
-    expect(prog.is_null().not(), "prog is null")
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
     mut ctr : I64 = 0
@@ -1432,7 +1429,7 @@ priv registry_exact_key := func(ctx: Context, key: Str) returns Str {
 }
 
 priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, method: Str) returns Str {
-    key := format(owner, ".", method)
+    key := owner.concat3(".", method)
     if ctx.throws_global.has(key) { return key }
     ref sdef : Expr = ctx.scope.get_struct(owner)
     if sdef.is_null() { return "" }
@@ -1487,14 +1484,14 @@ priv find_callee_throws_key := func(ctx: Context, fcall: Expr, body: Expr) retur
         ref method : Str = fname.field_access_name()
         owner := callee_owning_type(ctx, fcall, body)
         if owner.len() > 0 {
-            exact_key := registry_exact_key(ctx, format(owner, ".", method))
+            exact_key := registry_exact_key(ctx, owner.concat3(".", method))
             if exact_key.len() > 0 { return exact_key }
             scoped_key := register_method_throws_from_scope(ctx, owner, method)
             if scoped_key.len() > 0 { return scoped_key }
             marker := owner.find("__")
             if marker > 0 {
                 base_owner := owner.substr(0, marker.to_usize())
-                base_key := registry_exact_key(ctx, format(base_owner, ".", method))
+                base_key := registry_exact_key(ctx, base_owner.concat3(".", method))
                 if base_key.len() > 0 { return base_key }
                 base_scoped_key := register_method_throws_from_scope(ctx, base_owner, method)
                 if base_scoped_key.len() > 0 { return base_scoped_key }
@@ -3302,7 +3299,6 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
 // follow-up will extend this pass.
 // ---------------------------------------------------------------
 priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -3330,7 +3326,6 @@ priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -3348,7 +3343,6 @@ priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
 }
 
 priv find_array_vec_fcall := func(e: Expr) returns ref Expr {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return NULL }
     if e.node_type.is(NodeType.StructDef) { return NULL }
     if e.node_type.is(NodeType.EnumDef) { return NULL }
@@ -4019,7 +4013,6 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
 // function definition or nested block, which the outer body_pre_passes
 // pass will reach separately.
 priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool) {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.StructDef) { return }
     if e.node_type.is(NodeType.EnumDef) { return }

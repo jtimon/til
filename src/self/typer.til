@@ -2494,7 +2494,6 @@ priv infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx:
 // destruction site (Map.delete, Vec.delete, scope_free, the
 // auto-generated Value.delete chain, etc.).
 priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
-    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.FieldAccess(fa_name):
         if fa_name.field_access_name() == field_name {
@@ -2827,7 +2826,6 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
 PTR_SIZE_BYTES : USize = 8
 priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) returns Bool {
     if type_name.len() == 0 { return false }
-    expect(scope.is_null().not(), "scope is null")
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
@@ -4750,7 +4748,6 @@ priv capture_block_check_name := proc(e: Expr, name: Str, is_write: I32,
 priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
         captures: Vec(Declaration), ctx: Context) {
-    expect(e.is_null().not(), "e is null")
     switch e.node_type {
     case NodeType.CaptureBlock: return
     case NodeType.BodyValue: return
@@ -5688,7 +5685,6 @@ priv type_from_name_at := proc(name: Str, scope: TypeScope, mut e: Expr, ctx: Co
     pt := type_from_name(name, scope, ctx)
     if name.len() == 0 { return pt }
     if ctx.current_type_name == name { return pt }
-    expect(scope.is_null().not(), "scope is null")
     ref mut b : TypeBinding = scope.get_binding(name)
     check_priv_access(e, name, b, ctx)
     return pt
@@ -5968,7 +5964,6 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
 // transfer shapes -- own arg to a function, struct constructor with an Own
 // or Ref field -- already consume the wrapper, so we must NOT emit a free.
 transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns Bool {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.FCall) {
         if e.children.len() >= 2 {
@@ -6272,7 +6267,6 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
 }
 
 priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(e.is_null().not(), "e is null")
     if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
     switch e.node_type {
@@ -6295,7 +6289,6 @@ priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     switch e.node_type {
     case NodeType.Ident(id):
@@ -6318,7 +6311,6 @@ priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
 }
 
 priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
-    expect(e.is_null().not(), "e is null")
     if expr_is_borrow_source(e, scope) { return true }
     if e.node_type.is(NodeType.FieldAccess) {
         if fa_is_ns(e, scope) { return false }

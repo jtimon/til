@@ -271,7 +271,6 @@ namespace:
         return a.struct_name == b.struct_name
     }
     to_str := func(self: StructInstance) returns Str {
-        expect(self.struct_name.is_null().not(), "self.struct_name is null")
         return self.struct_name.clone()
     }
     clone := func(self: StructInstance) returns StructInstance {
@@ -324,7 +323,6 @@ namespace:
         return a.enum_name == b.enum_name
     }
     to_str := func(self: EnumInstance) returns Str {
-        expect(self.enum_name.is_null().not(), "self.enum_name is null")
         return self.enum_name.clone()
     }
     clone := func(self: EnumInstance) returns EnumInstance {
@@ -1236,7 +1234,6 @@ priv value_as_i64 := func(v: Value) returns I64 {
 priv value_switch_key := func(v: Value) returns I64 {
     switch v {
     case Value.Enum(ei):
-        expect(ei.data.is_null().not(), "ei.data is null")
         ref tag_ptr : Dynamic = ei.data
         ref tag_ref : I32 = tag_ptr
         return tag_ref.cast(I64)
@@ -3376,7 +3373,6 @@ priv scalar_needs_widen_to := func(val: Value, pt: Str) returns Bool {
 }
 
 priv needs_widen := func(val: Value, ptype: Str, ctx: Context) returns Bool {
-    expect(ptype.is_null().not(), "ptype is null")
     if ptype.len() == 0 { return false }
     // #309: compare against the RESOLVED concrete width for the USize/UPtr
     // aliases. After the alias-identity fix a USize/UPtr param keeps its ALIAS
@@ -3526,7 +3522,6 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
     // Pass-through returns clone (not shallow alias): callers reassign
     // `arg = widen_numeric(arg, ...)`, whose save_old_delete frees the old
     // arg AFTER evaluating the rhs -- an alias of arg would then dangle.
-    expect(ptype.is_null().not(), "ptype is null")
     if ptype.len() == 0 { return v.clone() }
     mut ival : I64 = 0
     mut uval : U64 = 0
@@ -4338,7 +4333,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
 }
 
 priv ns_qname := func(sname: Str, fname: Str) returns Str {
-    return sname.format(".", fname)
+    return sname.concat3(".", fname)
 }
 
 ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns ref Value {
@@ -5451,7 +5446,6 @@ priv ffi_host_default_abi := proc() returns I32 {
 }
 
 priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
-    expect(cif.rtype.is_null().not(), "cif.rtype is null")
     ref rt : ffi_type = cif.rtype
     return rt.type == FFI_TYPE_STRUCT.to_u16()
 }
@@ -5521,7 +5515,6 @@ priv ffi_init_link_libs := proc(link_flags: Str) {
 
 priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = NULL, count = 0, cap = 0)
-    expect(user_c_path.is_null().not(), "user_c_path is null")
     if user_c_path.len() == 0 { return 0 }
 
     dot_str := "."
@@ -7248,7 +7241,6 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, mut result: Value, ctx: C
 // NULL if the return type isn't a known shallow struct.
 priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns ref Expr {
     if fe.return_is_shallow.not() { return NULL }
-    expect(fe.return_type.is_null().not(), "fe.return_type is null")
     if ffi_cif_rtype_is_struct(fe.cif).not() { return NULL }
     if ctx.ffi_struct_defs.has(fe.return_type).not() { return NULL }
     ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]
