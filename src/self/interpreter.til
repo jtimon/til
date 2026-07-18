@@ -3597,25 +3597,38 @@ priv widen_numeric := func(v: Value, ptype: Str, ctx: Context) returns Value {
 scope_get := func(mut s: Scope, name: Str) returns ref Cell throws KeyNotFound {
     ref mut cur : Scope = s
     while cur.is_null().not() {
-        if cur.bindings.has(name) {
-            return cur.bindings[name].cell
+        // One binary search per level: get() returns the binding or throws;
+        // the miss advances to the parent. The old has()+[] did two searches
+        // per hit. Fieldless KeyNotFound (#316) makes the miss allocation-free.
+        ref b : Binding = cur.bindings.get(name)?
+        catch (e: KeyNotFound) {
+            cur = cur.parent
+            continue
         }
-        cur = cur.parent
+        return b.cell
     }
     throw KeyNotFound()
 }
 
+// Returns the local move-cell for `name`, or NULL when there is nothing to
+// move from. NULL is an EXPECTED optional the Return handler uses as a
+// fast-path gate ("not a local owning binding -> evaluate the return
+// normally"); all three NULL cases are legitimate, not a lost lookup: the
+// name is unbound in this call frame, the binding is a borrow (not owned
+// here), or the walk hit the call-scope boundary.
 priv scope_get_return_move_cell := func(mut s: Scope, name: Str) returns ref Cell {
     ref mut cur : Scope = s
-    while true {
-        if cur.is_null() { return NULL }
-        if cur.bindings.has(name) {
-            ref b : Binding = cur.bindings[name]
-            if b.cell_is_local { return b.cell }
-            return NULL
+    while cur.is_null().not() {
+        // One search per level; the miss decides between stopping at the
+        // call-scope boundary and walking to the parent.
+        ref b : Binding = cur.bindings.get(name)?
+        catch (e: KeyNotFound) {
+            if cur.is_call_scope { return NULL }
+            cur = cur.parent
+            continue
         }
-        if cur.is_call_scope { return NULL }
-        cur = cur.parent
+        if b.cell_is_local { return b.cell }
+        return NULL
     }
     return NULL
 }
@@ -3701,12 +3714,15 @@ priv scope_new_boxed := func(parent: Scope) returns ref Scope {
 // or "" otherwise. The Assign handler uses this to mirror the write.
 priv scope_get_payload_alias := func(mut s: Scope, name: Str) returns Str {
     ref mut cur : Scope = s
-    while true {
-        if cur.is_null() { return "" }
-        if cur.payload_aliases.has(name) {
-            return cur.payload_aliases[name].clone()
+    // "" is an expected optional: most names are not payload aliases, and the
+    // caller gates on .len() > 0. One search per level (was has()+[]).
+    while cur.is_null().not() {
+        ref alias : Str = cur.payload_aliases.get(name)?
+        catch (e: KeyNotFound) {
+            cur = cur.parent
+            continue
         }
-        cur = cur.parent
+        return alias.clone()
     }
     return ""
 }
@@ -3734,14 +3750,15 @@ priv interp_is_primitive_type_name := func(name: Str) returns Bool {
 // was bound to) so the Assign handler can write through it.
 priv scope_get_ref_primitive_ptr := func(mut s: Scope, name: Str) returns ref Dynamic {
     ref mut cur : Scope = s
-    while true {
-        if cur.is_null() { return NULL }
-        if cur.ref_primitive_ptrs.has(name) {
-            ref holder : Dynamic = cur.ref_primitive_ptrs[name]
-            ref stored : Dynamic = deref(holder)
-            return stored
+    // NULL is an expected optional: most names are not ref-to-primitive
+    // bindings, and the caller gates on is_null(). One search per level.
+    while cur.is_null().not() {
+        ref holder : Dynamic = cur.ref_primitive_ptrs.get(name)?
+        catch (e: KeyNotFound) {
+            cur = cur.parent
+            continue
         }
-        cur = cur.parent
+        return deref(holder)
     }
     return NULL
 }
