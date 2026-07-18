@@ -15,9 +15,13 @@ Vec := struct<T: Type> {
     cap : USize = 0
 
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     new := func() returns Vec(T) {
-        return Vec(T)(data = malloc(T.size()), cap = 1)
+        return Vec(T)(cap = 0)
     }
 
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
@@ -78,7 +82,10 @@ namespace:
     /// caller must not use the value passed -- clone it first if needed.
     push := func(mut self: Vec(T), own val: T) {
         if self.count == self.cap {
-            new_cap := self.cap * 2
+            // cap 0 (lazy-empty) doubles to 0, so seed the first grow to 1.
+            // realloc(NULL, n) behaves as malloc(n).
+            mut new_cap := self.cap * 2
+            if self.cap == 0 { new_cap = 1 }
             self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
@@ -96,6 +103,7 @@ namespace:
         needed := self.count + other.count
         if needed > self.cap {
             mut new_cap := self.cap
+            if new_cap == 0 { new_cap = 1 }
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
@@ -120,6 +128,7 @@ namespace:
         needed := other.count
         if needed > self.cap {
             mut new_cap := self.cap
+            if new_cap == 0 { new_cap = 1 }
             while needed > new_cap {
                 new_cap = new_cap * 2
             }
@@ -233,7 +242,8 @@ namespace:
             panic("Vec.push_take: index ", i.to_str(), " out of bounds (len ", src.count.to_str(), ")")
         }
         if self.count == self.cap {
-            new_cap := self.cap * 2
+            mut new_cap := self.cap * 2
+            if self.cap == 0 { new_cap = 1 }
             self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
@@ -253,6 +263,8 @@ namespace:
 
     /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec(T)) returns Vec(T) {
+        // A lazy-empty source clones to another lazy-empty Vec (no malloc(0)).
+        if self.cap == 0 { return Vec(T)(cap = 0) }
         new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()))

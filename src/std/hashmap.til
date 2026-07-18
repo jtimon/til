@@ -108,7 +108,10 @@ namespace:
             self.nexts.push(own head_val)
 
             if self.keys.count == self.keys.cap {
-                new_cap : USize = self.keys.cap * 2
+                // Lazy-empty vecs (cap 0) seed to 1 on the first insert;
+                // realloc(NULL, n) behaves as malloc(n).
+                mut new_cap : USize = self.keys.cap * 2
+                if self.keys.cap == 0 { new_cap = 1 }
                 self.keys.data = realloc(own self.keys.data, new_cap.mul(K.size()))
                 self.values.data = realloc(own self.values.data, new_cap.mul(V.size()))
                 self.keys.cap = new_cap

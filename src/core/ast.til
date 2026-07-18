@@ -676,6 +676,7 @@ namespace:
         needed := self.children.count + other.children.count
         if needed > self.children.cap {
             mut new_cap := self.children.cap
+            if new_cap == 0 { new_cap = 1 }
             while needed > new_cap {
                 new_cap = new_cap * 2
             }

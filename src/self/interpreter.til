@@ -4692,7 +4692,24 @@ priv write_field := func(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             }
             write_ptr(ptr, deref(fv))
         case:
-            UNREACHABLE()
+            // Lazy Vec.new leaves `own data : U8` at its `= 0` default, so the
+            // interpreter must null-init that own raw-pointer field (compiled
+            // code writes the 0 = null pointer directly). A scalar/None here is
+            // that null default: there is no owned slot to free on a fresh
+            // field, so write the null pointer. A non-scalar (Str/Enum/...) to
+            // an own pointer field remains a bug -> fail loud.
+            switch val {
+            case Value.None:   write_ptr(ptr, NULL)
+            case Value.Int:    write_ptr(ptr, NULL)
+            case Value.Byte:   write_ptr(ptr, NULL)
+            case Value.Sbyte:  write_ptr(ptr, NULL)
+            case Value.Short:  write_ptr(ptr, NULL)
+            case Value.Ushort: write_ptr(ptr, NULL)
+            case Value.Int32:  write_ptr(ptr, NULL)
+            case Value.Uint32: write_ptr(ptr, NULL)
+            case Value.Uint64: write_ptr(ptr, NULL)
+            case: UNREACHABLE()
+            }
         }
         return
     }
