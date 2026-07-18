@@ -5354,7 +5354,12 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                         ref param : Declaration = fd.params[pi]
                         if pi.to_i64() == vi.cast(I64) {
                             va_count := session.user_argc - fixed
-                            arr := build_argv_array(user_argv, argi.to_usize(), va_count, fd.params[vi.to_usize()].explicit_type, lp.ctx)
+                            // Resolve width aliases (USize/UPtr) to the concrete
+                            // primitive so build_argv_array's Array name, element
+                            // stride, and value_to_buf all speak the same
+                            // per-build width as the rest of the compiler.
+                            va_elem := resolve_type_alias(lp.ctx.scope, fd.params[vi.to_usize()].explicit_type).clone()
+                            arr := build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                             scope_set_owned(main_scope, param.name, arr)
                             argi = argi + va_count.to_i32()
                         } else {

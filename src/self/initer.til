@@ -3258,7 +3258,14 @@ priv init_literal_child_type := func(e: Expr) returns Str {
     return ""
 }
 
-priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
+// Element/key/val type names are resolved through the alias here (width
+// aliases USize/UPtr -> their per-build primitive) so the synthesized
+// monomorphization name matches the one the type-gen macro produces (which
+// resolves too, via init_type_arg_name). Otherwise a `..USize` param
+// synthesizes Array__USize while the rest of the compiler speaks Array__U32.
+// resolve_type_alias returns a borrow, so .clone() the owned name we hand to
+// the synth decls. No-op for non-alias names.
+priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
     switch e.node_type {
     case NodeType.FCall:
         if e.children.len() >= 2 {
@@ -3268,7 +3275,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
                     should_synth := cn.ident_name().eq("array").and(synth_array)
                         .or(cn.ident_name().eq("vec").and(synth_vec))
                     if should_synth {
-                        elem_type := array_vec_elem_type_name(e)
+                        elem_type := resolve_type_alias(scope, array_vec_elem_type_name(e)).clone()
                         if elem_type.len() > 0 {
                             mut genname := format("Array__", elem_type)
                             if cn.ident_name() == "vec" { genname = format("Vec__", elem_type) }
@@ -3288,7 +3295,7 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         }
     case NodeType.Literal(Literal.SetLit):
         if synth_set {
-            elem_type := init_set_literal_elem_type(e)
+            elem_type := resolve_type_alias(scope, init_set_literal_elem_type(e)).clone()
             if elem_type.len() > 0 {
                 genname := format("Set__", elem_type)
                 if seen.has(genname).not() {
@@ -3299,8 +3306,8 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
         }
     case NodeType.Literal(Literal.MapLit):
         if synth_map.and(e.children.len().gte(2)) {
-            key_type := init_literal_child_type(e.children[0])
-            val_type := init_literal_child_type(e.children[1])
+            key_type := resolve_type_alias(scope, init_literal_child_type(e.children[0])).clone()
+            val_type := resolve_type_alias(scope, init_literal_child_type(e.children[1])).clone()
             if key_type.len().gt(0).and(val_type.len().gt(0)) {
                 genname := format("Map__", key_type, "_", val_type)
                 if seen.has(genname).not() {
@@ -3312,24 +3319,25 @@ priv init_collect_variadic_arrays := func(e: Expr, mut synthesized: Vec(Expr), m
     case NodeType.FuncDef(fd):
         if fd.variadic_index >= 0 {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
-            genname := format("Array__", p.explicit_type)
+            elem_type := resolve_type_alias(scope, p.explicit_type).clone()
+            genname := format("Array__", elem_type)
             if seen.has(genname).not() {
-                synthesized.push(own init_synth_array_inst_decl(p.explicit_type, e.line, e.col))
+                synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))
                 seen.set(genname, own "")
             }
         }
     case NodeType.StructDef(sdd):
         for nd : Declaration in sdd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            init_collect_variadic_arrays(scope, nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
         }
     case NodeType.EnumDef(edd):
         for nd : Declaration in edd.ns_decls {
-            init_collect_variadic_arrays(nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            init_collect_variadic_arrays(scope, nd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
         }
     case:
     }
     for c : Expr in e.children {
-        init_collect_variadic_arrays(c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+        init_collect_variadic_arrays(scope, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
 }
 
@@ -3342,7 +3350,7 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     synth_map := ctx.scope.get_struct("Map").is_null()
     if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
     for c : Expr in program.children {
-        init_collect_variadic_arrays(c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+        init_collect_variadic_arrays(ctx.scope, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
     }
     for d : Expr in synthesized {
         switch d.node_type {
