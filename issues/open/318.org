@@ -51,6 +51,59 @@ possible earlier (see below). Low priority feature.
 - Interpreter semantics: the interpreter runs the same ops as a scalar
   loop over the lanes, so interpreted and compiled programs agree.
 
+*** Implementation plan (staged; each stage green on make test)
+
+  1. Type surface: a builtin parametric ~Simd(T, N)~ resolved in the
+     typer as a family of concrete lane types -- T restricted to the
+     scalar core set, N to power-of-two literals. No general
+     integer-generics machinery: the Simd builtin is the only type
+     taking a compile-time integer argument (Mojo restricts SIMD width
+     to compile-time parameters the same way). Exact spelling of the
+     type is a new user-facing surface: propose and get approval at
+     implementation time.
+  2. Interpreter first: a Simd value is a fixed N-lane value;
+     elementwise add/sub/mul/div, comparisons, casts, and
+     lane get/set, splat, and reduce (sum/min/max) run as scalar
+     loops over the lanes. New test/simd.til covers construction,
+     elementwise ops, lane access, and reductions in interpret mode.
+  3. C backend lowering via GCC/Clang vector extensions: emit
+     ~typedef T vN __attribute__((vector_size(N * sizeof(T))))~ types
+     and elementwise ops as plain C operators on them; the C compiler
+     does the instruction selection (SSE/AVX on x86, NEON on ARM).
+     Lane access emits index expressions; splat/reduce emit small
+     inline loops the optimizer folds. Suite green in both execution
+     modes. Spot-check (objdump, recorded in this issue, not in the
+     suite) that -O2 x86-64 output of a Simd(F32, 8) add uses vector
+     instructions.
+  4. Ops classified as ~core_func~ per the #288 boundary: every
+     backend lowers them inline, no runtime symbols, never dyn_fn'd.
+  5. Target width query: a ~simd_width(T)~ builtin answered from a
+     per-Target table in src/self/targets.til and const-folded, so
+     code parameterized on it specializes per --target and stays
+     honest under cross-compilation. Conservative defaults (128-bit
+     baseline for x86-64 and aarch64) until per-CPU feature selection
+     exists.
+  6. MLIR path (needs #317): emit Simd ops as vector dialect ops
+     (arith on vector types, ~vector.splat~, ~vector.reduction~,
+     ~vector.extract~/~insert~) and let LLVM legalize per ISA,
+     including widths beyond the target register size. Shuffles,
+     gathers, and masked ops -- which the C vector-extension subset
+     cannot express portably -- become expressible here and extend
+     test/simd.til gated on the MLIR backend.
+
+*** Acceptance
+
+  - test/simd.til passes in interpret and compile modes with identical
+    output.
+  - Generated C for a Simd(F32, 8) elementwise add is one
+    vector-extension operation, not a scalar loop.
+  - ~simd_width(F32)~ const-folds to the --target's width, not the
+    build host's.
+  - Purely additive: no existing test changes output; scalar semantics
+    and the throw/ownership model are untouched.
+  - Once #317 lands, the same test file compiles through the vector
+    dialect with identical output.
+
 *** Open questions
 
 - Syntax and typing of the compile-time width parameter, and how it

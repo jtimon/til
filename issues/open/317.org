@@ -35,17 +35,63 @@ the C backend stays the default and the bootstrap path.
   alongside the C emitter in src/self/builder.til, selected per target
   the same way HolyC is.
 
-*** Shape (sketch, to be decided at implementation time)
+*** Implementation plan (staged; C backend stays green at every stage)
 
-- Emit the textual .mlir format into gen/, exactly like the C backend
-  emits textual C today. Drive external tools (~mlir-opt~,
-  ~mlir-translate~, ~clang~/~llc~) to get objects; no need to link
-  MLIR's C++ libraries into til itself, at least initially.
-- Start with the smallest dialect subset that runs a hello world
-  (func + arith + cf + llvm/memref), then grow until the test suite
-  passes under the new backend.
-- Bootstrap is untouched: boot/ stays generated C, self-hosting keeps
-  compiling through the C backend. The MLIR backend is purely additive.
+  Strategy in one line: emit the textual .mlir format into gen/ the
+  way the C backend emits textual C, drive external tools
+  (~mlir-translate~, ~clang~/~llc~) to get objects, keep the whole
+  ~ext_func~ layer as the already-compiled C runtime linked in, and
+  never link MLIR's C++ libraries into til itself. Only ~core_func~
+  ops, control flow, and data layout are emitted as MLIR.
+
+  1. Toolchain probe, zero compiler changes: hand-write a hello world
+     .mlir (func + arith + llvm dialects, calling a C symbol), compile
+     it with ~mlir-translate --mlir-to-llvmir~ + ~clang~, link it
+     against the existing C runtime objects, run it. Record the exact
+     tool invocations and minimum tool versions in this issue.
+  2. Backend plumbing: new ~Lang.MLIR~ variant in src/self/targets.til
+     mirroring HolyC (lang_to_str, target/lang selection, output
+     paths). Proposed surface, to be approved at implementation time:
+     .mlir emitted under gen/ next to the C output, compile driven by
+     the existing build entry points, no new top-level commands.
+  3. Emitter skeleton alongside the C emitter in src/self/builder.til:
+     module header, ~func.func~ signatures using the SAME ABI the C
+     backend emits (return value, ~_err_kind~ and payload out-params
+     as pointer arguments), plus extern declarations for every
+     ~ext_func~ symbol. ABI-compatibility with the C runtime is the
+     load-bearing decision: the runtime is not re-implemented, MLIR
+     code just calls it (#288's ~ext_func~ layer).
+  4. Minimal end-to-end subset: main, scalar locals, ~core_func~ ops
+     lowered inline to ~arith.*~ (the #288 contract: C -> ~a*b~,
+     MLIR -> ~arith.muli~), direct calls, string literals as globals,
+     print via ~ext_func~. A til hello world runs through the MLIR
+     pipeline.
+  5. Control flow: if/while/for/switch, and the throw/catch tag checks
+     after calls, lowered with cf blocks (cf matches the shape the C
+     emitter produces more directly than scf; revisit if scf's
+     structured ops make the emitter simpler).
+  6. Aggregates and memory: structs as ~llvm.struct~ with GEP field
+     access, own/ref pointers as ~llvm.ptr~, constructor/clone/delete
+     calls into the runtime. Str/Vec/Map/Set work at this point since
+     they are field access + ~ext_func~ calls.
+  7. Suite burn-down: run the test corpus under the MLIR backend and
+     close the gap (dyn/FuncPtr, closures, FFI, gui mode last). Every
+     landed stage keeps ~make test~ (C backend) green; the MLIR
+     backend is allowed to stay partial between stages.
+
+*** Acceptance
+
+  - A smoke program compiles through gen/ .mlir and runs with output
+    identical to its C-backend build.
+  - ~Lang.C~ remains the default; boot/ and the self-hosting loop are
+    untouched (the MLIR backend never enters the bootstrap).
+  - ~core_func~ ops appear inline as arith/llvm dialect ops in the
+    emitted .mlir (no calls); ~ext_func~ calls link against the
+    unchanged C runtime objects.
+  - ~make test~ does not require MLIR tools; the MLIR path has its own
+    opt-in target/mode gated on the tools being installed.
+  - #318's Simd ops have their vector-dialect emission point in the
+    new emitter.
 
 *** References
 
