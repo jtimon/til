@@ -1,6 +1,36 @@
 # priority: medium
 # category: optimizations
-** OPEN #291 Lazy Vec.new() -- no allocation until first push
+** FIXED #291 Lazy Vec.new() -- no allocation until first push
+
+*** Post-mortem
+
+  Root cause: Vec.new() eagerly malloc'd cap-1 storage, so every empty
+  Vec (leaf Expr children, the 5 Maps + 2 Vecs of a fresh interpreter
+  Scope) paid a malloc+free it never used.
+
+  Fix (landed as "Perf: lazy Vec allocation -- empty containers cost
+  zero mallocs"): Vec.new() returns (data=NULL, count=0, cap=0) and the
+  first insert allocates; every manual grow site seeds cap 0->1 before
+  doubling (vec.til push/append/move_from/push_take, Map.set,
+  Expr.take_children, HashMap.set -- the last one this issue's site list
+  missed, caught by test/hashmaps.til heap corruption). Vec.clone clones
+  a lazy-empty source as lazy-empty. The comptime BLOCKER below resolved
+  as predicted: the interpreter's own-pointer field writer (write_field)
+  now writes NULL for a scalar/None default instead of UNREACHABLE
+  (caught by check_usize64's interp pass), which landed in the same
+  commit rather than staged -- til_boot's pass-1 comptime tolerated the
+  source-level change since the fieldless default only materializes once
+  the new Vec.new is the one being evaluated.
+
+  Follow-up in the closing commit: with_capacity(0) now also returns
+  lazy-empty (matching its "n=0 behaves like new()" doc), and the
+  compiler's body-rebuild loops (desugarer/typer move_from + push-take
+  rebuilds) pre-size via with_capacity to the known final size, trimming
+  the compile-side realloc churn the lazy default exposed.
+
+  Regression coverage: the existing suite (test/hashmaps.til,
+  check_usize64, ASAN) -- no new test file; the change is
+  behavior-preserving.
 
   Vec.new() (src/core/vec.til) mallocs cap=1 storage even for Vecs that
   stay empty. Every leaf AST node (Ident, Literal, Break, ...) pays a

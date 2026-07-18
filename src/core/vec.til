@@ -28,12 +28,11 @@ namespace:
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     with_capacity := func(n: USize) returns Vec(T) {
-        mut cap : USize = 1
-        if n > 0 { cap = n }
-        return Vec(T)(data = malloc(cap.mul(T.size())), cap = cap)
+        if n == 0 { return Vec(T)(cap = 0) }
+        return Vec(T)(data = malloc(n.mul(T.size())), cap = n)
     }
 
     len := func(self: Vec(T)) returns USize { return self.count }

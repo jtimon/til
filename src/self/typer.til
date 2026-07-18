@@ -4090,7 +4090,8 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         mut old := Vec(Expr).new()
         old.move_from(body.children)
 
-        mut new_ch := Vec(Expr).new()
+        // Exact final size: decl + if_node + old stmts.
+        mut new_ch := Vec(Expr).with_capacity(old.len() + 2)
         new_ch.push(own decl)
         new_ch.push(own if_node)
         for j in 0..old.len() {
@@ -7206,7 +7207,9 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
             n_bindings := total_count - user_stmt_count
             mut all_children := Vec(Expr).new()
             all_children.move_from(case_body.children)
-            mut new_body := Vec(Expr).new()
+            // Lower bound: the bindings plus the guard-if/user-stmts wrapper
+            // pushed below.
+            mut new_body := Vec(Expr).with_capacity(n_bindings + 2)
             for bi in 0..n_bindings {
                 new_body.push_take(all_children, bi)
             }

@@ -1972,7 +1972,9 @@ priv process_throw_catch_in_body := proc(
     mut old := Vec(Expr).new()
     old.move_from(body.children)
     mut old_snapshot : Vec(Expr) = old.clone()
-    mut new_ch := Vec(Expr).new()
+    // Pre-size to the known lower bound: every old stmt lands in new_ch
+    // (possibly wrapped), avoiding the 1->2->...->n realloc churn per body.
+    mut new_ch := Vec(Expr).with_capacity(old.len())
     mut seen_throwing := false
 
     for j in 0..old.len() {
@@ -2483,7 +2485,8 @@ process_throw_catch_in_func_body := proc(
     col := body.col
     mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut new_ch := Vec(Expr).new()
+    // Lower bound: all old stmts + the slot decls/fallback return pushed below.
+    mut new_ch := Vec(Expr).with_capacity(old.len() + types_to_declare.len() + 2)
 
     if has_fdef_throws.not() {
         new_ch.push(own make_typed_mut_decl("_err_kind", "I64",
@@ -2549,7 +2552,8 @@ splice_stmts_before := func(mut body: Expr, idx: USize, mut pre: Vec(Expr)) {
     if pre.len() == 0 { return }
     mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut nw := Vec(Expr).new()
+    // Exact final size: the old stmts with pre spliced in.
+    mut nw := Vec(Expr).with_capacity(old.len() + pre.len())
     for j in 0..idx { nw.push_take(old, j) }
     for k in 0..pre.len() { nw.push_take(pre, k) }
     for j in idx..old.len() { nw.push_take(old, j) }
@@ -2769,7 +2773,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         mut old := Vec(Expr).new()
                                         old.move_from(case_body.children)
 
-                                        mut new_ch := Vec(Expr).new()
+                                        // Exact final size: bind decls + old stmts.
+                                        mut new_ch := Vec(Expr).with_capacity(bind_decls.len() + old.len())
                                         for bd in 0..bind_decls.len() {
                                             new_ch.push_take(bind_decls, bd)
                                         }
@@ -2992,7 +2997,8 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         if sp_bindings.len() > 0 {
                             mut old_body := Vec(Expr).new()
                             old_body.move_from(case_body.children)
-                            mut new_body := Vec(Expr).new()
+                            // Exact final size: pattern bindings + old stmts.
+                            mut new_body := Vec(Expr).with_capacity(sp_bindings.len() + old_body.len())
                             for spi in 0..sp_bindings.len() {
                                 new_body.push_take(sp_bindings, spi)
                             }
@@ -3250,7 +3256,8 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     ref mut body : Expr = case_node.children[1]
     mut old := Vec(Expr).new()
     old.move_from(body.children)
-    mut new_ch := Vec(Expr).new()
+    // Exact final size: bind decls + old stmts.
+    mut new_ch := Vec(Expr).with_capacity(bind_decls.len() + old.len())
     for bd in 0..bind_decls.len() {
         new_ch.push_take(bind_decls, bd)
     }
@@ -4119,7 +4126,8 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
 
-    mut new_ch := Vec(Expr).new()
+    // Lower bound: each old stmt lands in new_ch (some expand to more).
+    mut new_ch := Vec(Expr).with_capacity(old.len())
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
 
