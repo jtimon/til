@@ -41,7 +41,6 @@
 *** [[./open/292.org][#292]] Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
 * Features
 ** Medium
-*** [[./open/233.org][#233]] Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)

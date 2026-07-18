@@ -1,12 +1,17 @@
 # priority: medium
 # category: features
-** WIP #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
+** FIXED #233 Improve til documentation system (Python/Elixir model: markup, metadata, doctests, hiding, HTML)
+
+*   Post-mortem:
+    - Root cause: documentation features had accumulated as separate partial paths. The HTML renderer understood only paragraphs, links, and source blocks; doctest discovery was hard-coded to ~src/core/str.til~; generated pages had search but no catalog navigation or version context.
+    - Fix: completed org-style HTML rendering for headings, lists, inline code/verbatim, example blocks, language-tagged source blocks, paragraphs, and links; generated responsive navigation from the existing ~DocCatalog~; stamped org/HTML output with the existing compiler version; and generalized test-only doctest discovery across tracked documented source roots with source locations.
+    - Regression coverage: ~verify_doc_html_body_renderer~, generated index output assertions, the synthetic doctest extraction regression in ~write_doc_doctests~, ~test/repl_help.til~, and the full interpreted/compiled suite.
 
 *   Current state:
     - /// doc comments support org-style metadata lines: ~#+doc: false~, ~#+group:~, ~#+since:~, and ~#+deprecated:~.
     - Packed blobs for runtime ~help()~ (linear lookup), loaded from generated org docs for core declarations and rebuilt from live REPL declarations when user docs change.
-    - ~til doc~ -> org-mode and searchable static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, generated grouped indexes, resolved ~[[til:...]]~ doc links, and HTML source-block rendering.
-    - ~make test~ extracts ~#+begin_src til :doctest~ blocks from selected doc comments and runs them through interpreted and compiled test mode.
+    - ~til doc~ -> org-mode and searchable static HTML output under ~doc/gen/~, mirroring source tree, with stable ~:CUSTOM_ID:~ anchors, grouped navigation, compiler versioning, resolved ~[[til:...]]~ links, and org-style block/inline rendering.
+    - ~make test~ extracts ~#+begin_src til :doctest~ blocks from tracked documented source roots and runs them through interpreted and compiled test mode.
 
 *   Proposed vision (Python/Elixir-inspired):
     - Adopt explicit org-mode doc contract metadata in comments.
@@ -14,8 +19,17 @@
     - Rich metadata: ~#+since:~, ~#+deprecated:~, ~#+group:~.
     - Internals hiding (~#+doc: false~).
     - Doctests verified by ~make test~.
-    - Structured introspection via ~inspect~-like tools.
+    - Structured interactive introspection through REPL ~help()~.
     - Generate searchable HTML with nav sidebar + grouping + versioning.
+
+*   Completion checklist:
+    - [X] Org metadata, hiding, stable anchors, cross-references, and grouped index.
+    - [X] Searchable HTML and REPL ~help()~ backed by generated org docs.
+    - [X] Render headings, lists, inline verbatim/code, example blocks, source blocks, paragraphs, and links in HTML.
+    - [X] Generate responsive catalog navigation with groups, source units, declaration anchors, and current-page highlighting.
+    - [X] Show the existing compiler version in generated org and HTML output.
+    - [X] Discover doctests across tracked documented source roots with source locations and no public CLI.
+    - [X] Pass focused doc/REPL checks and the full interpreted/compiled suite.
 
 *   Progress:
     - First slice landed org-style doc metadata parsing/rendering and runtime filtering.
@@ -27,7 +41,8 @@
     - Seventh slice emitted static HTML pages and an HTML index from the same doc catalog.
     - Eighth slice emitted ~doc/gen/search.js~ and wired a client-side search box into the generated HTML.
     - Ninth slice rendered org source blocks in HTML and added a test-suite-only doctest MVP.
-    - Current slice removes the ad-hoc ~.esc~ REPL doc cache files. ~help()~ lazily packs core docs from ~doc/gen/*.org~, reuses them in the session, and refreshes user docs only after declarations change.
+    - Tenth slice removed the ad-hoc ~.esc~ REPL doc cache files. ~help()~ lazily packs core docs from ~doc/gen/*.org~, reuses them in the session, and refreshes user docs only after declarations change.
+    - Final slice completed org-style HTML rendering, responsive catalog navigation, versioned output, and repository-wide test-only doctest discovery.
 
 *   Notes:
     - Issue #223's auto-shallow exclusion for ext_*/ext_proc is correct:

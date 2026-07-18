@@ -8,17 +8,70 @@
 :root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
 @media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
-main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+.doc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,980px);justify-content:center;min-height:100vh}.doc-sidebar{position:sticky;top:0;align-self:start;box-sizing:border-box;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1.5rem 1rem}.doc-sidebar h1{font-size:1.2rem;margin:0}.doc-version{color:var(--muted);font-size:.85rem}.doc-sidebar h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:1.4rem 0 .3rem}.doc-sidebar ul{list-style:none;margin:0;padding:0}.doc-sidebar ul ul{padding-left:.8rem}.doc-sidebar li{margin:.2rem 0}.doc-sidebar a{display:block;padding:.15rem .35rem;border-radius:5px;text-decoration:none}.doc-sidebar a.current{background:var(--line);font-weight:700}main{box-sizing:border-box;width:100%;padding:2rem 1.25rem 4rem}
 a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
 .doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
+@media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}
 </style>
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<main>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
+<li><a href="../../src/core/str.html">src/core/str.til</a></li>
+<li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
+<li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
+<li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
+<li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
+<li><a href="../../src/core/array.html">src/core/array.til</a></li>
+<li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
+<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
+<li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
+<li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
+<li><a href="../../src/core/io.html">src/core/io.til</a></li>
+<li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
+<li><a href="../../src/core/range.html">src/core/range.til</a></li>
+<li><a href="../../src/core/set.html">src/core/set.til</a></li>
+<li><a href="../../src/core/core.html">src/core/core.til</a></li>
+</ul>
+<h2>Standard library</h2><ul>
+<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
+<li><a href="../../src/std/file.html">src/std/file.til</a></li>
+<li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+</ul>
+<h2>Compiler frontend</h2><ul>
+<li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
+<li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
+<li><a href="../../src/self/context.html">src/self/context.til</a></li>
+<li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
+<li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
+<li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
+<li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
+<li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
+</ul>
+<h2>Compiler backend</h2><ul>
+<li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
+<li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
+<li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
+<li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
+</ul>
+<h2>Compiler tools</h2><ul>
+<li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
+<li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
+<li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
+</ul>
+<h2>CLI</h2><ul>
+<li><a href="../../src/til.html">src/til.til</a></li>
+</ul>
+<h2>Vendor bindings</h2><ul>
+<li><a class="current" href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a><ul><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_VOID">FFI_TYPE_VOID</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_INT">FFI_TYPE_INT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_FLOAT">FFI_TYPE_FLOAT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_DOUBLE">FFI_TYPE_DOUBLE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_LONGDOUBLE">FFI_TYPE_LONGDOUBLE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT8">FFI_TYPE_UINT8</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT8">FFI_TYPE_SINT8</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT16">FFI_TYPE_UINT16</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT16">FFI_TYPE_SINT16</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT32">FFI_TYPE_UINT32</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT32">FFI_TYPE_SINT32</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT64">FFI_TYPE_UINT64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT64">FFI_TYPE_SINT64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_STRUCT">FFI_TYPE_STRUCT</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_POINTER">FFI_TYPE_POINTER</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_COMPLEX">FFI_TYPE_COMPLEX</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_UINT128">FFI_TYPE_UINT128</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TYPE_SINT128">FFI_TYPE_SINT128</a></li><li><a href="#til.vendor.bindings.libffi.ffi_arg">ffi_arg</a></li><li><a href="#til.vendor.bindings.libffi.ffi_sarg">ffi_sarg</a></li><li><a href="#til.vendor.bindings.libffi.ffi_abi">ffi_abi</a></li><li><a href="#til.vendor.bindings.libffi.FFI_FIRST_ABI">FFI_FIRST_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_UNIX64">FFI_UNIX64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_WIN64">FFI_WIN64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_EFI64">FFI_EFI64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_GNUW64">FFI_GNUW64</a></li><li><a href="#til.vendor.bindings.libffi.FFI_LAST_ABI">FFI_LAST_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_DEFAULT_ABI">FFI_DEFAULT_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_CLOSURES">FFI_CLOSURES</a></li><li><a href="#til.vendor.bindings.libffi.FFI_GO_CLOSURES">FFI_GO_CLOSURES</a></li><li><a href="#til.vendor.bindings.libffi.FFI_TRAMPOLINE_SIZE">FFI_TRAMPOLINE_SIZE</a></li><li><a href="#til.vendor.bindings.libffi.FFI_NATIVE_RAW_API">FFI_NATIVE_RAW_API</a></li><li><a href="#til.vendor.bindings.libffi.FFI_64_BIT_MAX">FFI_64_BIT_MAX</a></li><li><a href="#til.vendor.bindings.libffi.ffi_type">ffi_type</a></li><li><a href="#til.vendor.bindings.libffi.ffi_status">ffi_status</a></li><li><a href="#til.vendor.bindings.libffi.FFI_OK">FFI_OK</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_TYPEDEF">FFI_BAD_TYPEDEF</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_ABI">FFI_BAD_ABI</a></li><li><a href="#til.vendor.bindings.libffi.FFI_BAD_ARGTYPE">FFI_BAD_ARGTYPE</a></li><li><a href="#til.vendor.bindings.libffi.ffi_cif">ffi_cif</a></li><li><a href="#til.vendor.bindings.libffi.FFI_SIZEOF_ARG">FFI_SIZEOF_ARG</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw">ffi_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw">ffi_java_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_call">ffi_raw_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_ptrarray_to_raw">ffi_ptrarray_to_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_to_ptrarray">ffi_raw_to_ptrarray</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_size">ffi_raw_size</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_call">ffi_java_raw_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_ptrarray_to_raw">ffi_java_ptrarray_to_raw</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_to_ptrarray">ffi_java_raw_to_ptrarray</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_size">ffi_java_raw_size</a></li><li><a href="#til.vendor.bindings.libffi.FFI_VERSION_NUMBER">FFI_VERSION_NUMBER</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_version">ffi_get_version</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_version_number">ffi_get_version_number</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_default_abi">ffi_get_default_abi</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_closure_size">ffi_get_closure_size</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure">ffi_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure_alloc">ffi_closure_alloc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_closure_free">ffi_closure_free</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_closure_loc">ffi_prep_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_raw_closure">ffi_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_java_raw_closure">ffi_java_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_raw_closure">ffi_prep_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_raw_closure_loc">ffi_prep_raw_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_java_raw_closure">ffi_prep_java_raw_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_java_raw_closure_loc">ffi_prep_java_raw_closure_loc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_go_closure">ffi_go_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_go_closure">ffi_prep_go_closure</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_go">ffi_call_go</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_cif">ffi_prep_cif</a></li><li><a href="#til.vendor.bindings.libffi.ffi_prep_cif_var">ffi_prep_cif_var</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call">ffi_call</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan">ffi_call_plan</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_alloc">ffi_call_plan_alloc</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_invoke">ffi_call_plan_invoke</a></li><li><a href="#til.vendor.bindings.libffi.ffi_call_plan_free">ffi_call_plan_free</a></li><li><a href="#til.vendor.bindings.libffi.ffi_get_struct_offsets">ffi_get_struct_offsets</a></li></ul></li>
+</ul>
+</nav></aside><main>
 <section class="doc-search" aria-label="Documentation search">
 <label for="til-doc-search">Search docs</label>
 <input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
@@ -549,6 +602,6 @@ namespace:
 <pre><code class="language-til">ext_proc ffi_get_struct_offsets(shallow abi: I32, mut struct_type: ffi_type, mut offsets: USize) returns shallow I32
 </code></pre>
 </article>
-</main>
+</main></div>
 </body>
 </html>

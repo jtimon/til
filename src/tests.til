@@ -118,11 +118,18 @@ doc_test_is_doctest_begin := func(line: Str) returns Bool {
 append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: USize) returns USize {
     mut next_count := count
     mut pos : USize = 0
+    mut line_number : USize = 1
     while pos < source.len() {
         line_end := doc_test_line_end(source, pos)
         line := source.substr(pos, line_end - pos)
         if doc_test_is_doctest_begin(line) {
+            block_line := line_number
+            loc := format(path, ":", block_line.to_str())
             pos = doc_test_next_line_pos(source, line_end)
+            line_number++
+            out.push_str("// doctest source: ")
+            out.push_str(loc)
+            out.push_str("\n")
             out.push_str("doctest_")
             out.push_str(next_count.to_str())
             out.push_str(" := test() {\n")
@@ -131,33 +138,59 @@ append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: 
             while pos < source.len() {
                 src_line_end := doc_test_line_end(source, pos)
                 src_line := source.substr(pos, src_line_end - pos)
-                body_line := doc_test_comment_text(src_line, path)
+                body_line := doc_test_comment_text(src_line, loc)
                 if body_line.trim().starts_with("#+end_src") {
                     found_end = true
                     pos = doc_test_next_line_pos(source, src_line_end)
+                    line_number++
                     break
                 }
                 if body_line.trim().is_empty().not() { has_body = true }
                 out.push_str(body_line)
                 out.push_str("\n")
                 pos = doc_test_next_line_pos(source, src_line_end)
+                line_number++
             }
-            if found_end.not() { panic("unterminated doctest block in ", path) }
-            if has_body.not() { panic("empty doctest block in ", path) }
+            if found_end.not() { panic("unterminated doctest block in ", loc) }
+            if has_body.not() { panic("empty doctest block in ", loc) }
             out.push_str("}\n\n")
             next_count++
             continue
         }
         pos = doc_test_next_line_pos(source, line_end)
+        line_number++
     }
     return next_count
 }
 
+append_tracked_doc_doctests := proc(mut out: Str) returns USize {
+    mut listing := ""
+    result := run_cmd(listing, "git", "ls-files", "src/core/*.til", "src/std/*.til", "src/self/*.til", "src/modes/*.til", "src/til.til", "lib/*.til", "vendor/bindings/*.til")
+    if result != 0 { panic("failed to list documented til sources") }
+    mut count : USize = 0
+    mut pos : USize = 0
+    while pos < listing.len() {
+        line_end := doc_test_line_end(listing, pos)
+        path := listing.substr(pos, line_end - pos).trim()
+        if path.is_empty().not() {
+            source := File.readfile(path)
+            count = append_source_doc_doctests(out, path, source, count)
+        }
+        pos = doc_test_next_line_pos(listing, line_end)
+    }
+    return count
+}
+
 write_doc_doctests := proc(out_path: Str) {
-    source := File.readfile("src/core/str.til")
-    mut out := Str.with_capacity(source.len().mul(2) + 1024)
+    mut regression := Str.with_capacity(256)
+    regression_count := append_source_doc_doctests(regression, "test/doc_fixture.til", "/// #+begin_src til :doctest\n/// assert(true)\n/// #+end_src\n", 0)
+    if regression_count != 1 { panic("doctest extraction regression: wrong count") }
+    if regression.contains("// doctest source: test/doc_fixture.til:1").not() { panic("doctest extraction regression: missing source location") }
+    if regression.contains("assert(true)").not() { panic("doctest extraction regression: missing body") }
+
+    mut out := Str.with_capacity(4096)
     out.push_str("mode test\n\n")
-    count := append_source_doc_doctests(out, "src/core/str.til", source, 0)
+    count := append_tracked_doc_doctests(out)
     if count == 0 { panic("no doc doctests found") }
     File.writefile(out_path, out)
 }

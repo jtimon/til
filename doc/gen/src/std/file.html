@@ -8,17 +8,70 @@
 :root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}
 @media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}
-main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}
+.doc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,980px);justify-content:center;min-height:100vh}.doc-sidebar{position:sticky;top:0;align-self:start;box-sizing:border-box;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1.5rem 1rem}.doc-sidebar h1{font-size:1.2rem;margin:0}.doc-version{color:var(--muted);font-size:.85rem}.doc-sidebar h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:1.4rem 0 .3rem}.doc-sidebar ul{list-style:none;margin:0;padding:0}.doc-sidebar ul ul{padding-left:.8rem}.doc-sidebar li{margin:.2rem 0}.doc-sidebar a{display:block;padding:.15rem .35rem;border-radius:5px;text-decoration:none}.doc-sidebar a.current{background:var(--line);font-weight:700}main{box-sizing:border-box;width:100%;padding:2rem 1.25rem 4rem}
 a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}
 h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}
 .meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}
 .doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}
 .doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}
+@media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}
 </style>
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<main>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
+<li><a href="../../src/core/str.html">src/core/str.til</a></li>
+<li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
+<li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
+<li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
+<li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
+<li><a href="../../src/core/array.html">src/core/array.til</a></li>
+<li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
+<li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
+<li><a href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a></li>
+<li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
+<li><a href="../../src/core/io.html">src/core/io.til</a></li>
+<li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
+<li><a href="../../src/core/range.html">src/core/range.til</a></li>
+<li><a href="../../src/core/set.html">src/core/set.til</a></li>
+<li><a href="../../src/core/core.html">src/core/core.til</a></li>
+</ul>
+<h2>Standard library</h2><ul>
+<li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
+<li><a class="current" href="../../src/std/file.html">src/std/file.til</a><ul><li><a href="#til.src.std.file.cfile_open">cfile_open</a></li><li><a href="#til.src.std.file.cfile_open_update">cfile_open_update</a></li><li><a href="#til.src.std.file.cfile_close">cfile_close</a></li><li><a href="#til.src.std.file.cfile_write_str">cfile_write_str</a></li><li><a href="#til.src.std.file.cfile_read_all">cfile_read_all</a></li><li><a href="#til.src.std.file.cfile_tell">cfile_tell</a></li><li><a href="#til.src.std.file.cfile_seek">cfile_seek</a></li><li><a href="#til.src.std.file.cfile_seek_cur">cfile_seek_cur</a></li><li><a href="#til.src.std.file.cfile_seek_end">cfile_seek_end</a></li><li><a href="#til.src.std.file.cfile_read_n">cfile_read_n</a></li><li><a href="#til.src.std.file.File">File</a></li></ul></li>
+<li><a href="../../src/std/sys.html">src/std/sys.til</a></li>
+</ul>
+<h2>Compiler frontend</h2><ul>
+<li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
+<li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
+<li><a href="../../src/self/context.html">src/self/context.til</a></li>
+<li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
+<li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
+<li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
+<li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
+<li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
+</ul>
+<h2>Compiler backend</h2><ul>
+<li><a href="../../src/self/targets.html">src/self/targets.til</a></li>
+<li><a href="../../src/self/garbager.html">src/self/garbager.til</a></li>
+<li><a href="../../src/self/constfolder.html">src/self/constfolder.til</a></li>
+<li><a href="../../src/self/scavenger.html">src/self/scavenger.til</a></li>
+<li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
+</ul>
+<h2>Compiler tools</h2><ul>
+<li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
+<li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
+<li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
+</ul>
+<h2>CLI</h2><ul>
+<li><a href="../../src/til.html">src/til.til</a></li>
+</ul>
+<h2>Vendor bindings</h2><ul>
+<li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+</ul>
+</nav></aside><main>
 <section class="doc-search" aria-label="Documentation search">
 <label for="til-doc-search">Search docs</label>
 <input id="til-doc-search" type="search" placeholder="Type a name or phrase" autocomplete="off">
@@ -145,6 +198,6 @@ namespace:
 }
 </code></pre>
 </article>
-</main>
+</main></div>
 </body>
 </html>

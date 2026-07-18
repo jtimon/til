@@ -1,4 +1,5 @@
 #+TITLE: src/core/ast.til
+#+SUBTITLE: til 0.0.1-b5c4ff835
 #+OPTIONS: toc:t
 
 * Primitive
@@ -804,14 +805,18 @@ struct Vec__Bool {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Bool
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Bool
     func len(self: Vec__Bool) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
@@ -891,14 +896,18 @@ struct Vec__I64 {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__I64
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__I64
     func len(self: Vec__I64) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
@@ -978,14 +987,18 @@ struct Vec__FieldLayout {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__FieldLayout
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__FieldLayout
     func len(self: Vec__FieldLayout) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
@@ -1065,14 +1078,18 @@ struct Vec__Declaration {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Declaration
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Declaration
     func len(self: Vec__Declaration) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
@@ -1152,14 +1169,18 @@ struct Vec__Expr {
     mut count : USize
     mut cap : USize
 namespace:
-    /// Create a new empty Vec for elements of type T.
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
     func new() returns Vec__Expr
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. cap is clamped to >= 1 so the doubling
-    /// in push/append never starts from zero (n=0 behaves like new()).
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
     func with_capacity(shallow n: USize) returns Vec__Expr
     func len(self: Vec__Expr) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated

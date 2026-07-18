@@ -8534,6 +8534,10 @@ priv doc_is_src_end := func(line: Str) returns Bool {
     return line.trim().starts_with("#+end_src")
 }
 
+priv doc_is_example_begin := func(line: Str) returns Bool {
+    return line.trim().starts_with("#+begin_example")
+}
+
 priv doc_expand_til_links := func(body: Str, catalog: DocCatalog, loc: Str) returns Str {
     mut out := ""
     mut pos : USize = 0
@@ -8649,7 +8653,7 @@ priv append_doc_unit_entry := func(mut out: Str, e: DocEntry) {
 // Render one source file's catalog entries as an org-mode page.
 // One headline per public Decl, with the /// doc text and a kind/signature
 // info block collected from the typed AST.
-priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog) returns Str {
+priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog, version: Str) returns Str {
     // Strip a leading "./" via a self-reassign from a substring of `title`.
     // This (`title = title.strip_prefix(...).clone()`) is compiled correctly:
     // #238 fixed the asap-destruction delete-ordering, and #258 keeps the
@@ -8665,6 +8669,8 @@ priv format_unit_doc_org := func(unit_path: Str, catalog: DocCatalog) returns St
     mut buf := Str.with_capacity(total)
     buf.push_str("#+TITLE: ")
     buf.push_str(title)
+    buf.push_str("\n#+SUBTITLE: til ")
+    buf.push_str(version)
     buf.push_str("\n#+OPTIONS: toc:t\n\n")
     for e : DocEntry in catalog.entries {
         if e.unit_path == unit_path { append_doc_unit_entry(buf, e) }
@@ -8735,7 +8741,7 @@ priv doc_index_collect_groups := func(catalog: DocCatalog) returns Vec(Str) {
     return groups
 }
 
-priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
+priv format_doc_index_org := func(catalog: DocCatalog, version: Str) returns Str {
     groups := doc_index_collect_groups(catalog)
     mut has_ungrouped := false
     mut total : USize = 128
@@ -8749,7 +8755,9 @@ priv format_doc_index_org := func(catalog: DocCatalog) returns Str {
     if has_ungrouped { total = total + 16 }
 
     mut out := Str.with_capacity(total)
-    out.push_str("#+TITLE: til documentation index\n#+OPTIONS: toc:t\n\n")
+    out.push_str("#+TITLE: til documentation index\n#+SUBTITLE: til ")
+    out.push_str(version)
+    out.push_str("\n#+OPTIONS: toc:t\n\n")
 
     for group : Str in groups {
         out.push_str("* ")
@@ -8841,15 +8849,40 @@ priv append_doc_html_inline := func(mut out: Str, text: Str, current_page: Str, 
     while pos < text.len() {
         rest := text.substr(pos, text.len() - pos)
         link_rel := rest.find("[[file:")
-        if link_rel < 0 {
+        tilde_rel := rest.find("~")
+        equals_rel := rest.find("=")
+        mut token_rel := link_rel
+        mut token_kind : I32 = 1
+        if token_rel < 0 { token_rel = tilde_rel; token_kind = 2 }
+        if tilde_rel >= 0 { if token_rel < 0 { token_rel = tilde_rel; token_kind = 2 } else if tilde_rel < token_rel { token_rel = tilde_rel; token_kind = 2 } }
+        if equals_rel >= 0 { if token_rel < 0 { token_rel = equals_rel; token_kind = 3 } else if equals_rel < token_rel { token_rel = equals_rel; token_kind = 3 } }
+        if token_rel < 0 {
             out.push_str(doc_html_escape(rest))
             return
         }
 
-        link_start := pos + link_rel.to_usize()
-        if link_start > pos { out.push_str(doc_html_escape(text.substr(pos, link_start - pos))) }
+        token_start := pos + token_rel.to_usize()
+        if token_start > pos { out.push_str(doc_html_escape(text.substr(pos, token_start - pos))) }
 
-        content_start := link_start + 7
+        if token_kind != 1 {
+            mut marker := "~"
+            if token_kind == 3 { marker = "=" }
+            content_start := token_start + 1
+            content_rest := text.substr(content_start, text.len() - content_start)
+            close_rel := content_rest.find(marker)
+            if close_rel < 0 {
+                out.push_str(doc_html_escape(text.substr(token_start, text.len() - token_start)))
+                return
+            }
+            close_pos := content_start + close_rel.to_usize()
+            out.push_str("<code>")
+            out.push_str(doc_html_escape(text.substr(content_start, close_pos - content_start)))
+            out.push_str("</code>")
+            pos = close_pos + 1
+            continue
+        }
+
+        content_start := token_start + 7
         link_end := doc_find_link_end(text, content_start, loc)
         content := text.substr(content_start, link_end - content_start)
         append_doc_html_file_link(out, content, current_page, loc)
@@ -8857,18 +8890,85 @@ priv append_doc_html_inline := func(mut out: Str, text: Str, current_page: Str, 
     }
 }
 
+priv doc_html_close_para := func(mut out: Str, mut in_para: Bool) {
+    if in_para {
+        out.push_str("</p>\n")
+        in_para = false
+    }
+}
+
+priv doc_html_close_list := func(mut out: Str, mut list_kind: I32) {
+    if list_kind == 1 { out.push_str("</ul>\n") }
+    if list_kind == 2 { out.push_str("</ol>\n") }
+    list_kind = 0
+}
+
+priv doc_heading_depth := func(line: Str) returns USize {
+    trimmed := line.trim()
+    mut depth : USize = 0
+    while depth < trimmed.len() {
+        if trimmed.get(depth).neq('*') { break }
+        depth++
+    }
+    if depth == 0 { return 0 }
+    if depth >= trimmed.len() { return 0 }
+    if trimmed.get(depth).neq(' ') { return 0 }
+    return depth
+}
+
+priv doc_ordered_item_start := func(line: Str) returns I64 {
+    trimmed := line.trim()
+    mut pos : USize = 0
+    while pos < trimmed.len() {
+        ref ch : I8 = trimmed.get(pos)
+        if ch.lt('0').or(ch.gt('9')) { break }
+        pos++
+    }
+    if pos == 0 { return -1 }
+    if pos + 1 >= trimmed.len() { return -1 }
+    if trimmed.get(pos).neq('.').or(trimmed.get(pos + 1).neq(' ')) { return -1 }
+    return (pos + 2).to_i64()
+}
+
+priv append_doc_html_verbatim_block := func(mut out: Str, body: Str, mut pos: USize, end_marker: Str, loc: Str) returns USize {
+    out.push_str("<pre>")
+    mut found_end := false
+    while pos < body.len() {
+        line_end := doc_line_end(body, pos)
+        line := body.substr(pos, line_end - pos)
+        if line.trim().starts_with(end_marker) {
+            found_end = true
+            pos = doc_next_line_pos(body, line_end)
+            break
+        }
+        out.push_str(doc_html_escape(line))
+        out.push_str("\n")
+        pos = doc_next_line_pos(body, line_end)
+    }
+    if found_end.not() { panic("unterminated doc block in ", loc) }
+    out.push_str("</pre>\n")
+    return pos
+}
+
 priv append_doc_html_body := func(mut out: Str, body: Str, current_page: Str, loc: Str) {
     mut pos : USize = 0
     mut in_para := false
+    mut list_kind : I32 = 0
     while pos < body.len() {
         line_end := doc_line_end(body, pos)
         line := body.substr(pos, line_end - pos)
         if doc_is_src_begin(line) {
-            if in_para {
-                out.push_str("</p>\n")
-                in_para = false
+            doc_html_close_para(out, in_para)
+            doc_html_close_list(out, list_kind)
+            begin := line.trim().strip_prefix("#+begin_src").trim()
+            mut language := "text"
+            if begin.is_empty().not() {
+                space := begin.find(" ")
+                if space < 0 { language = begin.clone() } else { language = begin.substr(0, space.to_usize()).clone() }
             }
-            out.push_str("<pre><code class=\"language-til\">")
+            out.push_str("<pre><code class=\"language-")
+            out.push_str(doc_html_escape(language))
+            out.push_str("\">")
             pos = doc_next_line_pos(body, line_end)
             mut found_end := false
             while pos < body.len() {
@@ -8886,23 +8986,69 @@ priv append_doc_html_body := func(mut out: Str, body: Str, current_page: Str, lo
             if found_end.not() { panic("unterminated doc source block in ", loc) }
             out.push_str("</code></pre>\n")
             continue
+        } else if doc_is_example_begin(line) {
+            doc_html_close_para(out, in_para)
+            doc_html_close_list(out, list_kind)
+            pos = doc_next_line_pos(body, line_end)
+            pos = append_doc_html_verbatim_block(out, body, pos, "#+end_example", loc)
+            continue
         } else if line.trim().is_empty() {
-            if in_para {
-                out.push_str("</p>\n")
-                in_para = false
-            }
+            doc_html_close_para(out, in_para)
+            doc_html_close_list(out, list_kind)
         } else {
-            if in_para {
-                out.push_str("\n")
+            trimmed := line.trim()
+            heading_depth := doc_heading_depth(trimmed)
+            ordered_start := doc_ordered_item_start(trimmed)
+            unordered := trimmed.starts_with("- ").or(trimmed.starts_with("+ "))
+            if heading_depth > 0 {
+                doc_html_close_para(out, in_para)
+                doc_html_close_list(out, list_kind)
+                mut level := heading_depth + 2
+                if level > 6 { level = 6 }
+                tag := level.to_str()
+                out.push_str("<h"); out.push_str(tag); out.push_str(">")
+                append_doc_html_inline(out, trimmed.substr(heading_depth + 1, trimmed.len() - heading_depth - 1), current_page, loc)
+                out.push_str("</h"); out.push_str(tag); out.push_str(">\n")
+            } else if unordered.or(ordered_start >= 0) {
+                doc_html_close_para(out, in_para)
+                mut wanted_kind : I32 = 1
+                mut item_start : USize = 2
+                if ordered_start >= 0 { wanted_kind = 2; item_start = ordered_start.to_usize() }
+                if list_kind != wanted_kind {
+                    doc_html_close_list(out, list_kind)
+                    if wanted_kind == 1 { out.push_str("<ul>\n") } else { out.push_str("<ol>\n") }
+                    list_kind = wanted_kind
+                }
+                out.push_str("<li>")
+                append_doc_html_inline(out, trimmed.substr(item_start, trimmed.len() - item_start), current_page, loc)
+                out.push_str("</li>\n")
             } else {
-                out.push_str("<p>")
-                in_para = true
+                doc_html_close_list(out, list_kind)
+                if in_para { out.push_str("\n") } else { out.push_str("<p>"); in_para = true }
+                append_doc_html_inline(out, line, current_page, loc)
             }
-            append_doc_html_inline(out, line, current_page, loc)
         }
         pos = doc_next_line_pos(body, line_end)
     }
-    if in_para { out.push_str("</p>\n") }
+    doc_html_close_para(out, in_para)
+    doc_html_close_list(out, list_kind)
+}
+
+priv require_doc_output := func(output: Str, expected: Str, loc: Str) {
+    if output.contains(expected).not() { panic("doc output missing ", expected, " in ", loc) }
+}
+
+priv verify_doc_html_body_renderer := func() {
+    body := "* Heading\n\n- one\n- ~two~\n\n1. first\n2. second\n\n#+begin_example\nraw <text>\n#+end_example\n\n#+begin_src til :doctest\nassert(true)\n#+end_src\n\nSee [[file:src/core/str.org::#til.src.core.str.Str][Str]]."
+    mut output := Str.with_capacity(2048)
+    append_doc_html_body(output, body, "test/page.html", "doc renderer regression")
+    require_doc_output(output, "<h3>Heading</h3>", "doc renderer regression")
+    require_doc_output(output, "<ul>", "doc renderer regression")
+    require_doc_output(output, "<code>two</code>", "doc renderer regression")
+    require_doc_output(output, "<ol>", "doc renderer regression")
+    require_doc_output(output, "raw &lt;text&gt;", "doc renderer regression")
+    require_doc_output(output, "class=\"language-til\"", "doc renderer regression")
+    require_doc_output(output, "../src/core/str.html#til.src.core.str.Str", "doc renderer regression")
 }
 
 priv append_doc_html_meta := func(mut out: Str, e: DocEntry, include_group: Bool) {
@@ -8938,20 +9084,88 @@ priv append_doc_html_head := func(mut out: Str, title: Str, current_page: Str) {
     out.push_str(":root{color-scheme:light dark;--bg:#f8f5ef;--fg:#191714;--muted:#6f665b;--card:#fffdf8;--line:#ded6c9;--link:#7a3e14}\n")
     out.push_str("@media (prefers-color-scheme:dark){:root{--bg:#171512;--fg:#efe7da;--muted:#b8ad9d;--card:#211e1a;--line:#40382f;--link:#f0ad6d}}\n")
     out.push_str("body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,sans-serif}\n")
-    out.push_str("main{max-width:980px;margin:0 auto;padding:2rem 1.25rem 4rem}\n")
+    out.push_str(".doc-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,980px);justify-content:center;min-height:100vh}.doc-sidebar{position:sticky;top:0;align-self:start;box-sizing:border-box;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1.5rem 1rem}.doc-sidebar h1{font-size:1.2rem;margin:0}.doc-version{color:var(--muted);font-size:.85rem}.doc-sidebar h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;margin:1.4rem 0 .3rem}.doc-sidebar ul{list-style:none;margin:0;padding:0}.doc-sidebar ul ul{padding-left:.8rem}.doc-sidebar li{margin:.2rem 0}.doc-sidebar a{display:block;padding:.15rem .35rem;border-radius:5px;text-decoration:none}.doc-sidebar a.current{background:var(--line);font-weight:700}main{box-sizing:border-box;width:100%;padding:2rem 1.25rem 4rem}\n")
     out.push_str("a{color:var(--link)}nav{margin-bottom:1.5rem}.doc-entry{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0}\n")
     out.push_str("h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius:8px;padding:1rem}code{font-family:ui-monospace,monospace}\n")
     out.push_str(".meta{display:flex;flex-wrap:wrap;gap:.35rem .75rem;color:var(--muted);font-size:.9rem}.meta dt{font-weight:700}.meta dd{margin:0}\n")
     out.push_str(".doc-index{list-style:none;padding:0}.doc-index li{margin:.75rem 0}\n")
     out.push_str(".doc-search{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.25rem;margin:0 0 1.5rem}.doc-search label{display:block;font-weight:700;margin-bottom:.35rem}.doc-search input{box-sizing:border-box;width:100%;padding:.55rem .65rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}.doc-search-results{margin:.75rem 0 0;padding-left:1.5rem}.doc-search-group{color:var(--muted);font-size:.9rem}\n")
+    out.push_str("@media(max-width:760px){.doc-layout{display:block}.doc-sidebar{position:static;width:auto;height:auto;border-right:0;border-bottom:1px solid var(--line);max-height:45vh}.doc-sidebar nav{columns:2;column-gap:1rem}main{padding-top:1.25rem}}@media(max-width:480px){.doc-sidebar nav{columns:1}}\n")
     out.push_str("</style>\n<script src=\"")
     out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "search.js")))
-    out.push_str("\" defer></script>\n</head>\n<body>\n<main>\n")
+    out.push_str("\" defer></script>\n</head>\n<body>\n")
+}
+
+priv doc_catalog_page_first := func(catalog: DocCatalog, index: USize) returns Bool {
+    ref entry : DocEntry = catalog.entries[index]
+    for prior_i in 0..index {
+        ref prior : DocEntry = catalog.entries[prior_i]
+        if prior.page == entry.page { return false }
+    }
+    return true
+}
+
+priv doc_html_page_href := func(current_page: Str, org_page: Str) returns Str {
+    return format(doc_html_relative_prefix(current_page), doc_html_path(org_page))
+}
+
+priv append_doc_html_sidebar_page := func(mut out: Str, catalog: DocCatalog, entry_index: USize, current_page: Str) {
+    ref entry : DocEntry = catalog.entries[entry_index]
+    page_html := doc_html_path(entry.page)
+    is_current := page_html == current_page
+    out.push_str("<li><a")
+    if is_current { out.push_str(" class=\"current\"") }
+    out.push_str(" href=\"")
+    out.push_str(doc_html_escape(doc_html_page_href(current_page, entry.page)))
+    out.push_str("\">")
+    out.push_str(doc_html_escape(doc_unit_path_normalized(entry.unit_path)))
+    out.push_str("</a>")
+    if is_current {
+        out.push_str("<ul>")
+        for declaration : DocEntry in catalog.entries {
+            if declaration.page == entry.page {
+                out.push_str("<li><a href=\"#")
+                out.push_str(doc_html_escape(declaration.id))
+                out.push_str("\">")
+                out.push_str(doc_html_escape(declaration.name))
+                out.push_str("</a></li>")
+            }
+        }
+        out.push_str("</ul>")
+    }
+    out.push_str("</li>\n")
+}
+
+priv append_doc_html_sidebar_group := func(mut out: Str, catalog: DocCatalog, group: Str, current_page: Str) {
+    out.push_str("<h2>")
+    if group.is_empty() { out.push_str("Ungrouped") } else { out.push_str(doc_html_escape(group)) }
+    out.push_str("</h2><ul>\n")
+    for i in 0..catalog.entries.len() {
+        ref entry : DocEntry = catalog.entries[i]
+        if entry.group == group {
+            if doc_catalog_page_first(catalog, i) { append_doc_html_sidebar_page(out, catalog, i, current_page) }
+        }
+    }
+    out.push_str("</ul>\n")
+}
+
+priv append_doc_html_page_start := func(mut out: Str, catalog: DocCatalog, current_page: Str, version: Str) {
+    groups := doc_index_collect_groups(catalog)
+    mut has_ungrouped := false
+    for entry : DocEntry in catalog.entries { if entry.group.is_empty() { has_ungrouped = true } }
+    out.push_str("<div class=\"doc-layout\"><aside class=\"doc-sidebar\"><h1><a href=\"")
+    out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "index.html")))
+    out.push_str("\">til docs</a></h1><div class=\"doc-version\">Version ")
+    out.push_str(doc_html_escape(version))
+    out.push_str("</div><nav aria-label=\"Documentation\">")
+    for group : Str in groups { append_doc_html_sidebar_group(out, catalog, group, current_page) }
+    if has_ungrouped { append_doc_html_sidebar_group(out, catalog, "", current_page) }
+    out.push_str("</nav></aside><main>\n")
     out.push_str("<section class=\"doc-search\" aria-label=\"Documentation search\">\n<label for=\"til-doc-search\">Search docs</label>\n<input id=\"til-doc-search\" type=\"search\" placeholder=\"Type a name or phrase\" autocomplete=\"off\">\n<ol id=\"til-doc-search-results\" class=\"doc-search-results\"></ol>\n</section>\n")
 }
 
 priv append_doc_html_tail := func(mut out: Str) {
-    out.push_str("</main>\n</body>\n</html>\n")
+    out.push_str("</main></div>\n</body>\n</html>\n")
 }
 
 priv doc_html_entry_capacity := func(e: DocEntry) returns USize {
@@ -8988,7 +9202,7 @@ priv append_doc_html_unit_entry := func(mut out: Str, e: DocEntry, current_page:
     out.push_str("</article>\n")
 }
 
-priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog) returns Str {
+priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog, version: Str) returns Str {
     mut title := unit_path.clone()
     if title.starts_with("./") { title = title.strip_prefix("./").clone() }
 
@@ -9000,6 +9214,7 @@ priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog) returns S
 
     mut out := Str.with_capacity(total)
     append_doc_html_head(out, title, current_page)
+    append_doc_html_page_start(out, catalog, current_page, version)
     out.push_str("<nav><a href=\"")
     out.push_str(doc_html_escape(format(doc_html_relative_prefix(current_page), "index.html")))
     out.push_str("\">Index</a></nav>\n")
@@ -9029,7 +9244,7 @@ priv append_doc_html_index_entry := func(mut out: Str, e: DocEntry, current_page
     out.push_str("</li>\n")
 }
 
-priv format_doc_index_html := func(catalog: DocCatalog) returns Str {
+priv format_doc_index_html := func(catalog: DocCatalog, version: Str) returns Str {
     groups := doc_index_collect_groups(catalog)
     mut has_ungrouped := false
     mut total : USize = 8192
@@ -9042,6 +9257,7 @@ priv format_doc_index_html := func(catalog: DocCatalog) returns Str {
     mut out := Str.with_capacity(total)
     current_page := "index.html"
     append_doc_html_head(out, "til documentation index", current_page)
+    append_doc_html_page_start(out, catalog, current_page, version)
     out.push_str("<h1>til documentation index</h1>\n")
     for group : Str in groups {
         out.push_str("<section>\n<h2>")
@@ -9145,15 +9361,18 @@ priv emit_doc_search := proc(catalog: DocCatalog) {
     println(format("Generated: ", out))
 }
 
-priv emit_doc_index := proc(catalog: DocCatalog) {
+priv emit_doc_index := proc(catalog: DocCatalog, version: Str) {
     out := "doc/gen/index.org"
     ensure_parent_dir(out)
-    page := format_doc_index_org(catalog)
+    page := format_doc_index_org(catalog, version)
+    require_doc_output(page, format("#+SUBTITLE: til ", version), "doc org index")
     File.writefile(out, page)
     println(format("Generated: ", out))
 
     html_out := "doc/gen/index.html"
-    html_page := format_doc_index_html(catalog)
+    html_page := format_doc_index_html(catalog, version)
+    require_doc_output(html_page, "class=\"doc-sidebar\"", "doc HTML index")
+    require_doc_output(html_page, format("Version ", version), "doc HTML index")
     File.writefile(html_out, html_page)
     println(format("Generated: ", html_out))
 }
@@ -9185,26 +9404,27 @@ priv ensure_parent_dir := proc(path: Str) {
     if mkdir_p(dir) != 0 { panic("failed to create parent dir for ", path) }
 }
 
-priv emit_unit_doc := proc(u: ProgramUnit, catalog: DocCatalog) {
+priv emit_unit_doc := proc(u: ProgramUnit, catalog: DocCatalog, version: Str) {
     out := til_doc_out_path(u.path)
     ensure_parent_dir(out)
-    page := format_unit_doc_org(u.path, catalog)
+    page := format_unit_doc_org(u.path, catalog, version)
     File.writefile(out, page)
     println(format("Generated: ", out))
 
     html_out := til_doc_html_out_path(u.path)
-    html_page := format_unit_doc_html(u.path, catalog)
+    html_page := format_unit_doc_html(u.path, catalog, version)
     File.writefile(html_out, html_page)
     println(format("Generated: ", html_out))
 }
 
-cmd_doc := proc(lp: LoadedProgram) returns I32 {
+cmd_doc := proc(lp: LoadedProgram, version: Str) returns I32 {
+    verify_doc_html_body_renderer()
     catalog := build_doc_catalog(lp)
     if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units { emit_unit_doc(u, catalog) }
+        for u : ProgramUnit in lp.core_units { emit_unit_doc(u, catalog, version) }
     }
-    for u : ProgramUnit in lp.units { emit_unit_doc(u, catalog) }
-    emit_doc_index(catalog)
+    for u : ProgramUnit in lp.units { emit_unit_doc(u, catalog, version) }
+    emit_doc_index(catalog, version)
     emit_doc_search(catalog)
     return 0
 }
