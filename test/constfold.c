@@ -1966,7 +1966,7 @@ USize Dynamic_size(void) {
 void * Dynamic_clone(void * self) {
     U64 hoisted__U64_932 = 8ULL;
     (void)hoisted__U64_932;
-    void * out = malloc(hoisted__U64_932);
+    U8 *out = malloc(hoisted__U64_932);
     U64 hoisted__U64_933 = 8ULL;
     (void)hoisted__U64_933;
     memcpy(out, self, hoisted__U64_933);

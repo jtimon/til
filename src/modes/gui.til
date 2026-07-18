@@ -33,11 +33,7 @@ make_tone := proc(freq: I64, duration_ms: I64, amp: F32) returns Sound {
     sr := 44100
     mut n := sr * duration_ms / 1000
     if n < 1 { n = 1 }
-    // Stays a manual Dynamic island (#302): the buffer is handed to the
-    // Wave FFI struct as a raw void* and read by LoadSoundFromWave AFTER
-    // buf's last named use, so a garbager-owned typed alloc would free
-    // it too early (and a U8* does not coerce into the FFI field slot).
-    buf : Dynamic = malloc((n * 4).to_usize())
+    buf : U8 = malloc((n * 4).to_usize())
     attack := sr / 100
     release := sr / 100
     pi2 : F32 = 6283185 / 1000000
@@ -59,7 +55,7 @@ make_tone := proc(freq: I64, duration_ms: I64, amp: F32) returns Sound {
         sampleRate=sr.to_u32(),
         sampleSize=32,
         channels=1,
-        data=buf
+        data=to_ptr(buf)
     )
     result := LoadSoundFromWave(w)
     free(own buf)

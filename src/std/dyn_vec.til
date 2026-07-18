@@ -160,7 +160,7 @@ namespace:
             panic("DynVec.pop: empty vec")
         }
         last := self.count - 1
-        out : Dynamic = malloc(self.elem_size)
+        out : U8 = malloc(self.elem_size)
         memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
         self.count = last
         return out

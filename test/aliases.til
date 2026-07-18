@@ -304,7 +304,7 @@ test_uptr_alias_in_func := test() {
 
 test_uptr_memory_api := test() {
     size : UPtr = 2
-    buf : Dynamic = malloc(size)
+    buf : U8 = malloc(size)
     memset(buf, 0, size)
     memcpy(buf, 65, 1)
     off : UPtr = 1

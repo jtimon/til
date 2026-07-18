@@ -133,7 +133,7 @@ test_bool_vec_get_chain := test() {
 }
 
 test_dynamic_local := test() {
-    buf : Dynamic = malloc(4)
+    buf : U8 = malloc(4)
     assert(is_null(buf).not())
     free(own buf)
 }

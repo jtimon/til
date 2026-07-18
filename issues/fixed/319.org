@@ -1,0 +1,18 @@
+# priority: medium
+# category: bugs
+** FIXED #319 Reject raw allocations into Dynamic locals
+
+Post-mortem:
+
+The typer treated malloc / calloc / realloc like ordinary Dynamic-returning expressions at declaration sites. That let raw allocation results initialize borrowed ref and Dynamic locals, even though a concrete local is the source-level raw pointer spelling.
+
+The fix converts user-facing Dynamic allocation declarations to concrete raw pointer locals and rejects raw allocation declarations into borrowed ref or Dynamic locals. Concrete locals are already owned by default. Compiler-internal src/self ABI slots remain erased Dynamic pointers because write_ptr borrows and their ownership moves through raw runtime storage. The regression cases are bad_raw_alloc_ref and bad_raw_alloc_dynamic in test/typer_errors.til.
+
+This used to compile:
+
+#+begin_src til
+p : Dynamic = malloc(8)
+free(own p)
+#+end_src
+
+Raw allocation ownership should use a concrete raw byte pointer, e.g. U8, or a container such as Vec / DynVec that owns its backing buffer.

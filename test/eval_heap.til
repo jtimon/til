@@ -74,7 +74,7 @@ test_eval_heap_bytes := test() {
     src : Dynamic = EvalHeap.heap_alloc(8)
     EvalHeap.set_i64(src, 999888777)
     dst : Dynamic = EvalHeap.heap_alloc(8)
-    tmp : Dynamic = malloc(8)
+    tmp : U8 = malloc(8)
     EvalHeap.get_bytes(src, tmp, 8)
     EvalHeap.set_bytes(dst, tmp, 8)
     free(own tmp)

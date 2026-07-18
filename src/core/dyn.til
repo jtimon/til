@@ -10,7 +10,7 @@ namespace:
     // Generic Vec/Map clone passes a pointer to the Dynamic slot; return a
     // fresh slot so the caller can copy+zero it without clearing the source.
     clone := func(self: Dynamic) returns Dynamic {
-        out : Dynamic = malloc(Dynamic.size())
+        out : U8 = malloc(Dynamic.size())
         memcpy(out, self, Dynamic.size())
         return out
     }

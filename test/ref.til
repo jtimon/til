@@ -129,7 +129,7 @@ test_ref_struct_field := test() {
 # on Assign).
 
 ref226_param_rhs := func(len: USize) returns U32 {
-    buf : Dynamic = malloc(8)
+    buf : U8 = malloc(8)
     write_u32(buf, 0)
     ref mut slot : U32 = ptr_add(buf, 0)
     slot = len

@@ -2567,6 +2567,7 @@ Bool priv___src_self_typer_til__infer_decl_func_def(TypeScope * scope, Expr * st
 Bool priv___src_self_typer_til__infer_decl_type_alias_passthrough(TypeScope * scope, Expr * stmt);
 Type * priv___src_self_typer_til__declared_type_for_decl(TypeScope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_typer_til__pre_coerce_decl_numeric_literals(Expr * expr, Type * target);
+Bool priv___src_self_typer_til__fcall_is_raw_alloc(Expr * e);
 void priv___src_self_typer_til__infer_decl_typed_value(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_decl_untyped_value(Expr * stmt, Context * ctx);
 void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body, Context * ctx);

@@ -49,7 +49,7 @@ namespace:
     heap_alloc := func(size: USize) returns Dynamic {
         mut sz := size
         if sz == 0 { sz = 1 }
-        p : Dynamic = calloc(1, sz)
+        p : U8 = calloc(1, sz)
         if p.is_null() { panic("EvalHeap.heap_alloc: allocation failed") }
         return p
     }

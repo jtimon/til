@@ -186,16 +186,22 @@ bad_ret_ref_q := func(i: USize) returns I64 throws OutOfBounds {
 }
 
 // no need for explicit own on typed local
-own bad_own_local : U8 = malloc(2)
+own bad_own_local : U8 = 0
 
 // no need for explicit own on typed mutable local
-own mut bad_own_mut_local : U8 = malloc(2)
+own mut bad_own_mut_local : U8 = 0
 
 // no need for explicit own on Dynamic local
-own bad_dyn : Dynamic = malloc(2)
+own bad_dyn : Dynamic = 0
 
 // cannot store Dynamic: inferred from malloc
 bad_dyn2 := malloc(32)
+
+// #319: raw allocation must initialize a concrete local, not a borrowed ref.
+ref bad_raw_alloc_ref : U8 = malloc(8)
+
+// #319: Dynamic is for type-erased/dynamic dispatch, not raw allocation owners.
+bad_raw_alloc_dynamic : Dynamic = malloc(8)
 
 // dyn_call: method must be a string literal
 method_var := "clone"

@@ -608,6 +608,7 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Contex
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FCall).not() { return }
+        if fcall_is_raw_alloc(rhs) { return }
         if fcall_returns_own(rhs, scope).not() { return }
         stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized from an owned value (.clone() / constructor / function returning own) -- use 'own' to keep the value, or borrow the source directly"), ctx)
     case:
@@ -4284,6 +4285,18 @@ priv pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type) {
     }
 }
 
+priv fcall_is_raw_alloc := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(callee):
+        ref name : Str = callee.ident_name()
+        return name.eq("malloc").or(name.eq("calloc")).or(name.eq("realloc"))
+    case:
+        return false
+    }
+}
+
 priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -4436,6 +4449,17 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         ref mut rhs : Expr = stmt.children[0]
+        raw_alloc_rhs := fcall_is_raw_alloc(rhs)
+        if in_type_body.eq(0).and(raw_alloc_rhs).and(sdecl.explicit_type.len().gt(0)) {
+            if sdecl.own_type.is(OwnType.Ref) {
+                stmt.type_error(format("raw allocation local '", sdecl.name, "' cannot be declared with 'ref'; locals are owned by default"), ctx)
+            } else if ctx.path.contains("/src/self/").not().and(ctx.path.starts_with("src/self/").not())
+                .and(stmt.til_type().is(Type.Dynamic))
+                .and(ctx.current_type_name.contains("__").not())
+                .and(ctx.current_top_func_name.contains("__").not()) {
+                stmt.type_error(format("raw allocation local '", sdecl.name, "' must use a concrete type, not Dynamic"), ctx)
+            }
+        }
         if in_type_body.eq(0).and(sdecl.own_type.is(OwnType.Own)) {
             if sdecl.is_mut {
                 stmt.type_error(format("no need for 'own' on mutable local '", sdecl.name, "'; write 'mut ", sdecl.name, " := ...'"), ctx)
@@ -4505,7 +4529,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 case:
                 }
             }
-            if expr_is_ref_decl_source(rhs, scope).not() {
+            if expr_is_ref_decl_source(rhs, scope).not().and(raw_alloc_rhs.not()) {
                 stmt.type_error("'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
             }
             if sdecl.is_mut {
