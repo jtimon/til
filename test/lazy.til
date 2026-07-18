@@ -627,7 +627,7 @@ test_lazy_proc_runs_when_needed := test() {
 # --- A throwing call in a lazy and/or argument must compile AND short-circuit.
 #     `cond.and(v[i])` desugars to `match cond { case true: v[i] ... }`, so the
 #     throwing subscript `v[i]` (= `get(i)!`) lands in a match arm body. It must
-#     be lowered INTO that arm so it (a) gets its hidden _err_kind/_err_<T>
+#     be lowered INTO that arm so it (a) gets its hidden throw tag/payload
 #     out-args (else infer fails with "missing argument for parameter
 #     '_err_kind'") and (b) only runs when the arm is taken. The empty-Vec cases
 #     below guard the access, so a non-short-circuiting (eager) evaluation would

@@ -2696,13 +2696,13 @@ Str * priv___src_self_desugarer_til__guess_prior_local_type_in_vec(Vec__Expr * s
 void priv___src_self_desugarer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, USize upto);
 void priv___src_self_desugarer_til__collect_throw_ident_names(Expr * e, Set__Str * names);
 void priv___src_self_desugarer_til__annotate_throw_ident_expr_types(Expr * e, Expr * root_body);
-Bool priv___src_self_desugarer_til__subtree_has_throw_type(Expr * e, Expr * root_body, Str * type_name);
-Bool priv___src_self_desugarer_til__has_prior_throw_type_in_vec(Vec__Expr * stmts, Expr * root_body, USize upto, Str * type_name);
-Str * priv___src_self_desugarer_til__throw_type_name_for_with_body(Expr * e, Expr * body);
+Bool priv___src_self_desugarer_til__subtree_has_throw_type(Context * ctx, Expr * e, Expr * root_body, Str * type_name);
+Bool priv___src_self_desugarer_til__has_prior_throw_type_in_vec(Context * ctx, Vec__Expr * stmts, Expr * root_body, USize upto, Str * type_name);
+Str * priv___src_self_desugarer_til__throw_type_name_for_with_body(Context * ctx, Expr * e, Expr * body);
 Bool priv___src_self_desugarer_til__subtree_has_throw_catch(Expr * e);
 Bool priv___src_self_desugarer_til__subtree_has_pending_throw(Expr * e);
 Bool subtree_has_bang(Expr * e);
-void priv___src_self_desugarer_til__annotate_throw_types_in(Expr * e, Expr * root_body);
+void priv___src_self_desugarer_til__annotate_throw_types_in(Context * ctx, Expr * e, Expr * root_body);
 Str * priv___src_self_desugarer_til__err_slot_name(Str * t);
 Bool throw_type_has_payload(Context * ctx, Str * type_name);
 void append_err_out_params(Vec__Declaration * params, Vec__Str * throw_types, Context * ctx);

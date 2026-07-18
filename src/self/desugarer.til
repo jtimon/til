@@ -323,11 +323,11 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeSco
 
 // #282: lower throwing (bang) calls in a case guard. The guard is
 // guard_if.children[0]; hoist_walk_consolidated pulls each bang FCall out into
-// a `_bang_ret_<n> := <call>?` temp (with injected _err_kind/_err_<T> args)
+// a `_bang_ret_<n> := <call>?` temp (with _err_kind plus any payload args)
 // plus a panic-on-throw check, replacing the bang with the temp Ident. Those
 // pre-stmts are appended to `dest` (the pattern-gated case body) BEFORE the
 // guard `if`, so the call runs only when the pattern matches. The function
-// already owns the _err_kind/_err_<T> slots (declared pre-infer via the guard
+// already owns the throw tag and any payload slots (declared pre-infer via the guard
 // discovery walk), so the throwaway types_to_declare/seen here are discarded.
 lower_guard_bang_calls := proc(scope: TypeScope, mut guard_if: Expr, mut dest: Vec(Expr), resolve_body: Expr, mut ctx: Context) {
     seed_guard_receiver_types(ctx, guard_if.children[0], scope)
@@ -587,54 +587,49 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, befo
     return false
 }
 
-priv subtree_has_throw_type := proc(e: Expr, root_body: Expr, type_name: Str) returns Bool {
+priv subtree_has_throw_type := proc(ctx: Context, e: Expr, root_body: Expr, type_name: Str) returns Bool {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
-        mut thrown_name := ""
-        switch e.children[0].node_type {
-        case NodeType.Ident(idn):
-            thrown_name = guess_local_type(root_body, idn.name)
-        case NodeType.FCall:
-            if e.children[0].children.len() > 0 {
-                switch e.children[0].children[0].node_type {
-                case NodeType.Ident(name): thrown_name = name.name.clone()
-                case:
-                }
-            }
-        case NodeType.Literal(Literal.Str):
-            thrown_name = "Str"
-        case NodeType.Literal(Literal.Num):
-            thrown_name = "I64"
-        case:
-        }
+        thrown_name := throw_type_name_for_with_body(ctx, e.children[0], root_body)
         if thrown_name == type_name { return true }
     }
     for c : Expr in e.children {
-        if subtree_has_throw_type(c, root_body, type_name) { return true }
+        if subtree_has_throw_type(ctx, c, root_body, type_name) { return true }
     }
     return false
 }
 
-priv has_prior_throw_type_in_vec := proc(stmts: Vec(Expr), root_body: Expr, upto: USize, type_name: Str) returns Bool {
+priv has_prior_throw_type_in_vec := proc(ctx: Context, stmts: Vec(Expr), root_body: Expr, upto: USize, type_name: Str) returns Bool {
     if stmts.len().eq(0).or(upto.eq(0)) { return false }
     mut limit := upto
     if limit > stmts.len() { limit = stmts.len() }
     mut i : USize = 0
     while i < limit {
         ref stmt : Expr = stmts[i]
-        if subtree_has_throw_type(stmt, root_body, type_name) { return true }
+        if subtree_has_throw_type(ctx, stmt, root_body, type_name) { return true }
         i++
     }
     return false
 }
 
-priv throw_type_name_for_with_body := func(e: Expr, body: Expr) returns Str {
+priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) returns Str {
     switch e.node_type {
     case NodeType.Literal(Literal.Str): return "Str"
     case NodeType.Literal(Literal.Num): return "I64"
     case NodeType.FCall:
         if e.children.len() == 0 { return "" }
         switch e.children[0].node_type {
-        case NodeType.Ident(name): return name.name.clone()
+        case NodeType.Ident(name):
+            if ctx.scope.get_struct(name.name).is_null().not() {
+                return name.name.clone()
+            }
+            ref fdef_expr : Expr = ctx.scope.lookup_func(name.name)
+            if fdef_expr.is_null().not() {
+                switch fdef_expr.node_type {
+                case NodeType.FuncDef(fd): return fd.return_type.clone()
+                case:
+                }
+            }
+            return name.name.clone()
         case NodeType.FieldAccess(_fa_name):
             if e.children[0].children.len() == 0 { return "" }
             switch e.children[0].children[0].node_type {
@@ -737,13 +732,13 @@ subtree_has_bang := func(e: Expr) returns Bool {
 // run BEFORE any destructive mutation by the lowering pass, so
 // the lowering can read each Throw's til_type directly. This
 // also handles `throw <Ident>` by walking to the Ident's Decl.
-priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
+priv annotate_throw_types_in := proc(ctx: Context, mut e: Expr, root_body: Expr) {
     if e.node_type.is(NodeType.Body) {
         for bi in 0..e.children.len() {
             ref mut stmt : Expr = e.children[bi]
             if stmt.node_type.is(NodeType.Throw) {
                 if stmt.children.len() == 1 {
-                    mut tn := throw_type_name_for_with_body(stmt.children[0], root_body)
+                    mut tn := throw_type_name_for_with_body(ctx, stmt.children[0], root_body)
                     switch stmt.children[0].node_type {
                     case NodeType.Ident(idn):
                         mut scan := bi
@@ -792,20 +787,20 @@ priv annotate_throw_types_in := proc(mut e: Expr, root_body: Expr) {
                     }
                 }
             }
-            annotate_throw_types_in(stmt, root_body)
+            annotate_throw_types_in(ctx, stmt, root_body)
         }
         return
     }
     if e.node_type.is(NodeType.Throw) {
         if e.children.len() == 1 {
-            tn := throw_type_name_for_with_body(e.children[0], root_body)
+            tn := throw_type_name_for_with_body(ctx, e.children[0], root_body)
             if tn.len() > 0 {
                 e.set_til_type(Type.Custom(tn.clone()))
             }
         }
     }
     for mut sub : Expr in e.children {
-        annotate_throw_types_in(sub, root_body)
+        annotate_throw_types_in(ctx, sub, root_body)
     }
 }
 
@@ -855,8 +850,8 @@ throw_type_has_payload := func(ctx: Context, type_name: Str) returns Bool {
     }
 }
 
-// Issue #198 + #281: append the synthetic _err_kind + _err_<T> out-params a
-// throwing function needs. They go BEFORE any trailing defaulted params, so a
+// Issue #198 + #281 + #316: append _err_kind plus an _err_<T> out-param for
+// each payload-bearing throw type. They go BEFORE trailing defaulted params, so a
 // defaulted param (e.g. `loc: Str = __LOC__`) stays last: the call site injects
 // the err args positionally at the end, and they must line up with the err
 // params while the defaulted param is left for the default-fill. Funcs with no
@@ -1043,7 +1038,7 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
 // Issue #198: extend the signature of every throwing function in
 // the program AST with synthetic err-out params:
 //   mut _err_kind: I64
-//   mut _err_<T>: T   -- one per declared throw type
+//   mut _err_<T>: T   -- payload-bearing throw types only
 // Cross-call propagation (~?~ at call sites) passes the caller's
 // matching slots as the extra args. Idempotent: skips functions
 // whose params already contain _err_kind. Recurses into nested
@@ -1129,7 +1124,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // throws (not in any throws clause) still get a stable tag.
     if e.node_type.is(NodeType.Throw) {
         if e.children.len() == 1 {
-            tn := throw_type_name_for_with_body(e.children[0], e)
+            tn := throw_type_name_for_with_body(ctx, e.children[0], e)
             if tn.len() > 0 { register_throw_type(ctx, tn) }
         }
     }
@@ -1634,7 +1629,7 @@ priv validate_one_fcall_consolidated := proc(
 }
 
 // Per-FCall: if does_throw is set and the callee is in the global
-// throws map, append _err_kind + _err_<T> arg refs, then clear the
+// throws map, append _err_kind plus any payload-slot arg refs, then clear the
 // flag so the call reaches downstream stages as a plain FCall.
 priv inject_err_args_on_one_fcall_consolidated := func(ctx: Context, mut e: Expr, body: Expr) {
     if e.node_type.is(NodeType.FCall).not() { return }
@@ -1838,7 +1833,7 @@ priv hoist_nested_bangs_consolidated := proc(
 //   3. clear the stmt-root bang flag (so the call below sees does_throw)
 //   4. validate + inject err args on FCalls in stmt's tree
 //      (skipping nested bodies, which already happened in step 2)
-//   5. rewrite Throw  -> _err_<T> = expr ; _err_kind = tag
+//   5. rewrite Throw  -> optional payload evaluation/assignment; _err_kind = tag
 //   6. rewrite Catch  -> if I64.eq(_err_kind, tag) { _err_kind = 0; body }
 //   7. append lowered bang checks for stmt-root bang; for
 //      `return f()!` hoist the call into a tmp first so the checks
@@ -1861,15 +1856,15 @@ priv hoist_nested_bangs_consolidated := proc(
 // lowering handles both forms correctly -- it appends a panic guard for `!`
 // and, for `?`, leaves the error to a local `catch` or the caller -- and
 // hoists the call INTO the arm, so it only runs when that arm is taken
-// (short-circuit preserved) and gets its _err_kind/_err_<T> out-args; the
+// (short-circuit preserved) and gets its throw tag/payload out-args; the
 // throw type lands in types_to_declare so the function-level slot decls are
 // prepended as usual.
 
 // #282: a throwing (bang) call in a switch/match case GUARD is lowered at
 // infer time (infer_switch_stmt), where the guard's pattern-gated position
 // finally exists. The pre-infer pass cannot place it, but it must still
-// DISCOVER the guard's throw types so the function-level _err_kind / _err_<T>
-// slots get declared (process_throw_catch_in_func_body prepends them from
+// DISCOVER the guard's throw types so the function-level tag/payload slots get
+// declared (process_throw_catch_in_func_body prepends them from
 // types_to_declare). Walk the guard for bang FCalls, resolve each callee's
 // throws against the function body, and register them -- without hoisting.
 priv register_bang_guard_throws := proc(
@@ -2186,7 +2181,7 @@ priv process_throw_catch_in_body := proc(
                     tn = type_to_name(throw_t)
                 }
                 if tn.len() == 0 {
-                    tn = throw_type_name_for_with_body(stmt.children[0], root_body)
+                    tn = throw_type_name_for_with_body(ctx, stmt.children[0], root_body)
                 }
                 switch stmt.children[0].node_type {
                 case NodeType.Ident(idn):
@@ -2337,7 +2332,7 @@ priv process_throw_catch_in_body := proc(
                 }
                 if ctype.len() > 0 {
                     mut matched := pending_remove_all_matching(pending, ctype)
-                    if matched.not().and(has_prior_throw_type_in_vec(old_snapshot, root_body, j, ctype)) {
+                    if matched.not().and(has_prior_throw_type_in_vec(ctx, old_snapshot, root_body, j, ctype)) {
                         matched = true
                     }
                     if matched.not() {
@@ -2443,7 +2438,7 @@ process_throw_catch_in_func_body := proc(
     // Pre-pass: annotate every Throw with its resolved type so the
     // body walk can read stmt.til_type() directly during rewriting.
     if has_body_throw_catch {
-        annotate_throw_types_in(body, body)
+        annotate_throw_types_in(ctx, body, body)
         annotate_throw_ident_expr_types(body, body)
     }
 
@@ -3292,7 +3287,7 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
 // Issue #198: typer-side lowering for throw/catch.
 //
 // Walks a function body and rewrites Throw/Catch into plain til
-// (mut _err_kind + _err_<T> slots, assignments, if-guards) so the
+// (_err_kind plus payload slots where needed, assignments, if-guards) so the
 // interpreter and builder both run throw/catch programs without
 // any new error-handling code paths. Single implementation, two
 // pipelines.

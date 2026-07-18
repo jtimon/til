@@ -86,7 +86,7 @@ lives, and step-by-step recipes for adding more throwing methods.
    position only exists after the ~#199~ flag-based desugar builds
    ~if _sw_matched.not().and(P) { ...; if <guard> { body } }~); the
    pre-infer throw pass discovers the guard's throw types so the
-   function-level ~_err_kind~/~_err_<T>~ slots are still declared. See
+   function-level ~_err_kind~ and any payload slots are still declared. See
    ~lower_guard_bang_calls~ / ~register_bang_guard_throws~ in the typer.
 
    The two constructs compose: a lazy ~&&~/~and~ (or ~||~/~or~) in a guard
@@ -133,14 +133,18 @@ lives, and step-by-step recipes for adding more throwing methods.
      Per-type tags are stable across functions, so the same ~T~ gets the
      same numeric tag in every function that throws or catches it.
    - ~extend_throwing_func_sigs~: rewrites every ~throws T1, T2, ...~
-     function signature to add synthetic out-params
-     ~mut _err_kind: I64~ and one ~mut _err_<T>: T~ per declared
-     throw type. Mirror call sites pick up the same params via
-     ~inject_throw_args_in_body~.
+     function signature to add a synthetic ~mut _err_kind: I64~ out-param.
+     A payload-bearing type also gets ~mut _err_<T>: T~; a resolved fieldless
+     struct is tag-only and gets no value slot. Mirror call sites pick up the
+     same params via ~inject_throw_args_in_body~.
    - ~process_throw_catch_in_func_body~: per-function lowering pass.
-     - ~throw E~ becomes ~_err_<T> = E; _err_kind = <tag>~.
-     - ~catch (err: T) { body }~ becomes
-       ~if I64.eq(_err_kind, <tag>) { err := _err_<T>; _err_kind = 0; body }~.
+     - For a payload-bearing ~T~, ~throw E~ becomes
+       ~_err_<T> = E; _err_kind = <tag>~. A direct constructor of a fieldless
+       ~T~ becomes only the tag assignment; another expression is still
+       evaluated and its owned result cleaned up before setting the tag.
+     - A payload-bearing catch reads ~err~ from ~_err_<T>~. A fieldless catch
+       creates ~T()~ inside the matching arm only when its body references
+       ~err~; an unused binding needs no value.
      - Statements after a throwing call are wrapped in
        ~if I64.eq(_err_kind, 0) { ... }~ guards (the lowered form of
        rstil's Bug #34 fix).
@@ -165,10 +169,11 @@ lives, and step-by-step recipes for adding more throwing methods.
      a positive tag, assigned by ~throw_type_registry~ in first-seen
      order. Tags are file-global so a caller and callee that both
      throw ~Foo~ agree on the tag without an explicit ABI.
-   - The ~_err_kind~ and ~_err_<T>~ params are appended to the
-     callee's parameter list in tag order, after the user-declared
-     params. The caller passes its own slots by reference; on the
-     callee side they look like ordinary ~mut ref~ params.
+   - ~_err_kind~ and the payload-bearing types' ~_err_<T>~ params are appended
+     to the callee's parameter list in tag order, after the user-declared
+     params. The caller passes its own slots by reference; on the callee side
+     they look like ordinary ~mut ref~ params. Fieldless structs cross calls
+     through ~_err_kind~ alone.
 
 ** Adding a new built-in error type (worked example: DivideByZero)
 
@@ -204,10 +209,10 @@ lives, and step-by-step recipes for adding more throwing methods.
       and the surrounding cases there are the canonical shape; copy
       a nearby block.
 
-   4. Run ~make test~ and ~make test_asan~. The asap pass handles
-      ~_err_<T>~ slot cleanup automatically, but if ~T~ owns heap
-      storage (a ~Str~ field, for example) ~make test_asan~ is what
-      catches a regression in the cleanup path.
+   4. Run ~make test~. The asap pass handles payload-slot cleanup
+      automatically, and the suite's ASAN pass catches regressions when ~T~
+      owns heap storage (a ~Str~ field, for example). Fieldless errors have no
+      slot to clean.
 
 ** Adding a new throwing container method (worked example: Vec.get)
 

@@ -3256,7 +3256,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         saved_return_type_name := ctx.typer_return_type_name.clone()
         if is_func { ctx.typer_return_type_name = fdef.return_type.clone() } else { ctx.typer_return_type_name = "" }
         // Issue #198: lower throw/catch BEFORE infer_body so the
-        // synthesised mut _err_kind / _err_<T> locals + if-guards
+        // synthesised _err_kind / payload locals + if-guards
         // get type-checked normally and reach all downstream stages
         // (interpreter and builder) as plain til. Then inject the
         // extra err args at every does_throw call site so the
@@ -7521,7 +7521,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     switch get_func.node_type {
     case NodeType.FuncDef(get_def):
         // A throwing get gets its signature extended in place with
-        // synthetic _err_kind/_err_<T> params below. Allow either
+        // synthetic _err_kind/payload params below. Allow either
         // the original (self, idx) shape or the already-extended one
         // -- the original 2-param form is what user code wrote, and
         // any subsequent for-in over the same type sees the extended
@@ -7549,8 +7549,8 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
                 get_throw_types.push(own gtn.clone())
             }
             // Extend the get FuncDef in place with the synthetic
-            // _err_kind + _err_<T> out-params so the call we emit
-            // below (4-arg shape for a 1-throw get) matches the
+            // _err_kind plus payload-bearing out-params so the call we emit
+            // below matches the
             // callee's arity. Idempotent: only extends once.
             mut already_extended := false
             for p : Declaration in get_def.params {

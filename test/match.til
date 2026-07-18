@@ -159,7 +159,7 @@ test_match_in_switch := test() {
 }
 
 # Issue #262/#244: a throwing call in a `match` arm body must be lowered INTO
-# the arm -- it gets its hidden _err_kind/_err_<T> out-args and only runs when
+# the arm -- it gets its hidden throw tag/payload out-args and only runs when
 # that arm is taken. Covers a subscript `get!`, an explicit `f()!` (panic on
 # throw), and (below) an `f()?` that propagates. Without the fix these failed
 # infer with "missing argument for parameter '_err_kind'"; a guarded subscript

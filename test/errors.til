@@ -30,6 +30,24 @@ test_fieldless_catch_binding := test() {
     assert(catched)
 }
 
+make_fieldless_error := func(mut calls: I64) returns AAAError {
+    calls++
+    return AAAError()
+}
+
+// A non-constructor fieldless throw expression must still run exactly once;
+// its owned empty result is discarded on the throw path rather than leaked.
+test_fieldless_throw_expression := test() {
+    mut calls := 0
+    mut catched := false
+    throw make_fieldless_error(calls)
+    catch (err: AAAError) {
+        catched = true
+    }
+    assert(catched)
+    assert_eq(I64, calls, 1)
+}
+
 ErrorWithMessage := struct {
     msg: Str = "default error message"
 }
