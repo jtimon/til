@@ -2340,6 +2340,8 @@ void collect_enum_variants(Expr * enum_def, Vec__Str * variant_names, Vec__Str *
 void priv___src_self_initer_til__generate_enum_variant_constructors(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_is_method(Expr * enum_def, Str * ename, U32 line, U32 col);
 void priv___src_self_initer_til__generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope);
+void priv___src_self_initer_til__generate_enum_eq_chain(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope, Expr * func_body);
+void priv___src_self_initer_til__finish_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Expr * func_body);
 void priv___src_self_initer_til__generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 Bool priv___src_self_initer_til__init_ns_has_func(Expr * def, Str * method);
@@ -3832,7 +3834,6 @@ void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 priv___src_self_interpreter_til__ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
 void ffi_cleanup(Context * ctx);
 Map__Str_Binding * Map__Str_Binding_new(void);
-Bool Map__Str_Binding_has(Map__Str_Binding * self, Str * key);
 Binding * Map__Str_Binding_get(Map__Str_Binding * self, Str * key, I64 * _err_kind);
 void Map__Str_Binding_set(Map__Str_Binding * self, Str * key, Binding * val);
 void Map__Str_Binding_delete(Map__Str_Binding * self, Bool call_free);

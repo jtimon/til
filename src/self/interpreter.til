@@ -3806,36 +3806,38 @@ scope_set_owned := func(mut s: Scope, name: Str, mut val: Value) {
     // so null it after the copy: this is a MOVE, and it makes the garbager's
     // deep Value.delete on the caller's local a no-op -- the cell is now the
     // sole owner and scope_free reclaims it.
-    if s.bindings.has(name) {
-        ref b : Binding = s.bindings[name]
-        // Rebinding an existing name: the old value must be fully reclaimed,
-        // not just its top box. A local cell OWNS its payload, so deep-free it
-        // (a Str's c_str, a struct's nested heap) -- the shallow free_value
-        // leaked that payload on every rebind, the dominant
-        // bind_known_idents_in / constfolder Str_clone leak. free_temp_arg_value
-        // honours the borrowed flag and the CAP_VIEW guard, so an owned view
-        // Str keeps its borrowed c_str. A borrowed binding shares the source
-        // cell, so never deep-free it: keep the shallow release there.
-        if b.cell_is_local {
-            free_owned_value(b.cell.val)
-        } else {
-            free_value(b.cell.val)
-        }
-        memcpy(b.cell.val, val, Value.size())
+    // One binary search for the rebind-vs-insert decision (was has()+[]);
+    // the fieldless KeyNotFound miss is tag-only, no allocation.
+    ref b : Binding = s.bindings.get(name)?
+    catch (e: KeyNotFound) {
+        cell : Dynamic = malloc(Cell.size())
+        memcpy(cell, val, Value.size())
         memcpy(val, val_none(), Value.size())
+        // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
+        v : Dynamic = malloc(Binding.size())
+        memset(v, 0, Binding.size())
+        write_ptr(v, name)
+        write_ptr(ptr_add(v, 8), cell)
+        local_flag := true
+        memcpy(ptr_add(v, 16), local_flag, Bool.size())
+        s.bindings.set(name, own v)
         return
     }
-    cell : Dynamic = malloc(Cell.size())
-    memcpy(cell, val, Value.size())
+    // Rebinding an existing name: the old value must be fully reclaimed,
+    // not just its top box. A local cell OWNS its payload, so deep-free it
+    // (a Str's c_str, a struct's nested heap) -- the shallow free_value
+    // leaked that payload on every rebind, the dominant
+    // bind_known_idents_in / constfolder Str_clone leak. free_temp_arg_value
+    // honours the borrowed flag and the CAP_VIEW guard, so an owned view
+    // Str keeps its borrowed c_str. A borrowed binding shares the source
+    // cell, so never deep-free it: keep the shallow release there.
+    if b.cell_is_local {
+        free_owned_value(b.cell.val)
+    } else {
+        free_value(b.cell.val)
+    }
+    memcpy(b.cell.val, val, Value.size())
     memcpy(val, val_none(), Value.size())
-    // Build Binding: {name_ptr, cell_ptr, cell_is_local=1}
-    v : Dynamic = malloc(Binding.size())
-    memset(v, 0, Binding.size())
-    write_ptr(v, name)
-    write_ptr(ptr_add(v, 8), cell)
-    local_flag := true
-    memcpy(ptr_add(v, 16), local_flag, Bool.size())
-    s.bindings.set(name, own v)
 }
 
 priv scope_set_borrowed := func(mut s: Scope, name: Str, cell: Cell) {

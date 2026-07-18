@@ -69,44 +69,60 @@ then run it (just like bin/til_asan):
   : bin/til_prof translate test/maps.til        # ... or a smaller, faster input
 
 At exit the run prints to stderr. For example, the compiler translating
-test/maps.til (955 functions instrumented), abridged:
+test/maps.til (1413 functions instrumented; snapshot 2026-07, after
+fieldless throw payloads #316, lazy Vec.new #291, the interpreter scope
+pool, the redundant-expect removal, and single-compare eq for
+payload-free enums), abridged:
 
-  : === til --prof: 955 functions instrumented, top 25 by self time ===
-  : function                                  calls      self_ms     total_ms
-  : U32_lt                                160347524    17354.498    24855.638
-  : Str_cmp                                14237012    11869.279    60576.116
-  : Str_get                                62732599     6872.202    27090.862
-  : I64_eq                               247455392     5675.768     5675.768
-  : Map_has                                 1896577     2135.753    27714.352
-  : expr_uses_var                           2231231     1487.129   284891.618
-  : Map_get                                  513717     1301.395    18107.891
+  : === til --prof: 1413 functions instrumented, top 20 by self time ===
+  : function                                       calls      self_ms     total_ms
+  : Str_cmp                                     10800807      594.772      645.688
+  : Str_eq                                       5767499      288.835      330.226
+  : typer.til fcall_has_own_arg                  1032101      286.064     1809.096
+  : TypeScope_get_struct                         2141646      256.786     5238.268
+  : Map__Str_Dynamic_has                         2304836      219.717      366.276
+  : expr_uses_var                                1663835      218.992     2869.607
+  : Map__Str_Dynamic_get                          510122      174.894      324.560
+  : fa_is_ns                                      141446      163.475      780.012
+  : Map__Str_TypeBinding_has                      748719      162.768      303.195
+  : Str_delete                                   3915202      160.469      160.469
+  : expr_transfers_own                           1039520      156.616    35264.299
+  : Str_clone                                    1414586      152.933      152.933
   : ...
 
-That one run already answers the issue's "pick the hot Maps" question:
-Map_has / Map_get sit near the top, and Str_cmp (14M calls -- how a Map
-compares string keys) dominates inclusive time, a concrete callsite for #234
-/ a HashSet swap rather than a guess. expr_uses_var is the typer's hottest
-walk. Columns: exact call count, self time (exclusive of callees), inclusive
-total.
+The Str cluster (Str_cmp 10.8M calls + Str_eq 5.8M + Str_clone 1.4M +
+Str_delete 3.9M) dominates self time -- how Maps compare string keys and
+how names get copied around -- which is #292 (interning) territory. The
+ownership walks (expr_transfers_own at 35s inclusive, fcall_has_own_arg,
+expr_uses_var, expr_used_in_nested_func) are the #302 migration's
+domain. Columns: exact call count, self time (exclusive of callees),
+inclusive total.
 
 With ~--prof~ (and without ~--asan~) the run also wraps malloc/calloc/realloc
 and prints a second table, ranked by bytes allocated -- same run, abridged:
 
-  : === til --prof: top 15 by bytes allocated ===
-  : function                                 allocs       alloc_kb          calls
-  : Str_clone                               7630750        90401.1        3815375
-  : Vec_clone                                160312        45999.6          80156
-  : Vec_new_type_name                        299816        40884.9         149908
-  : expr_uses_var                           2212834        34575.5        2229579
-  : Vec_push                                  36859        29183.7         125873
-  : Expr_child                              1681070        26266.7        1681070
+  : === til --prof: top 20 by bytes allocated ===
+  : function                                      allocs       alloc_kb          calls
+  : Str_clone                                    2766791        34370.8        1414586
+  : Vec__Expr_push_take                            31738        24418.8          75000
+  : Vec__Expr_push                                 75062        21738.0          93703
+  : Expr_clone                                    128305        20047.7         128305
+  : Vec__Expr_move_from                            11837        17720.5          23094
+  : Vec__Expr_clone                               257150        16298.2         128575
+  : Expr_new                                      103236        16130.6         103236
   : ...
 
 Bytes are charged to whichever instrumented function is on top of the call
-stack when malloc runs. So Str_clone is the dominant allocator (string
-copies), and Vec_push / Vec_clone / Vec_new_type_name are the grow-and-realloc
-offenders -- the concrete callsites a with_capacity / string-interning pass
-should target.
+stack when malloc runs. Str_clone is the dominant allocator (string copies
+-- interning again); the Vec__Expr entries are AST body rebuild/clone
+traffic. Array__Str_new, previously #4 here at 586k calls / 20MB, is gone:
+it was the variadic message array that every
+~expect(x.is_null().not(), ...)~ built per call even on success (a
+variadic FUNCTION argument is built eagerly at the call site; a panic
+behind an ~if~ is not) -- those redundant null-guard expects were removed.
+TokenType_eq, previously 4.3% of instructions (callgrind), is likewise
+gone: eq for a payload-free enum now emits a single is_n tag compare
+instead of a per-variant chain.
 
 Set ~TIL_PROF_TOP=N~ for a different row count (0 = all). Names are the C
 symbols, which are the til function names -- the build links ~-rdynamic~ and

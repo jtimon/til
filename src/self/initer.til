@@ -635,6 +635,34 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
 
 priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
+    // A fully payload-free enum's eq is ONE tag compare: is_n(self, other)
+    // inlines to a width-correct tag == tag in C (see make_is_tag_check_fcall's
+    // REM; is_n is generic over both operands, a variant literal is just the
+    // common case). The general per-variant chain below emitted O(variants)
+    // sequential compares -- TokenType_eq alone was 4.3% of all instructions
+    // translating test/maps.til (callgrind).
+    mut all_payload_free := true
+    for vt : Str in variant_types {
+        if vt.len() > 0 { all_payload_free = false }
+    }
+    if all_payload_free {
+        mut iv := Expr.new(ident_node("is_n"), line, col)
+        mut tag_cmp := Expr.new(NodeType.FCall(FCallData()), line, col)
+        tag_cmp.add_child(own iv)
+        tag_cmp.add_child(own Expr.new(ident_node("self"), line, col))
+        tag_cmp.add_child(own Expr.new(ident_node("other"), line, col))
+        tag_cmp.add_child(own Expr.new(literal_num_node(enum_tag_size(enum_def).to_str()), line, col))
+        mut ret_cmp := Expr.new(NodeType.Return, line, col)
+        ret_cmp.add_child(own tag_cmp)
+        func_body.add_child(own ret_cmp)
+        finish_enum_eq_method(enum_def, ename, line, col, own func_body)
+    } else {
+        generate_enum_eq_chain(enum_def, ename, line, col, variant_names, variant_types, scope, own func_body)
+    }
+}
+
+// The general per-variant eq chain for enums with payload-carrying variants.
+priv generate_enum_eq_chain := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope, own func_body: Expr) {
     for j in 0..variant_names.len() {
         ref vn : Str = variant_names[j]
         mut is_call := make_is_tag_check_fcall("self", ename, vn, enum_tag_size(enum_def), line, col)
@@ -697,6 +725,12 @@ priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col:
     ret_false.add_child(own false_lit)
     func_body.add_child(own ret_false)
 
+    finish_enum_eq_method(enum_def, ename, line, col, own func_body)
+}
+
+// Shared tail of generate_enum_eq_method: wrap the built body in the
+// eq(ref self, ref other) FuncDef and register it in the enum's ns_decls.
+priv finish_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, own func_body: Expr) {
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func
     fdecl.params.push(own decl_typed(name = "self", explicit_type = ename, own_type = OwnType.Ref))
