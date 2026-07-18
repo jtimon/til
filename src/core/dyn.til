@@ -103,18 +103,18 @@ struct_def_of := func(type_name: Str) returns StructDef {
 }
 
 // Issue #57/#58: assemble an EnumDef value for a registered enum type via
-// the enum_variant_* primitives above. Variant names go into `variants`;
-// payload-bearing variants record their type in `payload_types` keyed by
-// variant index. Mirrors rstil's enum_def_of.
+// the enum_variant_* primitives above. One VariantDef per variant; the
+// primitives expose no explicit tags, so tag_value falls back to the
+// declaration index. Mirrors rstil's enum_def_of.
 enum_def_of := func(type_name: Str) returns EnumDef {
     mut def := EnumDef()
     n := enum_variant_count(type_name)
     for i in 0..n {
-        def.variants.push(own enum_variant_name(type_name, i))
+        mut vd := VariantDef(name = enum_variant_name(type_name, i), tag_value = i)
         if enum_variant_has_payload(type_name, i) == 1 {
-            pt := enum_variant_payload_type(type_name, i)
-            def.payload_types.set(i, own pt)
+            vd.payload_type = enum_variant_payload_type(type_name, i)
         }
+        def.variants.push(own vd)
     }
     return def
 }

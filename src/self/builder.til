@@ -1103,7 +1103,8 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
     switch def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            if edd.variants[i].eq(vname).not() { continue }
+            ref vd : VariantDef = edd.variants[i]
+            if vd.name.eq(vname).not() { continue }
             vt := enum_variant_type(def, i.to_i32())
             if vt.len() == 0 { return false }
             if is_primitive_type(vt) { return false }
@@ -1667,10 +1668,9 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                     builder_register_str_lit(ctx, field.explicit_type)
                 }
             case NodeType.EnumDef(ed):
-                for i in 0..ed.variants.len() {
-                    builder_register_str_lit(ctx, ed.variants[i])
-                    idx := i.to_i64()
-                    if ed.payload_types.has(idx) { builder_register_str_lit(ctx, ed.payload_types[idx]) }
+                for vd : VariantDef in ed.variants {
+                    builder_register_str_lit(ctx, vd.name)
+                    if vd.payload_type.len() > 0 { builder_register_str_lit(ctx, vd.payload_type) }
                 }
                 builder_register_str_lit(ctx, "")
             case NodeType.FuncDef(fd):
@@ -3859,7 +3859,13 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                         emit_expr(f, arg, depth, ctx)
                         f.write("; ")
                         emit_field(f, var, fname, ctx)
-                        f.write(" = *_ca; free(_ca); }\n")
+                        f.write(" = *_ca; ")
+                        // A Str-returning call can hand back a hoisted
+                        // literal (cap == TIL_CAP_LIT, static storage) --
+                        // same guard as the field-assignment path above.
+                        if ftype == "Str" { f.write("if (_ca->cap != TIL_CAP_LIT) { free(_ca); }") }
+                        else { f.write("free(_ca);") }
+                        f.write(" }\n")
                     }
                 }
             } else {
@@ -3877,7 +3883,10 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                     emit_expr(f, arg, depth, ctx)
                     f.write("; ")
                     emit_field(f, var, fname, ctx)
-                    f.write(" = *_ca; free(_ca); }\n")
+                    f.write(" = *_ca; ")
+                    if ftype == "Str" { f.write("if (_ca->cap != TIL_CAP_LIT) { free(_ca); }") }
+                    else { f.write("free(_ca);") }
+                    f.write(" }\n")
                 }
             }
         } else {
@@ -4598,7 +4607,8 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
         hp := enum_has_payloads(enum_def)
         if hp.not() {
             // Simple enum
-            for vn : Str in edd.variants {
+            for vd : VariantDef in edd.variants {
+                ref vn : Str = vd.name
                 f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
                 f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
                 f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
@@ -4607,7 +4617,8 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
         } else {
             // Payload enum
             for i in 0..edd.variants.len() {
-                ref vn : Str = edd.variants[i]
+                ref vd : VariantDef = edd.variants[i]
+                ref vn : Str = vd.name
                 vt := enum_variant_type(enum_def, i.to_i32())
                 if vt.len() == 0 {
                     f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
@@ -4658,10 +4669,11 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
         switch enum_def.node_type {
         case NodeType.EnumDef(edd):
             for j in 0..edd.variants.len() {
+                ref vd : VariantDef = edd.variants[j]
                 vt := enum_variant_type(enum_def, j.to_i32())
                 if vt.len() > 0 {
                     tnv := type_name_to_c_value(vt, ctx)
-                    f.write("        ").write(tnv).write(" ").write(edd.variants[j]).write(";\n")
+                    f.write("        ").write(tnv).write(" ").write(vd.name).write(";\n")
                 }
             }
         case:
@@ -5015,15 +5027,13 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     case NodeType.EnumDef(fwd_edd):
                         f.write("typedef enum {\n")
                         for j in 0..fwd_edd.variants.len() {
+                            ref vd : VariantDef = fwd_edd.variants[j]
                             if j > 0 { f.write(",\n") }
-                            f.fwrite("    ", dd.name, "_TAG_", fwd_edd.variants[j])
+                            f.fwrite("    ", dd.name, "_TAG_", vd.name)
                             // Stage C (#264 follow-up): emit an explicit tag value when
                             // it differs from the auto-number (index). GCC widens the
                             // enum's underlying type for >int values (no -Wpedantic).
-                            if j < fwd_edd.tag_values.len() {
-                                ref tvj : I64 = fwd_edd.tag_values[j]
-                                if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
-                            }
+                            if vd.tag_value != j.to_i64() { f.write(" = ").write(vd.tag_value.to_str()) }
                         }
                         f.fwrite("\n} ", dd.name, "_tag;\n")
                         f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
@@ -5055,12 +5065,10 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                 case NodeType.EnumDef(fwd_edd):
                     f.write("typedef enum {\n")
                     for j in 0..fwd_edd.variants.len() {
+                        ref vd : VariantDef = fwd_edd.variants[j]
                         if j > 0 { f.write(",\n") }
-                        f.fwrite("    ", dd.name, "_TAG_", fwd_edd.variants[j])
-                        if j < fwd_edd.tag_values.len() {
-                            ref tvj : I64 = fwd_edd.tag_values[j]
-                            if tvj != j.to_i64() { f.write(" = ").write(tvj.to_str()) }
-                        }
+                        f.fwrite("    ", dd.name, "_TAG_", vd.name)
+                        if vd.tag_value != j.to_i64() { f.write(" = ").write(vd.tag_value.to_str()) }
                     }
                     f.fwrite("\n} ", dd.name, "_tag;\n")
                     f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
@@ -5192,16 +5200,13 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                 switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
-                    mut hdr_vi : USize = 0
-                    for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.children[0], hdr_vi.to_i32())
-                        if hdr_vt.len() > 0 {
-                            tnc := type_name_to_c(hdr_vt, lp.ctx)
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("(").write(tnc).write(");\n")
+                    for hdr_vd : VariantDef in hdr_edd.variants {
+                        if hdr_vd.payload_type.len() > 0 {
+                            tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
+                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
                         } else {
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("();\n")
+                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("();\n")
                         }
-                        hdr_vi++
                     }
                 case:
                     UNREACHABLE()
@@ -5347,13 +5352,10 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 f.write("}\n\n")
             case NodeType.EnumDef(bind_edd):
                 f.write(dd.name).write(" := enum {\n")
-                mut bind_vi : USize = 0
-                for bind_vn : Str in bind_edd.variants {
-                    bind_vt := enum_variant_type(rhs, bind_vi.to_i32())
-                    f.write("    ").write(bind_vn)
-                    if bind_vt.len() > 0 { f.write(": ").write(bind_vt) }
+                for bind_vd : VariantDef in bind_edd.variants {
+                    f.write("    ").write(bind_vd.name)
+                    if bind_vd.payload_type.len() > 0 { f.write(": ").write(bind_vd.payload_type) }
                     f.write(",\n")
-                    bind_vi++
                 }
                 emit_binding_ns_methods(f, rhs)
                 f.write("}\n\n")
@@ -5519,8 +5521,8 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
                 // Emit tag constants
                 mut tag := 0
-                for ct_vn : Str in ct_edd.variants {
-                    f.write(dd.name).write("_TAG_").write(ct_vn)
+                for ct_vd : VariantDef in ct_edd.variants {
+                    f.write(dd.name).write("_TAG_").write(ct_vd.name)
                     f.write(" = ").write(tag.to_str()).write("\n")
                     tag++
                 }
@@ -5529,15 +5531,12 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 if hp {
                     f.write("\nclass ").write(dd.name).write("_data(ctypes.Union):\n")
                     f.write("    _fields_ = [\n")
-                    mut ct_vi : USize = 0
-                    for ct_uvn : Str in ct_edd.variants {
-                        ct_vt := enum_variant_type(rhs, ct_vi.to_i32())
-                        if ct_vt.len() > 0 {
-                            f.write("        ('").write(ct_uvn).write("', ")
-                            f.write(type_name_to_ctypes_param(ct_vt, false))
+                    for ct_uvd : VariantDef in ct_edd.variants {
+                        if ct_uvd.payload_type.len() > 0 {
+                            f.write("        ('").write(ct_uvd.name).write("', ")
+                            f.write(type_name_to_ctypes_param(ct_uvd.payload_type, false))
                             f.write("),\n")
                         }
-                        ct_vi++
                     }
                     f.write("    ]\n")
                 }
@@ -5670,9 +5669,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 // Per-variant helpers
                 switch rhs.node_type {
                 case NodeType.EnumDef(py_edd):
-                    mut py_vi : USize = 0
-                    for py_vn : Str in py_edd.variants {
-                        py_vt := enum_variant_type(rhs, py_vi.to_i32())
+                    for py_vd : VariantDef in py_edd.variants {
+                        ref py_vn : Str = py_vd.name
+                        ref py_vt : Str = py_vd.payload_type
 
                         if hp {
                             // is_Variant
@@ -5702,7 +5701,6 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                             f.write("_lib.").write(sname).write("_").write(py_vn)
                             f.write(".restype = ctypes.POINTER(").write(sname).write(")\n\n")
                         }
-                        py_vi++
                     }
                 case:
                     UNREACHABLE()
@@ -6328,16 +6326,13 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                 switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
-                    mut hdr_vi : USize = 0
-                    for hdr_vn : Str in hdr_edd.variants {
-                        hdr_vt := enum_variant_type(stmt.children[0], hdr_vi.to_i32())
-                        if hdr_vt.len() > 0 {
-                            tnc := type_name_to_c(hdr_vt, lp.ctx)
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("(").write(tnc).write(");\n")
+                    for hdr_vd : VariantDef in hdr_edd.variants {
+                        if hdr_vd.payload_type.len() > 0 {
+                            tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
+                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
                         } else {
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vn).write("();\n")
+                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("();\n")
                         }
-                        hdr_vi++
                     }
                 case:
                     UNREACHABLE()
@@ -6448,16 +6443,13 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                     switch stmt.children[0].node_type {
                     case NodeType.EnumDef(shdr_edd):
-                        mut shdr_vi : USize = 0
-                        for shdr_vn : Str in shdr_edd.variants {
-                            shdr_vt := enum_variant_type(stmt.children[0], shdr_vi.to_i32())
-                            if shdr_vt.len() > 0 {
-                                tnc := type_name_to_c(shdr_vt, lp.ctx)
-                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("(").write(tnc).write(");\n")
+                        for shdr_vd : VariantDef in shdr_edd.variants {
+                            if shdr_vd.payload_type.len() > 0 {
+                                tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
+                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                             } else {
-                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("();\n")
+                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                             }
-                            shdr_vi++
                         }
                     case:
                         UNREACHABLE()
@@ -6479,16 +6471,13 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
             switch stmt.children[0].node_type {
             case NodeType.EnumDef(shdr_edd):
-                mut shdr_vi : USize = 0
-                for shdr_vn : Str in shdr_edd.variants {
-                    shdr_vt := enum_variant_type(stmt.children[0], shdr_vi.to_i32())
-                    if shdr_vt.len() > 0 {
-                        tnc := type_name_to_c(shdr_vt, lp.ctx)
-                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("(").write(tnc).write(");\n")
+                for shdr_vd : VariantDef in shdr_edd.variants {
+                    if shdr_vd.payload_type.len() > 0 {
+                        tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
+                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                     } else {
-                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vn).write("();\n")
+                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                     }
-                    shdr_vi++
                 }
             case:
                 UNREACHABLE()
@@ -7016,24 +7005,15 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
             f.write("        return "); emit_usize(f, ed.variants.len()); f.write("LL;\n")
         } else {
             for i in 0..ed.variants.len() {
-                idx := i.to_i64()
-                mut has_pl := false
-                if ed.payload_types.has(idx) {
-                    if ed.payload_types[idx].len() > 0 { has_pl = true }
-                }
+                ref vd : VariantDef = ed.variants[i]
+                has_pl := vd.payload_type.len() > 0
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind == 1 {
-                    ref vn : Str = ed.variants[i]
-                    emit_str_lit_expr(f, vn, ctx)
+                    emit_str_lit_expr(f, vd.name, ctx)
                 } else if kind == 2 {
                     if has_pl { f.write("1") } else { f.write("0") }
                 } else {
-                    if has_pl {
-                        ref pt2 : Str = ed.payload_types[idx]
-                        emit_str_lit_expr(f, pt2, ctx)
-                    } else {
-                        emit_str_lit_expr(f, "", ctx)
-                    }
+                    emit_str_lit_expr(f, vd.payload_type, ctx)
                 }
                 f.write(";\n")
             }

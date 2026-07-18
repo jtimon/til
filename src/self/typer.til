@@ -2558,17 +2558,12 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
 
 // Resolve enum payload type names against scope so e.g. a macro param `T`
 // used as `Variant: T` payload is marked used, matching how StructDef
-// field types do. Helper takes EnumDef directly (not via the switch-case
-// destructure) so the typer carries Map<I64,Str> type info into the
-// payload-types subscript without mixing the OutOfBounds (Vec) and
-// KeyNotFound (Map) throws-inference paths.
+// field types do.
 priv typer_resolve_enum_payload_types := func(edef: EnumDef, scope: TypeScope, ctx: Context) {
-    for k_e in 0..edef.variants.len() {
-        if edef.payload_types.has(k_e.to_i64()) {
-            ref pt_e : Str = edef.payload_types[k_e.to_i64()]
-            if pt_e.len() > 0 {
-                _ : Type = type_from_name(pt_e, scope, ctx)
-            }
+    for vd_e : VariantDef in edef.variants {
+        ref pt_e : Str = vd_e.payload_type
+        if pt_e.len() > 0 {
+            _ : Type = type_from_name(pt_e, scope, ctx)
         }
     }
 }
@@ -6502,8 +6497,8 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
     if enum_def.is_null() { return }
     switch enum_def.node_type {
     case NodeType.EnumDef(cn_edd):
-        for vn : Str in cn_edd.variants {
-            node.sub_names.push(own vn.clone())
+        for vd : VariantDef in cn_edd.variants {
+            node.sub_names.push(own vd.name.clone())
             node.sub_nodes.push(own CoverageNode())
         }
     case:
@@ -6700,7 +6695,8 @@ priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enu
     switch enum_def.node_type {
     case NodeType.EnumDef(cm_edd):
         for cmi in 0..cm_edd.variants.len() {
-            ref vn : Str = cm_edd.variants[cmi]
+            ref cm_vd : VariantDef = cm_edd.variants[cmi]
+            ref vn : Str = cm_vd.name
             ref sub : CoverageNode = coverage.sub_nodes[cmi]
             mut current := ""
             if prefix.len() == 0 {

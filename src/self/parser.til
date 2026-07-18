@@ -212,12 +212,10 @@ priv anon_def_key := func(def: Expr) returns Str {
         if edd.tag_type.len() > 0 { k = format(k, "(", edd.tag_type, ")") }
         k = format(k, "{")
         for j in 0..edd.variants.len() {
-            ref vn : Str = edd.variants[j]
-            k = format(k, vn)
-            idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                ref pt : Str = edd.payload_types[idx]
-                k = format(k, ":", pt)
+            ref vd : VariantDef = edd.variants[j]
+            k = format(k, vd.name)
+            if vd.payload_type.len() > 0 {
+                k = format(k, ":", vd.payload_type)
             }
             k = format(k, ";")
         }
@@ -1126,7 +1124,6 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     p.pending_doc = ""
 
     mut in_namespace := false
-    mut variant_idx : I64 = 0
     // Issue #264 follow-up: next auto-assigned tag value (C-like -- an
     // explicit `= N` sets it, otherwise previous tag + 1, starting at 0).
     mut next_tag : I64 = 0
@@ -1154,9 +1151,8 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             edd.ns_decls.push(own parse_ns_decl(p, enum_ns_priv))
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated.
-            // Variant docs aren't yet stored (variants are a Vec<Str>);
-            // discard any leading /// so it doesn't bleed into the next
-            // ns_decl.
+            // Variant docs aren't yet stored on VariantDef; discard any
+            // leading /// so it doesn't bleed into the next ns_decl.
             p.pending_doc = ""
             // #211: `const Variant: Type` makes the payload immutable
             // (default is mut, like struct fields).
@@ -1192,15 +1188,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 this_tag = expect_text(p, TokenType.Number).to_i64()
             }
             next_tag = this_tag + 1
-            edd.variants.push(own vname.clone())
-            edd.tag_values.push(own this_tag.clone())
-            if vtype.len() > 0 {
-                edd.payload_types.set(variant_idx, own vtype.clone())
-            }
-            // payload_consts is dense, parallel to variants: push one
-            // entry per variant (false for non-const / no-payload).
-            edd.payload_consts.push(own v_payload_const.clone())
-            variant_idx++
+            mut vd := VariantDef(name = vname.clone(), payload_type = vtype.clone(),
+                payload_const = v_payload_const, tag_value = this_tag)
+            edd.variants.push(own vd)
             if check(p, TokenType.Comma) { advance(p) }
         }
     }
@@ -1220,9 +1210,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     if ttn == "U32" { tag_limit = U32.MAX.to_i64(); has_limit = true; next_bigger = "U64" }
     mut max_tag : I64 = 0
     mut min_tag : I64 = 0
-    for tv : I64 in edd.tag_values {
-        if tv.gt(max_tag) { max_tag = tv }
-        if tv.lt(min_tag) { min_tag = tv }
+    for vd : VariantDef in edd.variants {
+        if vd.tag_value.gt(max_tag) { max_tag = vd.tag_value }
+        if vd.tag_value.lt(min_tag) { min_tag = vd.tag_value }
     }
     if min_tag.lt(0) {
         panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),

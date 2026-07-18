@@ -543,15 +543,10 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
 collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut variant_types: Vec(Str), mut has_payloads: Bool) {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        has_payloads = edd.payload_types.len() > 0
-        for j in 0..edd.variants.len() {
-            variant_names.push(own edd.variants[j].clone())
-            idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                variant_types.push(own edd.payload_types[idx].clone())
-            } else {
-                variant_types.push(own "")
-            }
+        has_payloads = enum_has_payloads(enum_def)
+        for vd : VariantDef in edd.variants {
+            variant_names.push(own vd.name.clone())
+            variant_types.push(own vd.payload_type.clone())
         }
     case:
         UNREACHABLE()
@@ -928,10 +923,9 @@ priv init_type_supports_generated_method := func(type_name: Str, method: Str, sc
     // can be supportable even before its own generated method has been pushed.
     switch def.node_type {
     case NodeType.EnumDef(ed):
-        for j in 0..ed.variants.len() {
-            idx := j.to_i64()
-            if ed.payload_types.has(idx).not() { continue }
-            if init_type_supports_generated_method(ed.payload_types[idx], method, scope).not() { return false }
+        for vd : VariantDef in ed.variants {
+            if vd.payload_type.len() == 0 { continue }
+            if init_type_supports_generated_method(vd.payload_type, method, scope).not() { return false }
         }
         return true
     case:
@@ -2121,21 +2115,29 @@ ctx_total_size := func(name: Str, ctx: Context) returns USize {
     return ctx.struct_layouts[name].total_size
 }
 
+// #307: the shared zero layout that ctx_field_layout returns (as a
+// borrowed ref) on its miss paths, so misses allocate nothing. Immutable
+// top-level (no `mut`). It MUST NEVER be written through: every caller
+// treats ctx_field_layout results as read-only, and a write through a
+// miss result would silently corrupt every later miss (all ~52 call
+// sites audited read-only at #307 time).
+EMPTY_FIELD_LAYOUT := FieldLayout()
+
 // Issue #147 step 4 / #307: per-field layout lookup. Walks the parent
 // struct's definition to find ~field_name~'s index, then returns a
 // BORROWED ref to the FieldLayout that ctx.struct_layouts already stores.
 // It used to build and return a fresh copy per call -- 311K calls and
 // 933K allocations (29MB) per self-host translate, the #2 allocation row
 // in doc/profiling.org -- for a value the layout map keeps alive anyway.
-// Misses borrow ctx.empty_field_layout (zero layout), matching what the
+// Misses borrow EMPTY_FIELD_LAYOUT (zero layout), matching what the
 // AST field_offset / field_size used to default to. Callers must treat
 // the result as read-only (audited at #307 time).
 ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns ref FieldLayout {
-    if sname.len().eq(0).or(field_name.len().eq(0)) { return ctx.empty_field_layout }
-    if ctx.struct_layouts.has(sname).not() { return ctx.empty_field_layout }
+    if sname.len().eq(0).or(field_name.len().eq(0)) { return EMPTY_FIELD_LAYOUT }
+    if ctx.struct_layouts.has(sname).not() { return EMPTY_FIELD_LAYOUT }
     ref sl : StructLayout = ctx.struct_layouts[sname]
     ref tdef : Expr = lookup_interp_type_def(sname, ctx)
-    if tdef.is_null() { return ctx.empty_field_layout }
+    if tdef.is_null() { return EMPTY_FIELD_LAYOUT }
     switch tdef.node_type {
     case NodeType.StructDef(sdd):
         for i in 0..sdd.fields.len() {
@@ -2147,12 +2149,12 @@ ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns ref 
                     // materialization -- one alloc per call at 311K calls).
                     return sl.fields.unsafe_get(i)
                 }
-                return ctx.empty_field_layout
+                return EMPTY_FIELD_LAYOUT
             }
         }
     case:
     }
-    return ctx.empty_field_layout
+    return EMPTY_FIELD_LAYOUT
 }
 
 
@@ -2370,12 +2372,11 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
             }
         }
     case NodeType.EnumDef(edd):
-        for vi in 0..edd.variants.len() {
-            vidx := vi.to_i64()
-            if edd.payload_types.has(vidx).not() { continue }
-            new_pt := init_lookup_name(renamings, edd.payload_types[vidx])
+        for mut vd : VariantDef in edd.variants {
+            if vd.payload_type.len() == 0 { continue }
+            new_pt := init_lookup_name(renamings, vd.payload_type)
             if new_pt.len() > 0 {
-                edd.payload_types.set(vidx, own new_pt.clone())
+                vd.payload_type = new_pt.clone()
             }
         }
         for mut nd : Declaration in edd.ns_decls {
@@ -2651,11 +2652,11 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
 }
 
 priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr)) {
-    for k in 0..edef.variants.len() {
-        if edef.payload_types.has(k.to_i64()) {
-            new_pt := init_subst_ident_name(subs, edef.payload_types[k.to_i64()])
+    for mut vd : VariantDef in edef.variants {
+        if vd.payload_type.len() > 0 {
+            new_pt := init_subst_ident_name(subs, vd.payload_type)
             if new_pt.len() > 0 {
-                edef.payload_types.set(k.to_i64(), own new_pt.clone())
+                vd.payload_type = new_pt.clone()
             }
         }
     }
@@ -3854,10 +3855,9 @@ priv note_template_uses_walk := func(e: Expr, scope: TypeScope, ctx: Context) {
         for nd : Declaration in sdd.ns_decls { note_template_decl_use(nd, scope, ctx) }
     case NodeType.EnumDef(edd):
         for nd2 : Declaration in edd.ns_decls { note_template_decl_use(nd2, scope, ctx) }
-        for j in 0..edd.variants.len() {
-            idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                note_cross_file_type_use(scope, ctx, edd.payload_types[idx])
+        for vd : VariantDef in edd.variants {
+            if vd.payload_type.len() > 0 {
+                note_cross_file_type_use(scope, ctx, vd.payload_type)
             }
         }
     case NodeType.FuncDef(fdd):
@@ -4485,12 +4485,9 @@ priv enum_variant_is_payload_less := func(enum_def: Expr, variant_name: Str) ret
     if variant_name.len() == 0 { return false }
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        for j in 0..edd.variants.len() {
-            if edd.variants[j] == variant_name {
-                idx := j.to_i64()
-                ref pts : Map(I64, Str) = edd.payload_types
-                if pts.has(idx).not() { return true }
-                return pts[idx].len() == 0
+        for vd : VariantDef in edd.variants {
+            if vd.name == variant_name {
+                return vd.payload_type.len() == 0
             }
         }
     case:

@@ -2566,15 +2566,9 @@ priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, varia
     if edef.is_null() { return "" }
     switch edef.node_type {
     case NodeType.EnumDef(edd):
-        for vi in 0..edd.variants.len() {
-            ref vn : Str = edd.variants[vi]
-            if vn == variant_name {
-                vtag : I64 = vi.to_i64()
-                if edd.payload_types.has(vtag) {
-                    ref pt : Str = edd.payload_types[vtag]
-                    return pt.clone()
-                }
-                return ""
+        for vd : VariantDef in edd.variants {
+            if vd.name == variant_name {
+                return vd.payload_type.clone()
             }
         }
     case:

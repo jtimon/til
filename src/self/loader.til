@@ -776,10 +776,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case NodeType.EnumDef(bfs_edd):
-                    for j in 0..bfs_edd.variants.len() {
-                        idx_e := j.to_i64()
-                        if bfs_edd.payload_types.has(idx_e) {
-                            vec_push_str(worklist, bfs_edd.payload_types[idx_e])
+                    for bfs_vd : VariantDef in bfs_edd.variants {
+                        if bfs_vd.payload_type.len() > 0 {
+                            vec_push_str(worklist, bfs_vd.payload_type)
                         }
                     }
                 case:
@@ -810,10 +809,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case NodeType.EnumDef(bfs_edd2):
-                    for j in 0..bfs_edd2.variants.len() {
-                        idx_e2 := j.to_i64()
-                        if bfs_edd2.payload_types.has(idx_e2) {
-                            vec_push_str(worklist, bfs_edd2.payload_types[idx_e2])
+                    for bfs_vd2 : VariantDef in bfs_edd2.variants {
+                        if bfs_vd2.payload_type.len() > 0 {
+                            vec_push_str(worklist, bfs_vd2.payload_type)
                         }
                     }
                 case:
@@ -1600,8 +1598,8 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
 
 priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     mut cap : USize = name.len() + 128
-    for v : Str in edef.variants {
-        cap = cap.add(v.len()) + 96
+    for v : VariantDef in edef.variants {
+        cap = cap.add(v.name.len()) + 96
     }
     for d : Declaration in edef.ns_decls {
         cap = cap.add(d.name.len()).add(d.doc.len() * 2) + 192
@@ -1621,12 +1619,12 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     out.push_str("enum ")
     out.push_str(name)
     out.push_str(" {")
-    for i in 0..edef.variants.len() {
+    for vd : VariantDef in edef.variants {
         out.push_str("\n    ")
-        out.push_str(edef.variants[i])
-        if edef.payload_types.has(i.to_i64()) {
+        out.push_str(vd.name)
+        if vd.payload_type.len() > 0 {
             out.push_str(": ")
-            out.push_str(edef.payload_types[i.to_i64()])
+            out.push_str(vd.payload_type)
         }
     }
     if edef.ns_decls.len() > 0 {
@@ -1734,14 +1732,14 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
 // Register "Type.Variant" entries for each enum variant, plus
 // "Type.method" entries for each namespace method.
 priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info: Str, mut docs: Str) {
-    for i in 0..edef.variants.len() {
-        qual := type_name.format(".", edef.variants[i])
+    for vd : VariantDef in edef.variants {
+        qual := type_name.format(".", vd.name)
         mut variant_info := Str.with_capacity(qual.len() + 64)
         variant_info.push_str("variant ")
         variant_info.push_str(qual)
-        if edef.payload_types.has(i.to_i64()) {
+        if vd.payload_type.len() > 0 {
             variant_info.push_str(": ")
-            variant_info.push_str(edef.payload_types[i.to_i64()])
+            variant_info.push_str(vd.payload_type)
         }
         append_packed_entry(info, qual, variant_info)
     }

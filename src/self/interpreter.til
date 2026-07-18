@@ -595,9 +595,8 @@ priv enum_variant_index_for_tag_key := func(enum_name: Str, etag: I64, ctx: Cont
     switch edef.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            mut tag_value := i.to_i64()
-            if i < edd.tag_values.len() { tag_value = edd.tag_values[i].clone() }
-            if tag_value == etag { return i.to_i32() }
+            ref vd : VariantDef = edd.variants[i]
+            if vd.tag_value == etag { return i.to_i32() }
         }
     case:
     }
@@ -649,8 +648,8 @@ priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) 
     case NodeType.EnumDef(edd):
         idx := enum_variant_index_for_tag_key(enum_name, enum_data_tag_key(data, edef), ctx)
         if idx < 0 { return NULL }
-        idx_key := idx.cast(I64)
-        if edd.payload_types.has(idx_key) { return edd.payload_types[idx_key] }
+        ref vd : VariantDef = edd.variants[idx.to_usize()]
+        if vd.payload_type.len() > 0 { return vd.payload_type }
     case:
     }
     return NULL
@@ -4015,8 +4014,8 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
             if dd.name == fname { has_inst = true }
         }
     case NodeType.EnumDef(ins_edd):
-        for vn : Str in ins_edd.variants {
-            if vn == fname { has_inst = true }
+        for vd : VariantDef in ins_edd.variants {
+            if vd.name == fname { has_inst = true }
         }
     case:
     }
@@ -6134,8 +6133,8 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
             interp_error(e, "enum_variant_name: index out of bounds", ctx)
             exit(1)
         }
-        ref vn : Str = ed.variants[idx]
-        r = str_to_owned_value(vn, ctx)
+        ref vd : VariantDef = ed.variants[idx]
+        r = str_to_owned_value(vd.name, ctx)
     case:
         UNREACHABLE()
     }
@@ -6152,12 +6151,8 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, mut r: Value, ctx: Co
             interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx.to_i64()) {
-            ref pt : Str = ed.payload_types[idx.to_i64()]
-            if pt.len() > 0 { r = Value.Int(1) } else { r = Value.Int(0) }
-        } else {
-            r = Value.Int(0)
-        }
+        ref vd : VariantDef = ed.variants[idx]
+        if vd.payload_type.len() > 0 { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE()
     }
@@ -6174,12 +6169,8 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, mut r: Value, ctx: C
             interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
             exit(1)
         }
-        if ed.payload_types.has(idx.to_i64()) {
-            ref pt : Str = ed.payload_types[idx.to_i64()]
-            r = str_to_owned_value(pt, ctx)
-        } else {
-            r = str_to_owned_value("", ctx)
-        }
+        ref vd : VariantDef = ed.variants[idx]
+        r = str_to_owned_value(vd.payload_type, ctx)
     case:
         UNREACHABLE()
     }

@@ -191,30 +191,32 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             if edef.is_null().not() {
                 switch edef.node_type {
                 case NodeType.EnumDef(edd):
-                    if etag.to_usize().lt(edd.variants.len())
-                    .and(edd.payload_types.has(etag.cast(I64)).not()) {
-                        ref vname : Str = edd.variants[etag.to_usize()]
-                        // Build the inner variant FieldAccess Color.Green.
-                        mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        recv.set_til_type(Type.Enum(til_type_name(src_t)))
-                        mut fa := Expr.new(field_access_node(vname), src.line, src.col)
-                        fa.add_child(own recv)
-                        fa.set_til_type(Type.Enum(til_type_name(src_t)))
-                        // Wrap as Color.clone(Color.Green) -- mirrors the typer's
-                        // handling of `c := Color.Green` so the builder's
-                        // is_pod_enum_clone_call path emits a stack value with
-                        // stack_locals tracking (call_free=false on the matching
-                        // delete). Without the wrap, the Decl emits a pointer to a
-                        // stack compound literal that the heap-delete would free.
-                        mut clone_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        clone_recv.set_til_type(Type.Enum(til_type_name(src_t)))
-                        mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
-                        clone_callee.add_child(own clone_recv)
-                        mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-                        clone_call.add_child(own clone_callee)
-                        clone_call.add_child(own fa)
-                        clone_call.set_til_type(Type.Enum(til_type_name(src_t)))
-                        return clone_call
+                    if etag.to_usize().lt(edd.variants.len()) {
+                        ref cf_vd : VariantDef = edd.variants[etag.to_usize()]
+                        if cf_vd.payload_type.len() == 0 {
+                            ref vname : Str = cf_vd.name
+                            // Build the inner variant FieldAccess Color.Green.
+                            mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
+                            recv.set_til_type(Type.Enum(til_type_name(src_t)))
+                            mut fa := Expr.new(field_access_node(vname), src.line, src.col)
+                            fa.add_child(own recv)
+                            fa.set_til_type(Type.Enum(til_type_name(src_t)))
+                            // Wrap as Color.clone(Color.Green) -- mirrors the typer's
+                            // handling of `c := Color.Green` so the builder's
+                            // is_pod_enum_clone_call path emits a stack value with
+                            // stack_locals tracking (call_free=false on the matching
+                            // delete). Without the wrap, the Decl emits a pointer to a
+                            // stack compound literal that the heap-delete would free.
+                            mut clone_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
+                            clone_recv.set_til_type(Type.Enum(til_type_name(src_t)))
+                            mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
+                            clone_callee.add_child(own clone_recv)
+                            mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                            clone_call.add_child(own clone_callee)
+                            clone_call.add_child(own fa)
+                            clone_call.set_til_type(Type.Enum(til_type_name(src_t)))
+                            return clone_call
+                        }
                     }
                 case:
                 }
@@ -223,8 +225,8 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
         // Case B: payload-bearing variant. The interpreter returns
         // Value.Enum(EnumInstance) for an enum-typed call whose enum has
         // any payload variants. Read the tag from ei.data and the payload
-        // bytes from ei.data + ENUM_PAYLOAD_OFFSET (typed by
-        // EnumDef.payload_types[tag]), then reconstruct Token.Num(<payload>)
+        // bytes from ei.data + ENUM_PAYLOAD_OFFSET (typed by the variant's
+        // payload_type), then reconstruct Token.Num(<payload>)
         // as an FCall. Unlike no-payload variants, the variant ctor
         // (Token_Num) is a heap-allocating function -- the Decl init emits
         // it directly without a clone wrap, matching the codegen of a
@@ -242,8 +244,9 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             switch edef2.node_type {
             case NodeType.EnumDef(edd2):
                 if etag2.to_usize() >= edd2.variants.len() { return NULL }
-                if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
-                ref payload_type_name : Str = edd2.payload_types[etag2.cast(I64)]
+                ref cf_vd2 : VariantDef = edd2.variants[etag2.to_usize()]
+                if cf_vd2.payload_type.len() == 0 { return NULL }
+                ref payload_type_name : Str = cf_vd2.payload_type
                 // Fabricate a Declaration whose explicit_type matches the
                 // variant's payload type so read_field can decode the bytes
                 // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's
@@ -262,7 +265,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
                 mut payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
                 if payload_expr.is_null() { return NULL }
-                ref vname2 : Str = edd2.variants[etag2.to_usize()]
+                ref vname2 : Str = cf_vd2.name
                 mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
                 variant_recv.set_til_type(Type.Enum(til_type_name(src_t)))
                 mut variant_callee := Expr.new(field_access_node(vname2), src.line, src.col)

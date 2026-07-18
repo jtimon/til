@@ -428,14 +428,6 @@ Context := struct {
     // fills the AST fields. Readers still use the AST fields for now; they
     // migrate to this map in step 4.
     struct_layouts := Map(Str, StructLayout).new()
-    // #307: the shared zero layout that ctx_field_layout returns (as a
-    // borrowed ref) on its miss paths, so misses allocate nothing. It MUST
-    // NEVER be written through: every caller treats ctx_field_layout
-    // results as read-only, and a write here would silently corrupt every
-    // later miss. `const` rejects direct re-assignment; writes through a
-    // borrowed ref are guarded by this invariant (all 52 call sites
-    // audited read-only at #307 time).
-    const empty_field_layout := FieldLayout()
 
     // True while the typer is inferring a struct/enum namespace member
     // (set in infer_type_def_expr).  Lets infer_func_def_expr accept
@@ -1002,12 +994,9 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
         }
         return true
     case NodeType.EnumDef(edd):
-        for j in 0..edd.variants.len() {
-            idx := j.to_i64()
-            if edd.payload_types.has(idx) {
-                ref pt : Str = edd.payload_types[idx]
-                if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
-            }
+        for vd : VariantDef in edd.variants {
+            ref pt : Str = vd.payload_type
+            if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
         }
         return true
     case:
@@ -1057,7 +1046,10 @@ def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
 enum_has_payloads := func(enum_def: Expr) returns Bool {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        return edd.payload_types.len() > 0
+        for vd : VariantDef in edd.variants {
+            if vd.payload_type.len() > 0 { return true }
+        }
+        return false
     case:
         UNREACHABLE()
         return false
@@ -1087,16 +1079,13 @@ enum_tag_size := func(enum_def: Expr) returns USize {
 }
 
 // The discriminant VALUE of a variant. With explicit `= N` tags this is the
-// assigned value; otherwise the declaration index. FFI-built defs
-// (enum_def_of) carry no tag_values, so they fall back to the index.
+// assigned value; otherwise the declaration index (enum_def_of fills
+// tag_value with the index for FFI-built defs).
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        for i in 0..edd.variants.len() {
-            if edd.variants[i] == variant_name {
-                if i < edd.tag_values.len() { return edd.tag_values[i].clone() }
-                return i.to_i64()
-            }
+        for vd : VariantDef in edd.variants {
+            if vd.name == variant_name { return vd.tag_value.clone() }
         }
     case:
         UNREACHABLE()
@@ -1105,13 +1094,14 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
 }
 
 // The declaration INDEX of a variant (0-based). Distinct from the tag VALUE
-// once explicit tags are used. payload_types / payload_consts are keyed by
-// index, so payload lookups must use this, NOT enum_variant_tag.
+// once explicit tags are used. Payload lookups by position must use this,
+// NOT enum_variant_tag.
 enum_variant_index := func(enum_def: Expr, variant_name: Str) returns I32 {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         for i in 0..edd.variants.len() {
-            if edd.variants[i] == variant_name { return i.to_i32() }
+            ref vd : VariantDef = edd.variants[i]
+            if vd.name == variant_name { return i.to_i32() }
         }
     case:
         UNREACHABLE()
@@ -1119,15 +1109,15 @@ enum_variant_index := func(enum_def: Expr, variant_name: Str) returns I32 {
     return -1
 }
 
-// Payload type of a variant by its declaration INDEX (payload_types is
-// index-keyed). Callers holding a tag VALUE must convert via
-// enum_variant_index -- do NOT pass a tag here.
+// Payload type of a variant by its declaration INDEX. Callers holding a tag
+// VALUE must convert via enum_variant_index -- do NOT pass a tag here.
 enum_variant_type := func(enum_def: Expr, idx: I32) returns Str {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
-        k := idx.cast(I64)
-        if edd.payload_types.has(k) {
-            return edd.payload_types[k].clone()
+        idx_u := idx.to_usize()
+        if idx_u < edd.variants.len() {
+            ref vd : VariantDef = edd.variants[idx_u]
+            return vd.payload_type.clone()
         }
     case:
         UNREACHABLE()
@@ -1135,15 +1125,16 @@ enum_variant_type := func(enum_def: Expr, idx: I32) returns Str {
     return ""
 }
 
-// Payload-const flag of a variant by its declaration INDEX (payload_consts is
-// index-keyed). Like enum_variant_type, callers with a tag VALUE convert via
+// Payload-const flag of a variant by its declaration INDEX. Like
+// enum_variant_type, callers with a tag VALUE convert via
 // enum_variant_index first.
 enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
         idx_u := idx.to_usize()
-        if idx_u < edd.payload_consts.len() {
-            if edd.payload_consts[idx_u] { return true }
+        if idx_u < edd.variants.len() {
+            ref vd : VariantDef = edd.variants[idx_u]
+            return vd.payload_const
         }
     case:
         UNREACHABLE()

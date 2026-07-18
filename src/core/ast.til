@@ -314,18 +314,33 @@ namespace:
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
 }
 
-/// Enum definition: variants, payload types, namespace methods.
+/// Issue #307: one record per variant instead of the four position-parallel
+/// collections EnumDef used to carry (variants Vec(Str) + payload_types
+/// Map(I64, Str) + payload_consts Vec(Bool) + tag_values Vec(I64)). The
+/// record's position in EnumDef.variants is the declaration index the
+/// per-variant data used to be keyed by.
+VariantDef := struct {
+    name := ""
+    // Payload type name; "" means the variant carries no payload.
+    payload_type := ""
+    // #211: true when the payload was declared `const Type`.
+    payload_const := false
+    // #264 follow-up: the discriminant value (`enum { A = 5 }`); defaults
+    // to the declaration index (the parser auto-increments, enum_def_of
+    // fills the index).
+    tag_value : I64 = 0
+namespace:
+    eq := func(a: VariantDef, b: VariantDef) returns Bool { return a.name == b.name }
+    to_str := func(self: VariantDef) returns Str { return self.name }
+}
+
+/// Enum definition: variants, namespace methods.
 /// Issue #147 step 4: total_enum_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_enum_layout at typer time.
 EnumDef : StructDef = struct {
     ns_decls := Vec(Declaration).new()
-    variants := Vec(Str).new()
-    payload_types : Map(I64, Str) = Map(I64, Str).new()
-    // #211: per-variant flag (indexed by variant tag) marking variants
-    // whose payload was declared `const Type`. Appended at the end of
-    // the field list to minimise layout disturbance for til_boot.
-    payload_consts := Vec(Bool).new()
+    variants := Vec(VariantDef).new()
     // Issue #251: the interface name from `enum implements Iface { ... }`,
     // empty when the enum implements nothing. Like StructDef.implements_name,
     // the typer verifies the enum provides every abstract (ext_func/ext_proc)
@@ -334,14 +349,8 @@ EnumDef : StructDef = struct {
     implements_name := ""
     // #264: discriminant (tag) type chosen via `enum(Type) { ... }`.
     // Empty means unspecified, which defaults to U32 (the historical
-    // C-`enum`-backed width). Appended at the end to minimise layout
-    // disturbance for til_boot.
+    // C-`enum`-backed width).
     tag_type := ""
-    // Explicit per-variant tag values (`enum { A = 5 }`), dense and parallel
-    // to `variants`. Empty when the def came from FFI introspection
-    // (enum_def_of) -- readers fall back to the variant index. Appended at
-    // the end to minimise layout disturbance for til_boot.
-    tag_values := Vec(I64).new()
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len() == b.variants.len()
@@ -378,7 +387,7 @@ namespace:
 }
 
 // Whole-type layout. For enums only total_size is meaningful (fields stays
-// empty); the per-variant payload sizing lives in EnumDef.payload_types.
+// empty); the per-variant payload types live on EnumDef.variants.
 StructLayout := struct {
     total_size : USize = 0
     align : USize = 1
