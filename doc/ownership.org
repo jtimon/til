@@ -365,7 +365,7 @@ except for one documented case; the remaining leak is concentrated there.
 | destructor                          | verdict                                                        |
 |-------------------------------------+----------------------------------------------------------------|
 | ~Str~/~Vec~/~Map~/~Set~/~Tuple~/~Array~/~HashMap~ ~.delete~ | COMPLETE -- every owning field freed, ~ref~/scalar fields skipped, ~call_free~ threaded right. (~HashMap~ installs typed Vecs via ~new_type_names~, so its ~Vec.new(Dynamic)~ defaults are overridden and inner keys/values DO get freed.) |
-| ~scope_free~ (~Scope~)              | COMPLETE after the ~ref_primitive_ptrs~ fix -- all 5 fields; ~parent~ is a borrow, correctly skipped. |
+| ~scope_free~ (~Scope~)              | COMPLETE after the ~ref_primitive_ptrs~ fix -- all 7 containers (bindings, heap_index, heap_bindings, payload_aliases, ref_primitive_ptrs, box_owned_dynamics, box_owned_callables); ~parent~ is a borrow, correctly skipped. The emptied box is parked in the scope pool for reuse rather than freed; scope_pool_drain releases the parked boxes at each creator's terminal path. |
 | ~Value.clone~                       | COMPLETE -- every variant covered (exhaustive switch); ~Struct~/~Enum~ carry explicit workaround-frees that compensate for the two no-op deletes below. |
 | ~StructInstance.delete~             | DELIBERATE no-op: leaks ~own data~ (+ inline Str ~c_str~).     |
 | ~EnumInstance.delete~               | DELIBERATE no-op: leaks ~own data~.                            |
