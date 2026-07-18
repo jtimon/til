@@ -78,15 +78,26 @@
     the nng custom modes (sender/receiver/publisher/subscriber) build
     NATIVELY on a mac -- gui links the real Apple frameworks, the nng
     modes link the natively-built libnng; make build_mac covers all of
-    them and both mac CI jobs run it. GUI CROSS from Linux is NOT yet
-    wired but IS feasible (green-lit phase 3, see the plan below) -- the
-    Cocoa/OpenGL frameworks are the same kind of always-present system
-    lib as libSystem, so the vendored-.tbd-stub trick that makes the CLI
-    cross work extends to them; only a mac-built libraylib.a + trimmed
-    framework stubs need producing, both vendorable. (An earlier note
-    here wrongly called gui cross impossible; corrected.) Until phase 3
-    lands, the linux make build_mac skips the 15 gui examples and native
-    mac gui is the supported path.
+    them and both mac CI jobs run it. GUI CROSS from Linux is DONE (phase
+    3) -- and with NO mac and NO Apple SDK, unlike the earlier plan that
+    needed a mac-built raylib.a. The key insight: raylib's RGFW desktop
+    backend drives Cocoa/AppKit entirely through the objc runtime
+    (~objc_msgSend~) instead of ~#include <Cocoa/Cocoa.h>~, so it only
+    needs framework *type* headers (CGRect, key codes, HID/CoreAudio
+    structs, ...), which vendor as SDK-less shims under
+    vendor/macos/frameworks-shim -- the same trick as the vendored libc
+    headers + libSystem.tbd. So ~clang~ cross-compiles raylib's RGFW +
+    OpenGL backend to a mac .a on Linux (Makefile RAYLIB_MAC_ARM64_LIB /
+    RAYLIB_MAC_X64_LIB), miniaudio runtime-links CoreAudio and glad
+    runtime-links OpenGL (no link symbols), and the remaining framework
+    symbols (CoreFoundation/CoreGraphics/IOKit/libobjc/HIToolbox) resolve
+    against .tbd stubs generated ON LINUX by gen_framework_stubs.py
+    --linux-map (symbol-prefix map, no ~nm -m~). ~til build
+    --target=macos-arm64 examples/hello_gui.til~ produces a valid arm64
+    Mach-O (NOUNDEFS); x64 likewise. MAC_CROSS_GUI_MODE is now |gui so
+    ~make build_mac~ sweeps the gui examples on Linux, and the
+    macos-gui-cross CI job builds the whole chain on ubuntu with no mac
+    dependency. The mac analogue of the mingw-cross windows gui, at last.
   - macOS as a HOST targeting the others: the macos-host-cross-build CI
     job builds bin/til natively on a mac, then cross-compiles
     hello_script for windows (brew mingw-w64 -> the x86_64-w64-mingw32
@@ -232,10 +243,11 @@
      is empty (XVFB_RUN) and raylib talks to Cocoa directly, so GUI
      tests need a window server session rather than any wrapper. It
      also root-causes the build_minesweeper exit=5 flake seen during
-     phase 1 (nested Xvfb teardown race). One new mac dependency to
-     solve in phase 3: GUI test commands now call `timeout` directly,
-     which stock macOS does not ship (GNU coreutils; runner images
-     have it via brew, bare macs do not).
+     phase 1 (nested Xvfb teardown race). The GUI test commands call
+     GNU coreutils `timeout`, which stock macOS ships as `gtimeout`
+     (brew, g-prefixed) and bare macs lack entirely; src/tests.til now
+     picks `gtimeout` on a macos host and `timeout` elsewhere, so the
+     gui suite runs on a mac, not just Linux.
    - Darwin crash FINALLY caught on camera (run 29027527473, arm64):
      the .ips symbolicates to abort() via
      BUG_IN_CLIENT_OF_LIBMALLOC_POINTER_BEING_FREED_WAS_NOT_ALLOCATED
@@ -394,6 +406,45 @@
      approach #25 explicitly rejected. vendor/ stays library sources +
      the macOS header/tbd text stubs, no toolchain binaries. The clear
      build_mac preflight is the supported UX.
+   - Phase 3 machinery + the mac `timeout` nit landed together. (1) The
+     GUI-cross pipeline is wired end to end: the mac CI jobs emit the
+     mac-native raylib.a + per-arch framework .tbd stubs, macos-gui-cross
+     merges both arches' stubs and cross-links hello_gui for both mac
+     arches on Linux, and vendor-mac-raylib (workflow_dispatch) vendors
+     the archives + stubs and flips MAC_CROSS_GUI_MODE. Activation is one
+     dispatch of that job on the branch (the App cannot dispatch -- 403).
+     (2) The GUI test commands used bare `timeout`, which macOS ships as
+     `gtimeout`; src/tests.til now selects per host so the gui suite runs
+     on a mac. Windows-x86 GUI/FFI (the sibling split, #232) is complete
+     in the same push -- mingw needs no SDK stub trick, so it needed no
+     mac-style vendoring.
+   - MAC GUI CROSS FROM LINUX NOW BUILDS WITH NO MAC AND NO SDK
+     (supersedes the "activation is one dispatch of vendor-mac-raylib"
+     note above -- that whole prebuilt-on-a-mac path is gone). What
+     changed: raylib's RGFW desktop backend talks to Cocoa through the
+     objc runtime, so building its .a needs only framework *type* headers,
+     not the Objective-C framework headers. Vendored those as SDK-less
+     shims (vendor/macos/frameworks-shim: IOKit HID, CoreFoundation,
+     CoreGraphics, CoreVideo, Foundation, Carbon key codes, CoreAudio +
+     AudioToolbox for miniaudio -- all opaque-pointer typedefs, public
+     constants, and prototypes that bind at runtime). clang then
+     cross-compiles the 6 raylib modules for both mac arches on Linux
+     (Makefile RAYLIB_MAC_*_LIB; rglfw.c dropped -- RGFW replaces GLFW).
+     miniaudio runtime-links CoreAudio and glad runtime-links OpenGL, so
+     neither leaves link symbols; the rest (CoreFoundation/CoreGraphics/
+     IOKit/libobjc/HIToolbox) resolve via .tbd stubs generated on Linux by
+     gen_framework_stubs.py --linux-map (maps each external symbol to its
+     framework by prefix, then emits tapi-tbd v4 -- no `nm -m`, which is
+     mac-only). Verified end to end on Linux: `til build
+     --target=macos-arm64 examples/hello_gui.til` and the x64 target both
+     produce a NOUNDEFS Mach-O. MAC_CROSS_GUI_MODE flipped to |gui;
+     macos-gui-cross CI rebuilt to do it all on ubuntu (no `needs:` mac
+     jobs); the vendor-mac-raylib dispatch job is deleted, and the
+     phase-3-recon steps on the two native-mac jobs (which fed the old
+     download path) are deleted too. Runtime behaviour of the cross-built
+     binary (esp. the hand-shimmed CoreAudio struct ABI) is not exercised
+     on Linux; the native-mac build_mac jobs remain the real-hardware
+     audio/gui check.
 
 *** macOS plan
 

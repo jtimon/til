@@ -60,10 +60,47 @@
     32-bit codegen itself was already correct (linux-x86 shares it). CI's
     windows-x64/x86 build job cross-compiles it and the run job executes
     it on windows-latest via WOW64.
+  - windows-x86 GUI + runtime-FFI DONE. The 32-bit vendor libs build via
+    the mingw i686 toolchain (Makefile RAYLIB_WIN32_LIB / TINYFD_WIN32_LIB
+    with an -win32 suffix, LIBFFI_WIN32_LIB in its own i686-w64-mingw32/
+    subdir); mingw ships the win32 GL/GDI backend, so raylib/tinyfd
+    cross-build from source with NO 32-bit X11 sysroot. target_gui_libs
+    and target_ffi_lib return the -win32 paths + the win GL/GDI libs
+    (gdi32/opengl32/winmm/...). ~til build --target=windows-x86
+    examples/hello_gui.til~ produces a PE32 mode-gui binary. One 32-bit
+    codegen fix was needed in [[file:../../src/modes/gui.til][src/modes/gui.til]]: make_tone hardcoded
+    ~.cast(U64)~ for malloc's count and ptr_add's offset, but both params
+    are ~UPtr~ (U32 on a 32-bit target); switched to ~.to_usize()~ which
+    tracks the target width (identical U64 on 64-bit hosts). ~make
+    build_win32~ sweeps the portable + gui examples for windows-x86
+    (mirrors build_win; nng server examples stay win64-only). CI's
+    windows-x64/x86 build job now also cross-links hello_gui for both
+    arches and asserts PE32+/PE32 (build-only, like the mac gui-cross job:
+    a raylib window cannot open headless).
+
+*** Linux GUI progress
+
+  - linux-x86 GUI DONE, and cheaper than feared: raylib compiles -m32
+    against the VENDORED X11 headers (vendor/x11/include, same as the
+    native recipe -- headers are arch-independent) and GLFW dlopens
+    libX11 at runtime, so the final link needs NO 32-bit X11 sysroot;
+    gcc-multilib (32-bit libc) is the only dep, which the CI linux-x86
+    job already installs. Makefile RAYLIB_X86_LIB / TINYFD_X86_LIB build
+    the -x86 archives; builder.til's link-token rewrite now also covers
+    the 32-bit linux targets (it previously only fired for windows/wasm/
+    mac, so the inherited 64-bit libraylib.a stayed in the link and
+    clashed with i386 output). Verified end to end: ~til build
+    --target=linux-x86 examples/hello_gui.til~ produces an ELF 32-bit
+    Intel 80386 gui binary that INITIALIZES raylib 6.0 under
+    qemu-i386 + Xvfb on a 64-bit host. The CI linux-x86 job builds and
+    smoke-runs it (timeout-124-or-0, like the gui suite build tests).
 
 *** Remaining
 
   - Verify linux-arm32 and linux-riscv32 sysroot/toolchain assumptions
     on the actual CI image.
-  - Build 32-bit vendor libs (raylib/tinyfd/libffi for windows-x86 and
-    the linux 32-bit targets) needed for GUI + runtime-FFI support.
+  - GUI vendor libs for linux-arm32/linux-riscv32: unlike linux-x86
+    (multilib on the same machine), these need full cross X11/GL
+    sysroots for the target arch -- the expensive part. target_gui_libs
+    already points at the -arm32 paths; no Makefile recipe yet. Runtime
+    FFI for the linux 32-bit targets is unaffected (no GUI libs needed).

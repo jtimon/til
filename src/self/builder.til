@@ -5940,16 +5940,18 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if is_windows_target(target) { dyn_flag = " -Wl,--export-all-symbols" }
     if target.is(Target.Wasm32) { dyn_flag = "" }
 
-    // For Windows/wasm cross-compiles, rewrite link_flags inherited
-    // from vendor/bindings/{raylib,tinyfd}.til link() directives: they
-    // carry Linux archive paths and POSIX-only -l flags; mingw doesn't
-    // ship -ldl/-lrt and can't load Linux ELF .a files. The Windows
-    // variants are added via target_gui_libs / target_ffi_lib /
-    // target_system_libs below. For macOS targets the vendored .a
-    // paths are correct as-is on a mac host (native archives at the
-    // same paths) and loudly wrong-arch on cross hosts, so they stay;
-    // every -l flag the tree uses is a libSystem alias on darwin (m,
-    // pthread, dl) or does not exist there (rt, atomic).
+    // For Windows/wasm and 32-bit-linux cross-compiles, rewrite
+    // link_flags inherited from vendor/bindings/{raylib,tinyfd}.til
+    // link() directives: they carry HOST-arch archive paths (and, for
+    // windows, POSIX-only -l flags; mingw doesn't ship -ldl/-lrt and
+    // can't load Linux ELF .a files -- a 32-bit linux link can't load
+    // the 64-bit archives either). The per-target variants are added
+    // via target_gui_libs / target_ffi_lib / target_system_libs below.
+    // For macOS targets the vendored .a paths are correct as-is on a
+    // mac host (native archives at the same paths) and loudly
+    // wrong-arch on cross hosts, so they stay; every -l flag the tree
+    // uses is a libSystem alias on darwin (m, pthread, dl) or does not
+    // exist there (rt, atomic).
     //
     // The rewrite is TOKEN-level, never substring replace: the loader
     // resolves link() paths importer-relative, so lf can carry the
@@ -5959,12 +5961,18 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // ./src/self/ token once reached the mac linker). Matching whole
     // tokens by suffix drops both spellings; anything unrecognized is
     // kept and fails loudly at link with its real name.
-    if is_windows_target(target).or(target.is(Target.Wasm32))
+    // 32-bit linux targets cross-compiled from a 64-bit host: the
+    // inherited 64-bit archives must go (target_gui_libs supplies the
+    // -x86/-arm32 variants); the dropped -l flags come back via
+    // target_system_libs, which lists them all for linux targets.
+    is_linux32 := target.is(Target.LinuxX86).or(target.is(Target.LinuxArm32)).or(target.is(Target.LinuxRiscv32))
+    if is_windows_target(target).or(target.is(Target.Wasm32)).or(is_linux32)
         .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
         // On macos the archive paths stay (native archives live at the
         // same paths on a mac host) and -latomic must go (no such lib
         // on darwin). On windows/wasm the linux archives go and
-        // -latomic stays (mingw ships libatomic).
+        // -latomic stays (mingw ships libatomic); 32-bit linux keeps
+        // -latomic too (multilib ships it).
         is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
         is_win := is_windows_target(target)
         tokens := lf.split(" ")

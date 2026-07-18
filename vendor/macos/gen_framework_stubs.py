@@ -31,6 +31,7 @@ FALLBACK_INSTALL = {
     "CoreAudio":      "/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio",
     "AudioToolbox":   "/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox",
     "IOKit":          "/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit",
+    "HIToolbox":      "/System/Library/Frameworks/Carbon.framework/Frameworks/HIToolbox.framework/Versions/A/HIToolbox",
     "CoreServices":   "/System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices",
     "ApplicationServices": "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices",
     "libobjc":        "/usr/lib/libobjc.A.dylib",
@@ -129,7 +130,71 @@ def merge_dirs(outdir, indirs):
             f.write(emit_one(fw, sorted(syms), install))
         print(path)
 
+# Linux mode: map an archive's true external undefined symbols to their
+# owning framework by symbol prefix -- no `nm -m` (Apple/linked-Mach-O only)
+# and no SDK needed, so a linux host can generate the stubs for a
+# linux-cross-built mac raylib.a (issue #25 / #232). Order matters: the
+# most specific prefixes come first.
+LINUX_PREFIX_MAP = [
+    ("___CFConstantStringClassReference", "CoreFoundation"),
+    ("_kCF", "CoreFoundation"), ("_CF", "CoreFoundation"),
+    ("_kCG", "CoreGraphics"),   ("_CG", "CoreGraphics"),
+    ("_CV", "CoreVideo"),
+    ("_kIO", "IOKit"),          ("_IO", "IOKit"),
+    ("_objc_", "libobjc"), ("_sel_", "libobjc"), ("_class_", "libobjc"),
+    ("_object_", "libobjc"), ("_method_", "libobjc"),
+    ("_ivar_", "libobjc"), ("_protocol_", "libobjc"),
+    ("_UCKeyTranslate", "HIToolbox"), ("_TIS", "HIToolbox"), ("_LMGetKbdType", "HIToolbox"),
+    ("_AudioComponent", "AudioToolbox"), ("_AudioOutputUnit", "AudioToolbox"), ("_AudioUnit", "AudioToolbox"),
+    ("_AudioObject", "CoreAudio"), ("_AudioDevice", "CoreAudio"), ("_AudioHardware", "CoreAudio"),
+]
+
+def _nm_set(args, archives):
+    out = set()
+    for a in archives:
+        txt = subprocess.check_output(["llvm-nm"] + args + [a], text=True)
+        for line in txt.splitlines():
+            parts = line.split()
+            if parts:
+                out.add(parts[-1])
+    return out
+
+def linux_map(outdir, archives):
+    """Emit one <Framework>.tbd per framework from the TRUE external undefined
+    symbols of the given mac archives (undefined minus globally-defined, so
+    raylib's own inter-module symbols drop out). Unmapped externals are
+    assumed covered by the vendored libSystem.tbd (libc/libSystem) and are
+    reported but not stubbed -- a genuinely missing one surfaces as a link
+    error, not a silent skip."""
+    os.makedirs(outdir, exist_ok=True)
+    undef = _nm_set(["-u"], archives)
+    defined = _nm_set(["--defined-only", "--extern-only"], archives)
+    external = sorted(undef - defined)
+    by_fw, unmapped = {}, []
+    for sym in external:
+        fw = next((f for pfx, f in LINUX_PREFIX_MAP if sym.startswith(pfx)), None)
+        if fw:
+            by_fw.setdefault(fw, set()).add(sym)
+        else:
+            unmapped.append(sym)
+    sys.stderr.write("frameworks: " + ", ".join(f"{k}={len(v)}" for k, v in sorted(by_fw.items())) + "\n")
+    sys.stderr.write(f"unmapped (assumed libSystem, not stubbed): {len(unmapped)}\n")
+    for fw in sorted(by_fw):
+        install = FALLBACK_INSTALL.get(fw)
+        if not install:
+            sys.stderr.write(f"WARN: no install-name for framework {fw}; skipping\n")
+            continue
+        path = os.path.join(outdir, f"{fw}.tbd")
+        with open(path, "w") as f:
+            f.write(emit_one(fw, sorted(by_fw[fw]), install))
+        print(path)
+
 if __name__ == "__main__":
+    # Linux mode: gen_framework_stubs.py --linux-map <outdir> <archive.a> ...
+    # generates stubs from an archive's external symbols by prefix, no mac.
+    if len(sys.argv) > 2 and sys.argv[1] == "--linux-map":
+        linux_map(sys.argv[2], sys.argv[3:])
+        sys.exit(0)
     # Merge mode: gen_framework_stubs.py --merge <outdir> <dir1> <dir2> ...
     # unions the per-arch stub sets (each mac runner emits its own arch's
     # stubs) into one set that cross-links either target.

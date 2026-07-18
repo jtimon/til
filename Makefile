@@ -333,6 +333,52 @@ $(TINYFD_WIN_LIB):
 	x86_64-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	x86_64-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win.o
 
+# windows-x86 (32-bit) variants via the mingw i686 toolchain (issue #232).
+# Same recipe as -win64 with the i686 compiler and a -win32 suffix; mingw
+# supplies the win32 GL/GDI backend, so no 32-bit sysroot is needed.
+RAYLIB_WIN32_LIB := vendor/raylib/src/libraylib-win32.a
+TINYFD_WIN32_LIB := vendor/tinyfiledialogs/libtinyfd-win32.a
+
+$(RAYLIB_WIN32_LIB):
+	rm -rf tmp/raylib-win32
+	mkdir -p tmp/raylib-win32
+	cp -r vendor/raylib/src/. tmp/raylib-win32/
+	$(MAKE) -C tmp/raylib-win32 clean
+	$(MAKE) -C tmp/raylib-win32 \
+	  PLATFORM=PLATFORM_DESKTOP PLATFORM_OS=WINDOWS \
+	  CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar \
+	  RAYLIB_LIB_NAME=raylib-win32 RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-win32/libraylib-win32.a $@
+
+$(TINYFD_WIN32_LIB):
+	mkdir -p tmp
+	i686-w64-mingw32-gcc -c -o tmp/tinyfiledialogs-win32.o vendor/tinyfiledialogs/tinyfiledialogs.c
+	i686-w64-mingw32-ar rcs $@ tmp/tinyfiledialogs-win32.o
+
+# linux-x86 (32-bit) gui variants via gcc -m32 / multilib (issue #232).
+# raylib compiles against the VENDORED X11 headers (vendor/x11/include,
+# arch-independent -- same as the native recipe) and GLFW dlopens libX11
+# at runtime, so the final gui link needs no 32-bit X11 sysroot: only
+# gcc-multilib (32-bit libc) is required, same dep the CI linux-x86 job
+# already installs for the CLI target.
+RAYLIB_X86_LIB := vendor/raylib/src/libraylib-x86.a
+TINYFD_X86_LIB := vendor/tinyfiledialogs/libtinyfd-x86.a
+
+$(RAYLIB_X86_LIB):
+	rm -rf tmp/raylib-x86
+	mkdir -p tmp/raylib-x86
+	cp -r vendor/raylib/src/. tmp/raylib-x86/
+	$(MAKE) -C tmp/raylib-x86 clean
+	$(MAKE) -C tmp/raylib-x86 PLATFORM=PLATFORM_DESKTOP \
+	  CUSTOM_CFLAGS="-m32 -DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
+	  RAYLIB_LIB_NAME=raylib-x86 RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-x86/libraylib-x86.a $@
+
+$(TINYFD_X86_LIB):
+	mkdir -p tmp
+	cc -m32 -c -o tmp/tinyfiledialogs-x86.o vendor/tinyfiledialogs/tinyfiledialogs.c
+	ar rcs $@ tmp/tinyfiledialogs-x86.o
+
 # tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross). Unlike
 # raylib's Objective-C/Cocoa backend, tinyfd is one .c file that only
 # needs libc (it shells out to osascript), so it cross-compiles on ANY
@@ -349,6 +395,49 @@ $(TINYFD_MAC_X64_LIB): | tmp
 	clang -target x86_64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-x64.o
 	llvm-ar rcs $@ tmp/tinyfd-macos-x64.o
 
+# raylib cross-built for macOS FROM LINUX -- no mac, no Apple SDK (issue #25
+# phase 3 / #232). Mac has no redistributable SDK like mingw, BUT raylib's
+# RGFW desktop backend drives Cocoa through the objc runtime (objc_msgSend)
+# and only needs framework *type* headers, vendored as SDK-less shims under
+# vendor/macos/frameworks-shim (Cocoa/OpenGL bind at runtime). So clang
+# cross-compiles raylib's RGFW/OpenGL backend to a mac .a on linux. miniaudio
+# runtime-links CoreAudio (dlopen) and glad runtime-links OpenGL, so neither
+# leaves link symbols; the remaining framework symbols (CoreFoundation/
+# CoreGraphics/IOKit/libobjc/HIToolbox) resolve against the generated .tbd
+# stubs below. rglfw.c is NOT built (that is the GLFW backend; RGFW replaces
+# it). This is the mac analogue of the mingw-cross win raylib.
+RAYLIB_MAC_MODULES := rcore rshapes rtextures rtext rmodels raudio
+RAYLIB_MAC_CFLAGS  := -O1 -DPLATFORM_DESKTOP_RGFW -DGRAPHICS_API_OPENGL_33 \
+  -isystem vendor/macos/include -Ivendor/macos/frameworks-shim -Ivendor/raylib/src -Wno-static-in-inline
+RAYLIB_MAC_ARM64_LIB := vendor/raylib/src/libraylib-macos-arm64.a
+RAYLIB_MAC_X64_LIB   := vendor/raylib/src/libraylib-macos-x64.a
+
+$(RAYLIB_MAC_ARM64_LIB): | tmp
+	rm -rf tmp/raylib-macos-arm64 && mkdir -p tmp/raylib-macos-arm64
+	for m in $(RAYLIB_MAC_MODULES); do \
+	  clang -target arm64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-arm64/$$m.o || exit 1; \
+	done
+	llvm-ar rcs $@ tmp/raylib-macos-arm64/*.o
+
+$(RAYLIB_MAC_X64_LIB): | tmp
+	rm -rf tmp/raylib-macos-x64 && mkdir -p tmp/raylib-macos-x64
+	for m in $(RAYLIB_MAC_MODULES); do \
+	  clang -target x86_64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-x64/$$m.o || exit 1; \
+	done
+	llvm-ar rcs $@ tmp/raylib-macos-x64/*.o
+
+# Framework .tbd link stubs, generated ON LINUX from the archives' true
+# external symbols (gen_framework_stubs.py --linux-map maps each by symbol
+# prefix to its owning framework -- no `nm -m`, which only annotates linked
+# Mach-O on a mac, and no SDK). The real Cocoa/OpenGL/... dylibs live on
+# every mac and bind at runtime, exactly like the vendored libSystem.tbd.
+MAC_FRAMEWORK_STUBS := vendor/macos/frameworks/.stamp
+$(MAC_FRAMEWORK_STUBS): $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) vendor/macos/gen_framework_stubs.py
+	rm -rf vendor/macos/frameworks && mkdir -p vendor/macos/frameworks
+	python3 vendor/macos/gen_framework_stubs.py --linux-map vendor/macos/frameworks \
+	  $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB)
+	touch $@
+
 # libffi cross-built for win64. Needed to cross-compile til.exe itself
 # (the compiler links libffi for its ext_func interpreter dispatch --
 # windows AS A HOST, issue #25) and any windows program that calls
@@ -363,6 +452,14 @@ LIBFFI_WIN_LIB := vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a
 $(LIBFFI_WIN_LIB): vendor/libffi/.built
 	cd $(LIBFFI_DIR) && ./configure --host=x86_64-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)/x86_64-w64-mingw32
+
+# libffi cross-built for win32 (mingw i686) -- runtime ext_func in
+# 32-bit windows programs and a 32-bit til.exe host (issue #232). Its
+# own per-triple subdir, so it never disturbs the win64/native builds.
+LIBFFI_WIN32_LIB := vendor/libffi/i686-w64-mingw32/.libs/libffi.a
+$(LIBFFI_WIN32_LIB): vendor/libffi/.built
+	cd $(LIBFFI_DIR) && ./configure --host=i686-w64-mingw32 --disable-shared --enable-static --disable-docs --quiet
+	$(MAKE) -C $(LIBFFI_DIR)/i686-w64-mingw32
 
 # nng cross-built for win64 (mode server / the nng custom modes). nng's
 # cmake rejects "legacy mingw" unless three C11 symbols probe true
@@ -412,6 +509,18 @@ win_server: bin/til $(NNG_WIN_LIB)
 bin/%.exe: examples/%.til bin/til $(RAYLIB_WIN_LIB) $(TINYFD_WIN_LIB)
 	bin/til build --target=windows-x64 $<
 
+# windows-x86 (32-bit) sweep -- issue #232. Mirrors build_win for the
+# i686 mingw toolchain; outputs get a -x86 suffix so they sit next to the
+# win64 .exe. mingw supplies the win32 GL/GDI backend, so the gui examples
+# link libraylib-win32.a + libtinyfd-win32.a with no 32-bit sysroot. The
+# nng mode-server examples stay win64-only (no win32 nng build), so this
+# sweep covers the portable + gui examples -- the same WIN_EXAMPLES_SRC.
+build_win32: $(RAYLIB_WIN32_LIB) $(TINYFD_WIN32_LIB) bin/til
+	for f in $(WIN_EXAMPLES_SRC); do \
+	  bin/til build --target=windows-x86 \
+	    -o bin/$$(basename $$f .til)-x86.exe $$f || exit 1; \
+	done
+
 # til.exe: the compiler itself cross-built for a windows HOST (issue
 # #25). Like the native compiler it links the win64 libffi AND libnng so
 # the interpreter/constfolder ext_func dispatch works when til runs ON
@@ -458,15 +567,13 @@ MAC_TARGET := $(if $(filter arm64,$(UNAME_M)),macos-arm64,macos-x64)
 # (does not parse) stay out.
 MAC_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til,$(shell grep -l -E '^mode (cli|script|pure|lib|gui)$$' examples/*.til))
 # Cross sweep whitelist by mode. cli|script|pure|lib always cross-compile
-# (portable, no desktop libs). mode gui also cross-compiles, but only once
-# the prebuilt mac raylib.a + framework .tbd stubs are vendored: raylib's
-# Cocoa/OpenGL backend builds only on a mac (unlike the mingw-cross win
-# raylib), so the vendor-mac-raylib CI job (workflow_dispatch) commits the
-# per-arch archives + stubs and flips MAC_CROSS_GUI_MODE to |gui in the
-# same commit. Until that lands the toggle is empty and gui stays out (its
-# raylib.a is not in-tree). server / the nng custom modes link the
-# linux-built vendored libnng.a via the SERVER path, not this sweep.
-MAC_CROSS_GUI_MODE :=
+# (portable, no desktop libs). mode gui ALSO cross-compiles now: raylib's
+# RGFW desktop backend builds for mac ON LINUX against the SDK-less
+# framework-type shims (vendor/macos/frameworks-shim) -- see RAYLIB_MAC_*_LIB
+# above -- so no mac and no prebuilt vendored archive are needed (the
+# analogue of the mingw-cross win raylib). server / the nng custom modes
+# link the linux-built vendored libnng.a via the SERVER path, not this sweep.
+MAC_CROSS_GUI_MODE := |gui
 MAC_CROSS_EXAMPLES_SRC := $(filter-out examples/raylib.til examples/bench_hashmap.til examples/custom_modes.til,$(shell grep -l -E '^mode (cli|script|pure|lib$(MAC_CROSS_GUI_MODE))$$' examples/*.til))
 
 # The nng custom-mode examples (SERVER_EXAMPLES, defined by the windows
@@ -487,7 +594,7 @@ else
 # checkout often has clang but not lld, so clang dies with the cryptic
 # "invalid linker name in argument '-fuse-ld=lld'"; check up front and
 # say what to install instead.
-build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB))
+build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) $(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB) $(MAC_FRAMEWORK_STUBS))
 	@command -v clang  >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS and needs clang -- install it with: apt-get install clang lld"; exit 1; }
 	@command -v ld.lld >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS via 'clang -fuse-ld=lld' and needs the lld linker -- install it with: apt-get install lld"; exit 1; }
 	for f in $(MAC_CROSS_EXAMPLES_SRC); do \

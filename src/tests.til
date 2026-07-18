@@ -493,12 +493,17 @@ main := proc(args: ..Str) {
             "examples/hello_gui.til",
             "examples/raylib.til",
         )
+        // GNU coreutils `timeout` is `gtimeout` on macOS (brew installs it
+        // g-prefixed; stock macOS ships no `timeout` at all). Pick the right
+        // name per host so GUI tests run on a mac, not just Linux (#25).
+        mut timeout_cmd := "timeout"
+        if host_os() == "macos" { timeout_cmd = "gtimeout" }
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""
             if bn == "popcorn" { run_args = " --mute" }
             add_single(tests, format("build_", bn), "build", 124, "",
-                format(til_bin, " build", asan_flag, " ", gf, " '&&' timeout ", GUI_TIMEOUT, " bin/", bn, run_args))
+                format(til_bin, " build", asan_flag, " ", gf, " '&&' ", timeout_cmd, " ", GUI_TIMEOUT, " bin/", bn, run_args))
         }
     }
 
