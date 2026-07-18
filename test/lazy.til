@@ -510,6 +510,41 @@ test_thunk_case_binding_short_circuits := test() {
     assert_eq(I64, eval_count, 1)
 }
 
+# --- CALL-BY-NEED (#262): a param forced more than once evaluates its argument
+#     at most ONCE (memoized on first force), then reuses the value; an unused
+#     param still evaluates 0 times; a single-use param is unchanged. The loader
+#     routes a multi-use lazy body through the thunk lowering and forces each
+#     multi-use param via a generated `_force_once_T` memo helper (a body-local
+#     done/cache pair). ---
+
+cbn_twice := lazy_func(x: Bool) returns Bool {
+    a := x
+    b := x
+    return a.and(b)
+}
+cbn_cond := lazy_func(c: Bool, x: Bool) returns Bool {
+    while c { return x.and(x) }
+    return false
+}
+
+test_call_by_need_once := test() {
+    eval_count = 0
+    expect(cbn_twice(bump()), "x used twice -> true")
+    assert_eq(I64, eval_count, 1)          # evaluated once, not twice
+}
+
+test_call_by_need_unused := test() {
+    eval_count = 0
+    expect(cbn_cond(false, bump()).not(), "c false -> x unused")
+    assert_eq(I64, eval_count, 0)          # never forced
+}
+
+test_call_by_need_cond_once := test() {
+    eval_count = 0
+    expect(cbn_cond(true, bump()), "c true -> x forced twice in branch")
+    assert_eq(I64, eval_count, 1)          # memoized -> once
+}
+
 # --- FIRST-CLASS (#262): a thunk-lowered lazy func used as a VALUE. Binding it
 #     to a local (`g := both`) or aliasing that binding (`h := g`) and calling
 #     THROUGH the value thunk-wraps the args exactly like a direct call, so

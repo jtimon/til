@@ -3167,7 +3167,7 @@ priv lazy_thunk_blocked := func(e: Expr, pnames: Set(Str), depth: I32) returns B
 // slot can be replaced through its parent); lazy_autoforce_body runs a
 // statement list, threading Decl shadows to the following statements.
 priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
-        shadowed: Set(Str), depth: I32) {
+        shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
     ref c : Expr = parent.children[idx]
     switch c.node_type {
@@ -3177,25 +3177,42 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
         if pnames.has(nm).and(shadowed.has(nm).not()) {
             line := c.line
             col := c.col
-            mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
-            call.add_child(own Expr.new(ident_node(nm), line, col))
-            parent.children[idx] = call
+            if memo.has(nm) {
+                // A param used more than once (#262 call-by-need): force it
+                // through its per-type memo helper so the arg expression runs
+                // at most once. `_force_once_T(_memo_<nm>_done, _memo_<nm>_v,
+                // <thunk>)` -- the done/cache cells are body locals injected by
+                // lazy_thunk_lower_def.
+                ref fo : Str = memo.get(nm)!
+                mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+                call.add_child(own Expr.new(ident_node(fo), line, col))
+                call.add_child(own Expr.new(ident_node(format("_memo_", nm, "_done")), line, col))
+                call.add_child(own Expr.new(ident_node(format("_memo_", nm, "_v")), line, col))
+                call.add_child(own Expr.new(ident_node(nm), line, col))
+                parent.children[idx] = call
+            } else {
+                // Single-use param: a plain force `<thunk>()` (call-by-name and
+                // call-by-need coincide at one use).
+                mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
+                call.add_child(own Expr.new(ident_node(nm), line, col))
+                parent.children[idx] = call
+            }
         }
         return
     case NodeType.Body:
-        lazy_autoforce_body(c, pnames, shadowed, depth + 1)
+        lazy_autoforce_body(c, pnames, shadowed, memo, depth + 1)
         return
     case NodeType.ForIn(fid):
         // The iterated expression sees the current scope; the loop body sees
         // the loop variable(s) shadowing any same-named param.
-        if c.children.len() >= 1 { lazy_autoforce_node(c, 0, pnames, shadowed, depth + 1) }
+        if c.children.len() >= 1 { lazy_autoforce_node(c, 0, pnames, shadowed, memo, depth + 1) }
         mut loop_shadowed := shadowed.clone()
         if pnames.has(fid.name) { loop_shadowed.add(own fid.name.clone()) }
         if fid.name2.len().gt(0).and(pnames.has(fid.name2)) {
             loop_shadowed.add(own fid.name2.clone())
         }
         if c.children.len() >= 2 {
-            lazy_autoforce_body(c.children[1], pnames, loop_shadowed, depth + 1)
+            lazy_autoforce_body(c.children[1], pnames, loop_shadowed, memo, depth + 1)
         }
         return
     case NodeType.Catch:
@@ -3208,19 +3225,19 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
         case:
         }
         if c.children.len() >= 3 {
-            lazy_autoforce_body(c.children[2], pnames, catch_shadowed, depth + 1)
+            lazy_autoforce_body(c.children[2], pnames, catch_shadowed, memo, depth + 1)
         }
         return
     case NodeType.Match:
-        lazy_autoforce_match_switch(c, pnames, shadowed, depth + 1)
+        lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1)
         return
     case NodeType.Switch:
-        lazy_autoforce_match_switch(c, pnames, shadowed, depth + 1)
+        lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1)
         return
     case:
     }
     for j in 0..c.children.len() {
-        lazy_autoforce_node(c, j, pnames, shadowed, depth + 1)
+        lazy_autoforce_node(c, j, pnames, shadowed, memo, depth + 1)
     }
 }
 
@@ -3231,10 +3248,10 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
 // the shadow set, so it is left as-is while a genuine param value-use in the
 // same arm still forces -- the same scope-aware rule for-in / catch use.
 priv lazy_autoforce_match_switch := func(mut node: Expr, pnames: Set(Str),
-        shadowed: Set(Str), depth: I32) {
+        shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
     if node.children.len() >= 1 {
-        lazy_autoforce_node(node, 0, pnames, shadowed, depth + 1)
+        lazy_autoforce_node(node, 0, pnames, shadowed, memo, depth + 1)
     }
     for ci in 1..node.children.len() {
         ref arm : Expr = node.children[ci]
@@ -3244,25 +3261,30 @@ priv lazy_autoforce_match_switch := func(mut node: Expr, pnames: Set(Str),
             lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed)
         }
         for k in 0..arm.children.len() {
-            lazy_autoforce_node(arm, k, pnames, arm_shadowed, depth + 1)
+            lazy_autoforce_node(arm, k, pnames, arm_shadowed, memo, depth + 1)
         }
     }
 }
 
 priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
-        outer_shadowed: Set(Str), depth: I32) {
+        outer_shadowed: Set(Str), memo: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
     mut shadowed := outer_shadowed.clone()
     for i in 0..body.children.len() {
+        // Clone the Decl name ONLY when it shadows a param (the clone is
+        // consumed by the Set add below); a conditionally-moved clone for a
+        // non-param Decl would leak (surfaced when call-by-need started
+        // routing bodies with non-param Decls through this pass).
         mut decl_name := ""
         switch body.children[i].node_type {
-        case NodeType.Decl(dd): decl_name = dd.name.clone()
+        case NodeType.Decl(dd):
+            if pnames.has(dd.name) { decl_name = dd.name.clone() }
         case:
         }
-        lazy_autoforce_node(body, i, pnames, shadowed, depth + 1)
+        lazy_autoforce_node(body, i, pnames, shadowed, memo, depth + 1)
         // A Decl shadows its name for the statements AFTER it (its own
         // initializer, walked above, still saw the param).
-        if decl_name.len().gt(0).and(pnames.has(decl_name)) {
+        if decl_name.len() > 0 {
             shadowed.add(own decl_name)
         }
     }
@@ -3294,11 +3316,201 @@ priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram, unit_path: Str,
     lp.ctx.imported[unit_path].ast.add_child(own decl)
 }
 
+// Count LIVE value-uses of each param (#262 call-by-need memoization) into
+// `counts`, scope-aware exactly like the auto-force pass: a Decl / for-in var /
+// catch var / case-pattern binder that shadows a param name is NOT a use of the
+// param. This must match auto-force's notion of a "force site" -- a param
+// counted >=2 here is one whose thunk auto-force would force more than once, so
+// it (and only it) needs memoization.
+priv lazy_count_live_bump := func(nm: Str, mut counts: Map(Str, I64)) {
+    mut prev : I64 = 0
+    if counts.has(nm) { prev = counts.get(nm)! }
+    counts.set(nm, own prev.add(1))
+}
+priv lazy_count_live := func(e: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
+    if depth > 512 { return }
+    switch e.node_type {
+    case NodeType.FuncDef: return
+    case NodeType.Ident(idn):
+        ref nm : Str = idn.ident_name()
+        if pnames.has(nm).and(shadowed.has(nm).not()) { lazy_count_live_bump(nm, counts) }
+        return
+    case NodeType.ForIn(fid):
+        if e.children.len() >= 1 { lazy_count_live(e.children[0], pnames, shadowed, counts, depth + 1) }
+        mut ls := shadowed.clone()
+        if pnames.has(fid.name) { ls.add(own fid.name.clone()) }
+        if fid.name2.len().gt(0).and(pnames.has(fid.name2)) { ls.add(own fid.name2.clone()) }
+        if e.children.len() >= 2 { lazy_count_live(e.children[1], pnames, ls, counts, depth + 1) }
+        return
+    case NodeType.Catch:
+        mut cs := shadowed.clone()
+        switch e.children[0].node_type {
+        case NodeType.Ident(cvn):
+            if pnames.has(cvn.ident_name()) { cs.add(own Str.clone(cvn.ident_name())) }
+        case:
+        }
+        if e.children.len() >= 3 { lazy_count_live(e.children[2], pnames, cs, counts, depth + 1) }
+        return
+    case NodeType.Match:
+        lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1)
+        return
+    case NodeType.Switch:
+        lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1)
+        return
+    case NodeType.Body:
+        lazy_count_live_body(e, pnames, shadowed, counts, depth + 1)
+        return
+    case:
+    }
+    for ch : Expr in e.children { lazy_count_live(ch, pnames, shadowed, counts, depth + 1) }
+}
+priv lazy_count_live_ms := func(node: Expr, pnames: Set(Str), shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
+    if node.children.len() >= 1 { lazy_count_live(node.children[0], pnames, shadowed, counts, depth + 1) }
+    for ci in 1..node.children.len() {
+        ref arm : Expr = node.children[ci]
+        if arm.node_type.is(NodeType.Case).not() { continue }
+        mut arm_shadowed := shadowed.clone()
+        if arm.children.len() >= 1 { lazy_collect_case_bound(arm.children[0], pnames, arm_shadowed) }
+        // Skip the pattern (children[0]) -- its binder idents are not uses; count
+        // the guard/body under the arm's shadow set.
+        for k in 1..arm.children.len() {
+            lazy_count_live(arm.children[k], pnames, arm_shadowed, counts, depth + 1)
+        }
+    }
+}
+priv lazy_count_live_body := func(body: Expr, pnames: Set(Str), outer_shadowed: Set(Str), mut counts: Map(Str, I64), depth: I32) {
+    mut shadowed := outer_shadowed.clone()
+    for i in 0..body.children.len() {
+        // Clone the Decl name ONLY when it shadows a param (the clone is
+        // consumed by the Set add below); a conditionally-moved clone for a
+        // non-param Decl would leak.
+        mut decl_name := ""
+        switch body.children[i].node_type {
+        case NodeType.Decl(dd):
+            if pnames.has(dd.name) { decl_name = dd.name.clone() }
+        case:
+        }
+        lazy_count_live(body.children[i], pnames, shadowed, counts, depth + 1)
+        if decl_name.len() > 0 { shadowed.add(own decl_name) }
+    }
+}
+
+// True when any param of `fdef` is forced more than once in `body`. Such a def
+// must thunk-lower (with memo helpers) rather than inline, so its multi-use
+// arguments evaluate at most once (call-by-need).
+priv lazy_has_multiuse_param := func(fdef: Expr, body: Expr) returns Bool {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.variadic_index >= 0 { return false }
+        mut pnames := Set(Str).new()
+        for p : Declaration in fd.params { pnames.add(own p.name.clone()) }
+        mut counts := Map(Str, I64).new()
+        no_shadow := Set(Str).new()
+        lazy_count_live_body(body, pnames, no_shadow, counts, 0)
+        for p : Declaration in fd.params {
+            if counts.has(p.name) {
+                if counts.get(p.name)! >= 2 { return true }
+            }
+        }
+    case:
+    }
+    return false
+}
+
+// Build the top-level monomorphic memo helper Decl for return type T:
+//   _force_once_T := func(mut done: Bool, mut cache: T, th: _Fn_ret_T) returns T {
+//       if done.not() { cache = th(); done = true }
+//       return cache
+//   }
+priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) returns Expr {
+    fn_ret := format("_Fn_ret_", ret_type)
+    mut fd := FunctionDef()
+    fd.func_type = FuncType.Func
+    fd.return_type = ret_type.clone()
+    fd.return_own_type = OwnType.Own
+    fd.variadic_index = -1
+    fd.kwargs_index = -1
+    fd.params.push(own decl_typed(name = "done", explicit_type = "Bool", own_type = OwnType.Ref, is_mut = true))
+    fd.params.push(own decl_typed(name = "cache", explicit_type = ret_type, own_type = OwnType.Ref, is_mut = true))
+    fd.params.push(own decl_typed(name = "th", explicit_type = fn_ret, own_type = OwnType.Ref, is_mut = false))
+
+    // then: cache = th() ; done = true
+    mut th_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    th_call.add_child(own Expr.new(ident_node("th"), line, col))
+    mut asg_cache := Expr.new(NodeType.Assign(AssignData(name = "cache")), line, col)
+    asg_cache.add_child(own th_call)
+    mut asg_done := Expr.new(NodeType.Assign(AssignData(name = "done")), line, col)
+    asg_done.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), line, col))
+    mut then_body := Expr.new(NodeType.Body, line, col)
+    then_body.add_child(own asg_cache)
+    then_body.add_child(own asg_done)
+
+    mut if_node := Expr.new(NodeType.If, line, col)
+    if_node.add_child(own make_method_call_fcall(own Expr.new(ident_node("done"), line, col), "not", line, col))
+    if_node.add_child(own then_body)
+
+    mut ret := Expr.new(NodeType.Return, line, col)
+    ret.add_child(own Expr.new(ident_node("cache"), line, col))
+
+    mut body := Expr.new(NodeType.Body, line, col)
+    body.add_child(own if_node)
+    body.add_child(own ret)
+
+    mut def := Expr.new(NodeType.FuncDef(fd), line, col)
+    def.add_child(own body)
+
+    name := format("_force_once_", ret_type)
+    mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
+    decl.add_child(own def)
+    return decl
+}
+
+// Register (once) the per-type memo helper, appending it to the unit AST so the
+// typer types it and the builder emits it -- like lazy_register_fn_ret_alias
+// appends the `_Fn_ret_T` funcsig this helper's `th` param depends on.
+priv lazy_register_force_once := func(mut lp: LoadedProgram, unit_path: Str,
+        ret_type: Str, line: U32, col: U32, mut seen_fo: Set(Str)) {
+    name := format("_force_once_", ret_type)
+    if seen_fo.has(name) { return }
+    seen_fo.add(own name.clone())
+    if lp.ctx.scope.get_binding(name).is_null().not() { return }
+    // Push the decl into the AST FIRST, then register the scope binding against
+    // the PUSHED node (set_func_def stores a raw pointer that must live in the
+    // AST). init_declarations_global has already run by now, so an unregistered
+    // decl would be invisible to the typer -- register it here as a priv func.
+    ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
+    unit_ast.add_child(own lazy_build_force_once_def(ret_type, line, col))
+    ref pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
+    // The binding TYPE is the function's RETURN type (not None) -- a call
+    // resolves its result type from here (register_function_def_for_stmt).
+    rt := til_type_from_explicit_type(ret_type)
+    lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
+    lp.ctx.scope.set_func_def(name, pushed.children[0])
+    ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name)
+    fb.is_func_decl = true
+    fb.is_priv = true
+}
+
+// The two body-local cache cells a memoized param needs:
+//   mut _memo_<p>_done := false
+//   mut _memo_<p>_v : T = <default>
+// prepended to the body; force_once mutates them by reference.
+priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32) returns Vec(Expr) {
+    mut out := Vec(Expr).new()
+    mut d := Expr.new(NodeType.Decl(Declaration(name = format("_memo_", pname, "_done"), is_mut = true)), line, col)
+    d.add_child(own Expr.new(NodeType.Literal(Literal.Bool(false)), line, col))
+    out.push(own d)
+    mut v := Expr.new(NodeType.Decl(decl_typed(name = format("_memo_", pname, "_v"), explicit_type = ret_type, own_type = OwnType.Shallow, is_mut = true)), line, col)
+    v.add_child(own make_default_value_expr(ret_type, line, col))
+    out.push(own v)
+    return out
+}
+
 // Lower one non-inlinable top-level lazy def in place: LazyFunc->Func /
 // LazyProc->Proc, retype each param `p: T` to `p: _Fn_ret_T`, auto-force the
 // body, and register the funcptr aliases. Records the lowered name in `lowered`.
 priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
-        name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str)) {
+        name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str)) {
     if fdef.children.len() == 0 { return }
     ref body : Expr = fdef.children[0]
     mut pnames := Set(Str).new()
@@ -3314,6 +3526,31 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
     // leave the def lazy so the typer's hard error names it.
     if lazy_thunk_blocked(body, pnames, 0) { return }
 
+    // #262 call-by-need: a param used more than once memoizes its argument so
+    // it evaluates at most once. Decide this BEFORE retyping (need the original
+    // T), collect the per-param memo helper name + inject its two cache locals.
+    mut memo := Map(Str, Str).new()
+    mut cache_decls := Vec(Expr).new()
+    mut use_counts := Map(Str, I64).new()
+    lazy_count_live_body(body, pnames, Set(Str).new(), use_counts, 0)
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        for i in 0..fd.params.len() {
+            ref p : Declaration = fd.params[i]
+            mut cnt : I64 = 0
+            if use_counts.has(p.name) { cnt = use_counts.get(p.name)! }
+            if cnt >= 2 {
+                orig_t := p.explicit_type.clone()
+                lazy_register_force_once(lp, unit_path, orig_t, fdef.line, fdef.col, seen_fo)
+                memo.set(p.name, own format("_force_once_", orig_t))
+                mut decls := lazy_make_memo_decls(p.name, orig_t, fdef.line, fdef.col)
+                for di in 0..decls.len() { cache_decls.push_take(decls, di) }
+            }
+        }
+    case:
+        return
+    }
+
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.func_type.is(FuncType.LazyFunc) { fd.func_type = FuncType.Func }
@@ -3328,8 +3565,17 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
     case:
         return
     }
+
+    // Prepend the memo cache locals so they are in scope before any force.
+    if cache_decls.len() > 0 {
+        mut new_ch := Vec(Expr).new()
+        for cd in 0..cache_decls.len() { new_ch.push_take(cache_decls, cd) }
+        for bi in 0..body.children.len() { new_ch.push_take(body.children, bi) }
+        body.children.move_from(new_ch)
+    }
+
     no_shadow := Set(Str).new()
-    lazy_autoforce_body(body, pnames, no_shadow, 0)
+    lazy_autoforce_body(body, pnames, no_shadow, memo, 0)
     lowered.add(own name.clone())
     lp.ctx.scope.set_func_def(name, fdef)
 }
@@ -3716,7 +3962,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
 // Find and lower every non-inlinable top-level lazy def in one unit AST, then
 // collect the lowered names. Defs are the direct top-level Decl children.
 priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
-        mut lowered: Set(Str), mut lazy_sigs: Set(Str), mut seen: Set(Str)) {
+        mut lowered: Set(Str), mut lazy_sigs: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str)) {
     ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
     n := unit_ast.children.len()
     for i in 0..n {
@@ -3738,8 +3984,14 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
             continue
         }
         ref body : Expr = fdef.children[0]
-        if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) { continue }
-        lazy_thunk_lower_def(lp, unit_path, lname, fdef, lowered, seen)
+        // Inlinable bodies normally stay lazy for the inline pass -- EXCEPT when
+        // a param is used more than once: call-by-need (#262) needs the memo
+        // thunk lowering so the argument evaluates at most once, which inlining
+        // (splice-per-use) cannot express.
+        if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) {
+            if lazy_has_multiuse_param(fdef, body).not() { continue }
+        }
+        lazy_thunk_lower_def(lp, unit_path, lname, fdef, lowered, seen, seen_fo)
     }
 }
 
@@ -3752,16 +4004,17 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     mut lowered := Set(Str).new()
     mut lazy_sigs := Set(Str).new()
     mut seen := Set(Str).new()
+    mut seen_fo := Set(Str).new()
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
-            lazy_thunk_lower_unit(lp, cu.path, lowered, lazy_sigs, seen)
+            lazy_thunk_lower_unit(lp, cu.path, lowered, lazy_sigs, seen, seen_fo)
         }
     }
     for uu : ProgramUnit in lp.units {
-        lazy_thunk_lower_unit(lp, uu.path, lowered, lazy_sigs, seen)
+        lazy_thunk_lower_unit(lp, uu.path, lowered, lazy_sigs, seen, seen_fo)
     }
     for mf : Str in lp.mode_files {
-        lazy_thunk_lower_unit(lp, mf, lowered, lazy_sigs, seen)
+        lazy_thunk_lower_unit(lp, mf, lowered, lazy_sigs, seen, seen_fo)
     }
     if lowered.len().eq(0).and(lazy_sigs.len().eq(0)) { return }
     if lp.skip_core.not() {
