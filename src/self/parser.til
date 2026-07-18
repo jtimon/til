@@ -184,13 +184,15 @@ priv set_decl_type := func(mut d: Declaration, name: Str) {
 // mut/own modifiers, default-value trees and namespace-method bodies (the
 // latter two via Expr.to_str), so any observable difference yields a
 // distinct type.
-priv anon_decl_key := func(d: Declaration) returns Str {
+// #307: member names live in the map keys, so the caller passes the
+// name alongside the (nameless) Declaration.
+priv anon_decl_key := func(dname: Str, d: Declaration) returns Str {
     mut own_tag := "S"
     if d.own_type.is(OwnType.Own) { own_tag = "O" }
     if d.own_type.is(OwnType.Ref) { own_tag = "R" }
     mut mut_tag := "c"
     if d.is_mut { mut_tag = "m" }
-    return format(d.name, ":", d.explicit_type, ":", mut_tag, own_tag, ":",
+    return format(dname, ":", d.explicit_type, ":", mut_tag, own_tag, ":",
         d.default_value.to_str(), ";")
 }
 
@@ -198,12 +200,12 @@ priv anon_def_key := func(def: Expr) returns Str {
     switch def.node_type {
     case NodeType.StructDef(sdd):
         mut k := "struct{"
-        for f : Declaration in sdd.fields {
-            k = format(k, anon_decl_key(f))
+        for fi in 0..sdd.fields_order.len() {
+            k = format(k, anon_decl_key(sdd.field_name_at(fi), sdd.field_at(fi)))
         }
         k = format(k, "|ns:")
-        for n : Declaration in sdd.ns_decls {
-            k = format(k, anon_decl_key(n))
+        for ni in 0..sdd.ns_order.len() {
+            k = format(k, anon_decl_key(sdd.member_name_at(ni), sdd.member_at(ni)))
         }
         return format(k, "}")
     case NodeType.EnumDef(edd):
@@ -222,8 +224,8 @@ priv anon_def_key := func(def: Expr) returns Str {
             k = format(k, ";")
         }
         k = format(k, "|ns:")
-        for n : Declaration in edd.ns_decls {
-            k = format(k, anon_decl_key(n))
+        for ni in 0..edd.ns_order.len() {
+            k = format(k, anon_decl_key(edd.member_name_at(ni), edd.member_at(ni)))
         }
         return format(k, "}")
     case:
@@ -776,8 +778,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
 // parse_ns_decl: parse one `namespace:` member declaration --
 // `[mut] name [: Type =] | [:= ] value` -- into a Declaration. `const` is
 // rejected (namespace decls are immutable by default). Shared by the struct
-// and enum body loops, which differ only in the push target (sdd.ns_decls
-// vs edd.ns_decls) and where the leading `priv` is consumed.
+// and enum body loops, which differ only in the push target (sdd.push_member
+// vs edd.push_member) and where the leading `priv` is consumed.
 priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration {
     mut ns_explicit_type := ""
     mut ns_is_mut := false
@@ -950,7 +952,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             member_priv = true
         }
         if in_namespace {
-            sdd.ns_decls.push(own parse_ns_decl(p, member_priv))
+            sdd.push_member(own parse_ns_decl(p, member_priv))
         } else {
             mut f_own_type := OwnType.Shallow
             // #211: struct instance fields are mutable by default; `const`
@@ -991,7 +993,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             if f_has_default {
                 f_dd.default_value = parse_expr_for_decl_type(p, f_explicit_type)
             }
-            sdd.fields.push(own f_dd)
+            sdd.push_field(own f_dd)
         }
     }
     expect_token(p, TokenType.RBrace)
@@ -1076,7 +1078,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             default_value = m_value)
         switch def.node_type {
         case NodeType.StructDef(sdd):
-            sdd.ns_decls.push(own m_dd)
+            sdd.push_member(own m_dd)
         case:
             UNREACHABLE()
         }
@@ -1151,7 +1153,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 advance(p)
                 enum_ns_priv = true
             }
-            edd.ns_decls.push(own parse_ns_decl(p, enum_ns_priv))
+            edd.push_member(own parse_ns_decl(p, enum_ns_priv))
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated.
             // Variant docs aren't yet stored (variants are a Vec<Str>);
@@ -1897,7 +1899,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     }
                     switch def.node_type {
                     case NodeType.StructDef(sdd):
-                        sdd.ns_decls.push(own ns_dd)
+                        sdd.push_member(own ns_dd)
                     case:
                         UNREACHABLE()
                     }

@@ -66,7 +66,8 @@ priv stable_type_name := func(name: Str, ctx: Context) returns ref Str {
 }
 
 priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns Bool {
-    for dd : Declaration in sdef_data.fields {
+    for sfi in 0..sdef_data.fields.len() {
+        ref dd : Declaration = sdef_data.fields.values.unsafe_get(sfi)
         if dd.own_type.is(OwnType.Own) { return false }
         if dd.own_type.is(OwnType.Ref) { continue }
         if decl_is_funcsig(dd, ctx) { return false }
@@ -145,8 +146,9 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             clone_container_buffer(struct_name, data, dst_data, ctx)
         } else if struct_def_shallow_safe(sdef_data, ctx) {
         } else {
-            for dd : Declaration in sdef_data.fields {
-                foff := ctx_field_layout(struct_name, dd.name, ctx).offset
+            for cfi in 0..sdef_data.fields.len() {
+                ref dd : Declaration = sdef_data.fields.values.unsafe_get(cfi)
+                foff := ctx_field_layout(struct_name, sdef_data.fields.keys.unsafe_get(cfi), ctx).offset
                 ref ftype : Str = dd.explicit_type
                 ref nested_def : Expr = field_nested_def(dd, ctx)
                 if dd.own_type.is(OwnType.Own) {
@@ -2605,7 +2607,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                     switch inst {
                     case Value.Struct(si_inst):
                         mut arg_idx : USize = 1
-                        for fdd : Declaration in sdd.fields {
+                        for cti in 0..sdd.fields_order.len() {
+                            ref fdd : Declaration = sdd.field_at(cti)
                             cur_idx := arg_idx
                             ref arg : Expr = e.children[cur_idx]
                             arg_idx++
@@ -2641,7 +2644,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
                             case:
                                 val = eval_expr(scope, arg, ctx)
                             }
-                            ref ctor_fl : FieldLayout = ctx_field_layout(si_inst.struct_name, fdd.name, ctx)
+                            ref ctor_fl : FieldLayout = ctx_field_layout(si_inst.struct_name, sdd.field_name_at(cti), ctx)
                             write_field(si_inst.data, fdd, ctor_fl.offset, ctor_fl.size, val, ctx)
                         }
                     case:
@@ -3325,7 +3328,7 @@ priv reclone_return := func(mut ctx: Context) {
     // function (typer-enforced), so it survives every dying block scope
     // as-is. Cloning would detach the caller's ref from the real payload
     // -- writes through it (the parser's `ref sdd = structdef_of(def)`
-    // then sdd.fields.push) were silently lost.
+    // then sdd.push_field) were silently lost.
     if ctx.interp_ret_is_ref.and(value_is_borrowed(ctx.return_value)) { return }
     moved := ctx.return_value.clone()
     free_owned_value(ctx.return_value)
@@ -4046,17 +4049,11 @@ priv callable_box_free := func(ptr: Dynamic) {
 // FieldAssign cases (which share an Str payload) can switch-destructure
 // `e.node_type` without duplicating ~50 lines of logic.
 priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns Bool {
-    mut has_ns := false
     mut has_inst := false
-    ref ins_ns : Vec(Declaration) = def_ns_decls(sdef)
-    for ins_d : Declaration in ins_ns {
-        if ins_d.name == fname { has_ns = true }
-    }
+    has_ns := def_ns_has(sdef, fname)
     switch sdef.node_type {
     case NodeType.StructDef(ins_sdd):
-        for dd : Declaration in ins_sdd.fields {
-            if dd.name == fname { has_inst = true }
-        }
+        has_inst = ins_sdd.fields.has(fname)
     case NodeType.EnumDef(ins_edd):
         for vn : Str in ins_edd.variants {
             if vn == fname { has_inst = true }
@@ -4291,21 +4288,20 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             tdv : Dynamic = malloc(I64.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
-            ref ien_ns : Vec(Declaration) = def_ns_decls(sdef)
             // #307: two passes so registration order does not depend on
             // declaration order. A namespace CONSTANT's initializer may
             // reference a sibling method (`MAX : U64 = U64.bnot(0)`);
             // register every function member first (their eval needs no
             // siblings), then evaluate the constants.
-            for d_f : Declaration in ien_ns {
-                ref nsf : Declaration = d_f
+            for nfi in 0..def_ns_len(sdef) {
+                ref nsf : Declaration = def_ns_at(sdef, nfi)
                 if nsf.default_value.is_null() { continue }
                 if nsf.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 fval_f := eval_expr(global, nsf.default_value, ctx)
-                ns_set(dd.name, nsf.name, fval_f, ctx)
+                ns_set(dd.name, def_ns_name_at(sdef, nfi), fval_f, ctx)
             }
-            for d_j : Declaration in ien_ns {
-                ref nsd : Declaration = d_j
+            for nci in 0..def_ns_len(sdef) {
+                ref nsd : Declaration = def_ns_at(sdef, nci)
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef) { continue }
                 mut fval := eval_expr(global, nsd.default_value, ctx)
@@ -4327,7 +4323,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                         }
                     }
                 }
-                ns_set(dd.name, nsd.name, fval, ctx)
+                ns_set(dd.name, def_ns_name_at(sdef, nci), fval, ctx)
             }
         case:
         }
@@ -4511,12 +4507,7 @@ str_view := func(shallow v: Value) returns shallow Str {
 priv find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     switch struct_def.node_type {
     case NodeType.StructDef(ffd_sdd):
-        for dd : Declaration in ffd_sdd.fields {
-            if dd.name == fname {
-                return dd
-            }
-        }
-        return NULL
+        return member_get(ffd_sdd.fields, fname)
     case:
         return NULL
     }
@@ -4934,11 +4925,9 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
                         case Value.Func(fptr):
                             ref sdef : Expr = deref(fptr)
                             if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                                ref ica_ns : Vec(Declaration) = def_ns_decls(sdef)
-                                for d_j : Declaration in ica_ns {
-                                    ref nsd : Declaration = d_j
-                                    ref v : Value = ns_get(rhs_ident.ident_name(), nsd.name, ctx)
-                                    if v.is_null().not() { ns_set(dd.name, nsd.name, v, ctx) }
+                                for ini in 0..def_ns_len(sdef) {
+                                    ref v : Value = ns_get(rhs_ident.ident_name(), def_ns_name_at(sdef, ini), ctx)
+                                    if v.is_null().not() { ns_set(dd.name, def_ns_name_at(sdef, ini), v, ctx) }
                                 }
                             }
                         case:
@@ -5244,8 +5233,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdd):
-                            ref ns : Vec(Declaration) = def_ns_decls(rhs)
-                            for nsd : Declaration in ns {
+                            for tni in 0..def_ns_len(rhs) {
+                                ref nsd : Declaration = def_ns_at(rhs, tni)
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
                                 switch nsfdef.node_type {
@@ -5261,7 +5250,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     eprint_single("  pass: ")
                                     eprint_single(sdd.name)
                                     eprint_single(".")
-                                    eprint_single(nsd.name)
+                                    eprint_single(def_ns_name_at(rhs, tni))
                                     eprint_single("\n")
                                 case:
                                 }
@@ -6081,12 +6070,11 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
+        if idx >= sd.fields_order.len() {
             interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
-        r = str_to_owned_value(fd.name, ctx)
+        r = str_to_owned_value(sd.field_name_at(idx), ctx)
     case:
         UNREACHABLE()
     }
@@ -6099,11 +6087,11 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, mut r: Value, ctx: Context
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
+        if idx >= sd.fields_order.len() {
             interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
+        ref fd : Declaration = sd.field_at(idx)
         if fd.is_mut { r = Value.Int(1) } else { r = Value.Int(0) }
     case:
         UNREACHABLE()
@@ -6117,11 +6105,11 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) 
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
     switch node.node_type {
     case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
+        if idx >= sd.fields_order.len() {
             interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
+        ref fd : Declaration = sd.field_at(idx)
         r = str_to_owned_value(fd.explicit_type, ctx)
     case:
         UNREACHABLE()
@@ -6583,10 +6571,10 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
     }
     switch struct_def.node_type {
     case NodeType.StructDef(bsf_sdd):
-        nfields := bsf_sdd.fields.len()
+        nfields := bsf_sdd.fields_order.len()
         elements : Dynamic = malloc(nfields.add(1) * Dynamic.size())
         for i in 0..nfields {
-            ref fd : Declaration = bsf_sdd.fields[i]
+            ref fd : Declaration = bsf_sdd.field_at(i)
             ref ft : ffi_type = field_ffi_type(fd, ctx)
             memcpy(ptr_add(elements, i * Dynamic.size()), ft, Dynamic.size())
         }
@@ -6862,7 +6850,7 @@ priv h_is_n := proc(s: Scope, e: Expr, mut r: Value, ctx: Context) returns Bool 
 // the REAL enum storage inside the base struct: eval_expr would return
 // a detached COPY of the field, so a payload ref taken from it could
 // not write back -- the parser mutates parsed defs exactly that way
-// (`ref sdd : StructDef = structdef_of(def)` then sdd.fields.push),
+// (`ref sdd : StructDef = structdef_of(def)` then sdd.push_field),
 // and interpreted parses read back StructDefs with 0 fields. Returns
 // the enum data buffer (tag at +0), or NULL when the shape doesn't
 // match (non-Ident receiver, non-enum field), letting the caller fall
@@ -7911,8 +7899,8 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                 case NodeType.Decl(sdd):
                     switch stmt.children[0].node_type {
                     case NodeType.StructDef(sdd_data):
-                        for d_j : Declaration in sdd_data.ns_decls {
-                            ref fdd : Declaration = d_j
+                        for fni in 0..sdd_data.ns_decls.len() {
+                            ref fdd : Declaration = sdd_data.ns_decls.values.unsafe_get(fni)
                             ref fdef : Expr = fdd.default_value
                             if fdef.is_null() { continue }
                             mut fd_func_type := FuncType.Func
@@ -7923,7 +7911,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                 continue
                             }
                             if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
-                                flat_name := sdd.name.concat3("_", fdd.name)
+                                flat_name := sdd.name.concat3("_", sdd_data.ns_decls.keys.unsafe_get(fni))
                                 ref fn_ptr : U8 = ffi_dlsym(flat_name)
                                 if fn_ptr.is_null().not() {
                                     ffi_register(flat_name, fn_ptr, fdef, ctx)

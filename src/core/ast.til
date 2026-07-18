@@ -287,9 +287,28 @@ namespace:
 /// Issue #147 step 4: total_struct_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_struct_layout at typer time.
+/// Issue #307 (the design as originally intended): members are stored
+/// NAME-KEYED, each name existing exactly once in the data model -- as
+/// the Map key. The stored member Declarations carry name == "" (the
+/// key IS the name; read it via the *_name_at accessors or the map key
+/// at a sorted position). Declaration order -- the C layout order for
+/// fields, source order for namespace members -- is preserved by
+/// fields_order / ns_order: Vecs of sorted-map positions in declaration
+/// order. Inserting a new key shifts the sorted position of every key
+/// after it, so push_field / push_member fix the stored ranks up as they insert
+/// (member counts are tiny, inserts happen at parse/init time only).
+/// Append via push_field / push_member -- never touch the maps
+/// directly, or the order vecs go stale.
 StructDef : StructDef = struct {
-    fields := Vec(Declaration).new()
-    ns_decls := Vec(Declaration).new()
+    // `own` (pointer-sized in the layout): StructDef/EnumDef live INLINE
+    // in the NodeType payload union, and EnumDef is the union's largest
+    // member -- growing it grows every Expr in every program. Boxing the
+    // member containers keeps the union at its pre-#307 size; defs are
+    // few, Exprs are hundreds of thousands.
+    own fields : Map(Str, Declaration) = Map(Str, Declaration).new()
+    own ns_decls : Map(Str, Declaration) = Map(Str, Declaration).new()
+    own fields_order : Vec(USize) = Vec(USize).new()
+    own ns_order : Vec(USize) = Vec(USize).new()
     c_tag := ""
     // Issue #251: set by parse_interface_def. The body desugars to this
     // StructDef (empty fields, ns_decls = methods); the typer uses the
@@ -312,14 +331,100 @@ namespace:
         return a.fields.len() == b.fields.len()
     }
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
+    /// Append a field. The map key becomes the single owner of the
+    /// field's name; declaration order is recorded in fields_order.
+    push_field := func(mut self: StructDef, own fd: Declaration) {
+        name := fd.name.clone()
+        p := member_lower_bound(self.fields, name)
+        mut is_new := true
+        if p < self.fields.keys.count {
+            if self.fields.keys.unsafe_get(p) == name { is_new = false }
+        }
+        self.fields.set(name, own fd)
+        // Single-copy invariant: the key owns the name; the stored
+        // value carries none.
+        ref mut stored : Declaration = self.fields.values.unsafe_get(p)
+        stored.name = ""
+        if is_new {
+            for oi in 0..self.fields_order.len() {
+                r := self.fields_order.unsafe_get(oi).clone()
+                if r.gte(p) {
+                    nr := r + 1
+                    self.fields_order.unsafe_set(oi, own nr)
+                }
+            }
+            self.fields_order.push(own p.clone())
+        }
+    }
+    /// Append a namespace member (see push_field). A duplicate name
+    /// overwrites the stored value and keeps its original order slot.
+    push_member := func(mut self: StructDef, own nd: Declaration) {
+        name := nd.name.clone()
+        p := member_lower_bound(self.ns_decls, name)
+        mut is_new := true
+        if p < self.ns_decls.keys.count {
+            if self.ns_decls.keys.unsafe_get(p) == name { is_new = false }
+        }
+        self.ns_decls.set(name, own nd)
+        ref mut stored : Declaration = self.ns_decls.values.unsafe_get(p)
+        stored.name = ""
+        if is_new {
+            for oi in 0..self.ns_order.len() {
+                r := self.ns_order.unsafe_get(oi).clone()
+                if r.gte(p) {
+                    nr := r + 1
+                    self.ns_order.unsafe_set(oi, own nr)
+                }
+            }
+            self.ns_order.push(own p.clone())
+        }
+    }
+    /// Field name at declaration-order position i (the map key).
+    /// unsafe_get: i < fields_order.len() is the caller's loop bound and
+    /// every stored rank is a valid map position by the push invariant;
+    /// the checked subscript would allocate its __LOC__ Str per call.
+    field_name_at := func(self: StructDef, i: USize) returns ref Str {
+        return self.fields.keys.unsafe_get(self.fields_order.unsafe_get(i))
+    }
+    /// Field Declaration at declaration-order position i (name == "").
+    field_at := func(self: StructDef, i: USize) returns ref Declaration {
+        return self.fields.values.unsafe_get(self.fields_order.unsafe_get(i))
+    }
+    /// Namespace member name at declaration-order position i.
+    member_name_at := func(self: StructDef, i: USize) returns ref Str {
+        return self.ns_decls.keys.unsafe_get(self.ns_order.unsafe_get(i))
+    }
+    /// Namespace member Declaration at declaration-order position i.
+    member_at := func(self: StructDef, i: USize) returns ref Declaration {
+        return self.ns_decls.values.unsafe_get(self.ns_order.unsafe_get(i))
+    }
 }
+
+// Sorted position where `name` sits (or would insert) in a member map.
+member_lower_bound := func(m: Map(Str, Declaration), name: Str) returns USize {
+    mut lo : USize = 0
+    mut hi : USize = m.keys.count
+    while lo < hi {
+        mid : USize = lo.add(hi.sub(lo) / 2)
+        c : I64 = Str.cmp(m.keys.unsafe_get(mid), name)
+        if c < 0 { lo = mid + 1 }
+        else { hi = mid }
+    }
+    return lo
+}
+
 
 /// Enum definition: variants, payload types, namespace methods.
 /// Issue #147 step 4: total_enum_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_enum_layout at typer time.
+/// Issue #307: ns_decls gets the same name-keyed storage as StructDef's
+/// (see the StructDef doc comment); variants stays a plain Vec because
+/// its order IS the tag assignment and it holds the names themselves.
 EnumDef : StructDef = struct {
-    ns_decls := Vec(Declaration).new()
+    // own: see StructDef -- keeps the NodeType union at its pre-#307 size.
+    own ns_decls : Map(Str, Declaration) = Map(Str, Declaration).new()
+    own ns_order : Vec(USize) = Vec(USize).new()
     variants := Vec(Str).new()
     payload_types : Map(I64, Str) = Map(I64, Str).new()
     // #211: per-variant flag (indexed by variant tag) marking variants
@@ -347,6 +452,37 @@ namespace:
         return a.variants.len() == b.variants.len()
     }
     to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
+    /// Append a namespace member (see StructDef.push_member).
+    push_member := func(mut self: EnumDef, own nd: Declaration) {
+        name := nd.name.clone()
+        p := member_lower_bound(self.ns_decls, name)
+        mut is_new := true
+        if p < self.ns_decls.keys.count {
+            if self.ns_decls.keys.unsafe_get(p) == name { is_new = false }
+        }
+        self.ns_decls.set(name, own nd)
+        ref mut stored : Declaration = self.ns_decls.values.unsafe_get(p)
+        stored.name = ""
+        if is_new {
+            for oi in 0..self.ns_order.len() {
+                r := self.ns_order.unsafe_get(oi).clone()
+                if r.gte(p) {
+                    nr := r + 1
+                    self.ns_order.unsafe_set(oi, own nr)
+                }
+            }
+            self.ns_order.push(own p.clone())
+        }
+    }
+    /// Namespace member name at declaration-order position i (see the
+    /// StructDef accessors for the unsafe_get rationale).
+    member_name_at := func(self: EnumDef, i: USize) returns ref Str {
+        return self.ns_decls.keys.unsafe_get(self.ns_order.unsafe_get(i))
+    }
+    /// Namespace member Declaration at declaration-order position i.
+    member_at := func(self: EnumDef, i: USize) returns ref Declaration {
+        return self.ns_decls.values.unsafe_get(self.ns_order.unsafe_get(i))
+    }
 }
 
 // Issue #147 step 3: per-field and whole-type memory layout. Destined to

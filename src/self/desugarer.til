@@ -217,16 +217,19 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
             counter = typer_lift_one_default_value(pd, top_level, counter)
         }
     case NodeType.StructDef(sdd):
-        for mut sf : Declaration in sdd.fields {
+        for lfi in 0..sdd.fields.len() {
+            ref mut sf : Declaration = sdd.fields.values.unsafe_get(lfi)
             counter = typer_lift_one_default_value(sf, top_level, counter)
         }
-        for mut nd : Declaration in sdd.ns_decls {
+        for lni in 0..sdd.ns_decls.len() {
+            ref mut nd : Declaration = sdd.ns_decls.values.unsafe_get(lni)
             if nd.default_value.is_null().not() {
                 counter = typer_lift_lambdas_in_expr(nd.default_value, top_level, counter)
             }
         }
     case NodeType.EnumDef(edd):
-        for mut nd : Declaration in edd.ns_decls {
+        for lni in 0..edd.ns_decls.len() {
+            ref mut nd : Declaration = edd.ns_decls.values.unsafe_get(lni)
             if nd.default_value.is_null().not() {
                 counter = typer_lift_lambdas_in_expr(nd.default_value, top_level, counter)
             }
@@ -1071,23 +1074,25 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
                 // conflating them by the bare method name.
                 switch rhs.node_type {
                 case NodeType.StructDef(rsd):
-                    for nd : Declaration in rsd.ns_decls {
+                    for rni in 0..rsd.ns_decls.len() {
+                        ref nd : Declaration = rsd.ns_decls.values.unsafe_get(rni)
                         ref dv : Expr = nd.default_value
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case NodeType.FuncDef(mfd):
-                                register_func_throws(ctx, format(dn.name, ".", nd.name), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", rsd.ns_decls.keys.unsafe_get(rni).clone()), mfd.throw_types)
                             case:
                             }
                         }
                     }
                 case NodeType.EnumDef(red):
-                    for nd : Declaration in red.ns_decls {
+                    for rni in 0..red.ns_decls.len() {
+                        ref nd : Declaration = red.ns_decls.values.unsafe_get(rni)
                         ref dv : Expr = nd.default_value
                         if dv.node_type.is(NodeType.FuncDef) {
                             switch dv.node_type {
                             case NodeType.FuncDef(mfd):
-                                register_func_throws(ctx, format(dn.name, ".", nd.name), mfd.throw_types)
+                                register_func_throws(ctx, format(dn.name, ".", red.ns_decls.keys.unsafe_get(rni).clone()), mfd.throw_types)
                             case:
                             }
                         }
@@ -1141,11 +1146,13 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // at the owning Decl above, so it is not repeated here.
     switch e.node_type {
     case NodeType.StructDef(esd_ns):
-        for mut nd : Declaration in esd_ns.ns_decls {
+        for eni in 0..esd_ns.ns_decls.len() {
+            ref mut nd : Declaration = esd_ns.ns_decls.values.unsafe_get(eni)
             extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case NodeType.EnumDef(eed_ns):
-        for mut nd : Declaration in eed_ns.ns_decls {
+        for eni in 0..eed_ns.ns_decls.len() {
+            ref mut nd : Declaration = eed_ns.ns_decls.values.unsafe_get(eni)
             extend_throwing_func_sigs(ctx, nd.default_value)
         }
     case:
@@ -1312,36 +1319,35 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
     if sdef.is_null() { return "" }
     switch sdef.node_type {
     case NodeType.StructDef(sd):
-        for fd : Declaration in sd.fields {
-            if fd.name == field_name {
-                if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
-                tn := til_type_name(fd.til_type)
-                if tn.len() > 0 { return tn }
-                // Field declared without an explicit type AND its
-                // til_type hasn't been inferred yet (extend_throwing_func_sigs
-                // runs before infer_body, so init expressions like
-                // `payload_types := Map(I64, Str).new()` haven't been
-                // typed). Guess from the default-value Expr: a bare
-                // ctor FCall like `Map(K, V).new()` or `Vec(T).new()` lets
-                // us read the type off the callee.
-                ref dv : Expr = fd.default_value
-                if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
-                    ref dv_callee : Expr = dv.children[0]
-                    switch dv_callee.node_type {
-                    case NodeType.FieldAccess:
-                        if dv_callee.children.len() > 0 {
-                            switch dv_callee.children[0].node_type {
-                            case NodeType.Ident(dv_recv): return Str.clone(dv_recv.ident_name())
-                            case:
-                            }
+        ref fd : Declaration = member_get(sd.fields, field_name)
+        if fd.is_null().not() {
+            if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
+            tn := til_type_name(fd.til_type)
+            if tn.len() > 0 { return tn }
+            // Field declared without an explicit type AND its
+            // til_type hasn't been inferred yet (extend_throwing_func_sigs
+            // runs before infer_body, so init expressions like
+            // `payload_types := Map(I64, Str).new()` haven't been
+            // typed). Guess from the default-value Expr: a bare
+            // ctor FCall like `Map(K, V).new()` or `Vec(T).new()` lets
+            // us read the type off the callee.
+            ref dv : Expr = fd.default_value
+            if dv.node_type.is(NodeType.FCall).and(dv.children.len().gt(0)) {
+                ref dv_callee : Expr = dv.children[0]
+                switch dv_callee.node_type {
+                case NodeType.FieldAccess:
+                    if dv_callee.children.len() > 0 {
+                        switch dv_callee.children[0].node_type {
+                        case NodeType.Ident(dv_recv): return Str.clone(dv_recv.ident_name())
+                        case:
                         }
-                    case NodeType.Ident(dv_id):
-                        return normalize_ctor_type(dv_id.ident_name())
-                    case:
                     }
+                case NodeType.Ident(dv_id):
+                    return normalize_ctor_type(dv_id.ident_name())
+                case:
                 }
-                return ""
             }
+            return ""
         }
     case:
     }
@@ -4295,20 +4301,18 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScop
     ref sdef : Expr = scope.get_struct(tn)
     if sdef.is_null() { return false }
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref vc_ns : Vec(Declaration) = def_ns_decls(sdef)
-    for fd : Declaration in vc_ns {
-        if fd.name.eq(method).not() { continue }
-        if fd.default_value.is_null() { return false }
-        if fd.default_value.node_type.is(NodeType.FuncDef).not() { return false }
-        switch fd.default_value.node_type {
-        case NodeType.FuncDef(vfd):
-            if vfd.is_enum_variant_ctor.not() { return false }
-            pidx := i - 1
-            if pidx >= vfd.params.len() { return false }
-            ref vp : Declaration = vfd.params[pidx]
-            return vp.own_type.is(OwnType.Own)
-        case: return false
-        }
+    ref fd : Declaration = def_ns_get(sdef, method)
+    if fd.is_null() { return false }
+    if fd.default_value.is_null() { return false }
+    if fd.default_value.node_type.is(NodeType.FuncDef).not() { return false }
+    switch fd.default_value.node_type {
+    case NodeType.FuncDef(vfd):
+        if vfd.is_enum_variant_ctor.not() { return false }
+        pidx := i - 1
+        if pidx >= vfd.params.len() { return false }
+        ref vp : Declaration = vfd.params[pidx]
+        return vp.own_type.is(OwnType.Own)
+    case: return false
     }
     return false
 }
@@ -4411,8 +4415,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         case NodeType.StructDef(h_sdd):
             mut fld_own := OwnType.Shallow
             mut field_type := Type.None
-            if hoist_fi < h_sdd.fields.len() {
-                ref h_fd : Declaration = h_sdd.fields[hoist_fi]
+            if hoist_fi < h_sdd.fields_order.len() {
+                ref h_fd : Declaration = h_sdd.field_at(hoist_fi)
                 fld_own = h_fd.own_type
                 field_type = h_fd.til_type
             }
@@ -4670,16 +4674,13 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
-                    for nd : Declaration in ns {
-                        if nd.name.eq(method_name.field_access_name()).not() { continue }
-                        if nd.default_value.is_null() { break }
+                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
+                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index >= 0)
                         case:
                         }
-                        break
                     }
                 }
             case:
@@ -4720,16 +4721,13 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
-                    for nd : Declaration in ns {
-                        if nd.name.eq(method_name.field_access_name()).not() { continue }
-                        if nd.default_value.is_null() { break }
+                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
+                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return ffd.variadic_index >= 0
                         case:
                         }
-                        break
                     }
                 }
             case:
@@ -4774,10 +4772,8 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
-                    for nd : Declaration in ns {
-                        if nd.name.eq(method_name.field_access_name()).not() { continue }
-                        if nd.default_value.is_null() { break }
+                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
+                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
@@ -4785,7 +4781,6 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                             return fvi + 1
                         case:
                         }
-                        break
                     }
                 }
             case:
@@ -4832,16 +4827,13 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
-                    for nd : Declaration in ns {
-                        if nd.name.eq(method_name.field_access_name()).not() { continue }
-                        if nd.default_value.is_null() { break }
+                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
+                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return derive_fcall_kwargs_index(fcall, ffd)
                         case:
                         }
-                        break
                     }
                 }
             case:
@@ -4892,10 +4884,8 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
             case NodeType.Ident(type_name):
                 ref sdef : Expr = scope.get_struct(type_name.ident_name())
                 if sdef.is_null().not() {
-                    ref ns : Vec(Declaration) = def_ns_decls(sdef)
-                    for nd : Declaration in ns {
-                        if nd.name.eq(method_name.field_access_name()).not() { continue }
-                        if nd.default_value.is_null() { break }
+                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
+                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
@@ -4905,7 +4895,6 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
                             }
                         case:
                         }
-                        break
                     }
                 }
             case:

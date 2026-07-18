@@ -210,7 +210,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     // Also traverse sdd.fields for structs
     switch e.node_type {
     case NodeType.StructDef(cr_sdd):
-        for cr_fd : Declaration in cr_sdd.fields {
+        for cr_fi in 0..cr_sdd.fields.len() {
+            ref cr_fd : Declaration = cr_sdd.fields.values.unsafe_get(cr_fi)
             if cr_fd.default_value.is_null().not() {
                 collect_refs(cr_fd.default_value, refs)
             }
@@ -222,8 +223,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     }
     // Also traverse ns_decls entries (not in Expr children tree)
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cr_ns : Vec(Declaration) = def_ns_decls(e)
-        for cr_d : Declaration in cr_ns {
+        for cr_ni in 0..def_ns_len(e) {
+            ref cr_d : Declaration = def_ns_at(e, cr_ni)
             if cr_d.default_value.is_null().not() {
                 collect_refs(cr_d.default_value, refs)
             }
@@ -238,6 +239,73 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
 // Filter top-level declarations and namespace methods in-place using a
 // precomputed visited set.
+// #307: drop unvisited members of a def IN PLACE: mark dropped sorted
+// positions, renumber the surviving declaration-order ranks, delete the
+// dropped keys/values, and compact both parallel vecs in tandem -- the
+// map-era twin of the Vec memmove compaction this replaced. Zero
+// clones: the survivors (and their method-body ASTs) never move through
+// a copy.
+priv scavenge_members_in_place := func(mut m: Map(Str, Declaration), mut order: Vec(USize), type_name: Str, visited: Set(Str)) {
+    n := m.keys.count
+    if n == 0 { return }
+    marks : U8 = malloc(n)
+    memset(marks, 0, n)
+    mut dropped_any := false
+    for q in 0..n {
+        scv_qn := qualified_name(type_name, m.keys.unsafe_get(q))
+        if visited.has(scv_qn).not() {
+            memset(ptr_add(marks, q), 1, 1)
+            dropped_any = true
+        }
+    }
+    if dropped_any.not() { return }
+    // Renumber the rank vec first (needs the marks and the old ranks):
+    // a surviving rank r becomes r minus the dropped positions below it;
+    // ranks of dropped members leave the order entirely. O(n^2) with
+    // tiny n, avoiding scratch allocations.
+    mut nw := Vec(USize).new()
+    for oi in 0..order.len() {
+        r := order.unsafe_get(oi).clone()
+        ref rm : Bool = ptr_add(marks, r)
+        if rm { continue }
+        mut shift : USize = 0
+        for q2 in 0..r {
+            ref qm : Bool = ptr_add(marks, q2)
+            if qm { shift = shift + 1 }
+        }
+        nr := r - shift
+        nw.push(own nr)
+    }
+    order.move_from(nw)
+    // Delete dropped keys/values and compact the parallel vecs.
+    mut i : USize = 0
+    while i < n {
+        ref mk : Bool = ptr_add(marks, i)
+        if mk {
+            Str.delete(own ptr_add(m.keys.data, i.mul(Str.size())), false)
+            memset(ptr_add(m.keys.data, i.mul(Str.size())), 0, Str.size())
+            Declaration.delete(own ptr_add(m.values.data, i.mul(Declaration.size())), false)
+            memset(ptr_add(m.values.data, i.mul(Declaration.size())), 0, Declaration.size())
+        }
+        i++
+    }
+    mut w : USize = 0
+    mut rr : USize = 0
+    while rr < n {
+        ref mk2 : Bool = ptr_add(marks, rr)
+        if mk2.not() {
+            if w != rr {
+                memcpy(ptr_add(m.keys.data, w.mul(Str.size())), ptr_add(m.keys.data, rr.mul(Str.size())), Str.size())
+                memcpy(ptr_add(m.values.data, w.mul(Declaration.size())), ptr_add(m.values.data, rr.mul(Declaration.size())), Declaration.size())
+            }
+            w++
+        }
+        rr++
+    }
+    m.keys.count = w
+    m.values.count = w
+}
+
 scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
@@ -270,18 +338,14 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
         if is_struct_or_enum(stmt).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.children[0])
-            scv_nn2 := scv_ns2.len()
-            if scv_nn2 > 0 {
-                scv_nm2 : U8 = malloc(scv_nn2)
-                memset(scv_nm2, 0, scv_nn2)
-                for j in 0..scv_nn2 {
-                    scv_qn2 := qualified_name(sdecl.name, scv_ns2[j].name)
-                    if visited.has(scv_qn2).not() {
-                        memset(ptr_add(scv_nm2, j), 1, 1)
-                    }
-                }
-                scv_ns2.delete_marked(scv_nm2)
+            ref sdef : Expr = stmt.children[0]
+            switch sdef.node_type {
+            case NodeType.StructDef(scv_sdd):
+                scavenge_members_in_place(scv_sdd.ns_decls, scv_sdd.ns_order, sdecl.name, visited)
+            case NodeType.EnumDef(scv_edd):
+                scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_order, sdecl.name, visited)
+            case:
+                UNREACHABLE()
             }
         case:
             UNREACHABLE()
@@ -648,9 +712,8 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
 }
 
 priv body_dce_ns := proc(rhs: Expr) {
-    ref ns : Vec(Declaration) = def_ns_decls(rhs)
-    for nsd_e : Declaration in ns {
-        ref nsd : Declaration = nsd_e
+    for ni in 0..def_ns_len(rhs) {
+        ref nsd : Declaration = def_ns_at(rhs, ni)
         if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len() == 0 { continue }

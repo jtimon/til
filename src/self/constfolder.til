@@ -363,7 +363,8 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
             mut callee := Expr.new(ident_node(si.to_str()), src.line, src.col)
             callee.set_til_type(Type.Struct(si.to_str()))
             ctor.add_child(own callee)
-            for fd : Declaration in sfd.fields {
+            for fi in 0..sfd.fields_order.len() {
+                ref fd : Declaration = sfd.field_at(fi)
                 // Owned/ref fields are not POD; the compound-literal path
                 // can't represent them. Bail (leaks the partial ctor -- a
                 // constfolder-only allocation, consistent with the arg loop's
@@ -381,7 +382,7 @@ priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns 
                 if is_funcptr(fd.til_type) {
                     return NULL
                 }
-                ref fl_pre : FieldLayout = ctx_field_layout(si.to_str(), fd.name, ctx)
+                ref fl_pre : FieldLayout = ctx_field_layout(si.to_str(), sfd.field_name_at(fi), ctx)
                 mut farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
                 if farg.is_null() { return NULL }
                 ctor.add_child(own farg)
@@ -420,7 +421,8 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
     if sdef.is_null() { return false }
     switch sdef.node_type {
     case NodeType.StructDef(sfd):
-        for fd : Declaration in sfd.fields {
+        for fi in 0..sfd.fields.len() {
+            ref fd : Declaration = sfd.fields.values.unsafe_get(fi)
             if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
             if result_type_can_fold_to_expr(fd.til_type, ctx).not() { return false }
         }
@@ -1551,9 +1553,8 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             // Namespace method bodies live in StructDef/EnumDef ns_decls,
             // not in the AST children tree -- walk them here.
-            ref ns : Vec(Declaration) = def_ns_decls(rhs)
-            for nsd_e : Declaration in ns {
-                ref nsd : Declaration = nsd_e
+            for ni in 0..def_ns_len(rhs) {
+                ref nsd : Declaration = def_ns_at(rhs, ni)
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_value.children.len() == 0 { continue }

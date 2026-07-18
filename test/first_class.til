@@ -806,12 +806,13 @@ test_struct_field_primitives := test() {
 test_struct_def_of := test() {
     def := struct_def_of("Point56")
     assert_eq(USize, def.fields.len(), 2)
-    ref f0 : Declaration = def.fields[0]
-    assert_eq(Str, "x", f0.name)
+    // #307: names live in the map keys; read via the decl-order accessors.
+    assert_eq(Str, "x", def.field_name_at(0))
+    ref f0 : Declaration = def.field_at(0)
     assert_eq(Str, "I64", f0.explicit_type)
     expect(f0.is_mut, "f0 is_mut")
-    ref f1 : Declaration = def.fields[1]
-    assert_eq(Str, "y", f1.name)
+    assert_eq(Str, "y", def.field_name_at(1))
+    ref f1 : Declaration = def.field_at(1)
     assert_eq(Str, "I64", f1.explicit_type)
 }
 

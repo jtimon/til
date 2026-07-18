@@ -720,16 +720,17 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
     case NodeType.StructDef(sdd_data):
         switch stmt.node_type {
         case NodeType.Decl(sdd):
-            for d_j : Declaration in sdd_data.ns_decls {
-                ref fdd : Declaration = d_j
+            for mi in 0..sdd_data.ns_decls.len() {
+                ref mname : Str = sdd_data.ns_decls.keys.unsafe_get(mi)
+                ref fdd : Declaration = sdd_data.ns_decls.values.unsafe_get(mi)
                 switch fdd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    if fdd.name.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated size method on a
                         // width-mismatched target so the emitted X_size()
                         // returns sizeof(ctype) (target width).
                     } else {
-                        qname := sdd.name.concat3("_", fdd.name)
+                        qname := sdd.name.concat3("_", mname)
                         if ffd.func_type.is(FuncType.Macro) {
                             ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                         } else if ffd.func_type.is(FuncType.Func)
@@ -745,16 +746,17 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
     case NodeType.EnumDef(pc_edd):
         switch stmt.node_type {
         case NodeType.Decl(sdd):
-            for d_j : Declaration in pc_edd.ns_decls {
-                ref nsd : Declaration = d_j
+            for mi in 0..pc_edd.ns_decls.len() {
+                ref mname : Str = pc_edd.ns_decls.keys.unsafe_get(mi)
+                ref nsd : Declaration = pc_edd.ns_decls.values.unsafe_get(mi)
                 if nsd.default_value.is_null() { continue }
                 switch nsd.default_value.node_type {
                 case NodeType.FuncDef(ffd):
-                    if nsd.name.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
+                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated enum size method on
                         // a width-mismatched target (emitted X_size() -> sizeof).
                     } else {
-                        qname := sdd.name.concat3("_", nsd.name)
+                        qname := sdd.name.concat3("_", mname)
                         if ffd.func_type.is(FuncType.Macro) {
                             ctx.constfolder_foldables.set(qname, own FuncType.Macro)
                         } else if ffd.func_type.is(FuncType.Func)
@@ -992,7 +994,8 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
         if sdd.fields.len() == 0 { return false }
-        for fd : Declaration in sdd.fields {
+        for fi in 0..sdd.fields.len() {
+            ref fd : Declaration = sdd.fields.values.unsafe_get(fi)
             if fd.own_type.is(OwnType.Own) { return false }
             if fd.own_type.is(OwnType.Ref) { continue }
             ftn := field_inferred_type_name(fd)
@@ -1040,12 +1043,79 @@ is_def := func(stmt: Expr) returns Bool {
     .or(def.node_type.is(NodeType.EnumDef))
 }
 
-def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
+// #307: single-probe member lookup -- one binary search, NULL on miss.
+// The get()?/catch shape avoids both the has()+[] double probe and the
+// checked subscript's __LOC__ Str allocation (KeyNotFound is fieldless,
+// so the throw itself is free per #316). Same leaf shape as
+// func_defs_lookup_one above.
+member_get := func(m: Map(Str, Declaration), name: Str) returns ref Declaration {
+    ref d : Declaration = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
+    return d
+}
+
+// #307: namespace members are name-keyed Maps with a declaration-order
+// rank Vec (see ast.til StructDef doc). This is the Expr-level access
+// API over both def kinds: count, decl-order name/decl accessors, and
+// name-keyed lookup. Iterate 0..def_ns_len for declaration order.
+def_ns_len := func(sdef: Expr) returns USize {
     switch sdef.node_type {
     case NodeType.StructDef(sd):
-        return sd.ns_decls
+        return sd.ns_order.len()
     case NodeType.EnumDef(ed):
-        return ed.ns_decls
+        return ed.ns_order.len()
+    case:
+        UNREACHABLE()
+        return 0
+    }
+}
+
+// Member name at declaration-order position i (the map key).
+def_ns_name_at := func(sdef: Expr, i: USize) returns ref Str {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return sd.member_name_at(i)
+    case NodeType.EnumDef(ed):
+        return ed.member_name_at(i)
+    case:
+        UNREACHABLE()
+        return NULL
+    }
+}
+
+// Member Declaration at declaration-order position i (name == "").
+def_ns_at := func(sdef: Expr, i: USize) returns ref Declaration {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return sd.member_at(i)
+    case NodeType.EnumDef(ed):
+        return ed.member_at(i)
+    case:
+        UNREACHABLE()
+        return NULL
+    }
+}
+
+def_ns_has := func(sdef: Expr, name: Str) returns Bool {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return sd.ns_decls.has(name)
+    case NodeType.EnumDef(ed):
+        return ed.ns_decls.has(name)
+    case:
+        UNREACHABLE()
+        return false
+    }
+}
+
+// Member Declaration by name; NULL when the def has no such member.
+// Single probe via member_get.
+def_ns_get := func(sdef: Expr, name: Str) returns ref Declaration {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return member_get(sd.ns_decls, name)
+    case NodeType.EnumDef(ed):
+        return member_get(ed.ns_decls, name)
     case:
         UNREACHABLE()
         return NULL
