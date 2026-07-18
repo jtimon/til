@@ -24,7 +24,7 @@
   (vendor/macos/frameworks-shim: CoreFoundation/CoreGraphics/IOKit
   HID/CoreAudio/AudioToolbox/Carbon keycodes), and links against .tbd
   stubs generated on Linux from the archive's own undefined symbols
-  (gen_framework_stubs.py --linux-map). No Mac, no SDK, anywhere in the
+  (examples/gen_framework_stubs.til --linux-map; originally python, since rewritten in til). No Mac, no SDK, anywhere in the
   chain.
 
   Hard-won FFI portability lessons that cost the most wall-clock: the
@@ -132,7 +132,7 @@
     RAYLIB_MAC_X64_LIB), miniaudio runtime-links CoreAudio and glad
     runtime-links OpenGL (no link symbols), and the remaining framework
     symbols (CoreFoundation/CoreGraphics/IOKit/libobjc/HIToolbox) resolve
-    against .tbd stubs generated ON LINUX by gen_framework_stubs.py
+    against .tbd stubs generated ON LINUX by gen_framework_stubs.til
     --linux-map (symbol-prefix map, no ~nm -m~). ~til build
     --target=macos-arm64 examples/hello_gui.til~ produces a valid arm64
     Mach-O (NOUNDEFS); x64 likewise. MAC_CROSS_GUI_MODE is now |gui so

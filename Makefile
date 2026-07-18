@@ -429,13 +429,11 @@ $(TINYFD_RISCV32_LIB):
 	$(RISCV32_CC) -c -o tmp/tinyfiledialogs-riscv32.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	$(RISCV32_AR) rcs $@ tmp/tinyfiledialogs-riscv32.o
 
-# tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross). Unlike
-# raylib's Objective-C/Cocoa backend, tinyfd is one .c file that only
-# needs libc (it shells out to osascript), so it cross-compiles on ANY
-# host against the SDK-less vendored headers -- no mac required. (raylib
-# for mac cannot be built this way -- it needs the Cocoa/OpenGL headers --
-# and is instead vendored prebuilt from the mac CI as
-# libraylib-macos-<arch>.a, together with the framework .tbd stubs.)
+# tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross): one .c
+# file that only needs libc (it shells out to osascript), so it
+# cross-compiles on any host against the SDK-less vendored headers -- no
+# mac required. raylib for mac is likewise built from source on any host
+# (RAYLIB_MAC_*_LIB below), against the framework-type shims.
 TINYFD_MAC_ARM64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-arm64.a
 TINYFD_MAC_X64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-x64.a
 $(TINYFD_MAC_ARM64_LIB): | tmp
@@ -477,14 +475,15 @@ $(RAYLIB_MAC_X64_LIB): | tmp
 	llvm-ar rcs $@ tmp/raylib-macos-x64/*.o
 
 # Framework .tbd link stubs, generated ON LINUX from the archives' true
-# external symbols (gen_framework_stubs.py --linux-map maps each by symbol
-# prefix to its owning framework -- no `nm -m`, which only annotates linked
-# Mach-O on a mac, and no SDK). The real Cocoa/OpenGL/... dylibs live on
-# every mac and bind at runtime, exactly like the vendored libSystem.tbd.
+# external symbols (examples/gen_framework_stubs.til --linux-map maps each
+# by symbol prefix to its owning framework -- no `nm -m`, which only
+# annotates linked Mach-O on a mac, and no SDK). The real Cocoa/OpenGL/...
+# dylibs live on every mac and bind at runtime, exactly like the vendored
+# libSystem.tbd. The generator is a til program (repo tooling stays til).
 MAC_FRAMEWORK_STUBS := vendor/macos/frameworks/.stamp
-$(MAC_FRAMEWORK_STUBS): $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) vendor/macos/gen_framework_stubs.py
+$(MAC_FRAMEWORK_STUBS): bin/til $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) examples/gen_framework_stubs.til
 	rm -rf vendor/macos/frameworks && mkdir -p vendor/macos/frameworks
-	python3 vendor/macos/gen_framework_stubs.py --linux-map vendor/macos/frameworks \
+	bin/til run examples/gen_framework_stubs.til --linux-map vendor/macos/frameworks \
 	  $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB)
 	touch $@
 
@@ -595,10 +594,10 @@ bin/til.exe: bin/til $(LIBFFI_WIN_LIB) $(NNG_WIN_LIB) $(CORE) $(STD) $(SELF) $(L
 #
 # Exclusions: raylib.til is a direct raylib FFI demo (mode script, not
 # mode gui), so the builder never adds the desktop frameworks its final
-# link needs on mac. The cross sweep additionally skips mode gui and
-# mode server examples: their raylib/nng archives are mac-native
-# vendored files that do not exist in-tree yet (frameworks are
-# SDK-bound; see the issue for phase 3).
+# link needs on mac. The cross sweep additionally skips the mode server
+# examples: their libnng archive is a mac-native vendored file that does
+# not exist in-tree (mode gui DOES cross-sweep -- its raylib/tinyfd
+# archives build from source on linux, see RAYLIB_MAC_*_LIB).
 # bench_hashmap.til is excluded because it does not parse (stale
 # `HashMap(I64, I64).hasher = fnv1a` syntax at line 165, fails
 # identically on linux; no sweep has ever built it). custom_modes.til

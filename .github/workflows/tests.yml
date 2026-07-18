@@ -697,7 +697,7 @@ jobs:
   # the objc runtime (objc_msgSend), so it cross-compiles against the
   # SDK-less framework-type shims (vendor/macos/frameworks-shim); the
   # RAYLIB_MAC_*_LIB Makefile targets build the per-arch archives on linux
-  # and gen_framework_stubs.py --linux-map emits the .tbd link stubs from
+  # and examples/gen_framework_stubs.til --linux-map emits the .tbd link stubs from
   # their external symbols (the real Cocoa/OpenGL/... dylibs bind at runtime
   # on the target mac, exactly like the vendored libSystem.tbd). This job
   # builds the whole chain on linux and asserts a valid Mach-O per arch --

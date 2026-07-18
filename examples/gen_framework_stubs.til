@@ -1,0 +1,176 @@
+mode cli
+
+// Generate minimal tapi-tbd v4 framework link stubs for the mac gui
+// cross (issue #25 phase 3 / #232), entirely on Linux: take the TRUE
+// external undefined symbols of the linux-cross-built mac raylib
+// archives (undefined minus globally-defined, so raylib's own
+// inter-module symbols drop out), map each to its owning framework by
+// symbol prefix, and emit one <Framework>.tbd per framework listing
+// only the symbols actually referenced. The real Cocoa/OpenGL/...
+// dylibs live on every mac and bind at runtime -- same idea as the
+// vendored libSystem.tbd -- so these text stubs let a linux host
+// cross-link a mac gui binary with no SDK and no mac. Each stub is a
+// standalone tapi-tbd: lld resolves symbols only from the FIRST doc of
+// a multi-doc file, so independent frameworks MUST be separate files,
+// each passed as its own linker input.
+//
+// Usage: til run examples/gen_framework_stubs.til --linux-map <outdir> <archive.a> ...
+// (driven by the Makefile MAC_FRAMEWORK_STUBS target; replaced the
+// original python version so the repo tooling stays til).
+
+import("../src/std/sys")
+import("../src/std/file")
+
+NL := "\n"
+
+// Symbol prefix -> owning framework. Ordered: most specific first (no
+// `nm -m`, which only annotates linked Mach-O and only on a mac).
+STUB_PREFIXES := array(Str,
+    "___CFConstantStringClassReference", "_kCF", "_CF",
+    "_kCG", "_CG",
+    "_CV",
+    "_kIO", "_IO",
+    "_objc_", "_sel_", "_class_", "_object_", "_method_", "_ivar_", "_protocol_",
+    "_UCKeyTranslate", "_TIS", "_LMGetKbdType",
+    "_AudioComponent", "_AudioOutputUnit", "_AudioUnit",
+    "_AudioObject", "_AudioDevice", "_AudioHardware",
+)
+STUB_PREFIX_FW := array(Str,
+    "CoreFoundation", "CoreFoundation", "CoreFoundation",
+    "CoreGraphics", "CoreGraphics",
+    "CoreVideo",
+    "IOKit", "IOKit",
+    "libobjc", "libobjc", "libobjc", "libobjc", "libobjc", "libobjc", "libobjc",
+    "HIToolbox", "HIToolbox", "HIToolbox",
+    "AudioToolbox", "AudioToolbox", "AudioToolbox",
+    "CoreAudio", "CoreAudio", "CoreAudio",
+)
+
+// Framework -> install-name: the stable public paths every mac ships.
+// The Versions letter matters for the runtime LC_LOAD_DYLIB.
+INSTALL_FW := array(Str,
+    "OpenGL", "Cocoa", "AppKit", "Foundation", "CoreFoundation",
+    "CoreGraphics", "CoreVideo", "CoreAudio", "AudioToolbox", "IOKit",
+    "HIToolbox", "CoreServices", "ApplicationServices", "libobjc", "libc++",
+)
+INSTALL_PATH := array(Str,
+    "/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL",
+    "/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa",
+    "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+    "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+    "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
+    "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
+    "/System/Library/Frameworks/CoreVideo.framework/Versions/A/CoreVideo",
+    "/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio",
+    "/System/Library/Frameworks/AudioToolbox.framework/Versions/A/AudioToolbox",
+    "/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit",
+    "/System/Library/Frameworks/Carbon.framework/Frameworks/HIToolbox.framework/Versions/A/HIToolbox",
+    "/System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices",
+    "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices",
+    "/usr/lib/libobjc.A.dylib",
+    "/usr/lib/libc++.1.dylib",
+)
+
+install_for := func(fw: Str) returns Str {
+    for i in 0..INSTALL_FW.len() {
+        if INSTALL_FW[i] == fw { return INSTALL_PATH[i].clone() }
+    }
+    return ""
+}
+
+fw_for_symbol := func(sym: Str) returns Str {
+    for i in 0..STUB_PREFIXES.len() {
+        if sym.starts_with(STUB_PREFIXES[i]) { return STUB_PREFIX_FW[i].clone() }
+    }
+    return ""
+}
+
+// Run llvm-nm over `archive` with `flags` and add each line's last
+// whitespace-separated token (the symbol name) to `syms`. Map used as a
+// sorted string set (Set(T) has no iterator; Map exposes sorted keys).
+collect_symbols := proc(mut syms: Map(Str, I64), flags: Str, archive: Str) {
+    mut out := ""
+    result := run_cmd(out, "sh", "-c", format("llvm-nm ", flags, " '", archive, "'"))
+    if result != 0 { panic("llvm-nm ", flags, " failed for ", archive) }
+    lines := out.split(NL)
+    for li in 0..lines.len() {
+        ref line : Str = lines[li]
+        toks := line.trim().split(" ")
+        if toks.len() == 0 { continue }
+        ref last : Str = toks[toks.len() - 1]
+        if last.is_empty() { continue }
+        if syms.has(last).not() { syms.set(last, own 1) }
+    }
+}
+
+emit_one := func(syms: Str, install: Str) returns Str {
+    return format("--- !tapi-tbd", NL,
+        "tbd-version:     4", NL,
+        "targets:         [ x86_64-macos, arm64-macos ]", NL,
+        "install-name:    '", install, "'", NL,
+        "exports:", NL,
+        "  - targets:         [ x86_64-macos, arm64-macos ]", NL,
+        "    symbols:         [ ", syms, " ]", NL,
+        "...", NL)
+}
+
+main := proc(args: ..Str) {
+    if args.len() < 3 { panic("usage: gen_framework_stubs --linux-map <outdir> <archive.a> ...") }
+    if args[0].eq("--linux-map").not() { panic("unknown mode '", args[0], "': only --linux-map is supported") }
+    outdir := args[1].clone()
+
+    mut undef := Map(Str, I64).new()
+    mut defined := Map(Str, I64).new()
+    for ai in 2..args.len() {
+        collect_symbols(undef, "-u", args[ai])
+        collect_symbols(defined, "--defined-only --extern-only", args[ai])
+    }
+
+    // The true externals: undefined minus defined (drops raylib's own
+    // inter-module references). Map keys iterate in sorted order, so the
+    // per-framework symbol lists come out sorted too.
+    mut fws := Map(Str, I64).new()
+    mut ext_fw := Vec(Str).new()
+    mut ext_sym := Vec(Str).new()
+    mut unmapped := 0
+    for ki in 0..undef.keys.len() {
+        ref sym : Str = undef.keys[ki]
+        if defined.has(sym) { continue }
+        fw := fw_for_symbol(sym)
+        if fw.is_empty() {
+            // Assumed covered by the vendored libSystem.tbd; a genuinely
+            // missing one surfaces as a link error, not a silent skip.
+            unmapped++
+            continue
+        }
+        if fws.has(fw).not() { fws.set(fw, own 1) }
+        ext_fw.push(own fw)
+        ext_sym.push(own sym.clone())
+    }
+
+    mut mkdir_log := ""
+    if run_cmd(mkdir_log, "mkdir", "-p", outdir) != 0 { panic("mkdir -p ", outdir, " failed") }
+
+    mut report := ""
+    for fi in 0..fws.keys.len() {
+        ref fw : Str = fws.keys[fi]
+        install := install_for(fw)
+        if install.is_empty() { panic("no install-name for framework ", fw) }
+        mut syms := ""
+        mut n := 0
+        for i in 0..ext_sym.len() {
+            if ext_fw[i] == fw {
+                if n > 0 { syms = syms.format(", ") }
+                syms = syms.format(ext_sym[i])
+                n++
+            }
+        }
+        path := format(outdir, "/", fw, ".tbd")
+        File.writefile(path, emit_one(syms, install))
+        println(path)
+        if fi > 0 { report = report.format(", ") }
+        report = report.format(fw, "=", n.to_str())
+    }
+    println("frameworks: ", report)
+    println("unmapped (assumed libSystem, not stubbed): ", unmapped.to_str())
+}
