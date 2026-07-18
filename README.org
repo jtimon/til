@@ -103,7 +103,8 @@ sysroots. Install these packages (Ubuntu/Debian) for each target:
 - ~linux-x86~ (32-bit): ~gcc-multilib~, ~qemu-user~ (for testing)
 - ~linux-arm32~: ~gcc-arm-linux-gnueabihf~, ~qemu-user~ (for testing)
 - ~linux-riscv32~: No standard Ubuntu packages exist; use a Bootlin prebuilt toolchain (see CI configuration)
-- ~windows-x64~: ~mingw-w64~
+- ~windows-x64~ / ~windows-x86~: ~mingw-w64~ (ships both the x86_64 and i686 cross compilers)
+- ~macos-arm64~ / ~macos-x64~: ~clang~, ~lld~, ~llvm~ -- the whole LLVM toolchain, not just clang: lld links (and ad-hoc-signs arm64) Mach-O, llvm-ar/llvm-nm build the mac gui archives and framework stubs for ~make build_mac~. No Apple SDK and no mac needed (vendored headers + .tbd stubs)
 - ~wasm32~ browser GUI: ~make build_wasm~ bootstraps emscripten under ~vendor/emscripten/~ and builds raylib-web
 
 * Internal dependencies (bundled in the repository)

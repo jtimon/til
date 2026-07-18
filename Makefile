@@ -436,10 +436,10 @@ $(TINYFD_RISCV32_LIB):
 # (RAYLIB_MAC_*_LIB below), against the framework-type shims.
 TINYFD_MAC_ARM64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-arm64.a
 TINYFD_MAC_X64_LIB := vendor/tinyfiledialogs/libtinyfd-macos-x64.a
-$(TINYFD_MAC_ARM64_LIB): | tmp
+$(TINYFD_MAC_ARM64_LIB): | tmp check_mac_cross_tools
 	clang -target arm64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-arm64.o
 	llvm-ar rcs $@ tmp/tinyfd-macos-arm64.o
-$(TINYFD_MAC_X64_LIB): | tmp
+$(TINYFD_MAC_X64_LIB): | tmp check_mac_cross_tools
 	clang -target x86_64-apple-macos11 -nostdlibinc -isystem vendor/macos/include -c vendor/tinyfiledialogs/tinyfiledialogs.c -o tmp/tinyfd-macos-x64.o
 	llvm-ar rcs $@ tmp/tinyfd-macos-x64.o
 
@@ -460,14 +460,29 @@ RAYLIB_MAC_CFLAGS  := -O1 -DPLATFORM_DESKTOP_RGFW -DGRAPHICS_API_OPENGL_33 \
 RAYLIB_MAC_ARM64_LIB := vendor/raylib/src/libraylib-macos-arm64.a
 RAYLIB_MAC_X64_LIB   := vendor/raylib/src/libraylib-macos-x64.a
 
-$(RAYLIB_MAC_ARM64_LIB): | tmp
+# Preflight for every SDK-less mac-cross artifact. Order-only prereq of
+# the mac targets themselves (not just build_mac) because make builds
+# prerequisites BEFORE the build_mac recipe runs -- a missing tool used
+# to die mid-recipe with a bare "llvm-ar: not found" (a user hit exactly
+# that: clang installed, llvm package absent). clang emits the Mach-O
+# objects, ld.lld links them (via bin/til), llvm-ar indexes the archives
+# (GNU ar/ranlib do not understand Mach-O members), and llvm-nm feeds
+# the stub generator.
+.PHONY: check_mac_cross_tools
+check_mac_cross_tools:
+	@command -v clang   >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build needs clang -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
+	@command -v ld.lld  >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build links via 'clang -fuse-ld=lld' and needs the lld linker -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
+	@command -v llvm-ar >/dev/null 2>&1 || { echo "ERROR: the macOS cross-build archives Mach-O objects with llvm-ar (GNU ar cannot) -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
+	@command -v llvm-nm >/dev/null 2>&1 || { echo "ERROR: the macOS framework stub generator reads symbols with llvm-nm -- install the toolchain with: apt-get install clang lld llvm"; exit 1; }
+
+$(RAYLIB_MAC_ARM64_LIB): | tmp check_mac_cross_tools
 	rm -rf tmp/raylib-macos-arm64 && mkdir -p tmp/raylib-macos-arm64
 	for m in $(RAYLIB_MAC_MODULES); do \
 	  clang -target arm64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-arm64/$$m.o || exit 1; \
 	done
 	llvm-ar rcs $@ tmp/raylib-macos-arm64/*.o
 
-$(RAYLIB_MAC_X64_LIB): | tmp
+$(RAYLIB_MAC_X64_LIB): | tmp check_mac_cross_tools
 	rm -rf tmp/raylib-macos-x64 && mkdir -p tmp/raylib-macos-x64
 	for m in $(RAYLIB_MAC_MODULES); do \
 	  clang -target x86_64-apple-macos11 -c $(RAYLIB_MAC_CFLAGS) vendor/raylib/src/$$m.c -o tmp/raylib-macos-x64/$$m.o || exit 1; \
@@ -481,7 +496,7 @@ $(RAYLIB_MAC_X64_LIB): | tmp
 # dylibs live on every mac and bind at runtime, exactly like the vendored
 # libSystem.tbd. The generator is a til program (repo tooling stays til).
 MAC_FRAMEWORK_STUBS := vendor/macos/frameworks/.stamp
-$(MAC_FRAMEWORK_STUBS): bin/til $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) examples/gen_framework_stubs.til
+$(MAC_FRAMEWORK_STUBS): bin/til $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) examples/gen_framework_stubs.til | check_mac_cross_tools
 	rm -rf vendor/macos/frameworks && mkdir -p vendor/macos/frameworks
 	bin/til run examples/gen_framework_stubs.til --linux-map vendor/macos/frameworks \
 	  $(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB)
@@ -638,14 +653,14 @@ build_mac: bin/til $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB)
 	  bin/til build --target=$(MAC_TARGET) --extra-modes=examples/custom_modes.til $$f || exit 1; \
 	done
 else
-# Linux -> macOS cross needs clang plus the LLVM linker lld (the SDK-less
-# toolchain links Mach-O and ad-hoc-signs arm64 via -fuse-ld=lld). A bare
-# checkout often has clang but not lld, so clang dies with the cryptic
-# "invalid linker name in argument '-fuse-ld=lld'"; check up front and
-# say what to install instead.
-build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) $(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB) $(MAC_FRAMEWORK_STUBS))
-	@command -v clang  >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS and needs clang -- install it with: apt-get install clang lld"; exit 1; }
-	@command -v ld.lld >/dev/null 2>&1 || { echo "ERROR: 'make build_mac' cross-compiles to macOS via 'clang -fuse-ld=lld' and needs the lld linker -- install it with: apt-get install lld"; exit 1; }
+# Linux -> macOS cross needs the LLVM toolchain: clang (Mach-O codegen),
+# lld (links + ad-hoc-signs arm64 via -fuse-ld=lld), llvm-ar/llvm-nm (mac
+# archives + stub generation). A bare checkout often has clang alone and
+# dies mid-build with cryptic errors; check_mac_cross_tools (an
+# order-only prereq here AND of every mac artifact target, since
+# prerequisites build before this recipe runs) names the missing tool
+# with the apt hint instead.
+build_mac: bin/til $(if $(MAC_CROSS_GUI_MODE),$(RAYLIB_MAC_ARM64_LIB) $(RAYLIB_MAC_X64_LIB) $(TINYFD_MAC_ARM64_LIB) $(TINYFD_MAC_X64_LIB) $(MAC_FRAMEWORK_STUBS)) | check_mac_cross_tools
 	for f in $(MAC_CROSS_EXAMPLES_SRC); do \
 	  b=$$(basename $$f .til); \
 	  bin/til build --target=macos-arm64 -o bin/$$b-macos-arm64 $$f || exit 1; \
