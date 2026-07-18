@@ -40,6 +40,12 @@ priv LocalInfo := struct {
     // conditionally-transferred own param was leaking under the old
     // blanket "params stand down" rule (#302).
     dtor_transfer := false
+    // #302 stage 4: the transfer at own_transfer is a struct-ctor arg
+    // into a SHALLOW field (a value-copy: the field's destructor frees
+    // the inner data, nothing frees the local's wrapper). Recorded here
+    // at transfer-classification time, beside dtor_transfer, instead of
+    // re-parsing the ctor shape at delete-insertion time (D4).
+    shallow_copy_transfer := false
     // True for a TYPED local whose RHS is an allocator call (malloc /
     // calloc / realloc): an owned raw heap block. The garbager owns its
     // free -- inserted like any owned local's cleanup, but always as a
@@ -984,6 +990,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         li.skip_scope_delete = skip_scope_delete
         if own_transfer >= 0 {
             li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name)
+            li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
         }
         li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
         if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
@@ -1619,7 +1626,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
                         // would free the local's wrapper. Emit a raw
                         // `free(local)` after the transfer stmt to release
                         // the wrapper without touching the inner data.
-                        if transfer_is_shallow_field_value_copy(stmt, local.name, scope) {
+                        if local.shallow_copy_transfer {
                             free_call := make_free_call(local.name, local.type, stmt)
                             if free_call.is_null().not() {
                                 new_ch.push(own free_call)
@@ -1759,12 +1766,54 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
     }
 }
 
+// #302 stage 4: the OUTER-scope save_old_delete decision, consolidated
+// from the typer's infer_assign_stmt (the flag now has one writer pass:
+// this file). An assign from a nested scope to an enclosing
+// function-local that rebinds an owned aggregate must free the old
+// value inline: the RHS shapes are a clone-wrapped ident / any
+// own-returning call (both fcall_returns_own) or a Str literal rebind.
+// Ref targets rebind a borrow, not a value, and globals outlive the
+// body -- both excluded, matching the old typer rule. Runs for EVERY
+// body -- including bodies with no locals of their own, which is where
+// most outer-target assigns live (if branches, loop wrappers), and
+// which insert_free_calls otherwise early-returns on.
+priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), mut scope: TypeScope) {
+    for mut stmt : Expr in body.children {
+        switch stmt.node_type {
+        case NodeType.Assign(ad):
+            vname := ad.name
+            mut is_body_local := false
+            for local : LocalInfo in locals {
+                if local.name.eq(vname) { is_body_local = true }
+            }
+            if is_body_local.or(stmt.children.len().eq(0)) { continue }
+            sf_out := scope.find(vname)
+            switch sf_out {
+            case ScopeFind.Found(ob):
+                if is_aggregate(ob.type).and(ob.own_type.is(OwnType.Ref).not())
+                    .and(assign_target_is_func_local(scope, vname)) {
+                    ref orhs : Expr = stmt.children[0]
+                    mut rebind := orhs.node_type.is_literal_str()
+                    if rebind.not().and(orhs.node_type.is(NodeType.FCall)) {
+                        rebind = fcall_returns_own(orhs, scope)
+                    }
+                    if rebind { ad.save_old_delete = true }
+                }
+            case:
+            }
+        case:
+        }
+    }
+}
+
 priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr)) {
     switch stmt.node_type {
     case NodeType.Assign(ad):
         vname := ad.name
+        mut is_body_local := false
         for local : LocalInfo in locals {
             if local.name.eq(vname).not() { continue }
+            is_body_local = true
             if is_aggregate(local.type) {
                 if rhs_depends_on_var(stmt.children[0], vname, new_ch) {
                     ad.save_old_delete = true
@@ -1781,6 +1830,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             }
             break
         }
+        if is_body_local { return }
     case:
     }
 }
@@ -2043,12 +2093,133 @@ priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
     }
 }
 
+// --- #302 stage 5: the temp contract, checked ------------------------------
+//
+// The hoisting division of labor says every owned-aggregate-producing
+// expression the asap pass must track has been lifted into a named
+// `hoisted__` Decl by the typer. The contract was implicit: any shape
+// the hoister missed was INVISIBLE to the pass and leaked silently
+// (the f().field class, #272). This walk makes it checked: an
+// own-returning aggregate call in a position that neither a Decl nor a
+// consuming parent covers is reported. Positions that COVER a temp:
+//   - RHS (child 0) of a Decl (the hoisted form itself);
+//   - a Return operand (the return machinery owns it);
+//   - an Assign RHS (save_old_delete / assign machinery owns it);
+//   - an own-arg slot of a call (the callee consumes it);
+//   - a bare expression statement (the discard machinery deletes it);
+//   - a FieldAssign RHS (the field takes it).
+// The walk stops at nested Body / FuncDef boundaries: those are
+// separate garbager views with their own check.
+priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeScope) {
+    if e.node_type.is(NodeType.Body).or(e.node_type.is(NodeType.FuncDef)) { return }
+    // Struct/enum defs: field defaults and namespace members are owned
+    // by the initer/constructor machinery, and method bodies are
+    // separate garbager views -- not this body's temps.
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) { return }
+    // NamedArg wraps a value without changing who consumes it.
+    if e.node_type.is(NodeType.NamedArg) {
+        for na : Expr in e.children {
+            temp_check_expr(na, consumed, ctx, scope)
+        }
+        return
+    }
+    if e.node_type.is(NodeType.FCall) {
+        // A struct-constructor call's fields take every arg (own fields
+        // consume, Shallow fields value-copy with the wrapper-free
+        // machinery compensating) -- the same ctor special case
+        // fcall_has_own_arg carries, since ctor calls have no own-arg
+        // bits. A MACRO call is folded away whole by the constfolder
+        // (with its typer-synthesized Type-value args), so neither the
+        // call nor its args survive to codegen. Ordinary calls consume
+        // exactly their own-arg slots.
+        mut is_ctor := false
+        ctor_name := til_type_name(e.til_type())
+        if ctor_name.len().gt(0).and(e.children.len().gt(0)) {
+            switch e.children[0].node_type {
+            case NodeType.Ident(tc_cn):
+                if tc_cn.ident_name() == ctor_name { is_ctor = true }
+            case:
+            }
+        }
+        mut is_mac := false
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(tc_mn):
+                ref mn : Str = tc_mn.ident_name()
+                if ctx.constfolder_foldables.has(mn) {
+                    if ctx.constfolder_foldables[mn].is(FuncType.Macro) { is_mac = true }
+                }
+            case:
+            }
+        }
+        if consumed.not().and(is_mac.not()).and(is_aggregate(e.til_type())).and(fcall_returns_own(e, scope)) {
+            tn := type_to_name(e.til_type())
+            if tn.len() > 0 {
+                // ICE, not a diagnostic: an owned temp the hoister missed
+                // is invisible to the asap pass and leaks silently -- the
+                // D5 class. Loud beats a plausible-looking leak. The whole
+                // corpus (compiler + tests + examples) is hit-free as of
+                // 2026-07-16; anything firing here is a NEW hoister gap.
+                panic(__LOC__, ": unhoisted owned temp at ", ctx.path, ":", e.line.to_str(), ":", e.col.to_str(),
+                    " type=", tn, " -- the typer's hoist pass missed an owned aggregate temp; the asap pass cannot track it")
+            }
+        }
+        for ai in 0..e.children.len() {
+            if ai == 0 {
+                temp_check_expr(e.children[ai], false, ctx, scope)
+            } else if is_ctor.or(is_mac) {
+                temp_check_expr(e.children[ai], true, ctx, scope)
+            } else {
+                temp_check_expr(e.children[ai], get_own_arg(e, ai), ctx, scope)
+            }
+        }
+        return
+    }
+    for c : Expr in e.children {
+        temp_check_expr(c, false, ctx, scope)
+    }
+}
+
+priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
+    for stmt : Expr in body.children {
+        if is_compile_directive(stmt) { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(tc_dd):
+            // The Decl RHS IS the hoisted/bound form; its nested args
+            // still need the walk.
+            if stmt.children.len() > 0 { temp_check_expr(stmt.children[0], true, ctx, scope) }
+            if tc_dd.default_value.is_null().not() { temp_check_expr(tc_dd.default_value, true, ctx, scope) }
+        case NodeType.Assign(tc_ad):
+            if tc_ad.name.len().gt(0).and(stmt.children.len().gt(0)) {
+                temp_check_expr(stmt.children[0], true, ctx, scope)
+            }
+        case NodeType.FieldAssign(tc_fad):
+            if tc_fad.name.len().gt(0).and(stmt.children.len().gt(1)) {
+                temp_check_expr(stmt.children[0], false, ctx, scope)
+                temp_check_expr(stmt.children[1], true, ctx, scope)
+            }
+        case NodeType.Return:
+            if stmt.children.len() > 0 { temp_check_expr(stmt.children[0], true, ctx, scope) }
+        case NodeType.FCall:
+            // Bare call statement: the discard machinery owns the result.
+            temp_check_expr(stmt, true, ctx, scope)
+        case:
+            temp_check_expr(stmt, false, ctx, scope)
+        }
+    }
+}
+
 priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
     if scope_exit == 0 { return false }
     is_program_scope := scope.parent.is_null()
 
     mut locals_vec := Vec(LocalInfo).new()
     collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)
+    // Before the zero-locals early return: outer-target assigns need
+    // their save_old_delete decision even in bodies that own no locals,
+    // and the stage-5 temp contract applies to every body.
+    flag_outer_assign_rebinds(body, locals_vec, scope)
+    temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
     extend_ref_local_lifetimes(body, locals_vec, scope)

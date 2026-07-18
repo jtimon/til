@@ -5586,43 +5586,13 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
             if tname.len().gt(0).and(rhs.til_type().is_funcptr().not()).and(rhs.til_type().is(Type.Body).not()) {
                 mc := make_clone_call(tname, rhs.til_type(), rhs, stmt)
                 stmt.children[0] = mc
-                if scope.bindings.has(aname).not() {
-                    if is_aggregate(existing) {
-                        if assign_target_is_func_local(scope, aname) {
-                            switch stmt.node_type {
-                            case NodeType.Assign(adata2):
-                                adata2.save_old_delete = true
-                            case:
-                            }
-                        }
-                    }
-                }
-            }
-        } else if rhs.node_type.is(NodeType.FCall).and(fcall_returns_own(rhs, scope)).and(
-            is_aggregate(existing)
-        ) {
-            if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
-                switch stmt.node_type {
-                case NodeType.Assign(adata3):
-                    adata3.save_old_delete = true
-                case:
-                }
-            }
-        } else if rhs.node_type.is_literal_str().and(
-            is_aggregate(existing)
-        ) {
-            // mut X := some_str; ... X = "literal" -- the outer-scope local
-            // owns a heap-allocated Str clone; the literal RHS just rebinds
-            // the pointer, leaking the old clone. Same outer-scope shape as
-            // the Ident/FCall branches above.
-            if scope.bindings.has(aname).not().and(assign_target_is_func_local(scope, aname)) {
-                switch stmt.node_type {
-                case NodeType.Assign(adata4):
-                    adata4.save_old_delete = true
-                case:
-                }
             }
         }
+        // The outer-scope save_old_delete decision (an assign from a
+        // nested scope to an enclosing function-local rebinding an
+        // owned aggregate) now lives in the garbager's
+        // insert_assign_delete, beside the in-scope assign decision --
+        // #302 stage 4: save_old_delete has exactly one writer pass.
     }
 }
 
@@ -5639,7 +5609,7 @@ rhs_is_clone_fcall := func(rhs: Expr) returns Bool {
     }
 }
 
-priv assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Bool {
+assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Bool {
     ref mut s : TypeScope = scope
     while s.is_null().not() {
         if s.parent.is_null().not().and(s.bindings.has(name)) { return true }

@@ -824,6 +824,7 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
     Bool skip_scope_delete;
     Bool is_heap;
     Bool dtor_transfer;
+    Bool shallow_copy_transfer;
     Bool raw_alloc;
 } priv___src_self_garbager_til__LocalInfo;
 
@@ -2635,7 +2636,7 @@ I32 priv___src_self_typer_til__type_decls_file(Str * path, Context * ctx);
 I32 priv___src_self_typer_til__type_bodies_file(Str * path, Context * ctx);
 void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 Bool rhs_is_clone_fcall(Expr * rhs);
-Bool priv___src_self_typer_til__assign_target_is_func_local(TypeScope * scope, Str * name);
+Bool assign_target_is_func_local(TypeScope * scope, Str * name);
 Bool is_numeric_type(Type * t);
 Bool is_integral_numeric_type(Type * t);
 Bool priv___src_self_typer_til__type_ctor_consumes(Type * t);
@@ -2890,6 +2891,7 @@ void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalIn
 void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch);
 void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
+void priv___src_self_garbager_til__flag_outer_assign_rebinds(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch);
 void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
@@ -2897,6 +2899,8 @@ Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___sr
 Bool priv___src_self_garbager_til__sink_nontransfer_paths(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__record_storage_decisions(Expr * body, Vec__LocalInfo * locals);
+void priv___src_self_garbager_til__temp_check_expr(Expr * e, Bool consumed, Context * ctx, TypeScope * scope);
+void priv___src_self_garbager_til__temp_check_body(Context * ctx, Expr * body, TypeScope * scope);
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);

@@ -917,9 +917,68 @@ let the ownership pass insert temps itself; start with the check.
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).
-  - [ ] Stage 4: explicit moves + unified reassign deletes.
-  - [ ] Stage 5: temp-contract enforcement.
-  - [ ] Stage 6: builder compensation removal.
+  - [X] 2026-07-16 Stage 4 first slice: save_old_delete has ONE writer
+    pass. The typer's three infer_assign_stmt sites (outer-scope
+    function-local rebinds: clone-wrapped ident / own-returning call /
+    Str-literal RHS) moved into the garbager as
+    flag_outer_assign_rebinds, which runs for EVERY body BEFORE the
+    zero-locals early return -- the first port attempt sat inside
+    insert_assign_delete and silently missed every assign living in a
+    body with no locals of its own (if branches, loop wrappers), which
+    the pass-1 vs pass-2 C diff exposed as 1026 lines of dropped
+    old-value deletes. Final state proven equivalent: pass-1 C ==
+    pass-2 C byte-exact for the whole compiler corpus (plain commit).
+    assign_target_is_func_local de-privs (the decision's vocabulary
+    moves with it). make clean && make test 176/176 (ASAN).
+  - [X] 2026-07-16 Stage 4: the Shallow-field value-copy wrapper free
+    is a RECORDED decision (LocalInfo.shallow_copy_transfer, classified
+    in collect_scope_locals beside dtor_transfer) instead of a ctor
+    shape re-parse at delete-insertion time. Pass-1 C == pass-2 C
+    byte-exact (plain commit); make clean && make test 176/176.
+  - [ ] Stage 4 (rest): move markers replace the clone-elision
+    rewrites (builder + interpreter learn one marker; the textual
+    bare-ident rewrite dies); user-facing move for the container
+    memcpy+memset idiom (census class c) -- NOTE: push/pop write
+    UNINITIALIZED slots, so move() (which destroys dest's old value)
+    cannot express them; a placement-adopt primitive would be a NEW
+    language surface and needs an explicit ruling first.
+  - [X] 2026-07-16 Stage 5 DONE: the temp contract is CHECKED. New
+    temp_check_body/temp_check_expr walk in the garbager (runs for
+    every body, before the zero-locals early return): an own-returning
+    aggregate call in a position neither a Decl nor a consuming parent
+    covers is an ICE ("unhoisted owned temp at <loc>"), not a silent
+    leak -- D5's invisible class is now loud. Covered positions,
+    settled empirically by probing the WHOLE corpus (compiler + all
+    tests + all examples, println mode first): Decl RHS, Return
+    operand, Assign RHS, FieldAssign RHS, own-arg slots, bare-call
+    statements (discard machinery), struct-ctor args (fields take
+    every arg -- ctor calls carry no own-arg bits, the same special
+    case fcall_has_own_arg has), macro-call args (the constfolder
+    folds the whole call away, with its typer-synthesized Type-value
+    args -- ctx.constfolder_foldables consulted directly since
+    garbager imports before constfolder), NamedArg wrappers propagate
+    the consumer. StructDef/EnumDef/nested-Body/FuncDef are boundary
+    nodes (initer machinery / separate views). Corpus is hit-free; the
+    ICE is armed. make clean && make test 176/176 (ASAN).
+  - [ ] Stage 6: builder compensation removal. DEPENDENCY DISCOVERED
+    2026-07-16 (empirically, reverted same day): the is_noop_delete_stmt
+    item ("no-op deletes are simply NOT INSERTED") is GATED ON #286,
+    not only on stages 1-5. A no-op delete is only a no-op in COMPILED
+    code: the comptime interpreter CONSUMES the garbager's delete
+    statements as its reclamation signal (the #275 contract -- the
+    shadow teardown frees interp Value boxes when it evaluates them).
+    Suppressing even the scalar class (U32/Bool/I64 stack deletes,
+    call_free=0) corrupts constfold evaluation: ASAN
+    heap-buffer-overflow in clone_str_storage_into reading a Str whose
+    count came from a stale interp cell, reproduced with the
+    scalars-only gate and gone on revert. Until #286's raw-bytes
+    runtime makes interp deletes true no-ops for these classes too,
+    the garbager must keep inserting them; the builder's
+    is_noop_delete_stmt stays as the compiled-side skip. The OTHER
+    stage-6 items (swap_freed, CAP laundering at return boxing, the
+    FieldAssign cap test, the "Asap fix" inline free) are not known to
+    carry this edge but each needs its own gap-first fix per the
+    stage's rule.
   - [ ] Stage 7: interpreter compensation removal (rides #286).
 
 *** Staged plan
