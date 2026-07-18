@@ -1426,6 +1426,12 @@ Str *realpath_str(const Str *path) {
 #ifdef _WIN32
     char *abs = _fullpath(NULL, p, 0);
     free(p);
+    // _fullpath is a pure string normalizer: unlike POSIX realpath it
+    // succeeds for paths that do NOT exist. Callers rely on "" meaning
+    // "no such file" (e.g. the builder's libffi absence gate, which
+    // otherwise links a nonexistent archive on a windows host), so
+    // enforce the POSIX contract with an explicit existence check.
+    if (abs && _access(abs, 0) != 0) { free(abs); abs = NULL; }
     if (!abs) return Str_clone(&(Str){.c_str = (I8*)"", .count = 0, .cap = CAP_LIT});
     // Normalize backslashes to forward slashes so path comparisons stay
     // consistent across Unix and Windows codepaths.

@@ -445,6 +445,22 @@
      binary (esp. the hand-shimmed CoreAudio struct ABI) is not exercised
      on Linux; the native-mac build_mac jobs remain the real-hardware
      audio/gui check.
+   - First master run of the full chain (29622850794): everything green
+     EXCEPT two, both root-caused and fixed. (1) windows-host `til.exe
+     build` linked the nonexistent win64 libffi.a: ext.c's realpath_str
+     uses _fullpath on _WIN32, which -- unlike POSIX realpath -- is a
+     pure string normalizer that succeeds for missing paths, so the
+     builder's libffi absence gate never fired on a windows host. This
+     was latent, not a regression: every earlier run died before this
+     step (dual-CRT exit-127, then the sender hang), so the gate had
+     never actually executed on windows. Fixed with an _access existence
+     check so "" means "no such file" on every platform. (2) The
+     linux-x86 gui smoke segfaulted: building needs no 32-bit X11 (vendored
+     headers + dlopen), but RUNNING does -- GLFW's dlopen of libX11
+     cannot load the runner's 64-bit .so from an i386 process. The job
+     now installs the i386 X11/GL runtime libs; verified locally under
+     qemu-i386 + Xvfb: window opens, GL initializes (llvmpipe), fonts
+     load, alive at the 3s timeout.
 
 *** macOS plan
 

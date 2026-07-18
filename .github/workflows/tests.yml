@@ -124,18 +124,25 @@ jobs:
           qemu-i386 bin/hello_script_x86
           qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
       # Issue #232: 32-bit linux GUI. raylib compiles -m32 against the
-      # vendored X11 headers and GLFW dlopens libX11 at runtime, so only
-      # gcc-multilib is needed (already installed above) -- no 32-bit X11
-      # sysroot. The qemu+xvfb run proves the binary actually initializes
-      # raylib; timeout 124 = it was alive and drawing when killed, like
-      # the gui suite's build tests.
+      # vendored X11 headers and GLFW dlopens libX11 at runtime, so
+      # BUILDING needs only gcc-multilib (installed above) -- no 32-bit
+      # X11 sysroot. RUNNING the binary is another matter: the i386
+      # process can't load the runner's 64-bit libX11, so GLFW's dlopen
+      # fails and raylib segfaults windowless (run 29622850794); install
+      # the i386 X11/GL runtime libs so the qemu+xvfb run opens a real
+      # window. timeout 124 = alive and drawing when killed, same
+      # contract as the gui suite's build tests.
       - name: Cross-compile and run a GUI example for linux-x86
         run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y libx11-6:i386 libxrandr2:i386 libxinerama1:i386 \
+            libxcursor1:i386 libxi6:i386 libxext6:i386 libgl1:i386 libgl1-mesa-dri:i386
           make vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a
           ./bin/til build --target=linux-x86 -o bin/hello_gui_x86 examples/hello_gui.til
           file bin/hello_gui_x86 | grep -q "80386"
           rc=0; xvfb-run --auto-servernum timeout 3 qemu-i386 bin/hello_gui_x86 || rc=$?
-          test "$rc" = "124" -o "$rc" = "0"
+          test "$rc" = "124"
 
   linux-arm32:
     name: linux-arm32

@@ -91,9 +91,15 @@
     mac, so the inherited 64-bit libraylib.a stayed in the link and
     clashed with i386 output). Verified end to end: ~til build
     --target=linux-x86 examples/hello_gui.til~ produces an ELF 32-bit
-    Intel 80386 gui binary that INITIALIZES raylib 6.0 under
-    qemu-i386 + Xvfb on a 64-bit host. The CI linux-x86 job builds and
-    smoke-runs it (timeout-124-or-0, like the gui suite build tests).
+    Intel 80386 gui binary that opens a window, initializes GL
+    (llvmpipe) and loads textures/fonts under qemu-i386 + Xvfb on a
+    64-bit host, alive at the 3s timeout (exit 124). One asterisk on
+    "no 32-bit X11 needed": that is true for BUILDING (vendored
+    headers + dlopen), but RUNNING needs the i386 X11/GL runtime libs
+    -- without them GLFW's dlopen of libX11 fails and raylib segfaults
+    windowless (first master run 29622850794 caught exactly that). The
+    CI linux-x86 job installs libx11-6:i386 + friends and requires
+    exit 124 from the smoke run.
 
 *** Remaining
 
