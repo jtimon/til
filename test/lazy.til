@@ -650,6 +650,37 @@ test_lazysig_container := test() {
     assert_eq(I64, eval_count, 0)
 }
 
+# --- DIRECT SUBSCRIPT CALL `ops[i](args)` (#262 follow-up): the typer narrows
+#     a DynVec element read from Dynamic to the vec's recorded element type
+#     (`ops := DynVec.new(Sig)` tracks Sig on the binding), so the stored
+#     funcptr is callable without the annotated-ref hop -- for ordinary
+#     funcsigs and (with the loader routing the callee through the cast
+#     machinery so the args thunk-wrap) lazy ones, short-circuit intact. ---
+
+UnOpLz := func(v: I64) returns I64
+dblLz := func(v: I64) returns I64 { return v * 2 }
+
+test_subscript_call_ordinary := test() {
+    mut ops := DynVec.new(UnOpLz)
+    ops.push(own dblLz)
+    assert_eq(I64, ops[0](21), 42)
+}
+
+test_subscript_call_lazy := test() {
+    mut ops := DynVec.new(BothSig)
+    ops.push(own both)
+    expect(ops[0](true, true), "ops[0](T,T)")
+    expect(ops[0](false, true).not(), "ops[0](F,T)")
+    eval_count = 0
+    r := ops[0](false, bump())
+    expect(r.not(), "ops[0](false, bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+    eval_count = 0
+    r2 := ops[0](true, bump())
+    expect(r2, "ops[0](true, bump()) forces once")
+    assert_eq(I64, eval_count, 1)
+}
+
 # --- CAST-CALLEE lazy call (#262 first-class): `cast(x, Sig)(...)` names the
 #     lazy funcsig literally in the cast, so the loader wraps the args like any
 #     other first-class call (the callee expression is kept verbatim). ---

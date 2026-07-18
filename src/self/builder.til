@@ -7972,6 +7972,23 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     mut is_lib := false
     if mode.is_null().not() { is_lib = mode.is_library }
 
+    // Every phase between init and here (lazy lowering, lifted lambdas,
+    // monomorphization, garbager destructor insertion) may have APPENDED
+    // top-level decls to a unit AST; an append that reallocs a children Vec
+    // moves every node, dangling the scope's registered func_def/struct_def
+    // pointers. Re-point them all so emit-time lookups read live nodes.
+    if lp.skip_core.not() {
+        for bru : ProgramUnit in lp.core_units {
+            init_refresh_seeded_scope_defs(lp.ctx.imported[bru.path].ast, lp.ctx.scope)
+        }
+    }
+    for bruu : ProgramUnit in lp.units {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[bruu.path].ast, lp.ctx.scope)
+    }
+    for brm : Str in lp.mode_files {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[brm].ast, lp.ctx.scope)
+    }
+
     builder_reset_func_scratch(lp.ctx)
     build_register_func_symbols_lp(lp)
     build_register_funcsig_names_lp(lp)

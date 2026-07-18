@@ -5,12 +5,32 @@
 Post-mortem (the arc, newest first; each stage lists its regression tests, all
 in test/lazy.til unless noted):
 
-- FINAL commit: first-class EXPRESSION callees -- a container-stored lazy func
+- DIRECT SUBSCRIPT CALLS (post-close follow-up): `ops[i](args)` on a
+  `DynVec.new(Sig)` works for ordinary AND lazy funcsigs. The typer records
+  the element type on the vec's binding (TypeBinding.dynvec_elem, read from
+  the pre-inference `DynVec.new(T)` token) and narrows get/unsafe_get/pop
+  results from Dynamic to it; the loader routes a lazy subscript callee
+  through the cast machinery (`cast(ops[i], Sig)(thunks)`) so args wrap; the
+  interpreter rehydrates a funcptr-typed local holding a container slot
+  address via callable_box_or_slot_read at the call site. Tests:
+  test_subscript_call_ordinary / _lazy. Landing it surfaced and fixed two
+  latent GENERAL bugs: (1) the loader's lazy passes appended generated decls
+  to a unit AST while the lowering loop held live refs into that same
+  children Vec -- a realloc turned them into use-after-free; appends are now
+  queued and flushed at unit end (lazy_flush_pending_decls), with
+  init_refresh_seeded_scope_defs re-pointing stale func_def registrations
+  after every appending phase (loader, typer_lift_lambdas, build entry).
+  (2) a typer-synthesized decl (the bang-hoisted `_bang_ret_N`) carried its
+  funcsig type only on the stmt, so the scavenger -- which reads
+  Declaration.explicit_type -- pruned the funcsig decl the emit needed;
+  finalize_decl_binding now stamps inferred FuncPtrSig types onto the
+  Declaration itself.
+- FINAL closing commit: first-class EXPRESSION callees -- a container-stored
+  lazy func
   (`ops := DynVec.new(Sig); ops.push(own f); ref g : Sig = ops[0]; g(...)`)
   and a cast callee (`cast(g, Sig)(...)`, the sig read literally off the cast)
   both wrap their args and short-circuit. Tests: test_lazysig_container,
-  test_lazysig_cast_callee. Direct `ops[0](...)` calls stay unsupported for
-  ordinary and lazy funcsigs alike (a DynVec/Dynamic limitation, not lazy's).
+  test_lazysig_cast_callee.
 - CALL-BY-NEED (the chosen final semantics, superseding the earlier
   call-by-name choice): an argument evaluates the FIRST time its param is
   forced, is cached (per-type _force_once_T helpers + body-local done/cache

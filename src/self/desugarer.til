@@ -293,6 +293,13 @@ typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
         ref pushed : Expr = prog.children[prog.children.len() - 1]
         typer_register_lifted_lambda(scope, pushed, ctx)
     }
+    // The pushes above can REALLOC prog.children, moving every top-level
+    // node -- which dangles all func_def/struct_def pointers registered
+    // against the old storage (the same staleness
+    // init_refresh_seeded_scope_defs exists for). Re-point them all.
+    if top_level.len() > 0 {
+        init_refresh_seeded_scope_defs(prog, scope)
+    }
 }
 // #282: seed the throws resolver with the in-scope type of every Ident in
 // `e` (the live typer scope is the authoritative source at infer time).

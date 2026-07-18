@@ -686,6 +686,7 @@ typedef struct TypeBinding {
     Bool written;
     Bool mut_explicit;
     Str orig_name;
+    Str dynvec_elem;
 } TypeBinding;
 
 
@@ -2442,7 +2443,7 @@ Str * priv___src_self_initer_til__init_literal_child_type(Expr * e);
 void priv___src_self_initer_til__init_collect_variadic_arrays(Expr * e, Vec__Expr * synthesized, Map__Str_Str * seen, Bool synth_array, Bool synth_vec, Bool synth_set, Bool synth_map);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
-void priv___src_self_initer_til__init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
+void init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
 Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
 void priv___src_self_initer_til__init_generic_expand_call(Expr * parent, USize call_idx, Str * gname, Expr * gfd_expr, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized, Context * ctx);
 void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Expr * generics, Map__Str_Str * seen, Vec__Expr * synthesized, Context * ctx);
@@ -2606,7 +2607,8 @@ void priv___src_self_typer_til__pre_coerce_decl_numeric_literals(Expr * expr, Ty
 Bool priv___src_self_typer_til__fcall_is_raw_alloc(Expr * e);
 void priv___src_self_typer_til__infer_decl_typed_value(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_decl_untyped_value(Expr * stmt, Context * ctx);
-void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body, Context * ctx);
+Str * priv___src_self_typer_til__dynvec_elem_from_new(Expr * rhs);
+void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body, Str * dv_elem, Context * ctx);
 void priv___src_self_typer_til__infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body, Context * ctx);
 Bool is_simple_lvalue_expr(Expr * e);
 Bool is_compile_directive(Expr * e);
@@ -3109,17 +3111,18 @@ Bool priv___src_self_loader_til__lazy_thunk_blocked(Expr * e, Set__Str * pnames,
 void priv___src_self_loader_til__lazy_autoforce_node(Expr * parent, USize idx, Set__Str * pnames, Set__Str * shadowed, Map__Str_Str * memo, I32 depth);
 void priv___src_self_loader_til__lazy_autoforce_match_switch(Expr * node, Set__Str * pnames, Set__Str * shadowed, Map__Str_Str * memo, I32 depth);
 void priv___src_self_loader_til__lazy_autoforce_body(Expr * body, Set__Str * pnames, Set__Str * outer_shadowed, Map__Str_Str * memo, I32 depth);
-void priv___src_self_loader_til__lazy_register_fn_ret_alias(LoadedProgram * lp, Str * unit_path, Str * ret_type, U32 line, U32 col, Set__Str * seen);
+void priv___src_self_loader_til__lazy_register_fn_ret_alias(LoadedProgram * lp, Str * ret_type, U32 line, U32 col, Set__Str * seen, Vec__Expr * pending);
 void priv___src_self_loader_til__lazy_count_live_bump(Str * nm, Map__Str_I64 * counts);
 void priv___src_self_loader_til__lazy_count_live(Expr * e, Set__Str * pnames, Set__Str * shadowed, Map__Str_I64 * counts, I32 depth);
 void priv___src_self_loader_til__lazy_count_live_ms(Expr * node, Set__Str * pnames, Set__Str * shadowed, Map__Str_I64 * counts, I32 depth);
 void priv___src_self_loader_til__lazy_count_live_body(Expr * body, Set__Str * pnames, Set__Str * outer_shadowed, Map__Str_I64 * counts, I32 depth);
 Bool priv___src_self_loader_til__lazy_has_multiuse_param(Expr * fdef, Expr * body);
 Expr * priv___src_self_loader_til__lazy_build_force_once_def(Str * ret_type, U32 line, U32 col);
-void priv___src_self_loader_til__lazy_register_force_once(LoadedProgram * lp, Str * unit_path, Str * ret_type, U32 line, U32 col, Set__Str * seen_fo);
+void priv___src_self_loader_til__lazy_register_force_once(LoadedProgram * lp, Str * ret_type, U32 line, U32 col, Set__Str * seen_fo, Vec__Expr * pending);
+void priv___src_self_loader_til__lazy_flush_pending_decls(LoadedProgram * lp, Str * unit_path, Vec__Expr * pending);
 Vec__Expr * priv___src_self_loader_til__lazy_make_memo_decls(Str * pname, Str * ret_type, U32 line, U32 col);
-void priv___src_self_loader_til__lazy_thunk_lower_def(LoadedProgram * lp, Str * unit_path, Str * name, Expr * fdef, Set__Str * lowered, Set__Str * seen, Set__Str * seen_fo);
-void priv___src_self_loader_til__lazy_lower_funcsig(LoadedProgram * lp, Str * unit_path, Str * name, Expr * fdef, Set__Str * lazy_sigs, Set__Str * seen);
+void priv___src_self_loader_til__lazy_thunk_lower_def(LoadedProgram * lp, Str * name, Expr * fdef, Set__Str * lowered, Set__Str * seen, Set__Str * seen_fo, Vec__Expr * pending);
+void priv___src_self_loader_til__lazy_lower_funcsig(LoadedProgram * lp, Str * name, Expr * fdef, Set__Str * lazy_sigs, Set__Str * seen, Vec__Expr * pending);
 Str * priv___src_self_loader_til__lazy_call_returns_sig(Expr * call, TypeScope * scope, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_call_struct_type(Expr * call, TypeScope * scope);
 void priv___src_self_loader_til__lazy_thunk_classify_capture(Str * name, TypeScope * scope, Set__Str * bound, Vec__Declaration * caps);
@@ -3127,10 +3130,12 @@ void priv___src_self_loader_til__lazy_thunk_collect_captures(Expr * e, TypeScope
 Expr * priv___src_self_loader_til__lazy_make_thunk(Expr * eff, Str * ret_type, TypeScope * scope);
 Expr * priv___src_self_loader_til__lazy_build_thunk_call(Expr * call, Expr * fdef, Str * name, Bool is_method, TypeScope * scope);
 Expr * priv___src_self_loader_til__lazy_build_field_thunk_call(Expr * call, Expr * sig_fdef, TypeScope * scope);
+Str * priv___src_self_loader_til__lazy_subscript_call_sig(Expr * call, Map__Str_Str * dynvec_of);
+Str * priv___src_self_loader_til__lazy_dynvec_new_sig(Expr * rhs, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_cast_call_sig(Expr * call, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_field_call_sig(Expr * call, Map__Str_Str * struct_of, TypeScope * scope, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_alias_resolve(Str * name, Map__Str_Str * aliases);
-void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * scope, Set__Str * lowered, Set__Str * lazy_sigs, Map__Str_Str * aliases, Map__Str_Str * struct_of, I32 depth);
+void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * scope, Set__Str * lowered, Set__Str * lazy_sigs, Map__Str_Str * aliases, Map__Str_Str * struct_of, Map__Str_Str * dynvec_of, I32 depth);
 void priv___src_self_loader_til__lazy_thunk_lower_unit(LoadedProgram * lp, Str * unit_path, Set__Str * lowered, Set__Str * lazy_sigs, Set__Str * seen, Set__Str * seen_fo);
 void priv___src_self_loader_til__expand_lazy_thunks_in_program(LoadedProgram * lp);
 void priv___src_self_loader_til__expand_lazy_calls_in_program(LoadedProgram * lp);
