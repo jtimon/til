@@ -86,7 +86,9 @@ to remove one of them.
 Counts of hand-written free/delete call sites (grep of free( /
 free(own / .delete( forms): src/core ~38 (numbers.til 9, tuple 6,
 set 6, vec 5, ast 4, array 4, str 2, map 2), src/std ~35 (the dyn_*
-containers + hashmap), src/self ~234 (interpreter.til 149,
+containers + hashmap), src/self ~234 (interpreter.til 149 -- RECOUNT
+2026-07-16 post-#286: 36, the interception layer died with the boxed
+model --
 builder.til 30, typer.til 18, loader.til 15, garbager.til 10 -- the
 insertion factories themselves -- scavenger 6, constfolder 3,
 eval_heap 3). Allocation typing: 56 sites bind malloc/calloc/realloc
@@ -917,6 +919,37 @@ let the ownership pass insert temps itself; start with the check.
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).
+    REPLACEMENT DESIGN (mapped 2026-07-16 from a full read of the
+    machinery; execute with the pass-1-vs-pass-2 empty-diff referee):
+    all four lifetime walkers compute ONE fact -- extended last_use
+    via borrow edges -- inside one `while ref_changed` fixpoint:
+      1. FieldAssign to a Ref field: the RHS source local extends to
+         END OF BODY (conservative: borrows propagate through shallow
+         clones of the holder).
+      2. Ref-capturing closures (FuncDef/BodyValue capture lists):
+         each ref-captured local extends to the closure BINDING's
+         last_use.
+      3. `ref x := src` / `ref x := src.field` / `ref x := f(args)`:
+         src (the FieldAccess root / every FCall arg's ident root)
+         extends to x's last textual use, itself max'd with x's
+         already-extended last_use (rules are mutually recursive --
+         the fixpoint matters).
+      4. View taint (extend_hoist_view_lifetimes /
+         collect_hoist_taint): any binding whose initializer
+         TRANSITIVELY reads local aliases its buffer; local extends
+         to the last stmt consuming any tainted binding. Taint
+         deliberately over-follows clone results (safe: only defers
+         a delete).
+    Faithful consolidation: build per-body borrow edges ONCE
+    (borrower -> owner set, from binding identity at Decl/FieldAssign/
+    capture sites + the transitive-initializer-read closure), then one
+    propagation pass: last_use'(owner) = max over its borrowers (with
+    rule 1's body-end override). Equal output by construction; the
+    walkers and their name-string helpers (collect_hoist_taint,
+    rhs_depends_on_var's taint half, var_aliases_target,
+    alias_used_in_stmts) then collapse into edge queries. Only after
+    that lands, move insertion onto flow states per edge and retire
+    the index gates.
   - [X] 2026-07-16 Stage 4 first slice: save_old_delete has ONE writer
     pass. The typer's three infer_assign_stmt sites (outer-scope
     function-local rebinds: clone-wrapped ident / own-returning call /
@@ -960,26 +993,43 @@ let the ownership pass insert temps itself; start with the check.
     the consumer. StructDef/EnumDef/nested-Body/FuncDef are boundary
     nodes (initer machinery / separate views). Corpus is hit-free; the
     ICE is armed. make clean && make test 176/176 (ASAN).
-  - [ ] Stage 6: builder compensation removal. DEPENDENCY DISCOVERED
-    2026-07-16 (empirically, reverted same day): the is_noop_delete_stmt
-    item ("no-op deletes are simply NOT INSERTED") is GATED ON #286,
-    not only on stages 1-5. A no-op delete is only a no-op in COMPILED
-    code: the comptime interpreter CONSUMES the garbager's delete
-    statements as its reclamation signal (the #275 contract -- the
-    shadow teardown frees interp Value boxes when it evaluates them).
-    Suppressing even the scalar class (U32/Bool/I64 stack deletes,
-    call_free=0) corrupts constfold evaluation: ASAN
-    heap-buffer-overflow in clone_str_storage_into reading a Str whose
-    count came from a stale interp cell, reproduced with the
-    scalars-only gate and gone on revert. Until #286's raw-bytes
-    runtime makes interp deletes true no-ops for these classes too,
-    the garbager must keep inserting them; the builder's
-    is_noop_delete_stmt stays as the compiled-side skip. The OTHER
-    stage-6 items (swap_freed, CAP laundering at return boxing, the
-    FieldAssign cap test, the "Asap fix" inline free) are not known to
-    carry this edge but each needs its own gap-first fix per the
-    stage's rule.
-  - [ ] Stage 7: interpreter compensation removal (rides #286).
+  - [ ] Stage 6: builder compensation removal. The is_noop_delete_stmt
+    item ("no-op deletes are simply NOT INSERTED") was probed
+    2026-07-16 and found GATED on #286: the BOXED interpreter consumed
+    the garbager's delete statements as its reclamation signal, and
+    suppressing even the scalar class corrupted constfold evaluation
+    (ASAN heap-buffer-overflow off a stale interp cell; reproduced
+    with a scalars-only gate, gone on revert). GATE LIFTED 2026-07-16:
+    #286 is FIXED (a1ad866, typed raw EvalHeap storage; the boxed
+    Value/StructInstance/EnumInstance model and its conversion/cleanup
+    helpers are gone). On raw storage a stack-scalar delete should be
+    a true no-op interp-side too -- RE-PROBE the same scalars-only
+    gate first (the probe recipe is one gc_delete_is_noop predicate +
+    a gc_make_delete wrapper over the six factory sites, see this
+    entry's history), with the same referees (pass-diff classes +
+    ASAN suite). The OTHER stage-6 items (swap_freed, CAP laundering
+    at return boxing, the FieldAssign cap test, the "Asap fix" inline
+    free) each need their own gap-first fix per the stage's rule.
+  - [ ] Stage 7: interpreter compensation removal -- UNGATED and
+    LARGELY DELIVERED BY #286 ITSELF (fixed 2026-07-16, a1ad866).
+    Re-audit of interpreter.til post-#286: the file is ~7.3k lines and
+    carries 36 explicit free/delete calls (census said 149); the
+    interception layer is GONE -- del_method matching,
+    delete_body_has_custom_logic, free_temp_arg_value,
+    free_non_own_temp_args, reclone_return, guard_own_param_skip,
+    free_owned_value, free_struct_contents_keep_outer,
+    free_container_str_data_cached: zero references. Surviving
+    helpers (heap_clone as the canonical typed clone,
+    struct_deep_free / container_elem_deep_free / enum_payload_deep_free
+    / free_tuple_data / free_container_data as typed drop-by-layout,
+    scope_free over heap_index/scope-pool bookkeeping) and the
+    remaining 36 calls read as placement home 3 (the runtime freeing
+    what it allocates: Str storage drops at typed offsets, scope-pool
+    and session teardown, FFI cif/arg buffers = documented islands).
+    REMAINING for this stage: a per-call audit of the 36 against the
+    placement homes (any that manage a garbager-tracked value instead
+    of interpreter bookkeeping is still a target), plus confirming
+    scope_free now frees ONLY bookkeeping per #275's two rules.
 
 *** Staged plan
 
@@ -1126,7 +1176,10 @@ Stage 7. Interpreter compensation removal -- rides #286.
     move/borrow contract) continued into #275/#286.
   - #275 (OPEN): interpreter manufactures double-ownership at
     construction; its typer-enforcement step slots in after Stage 4.
-  - #286 (WIP): the interpreter raw-bytes runtime Stage 7 rides on.
+  - #286 (FIXED 2026-07-16, a1ad866): the interpreter raw-bytes
+    runtime. Its landing deleted most of the stage-7 compensation
+    inventory outright (see the stage-7 entry) and lifted the
+    stage-6 no-op-delete gate.
   - #158 (WIP): one pass per phase; the per-body scope cache it wants
     on Context is what lets garbager_destroy_body's nine typer call
     sites collapse into the single garbager_destroy phase walk
