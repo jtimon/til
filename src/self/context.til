@@ -50,6 +50,12 @@ TypeBinding := struct {
     // the unused-priv check should report it in source terms (original
     // name + enclosing parent) rather than as a synthetic mangled name.
     orig_name := ""
+    // #262 follow-up: for a local `v := DynVec.new(T)`, the element type
+    // name T. Lets the typer narrow `v[i]` / v.get(i) / v.pop() results
+    // from `Dynamic` to the concrete element type -- which is what makes a
+    // direct subscript CALL on a stored funcptr (`ops[0](args)`) typable.
+    // Empty when unknown (non-literal elem type, reassigned vec, etc.).
+    dynvec_elem := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name

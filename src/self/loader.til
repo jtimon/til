@@ -3291,11 +3291,13 @@ priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
 }
 
 // Build the bodyless `_Fn_ret_<T>` funcsig Decl (mirrors parser.til
-// parse_fn_signature) and register it via the initer path, appending it to the
-// unit AST so the C builder emits the typedef. Deduped per name through `seen`
-// and the existing scope binding.
-priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram, unit_path: Str,
-        ret_type: Str, line: U32, col: U32, mut seen: Set(Str)) {
+// parse_fn_signature) and queue it in `pending`. NOT appended to the unit AST
+// here: the lowering pass holds live refs into that AST's children Vec, and an
+// append that reallocs it turns them into use-after-free. The caller flushes
+// `pending` (append + scope registration) at unit end, when no refs are live.
+// Deduped per name through `seen` and the existing scope binding.
+priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram,
+        ret_type: Str, line: U32, col: U32, mut seen: Set(Str), mut pending: Vec(Expr)) {
     name := format("_Fn_ret_", ret_type)
     if seen.has(name) { return }
     seen.add(own name.clone())
@@ -3312,8 +3314,7 @@ priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram, unit_path: Str,
     mut sig := Expr.new(NodeType.FuncDef(fd), line, col)
     mut decl := Expr.new(NodeType.Decl(Declaration(name = name.clone(), is_priv = true)), line, col)
     decl.add_child(own sig)
-    register_funcsig_alias_for_stmt(lp.ctx, decl, lp.ctx.scope)
-    lp.ctx.imported[unit_path].ast.add_child(own decl)
+    pending.push(own decl)
 }
 
 // Count LIVE value-uses of each param (#262 call-by-need memoization) into
@@ -3465,30 +3466,53 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
     return decl
 }
 
-// Register (once) the per-type memo helper, appending it to the unit AST so the
-// typer types it and the builder emits it -- like lazy_register_fn_ret_alias
-// appends the `_Fn_ret_T` funcsig this helper's `th` param depends on.
-priv lazy_register_force_once := func(mut lp: LoadedProgram, unit_path: Str,
-        ret_type: Str, line: U32, col: U32, mut seen_fo: Set(Str)) {
+// Queue (once) the per-type memo helper in `pending`; the caller's unit-end
+// flush appends it to the unit AST and registers the scope binding against the
+// PUSHED node -- see lazy_register_fn_ret_alias for why appending mid-pass is
+// forbidden (use-after-free through the pass's live refs).
+priv lazy_register_force_once := func(mut lp: LoadedProgram,
+        ret_type: Str, line: U32, col: U32, mut seen_fo: Set(Str), mut pending: Vec(Expr)) {
     name := format("_force_once_", ret_type)
     if seen_fo.has(name) { return }
     seen_fo.add(own name.clone())
     if lp.ctx.scope.get_binding(name).is_null().not() { return }
-    // Push the decl into the AST FIRST, then register the scope binding against
-    // the PUSHED node (set_func_def stores a raw pointer that must live in the
-    // AST). init_declarations_global has already run by now, so an unregistered
-    // decl would be invisible to the typer -- register it here as a priv func.
+    pending.push(own lazy_build_force_once_def(ret_type, line, col))
+}
+
+// Flush the pending loader-generated decls (thunk funcsig aliases + memo
+// helpers) into the unit AST and register each against its PUSHED node
+// (set_func_def stores a raw pointer that must live in the AST).
+// init_declarations_global has already run, so an unregistered decl would be
+// invisible to the typer. Runs at unit end when no refs into the children Vec
+// are live; the appends can still realloc the Vec and dangle EARLIER
+// registrations, which the caller repairs via init_refresh_seeded_scope_defs.
+priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, mut pending: Vec(Expr)) {
+    if pending.len() == 0 { return }
     ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
-    unit_ast.add_child(own lazy_build_force_once_def(ret_type, line, col))
-    ref pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
-    // The binding TYPE is the function's RETURN type (not None) -- a call
-    // resolves its result type from here (register_function_def_for_stmt).
-    rt := til_type_from_explicit_type(ret_type)
-    lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
-    lp.ctx.scope.set_func_def(name, pushed.children[0])
-    ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name)
-    fb.is_func_decl = true
-    fb.is_priv = true
+    for i in 0..pending.len() {
+        mut name := ""
+        line := pending[i].line
+        col := pending[i].col
+        switch pending[i].node_type {
+        case NodeType.Decl(pd): name = pd.name.clone()
+        case:
+        }
+        unit_ast.add_child(own pending[i].clone())
+        ref pushed : Expr = unit_ast.children[unit_ast.children.len() - 1]
+        if name.starts_with("_force_once_") {
+            // The binding TYPE is the helper's RETURN type (not None) -- a call
+            // resolves its result type from here (register_function_def_for_stmt).
+            ret_type := name.strip_prefix("_force_once_")
+            rt := til_type_from_explicit_type(ret_type)
+            lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
+            lp.ctx.scope.set_func_def(name, pushed.children[0])
+            ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name)
+            fb.is_func_decl = true
+            fb.is_priv = true
+        } else {
+            register_funcsig_alias_for_stmt(lp.ctx, pushed, lp.ctx.scope)
+        }
+    }
 }
 
 // The two body-local cache cells a memoized param needs:
@@ -3509,8 +3533,8 @@ priv lazy_make_memo_decls := func(pname: Str, ret_type: Str, line: U32, col: U32
 // Lower one non-inlinable top-level lazy def in place: LazyFunc->Func /
 // LazyProc->Proc, retype each param `p: T` to `p: _Fn_ret_T`, auto-force the
 // body, and register the funcptr aliases. Records the lowered name in `lowered`.
-priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
-        name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str)) {
+priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
+        name: Str, mut fdef: Expr, mut lowered: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str), mut pending: Vec(Expr)) {
     if fdef.children.len() == 0 { return }
     ref body : Expr = fdef.children[0]
     mut pnames := Set(Str).new()
@@ -3541,7 +3565,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
             if use_counts.has(p.name) { cnt = use_counts.get(p.name)! }
             if cnt >= 2 {
                 orig_t := p.explicit_type.clone()
-                lazy_register_force_once(lp, unit_path, orig_t, fdef.line, fdef.col, seen_fo)
+                lazy_register_force_once(lp, orig_t, fdef.line, fdef.col, seen_fo, pending)
                 memo.set(p.name, own format("_force_once_", orig_t))
                 mut decls := lazy_make_memo_decls(p.name, orig_t, fdef.line, fdef.col)
                 for di in 0..decls.len() { cache_decls.push_take(decls, di) }
@@ -3558,7 +3582,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
         for i in 0..fd.params.len() {
             ref mut param : Declaration = fd.params[i]
             ret_type := param.explicit_type.clone()
-            lazy_register_fn_ret_alias(lp, unit_path, ret_type, fdef.line, fdef.col, seen)
+            lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.explicit_type = format("_Fn_ret_", ret_type)
             param.til_type = til_type_from_explicit_type(param.explicit_type)
         }
@@ -3587,8 +3611,8 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram, unit_path: Str,
 // signature matches a thunk-lowered def assigned/returned as that type. The
 // name is recorded in `lazy_sigs`; a call through any value of that type gets
 // its args thunk-wrapped by lazy_wrap_thunk_calls.
-priv lazy_lower_funcsig := func(mut lp: LoadedProgram, unit_path: Str,
-        name: Str, mut fdef: Expr, mut lazy_sigs: Set(Str), mut seen: Set(Str)) {
+priv lazy_lower_funcsig := func(mut lp: LoadedProgram,
+        name: Str, mut fdef: Expr, mut lazy_sigs: Set(Str), mut seen: Set(Str), mut pending: Vec(Expr)) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.variadic_index >= 0 { return }   // variadic funcsig: out of scope
@@ -3598,7 +3622,7 @@ priv lazy_lower_funcsig := func(mut lp: LoadedProgram, unit_path: Str,
         for i in 0..fd.params.len() {
             ref mut param : Declaration = fd.params[i]
             ret_type := param.explicit_type.clone()
-            lazy_register_fn_ret_alias(lp, unit_path, ret_type, fdef.line, fdef.col, seen)
+            lazy_register_fn_ret_alias(lp, ret_type, fdef.line, fdef.col, seen, pending)
             param.explicit_type = format("_Fn_ret_", ret_type)
             param.til_type = til_type_from_explicit_type(param.explicit_type)
         }
@@ -3777,6 +3801,62 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
     return nc
 }
 
+// For a subscript-callee call `v[i](...)` -- at this phase already desugared to
+// `FCall(FCall(FieldAccess(get, v), i), args...)` -- where `v` is a local
+// tracked in `dynvec_of` as a DynVec of a lazy funcsig, return that sig name,
+// else "". (`ops := DynVec.new(Sig)` records the elem sig syntactically.)
+priv lazy_subscript_call_sig := func(call: Expr, dynvec_of: Map(Str, Str)) returns Str {
+    if call.children.len() == 0 { return "" }
+    ref callee : Expr = call.children[0]
+    if callee.node_type.is(NodeType.FCall).not() { return "" }
+    if callee.children.len() == 0 { return "" }
+    ref inner : Expr = callee.children[0]
+    if inner.node_type.is(NodeType.FieldAccess).not() { return "" }
+    switch inner.node_type {
+    case NodeType.FieldAccess(fa):
+        ref mname : Str = fa.field_access_name()
+        if mname.eq("get").or(mname.eq("unsafe_get")).or(mname.eq("pop")).not() { return "" }
+    case:
+        return ""
+    }
+    if inner.children.len() == 0 { return "" }
+    switch inner.children[0].node_type {
+    case NodeType.Ident(rn):
+        if dynvec_of.has(rn.ident_name()) {
+            return dynvec_of.get(rn.ident_name())!.clone()
+        }
+    case:
+    }
+    return ""
+}
+
+// If `rhs` is `DynVec.new(T)` with T a literal Ident naming a lazy funcsig,
+// return T, else "".
+priv lazy_dynvec_new_sig := func(rhs: Expr, lazy_sigs: Set(Str)) returns Str {
+    if rhs.node_type.is(NodeType.FCall).not() { return "" }
+    if rhs.children.len() != 2 { return "" }
+    ref callee : Expr = rhs.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    if callee.children.len() == 0 { return "" }
+    switch callee.node_type {
+    case NodeType.FieldAccess(fa):
+        if fa.field_access_name().eq("new").not() { return "" }
+    case:
+    }
+    switch callee.children[0].node_type {
+    case NodeType.Ident(rn):
+        if rn.ident_name().eq("DynVec").not() { return "" }
+    case:
+        return ""
+    }
+    switch rhs.children[1].node_type {
+    case NodeType.Ident(tn):
+        if lazy_sigs.has(tn.ident_name()) { return Str.clone(tn.ident_name()) }
+    case:
+    }
+    return ""
+}
+
 // For a cast-callee call `cast(<expr>, Sig)(...)` where Sig names a lazy
 // funcsig, return that sig name, else "". The sig is written literally in the
 // cast (child 2 of the callee FCall, kept verbatim by the parser for #58), so
@@ -3858,7 +3938,7 @@ priv lazy_alias_resolve := func(name: Str, aliases: Map(Str, Str)) returns Str {
 // with a non-lazy value). It is cloned on descent so a nested block's aliases
 // never leak to an outer sibling -- e.g. a different function that reuses the
 // name for an unrelated value.
-priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), lazy_sigs: Set(Str), mut aliases: Map(Str, Str), mut struct_of: Map(Str, Str), depth: I32) {
+priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(Str), lazy_sigs: Set(Str), mut aliases: Map(Str, Str), mut struct_of: Map(Str, Str), mut dynvec_of: Map(Str, Str), depth: I32) {
     if depth > 256 { return }
     // Entering a FuncDef: seed its params. A param typed as a lazy funcsig is a
     // first-class lazy value (alias -> sig); a param typed as a struct lets a
@@ -3886,6 +3966,25 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
             // expression and wrap just the args.
             mut fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs)
             if fsig.len() == 0 { fsig = lazy_cast_call_sig(c, lazy_sigs) }
+            if fsig.len() == 0 {
+                ssig := lazy_subscript_call_sig(c, dynvec_of)
+                if ssig.len() > 0 {
+                    // Rewrite the SUBSCRIPT callee `ops[i]` (already `ops.get(i)!`
+                    // here) into `cast(ops[i], Sig)` so the call flows through the
+                    // cast-callee machinery end to end -- the typer, interpreter
+                    // (slot rehydration) and builder all already resolve a cast
+                    // callee's sig; only then wrap the args below like any other
+                    // first-class lazy call.
+                    line := c.line
+                    col := c.col
+                    mut cast_callee := Expr.new(NodeType.FCall(FCallData()), line, col)
+                    cast_callee.add_child(own Expr.new(ident_node("cast"), line, col))
+                    cast_callee.add_child(own c.children[0].clone())
+                    cast_callee.add_child(own Expr.new(ident_node(ssig), line, col))
+                    c.children[0] = cast_callee
+                    fsig = ssig.clone()
+                }
+            }
             if fsig.len() > 0 {
                 ref sfd : Expr = scope.lookup_func(fsig)
                 if sfd.is_null().not() {
@@ -3938,7 +4037,8 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
         }
         mut child_aliases := aliases.clone()
         mut child_struct := struct_of.clone()
-        lazy_wrap_thunk_calls(e.children[i], scope, lowered, lazy_sigs, child_aliases, child_struct, depth + 1)
+        mut child_dynvec := dynvec_of.clone()
+        lazy_wrap_thunk_calls(e.children[i], scope, lowered, lazy_sigs, child_aliases, child_struct, child_dynvec, depth + 1)
         // Record first-class bindings a Decl introduces for later siblings:
         //   - an explicit lazy-funcsig type `x: Sig` (alias); or an explicit
         //     struct type `x: S` (struct_of);
@@ -3971,9 +4071,15 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                         if sig.len() > 0 {
                             aliases.set(dd.name, own sig)
                         } else {
-                            st := lazy_call_struct_type(cc.children[0], scope)
-                            if st.len() > 0 { struct_of.set(dd.name, own st) }
-                            else { aliases.set(dd.name, own "") }
+                            dvsig := lazy_dynvec_new_sig(cc.children[0], lazy_sigs)
+                            if dvsig.len() > 0 {
+                                aliases.set(dd.name, own "")
+                                dynvec_of.set(dd.name, own dvsig)
+                            } else {
+                                st := lazy_call_struct_type(cc.children[0], scope)
+                                if st.len() > 0 { struct_of.set(dd.name, own st) }
+                                else { aliases.set(dd.name, own "") }
+                            }
                         }
                     case:
                         aliases.set(dd.name, own "")
@@ -3989,6 +4095,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
 // collect the lowered names. Defs are the direct top-level Decl children.
 priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         mut lowered: Set(Str), mut lazy_sigs: Set(Str), mut seen: Set(Str), mut seen_fo: Set(Str)) {
+    mut pending := Vec(Expr).new()
     ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
     n := unit_ast.children.len()
     for i in 0..n {
@@ -4006,7 +4113,7 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         // A bodyless lazy funcsig `Sig := lazy_func(T, ...) returns R` (#262
         // first-class): lower the TYPE, not a def.
         if fdef.children.len() == 0 {
-            lazy_lower_funcsig(lp, unit_path, lname, fdef, lazy_sigs, seen)
+            lazy_lower_funcsig(lp, lname, fdef, lazy_sigs, seen, pending)
             continue
         }
         ref body : Expr = fdef.children[0]
@@ -4017,8 +4124,11 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         if lazy_body_inlinable(body).or(lazy_body_stmt_inlinable(body)) {
             if lazy_has_multiuse_param(fdef, body).not() { continue }
         }
-        lazy_thunk_lower_def(lp, unit_path, lname, fdef, lowered, seen, seen_fo)
+        lazy_thunk_lower_def(lp, lname, fdef, lowered, seen, seen_fo, pending)
     }
+    // Append + register the queued decls now that no refs into the unit's
+    // children Vec are live (see lazy_register_fn_ret_alias).
+    lazy_flush_pending_decls(lp, unit_path, pending)
 }
 
 // Issue #262: the thunk-fallback pass. Lower all non-inlinable top-level lazy
@@ -4043,22 +4153,41 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
         lazy_thunk_lower_unit(lp, mf, lowered, lazy_sigs, seen, seen_fo)
     }
     if lowered.len().eq(0).and(lazy_sigs.len().eq(0)) { return }
+    // The lowering above APPENDED top-level decls (thunk funcsig aliases, memo
+    // helpers) to unit ASTs; if an append realloc'd a children Vec, every
+    // func_def/struct_def pointer registered into that AST now dangles.
+    // Re-point them before anything (the wrap phase's scope.lookup_func, the
+    // typer) reads through them.
+    if lp.skip_core.not() {
+        for cur : ProgramUnit in lp.core_units {
+            init_refresh_seeded_scope_defs(lp.ctx.imported[cur.path].ast, lp.ctx.scope)
+        }
+    }
+    for uur : ProgramUnit in lp.units {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[uur.path].ast, lp.ctx.scope)
+    }
+    for mfr : Str in lp.mode_files {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)
+    }
     if lp.skip_core.not() {
         for cu : ProgramUnit in lp.core_units {
             mut ca := Map(Str, Str).new()
             mut cs := Map(Str, Str).new()
-            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ca, cs, 0)
+            mut cv := Map(Str, Str).new()
+            lazy_wrap_thunk_calls(lp.ctx.imported[cu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ca, cs, cv, 0)
         }
     }
     for uu : ProgramUnit in lp.units {
         mut ua := Map(Str, Str).new()
         mut us := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ua, us, 0)
+        mut uv := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[uu.path].ast, lp.ctx.scope, lowered, lazy_sigs, ua, us, uv, 0)
     }
     for mf : Str in lp.mode_files {
         mut ma := Map(Str, Str).new()
         mut ms := Map(Str, Str).new()
-        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, lazy_sigs, ma, ms, 0)
+        mut mv := Map(Str, Str).new()
+        lazy_wrap_thunk_calls(lp.ctx.imported[mf].ast, lp.ctx.scope, lowered, lazy_sigs, ma, ms, mv, 0)
     }
 }
 
@@ -4307,6 +4436,23 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     }
     for mode_file : Str in lp.mode_files {
         type_errors = type_errors + type_file(mode_file, lp.ctx)
+    }
+
+    // Typing can APPEND top-level decls to unit ASTs (lifted lambdas,
+    // monomorphized Array__T/Vec__T defs); an append that reallocs a
+    // children Vec moves every node in it, dangling the func_def /
+    // struct_def pointers the scope registered against the old storage.
+    // Re-point them all so the builder's emit-time lookups are fresh.
+    if lp.skip_core.not() {
+        for cur : ProgramUnit in lp.core_units {
+            init_refresh_seeded_scope_defs(lp.ctx.imported[cur.path].ast, lp.ctx.scope)
+        }
+    }
+    for uur : ProgramUnit in lp.units {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[uur.path].ast, lp.ctx.scope)
+    }
+    for mfr : Str in lp.mode_files {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)
     }
 
     // #154 prototype: flag user-unit imports that contributed no used

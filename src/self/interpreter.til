@@ -2656,6 +2656,30 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context) returns shallow 
         }
 
         if fn_cell.val.is(Value.Func).not().and(fn_cell.val.is(Value.Closure).not()) {
+            // #262 follow-up: a funcptr-typed local whose value is a container
+            // SLOT ADDRESS (e.g. the bang-hoisted `_bang_ret_N := ops.get(i)!`
+            // behind a direct `ops[i](args)` call on a DynVec of funcptrs) is
+            // a Ref/Dynamic one deref away from the callable. Rehydrate it the
+            // same way the cast path does (callable_box_or_slot_read); anything
+            // that still isn't callable falls through to the error. Gated on
+            // the typer having stamped the callee Ident as a funcptr value.
+            if e.children.len().gt(0).and(e.children[0].til_type().is_funcptr()) {
+                mut rehydrated := val_none()
+                switch fn_cell.val {
+                case Value.Dynamic(fp_p):
+                    ref fp_slot : Dynamic = deref(fp_p)
+                    rehydrated = callable_box_or_slot_read(fp_slot)
+                case Value.Ref(fp_p):
+                    ref fp_slot : Dynamic = deref(fp_p)
+                    rehydrated = callable_box_or_slot_read(fp_slot)
+                case:
+                }
+                if rehydrated.is(Value.Func).or(rehydrated.is(Value.Closure)) {
+                    result := eval_callable_call(scope, e, rehydrated, ctx)
+                    free_temp_arg_value(rehydrated)
+                    return result
+                }
+            }
             interp_error(e, format(Str.clone(name.ident_name()), " is not a function"), ctx)
             exit(1)
         }

@@ -1915,6 +1915,27 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         if ns_fdef.return_type.len() > 0 {
             rt = type_from_name(ns_fdef.return_type, scope, ctx)
         }
+        // #262 follow-up: narrow a DynVec element read from Dynamic to the
+        // vec's recorded element type (`v := DynVec.new(T)` set dynvec_elem
+        // on v's binding). Makes `x := v[i]` typed and a stored funcptr
+        // directly callable (`ops[i](args)`).
+        if rt.is(Type.Dynamic).and(obj3_sname.eq("DynVec")) {
+            if method.eq("get").or(method.eq("unsafe_get")).or(method.eq("pop")) {
+                if e.children.len() >= 2 {
+                    switch e.children[1].node_type {
+                    case NodeType.Ident(recv_id):
+                        ref recv_b : TypeBinding = scope.get_binding(recv_id.ident_name())
+                        if recv_b.is_null().not() {
+                            if recv_b.dynvec_elem.len() > 0 {
+                                elem_t := type_from_name(recv_b.dynvec_elem, scope, ctx)
+                                if elem_t.is(Type.Unknown).not() { rt = elem_t }
+                            }
+                        }
+                    case:
+                    }
+                }
+            }
+        }
         e.set_til_type(rt)
         // Issue #191: namespace macro calls require all arguments to be comptime-known.
         if ns_fdef.func_type.is(FuncType.Macro) {
@@ -4444,7 +4465,41 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     }
 }
 
-priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I32, ctx: Context) {
+// #262 follow-up: if `rhs` is a `DynVec.new(T)` call with a literal type token
+// (or `DynVec.new_type_name("T")` with a literal string), return T's name,
+// else "". The token is syntactic, so no inference is needed.
+priv dynvec_elem_from_new := func(rhs: Expr) returns Str {
+    if rhs.node_type.is(NodeType.FCall).not() { return "" }
+    if rhs.children.len() != 2 { return "" }
+    ref callee : Expr = rhs.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return "" }
+    if callee.children.len() == 0 { return "" }
+    mut mname := ""
+    switch callee.node_type {
+    case NodeType.FieldAccess(fa): mname = Str.clone(fa.field_access_name())
+    case:
+    }
+    switch callee.children[0].node_type {
+    case NodeType.Ident(rn):
+        if rn.ident_name().eq("DynVec").not() { return "" }
+    case:
+        return ""
+    }
+    if mname == "new" {
+        switch rhs.children[1].node_type {
+        case NodeType.Ident(tn): return Str.clone(tn.ident_name())
+        case:
+        }
+    } else if mname == "new_type_name" {
+        switch rhs.children[1].node_type {
+        case NodeType.Literal(Literal.Str(ts)): return ts.clone()
+        case:
+        }
+    }
+    return ""
+}
+
+priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_body: I32, dv_elem: Str, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         ref mut rhs : Expr = stmt.children[0]
@@ -4476,6 +4531,24 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
         if ctx.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
         decl_b.orig_name = sdecl.orig_name.clone()
+        // #262 follow-up: `v := DynVec.new(T)` records the element type name
+        // on the binding so `v[i]` / v.get(i) / v.pop() narrow from Dynamic
+        // to T. Read from the PRE-inference token by infer_decl_stmt ("" for
+        // any other RHS shape).
+        decl_b.dynvec_elem = dv_elem.clone()
+        // #262 follow-up: stamp an INFERRED funcsig type onto the Declaration
+        // itself. A typer-synthesized decl (the bang-hoisted `_bang_ret_N :=
+        // ops.get(i)!` behind a direct `ops[i](args)` call) carries its
+        // narrowed sig only on the STMT's til_type; without stamping, the
+        // scavenger sees no reference to the sig type (it reads
+        // Declaration.explicit_type) and prunes the funcsig decl the emit
+        // later needs, and resolve_decl_fn_sig cannot recover the signature.
+        if sdecl.explicit_type.len() == 0 {
+            if stmt.til_type().is(Type.FuncPtrSig) {
+                sdecl.til_type = stmt.til_type()
+                sdecl.explicit_type = til_type_name(stmt.til_type()).clone()
+            }
+        }
         if stmt.til_type().is_funcptr() {
             switch rhs.node_type {
             case NodeType.Ident(rhs_id):
@@ -4586,6 +4659,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
 
 priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, ctx: Context) {
     if stmt.children.len() == 0 { return }
+    mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
         switch stmt.node_type {
@@ -4649,6 +4723,10 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             }
         case:
         }
+        // #262 follow-up: read the DynVec element type token BEFORE inference
+        // -- rewrite_til_type_arg replaces the literal `Ident T` arg with a
+        // runtime Type expression, so the syntactic shape is gone afterwards.
+        dv_elem = dynvec_elem_from_new(stmt.children[0])
         infer_expr(scope, stmt.children[0], in_func, ctx)
         if tracked_func {
             ctx.current_top_func_name = saved_top_func
@@ -4669,7 +4747,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
     }
     check_ref_decl_owned_init(stmt, scope, ctx)
     check_ref_local_null_init(stmt, ctx)
-    finalize_decl_binding(scope, stmt, in_type_body, ctx)
+    finalize_decl_binding(scope, stmt, in_type_body, dv_elem, ctx)
 }
 
 is_simple_lvalue_expr := func(e: Expr) returns Bool {

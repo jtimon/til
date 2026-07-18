@@ -3419,7 +3419,11 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
     }
 }
 
-priv init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope) {
+// Non-priv: the loader's lazy passes (#262) also append top-level decls to a
+// unit AST (thunk funcsig aliases, memo helpers, lowered lazy funcsigs), which
+// can realloc the children Vec and dangle every func_def/struct_def pointer
+// registered into it -- they re-point them with this same walk afterwards.
+init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope) {
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
