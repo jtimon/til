@@ -1,9 +1,20 @@
-# priority: low
-# category: deferred
-** OPEN #152 True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
+** #152 True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o
 
-:DEPENDENCIES: [[./150.org][#150]] (unrelated, just handy to mention)
-  :RELATED: rstil Issue [[./135.org][#135]]
+  CANCELLED: superseded by the approach that actually shipped for #25.
+  Instead of precompiling ext.o per target on native runners and
+  committing the binaries, vendor/macos carries the zig-derived darwin
+  libc HEADERS + the libSystem.tbd linker stub (extended by
+  vendor/macos/frameworks-shim + generated framework .tbd stubs for
+  gui), so clang cross-COMPILES ext.c and the generated C from source
+  on any host -- the same compile-ext.c-together flow linux and windows
+  use, no committed objects, no staleness/regeneration loop, no 300MB
+  zig dependency. Every problem this issue tracked is solved by that
+  mechanism and every open question it posed is moot. Nothing of the
+  precompiled-object shape remains worth keeping: committed binary
+  artifacts are strictly worse than source compilation that works.
+
+:DEPENDENCIES: [[../fixed/150.org][#150]] (unrelated, just handy to mention)
+  :RELATED: rstil Issue [[../fixed/135.org][#135]]
 
   Cross-compiling til programs to macOS from Linux or Windows currently
   is not feasible the way linux-arm64 / linux-riscv64 / windows-x64 are:
@@ -13,7 +24,7 @@
   ~{target}-gcc~ that can produce the target's executable format from
   the generated C. macOS breaks that assumption.
 
-  Rstil sketched the same problem in its Issue [[./135.org][#135]] ("True
+  Rstil sketched the same problem in its Issue [[../fixed/135.org][#135]] ("True
   cross-compilation via precompiled ext.o per platform"). The proposed
   shape, adapted for til:
 

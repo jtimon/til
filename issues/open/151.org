@@ -1,5 +1,5 @@
 # priority: low
-# category: deferred
+# category: features
 ** OPEN #151 TempleOS target
 
 :DEPENDENCIES: [[../fixed/12.org][#12]]

@@ -44,7 +44,7 @@
   headless test).
 
 :DEPENDENCIES: [[./12.org][#12]] (self-hosting, FIXED)
-:RELATED: [[../open/151.org][#151]] (TempleOS), [[../open/152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
+:RELATED: [[../open/151.org][#151]] (TempleOS), [[../cancelled/152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
 
   til should build and run on the 4 main operative systems, and not
   just natively: the goal is full cross-compilation -- build a til
@@ -580,7 +580,7 @@
      (clang -fuse-ld=lld) links Mach-O and ad-hoc-signs arm64, and
      libSystem.tbd is one vendorable text file. The vendored header
      tree is the heavy part -- and precompiled per-target ext objects
-     ([[../open/152.org][#152]], macOS-only; linux/windows targets keep the current
+     ([[../cancelled/152.org][#152]], macOS-only; linux/windows targets keep the current
      compile-ext.c-with-the-cross-gcc flow that already works) make it
      mostly unnecessary:
 
