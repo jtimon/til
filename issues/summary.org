@@ -55,7 +55,6 @@
 *** [[./open/229.org][#229]] Support user-defined enum/struct types as main() CLI args
 *** [[./open/235.org][#235]] Vendor libsecp256k1 and expose sha256d via the HashFn interface
 *** [[./open/243.org][#243]] Array/Vec/Slice literal syntax + monomorphized containers via macros
-*** [[./open/262.org][#262]] lazy_func / lazy_proc: lazily-evaluated call arguments
 *** [[./open/274.org][#274]] Generated eq/to_str should support own/ref fields deeply
 *** [[./open/279.org][#279]] Compound assignment operators (+=, -=, *=, ...) desugar a OP= b -> a = a OP b
 *** [[./open/290.org][#290]] Tooling gap: no regex / text-processing library for source-rewriting tasks

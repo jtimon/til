@@ -3777,6 +3777,29 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
     return nc
 }
 
+// For a cast-callee call `cast(<expr>, Sig)(...)` where Sig names a lazy
+// funcsig, return that sig name, else "". The sig is written literally in the
+// cast (child 2 of the callee FCall, kept verbatim by the parser for #58), so
+// no type inference is needed to resolve it.
+priv lazy_cast_call_sig := func(call: Expr, lazy_sigs: Set(Str)) returns Str {
+    if call.children.len() == 0 { return "" }
+    ref callee : Expr = call.children[0]
+    if callee.node_type.is(NodeType.FCall).not() { return "" }
+    if callee.children.len() != 3 { return "" }
+    switch callee.children[0].node_type {
+    case NodeType.Ident(hn):
+        if hn.ident_name().eq("cast").not() { return "" }
+    case:
+        return ""
+    }
+    switch callee.children[2].node_type {
+    case NodeType.Ident(tn):
+        if lazy_sigs.has(tn.ident_name()) { return Str.clone(tn.ident_name()) }
+    case:
+    }
+    return ""
+}
+
 // For a field call `recv.fn(...)`, return the lazy funcsig name of field `fn`
 // when `recv` is a local of a known struct type (tracked in `struct_of`) whose
 // `fn` field is typed as a lazy funcsig, else "".
@@ -3856,10 +3879,13 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
     for i in 0..e.children.len() {
         ref c : Expr = e.children[i]
         if c.node_type.is(NodeType.FCall).and(c.children.len().gt(0)) {
-            // First-class struct-field call `recv.fn(...)` where `fn` is a
-            // lazy-funcsig field: the field IS the funcptr, so the receiver is
-            // not an effective arg.
-            fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs)
+            // First-class EXPRESSION callee: a struct-field call `recv.fn(...)`
+            // where `fn` is a lazy-funcsig field (the field IS the funcptr, so
+            // the receiver is not an effective arg), or a cast-callee call
+            // `cast(x, Sig)(...)` naming a lazy funcsig. Both keep the callee
+            // expression and wrap just the args.
+            mut fsig := lazy_field_call_sig(c, struct_of, scope, lazy_sigs)
+            if fsig.len() == 0 { fsig = lazy_cast_call_sig(c, lazy_sigs) }
             if fsig.len() > 0 {
                 ref sfd : Expr = scope.lookup_func(fsig)
                 if sfd.is_null().not() {

@@ -3049,6 +3049,7 @@ void priv___src_self_loader_til__lazy_thunk_collect_captures(Expr * e, TypeScope
 Expr * priv___src_self_loader_til__lazy_make_thunk(Expr * eff, Str * ret_type, TypeScope * scope);
 Expr * priv___src_self_loader_til__lazy_build_thunk_call(Expr * call, Expr * fdef, Str * name, Bool is_method, TypeScope * scope);
 Expr * priv___src_self_loader_til__lazy_build_field_thunk_call(Expr * call, Expr * sig_fdef, TypeScope * scope);
+Str * priv___src_self_loader_til__lazy_cast_call_sig(Expr * call, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_field_call_sig(Expr * call, Map__Str_Str * struct_of, TypeScope * scope, Set__Str * lazy_sigs);
 Str * priv___src_self_loader_til__lazy_alias_resolve(Str * name, Map__Str_Str * aliases);
 void priv___src_self_loader_til__lazy_wrap_thunk_calls(Expr * e, TypeScope * scope, Set__Str * lowered, Set__Str * lazy_sigs, Map__Str_Str * aliases, Map__Str_Str * struct_of, I32 depth);

@@ -1,5 +1,7 @@
 mode test
 
+import("../src/std/dyn_vec")
+
 # Issue #262: lazy_func / lazy_proc.
 #
 # A lazy callable's body is a single `return <expr>`. Arguments are spliced
@@ -627,6 +629,37 @@ test_lazysig_struct_field := test() {
     eval_count = 0
     r := h.fn(false, bump())
     expect(r.not(), "h.fn(false, bump()) short-circuits")
+    assert_eq(I64, eval_count, 0)
+}
+
+# --- CONTAINER-STORED lazy funcs (#262 first-class): a lazy-sig value pushed
+#     into a DynVec and pulled back out with the annotated-ref idiom every
+#     funcptr type uses (`ref g : Sig = ops[0]`) calls with full short-circuit.
+#     (Direct `ops[0](...)` calls are a DynVec/Dynamic limitation shared by
+#     ORDINARY funcsigs too -- not lazy-specific.) ---
+
+test_lazysig_container := test() {
+    mut ops := DynVec.new(BothSig)
+    ops.push(own both)
+    ref g : BothSig = ops[0]
+    expect(g(true, true), "container g(T,T)")
+    expect(g(false, true).not(), "container g(F,T)")
+    eval_count = 0
+    r := g(false, bump())
+    expect(r.not(), "container-stored g short-circuits")
+    assert_eq(I64, eval_count, 0)
+}
+
+# --- CAST-CALLEE lazy call (#262 first-class): `cast(x, Sig)(...)` names the
+#     lazy funcsig literally in the cast, so the loader wraps the args like any
+#     other first-class call (the callee expression is kept verbatim). ---
+
+test_lazysig_cast_callee := test() {
+    g := both
+    expect(cast(g, BothSig)(true, true), "cast(g, Sig)(T,T)")
+    eval_count = 0
+    r := cast(g, BothSig)(false, bump())
+    expect(r.not(), "cast callee short-circuits")
     assert_eq(I64, eval_count, 0)
 }
 

@@ -1,6 +1,48 @@
 # priority: low
 # category: features
-** WIP #262 lazy_func / lazy_proc: lazily-evaluated call arguments
+** FIXED #262 lazy_func / lazy_proc: lazily-evaluated call arguments
+
+Post-mortem (the arc, newest first; each stage lists its regression tests, all
+in test/lazy.til unless noted):
+
+- FINAL commit: first-class EXPRESSION callees -- a container-stored lazy func
+  (`ops := DynVec.new(Sig); ops.push(own f); ref g : Sig = ops[0]; g(...)`)
+  and a cast callee (`cast(g, Sig)(...)`, the sig read literally off the cast)
+  both wrap their args and short-circuit. Tests: test_lazysig_container,
+  test_lazysig_cast_callee. Direct `ops[0](...)` calls stay unsupported for
+  ordinary and lazy funcsigs alike (a DynVec/Dynamic limitation, not lazy's).
+- CALL-BY-NEED (the chosen final semantics, superseding the earlier
+  call-by-name choice): an argument evaluates the FIRST time its param is
+  forced, is cached (per-type _force_once_T helpers + body-local done/cache
+  cells), and reuses thereafter -- at most 1 eval per arg, still 0 when unused,
+  single-use params byte-identical to before. Scope-aware live-use counting
+  decides which params memoize. Tests: test_call_by_need_once / _unused /
+  _cond_once.
+- FIRST-CLASS lazy callables: a bodyless `Sig := lazy_func(...) returns T`
+  names a lazy funcsig type, lowered to the thunk signature; store / return /
+  pass / struct-field / local-alias / HOF-param forms all call with
+  short-circuit in both backends. Tests: test_first_class_* and
+  test_lazysig_*. Fixed alongside: the funcptr-value call path leaked
+  capturing thunk args (now hoisted + dropped like the direct path), and the
+  funcptr cast emitted a spurious extra pointer for funcptr-typed args.
+- Param-name SHADOWING in thunk-lowered bodies, all forms scope-aware (Decl /
+  for-in / catch / case-pattern binders). Landing it exposed and fixed a
+  pre-existing general codegen bug: a case payload binding named like the
+  subject self-referenced in C (make_payload_ref_decls now splits it). Tests:
+  test_thunk_shadowing*, test_thunk_case_binding_*.
+- THUNK FALLBACK for non-inlinable bodies (loops, early returns): params
+  become `_Fn_ret_T` zero-arg thunks, bodies auto-force, call sites wrap args
+  in closures. Tests: test_thunk_*.
+- Compile-time VARIADIC unroll in three body spellings (iterative for-in,
+  recursive match -- the core vand/vor form -- and recursive if/switch), plus
+  ListPattern (`case []` / `case [x, ..tl]`) surface. Tests:
+  test_variadic_*, test_iterative_*, test_recursive_*.
+- The INLINE fast path (single-return, if/else, guard chains, statement
+  prelude) and core and/or as lazy_func (#117 short-circuit). Tests:
+  test_lazy_*, test_core_*, test_stmt_*.
+Remaining gated behaviors are tracked by their own issues: escaping
+by-reference captures by #54's escape checks; narrow enum payload extraction
+by #311; call-through-eager-HOF arg deferral is impossible by semantics.
 
 Numbering note: this issue was originally filed as #260 and renumbered to
 #262 when #260 was reassigned to "Add cursor-relative File seek helpers"
