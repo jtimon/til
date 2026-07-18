@@ -1,45 +1,45 @@
 # priority: high
 # category: cleanups
-** OPEN #124 Raw `Dynamic` ownership should not require explicit `free(...)` in til
+** OPEN #124 Remove remaining manual frees for typed raw-buffer locals
 
-Today, typed owned values and containers mostly get their cleanup inserted
-  automatically by typer, but raw ~Dynamic~ buffers do not. That leaks the
-  low-level memory model into ordinary til code.
+Status update (2026-07-18): the original premise is obsolete. ~Dynamic~ never
+owns; it is for type erasure and raw borrows. Issue #302 established the
+replacement model, and #319 rejects user-facing allocator results bound to
+~Dynamic~ or ~ref~ locals.
 
-  Current symptom:
-  - code that takes ownership of raw memory from helpers like:
-    - ~malloc(...)~
-    - ~realloc(...)~
-    - ~Vec_take(...)~
-  - still needs explicit:
-    - ~free(own buf)~
+Allocator-rooted concrete locals such as:
 
-  That is inconsistent with the rest of til ownership:
-  - owned ~Str~, ~Expr~, ~Vec~, ~Map~, etc. are cleaned up by generated
-    delete/free insertion
-  - but owned raw ~Dynamic~ values are effectively second-class and require
-    handwritten cleanup in til source
+#+begin_src til
+buf : U8 = malloc(n)
+#+end_src
 
-  Desired end state:
-  - if til code owns a ~Dynamic~, the ownership system should be able to
-    release it automatically without handwritten ~free(...)~
-  - or the language should grow a distinct raw-owned buffer type whose
-    destructor is unambiguously ~free~
-  - this should be the default behavior, not a ban on explicit manual
-    cleanup in edge cases like:
-    - custom/manual ~delete~ implementations
-    - foreign ownership
-    - custom allocators
-    - raw buffers that intentionally should not go through plain ~free~
+are ordinary owned locals. Raw-allocation provenance makes them pointer-form
+heap blocks, and the garbager inserts their plain ~free~ at last use and exit
+edges. Source-level ~own~ is redundant on locals, so this issue does not
+propose an owned-Dynamic rule, a new raw-buffer type, or an ~own U8~ local
+spelling.
 
-  This matters for self-hosting cleanup too:
-  - current translated code still contains explicit ~free(own locals)~ style
-    calls for buffers returned from helpers like ~Vec_take~
-  - that should ideally become unnecessary once raw owned memory has a proper
-    automatic cleanup story
+The remaining cleanup is narrower:
 
-  Likely directions:
-  - teach typer/runtime that owned ~Dynamic~ defaults to ~free~
-  - or introduce a dedicated raw-buffer type separate from generic ~Dynamic~
-  - make the final rule explicit in ~qualifiers.org~ and ~c2til.org~
+- Remove handwritten ~free(own buf)~ calls where ~buf~ is a concrete
+  allocator-rooted local and automatic cleanup or an existing ownership
+  transfer already handles it.
+- Keep explicit frees that are real behavior: custom/manual delete
+  implementations, foreign ownership, custom allocators, and buffers that
+  intentionally do not use plain ~free~.
+- Keep compiler-internal ~src/self~ erased ABI slots until #286 gives their
+  ~write_ptr~ / interpreter heap transfers typed ownership. Those slots are
+  not evidence that ordinary ~Dynamic~ values may own memory.
+- Update ~qualifiers.org~ and ~c2til.org~ so they describe concrete typed raw
+  locals and remove the old manual-free contract.
 
+Issue #302 remains the ownership-pass source of truth. This issue is the
+focused explicit-call and documentation cleanup after that machinery lands.
+
+Acceptance:
+
+- Census remaining handwritten frees of allocator-rooted locals and classify
+  every survivor as required behavior or remove it.
+- Ordinary user code contains no owned ~Dynamic~ allocation convention.
+- Typed raw locals need no handwritten cleanup on normal or early-exit paths.
+- The full ASAN suite passes after the removals.

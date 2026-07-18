@@ -4,7 +4,7 @@
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
-*** [[./open/124.org][#124]] Raw `Dynamic` ownership should not require explicit `free(...)` in til
+*** [[./open/124.org][#124]] Remove remaining manual frees for typed raw-buffer locals
 *** [[./open/130.org][#130]] AST / ~Expr~ representation cleanup
 *** [[./open/143.org][#143]] Avoid unnecessary heap round-trips for Expr construction
 *** [[./open/147.org][#147]] AST/Context redesign: lessons from rstil
