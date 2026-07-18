@@ -608,27 +608,26 @@ v.count;
 #+end_src
 
 #+begin_src til
-v := Vec.new("I64", I64.size())
+mut v := Vec(I64).new()
 v.push(own val)
-ref elem : I64 = v.get(i)   // ref + type annotation required
+ref elem : I64 = v[i]   // or v.get(i)! -- get throws OutOfBounds
 v.len()
 #+end_src
 
-~Vec.get~ returns ~ref Dynamic~ — the result must be bound with ~ref~
-and a type annotation so the typer knows the concrete type.
-Without ~ref~, the compiler errors. To get an owned copy instead:
+~Vec.get~ returns ~ref T~ and throws ~OutOfBounds~ on a bad index;
+~v[i]~ is the panic-on-throw indexing form (~v.get(i)!~). Bind results
+with ~ref~ -- they are pointers into the Vec's storage. To get an owned
+copy instead:
 
 #+begin_src til
-elem := I64.clone(v.get(0))   // owned copy (UFCS doesn't work on Dynamic)
+elem := v[0].clone()
 #+end_src
 
-~Vec.pop()~ returns owned ~Dynamic~. Bind it to an explicit concrete type:
+~Vec.pop()~ returns the owned element:
 
 #+begin_src til
-popped : I64 = v.pop()
+popped := v.pop()
 #+end_src
-
-Do not use ~ref popped : I64 = v.pop()~.
 
 When translating C code that overwrites a ~Vec<Expr>~ slot, prefer
 ~vec.set(i, own val)~ / ~children.set(i, own val)~ rather than rebinding a
@@ -645,9 +644,9 @@ Map_has(&m, &key);
 #+end_src
 
 #+begin_src til
-m := Map.new("Str", Str.size(), "I64", I64.size())
-m.set(own key, own val)
-ref val : I64 = m.get(key)
+mut m := Map(Str, I64).new()
+m.set(key, own val)          // the key is cloned, only val is owned
+ref val : I64 = m[key]       // or m.get(key)! -- get throws KeyNotFound
 m.has(key)
 #+end_src
 
@@ -666,10 +665,10 @@ Expr *result = *(Expr **)Map_get(&m, &key);
 // til: box struct wraps the pointer
 ExprPtrBox := struct { ref ptr : Expr = NULL }
 
-m := Map.new("Str", Str.size(), "ExprPtrBox", ExprPtrBox.size())
+mut m := Map(Str, ExprPtrBox).new()
 box := ExprPtrBox(ptr = body)
-m.set(own key, own box)
-ref result_box : ExprPtrBox = m.get(key)
+m.set(key, own box)
+ref result_box : ExprPtrBox = m[key]
 // result_box.ptr is the Expr*
 #+end_src
 
@@ -679,7 +678,7 @@ Working example in ~src/self/interpreter.til~: ~ExprPtrBox~ for
 *** Set
 
 #+begin_src til
-s := Set.new("Str", Str.size())
+mut s := Set(Str).new()
 s.add(own "hello")
 s.has("hello")
 #+end_src
@@ -691,9 +690,9 @@ Same internal struct (data, len, cap). Built-in with all methods.
 *** Array (fixed-size)
 
 #+begin_src til
-a := Array.new("I64", I64.size(), 10)
-a.set(0, own 42)
-ref val : I64 = a.get(0)
+a := Array(I64).new(10)
+a.set(0, own 42)!            // set throws OutOfBounds
+ref val : I64 = a[0]         // or a.get(0)! -- get throws OutOfBounds
 #+end_src
 
 ** I/O & System
