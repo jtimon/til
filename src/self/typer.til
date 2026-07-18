@@ -1336,6 +1336,24 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
 }
 
 priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, in_func: I32, ctx: Context) {
+    // #303: stamp noreturn calls at resolution time. lookup_func tracks
+    // get_binding's scope walk, so a shadowing local wins over a core
+    // function of the same name -- the stamp reflects the callee that
+    // actually runs. Read by stmt_always_diverges (context.til) in both
+    // the all-paths-return check and the builder's terminator emit.
+    ref nr_fdef : Expr = scope.lookup_func(name)
+    if nr_fdef.is_null().not() {
+        switch nr_fdef.node_type {
+        case NodeType.FuncDef(nr_fd):
+            if nr_fd.noreturn {
+                switch e.node_type {
+                case NodeType.FCall(nr_fcd): nr_fcd.noreturn_call = true
+                case:
+                }
+            }
+        case:
+        }
+    }
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.children.len() >= 3 {
             ref method_arg : Expr = e.children[2]
@@ -3035,6 +3053,14 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // emit as ordinary functions.
         is_func := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
         is_macro := fdef.func_type.is(FuncType.Macro)
+        // #303 seed: core exit is the one noreturn primitive that cannot
+        // be inferred -- an ext_func with no til body, bound to libc exit,
+        // which never returns. It is the only ext_func in core/exit.til;
+        // everything else (panic, TODO, UNREACHABLE, user wrappers) is
+        // inferred bottom-up from bodies at the end of this function.
+        if fdef.func_type.is(FuncType.ExtFunc).and(ctx.path.ends_with("core/exit.til")) {
+            fdef.noreturn = true
+        }
         // Issue #262: a lazy callable's body must be handled by the loader's
         // lazy passes -- either expression-inlinable (lazy_body_inlinable:
         // single `return <expr>`, `if/else`, or guard chain) or statement-
@@ -3326,6 +3352,14 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)
             check_unused_locals(func_scope, ctx.path, ctx)
             check_unused_mut_locals(func_scope, ctx.path, ctx)
+        }
+        // #303: bottom-up noreturn inference -- record whether calling this
+        // function can ever hand control back. Runs after the body is
+        // typed, so FCalls inside it already carry noreturn_call stamps
+        // from callees typed earlier (imports and earlier decls in the
+        // file: exit -> panic -> TODO/UNREACHABLE chain in core/exit.til).
+        if fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc)) {
+            if fn_never_returns(expr.children[0]) { fdef.noreturn = true }
         }
     case:
         UNREACHABLE()

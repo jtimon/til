@@ -799,3 +799,18 @@ terr_missing_return_none := func(terr_mr_y: I64) returns I64 {
     mut terr_mr_z := terr_mr_y
     terr_mr_z = terr_mr_z + 1
 }
+
+// #303 regression (produces NO errors): a non-void function whose last
+// path ends in a call to an inferred-noreturn function needs no trailing
+// return. terr_nr_abort ends in panic (itself inferred noreturn from core
+// exit), so fn_never_returns marks it and the call in terr_nr_pick is
+// stamped noreturn_call -- the all-paths-return check accepts the missing
+// else-path return. If the inference or stamping breaks, terr_nr_pick
+// starts erroring and the expected count catches it.
+terr_nr_abort := func(terr_nr_code: I64) {
+    panic("terr_nr_abort: ", terr_nr_code.to_str())
+}
+terr_nr_pick := func(terr_nr_b: Bool) returns I64 {
+    if terr_nr_b { return 41 }
+    terr_nr_abort(3)
+}

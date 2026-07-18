@@ -1167,21 +1167,49 @@ enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
 // one, but the node shapes this walks (Return/Body/If/Switch/While plus a
 // noreturn call) are stable across both stages.
 
-// True if `e` is a call to a function that never returns.
-priv fcall_is_noreturn := func(e: Expr) returns Bool {
-    if e.children.len() == 0 { return false }
-    ref callee : Expr = e.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(id):
-        // REM #303: keyed off names until panic/exit/UNREACHABLE/TODO carry a
-        // real noreturn attribute. Matching a user function that shadows one of
-        // these only makes the check more permissive (a missed error), never a
-        // false rejection.
-        ref n : Str = id.ident_name()
-        return n.eq("panic").or(n.eq("exit")).or(n.eq("UNREACHABLE")).or(n.eq("TODO"))
+// True when `e` is a direct call to a raw allocator whose result is an
+// owned heap block: malloc / calloc / realloc. Shared by the garbager
+// (LocalInfo.raw_alloc provenance, #302) and the builder (raw-alloc
+// value-local emit, #303).
+rhs_is_allocator_call := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() < 1 { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(fid):
+        return fid.ident_name().eq("malloc").or(fid.ident_name().eq("calloc")).or(fid.ident_name().eq("realloc"))
     case:
         return false
     }
+}
+
+// #303: a `return` anywhere at this function's nesting level. Nested
+// function bodies own their returns (like has_unnested_break), so
+// recursion stops at FuncDef/BodyValue boundaries.
+priv contains_return := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.Return:
+        return true
+    case NodeType.FuncDef:
+        return false
+    case NodeType.BodyValue:
+        return false
+    case:
+        for c : Expr in e.children {
+            if contains_return(c) { return true }
+        }
+        return false
+    }
+}
+
+// #303: true iff calling a function with this body never gives control
+// back: no return statement at the function's own level, and every path
+// diverges (through a noreturn call or an unbreakable `while true`).
+// The typer runs this bottom-up after typing each Func/Proc body and
+// records the result on FunctionDef.noreturn; callees typed earlier
+// (imports, earlier in the file) are already marked, so chains like
+// exit -> panic -> UNREACHABLE resolve without any name matching.
+fn_never_returns := func(body: Expr) returns Bool {
+    return contains_return(body).not().and(stmt_always_diverges(body))
 }
 
 priv is_literal_true := func(e: Expr) returns Bool {
@@ -1224,8 +1252,12 @@ stmt_always_diverges := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Return:
         return true
-    case NodeType.FCall:
-        return fcall_is_noreturn(e)
+    case NodeType.FCall(fcd):
+        // #303: the typer stamps noreturn_call after resolving the callee
+        // to a FunctionDef with noreturn set -- no name matching, so a
+        // user function shadowing panic/exit/etc. does not count unless
+        // it is itself inferred noreturn.
+        return fcd.noreturn_call
     case NodeType.Body:
         // Never falls through iff one statement doesn't: control cannot reach
         // anything past a diverging statement.

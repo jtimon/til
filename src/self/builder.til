@@ -2056,6 +2056,23 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         f.write(";\n")
                         ctx.builder_func.stack_locals.add(own dd.name.clone())
                         ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
+                    } else if can_hoist.and(rhs_is_allocator_call(rhs)) {
+                        // #302/#303: raw-allocator RHS scalarized to a value
+                        // local (the garbager's shallow-return escape keeps
+                        // e.g. Vec(I64).pop's `out : T = malloc(T.size())`
+                        // on the stack). The legacy roundtrip -- allocate,
+                        // copy the indeterminate bytes into the local, free
+                        // -- is all dead code, and the garbage read trips
+                        // -Werror=maybe-uninitialized now that panic's
+                        // noreturn attribute sharpens gcc's flow analysis.
+                        // A raw alloc's contract is "content indeterminate
+                        // until written", so emit a bare uninitialized value
+                        // local; gcc then flags any genuine
+                        // read-before-write instead of us laundering the
+                        // garbage through the heap.
+                        f.write(ctype).write(" ").write(dd.name).write(";\n")
+                        ctx.builder_func.stack_locals.add(own dd.name.clone())
+                        ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
                         mut htype := fcall_return_ctype(rhs, ctx)
                         if htype.len() == 0 { htype = ctype.clone() }
@@ -4327,6 +4344,9 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         ret := func_return_ctype(fd, lp.ctx)
         // Signature
         if is_static { f.write("static __attribute__((unused)) ") }
+        // #303: same source of truth as the forward decl -- definition and
+        // prototype must agree or the C compiler rejects the mismatch.
+        if fd.noreturn { f.write("__attribute__((noreturn)) ") }
         f.write(ret).write(" "); fc := func_to_c(name); f.write(fc).write("(")
         emit_param_list(f, func_def, true, false, lp.ctx)
         f.write(") {\n")
@@ -4831,6 +4851,9 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
         if top_level.and(fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc))) { return }
         if name == "main" { return }
         ret := func_return_ctype(fd, ctx)
+        // #303: mirror the typer's noreturn knowledge in the C, so the C
+        // compiler also knows calls to these functions never come back.
+        if fd.noreturn { f.write("__attribute__((noreturn)) ") }
         f.write(ret).write(" ").write(name).write("(")
         emit_param_list(f, fdef, true, false, ctx)
         f.write(");\n")

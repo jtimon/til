@@ -484,6 +484,7 @@ typedef struct FCallData {
     U64 own_args;
     Bool swap_replace;
     Type til_type;
+    Bool noreturn_call;
 } FCallData;
 
 
@@ -1159,6 +1160,7 @@ typedef struct FunctionDef {
     Bool is_enum_variant_ctor;
     Vec__Declaration captures;
     Str closure_name;
+    Bool noreturn;
 } FunctionDef;
 
 
@@ -2125,7 +2127,9 @@ I64 enum_variant_tag(Expr * enum_def, Str * variant_name);
 I32 enum_variant_index(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 idx);
 Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
-Bool priv___src_self_context_til__fcall_is_noreturn(Expr * e);
+Bool rhs_is_allocator_call(Expr * e);
+Bool priv___src_self_context_til__contains_return(Expr * e);
+Bool fn_never_returns(Expr * body);
 Bool priv___src_self_context_til__is_literal_true(Expr * e);
 Bool priv___src_self_context_til__has_unnested_break(Expr * e);
 Bool stmt_always_diverges(Expr * e);
@@ -2803,7 +2807,6 @@ Expr * priv___src_self_desugarer_til__hoist_to_temp(Context * ctx, Expr * val, V
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 USize priv___src_self_garbager_til__LocalInfo_size(void);
-Bool priv___src_self_garbager_til__rhs_is_allocator_call(Expr * e);
 Bool priv___src_self_garbager_til__transfer_is_destructor_call(Expr * stmt, Str * name);
 Str * priv___src_self_garbager_til__gc_audit_flag(Bool b);
 Str * priv___src_self_garbager_til__gc_audit_strip_counter(Str * name);

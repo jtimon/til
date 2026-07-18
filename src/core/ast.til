@@ -186,6 +186,15 @@ FunctionDef := struct {
     // C backend name for the generated env-backed closure call function.
     // Empty until the typer assigns one to a capturing FuncDef.
     closure_name := ""
+    // #303: true when calling this function never returns control to the
+    // caller. Seeded on core exit (an ext_func whose libc binding is
+    // noreturn), then inferred bottom-up by the typer for any function
+    // whose body cannot reach its end or a return statement (see
+    // fn_never_returns in context.til): panic ends in exit, UNREACHABLE
+    // and TODO end in panic, and user functions with the same shape
+    // qualify too. Read at FCall infer time to stamp
+    // FCallData.noreturn_call.
+    noreturn := false
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
@@ -227,6 +236,15 @@ FCallData := struct {
     // "func vs proc is not Pascal", the only rule is "func cannot
     // call proc"; both kinds may or may not return a value).
     til_type := Type.Unknown
+    // #303: stamped true by the typer when the resolved callee's
+    // FunctionDef carries noreturn (control never comes back). The
+    // shared divergence predicate (stmt_always_diverges, context.til)
+    // reads this stamp instead of matching callee names, so both the
+    // typer's all-paths-return check and the builder's
+    // __builtin_unreachable terminator see the same resolved truth --
+    // a user function shadowing e.g. `panic` no longer counts as
+    // diverging unless it really is.
+    noreturn_call := false
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

@@ -58,18 +58,8 @@ priv LocalInfo := struct {
     raw_alloc := false
 }
 
-// True when `e` is a direct call to a raw allocator whose result is an
-// owned heap block: malloc / calloc / realloc.
-priv rhs_is_allocator_call := func(e: Expr) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() < 1 { return false }
-    switch e.children[0].node_type {
-    case NodeType.Ident(fid):
-        return fid.ident_name().eq("malloc").or(fid.ident_name().eq("calloc")).or(fid.ident_name().eq("realloc"))
-    case:
-        return false
-    }
-}
+// rhs_is_allocator_call moved to context.til (#303): the builder's
+// raw-alloc value-local emit needs the same predicate this pass uses.
 
 // True when `stmt` (or any sub-expression) destroys `name` directly:
 // free(own name), T.delete(own name, ...), or til_closure_delete(name).
