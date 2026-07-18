@@ -917,6 +917,37 @@ let the ownership pass insert temps itself; start with the check.
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).
+    REPLACEMENT DESIGN (mapped 2026-07-16 from a full read of the
+    machinery; execute with the pass-1-vs-pass-2 empty-diff referee):
+    all four lifetime walkers compute ONE fact -- extended last_use
+    via borrow edges -- inside one `while ref_changed` fixpoint:
+      1. FieldAssign to a Ref field: the RHS source local extends to
+         END OF BODY (conservative: borrows propagate through shallow
+         clones of the holder).
+      2. Ref-capturing closures (FuncDef/BodyValue capture lists):
+         each ref-captured local extends to the closure BINDING's
+         last_use.
+      3. `ref x := src` / `ref x := src.field` / `ref x := f(args)`:
+         src (the FieldAccess root / every FCall arg's ident root)
+         extends to x's last textual use, itself max'd with x's
+         already-extended last_use (rules are mutually recursive --
+         the fixpoint matters).
+      4. View taint (extend_hoist_view_lifetimes /
+         collect_hoist_taint): any binding whose initializer
+         TRANSITIVELY reads local aliases its buffer; local extends
+         to the last stmt consuming any tainted binding. Taint
+         deliberately over-follows clone results (safe: only defers
+         a delete).
+    Faithful consolidation: build per-body borrow edges ONCE
+    (borrower -> owner set, from binding identity at Decl/FieldAssign/
+    capture sites + the transitive-initializer-read closure), then one
+    propagation pass: last_use'(owner) = max over its borrowers (with
+    rule 1's body-end override). Equal output by construction; the
+    walkers and their name-string helpers (collect_hoist_taint,
+    rhs_depends_on_var's taint half, var_aliases_target,
+    alias_used_in_stmts) then collapse into edge queries. Only after
+    that lands, move insertion onto flow states per edge and retire
+    the index gates.
   - [X] 2026-07-16 Stage 4 first slice: save_old_delete has ONE writer
     pass. The typer's three infer_assign_stmt sites (outer-scope
     function-local rebinds: clone-wrapped ident / own-returning call /
