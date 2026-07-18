@@ -469,6 +469,9 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     }
 
     scope_free(own global)
+    // The fold pass is over; release the Scope boxes it parked in the pool
+    // (the build path never reaches interp_session_free's drain).
+    scope_pool_drain()
     constfolder_reset_state(lp.ctx)
 }
 
@@ -568,6 +571,8 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     }
 
     scope_free(own global)
+    // Same pool release as the full fold pass above (REPL delta pass).
+    scope_pool_drain()
     constfolder_clear_known(lp.ctx)
 }
 
@@ -4048,6 +4053,11 @@ finish_init_and_type_program := proc(mut lp: LoadedProgram) {
     // scope-management sites because per-body scopes are stack
     // locals; issue #204 step 3b covers lifting those too.
     garbager_destroy(lp.ctx)
+    // All typing (and with it every constfold eval) is done; no more
+    // interpreter scopes are created on the compile paths, so release the
+    // Scope boxes the constfold evals parked in the pool. The interpret
+    // path drains again in interp_session_free.
+    scope_pool_drain()
 }
 
 init_and_type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {

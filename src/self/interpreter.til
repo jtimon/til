@@ -3633,7 +3633,41 @@ priv scope_get_return_move_cell := func(mut s: Scope, name: Str) returns ref Cel
     return NULL
 }
 
+// Pool of dead Scope boxes for reuse. scope_free memsets a scope to zero
+// and parks it here instead of freeing; scope_new / scope_new_boxed pop
+// instead of mallocing. An all-zero Scope IS a valid empty scope now that
+// Vec.new is lazy (every Map/Vec field's zero state is lazy-empty), so
+// recycling needs no re-init beyond setting parent. Module-level because
+// scope_new/scope_free do not see the InterpSession; every creator's
+// teardown path calls scope_pool_drain (interp_session_free for the
+// interpreter, the loader's fold passes after their scope_free(global)).
+priv mut scope_pool := Vec(DynPtrBox).new()
+
+priv scope_pool_put := func(own p: Dynamic) {
+    scope_pool.push(own DynPtrBox(p = p))
+}
+
+// Free every parked box and release the pool's storage, leaving the pool
+// a valid lazy-empty Vec for a later session/fold pass.
+scope_pool_drain := func() {
+    for pe : DynPtrBox in scope_pool {
+        if pe.p.is_null().not() { free(own pe.p) }
+    }
+    free(own scope_pool.data)
+    memset(scope_pool, 0, Vec(DynPtrBox).size())
+}
+
 scope_new := func(parent: Scope) returns Scope {
+    if scope_pool.len() > 0 {
+        // Steal the last parked box: decrementing count makes the slot dead
+        // (its own p is never elem-deleted), so ownership moves to the
+        // returned scope with no double-free.
+        ref e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
+        scope_pool.count = scope_pool.count - 1
+        ref s : Scope = to_ptr(e.p)
+        s.parent = parent
+        return to_ptr(e.p)
+    }
     return Scope(parent = parent)
 }
 
@@ -3694,6 +3728,14 @@ scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
 }
 
 priv scope_new_boxed := func(parent: Scope) returns ref Scope {
+    if scope_pool.len() > 0 {
+        // Same steal-the-dead-slot recycle as scope_new above.
+        ref e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
+        scope_pool.count = scope_pool.count - 1
+        ref pooled : Scope = to_ptr(e.p)
+        pooled.parent = parent
+        return pooled
+    }
     raw : Dynamic = malloc(Scope.size())
     memset(raw, 0, Scope.size())
     ref s : Scope = to_ptr(raw)
@@ -3874,7 +3916,11 @@ scope_free := func(own s: Scope) {
     }
     free(own s.box_owned_callables.data)
     memset(s.box_owned_callables, 0, Vec(DynPtrBox).size())
-    free(own s)
+    // Recycle the box through the pool instead of freeing: zero the whole
+    // struct (parent, is_call_scope and the already-emptied containers) so
+    // the pooled box is a valid empty scope for the next scope_new.
+    memset(s, 0, Scope.size())
+    scope_pool_put(own s)
 }
 
 priv scope_root_ref := func(s: Scope) returns ref Scope {
@@ -4932,6 +4978,9 @@ interp_session_free := func(mut session: InterpSession) {
     memset(session.evaluated_units, 0, Set(Str).size())
     session.core_evaluated = false
     session.user_argc = 0
+    // All scopes are dead by now (global freed above, eval scopes freed
+    // during eval); release their pooled boxes.
+    scope_pool_drain()
 }
 
 interp_program_to_heap := func(own lp: LoadedProgram) returns Dynamic {
