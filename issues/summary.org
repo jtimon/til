@@ -72,9 +72,6 @@
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
 *** [[./open/83.org][#83]] tiled: editor, window manager, terminal and more
 * Deferred
-** High
-*** [[./open/232.org][#232]] Hosted 32-bit targets: Linux and Windows
 ** Low
-*** [[./open/25.org][#25]] Support for the 4 main operative systems
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/152.org][#152]] True cross-compilation to macOS (and other host-restricted targets) via precompiled ext.o

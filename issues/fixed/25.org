@@ -1,9 +1,50 @@
 # priority: low
 # category: deferred
-** WIP #25 Support for the 4 main operative systems
+** FIXED #25 Support for the 4 main operative systems
 
-:DEPENDENCIES: [[../fixed/12.org][#12]] (self-hosting, FIXED)
-:RELATED: [[./151.org][#151]] (TempleOS), [[./152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
+*** Post-mortem
+
+  The 3x4 host-x-target matrix is complete and green in CI: Linux, macOS
+  and Windows each build til natively AND cross-compile to every OS
+  target (Linux x64/arm64/riscv64/x86/arm32/riscv32, windows x64/x86,
+  macos arm64/x64, plus wasm32 as a bonus); TempleOS remains split out
+  as [[../open/151.org][#151]] by design. First fully green master run: 29626892454 -- also
+  the first fully green run in the repo's CI history.
+
+  The arc in one line per front: Windows fell to mingw (vendored
+  import-lib .a files, one dual-CRT trap: never link ucrtbase next to
+  msvcrt startup -- real Windows refuses dual-CRT binaries that wine
+  happily loads); Windows-as-host fell to libffi-win64 + export tables +
+  detecting the host without uname; macOS CLI fell to the zig mechanism
+  done by hand (vendored darwin libc headers + libSystem.tbd + clang +
+  lld); and macOS GUI -- the cell long believed to need a Mac or Apple's
+  SDK -- fell to the observation that raylib's RGFW backend drives Cocoa
+  entirely through the objc runtime (objc_msgSend), so it compiles on
+  Linux against hand-vendored framework TYPE headers
+  (vendor/macos/frameworks-shim: CoreFoundation/CoreGraphics/IOKit
+  HID/CoreAudio/AudioToolbox/Carbon keycodes), and links against .tbd
+  stubs generated on Linux from the archive's own undefined symbols
+  (gen_framework_stubs.py --linux-map). No Mac, no SDK, anywhere in the
+  chain.
+
+  Hard-won FFI portability lessons that cost the most wall-clock: the
+  ffi_cif struct mirror must model per-target FFI_EXTRA_CIF_FIELDS
+  (darwin-arm64 writes past a 32-byte cif -- heap corruption whose crash
+  sites were victims, not culprits), ffi_abi is a PER-ARCH enum (the
+  x86-64 value requested Windows-on-ARM marshalling on darwin), and
+  windows _fullpath is not realpath (it normalizes nonexistent paths, so
+  existence gates silently pass -- ext.c now enforces the POSIX
+  contract).
+
+  Verification: every cell has a CI job that builds AND (where a runner
+  or emulator exists) runs the artifact on the real platform; both mac
+  suites run under ASAN. Remaining external check: gui/audio examples on
+  a physical mac (the CoreAudio shim ABI is link-proven and
+  native-mac-CI-built, but the cross-built binary's audio path has no
+  headless test).
+
+:DEPENDENCIES: [[./12.org][#12]] (self-hosting, FIXED)
+:RELATED: [[../open/151.org][#151]] (TempleOS), [[../open/152.org][#152]] (SDK-less macOS cross), [[./232.org][#232]] (hosted 32-bit)
 
   til should build and run on the 4 main operative systems, and not
   just natively: the goal is full cross-compilation -- build a til
@@ -15,7 +56,7 @@
   The original priority order was Linux, TempleOS, macOS, Windows.
   Reality inverted it: mingw-w64 made Windows cheap, so it landed
   second. macOS is now the active front and the greatest remaining
-  challenge; TempleOS goes last ([[./151.org][#151]]).
+  challenge; TempleOS goes last ([[../open/151.org][#151]]).
 
   Status (2026-07):
 
@@ -107,7 +148,7 @@
     compiled programs bind ext_func to direct C symbols and never
     reference it. This closes the last two matrix cells (the CLI path;
     gui cross from a mac is the same Apple-SDK block as elsewhere).
-  - TempleOS: deferred, split out to [[./151.org][#151]]. #12 is fixed so the hard
+  - TempleOS: deferred, split out to [[../open/151.org][#151]]. #12 is fixed so the hard
     dependency is satisfied; what remains is the HolyC backend itself
     (Lang.HolyC and the holyc toolchain entry are placeholders today).
 
@@ -539,7 +580,7 @@
      (clang -fuse-ld=lld) links Mach-O and ad-hoc-signs arm64, and
      libSystem.tbd is one vendorable text file. The vendored header
      tree is the heavy part -- and precompiled per-target ext objects
-     ([[./152.org][#152]], macOS-only; linux/windows targets keep the current
+     ([[../open/152.org][#152]], macOS-only; linux/windows targets keep the current
      compile-ext.c-with-the-cross-gcc flow that already works) make it
      mostly unnecessary:
 
@@ -628,7 +669,7 @@
 
 *** TempleOS
 
-   Unchanged in spirit, now tracked in [[./151.org][#151]]: HolyC codegen backend
+   Unchanged in spirit, now tracked in [[../open/151.org][#151]]: HolyC codegen backend
    (the Lang.HolyC placeholder exists), TempleOS-native gui primitives
    instead of raylib, QEMU-based test loop. Still the most interesting
    target, still last in line.

@@ -335,6 +335,8 @@ target_gui_libs := proc(target: Target) returns Str {
         return "vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a"
     case Target.LinuxArm32:
         return "vendor/raylib/src/libraylib-arm32.a vendor/tinyfiledialogs/libtinyfd-arm32.a"
+    case Target.LinuxRiscv32:
+        return "vendor/raylib/src/libraylib-riscv32.a vendor/tinyfiledialogs/libtinyfd-riscv32.a"
     case Target.WindowsX64:
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
     case Target.WindowsX86:

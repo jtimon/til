@@ -379,6 +379,56 @@ $(TINYFD_X86_LIB):
 	cc -m32 -c -o tmp/tinyfiledialogs-x86.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	ar rcs $@ tmp/tinyfiledialogs-x86.o
 
+# linux-arm32 gui variants via the same cross gcc the CLI target uses
+# (issue #232). Same story as -x86: vendored X11 headers for the compile,
+# GLFW dlopens libX11 on the target device at runtime, so no ARM X11
+# sysroot is needed to build or link -- only gcc-arm-linux-gnueabihf.
+RAYLIB_ARM32_LIB := vendor/raylib/src/libraylib-arm32.a
+TINYFD_ARM32_LIB := vendor/tinyfiledialogs/libtinyfd-arm32.a
+
+$(RAYLIB_ARM32_LIB):
+	rm -rf tmp/raylib-arm32
+	mkdir -p tmp/raylib-arm32
+	cp -r vendor/raylib/src/. tmp/raylib-arm32/
+	$(MAKE) -C tmp/raylib-arm32 clean
+	$(MAKE) -C tmp/raylib-arm32 PLATFORM=PLATFORM_DESKTOP \
+	  CC=arm-linux-gnueabihf-gcc AR=arm-linux-gnueabihf-ar \
+	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
+	  RAYLIB_LIB_NAME=raylib-arm32 RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-arm32/libraylib-arm32.a $@
+
+$(TINYFD_ARM32_LIB):
+	mkdir -p tmp
+	arm-linux-gnueabihf-gcc -c -o tmp/tinyfiledialogs-arm32.o vendor/tinyfiledialogs/tinyfiledialogs.c
+	arm-linux-gnueabihf-ar rcs $@ tmp/tinyfiledialogs-arm32.o
+
+# linux-riscv32 gui variants (issue #232). Identical recipe shape, but no
+# distro ships a riscv32 gcc -- the CI job downloads the Bootlin
+# toolchain, so the compiler is a parameter: pass RISCV32_CC=<path> (and
+# the matching ar is derived from it). target_gui_libs(LinuxRiscv32)
+# points at these paths.
+RAYLIB_RISCV32_LIB := vendor/raylib/src/libraylib-riscv32.a
+TINYFD_RISCV32_LIB := vendor/tinyfiledialogs/libtinyfd-riscv32.a
+RISCV32_AR = $(dir $(RISCV32_CC))$(patsubst %-gcc,%-ar,$(notdir $(RISCV32_CC)))
+
+$(RAYLIB_RISCV32_LIB):
+	test -n "$(RISCV32_CC)" || { echo "ERROR: pass RISCV32_CC=<path to riscv32 gcc> (e.g. the Bootlin toolchain)"; exit 1; }
+	rm -rf tmp/raylib-riscv32
+	mkdir -p tmp/raylib-riscv32
+	cp -r vendor/raylib/src/. tmp/raylib-riscv32/
+	$(MAKE) -C tmp/raylib-riscv32 clean
+	$(MAKE) -C tmp/raylib-riscv32 PLATFORM=PLATFORM_DESKTOP \
+	  CC=$(RISCV32_CC) AR=$(RISCV32_AR) \
+	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include" \
+	  RAYLIB_LIB_NAME=raylib-riscv32 RAYLIB_RELEASE_PATH=.
+	cp tmp/raylib-riscv32/libraylib-riscv32.a $@
+
+$(TINYFD_RISCV32_LIB):
+	test -n "$(RISCV32_CC)" || { echo "ERROR: pass RISCV32_CC=<path to riscv32 gcc> (e.g. the Bootlin toolchain)"; exit 1; }
+	mkdir -p tmp
+	$(RISCV32_CC) -c -o tmp/tinyfiledialogs-riscv32.o vendor/tinyfiledialogs/tinyfiledialogs.c
+	$(RISCV32_AR) rcs $@ tmp/tinyfiledialogs-riscv32.o
+
 # tinyfd cross-built for macOS (issue #25 phase 3, mac gui cross). Unlike
 # raylib's Objective-C/Cocoa backend, tinyfd is one .c file that only
 # needs libc (it shells out to osascript), so it cross-compiles on ANY

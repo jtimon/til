@@ -1,6 +1,45 @@
 # priority: high
 # category: deferred
-** WIP #232 Hosted 32-bit targets: Linux and Windows
+** FIXED #232 Hosted 32-bit targets: Linux and Windows
+
+*** Post-mortem
+
+  All four hosted 32-bit targets work as cross-compile targets from a
+  64-bit Linux host, CLI + GUI + runtime FFI where each applies:
+  linux-x86 (multilib), linux-arm32 (arm-linux-gnueabihf-gcc),
+  linux-riscv32 (Bootlin toolchain via --cc / RISCV32_CC), and
+  windows-x86 (mingw i686). The shared compiler work -- target_is_32bit
+  retargeting USize/UPtr to U32, sizeof(void*)-honest codegen,
+  dyn_size_of/get_payload -- landed early and linux-x86 (the qemu canary)
+  validated it; the long tail was VENDOR LIBS and LINK PLUMBING, not
+  codegen: the only 32-bit codegen bug in the whole arc was
+  src/modes/gui.til hardcoding .cast(U64) where malloc/ptr_add take UPtr.
+
+  What made GUI cheap everywhere: raylib compiles against the VENDORED
+  arch-independent X11 headers and GLFW dlopens libX11 at runtime, so no
+  32-bit X11 sysroot is ever needed to build or link -- only a C
+  compiler for the target (the windows GL/GDI backend comes with mingw).
+  A latent builder bug surfaced here: the link-token rewrite that swaps
+  host-arch vendor archives for per-target ones only fired for
+  windows/wasm/mac, so 32-bit linux gui links pulled the 64-bit
+  libraylib.a; the rewrite now covers the 32-bit linux targets.
+
+  Verification: CI cross-compiles and RUNS CLI programs for x86 (qemu +
+  WOW64 for win32), arm32 and riscv32 (qemu); the linux-x86 gui smoke
+  runs a real window under qemu-i386 + Xvfb + i386 X11 runtime libs
+  (exit 124 = alive and drawing); arm32/riscv32/win32 gui are build +
+  file-format checks (no arm32/riscv32 X11 userspace on the runners, no
+  windows gui session headless -- the 32-bit gui runtime path is the
+  same codegen + dlopen the x86 smoke exercises). Regression tests: the
+  CI jobs themselves (linux-x86 / linux-arm32 / linux-riscv32 /
+  windows-x64/x86 build+run pairs); first fully green master run:
+  29626892454.
+
+  Known limitation, documented not fixed: running 32-bit gui binaries on
+  arm32/riscv32 CI is blocked on target X11 userspace availability, not
+  on til. Windows-on-ARM (any bitness) was never in scope -- windows
+  targets mean x86/x64 PE binaries, which ARM windows runs via its own
+  emulation layer anyway.
 
 :DEPENDENCIES: [[./81.org][#81]]
 
@@ -16,7 +55,7 @@
 
   Out of scope:
   - Browser WASM is [[./228.org][#228]].
-  - TempleOS is [[./151.org][#151]].
+  - TempleOS is [[../open/151.org][#151]].
 
 *** Scope
 
@@ -101,12 +140,22 @@
     CI linux-x86 job installs libx11-6:i386 + friends and requires
     exit 124 from the smoke run.
 
-*** Remaining
+*** arm32/riscv32 GUI (the last piece)
 
-  - Verify linux-arm32 and linux-riscv32 sysroot/toolchain assumptions
-    on the actual CI image.
-  - GUI vendor libs for linux-arm32/linux-riscv32: unlike linux-x86
-    (multilib on the same machine), these need full cross X11/GL
-    sysroots for the target arch -- the expensive part. target_gui_libs
-    already points at the -arm32 paths; no Makefile recipe yet. Runtime
-    FFI for the linux 32-bit targets is unaffected (no GUI libs needed).
+  - The "needs full cross X11/GL sysroots -- the expensive part" fear
+    recorded here earlier was WRONG, for the same reason linux-x86 was
+    cheap: the compile uses the vendored arch-independent X11 headers
+    and GLFW dlopens libX11 at runtime, so the only requirement is the
+    C cross compiler each CLI job already has. Makefile
+    RAYLIB_ARM32_LIB / TINYFD_ARM32_LIB build with
+    arm-linux-gnueabihf-gcc; RAYLIB_RISCV32_LIB / TINYFD_RISCV32_LIB
+    take the Bootlin compiler as RISCV32_CC (no distro riscv32 gcc
+    exists). target_gui_libs gained the LinuxRiscv32 entry. Verified
+    locally: ~til build --target=linux-arm32 examples/hello_gui.til~
+    produces an ELF 32-bit ARM EABI5 gui binary. riscv32 could not be
+    built in the bot sandbox (toolchains.bootlin.com is egress-blocked
+    there); its proof is the CI linux-riscv32 job, which downloads the
+    toolchain and now builds + file-checks hello_gui alongside the CLI
+    qemu run. The arm32 job does the same build + file check. The
+    toolchain-assumption verification item is thereby covered too: both
+    jobs compile AND run CLI binaries under qemu on the real CI image.

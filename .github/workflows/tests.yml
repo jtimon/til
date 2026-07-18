@@ -163,6 +163,18 @@ jobs:
         run: |
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32 | grep -q "Hello World"
+      # Issue #232: arm32 GUI. Same recipe as linux-x86 gui (vendored X11
+      # headers for the compile, GLFW dlopens libX11 on the target device
+      # at runtime), with the same cross gcc the CLI step already uses.
+      # Build + file check only: running it under qemu would need armhf
+      # X11 userspace from ports.ubuntu.com multiarch, and the 32-bit gui
+      # RUNTIME path (same codegen, same dlopen) is already exercised by
+      # the linux-x86 job's qemu+xvfb smoke.
+      - name: Cross-compile a GUI example for linux-arm32
+        run: |
+          make vendor/raylib/src/libraylib-arm32.a vendor/tinyfiledialogs/libtinyfd-arm32.a
+          ./bin/til build --target=linux-arm32 -o bin/hello_gui_arm32 examples/hello_gui.til
+          file bin/hello_gui_arm32 | grep -q "ARM"
 
   linux-riscv32:
     name: linux-riscv32
@@ -197,6 +209,19 @@ jobs:
           SYSROOT=$("$RISCV32_CC" -print-sysroot)
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32 | grep -q "Hello World"
+      # Issue #232: riscv32 GUI, same shape as the arm32 gui step. No
+      # distro ships a riscv32 gcc, so the raylib/tinyfd recipes take the
+      # Bootlin compiler as RISCV32_CC. Build + file check only (no
+      # riscv32 X11 userspace exists to run against; the 32-bit gui
+      # runtime path is covered by the linux-x86 qemu smoke).
+      - name: Cross-compile a GUI example for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
+          make RISCV32_CC="$RISCV32_CC" \
+            vendor/raylib/src/libraylib-riscv32.a vendor/tinyfiledialogs/libtinyfd-riscv32.a
+          ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
+            -o bin/hello_gui_riscv32 examples/hello_gui.til
+          file bin/hello_gui_riscv32 | grep -q "RISC-V"
 
   windows-x64-build:
     name: windows-x64/x86 (cross-compile on linux)
