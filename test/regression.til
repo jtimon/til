@@ -245,6 +245,76 @@ test_bug302_switch_transfer := test() {
     assert(bug302_sw_transfer(3) == 3)
 }
 
+// #302 stage 3 (CFG dataflow): a switch INSIDE a loop whose
+// transferring case breaks the loop is not C-like (the break targets
+// the While), so it desugars to a Body-wrapped if/elif chain;
+// own_transfer then points at the Body, which the If/Switch sink gate
+// skipped, leaking the loop-local on every non-transfer iteration.
+// The sink now consults the ownership dataflow for a Body transfer
+// stmt: a Mixed exit state (some path still owns the local) means the
+// per-branch graft is safe and needed; a uniform Moved exit (for-in /
+// bare-block wrappers that transfer on every pass) stands down -- the
+// shape whose blind graft double-freed and reverted the first Body
+// gate. ASAN verifies: no leak on non-transfer iterations, no
+// double-free on the transfer+break path.
+bug302_swbrk_sink := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+bug302_swbrk := proc(n: I64) returns I64 {
+    print_flush()
+    mut r : I64 = 0
+    mut i : I64 = 0
+    while i < n {
+        base := "swbrkheap"
+        s := Str.clone(base)
+        switch i {
+        case 1:
+            r = bug302_swbrk_sink(own s)
+            break
+        case:
+            r = r + 1
+        }
+        i++
+    }
+    return r
+}
+
+test_bug302_switch_break_transfer := test() {
+    assert(bug302_swbrk(0) == 0)
+    assert(bug302_swbrk(1) == 1)
+    assert(bug302_swbrk(3) == 9)
+}
+
+// #302 stage 3 (CFG dataflow): use after a DIVERGED transfer is valid.
+// `switch n { case 1: return sink(own s) case: ... }; use s` -- the
+// transfer path returns, so only still-owning paths reach the use.
+// The index model (last_use > own_transfer) rejected this; the
+// dataflow proves every path at the use still owns s, the false
+// positive clears, and the local reverts to ordinary owned cleanup on
+// the surviving paths (the naive suppression leaked s on the
+// fall-through -- ASAN verifies both halves: no leak, and no
+// double-free on the transfer path).
+bug302_uat_sink := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+bug302_uat := proc(n: I64) returns I64 {
+    print_flush()
+    lit := "uatheap"
+    s := Str.clone(lit)
+    switch n {
+    case 1: return bug302_uat_sink(own s)
+    case: print_flush()
+    }
+    return s.len().to_i64() + 1
+}
+
+test_bug302_use_after_diverged_transfer := test() {
+    assert(bug302_uat(1) == 7)
+    assert(bug302_uat(2) == 8)
+}
+
 // --- #302: typed locals from raw allocators (raw_alloc provenance) ----
 //
 // Original bug: `buf : U8 = malloc(n)` MEANT different things depending

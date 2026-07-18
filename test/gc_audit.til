@@ -131,6 +131,52 @@ raw_alloc_auto := func() returns I64 {
     return 0
 }
 
+// Shape 12: the KNOWN deferred leak (#302 stage 3) -- a switch inside a
+// loop whose transferring case carries a `break` (targeting the While)
+// is not C-like, so it desugars to a Body-wrapped if/elif chain;
+// own_transfer points at the Body, the If/Switch sink gate skips it,
+// and every non-transfer iteration leaks the loop-local `s`. The
+// dataflow sees what the index model cannot: GC-FLOW pins s at exit=X
+// in the loop-body view (Moved on the transfer path, still Owned on
+// the others). When a later slice inserts the missing path deletes,
+// this shape's exit state flipping X -> M IS the fix, visible in the
+// golden.
+switch_break_transfer := func(n: I64) returns I64 {
+    mut r : I64 = 0
+    mut i : I64 = 0
+    while i < n {
+        base := "swbrk"
+        s := Str.clone(base)
+        switch i {
+        case 1:
+            r = consume(own s)
+            break
+        case:
+            r = r + 1
+        }
+        i++
+    }
+    return r
+}
+
+// Shape 13: use after a DIVERGED transfer (#302 stage 3, deferred case
+// 2, now valid). The transfer path returns, so only still-owning paths
+// reach the use: the dataflow proves s Owned at the use statement, the
+// old index-model rejection (last_use > own_transfer) clears, and the
+// local reverts to ordinary owned cleanup on the surviving paths. The
+// transfer path's nested return does NOT re-delete s: the transfer
+// sits in a preceding sibling (the hoisted call decl), which the
+// nested-exit scan now recognizes as Moved-on-this-path.
+diverged_use := proc(n: I64) returns I64 {
+    lit := "divheap"
+    s := Str.clone(lit)
+    switch n {
+    case 1: return consume(own s)
+    case: print_flush()
+    }
+    return s.len().to_i64() + 1
+}
+
 // Plain assert only: assert_eq is a type-generic func, and generic
 // instantiation clones the body into this unit with the DEFINITION
 // file's line numbers -- the audit dump would then couple the golden to
@@ -159,4 +205,9 @@ test_gc_audit_shapes := test() {
     d := lit.clone()
     assert(early_param(own d, true) == 1)
     assert(raw_alloc_auto() == 0)
+    assert(switch_break_transfer(0) == 0)
+    assert(switch_break_transfer(1) == 1)
+    assert(switch_break_transfer(3) == 5)
+    assert(diverged_use(1) == 7)
+    assert(diverged_use(2) == 8)
 }

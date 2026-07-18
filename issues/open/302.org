@@ -806,7 +806,117 @@ let the ownership pass insert temps itself; start with the check.
     re-derivation compensation (stage 6, needs stages 1-5), and the
     Dynamic-never-owns migration (stage 3's CFG pass). make clean &&
     make test 173/173 (ASAN). Plain commit.
-  - [ ] Stage 3 (rest): the CFG ownership pass.
+  - [X] 2026-07-15 Stage 3 slice 1: the per-body CFG exists (GcCfgBlock
+    + cfg_build/cfg_scan in garbager.til). Blocks are statement spans
+    into one Body's children (pre-insertion indexes, same as the audit
+    table); If/Switch/Body branch from the current block's tail and join
+    after the statement, While gets a dedicated head block so its back
+    edge re-enters at the condition, Return/Break/Continue are
+    terminator edges, unreachable tails get edgeless blocks. Dumped
+    under TIL_GC_AUDIT (GC-CFG lines, now part of the gc_audit golden)
+    so the graph shape per fixture body is pinned and reviewable; the
+    graph verified by hand against the fixture: loop back edge,
+    desugared while-cond break, exit edges, and the sink's grafted
+    else-delete all appear where they should. Nothing consumes the
+    graph yet. Key contract learned (fail-loud probe): the pass runs
+    per body NESTED-FIRST, so a standalone loop-body view legitimately
+    contains break/continue whose While lives in the parent view --
+    those are exit edges of the view (locals die either way), and the
+    parent's own scan sees the same statements with real loop targets.
+    Next slices: ownership dataflow over the graph (Owned/Moved per
+    binding per block), asserted against the index model's decisions
+    on the suite before any behavior switches over. make clean &&
+    make test 176/176 (ASAN). Plain commit: the CFG builds only under
+    the audit env var; emitted C unchanged.
+  - [X] 2026-07-15 Stage 3 slice 2: the ownership dataflow runs over the
+    CFG (gc_flow_solve: forward fixpoint per binding; states Uninit /
+    Owned / Moved / Mixed, meet = equality-or-Mixed; block effects are
+    decl/reassign -> Owned, own transfer -> Moved, tail compounds
+    contribute only their condition). Dumped as GC-FLOW lines in the
+    audit golden, one line per audit-table binding: entry state, exit
+    state, per-block OUT states. The dump runs PRE-insertion (the flow
+    is the analysis that will DECIDE insertions), so exit=X (Mixed)
+    means "needs path-sensitive cleanup": covered shapes show X plus
+    the compensating deletes in the post-insertion site walk
+    (early_param), sink-covered shapes settle to uniform M
+    (conditional_transfer, cond_param), and fixture shape 12 -- NEW:
+    switch-inside-loop whose transferring case breaks the loop,
+    desugared to the Body-wrapped if/elif chain -- shows exit=X with NO
+    covering site: the known deferred leak, now pinned in the golden.
+    When a later slice inserts the missing path deletes, that X
+    flipping to M is the fix, visible in review. Also learned: bare
+    case-level break outside a loop is a typer error ("break outside
+    loop"), so the deferred shape ONLY exists as the in-loop form.
+    Nothing consumes the states yet. make clean && make test 176/176
+    (ASAN). Plain commit (audit-only).
+  - [X] 2026-07-15 Stage 3 slice 3: FIRST BEHAVIORAL CONSUMER of the
+    dataflow -- the desugared-switch-with-break leak (deferred case 1
+    of the 07-11 pair) is FIXED. The sink now takes a Body at
+    own_transfer through two gates: (1) transfer_lex_inside_while --
+    the transfer must not sit under a While inside the wrapper; a
+    loop-INVARIANT local transferred once ACROSS iterations (the
+    desugarer's splat push `for j { if ji == vi { push(own splat) } }`)
+    has per-iteration paths that statically disagree, but the transfer
+    belongs to a different iteration than any grafted path, so per-path
+    deletes double-free -- this was the exact crash of the first
+    reverted Body gate, rediscovered empirically when pass 2 died
+    building til_asan and pinned by diffing pass-1 vs pass-2 C (two
+    grafted Expr_delete(splat) lines); (2) gc_flow_exit_is_mixed --
+    computed from the exit block's PREDECESSORS, not the exit meet
+    (a path that exits before the decl carries Uninit -- e.g. the
+    loop-condition break of a loop-body view -- and folding it into
+    the meet reads Mixed forever): some pred must leave still Owned
+    AND some Moved. Uniform-Moved wrappers (transfer on every pass)
+    stand down. Verified: the repro leaked 78 bytes in 6 allocations
+    through the pre-fix compiler and is ASAN-clean through the fixed
+    one; pass-1 C == pass-2 C byte-exact for the compiler's own
+    sources (so this lands as a PLAIN commit despite touching pass
+    semantics -- the compiler itself contains no grafted shape);
+    regression test/regression.til test_bug302_switch_break_transfer
+    (ASAN both modes); gc_audit golden pins the graft (Str.delete(s)
+    in the non-transfer arm; s per-block states flip to Moved on all
+    post-graft paths; exit stays X only via the pre-decl break path,
+    which carries Uninit -- nothing to free). make clean && make test
+    176/176.
+  - [X] 2026-07-15 Stage 3 slice 4: path-sensitive use-after-transfer
+    (deferred case 2) FIXED -- `switch n { case 1: return f(own s)
+    case: ... }; use s` now compiles and is leak-free.
+    check_use_after_own_transfer consults gc_flow_owned_at_stmt (the
+    state at the flagged use statement's entry: containing ROOT block's
+    IN -- blocks now carry is_root so index-model positions can be
+    located in the graph -- advanced through the block's earlier
+    statements): pure Owned at the use = the transfer paths all
+    diverged, the use is valid, and the local's own_transfer clears so
+    it reverts to ordinary owned cleanup on the surviving paths (naive
+    error suppression leaked, per the 07-11 note). Straight-line
+    use-after-transfer still errors (state at use = Moved). Clearing
+    alone re-broke the TRANSFER path: the nested return right after
+    the typer-hoisted transfer decl (`hoisted := f(own s); return
+    hoisted`) re-deleted the consumed local -- the return-operand
+    exclusion misses it post-hoisting (ASAN heap-use-after-free,
+    probed). insert_exit_deletes therefore gained the
+    preceding-sibling exclusion: an UNCONDITIONAL transfer in an
+    earlier NON-COMPOUND sibling of the same body means Moved on every
+    path to this exit -> skip the delete. Two probe-caught subtleties
+    pinned in comments: (a) the scan walks new_ch, not old[0..i) --
+    push_take ZEROES consumed old slots and a zeroed Expr reads as an
+    empty Body (tag 0), so an old-scan sees nothing; (b) compound
+    siblings are skipped -- an if-guarded transfer is conditional, the
+    fall-through still owns the local, and suppressing its delete
+    leaked in compiler bodies (caught by the pass-1 vs pass-2 C diff,
+    128 removed delete lines; with the narrowing, pass-1 C == pass-2 C
+    byte-exact again, so this too is a PLAIN commit). Fixture shape 13
+    (diverged_use) pins the flow (s exit=X: M on the case path, O on
+    the fall-through) and the golden; regression
+    test_bug302_use_after_diverged_transfer (ASAN both modes: no
+    leak on fall-through, no double-free on the transfer path).
+    make clean && make test 176/176.
+  - [ ] Stage 3 (rest): drive delete insertion from the dataflow
+    (Owned/Mixed edges into exit) beyond the sink's graft shapes;
+    then delete the index-model special cases the dataflow subsumes
+    (sink_conditional_transfer_deletes' index gates, the pre-transfer
+    exit rules, extend_*_lifetimes, collect_hoist_taint,
+    alias_used_in_stmts).
   - [ ] Stage 4: explicit moves + unified reassign deletes.
   - [ ] Stage 5: temp-contract enforcement.
   - [ ] Stage 6: builder compensation removal.

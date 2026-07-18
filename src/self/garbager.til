@@ -301,6 +301,406 @@ priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
     gc_audit_sites(body, "", names, counts)
 }
 
+// --- #302 stage 3, slice 1: per-body control-flow graph ---------------------
+//
+// Build an explicit graph of the statement-level control flow the index
+// model (LocalInfo's decl/last_use/own_transfer) only approximates, and
+// dump it under TIL_GC_AUDIT so the golden pins the shape per body.
+// Nothing consumes the graph yet: the ownership dataflow lands on top of
+// it in follow-up commits, asserted against the index model's decisions
+// before replacing them.
+//
+// Model: a block is a run of consecutive statements inside ONE Body node
+// (span [start, end) into body.children, pre-insertion indexes -- the
+// same indexing the audit table's decl/last_use/own_transfer use).
+// Compound statements end a block: If/Switch/Body branch from the tail
+// of the current block (the span includes the compound statement, whose
+// condition/subject evaluates there) and their branch bodies' flows join
+// at a fresh block after the statement; While gets a dedicated
+// single-statement head block so its back edge re-enters at the
+// condition, never at preceding straight-line statements. Return /
+// Break / Continue terminate a block with an edge to the exit block /
+// the innermost loop's join / the innermost loop's head. Block 0 is the
+// synthetic exit (body=NULL); block 1 is the entry. The exit block
+// means "control leaves this body view" -- the pass runs per body,
+// nested-first, so for a standalone loop-body view a break/continue
+// whose While lives in the parent view is also an exit edge (this
+// body's locals die there either way). Statements after a
+// terminator open a fresh, edgeless (unreachable) block, matching how
+// the insertion loop still walks them today. Compile directives ride
+// inside spans like any statement; the insertion loop's skip is not
+// flow.
+
+priv GcCfgBlock := struct {
+    // Owning Body node; NULL only for the synthetic exit block.
+    ref body : Expr = NULL
+    start : I32 = 0
+    end : I32 = 0
+    // True when `body` IS the view's root Body: this block's span
+    // indexes are the same top-level statement indexes LocalInfo's
+    // decl/last_use/own_transfer use, so index-model positions can be
+    // located in the graph through root blocks only.
+    is_root := false
+    succs := Vec(I32).new()
+}
+
+priv cfg_new_block := func(mut blocks: Vec(GcCfgBlock), body: Expr, start: I32, is_root: Bool) returns I32 {
+    id := blocks.len().to_i32()
+    mut b := GcCfgBlock(start = start, end = start, is_root = is_root)
+    b.body = body
+    blocks.push(own b)
+    return id
+}
+
+priv cfg_set_end := func(mut blocks: Vec(GcCfgBlock), id: I32, end: I32) {
+    ref mut b : GcCfgBlock = blocks[id.to_usize()]
+    b.end = end
+}
+
+priv cfg_add_succ := func(mut blocks: Vec(GcCfgBlock), from: I32, to: I32) {
+    ref mut b : GcCfgBlock = blocks[from.to_usize()]
+    b.succs.push(own to)
+}
+
+// Scan body.children appending flow to the open block `cur_in`. brk /
+// cont are the innermost loop's join / head (-1 outside loops); exit_id
+// is the synthetic exit block. Returns the open fall-through block at
+// the end of the body, or -1 if every path diverged.
+priv cfg_scan := func(mut blocks: Vec(GcCfgBlock), body: Expr, cur_in: I32, brk: I32, cont: I32, exit_id: I32, is_root: Bool) returns I32 {
+    mut cur := cur_in
+    n := body.children.len()
+    mut i : USize = 0
+    while i < n {
+        if cur < 0 { cur = cfg_new_block(blocks, body, i.to_i32(), is_root) }
+        ref s : Expr = body.children[i]
+        switch s.node_type {
+        case NodeType.Return:
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            cfg_add_succ(blocks, cur, exit_id)
+            cur = -1
+        case NodeType.Break:
+            // brk < 0 is an EXPECTED state, not a violated invariant: the
+            // garbager processes bodies nested-first, so a loop's body is
+            // scanned standalone while its While statement lives in the
+            // parent body's view. A break leaving this view has the same
+            // local-liveness meaning as any exit edge (this body's scope
+            // ends); the parent view's scan sees the same break again with
+            // its real loop targets.
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            if brk < 0 {
+                cfg_add_succ(blocks, cur, exit_id)
+            } else {
+                cfg_add_succ(blocks, cur, brk)
+            }
+            cur = -1
+        case NodeType.Continue:
+            // Same standalone-body-view rule as Break above.
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            if cont < 0 {
+                cfg_add_succ(blocks, cur, exit_id)
+            } else {
+                cfg_add_succ(blocks, cur, cont)
+            }
+            cur = -1
+        case NodeType.If:
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            join := cfg_new_block(blocks, body, i.to_i32().add(1), is_root)
+            mut bi : USize = 1
+            while bi < s.children.len() {
+                bfirst := cfg_new_block(blocks, s.children[bi], 0, false)
+                cfg_add_succ(blocks, cur, bfirst)
+                bfall := cfg_scan(blocks, s.children[bi], bfirst, brk, cont, exit_id, false)
+                if bfall >= 0 { cfg_add_succ(blocks, bfall, join) }
+                bi++
+            }
+            // No else branch: the condition can fall straight through.
+            if s.children.len() == 2 { cfg_add_succ(blocks, cur, join) }
+            cur = join
+        case NodeType.While:
+            cfg_set_end(blocks, cur, i.to_i32())
+            head := cfg_new_block(blocks, body, i.to_i32(), is_root)
+            cfg_set_end(blocks, head, i.to_i32().add(1))
+            cfg_add_succ(blocks, cur, head)
+            join := cfg_new_block(blocks, body, i.to_i32().add(1), is_root)
+            wfirst := cfg_new_block(blocks, s.children[1], 0, false)
+            cfg_add_succ(blocks, head, wfirst)
+            cfg_add_succ(blocks, head, join)
+            wfall := cfg_scan(blocks, s.children[1], wfirst, join, head, exit_id, false)
+            if wfall >= 0 { cfg_add_succ(blocks, wfall, head) }
+            cur = join
+        case NodeType.Switch:
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            join := cfg_new_block(blocks, body, i.to_i32().add(1), is_root)
+            mut has_default := false
+            mut ci : USize = 1
+            while ci < s.children.len() {
+                ref c : Expr = s.children[ci]
+                if c.node_type.is(NodeType.Case) {
+                    if c.children.len() == 1 { has_default = true }
+                    cbi := c.children.len().sub(1)
+                    cfirst := cfg_new_block(blocks, c.children[cbi], 0, false)
+                    cfg_add_succ(blocks, cur, cfirst)
+                    cfall := cfg_scan(blocks, c.children[cbi], cfirst, brk, cont, exit_id, false)
+                    if cfall >= 0 { cfg_add_succ(blocks, cfall, join) }
+                }
+                ci++
+            }
+            // No default: an unmatched scrutinee falls straight through.
+            if has_default.not() { cfg_add_succ(blocks, cur, join) }
+            cur = join
+        case NodeType.Body:
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+            join := cfg_new_block(blocks, body, i.to_i32().add(1), is_root)
+            bfirst := cfg_new_block(blocks, s, 0, false)
+            cfg_add_succ(blocks, cur, bfirst)
+            bfall := cfg_scan(blocks, s, bfirst, brk, cont, exit_id, false)
+            if bfall >= 0 { cfg_add_succ(blocks, bfall, join) }
+            cur = join
+        case:
+            cfg_set_end(blocks, cur, i.to_i32().add(1))
+        }
+        i++
+    }
+    return cur
+}
+
+priv cfg_build := func(mut blocks: Vec(GcCfgBlock), body: Expr) {
+    // Block 0: synthetic exit (body stays NULL).
+    mut exit_b := GcCfgBlock(start = -1, end = -1)
+    blocks.push(own exit_b)
+    entry := cfg_new_block(blocks, body, 0, true)
+    fall := cfg_scan(blocks, body, entry, -1, -1, 0, true)
+    if fall >= 0 { cfg_add_succ(blocks, fall, 0) }
+}
+
+priv gc_cfg_dump := proc(ctx: Context, body: Expr, blocks: Vec(GcCfgBlock)) {
+    println("GC-CFG body ", ctx.path, ":", body.line.to_str(), ":", body.col.to_str(),
+        " blocks=", blocks.len().to_str())
+    for i in 0..blocks.len() {
+        ref b : GcCfgBlock = blocks[i]
+        if b.body.is_null() {
+            println("GC-CFG block ", i.to_str(), " exit")
+            continue
+        }
+        mut ss := ""
+        for j in 0..b.succs.len() {
+            if j > 0 { ss = format(ss, ",") }
+            ss = format(ss, b.succs[j].to_str())
+        }
+        println("GC-CFG block ", i.to_str(), " body=", b.body.line.to_str(), ":", b.body.col.to_str(),
+            " span=", b.start.to_str(), "..", b.end.to_str(), " succs=", ss)
+    }
+}
+
+// --- #302 stage 3, slice 2: ownership dataflow over the CFG -----------------
+//
+// Forward dataflow, one binding at a time: at every block the binding is
+// Uninit (declared later), Owned, Moved (an own transfer consumed it),
+// or Mixed (paths disagree -- the state the index model cannot
+// represent). Meet is equality-or-Mixed; effects inside a block are
+// decl/reassign -> Owned, own transfer -> Moved, in statement order. A
+// compound statement at a block's tail contributes only its
+// condition/subject (its branch bodies are separate blocks). The exit
+// block's settled state is the per-body verdict: Moved everywhere is a
+// completed transfer, Owned everywhere is an ordinary scope-end
+// cleanup, Mixed at exit is a conditional-transfer path problem --
+// exactly the class the sink covers for if/switch and misses for the
+// desugared switch-with-break (fixture shape 12 pins that miss as
+// exit=X in the golden). Dump-only for now: nothing consumes the
+// states yet.
+
+priv FLOW_UNREACHED : U8 = 0
+priv FLOW_UNINIT : U8 = 1
+priv FLOW_OWNED : U8 = 2
+priv FLOW_MOVED : U8 = 3
+priv FLOW_MIXED : U8 = 4
+
+priv gc_flow_meet := func(a: U8, b: U8) returns U8 {
+    if a == FLOW_UNREACHED { return b }
+    if b == FLOW_UNREACHED { return a }
+    if a == b { return a }
+    return FLOW_MIXED
+}
+
+priv gc_flow_letter := func(s: U8) returns Str {
+    if s == FLOW_UNINIT { return "I" }
+    if s == FLOW_OWNED { return "O" }
+    if s == FLOW_MOVED { return "M" }
+    if s == FLOW_MIXED { return "X" }
+    return "U"
+}
+
+priv gc_flow_stmt_effect := func(stmt: Expr, name: Str, state: U8, scope: TypeScope, ctx: Context) returns U8 {
+    // Decl-or-reassign checked first: `s = consume(own s)` transfers in
+    // the RHS and re-owns in the same statement, net Owned.
+    if expr_contains_decl(stmt, name) { return FLOW_OWNED }
+    if expr_reassigns_var(stmt, name) { return FLOW_OWNED }
+    if expr_transfers_own(stmt, name, scope, ctx) { return FLOW_MOVED }
+    return state
+}
+
+priv gc_flow_block_out := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, state_in: U8, scope: TypeScope, ctx: Context) returns U8 {
+    ref b : GcCfgBlock = blocks[bid]
+    if b.body.is_null() { return state_in }
+    mut st := state_in
+    mut j := b.start
+    while j < b.end {
+        ref stmt : Expr = b.body.children[j.to_usize()]
+        if is_compile_directive(stmt) { j = j.add(1); continue }
+        mut tail_compound := false
+        if j.add(1).eq(b.end) {
+            tail_compound = stmt.node_type.is(NodeType.If)
+                .or(stmt.node_type.is(NodeType.While))
+                .or(stmt.node_type.is(NodeType.Switch))
+                .or(stmt.node_type.is(NodeType.Body))
+        }
+        if tail_compound {
+            // Only the condition/subject evaluates here; a bare Body
+            // contributes nothing at the tail.
+            if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
+                st = gc_flow_stmt_effect(stmt.children[0], name, st, scope, ctx)
+            }
+        } else {
+            st = gc_flow_stmt_effect(stmt, name, st, scope, ctx)
+        }
+        j = j.add(1)
+    }
+    return st
+}
+
+// Naive fixpoint: sweep until stable. States only descend the lattice
+// (Unreached -> concrete -> Mixed) and effects are deterministic, so
+// this converges; the guard is a loud backstop, not control flow.
+priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
+    n := blocks.len()
+    for i in 0..n {
+        ins[i] = FLOW_UNREACHED
+        outs[i] = FLOW_UNREACHED
+    }
+    mut changed := true
+    mut guard := 0
+    while changed {
+        changed = false
+        for bi in 0..n {
+            mut inm := FLOW_UNREACHED
+            if bi == 1 { inm = entry_state }
+            for p in 0..n {
+                ref pb : GcCfgBlock = blocks[p]
+                for k in 0..pb.succs.len() {
+                    if pb.succs[k].to_usize() == bi { inm = gc_flow_meet(inm, outs[p]) }
+                }
+            }
+            mut newout := FLOW_UNREACHED
+            if inm.neq(FLOW_UNREACHED) {
+                newout = gc_flow_block_out(blocks, bi, name, inm, scope, ctx)
+            }
+            if inm.neq(ins[bi]) {
+                ins[bi] = inm
+                changed = true
+            }
+            if newout.neq(outs[bi]) {
+                outs[bi] = newout
+                changed = true
+            }
+        }
+        guard++
+        if guard > 1000 { panic(__LOC__, ": garbager flow: no fixpoint after 1000 sweeps") }
+    }
+}
+
+// True when the binding leaves this body view still OWNED on at least
+// one path AND MOVED on at least one other -- the partial-transfer
+// state whose cleanup must be path-sensitive. Computed from the exit
+// block's predecessors, not the exit meet: a path that exits before
+// the binding's decl carries Uninit (nothing to free there -- e.g. the
+// loop-condition break of a loop-body view), and folding that into the
+// meet would read as Mixed forever. Uniform Moved (a for-in / bare
+// -block wrapper that transfers on every pass) and uniform Owned
+// (ordinary scope-end cleanup) both return false.
+priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+    mut blocks := Vec(GcCfgBlock).new()
+    cfg_build(blocks, body)
+    mut entry := FLOW_UNINIT
+    if local.decl_index < 0 { entry = FLOW_OWNED }
+    mut ins := Array(U8).new(blocks.len())
+    mut outs := Array(U8).new(blocks.len())
+    gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+    mut may_owned := false
+    mut may_moved := false
+    for p in 0..blocks.len() {
+        ref pb : GcCfgBlock = blocks[p]
+        mut feeds_exit := false
+        for k in 0..pb.succs.len() {
+            if pb.succs[k] == 0 { feeds_exit = true }
+        }
+        if feeds_exit {
+            if outs[p].eq(FLOW_OWNED).or(outs[p].eq(FLOW_MIXED)) { may_owned = true }
+            if outs[p].eq(FLOW_MOVED).or(outs[p].eq(FLOW_MIXED)) { may_moved = true }
+        }
+    }
+    return may_owned.and(may_moved)
+}
+
+// True when EVERY path reaching top-level statement `stmt_idx` of this
+// body view carries the binding still Owned -- i.e. no path that moved
+// it rejoins before that statement (the transfer paths all diverged,
+// e.g. `switch n { case 1: return f(own s) case: ... }; use s`). The
+// state is taken at the statement's ENTRY: the containing root block's
+// IN, advanced through the block's earlier statements. Statement
+// indexes are the index model's top-level indexes, which root blocks
+// share by construction.
+priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScope, ctx: Context, stmt_idx: I32) returns Bool {
+    mut blocks := Vec(GcCfgBlock).new()
+    cfg_build(blocks, body)
+    mut entry := FLOW_UNINIT
+    if local.decl_index < 0 { entry = FLOW_OWNED }
+    mut ins := Array(U8).new(blocks.len())
+    mut outs := Array(U8).new(blocks.len())
+    gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+    for bi in 0..blocks.len() {
+        ref b : GcCfgBlock = blocks[bi]
+        if b.is_root.not() { continue }
+        if b.start.lte(stmt_idx).and(stmt_idx.lt(b.end)) {
+            mut st : U8 = FLOW_UNREACHED
+            if ins[bi].eq(FLOW_UNREACHED).not() {
+                mut j := b.start
+                st = gc_flow_meet(st, ins[bi])
+                while j < stmt_idx {
+                    ref stmt : Expr = b.body.children[j.to_usize()]
+                    if is_compile_directive(stmt).not() {
+                        st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                    }
+                    j = j.add(1)
+                }
+            }
+            return st == FLOW_OWNED
+        }
+    }
+    return false
+}
+
+priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(LocalInfo), scope: TypeScope) {
+    mut names := Map(Str, Str).new()
+    mut counts := Map(Str, I64).new()
+    for local : LocalInfo in locals {
+        if gc_audit_local_is_noise(local) { continue }
+        mut entry := FLOW_UNINIT
+        if local.decl_index < 0 { entry = FLOW_OWNED }
+        mut ins := Array(U8).new(blocks.len())
+        mut outs := Array(U8).new(blocks.len())
+        gc_flow_solve(blocks, entry, local.name, scope, ctx, ins, outs)
+        mut ss := ""
+        for j in 0..blocks.len() {
+            if j > 0 { ss = format(ss, ",") }
+            ss = format(ss, gc_flow_letter(outs[j]))
+        }
+        println("GC-FLOW local ", gc_audit_name(local.name, names, counts),
+            " entry=", gc_flow_letter(entry),
+            " exit=", gc_flow_letter(outs[0]),
+            " out=", ss)
+    }
+}
+
 priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) returns Bool {
     for d : Expr in stmts {
         switch d.node_type {
@@ -899,6 +1299,27 @@ priv transfer_inside_loop := func(stmt: Expr, name: Str, scope: TypeScope, ctx: 
     return false
 }
 
+// True when a transfer of `name` sits lexically under ANY While inside
+// `e` -- cond or body, conditional or not. Distinct from
+// while_spine_transfers (which asks "does every iteration's spine
+// transfer" and deliberately skips If-guarded arms): a loop-INVARIANT
+// local transferred once across all iterations (the desugarer's splat
+// push: `for j { if ji == vi { push(own splat) } }`) is legal code
+// whose per-iteration paths disagree, and grafting per-path deletes
+// there double-frees -- the transfer belongs to a DIFFERENT iteration
+// than the grafted path. Per-iteration locals never hit this: their
+// graft view is the loop body itself, where no While wraps the
+// transfer.
+priv transfer_lex_inside_while := func(e: Expr, name: Str, scope: TypeScope, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.While) {
+        return expr_transfers_own(e, name, scope, ctx)
+    }
+    for c : Expr in e.children {
+        if transfer_lex_inside_while(c, name, scope, ctx) { return true }
+    }
+    return false
+}
+
 priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
     switch e.node_type {
     case NodeType.Assign(ad):
@@ -911,14 +1332,27 @@ priv expr_reassigns_var := func(e: Expr, name: Str) returns Bool {
     return false
 }
 
-priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
-    for local : LocalInfo in locals {
+priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
+    for mut local : LocalInfo in locals {
         if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
-            ref stmt : Expr = body.children[local.last_use.to_usize()]
-            stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx)
-            ref xfer : Expr = body.children[local.own_transfer.to_usize()]
-            println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
-            println("  help: pass a clone instead: own ", local.name, ".clone()")
+            // #302 stage 3: path-sensitive. When every path reaching the
+            // use still owns the binding -- the transfer paths diverged
+            // (returned) before rejoining, e.g. `switch n { case 1:
+            // return f(own s) case: ... }; use s` -- the use is valid.
+            // Clear the transfer so the local gets ordinary owned-local
+            // cleanup on the surviving paths: suppressing the error
+            // alone LEAKED (the index model's transfer stand-down left
+            // the fall-through with no delete, verified 2026-07-11).
+            if gc_flow_owned_at_stmt(body, local, scope, ctx, local.last_use) {
+                local.own_transfer = -1
+                local.dtor_transfer = false
+            } else {
+                ref stmt : Expr = body.children[local.last_use.to_usize()]
+                stmt.type_error(format("use of '", local.name, "' after ownership transfer"), ctx)
+                ref xfer : Expr = body.children[local.own_transfer.to_usize()]
+                println(ctx.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
+                println("  help: pass a clone instead: own ", local.name, ".clone()")
+            }
         }
         // #302: a transfer inside a loop, of a binding declared outside the
         // loop, may run on every iteration -- the second one moves an
@@ -938,7 +1372,7 @@ priv check_use_after_own_transfer := proc(body: Expr, locals: Vec(LocalInfo), sc
     }
 }
 
-priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool) {
+priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool, scope: TypeScope, ctx: Context) {
     // Quick check: any returns/breaks/continues or nested if/while/body?
     mut needs_scan := false
     for s : Expr in body.children {
@@ -962,20 +1396,20 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         if is_compile_directive(stmt) { continue }
         if stmt.node_type.is(NodeType.If) {
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.children[c], live, return_only)
+                insert_exit_deletes(stmt.children[c], live, return_only, scope, ctx)
             }
         }
         if stmt.node_type.is(NodeType.While) {
-            insert_exit_deletes(stmt.children[1], live, true)
+            insert_exit_deletes(stmt.children[1], live, true, scope, ctx)
         }
         if stmt.node_type.is(NodeType.Body) {
-            insert_exit_deletes(stmt, live, return_only)
+            insert_exit_deletes(stmt, live, return_only, scope, ctx)
         }
         if stmt.node_type.is(NodeType.Switch) {
             for ci in 1..stmt.children.len() {
                 if stmt.children[ci].node_type.is(NodeType.Case) {
                     cbi := stmt.children[ci].children.len() - 1
-                    insert_exit_deletes(stmt.children[ci].children[cbi], live, return_only)
+                    insert_exit_deletes(stmt.children[ci].children[cbi], live, return_only, scope, ctx)
                 }
             }
         }
@@ -987,6 +1421,35 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                         continue
                     }
                 }
+                // #302 stage 3: an UNCONDITIONAL transfer in a preceding
+                // sibling of this body means the local is Moved on every
+                // path reaching this exit -- the shape the return-operand
+                // exclusion above misses once the typer has hoisted the
+                // transferring call into its own decl (`hoisted := f(own
+                // s); return hoisted`). Load-bearing for diverged
+                // transfers (own_transfer cleared by the path-sensitive
+                // use check): without it the nested return right after the
+                // hoisted transfer re-deleted the consumed local (ASAN
+                // heap-use-after-free, probed). Two subtleties, both
+                // probed: (1) the scan walks new_ch, NOT old[0..i) --
+                // push_take has already zeroed the consumed old slots (a
+                // zeroed Expr reads as an empty Body, tag 0, so a scan
+                // over old sees nothing); (2) compound siblings
+                // (If/While/Switch/Body) are skipped -- a transfer inside
+                // one branch of an earlier if is CONDITIONAL, the
+                // fall-to-this-exit path may still own the local, and
+                // suppressing its delete leaked in compiler bodies
+                // (caught by the pass-1 vs pass-2 C diff).
+                mut moved_before := false
+                for pi in 0..new_ch.len() {
+                    if stmt_is_conditional_container(new_ch[pi]).not() {
+                        if expr_transfers_own(new_ch[pi], local.name, scope, ctx) {
+                            moved_before = true
+                            break
+                        }
+                    }
+                }
+                if moved_before { continue }
                 // #302 stage 2: exit deletes are always PRECEDING statements,
                 // never Return children. The garbager already excludes any
                 // local used (or aliased) by the return operand above, so
@@ -1009,7 +1472,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     body.children.move_from(new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize) {
+priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, scope: TypeScope, ctx: Context) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() {
@@ -1047,10 +1510,10 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         switch stmt.node_type {
         case NodeType.If:
             for c in 1..stmt.children.len() {
-                insert_exit_deletes(stmt.children[c], live_vec, false)
+                insert_exit_deletes(stmt.children[c], live_vec, false, scope, ctx)
             }
         case NodeType.While:
-            insert_exit_deletes(stmt.children[1], live_vec, true)
+            insert_exit_deletes(stmt.children[1], live_vec, true, scope, ctx)
         case NodeType.Switch:
             // #254: an un-desugared C-like switch. break/continue inside a
             // case exit the enclosing loop, so live outer locals need cleanup
@@ -1058,7 +1521,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
             for ci in 1..stmt.children.len() {
                 if stmt.children[ci].node_type.is(NodeType.Case) {
                     cbi := stmt.children[ci].children.len() - 1
-                    insert_exit_deletes(stmt.children[ci].children[cbi], live_vec, false)
+                    insert_exit_deletes(stmt.children[ci].children[cbi], live_vec, false, scope, ctx)
                 }
             }
         case:
@@ -1072,7 +1535,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
             // live locals. Pass return_only=false so they get cleanup; a
             // for-in wrapper has no Body-level break/continue, so this is a
             // no-op for that shape.
-            insert_exit_deletes(stmt, live_vec, false)
+            insert_exit_deletes(stmt, live_vec, false, scope, ctx)
         }
     }
 }
@@ -1522,8 +1985,35 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         if local.last_use > local.own_transfer { continue }
         if local.own_transfer >= body.children.len().to_i32() { continue }
         ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
-        if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)).not() { continue }
-        sink_nontransfer_paths(tstmt, local, scope, ctx)
+        if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)) {
+            sink_nontransfer_paths(tstmt, local, scope, ctx)
+            continue
+        }
+        // #302 stage 3: a Body at own_transfer is EITHER the
+        // desugared-switch-with-break wrapper (transfer in one arm of
+        // the inner if/elif chain; the other arms leak) OR a loop
+        // wrapper (for-in / desugared for) -- and grafting into a loop
+        // wrapper double-frees, the failure that reverted the bare Body
+        // gate. Two gates make the graft precise:
+        //   1. transfer_lex_inside_while: the transfer must NOT sit
+        //      under a While inside the wrapper. A loop-invariant local
+        //      transferred once across iterations (the splat push) has
+        //      per-iteration paths that disagree, but the transfer
+        //      belongs to a different ITERATION than any grafted path
+        //      -- per-path deletes there free a value a later iteration
+        //      still needs. (Per-iteration locals are unaffected: their
+        //      graft view IS the loop body, no While wraps the
+        //      transfer there.)
+        //   2. gc_flow_exit_is_mixed: some path must leave the view
+        //      still owning the local (a bare-block wrapper whose
+        //      transfer covers every path shows uniform Moved and
+        //      stands down).
+        if tstmt.node_type.is(NodeType.Body) {
+            if transfer_lex_inside_while(tstmt, local.name, scope, ctx).not()
+                .and(gc_flow_exit_is_mixed(body, local, scope, ctx)) {
+                sink_nontransfer_paths(tstmt, local, scope, ctx)
+            }
+        }
     }
 }
 
@@ -1577,6 +2067,16 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // read per body.
     audit_filter := gc_audit_filter()
     audit := audit_filter.len().gt(0).and(ctx.path.contains(audit_filter))
+    if audit {
+        // #302 stage 3 slice 1: dump the body's CFG. Built here, after
+        // the analysis passes settle (sink may have grown branch bodies)
+        // and before the insertion loop, so spans use the same
+        // pre-insertion statement indexes as the audit table.
+        mut cfg_blocks := Vec(GcCfgBlock).new()
+        cfg_build(cfg_blocks, body)
+        gc_cfg_dump(ctx, body, cfg_blocks)
+        gc_flow_dump(ctx, cfg_blocks, locals_vec, scope)
+    }
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -1586,7 +2086,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
         ref stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, new_ch)
-        insert_nested_exit_deletes(stmt, locals_vec, i)
+        insert_nested_exit_deletes(stmt, locals_vec, i, scope, ctx)
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)

@@ -301,7 +301,11 @@ typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til
 typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
+typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
+typedef struct Vec__I32 Vec__I32;
+typedef struct Array__U8 Array__U8;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
+typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -823,11 +827,31 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
 } priv___src_self_garbager_til__LocalInfo;
 
 
+typedef struct Vec__I32 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__I32;
+
+
+typedef struct Array__U8 {
+    U8 *data;
+    USize cap;
+} Array__U8;
+
+
 typedef struct Vec__LocalInfo {
     U8 *data;
     USize count;
     USize cap;
 } Vec__LocalInfo;
+
+
+typedef struct Vec__GcCfgBlock {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__GcCfgBlock;
 
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -1310,6 +1334,15 @@ typedef struct priv___src_self_typer_til__CoverageNode {
 } priv___src_self_typer_til__CoverageNode;
 
 
+typedef struct priv___src_self_garbager_til__GcCfgBlock {
+    Expr *body;
+    I32 start;
+    I32 end;
+    Bool is_root;
+    Vec__I32 succs;
+} priv___src_self_garbager_til__GcCfgBlock;
+
+
 typedef struct ProgramUnit {
     Str path;
     Mode mode;
@@ -1581,6 +1614,7 @@ F32 Str_to_f32(Str * self);
 Vec__Str * Str_split(Str * self, Str * delim);
 USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
+Str * join(Vec__Str * parts, Str * sep);
 I64 digit_value(I8 ch);
 USize c_str_len(void * s);
 OutOfBounds * OutOfBounds_clone(OutOfBounds * _self);
@@ -2815,6 +2849,23 @@ Str * priv___src_self_garbager_til__gc_audit_destructor_line(Expr * e, Map__Str_
 void priv___src_self_garbager_til__gc_audit_sites(Expr * body, Str * prefix, Map__Str_Str * names, Map__Str_I64 * counts);
 Bool priv___src_self_garbager_til__gc_audit_local_is_noise(priv___src_self_garbager_til__LocalInfo * local);
 void priv___src_self_garbager_til__gc_audit_dump(Context * ctx, Expr * body, Vec__LocalInfo * locals);
+priv___src_self_garbager_til__GcCfgBlock * priv___src_self_garbager_til__GcCfgBlock_clone(priv___src_self_garbager_til__GcCfgBlock * self);
+void priv___src_self_garbager_til__GcCfgBlock_delete(priv___src_self_garbager_til__GcCfgBlock * self, Bool call_free);
+USize priv___src_self_garbager_til__GcCfgBlock_size(void);
+I32 priv___src_self_garbager_til__cfg_new_block(Vec__GcCfgBlock * blocks, Expr * body, I32 start, Bool is_root);
+void priv___src_self_garbager_til__cfg_set_end(Vec__GcCfgBlock * blocks, I32 id, I32 end);
+void priv___src_self_garbager_til__cfg_add_succ(Vec__GcCfgBlock * blocks, I32 from, I32 to);
+I32 priv___src_self_garbager_til__cfg_scan(Vec__GcCfgBlock * blocks, Expr * body, I32 cur_in, I32 brk, I32 cont, I32 exit_id, Bool is_root);
+void priv___src_self_garbager_til__cfg_build(Vec__GcCfgBlock * blocks, Expr * body);
+void priv___src_self_garbager_til__gc_cfg_dump(Context * ctx, Expr * body, Vec__GcCfgBlock * blocks);
+U8 priv___src_self_garbager_til__gc_flow_meet(U8 a, U8 b);
+Str * priv___src_self_garbager_til__gc_flow_letter(U8 s);
+U8 priv___src_self_garbager_til__gc_flow_stmt_effect(Expr * stmt, Str * name, U8 state, TypeScope * scope, Context * ctx);
+U8 priv___src_self_garbager_til__gc_flow_block_out(Vec__GcCfgBlock * blocks, USize bid, Str * name, U8 state_in, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__gc_flow_solve(Vec__GcCfgBlock * blocks, U8 entry_state, Str * name, TypeScope * scope, Context * ctx, Array__U8 * ins, Array__U8 * outs);
+Bool priv___src_self_garbager_til__gc_flow_exit_is_mixed(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__gc_flow_owned_at_stmt(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx, I32 stmt_idx);
+void priv___src_self_garbager_til__gc_flow_dump(Context * ctx, Vec__GcCfgBlock * blocks, Vec__LocalInfo * locals, TypeScope * scope);
 Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
 Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__Expr * preceding);
@@ -2830,10 +2881,11 @@ void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__
 void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__while_spine_transfers(Expr * wbody, Str * name, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__transfer_inside_loop(Expr * stmt, Str * name, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__transfer_lex_inside_while(Expr * e, Str * name, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__expr_reassigns_var(Expr * e, Str * name);
 void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
-void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only);
-void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx);
+void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch);
 void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
 void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch);
@@ -2846,6 +2898,23 @@ void priv___src_self_garbager_til__record_storage_decisions(Expr * body, Vec__Lo
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);
+Vec__I32 * Vec__I32_new(void);
+USize Vec__I32_len(Vec__I32 * self);
+void Vec__I32_clear(Vec__I32 * self);
+void Vec__I32_push(Vec__I32 * self, I32 * val);
+I32 * Vec__I32_unsafe_get(Vec__I32 * self, USize * i);
+I32 * Vec__I32_get(Vec__I32 * self, USize * i, I64 * _err_kind);
+void Vec__I32_delete(Vec__I32 * self, Bool call_free);
+Vec__I32 * Vec__I32_clone(Vec__I32 * self);
+USize Vec__I32_size(void);
+Array__U8 * Array__U8_new(USize cap);
+U8 * Array__U8_unsafe_get(Array__U8 * self, USize * i);
+U8 * Array__U8_get(Array__U8 * self, USize * i, I64 * _err_kind);
+void Array__U8_unsafe_set(Array__U8 * self, USize i, U8 * val);
+void Array__U8_set(Array__U8 * self, USize i, U8 * val, I64 * _err_kind);
+void Array__U8_delete(Array__U8 * self, Bool call_free);
+Array__U8 * Array__U8_clone(Array__U8 * self);
+USize Array__U8_size(void);
 Vec__LocalInfo * Vec__LocalInfo_new(void);
 USize Vec__LocalInfo_len(Vec__LocalInfo * self);
 void Vec__LocalInfo_clear(Vec__LocalInfo * self);
@@ -2854,6 +2923,15 @@ priv___src_self_garbager_til__LocalInfo * Vec__LocalInfo_unsafe_get(Vec__LocalIn
 void Vec__LocalInfo_delete(Vec__LocalInfo * self, Bool call_free);
 Vec__LocalInfo * Vec__LocalInfo_clone(Vec__LocalInfo * self);
 USize Vec__LocalInfo_size(void);
+Vec__GcCfgBlock * Vec__GcCfgBlock_new(void);
+USize Vec__GcCfgBlock_len(Vec__GcCfgBlock * self);
+void Vec__GcCfgBlock_clear(Vec__GcCfgBlock * self);
+void Vec__GcCfgBlock_push(Vec__GcCfgBlock * self, priv___src_self_garbager_til__GcCfgBlock * val);
+priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_unsafe_get(Vec__GcCfgBlock * self, USize * i);
+priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_get(Vec__GcCfgBlock * self, USize * i, I64 * _err_kind);
+void Vec__GcCfgBlock_delete(Vec__GcCfgBlock * self, Bool call_free);
+Vec__GcCfgBlock * Vec__GcCfgBlock_clone(Vec__GcCfgBlock * self);
+USize Vec__GcCfgBlock_size(void);
 void constfolder_clear_known(Context * ctx);
 void constfolder_reset_state(Context * ctx);
 void priv___src_self_constfolder_til__collect_assign_targets(Expr * e, Set__Str * names);
@@ -4061,6 +4139,11 @@ extern Str U64Name;
 extern Str F32Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
+extern U8 priv___src_self_garbager_til__FLOW_UNREACHED;
+extern U8 priv___src_self_garbager_til__FLOW_UNINIT;
+extern U8 priv___src_self_garbager_til__FLOW_OWNED;
+extern U8 priv___src_self_garbager_til__FLOW_MOVED;
+extern U8 priv___src_self_garbager_til__FLOW_MIXED;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern Str REPL_DOC_INDEX;
