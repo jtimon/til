@@ -1,0 +1,136 @@
+# priority: medium
+# category: features
+** OPEN #320 Ownership qualifiers in template type args and enum variant payloads
+
+Prerequisite for #321 (Forbid NULL). To express ~Option(ref T)~ ala
+Rust's ~Option<&T>~, two currently-missing capabilities are needed;
+they are two halves of the same feature (a qualified template arg is
+useless until the substituted payload/field can carry the qualifier),
+so one issue covers both.
+
+*** Template landscape today (see test/first_class.til)
+
+All template forms reduce to one mechanism, so the qualifier work has
+one substitution engine to touch but several front doors:
+
+- Type-gen macros, the explicit form: ~make_opt := macro(T: Type)
+  returns EnumDef { return enum { None, Some: T } }~
+  (test/first_class.til:562) -- an Option skeleton for OWNED payloads
+  already works today, including namespace methods with T-substitution
+  (make_pair_enum, test/first_class.til:579, #243). Also ~returns
+  StructDef~ (make_pair:535, make_kv:548) and ~returns FuncDef~
+  (make_id:670), plus value params (~N: I64~, make_holder56:621) and
+  conditional bodies (#58, make_tagged:719).
+- Angle-bracket sugar: ~struct<T: Type> { ... }~ (#267) and
+  ~func<T: Type>(...)~ (#58, gid_angle, test/first_class.til:985)
+  desugar to exactly those macros (wrap_struct_def_in_macro /
+  wrap_func_def_in_macro). No ~enum<T>~ sugar exists (see Notes).
+- Direct generic funcs: ~gid := func(T: Type, v: T)~ called as
+  ~gid(I64, 42)~ (test/first_class.til:906), monomorphized by
+  init_generic_expand_call with the type-arg dropped at the call
+  site.
+
+*** Gap 1: template type arguments cannot carry qualifiers
+
+~parse_type_ref~ (src/self/parser.til:291) parses a parametric type
+annotation ~Name(A, B)~ with each argument as a bare identifier
+(~expect_text(p, TokenType.Ident)~, src/self/parser.til:319). So
+~Option(ref Expr)~ is a parse error in type position, and the mangled
+instantiation name (~Name__A_B~) has no encoding for qualifiers
+either. The value-position occurrences have the same limitation:
+a type-gen macro instantiation (~OptExpr := make_opt(ref Expr)~ or
+inline ~make_opt(ref Expr).None~) passes the type-arg as an Ident
+expr that init substitutes by name, and a direct generic-func call
+(~gid(ref Expr, x)~) does the same in init_generic_expand_call.
+
+Needed:
+
+- Grammar: allow ~ref~ (and ~own~? decide -- ~own~ is already the
+  implicit default for a substituted payload/field, so probably only
+  ~ref~ makes sense) before a type argument, in type-annotation
+  position and in the value-position instantiation paths (type-gen
+  macro call, direct generic-func call).
+- Mangling: encode the qualifier in the generated instance name so
+  ~Option__Expr~ and ~Option__ref_Expr~ are distinct types
+  (type_gen_lift, src/self/parser.til:266; the init inline-hoist and
+  init_generic_expand_call mono names must agree).
+- Substitution: init_expand_type_gen_macros / init_subst_*_params /
+  init_generic_expand_call must carry the qualifier through, so
+  ~Some: T~ instantiated with ~ref Expr~ becomes a ref payload, a
+  struct field ~x : T~ becomes ~ref x : Expr~, and a param ~v: T~
+  becomes ~v: ref Expr~ where that is meaningful.
+
+*** Gap 2: enum variant payloads cannot be ref at all
+
+A variant payload is ~Variant: Type~ with a bare-Ident type
+(src/self/parser.til:1182) stored in ~EnumDef.payload_types~ as a
+name only; there is no per-payload own_type (only ~payload_consts~
+for #211 const payloads). Whatever the template machinery substitutes,
+the payload is stored owned. Needed:
+
+- AST: per-variant payload ownership in EnumDef (parallel to
+  payload_consts), using the same ~OwnType~ enum every other
+  qualifier context shares (doc/qualifiers.org "Internal
+  representation": Shallow = inline value, the current payload
+  behavior; Ref = borrowed pointer).
+- Parser: accept ~Some: ref Expr~ (also outside templates -- the
+  substituted instance is exactly that).
+- Typer: a ref payload is a borrow -- constructing ~Opt.Some(x)~
+  borrows x (no clone/move), the switch/case destructuring bind is a
+  ref binding (the payload-bind machinery already exists for
+  mutability inheritance, doc/enums.org "Payload mutability"; ref-ness
+  rides the same path), and the usual borrow-vs-owned-RHS rules apply
+  (mirror what #168 did for ref struct fields).
+- Garbager: a borrow stored in a value must keep its source alive --
+  ~extend_ref_local_lifetimes~ already covers ~ref x := src~ and the
+  ref-field assign ~holder.f = src~ (doc/ownership.org); the
+  enum-payload borrow ~Opt.Some(src)~ is a third shape of the same
+  rule. And the borrowed payload is skipped at destruction exactly
+  like a ref field (deleted with the parent but never freed).
+- Codegen + interpreter: store the payload as a pointer, no deep
+  clone/delete of the borrowed payload in the generated
+  clone/delete/to_str helpers; scavenger must not treat the borrow as
+  owned.
+
+*** Niche layout (decided 2026-07-21): a general enum-layout rule
+
+Ruling from the design discussion: the null-pointer niche is NOT an
+Option-by-name special case. It is a general layout rule: any
+two-variant enum with one payload-less variant and one variant whose
+payload type is inherently non-null (~ref T~ once #321 lands; ~Fn~
+pointers) is laid out as a bare pointer -- no tag, the payload-less
+variant IS the null bit pattern. Consequences:
+
+- ~Option(ref T)~ is pointer-sized, identical to ~ref T~ (the naive
+  tag-at-0 + payload-at-ENUM_PAYLOAD_OFFSET=8 layout would double it
+  to 16 bytes). A ~switch~ on such an enum lowers to exactly the
+  null check ~is_null()~ compiles to today; constructing the payload
+  variant is just the pointer. Zero space or time cost vs a raw
+  nullable pointer.
+- The generated C keeps using C's NULL internally -- the bit pattern
+  survives; only the til-level keyword goes (#321).
+- Any user enum of that shape gets the optimization too, and
+  ext_struct byte-compatibility with C follows from layout, not from
+  a blessed name. Rust precedent: its niche optimization is general;
+  ~Option<&T>~ merely matches the pattern, and
+  ~size_of::<Option<&T>>() == size_of::<&T>()~ is a documented
+  guarantee, not best-effort.
+- Codegen: struct members, params and returns of such enum types are
+  emitted as plain ~T *~; the generated clone/delete/to_str treat the
+  payload as a borrowed ref (skipped like a ref field, null check
+  instead of tag read). The interpreter may keep its tagged Value
+  representation internally; only FFI marshaling (~value_to_buf~ and
+  friends) must encode the payload-less variant as a null pointer.
+
+*** Notes
+
+- Generic-parameter sugar: despite the comment on parse_generic_params
+  (src/self/parser.til:480) claiming struct<T>/enum<T> share it,
+  parse_enum_def never calls it -- ~enum<T: Type>~ does not parse
+  today; only the explicit macro form works (make_opt above). Not
+  strictly needed for #321 (the macro form is enough to define
+  Option), but if it is fixed along the way, keep the sugar identical
+  to wrap_struct_def_in_macro.
+- Struct fields already support ~ref~ (#168), so gap 1 alone unlocks
+  ~Vec(ref T)~-style struct templates; gap 2 is what Option
+  specifically needs.

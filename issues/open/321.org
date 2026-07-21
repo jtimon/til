@@ -1,0 +1,169 @@
+# priority: medium
+# category: features
+** OPEN #321 Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
+
+Depends on #320 (ownership qualifiers in template type args and enum
+variant payloads -- needed for ~Option(ref T)~).
+
+Goal: remove ~NULL~ from the language entirely, ala Rust. A ref that
+exists always points at something; "maybe absent" is spelled
+~Option(ref T)~ and the absence is handled explicitly by the type
+system instead of by runtime null-deref panics (the generated C
+~DEREF~ macro's "null deref" exit).
+
+*** Current state (verified 2026-07-21)
+
+- #242 (fixed) already made struct fields without a default MANDATORY
+  at instantiation ("missing required field" type error). So the old
+  premise "every field has a default, hence every ref field defaults
+  to NULL" is gone; the required-field mechanism exists and ref fields
+  can already be declared without a default.
+- But in practice ~ref x : T = NULL~ is still the dominant pattern
+  (context.til, interpreter.til, garbager.til, file.til, ...), and
+  NULL is the one default a ref field may carry:
+  check_ref_field_owned_default (src/self/typer.til:618) forbids
+  owned-RHS defaults on ref fields but explicitly allows NULL as a
+  "forced exception". It is even the documented canonical form:
+  doc/qualifiers.org's struct-field table spells the ref rows as
+  ~ref field : Type = NULL~, and doc/ownership.org's Fields table
+  does the same.
+- ~NULL~ is a keyword (KwNull, src/self/lexer.til:164) producing
+  ~Literal.Null~, and ~is_null()~ checks plus ~return NULL~ from
+  ref-returning lookups are everywhere: ~840 NULL/is_null occurrences
+  across src/, lib/, examples/, test/.
+
+*** Steps
+
+1. Migrate ref FIELDS off NULL defaults: each ~ref x : T = NULL~
+   becomes either a no-default mandatory field (when every
+   constructor site really has a value -- the common case) or
+   ~Option(ref T)~ (when absence is a real state: e.g.
+   TypeScope.parent at the root scope, File.handle after close).
+   Needs #320 for the Option cases. Then forbid ~= NULL~ as a struct
+   field default (drop the forced exception in
+   check_ref_field_owned_default).
+2. Migrate ref LOCALS and ref RETURNS off NULL. The big one:
+   ref-returning lookup functions that ~return NULL~ for "not found"
+   (scope/struct-def/method lookups in typer/context/initer, and the
+   ~returns ref~ container accessors doc/ownership.org calls out --
+   ~Vec.get~, ~Map.val_ptr~, ~scope_get~ and friends) become
+   ~returns Option(ref T)~, and the ~if x.is_null()~ call sites
+   become switch/match on the Option. Also the
+   ~ref mut acc : T = NULL~ late-init locals (see #147's
+   dangerous-refs list -- partially migrated already). Note the
+   lifetime angle: til has no origin checker, ~returns ref~ is "the
+   documented dangerous case" (doc/ownership.org), and a NULL ref
+   borrows nothing -- once refs always point at something, every ref
+   that escapes (including inside an Option) must be covered by the
+   garbager's lifetime extension, so this migration also shrinks the
+   dangling-ref surface #147 tracks.
+3. Remove ~is_null()~ on refs once nothing legitimately produces a
+   null ref.
+4. Remove ~NULL~/~Literal.Null~ from the language: lexer keyword,
+   parser literal, typer, interpreter value, builder emission of
+   til-level null (the C backend keeps using C's NULL internally,
+   that is invisible at the language level). Update the
+   doc/qualifiers.org and doc/ownership.org field tables and any
+   other docs showing ~= NULL~. The ~DEREF~ null panic stays during
+   the migration as the safety net and can only be dropped from
+   generated code at the very end, if ever.
+
+*** Open questions / what NULL does today that needs an answer
+
+- C interop boundary: ext functions and ext structs traffic in raw
+  possibly-null pointers (File.handle ~ref handle : U8 = NULL~,
+  malloc'd buffers like Vec.data ~own data : U8 = 0~, vendor
+  bindings). Rust solves this with two mechanisms, and til should
+  copy both:
+  1. The GUARANTEED niche ("null pointer optimization"): Rust ~&T~ /
+     ~Box<T>~ / ~fn~ / ~NonNull<T>~ are non-null by construction, so
+     the compiler guarantees (documented layout, not merely an
+     optimization) that ~Option<&T>~ uses the null bit pattern as
+     ~None~ -- one pointer wide, ABI-identical to a nullable C
+     pointer; ~extern "C" fn f(cb: Option<extern "C" fn()>)~ is
+     idiomatic FFI. til's ~Option(ref T)~ should get the same
+     guaranteed None == null layout: no tag, ext signatures can take
+     and return it directly, and step-2 lookup returns stay one word.
+  2. Quarantined raw pointers: Rust never removed nullable pointers
+     -- ~*const T~ / ~*mut T~ can be null, but cannot be dereferenced
+     outside ~unsafe~ and never convert implicitly to references; the
+     boundary converts explicitly (~ptr.as_ref()~ ->
+     ~Option<&T>~, ~NonNull::new(ptr)~ -> ~Option<NonNull<T>>~).
+     til's analog: ~Dynamic~ / raw ext pointers may keep the null
+     bit pattern (they already sit outside the garbager's
+     guarantees, like Rust's unsafe layer), but the moment a value
+     enters typed til it is an ~Option(ref T)~ (or a proven non-null
+     ref), never a bare null ref.
+  So "remove NULL entirely" means what it means in Rust: the keyword
+  and null REFS disappear from the language; nullability survives
+  only as a bit pattern inside the Option niche and inside the
+  untyped ext layer.
+- Interpreter Value representation of Option(ref T) and the
+  scavenger/garbager treatment of a None ref. (Partially answered by
+  the niche ruling below: the interpreter may keep its tagged Value
+  internally; only FFI marshaling must encode None as a null
+  pointer.)
+- Sequencing: this touches the self-hosted compiler's own hottest
+  files, so it has to land as a series of small migrations (module by
+  module, or pattern by pattern), each keeping
+  ~make clean && make test~ green, with the language-level removals
+  (steps 3-4) last. Note the soundness ordering: the niche layout is
+  sound BECAUSE ~ref T~ can never be null, which is exactly what this
+  issue establishes -- Option(ref T) with the niche and the NULL-ref
+  removal are one coherent transition, sequenced by the #320 -> #321
+  dependency.
+
+*** Decisions (2026-07-21 design discussion)
+
+- NO unsafe blocks. Rust needs unsafe REGIONS because its raw
+  pointers allow dangerous operations anywhere in user code; til's
+  trusted surface is already confined to CONSTRUCTS --
+  ext_func/ext_proc/ext_struct declarations (inherently unchecked
+  claims about C: arity, types, ownership) and Dynamic laundering
+  (~to_ptr~/~ptr_add~/~ref x : T = dyn~). The niche'd Option closes
+  the nullability hole at that boundary with no new syntax. The rest
+  of that trusted surface stays ambient, as today -- unsafe blocks
+  would be an orthogonal auditability feature, not a dependency of
+  this plan.
+- The niche is a GENERAL enum-layout rule, not Option-by-name
+  special casing -- see #320 "Niche layout" for the rule and its
+  codegen consequences. Option(ref T) is pointer-sized (same as
+  ~ref T~); behind the scenes generated C still uses C's NULL, so C
+  interop costs nothing and other user enums of the same shape get
+  the optimization for free.
+- NO separate Nullable(ref T) / c_ptr type for the C boundary. Being
+  layout-identical to Option(ref T), it would only add a second
+  maybe-type, a conversion tax between the two, and bifurcated APIs;
+  the ext declaration site already marks the C boundary.
+- ext signatures and ext structs use Option(ref T) DIRECTLY for
+  nullable C pointers; a bare ~ref T~ in ext contexts means "non-null
+  by C contract". The bindings generator (src/self/binder.til:330-351
+  currently emits ~ref mut field : T = NULL~ for every pointer field)
+  switches to ~mut field : Option(ref T) = Option(ref T).None~. Note
+  the trick that makes the default legal: that is an inline ENUM
+  field, not a ref field, so it escapes check_ref_field_owned_default
+  and can carry an ordinary default -- the ref moved inside an enum
+  that has a no-borrow variant, which dissolves the whole "no
+  instance to borrow from at default-value time" forced exception.
+  Generated bindings are then hand-tightened to mandatory
+  ~ref field : T~ where the C docs guarantee non-null -- the same
+  manual tuning workflow bindings already need for ref vs own and
+  func vs proc. Nullable C callbacks become ~Option(Fn(...))~ (fn
+  pointers are niche-eligible too).
+- Concrete C-boundary cases driving the above (surveyed 2026-07-21):
+  - tinyfiledialogs (src/modes/gui.til:95): NULL crosses BOTH ways --
+    passed as "no filter" args and returned for "user cancelled";
+    ~ref result : I8 = ...; if result.is_null() { return "" }~
+    becomes a switch on the returned Option.
+  - nng_url (vendor/bindings/nng.til:948): ext struct whose C layout
+    mandates per-field nullability ("will be NULL if not specified");
+    niche'd Option fields keep the struct byte-identical to C's.
+  - File.handle (src/std/file.til): NOT actually a nullable-from-C
+    case -- cfile_open ~exit(1)~s on failure, so its NULL uses are
+    only the field default (becomes a mandatory field; both
+    constructors always pass a handle) and the ~self.handle = NULL~
+    poison in close (dead state; nothing reads the handle after
+    delete).
+  - Vec.data lazy-empty is spelled ~own data : U8 = 0~ (integer
+    zero, not the NULL keyword) and ~realloc(NULL, n)~ semantics
+    live in C; container internals are unaffected.

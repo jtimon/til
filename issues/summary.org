@@ -42,6 +42,8 @@
 * Features
 ** Medium
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+*** [[./open/320.org][#320]] Ownership qualifiers in template type args and enum variant payloads
+*** [[./open/321.org][#321]] Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/63.org][#63]] User-defined modes
