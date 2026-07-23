@@ -2578,8 +2578,8 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 
 // C-facing name of a Type tag, for diagnostics and test output. Lives in
 // the parser unit (not context.til) so AST unit tests can import it:
-// context.til cannot be imported standalone (it references interpreter.til
-// types like Value that only load inside the full compiler program).
+// context.til cannot be imported standalone because its interpreter runtime
+// types only load inside the full compiler program.
 til_type_name_c := func(t: Type) returns Str {
     switch t {
     case Type.Unknown:   return "unknown"
@@ -2674,6 +2674,29 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         return fcd.own_args.band(bit) > 0
+    case:
+        UNREACHABLE()
+        return false
+    }
+}
+
+set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit * 2 }
+        fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)
+    case:
+        UNREACHABLE()
+    }
+}
+
+get_keep_outer_arg := func(fcall: Expr, arg_index: USize) returns Bool {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit * 2 }
+        return fcd.keep_outer_args.band(bit) > 0
     case:
         UNREACHABLE()
         return false

@@ -1,6 +1,27 @@
 # priority: high
 # category: cleanups
-** WIP #286 Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
+** FIXED #286 Interpreter: replace boxed Value with rstil's heap_index/EvalHeap raw-bytes model
+
+*** Post-mortem
+
+  The interpreter maintained a second boxed runtime representation beside
+  the program's C-layout bytes. Clone, move, borrow, return, closure, enum,
+  container, Dynamic, and FFI paths therefore needed separate ownership
+  rules for ~Value~, ~StructInstance~, and ~EnumInstance~, and those rules
+  repeatedly leaked or aliased payload storage.
+
+  Runtime bindings and expression results now use typed raw ~EvalHeap~
+  blocks directly. Scope metadata supplies type and ownership information;
+  typed clone/drop handles nested payloads; calls, refs, Dynamic values,
+  closures, enums, containers, constfolding, and FFI all use the same raw
+  representation. The boxed ~Value~, ~StructInstance~, ~EnumInstance~,
+  ~InterpClosure~, and their conversion/cleanup helpers were removed.
+
+  Regression coverage: ~test/eval_heap.til~, ~test/strings.til~,
+  ~test/enums.til~, ~test/enums_lifecycle.til~, ~test/first_class.til~,
+  ~test/closures.til~, ~test/dynamic.til~, ~test/dyn_vecs.til~,
+  ~test/variadic.til~, ~test/constfold.til~, and the ~ffi_interp~ check for
+  ~examples/ffi/ext_module.til~.
 
   The interpreter's runtime value representation is the root cause of the
   recurring memory leaks (#275 and the long tail of follow-ups after it).

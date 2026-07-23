@@ -4,16 +4,30 @@ import("context")
 
 // Constfolder: constant folding for macros and pure functions
 constfolder_clear_known := func(mut ctx: Context) {
-    // Map.clear runs Value.delete on every value, which is now deep, so the
-    // payloads are reclaimed without a manual sweep.
-    ctx.constfolder_known.clear()
+    if ctx.constfolder_known.is_null().not() {
+        scope_drop_owned_bindings(ctx.constfolder_known)
+        scope_free(own ctx.constfolder_known)
+        ctx.constfolder_known = NULL
+    }
 }
 
 constfolder_reset_state := func(mut ctx: Context) {
     constfolder_clear_known(ctx)
-    ctx.constfolder_known = Map(Str, Value).new()
+    ctx.constfolder_known = scope_new_boxed(NULL)
     ctx.constfolder_foldables = Map(Str, FuncType).new()
     ctx.constfolder_assigned = Set(Str).new()
+}
+
+priv constfolder_known_has := func(ctx: Context, name: Str) returns Bool {
+    return scope_lookup_heap_binding(ctx.constfolder_known, name).is_null().not()
+}
+
+priv constfolder_known_borrow_view := func(ctx: Context) returns ref Scope {
+    ref view : Scope = scope_new_boxed(NULL)
+    for name, hb in ctx.constfolder_known.heap_bindings {
+        scope_set_heap_owned(view, name, hb.ptr, hb.til_type, hb.own_type, hb.ctx, false, true, hb.is_erased_dynamic)
+    }
+    return view
 }
 
 // Collect every variable name that is the target of an assignment in the
@@ -162,239 +176,137 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
-priv value_to_expr := func(shallow val: Value, src: Expr, ctx: Context) returns Expr {
-    // If the source expression returns an enum, the interpreter folded a
-    // no-payload variant access to its integer tag (Value.Int32, set up in
-    // interpreter_init_ns). Naively turning that into a Num literal would
-    // bake `*c = 1` -- an int assigned to a Color struct. Reconstruct the
-    // variant FieldAccess (Color.<variant>) so the builder emits a
-    // compile-time compound literal `&(Color){.tag = Color_TAG_<variant>}`.
-    // Bail (return NULL) for payload variants or anything we can't map.
-    src_t := src.til_type()
-    if src_t.is(Type.Enum) {
-        // Case A: no-payload variant. The interpreter resolves a no-payload
-        // variant access (Color.Green) via the EnumDef ns_decls default_value
-        // to its integer tag (Value.Int32). Reconstruct the variant access
-        // wrapped in Type.clone(...) so the builder's is_pod_enum_clone_call
-        // path emits a stack value with stack_locals tracking.
-        mut etag : I32 = -1
-        switch val {
-        case Value.Int(iv):    etag = iv.to_i32()
-        case Value.Int32(iv):  etag = iv
-        case Value.Uint32(uv): etag = uv.cast(I32)
-        case:
-        }
-        if etag >= 0 {
-            ename := til_type_name(src_t)
-            ref edef : Expr = lookup_interp_type_def(ename, ctx)
-            if edef.is_null().not() {
-                switch edef.node_type {
-                case NodeType.EnumDef(edd):
-                    if etag.to_usize().lt(edd.variants.len())
-                    .and(edd.payload_types.has(etag.cast(I64)).not()) {
-                        ref vname : Str = edd.variants[etag.to_usize()]
-                        // Build the inner variant FieldAccess Color.Green.
-                        mut recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        recv.set_til_type(Type.Enum(til_type_name(src_t)))
-                        mut fa := Expr.new(field_access_node(vname), src.line, src.col)
-                        fa.add_child(own recv)
-                        fa.set_til_type(Type.Enum(til_type_name(src_t)))
-                        // Wrap as Color.clone(Color.Green) -- mirrors the typer's
-                        // handling of `c := Color.Green` so the builder's
-                        // is_pod_enum_clone_call path emits a stack value with
-                        // stack_locals tracking (call_free=false on the matching
-                        // delete). Without the wrap, the Decl emits a pointer to a
-                        // stack compound literal that the heap-delete would free.
-                        mut clone_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                        clone_recv.set_til_type(Type.Enum(til_type_name(src_t)))
-                        mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
-                        clone_callee.add_child(own clone_recv)
-                        mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-                        clone_call.add_child(own clone_callee)
-                        clone_call.add_child(own fa)
-                        clone_call.set_til_type(Type.Enum(til_type_name(src_t)))
-                        return clone_call
-                    }
-                case:
-                }
-            }
-        }
-        // Case B: payload-bearing variant. The interpreter returns
-        // Value.Enum(EnumInstance) for an enum-typed call whose enum has
-        // any payload variants. Read the tag from ei.data and the payload
-        // bytes from ei.data + ENUM_PAYLOAD_OFFSET (typed by
-        // EnumDef.payload_types[tag]), then reconstruct Token.Num(<payload>)
-        // as an FCall. Unlike no-payload variants, the variant ctor
-        // (Token_Num) is a heap-allocating function -- the Decl init emits
-        // it directly without a clone wrap, matching the codegen of a
-        // direct `t := Token.Num(42)`.
-        switch val {
-        case Value.Enum(ei):
-            ref etag_ptr2 : Dynamic = ei.data
-            ref etag_ref2 : I32 = etag_ptr2
-            etag2 := etag_ref2
-            if etag2 < 0 { return NULL }
-            ename2 := til_type_name(src_t)
-            ref edef2 : Expr = lookup_interp_type_def(ename2, ctx)
-            if edef2.is_null() { return NULL }
-            switch edef2.node_type {
-            case NodeType.EnumDef(edd2):
-                if etag2.to_usize() >= edd2.variants.len() { return NULL }
-                if edd2.payload_types.has(etag2.cast(I64)).not() { return NULL }
-                ref payload_type_name : Str = edd2.payload_types[etag2.cast(I64)]
-                // Fabricate a Declaration whose explicit_type matches the
-                // variant's payload type so read_field can decode the bytes
-                // sitting at ei.data + ENUM_PAYLOAD_OFFSET. (The variant's
-                // declared name doesn't matter -- read_field only uses the
-                // type info and the offset.)
-                mut payload_decl := Declaration()
-                payload_decl.explicit_type = payload_type_name.clone()
-                payload_val := read_field(ei.data, payload_decl, ENUM_PAYLOAD_OFFSET, ctx)
-                // Recurse with a synthetic src whose til_type is NOT
-                // Type.Enum so this same intercept doesn't refire on the
-                // scalar payload. The main switch's Value variant cases
-                // don't depend on src.til_type, so a default-typed Expr is
-                // sufficient for I64/Bool/Str/struct payloads. Nested-enum
-                // payloads currently bail (synthetic src skips the
-                // intercept and the default Value.Enum case returns NULL).
-                payload_src := Expr.new(NodeType.NoDefaultArg, src.line, src.col)
-                mut payload_expr : Expr = value_to_expr(payload_val, payload_src, ctx)
-                if payload_expr.is_null() { return NULL }
-                ref vname2 : Str = edd2.variants[etag2.to_usize()]
-                mut variant_recv := Expr.new(ident_node(til_type_name(src_t)), src.line, src.col)
-                variant_recv.set_til_type(Type.Enum(til_type_name(src_t)))
-                mut variant_callee := Expr.new(field_access_node(vname2), src.line, src.col)
-                variant_callee.add_child(own variant_recv)
-                mut variant_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-                variant_call.add_child(own variant_callee)
-                variant_call.add_child(own payload_expr)
-                variant_call.set_til_type(Type.Enum(til_type_name(src_t)))
-                return variant_call
-            case:
-            }
-        case:
-        }
-        return NULL
-    }
-    switch val {
-    case Value.Int(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.I64))
-        return e
-    case Value.Byte(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.U8))
-        return e
-    case Value.Sbyte(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.I8))
-        return e
-    case Value.Short(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.I16))
-        return e
-    case Value.Ushort(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.U16))
-        return e
-    case Value.Int32(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.I32))
-        return e
-    case Value.Uint32(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.U32))
-        return e
-    case Value.Uint64(x):
-        mut e := Expr.new(literal_num_node(x.to_str()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.U64))
-        return e
-    case Value.Float(x):
-        // F32.to_repr emits 9 significant digits, which round-trips back
-        // through Str.to_f32 (strtof) to the same F32 -- both in interp
-        // (the literal is re-parsed) and codegen (emitted verbatim as a C
-        // float literal). So folded F32 results are faithful.
-        mut e := Expr.new(literal_num_node(x.to_repr()), src.line, src.col)
-        e.set_til_type(Type.Primitive(Primitive.F32))
-        return e
-    case Value.Struct(si):
-        if si.to_str() == "Str" {
-            // A folded Str with reserved capacity beyond its content
-            // (cap > count, and cap is a real allocation -- below the
-            // CAP_VIEW/CAP_LIT sentinels) is a mutable builder buffer, e.g.
-            // Str.with_capacity(n) returns count=0, cap=n. Baking it as a
-            // CAP_LIT literal drops the capacity, so a later push_str panics
-            // ("cannot mutate a literal"). A genuine constant fold
-            // (format/concat) sizes exactly -- cap == count -- so it folds.
-            // Don't fold the builder; leave the call for runtime.
-            ref str_hdr : Str = to_ptr(si.data)
-            if str_cap_at(to_ptr(si.data), ctx).lt(CAP_VIEW).and(str_cap_at(to_ptr(si.data), ctx).gt(str_hdr.count)) {
-                return NULL
-            }
-            sv := str_view(val)
-            // Parser-emitted LiteralStr nodes carry source-form text
-            // (`\n` is two chars: backslash + n) and codegen writes them
-            // raw into Str_lit("...", N), letting the C compiler do the
-            // escape interpretation. Fold gives us runtime bytes (a
-            // literal newline 0x0A), so we re-escape into source form
-            // before constructing the LiteralStr to keep the invariant
-            // consistent.
-            escaped := str_to_source_form(sv)
-            e := Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
+priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Expr {
+    switch t {
+    case Type.Primitive(prim):
+        switch prim {
+        case Primitive.Bool:
+            ref b : Bool = raw
+            return Expr.new(NodeType.Literal(Literal.Bool(b)), src.line, src.col)
+        case Primitive.F32:
+            ref n : F32 = raw
+            mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
+            e.set_til_type(t)
             return e
+        case Primitive.I64: ref n : I64 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U8:  ref n : U8 = raw;  mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I8:  ref n : I8 = raw;  mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I16: ref n : I16 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U16: ref n : U16 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I32: ref n : I32 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U32: ref n : U32 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U64: ref n : U64 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
         }
-        // Non-Str struct: reconstruct a positional POD-struct constructor
-        // (Ident(name) + one folded arg per field, in field order) so the
-        // builder emits a compile-time compound literal instead of a
-        // runtime call. Only POD structs fold: any own/ref field, or any
-        // field whose value doesn't itself fold, bails and the call stays
-        // at runtime. Nested POD structs recurse through value_to_expr.
-        // read_field returns a shallow (borrowed) view into si.data, so the
-        // field values are not freed here.
-        ref sdef : Expr = lookup_interp_type_def(si.struct_name, ctx)
-        // si.to_str() is called fresh per consumer: each builds its own
-        // owned Str so no buffer is shared across the Ident and the two
-        // Type.Struct payloads (a shared borrow would be freed multiple
-        // times when each temporary is dropped). It is not `.clone()`, so
-        // it does not trip the redundant-clone-to-ref lint.
+    case Type.Enum(ename):
+        ref tag_ref : I32 = raw
+        tag := tag_ref
+        if tag < 0 { return NULL }
+        ref edef : Expr = lookup_interp_type_def(ename, ctx)
+        if edef.is_null() { return NULL }
+        switch edef.node_type {
+        case NodeType.EnumDef(edd):
+            if tag.to_usize() >= edd.variants.len() { return NULL }
+            ref vname : Str = edd.variants[tag.to_usize()]
+            if edd.payload_types.has(tag.cast(I64)) {
+                mut recv := Expr.new(ident_node(ename), src.line, src.col)
+                recv.set_til_type(t)
+                mut variant := Expr.new(field_access_node(vname), src.line, src.col)
+                variant.add_child(own recv)
+                variant.set_til_type(t)
+                ref payload_name : Str = edd.payload_types[tag.cast(I64)]
+                payload_type := type_from_name_init(payload_name, ctx.scope)
+                ref payload_raw : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
+                mut payload : Expr = raw_to_expr(payload_raw, payload_type, src, ctx)
+                if payload.is_null() { return NULL }
+                mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+                call.add_child(own variant)
+                call.add_child(own payload)
+                call.set_til_type(t)
+                return call
+            }
+            mut variant_recv := Expr.new(ident_node(ename), src.line, src.col)
+            variant_recv.set_til_type(t)
+            mut variant_expr := Expr.new(field_access_node(vname), src.line, src.col)
+            variant_expr.add_child(own variant_recv)
+            variant_expr.set_til_type(t)
+            mut clone_recv := Expr.new(ident_node(ename), src.line, src.col)
+            clone_recv.set_til_type(t)
+            mut clone_callee := Expr.new(field_access_node("clone"), src.line, src.col)
+            clone_callee.add_child(own clone_recv)
+            mut clone_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+            clone_call.add_child(own clone_callee)
+            clone_call.add_child(own variant_expr)
+            clone_call.set_til_type(t)
+            return clone_call
+        case:
+            return NULL
+        }
+    case Type.Struct(sname):
+        if sname == "Str" {
+            ref s : Str = to_ptr(raw)
+            count := str_count_at(raw, ctx)
+            cap := str_cap_at(raw, ctx)
+            if cap.lt(CAP_VIEW).and(cap.gt(count)) { return NULL }
+            view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
+            escaped := str_to_source_form(view)
+            return Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
+        }
+        ref sdef : Expr = lookup_interp_type_def(sname, ctx)
         switch sdef.node_type {
         case NodeType.StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-            mut callee := Expr.new(ident_node(si.to_str()), src.line, src.col)
-            callee.set_til_type(Type.Struct(si.to_str()))
+            mut callee := Expr.new(ident_node(sname), src.line, src.col)
+            callee.set_til_type(t)
             ctor.add_child(own callee)
             for fd : Declaration in sfd.fields {
-                // Owned/ref fields are not POD; the compound-literal path
-                // can't represent them. Bail (leaks the partial ctor -- a
-                // constfolder-only allocation, consistent with the arg loop's
-                // existing clone-without-free; the call just stays runtime).
-                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) {
-                    return NULL
-                }
-                // Issue #295/#262: a funcptr/closure-typed field holds a
-                // runtime value (a closure carries an env), and the interpreter
-                // const-eval mis-stores it (reads back as 0). A closure can't be
-                // baked into a static compound literal, so bail -- keep the call
-                // at runtime. (This is what makes a struct built from a closure,
-                // e.g. a lazy-list cell `{ head, tail : () -> Cell }`, survive
-                // const-folding of a constant-arg constructor like make_nats(0).)
-                if is_funcptr(fd.til_type) {
-                    return NULL
-                }
-                ref fl_pre : FieldLayout = ctx_field_layout(si.to_str(), fd.name, ctx)
-                mut farg : Expr = value_to_expr(read_field(si.data, fd, fl_pre.offset, ctx), src, ctx)
-                if farg.is_null() { return NULL }
-                ctor.add_child(own farg)
+                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return NULL }
+                ref fl : FieldLayout = ctx_field_layout(sname, fd.name, ctx)
+                mut field_expr : Expr = raw_to_expr(ptr_add(raw, fl.offset), fd.til_type, src, ctx)
+                if field_expr.is_null() { return NULL }
+                ctor.add_child(own field_expr)
             }
-            ctor.set_til_type(Type.Struct(si.to_str()))
+            ctor.set_til_type(t)
             return ctor
         case:
             return NULL
         }
-    case Value.Boolean(b):
-        e := Expr.new(NodeType.Literal(Literal.Bool(b)), src.line, src.col)
-        return e
+    case Type.Custom(name):
+        return raw_to_expr(raw, type_from_name_init(name, ctx.scope), src, ctx)
     case:
+        return NULL
+    }
+}
+
+priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
+    switch e.node_type {
+    case NodeType.Literal(Literal.Num(num)):
+        t := e.til_type()
+        result : Dynamic = dispatch_result_alloc(t, ctx)
+        switch t {
+        case Type.Primitive(Primitive.I64): write_i64(result, num.to_i64())
+        case Type.Primitive(Primitive.U8):  write_u8(result, num.to_u8())
+        case Type.Primitive(Primitive.I8):  write_i8(result, num.to_i8())
+        case Type.Primitive(Primitive.I16): write_i16(result, num.to_i16())
+        case Type.Primitive(Primitive.U16): write_u16(result, num.to_u16())
+        case Type.Primitive(Primitive.I32): write_i32(result, num.to_i32())
+        case Type.Primitive(Primitive.U32): write_u32(result, num.to_u32())
+        case Type.Primitive(Primitive.U64): write_u64(result, num.to_u64())
+        case Type.Primitive(Primitive.F32): write_f32(result, num.to_f32())
+        case:
+            panic("numeric known value has non-numeric type ", til_type_name_c(t))
+        }
+        return result
+    case NodeType.Literal(Literal.Str(s)):
+        decoded := from_source_form(s)
+        result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
+        str_copy_into(result, decoded, ctx)
+        return result
+    case NodeType.Literal(Literal.Bool(b)):
+        result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
+        write_bool(result, b)
+        return result
+    case:
+        panic("expression is not a raw known literal")
         return NULL
     }
 }
@@ -430,69 +342,21 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
     }
 }
 
-priv expr_to_value := func(e: Expr, ctx: Context) returns shallow Value {
-    switch e.node_type {
-    case NodeType.Literal(Literal.Num(num)):
-        lit_t := e.til_type()
-        switch lit_t {
-        case Type.Primitive(Primitive.U8):  return Value.Byte(num.to_u8())
-        case Type.Primitive(Primitive.U32): return Value.Uint32(num.to_u32())
-        case Type.Primitive(Primitive.U64): return Value.Uint64(num.to_u64())
-        case Type.Primitive(Primitive.I16): return Value.Short(num.to_i16())
-        case Type.Primitive(Primitive.U16): return Value.Ushort(num.to_u16())
-        case Type.Primitive(Primitive.I32): return Value.Int32(num.to_i32())
-        case Type.Primitive(Primitive.F32): return Value.Float(num.to_f32())
-        case: return Value.Int(num.to_i64())
-        }
-    case NodeType.Literal(Literal.Str(s)):
-        // LiteralStr stores source-form text (parser doesn't process
-        // escapes); runtime sees post-escape bytes from C-compiler-
-        // interpreted Str_lit. Fast path: most LiteralStr nodes have no
-        // backslash, so source-form bytes already equal post-escape
-        // bytes. Build a Str view into the LiteralStr's own c_str
-        // (stable for the AST's lifetime) instead of allocating + memcpy
-        // -ing a private copy. Saves the per-call buffer alloc and the
-        // matching buffer leak (no caller frees Value.Struct payloads
-        // on the constfolder hot path).
-        mut has_bs := false
-        for b : I8 in s {
-            if b == 92 { has_bs = true; break }
-        }
-        if has_bs.not() {
-            return make_str_value_view(s.c_str, s.count, ctx)
-        }
-        // Slow path: process escape sequences into a fresh buffer. The
-        // result must own its bytes (post-escape bytes don't live in the
-        // AST), so use make_str_value which memcpys.
-        raw := from_source_form(s)
-        return make_str_value(raw.c_str, raw.count, ctx)
-    case NodeType.Literal(Literal.Bool(b)):
-        return Value.Boolean(b)
-    case:
-        return val_none()
-    }
-}
-
-priv is_known := func(ctx: Context, e: Expr, mut out: Value) returns Bool {
+priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):
-        out = expr_to_value(e, ctx)
-        return true
+        return expr_to_known_raw(e, ctx)
     case NodeType.Literal(Literal.Str):
-        out = expr_to_value(e, ctx)
-        return true
+        return expr_to_known_raw(e, ctx)
     case NodeType.Literal(Literal.Bool):
-        out = expr_to_value(e, ctx)
-        return true
+        return expr_to_known_raw(e, ctx)
     case NodeType.Ident(id):
-        if ctx.constfolder_known.has(id.ident_name()) {
-            ref v : Value = ctx.constfolder_known[id.ident_name()]
-            out = v
-            return true
+        if constfolder_known_has(ctx, id.ident_name()) {
+            return scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
         }
-        return false
+        return NULL
     case:
-        return false
+        return NULL
     }
 }
 
@@ -517,15 +381,13 @@ priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
     return false
 }
 
-// Cheap is_known check that doesn't allocate or fill an out-Value.
-// Use when callers only need the boolean and would otherwise leak the
-// throwaway temporary they pass to is_known.
+// Cheap is_known check that doesn't clone a raw block.
 priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Literal(Literal.Num):  return true
     case NodeType.Literal(Literal.Str):  return true
     case NodeType.Literal(Literal.Bool): return true
-    case NodeType.Ident(id):   return ctx.constfolder_known.has(id.ident_name())
+    case NodeType.Ident(id):   return constfolder_known_has(ctx, id.ident_name())
     case:                      return false
     }
 }
@@ -580,20 +442,19 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
             }
         case:
         }
-        if ctx.constfolder_known.has(name.ident_name()) { return false }
-        ref cell : Cell = scope_get(constfolder_scope, name.ident_name())? catch (knf: KeyNotFound) {
+        if constfolder_known_has(ctx, name.ident_name()) { return false }
+        ref slot : Dynamic = scope_get(constfolder_scope, name.ident_name())? catch (knf: KeyNotFound) {
             // REM: an unbound name is an expected miss -- a builtin, an ext, or a
-            // not-yet-bound global. cell stays NULL and the guard below skips the
+            // not-yet-bound global. slot stays NULL and the guard below skips the
             // resolves-to-a-func body walk.
         }
-        if cell.is_null().not() {
+        if slot.is_null().not() {
             // The Ident resolves to something in constfolder scope. If it's
             // a Func, walk its body too -- the surface body may only
             // call helpers like `codegen_lp()` whose own body reads a
             // mut global constfolder scope doesn't have.
-            switch cell.val {
-            case Value.Func(fp):
-                ref fdef : Expr = deref(fp)
+            ref raw : Dynamic = slot
+            ref fdef : Expr = deref(raw)
                 // A raw-memory primitive (Dynamic in its signature) makes the
                 // surrounding body unsound to fold -- the interpreter can't
                 // model the pointer target. See func_sig_has_dynamic.
@@ -611,8 +472,6 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
                     case:
                     }
                 }
-            case:
-            }
             return false
         }
         if lenient.and(body_has_local(body_root, name.ident_name())) { return false }
@@ -690,7 +549,7 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns ref Expr {
 // pair via ns_get. Returns the first match's payload pointer or NULL.
 // Lets the fast path resolve a typer/builder-flattened namespace
 // callee like "Str_size" back to ns_get("Str", "size", ctx).
-priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
+priv ns_lookup_flat := func(name: Str, ctx: Context) returns ref Dynamic {
     n := name.len()
     for i in 1..n {
         ref b : I8 = name.unsafe_get(i)
@@ -699,14 +558,9 @@ priv ns_lookup_flat := func(name: Str, ctx: Context) returns shallow Dynamic {
         rest_start := i + 1
         if rest_start >= n { continue }
         mname := name.substr(rest_start, n - rest_start)
-        ref nv : Value = ns_get(sname, mname, ctx)
+        ref nv : Dynamic = ns_get(sname, mname, ctx)
         if nv.is_null() { continue }
-        switch nv {
-        case Value.Func(p):
-            return deref(p)
-        case:
-            continue
-        }
+        return nv
     }
     return NULL
 }
@@ -722,7 +576,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
     case NodeType.Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
-        ref probe : Value = ns_get(ident.ident_name(), "size", ctx)
+        ref probe : Dynamic = ns_get(ident.ident_name(), "size", ctx)
         if probe.is_null().not() { return Str.clone(ident.ident_name()) }
     case:
     }
@@ -737,17 +591,12 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
     case NodeType.Ident(ci):
-        ref cell : Cell = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) {
+        ref slot : Dynamic = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) {
             // REM: an unbound name is an expected miss -- the callee may be a
-            // builtin or a typer-flattened name absent from scope. cell stays
+            // builtin or a typer-flattened name absent from scope. slot stays
             // NULL and control falls through to the ns_lookup_flat fallback below.
         }
-        if cell.is_null().not() {
-            switch cell.val {
-            case Value.Func(p): fc_fp = p
-            case:
-            }
-        }
+        if slot.is_null().not() { fc_fp = slot }
         // Fall back to namespace lookup for typer-flattened callees
         // (`Str_size()` instead of `Str.size()`).
         if fc_fp.is_null() { fc_fp = ns_lookup_flat(ci.ident_name(), ctx) }
@@ -755,12 +604,9 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
         if fc_callee.children.len() > 0 {
             sn := fa_recv_type_name(fc_callee, ctx)
             if sn.is_empty().not() {
-                ref nv : Value = ns_get(sn, mn.field_access_name(), ctx)
+                ref nv : Dynamic = ns_get(sn, mn.field_access_name(), ctx)
                 if nv.is_null().not() {
-                    switch nv {
-                    case Value.Func(p): fc_fp = p
-                    case:
-                    }
+                    fc_fp = nv
                 }
             }
         }
@@ -794,36 +640,28 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     mut fp : Dynamic = 0
     switch callee.node_type {
     case NodeType.Ident(callee_ident):
-        ref fn_cell : Cell = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) {
+        ref fn_slot : Dynamic = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) {
             // REM: an unbound name is an expected miss -- the callee may be a
-            // builtin/ext with no scope binding. fn_cell stays NULL and the guard
+            // builtin/ext with no scope binding. fn_slot stays NULL and the guard
             // below leaves fp at 0 (probe found nothing).
         }
-        if fn_cell.is_null().not() {
-            switch fn_cell.val {
-            case Value.Func(p): fp = p
-            case:
-            }
-        }
+        if fn_slot.is_null().not() { fp = fn_slot }
     case NodeType.FieldAccess(mname):
         if callee.children.len() > 0 {
             ref recv : Expr = callee.children[0]
             switch recv.node_type {
             case NodeType.Ident(ri):
-                ref probe : Value = ns_get(ri.ident_name(), "size", ctx)
+                ref probe : Dynamic = ns_get(ri.ident_name(), "size", ctx)
                 if probe.is_null() {
-                    if ctx.constfolder_known.has(ri.ident_name()).not() { return NULL }
+                    if constfolder_known_has(ctx, ri.ident_name()).not() { return NULL }
                 }
             case:
             }
             sname := fa_recv_type_name(callee, ctx)
             if sname.is_empty().not() {
-                ref ns_val : Value = ns_get(sname, mname.field_access_name(), ctx)
+                ref ns_val : Dynamic = ns_get(sname, mname.field_access_name(), ctx)
                 if ns_val.is_null().not() {
-                    switch ns_val {
-                    case Value.Func(p): fp = p
-                    case:
-                    }
+                    fp = ns_val
                 }
             }
         }
@@ -841,9 +679,8 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             // Issue #136 item 1: ext_funcs are foldable too. Built-ins
             // (I64_add etc.) are statically linked and dispatch via
             // ext_function_dispatch; a user .so that wasn't dlopen'd at
-            // constfolder time is undispatchable and the interpreter returns
-            // val_none() for it, so try_eval_call bails cleanly below
-            // (can_convert.not()) rather than baking a bad value.
+            // constfolder time is undispatchable, so try_eval_call bails cleanly
+            // below rather than baking a bad result.
             if fdef.children.len() > 0 {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
@@ -859,11 +696,11 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     }
 
     // #286: a call whose return type is a container (Vec/Array/Map) can never
-    // be folded -- value_to_expr always bails on the container's `own data`
+    // be folded -- raw_to_expr always bails on the container's `own data`
     // field and returns NULL, so the call already stays at runtime. Evaluating
     // it anyway runs the whole call (allocating the container plus its element
-    // buffers) only to discard the result, leaking every block the eval cloned
-    // (the clone_container_str_buffer / make_str_value treadmill). The outcome
+    // buffers) only to discard the result, leaking every block the eval cloned.
+    // The outcome
     // (NULL -> call left for runtime) is identical without the wasted eval, so
     // skip it for non-macro folds. Macros (require_known) may run compile-time
     // effects and must still evaluate.
@@ -883,8 +720,8 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
-        mut arg_val := val_none()
-        mut arg_is_known := is_known(ctx, arg, arg_val)
+        mut arg_raw : Dynamic = is_known(ctx, arg)
+        mut arg_is_known := arg_raw.is_null().not()
         // Issue #191: also check interpreter scope for arg values. Skip
         // names that are assigned somewhere -- their scope value is just
         // the constfolder interpreter's last write (e.g. a mut loop counter's
@@ -892,58 +729,22 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         if arg_is_known.not() {
             switch arg.node_type {
             case NodeType.Ident(arg_id):
-                ref cell : Cell = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) {
+                ref slot : Dynamic = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) {
                     // REM: an unbound arg name is an expected miss -- a builtin/ext
-                    // or a not-yet-bound global. cell stays NULL and the guard
+                    // or a not-yet-bound global. slot stays NULL and the guard
                     // below skips the known-value substitution.
                 }
-                if cell.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
-                    switch cell.val {
-                    case Value.Int(iv):
-                        mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.I64))
-                        ec.add_child(own lit)
+                if slot.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
+                    ref scoped_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_id.ident_name())
+                    if scoped_hb.is_null() { panic("scoped known binding has no metadata: ", arg_id.ident_name()) }
+                    scoped_raw : Dynamic = scope_read_bound_raw(scope, arg_id.ident_name(), ctx)
+                    scoped_is_ref := scoped_hb.own_type.is(OwnType.Ref)
+                    mut scoped_value_raw : Dynamic = scoped_raw
+                    mut scoped_lit : Expr = raw_to_expr(scoped_value_raw, scoped_hb.til_type, arg, ctx)
+                    raw_result_drop(scoped_hb.til_type, scoped_raw, scoped_is_ref, ctx)
+                    if scoped_lit.is_null().not() {
+                        ec.add_child(own scoped_lit)
                         continue
-                    case Value.Byte(bv):
-                        mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.U8))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Sbyte(bv):
-                        mut lit := Expr.new(literal_num_node(bv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.I8))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Short(sv):
-                        mut lit := Expr.new(literal_num_node(sv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.I16))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Ushort(uv):
-                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.U16))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Int32(iv):
-                        mut lit := Expr.new(literal_num_node(iv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.I32))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Uint32(uv):
-                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.U32))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Uint64(uv):
-                        mut lit := Expr.new(literal_num_node(uv.to_str()), arg.line, arg.col)
-                        lit.set_til_type(Type.Primitive(Primitive.U64))
-                        ec.add_child(own lit)
-                        continue
-                    case Value.Boolean(bv):
-                        mut lit := Expr.new(NodeType.Literal(Literal.Bool(bv)), arg.line, arg.col)
-                        ec.add_child(own lit)
-                        continue
-                    case:
                     }
                 }
             case:
@@ -992,15 +793,12 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             }
             return NULL
         }
-        mut arg_lit : Expr = value_to_expr(arg_val, arg, ctx)
+        mut arg_lit : Expr = raw_to_expr(arg_raw, arg.til_type(), arg, ctx)
+        raw_result_drop(arg.til_type(), arg_raw, false, ctx)
         if arg_lit.is_null() {
             return NULL
         }
         ec.add_child(own arg_lit)
-        // value_to_expr / ec.add_child deep-copied the bytes, so arg_val's
-        // payload is no longer reachable past this point. arg_val is a
-        // loop-local reclaimed by the garbager's deep Value.delete at each
-        // iteration's end -- no manual free.
     }
 
     // Evaluate the call using the interpreter. constfold_active makes a
@@ -1008,7 +806,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // set ctx.constfold_aborted and unwind instead of printing+exiting the
     // build -- til's analogue of rstil precomp inspecting a throw result.
     ctx.constfold_active = true
-    result := eval_expr(scope, ec, ctx)
+    result : Dynamic = eval_expr_raw(scope, ec, ctx)
     ctx.constfold_active = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a
@@ -1017,6 +815,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // sit on a branch that never executes at run time).
     if ctx.constfold_aborted {
         ctx.constfold_aborted = false
+        raw_result_drop(fcall.til_type(), result, false, ctx)
         if require_known {
             panic(
                 __LOC__,
@@ -1027,17 +826,16 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         return NULL
     }
 
-    mut can_convert := result.is(Value.Int)
-    .or(result.is(Value.Byte))
-    .or(result.is(Value.Short))
-    .or(result.is(Value.Int32))
-    .or(result.is(Value.Uint32))
-    .or(result.is(Value.Uint64))
-    .or(result.is(Value.Boolean))
-    .or(result.is(Value.Float))
-    .or(result.is(Value.Struct))
-    .or(result.is(Value.Enum))
+    mut can_convert := false
+    switch fcall.til_type() {
+    case Type.Primitive: can_convert = true
+    case Type.Enum: can_convert = true
+    case Type.Struct: can_convert = true
+    case Type.Custom: can_convert = true
+    case:
+    }
     if can_convert.not() {
+        raw_result_drop(fcall.til_type(), result, false, ctx)
         if require_known {
             panic(
                 __LOC__,
@@ -1048,52 +846,37 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         return NULL
     }
 
-    // value_to_expr can still return NULL (e.g. Value.Struct non-Str).
-    mut lit_local : Expr = value_to_expr(result, fcall, ctx)
+    mut lit_local : Expr = raw_to_expr(result, fcall.til_type(), fcall, ctx)
+    raw_result_drop(fcall.til_type(), result, false, ctx)
     if lit_local.is_null() {
         return NULL
     }
-    // value_to_expr deep-copied result's payload into the LiteralStr, so the
-    // eval_expr-owned `result` is reclaimed by the garbager's deep
-    // Value.delete at its last use (just above) -- no manual free.
-    // Preserve fcall.til_type(). value_to_expr derives til_type from the
-    // runtime Value variant (Uint32 -> U32), but the original fcall might
-    // have been typed as USize/U64/... at typer time. Surrounding code
-    // (re-typing, codegen) expects the original til_type.
+    // Preserve aliases such as USize rather than replacing them with the
+    // resolved primitive used to decode the raw bytes.
     lit_local.set_til_type(fcall.til_type())
-    // Return an owned clone (value_to_expr returns a borrowed ref). The
-    // previous malloc + move into a separate heap Expr leaked the abandoned
-    // block and forced callers to clone-and-drop.
     return lit_local
 }
 
 priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
-    mut v := val_none()
-    if is_known(ctx, rhs, v) {
-        // Map.set deletes the old value via Value.delete (now deep), so a
-        // same-name overwrite reclaims the old payload automatically.
-        mut vcopy := v
-        ctx.constfolder_known.set(name, own vcopy)
-        scope_set_owned(scope, name, v)
+    raw : Dynamic = is_known(ctx, rhs)
+    if raw.is_null().not() {
+        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), OwnType.Own, ctx)
+        scope_raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, name, ctx)
+        scope_set_raw_owned(scope, name, scope_raw, rhs.til_type(), OwnType.Own, ctx)
     }
 }
 
-// Like track_literal but skips the scope_set_owned step. Used by
+// Like track_literal but skips the fold-scope binding. Used by
 // fold_subtree for body-local Decls so the body's tracked values don't
 // share ownership with `scope` (the constfolder interpreter scope used for
 // the entire compilation). Without this split, freeing known's payloads
 // during the FuncDef save/restore would dangle the shared scope binding
 // and corrupt the heap on the next interpreter lookup that touched it.
 priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
-    mut v := val_none()
-    if is_known(ctx, rhs, v) {
-        // Map.set deletes the old value via Value.delete (now deep), so a
-        // same-name overwrite reclaims the old payload automatically.
-        mut vcopy := v
-        ctx.constfolder_known.set(name, own vcopy)
+    raw : Dynamic = is_known(ctx, rhs)
+    if raw.is_null().not() {
+        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), OwnType.Own, ctx)
     }
-    // v is reclaimed by the garbager's function-exit deep Value.delete -- no
-    // manual free needed.
 }
 
 is_macro_call := func(e: Expr, ctx: Context) returns Bool {
@@ -1203,15 +986,15 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Contex
 }
 
 // Bind every comptime-known ident (the typer's hoisted__ element/count temps)
-// referenced in `e` into the fold scope -- a fresh clone, not aliased to the
-// known map -- so eval_expr can resolve them. Types / other idents are left.
+// referenced in `e` into the fold scope as typed raw clones. Types / other
+// idents are left.
 priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
     switch e.node_type {
     case NodeType.Ident(id):
-        if ctx.constfolder_known.has(id.ident_name()) {
-            ref kv : Value = ctx.constfolder_known[id.ident_name()]
-            mut cv := kv.clone()
-            scope_set_owned(scope, id.ident_name(), cv)
+        if constfolder_known_has(ctx, id.ident_name()) {
+            ref hb : HeapBinding = scope_lookup_heap_binding(ctx.constfolder_known, id.ident_name())
+            raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type, OwnType.Own, hb.ctx)
         }
     case:
     }
@@ -1229,14 +1012,15 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ct
         if dd.name.eq(va).or(dd.name.eq(ek)) {
             if stmt.children.len() > 0 {
                 bind_known_idents_in(scope, stmt.children[0], ctx)
-                mut v := eval_expr(scope, stmt.children[0], ctx).clone()
-                scope_set_owned(scope, dd.name, v)
+                raw : Dynamic = eval_expr_raw(scope, stmt.children[0], ctx)
+                scope_set_raw_owned(scope, dd.name, raw, stmt.children[0].til_type(), dd.own_type, ctx)
             }
         }
     case NodeType.FCall:
         if is_va_set(stmt, va) {
             bind_known_idents_in(scope, stmt, ctx)
-            _ := eval_expr(scope, stmt, ctx)
+            result : Dynamic = eval_expr_raw(scope, stmt, ctx)
+            raw_result_drop(stmt.til_type(), result, false, ctx)
         }
     case:
     }
@@ -1303,12 +1087,12 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
             bind_known_idents_in(scope, child, ctx)
             ctx.constfold_active = true
             ctx.constfold_aborted = false
-            result := eval_expr(scope, child, ctx)
+            result : Dynamic = eval_expr_raw(scope, child, ctx)
             ctx.constfold_active = false
             mut aborted := ctx.constfold_aborted
             ctx.constfold_aborted = false
             if aborted.not() {
-                mut lit : Expr = value_to_expr(result, child, ctx)
+                mut lit : Expr = raw_to_expr(result, child.til_type(), child, ctx)
                 if lit.is_null().not() {
                     lit.set_til_type(child.til_type())
                     e.children[i] = lit
@@ -1318,6 +1102,7 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
                     restamp_folded_decl_storage(e, i, ctx)
                 }
             }
+            raw_result_drop(child.til_type(), result, false, ctx)
         }
     }
 }
@@ -1432,17 +1217,11 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            snapshot_fd := ctx.constfolder_known.clone()
+            ref snapshot_fd : Scope = ctx.constfolder_known
+            ctx.constfolder_known = constfolder_known_borrow_view(ctx)
             fold_subtree(scope, child, ctx)
-            // Restore the snapshot by MOVE (#302): the field adopts
-            // snapshot_fd's Map, and the post-fold `known` -- entries
-            // (inherited and inner-fold-added) plus backing buffers --
-            // rides snapshot_fd's own-param deep delete inside move().
-            // Replaces the hand-rolled clear + free(keys.data/values.data)
-            // + memcpy + memset-to-defuse dance. Safe for the same reason
-            // the old clear was: body-local track_literal_known_only does
-            // not share Value payloads with `scope`.
-            move(Map(Str, Value), ctx.constfolder_known, own snapshot_fd)
+            constfolder_clear_known(ctx)
+            ctx.constfolder_known = snapshot_fd
             continue
         }
         fold_subtree(scope, child, ctx)
@@ -1507,8 +1286,8 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             if vn.is_empty().not().and(va_name_in(va_done, vn).not()).and(va_elements_known(e, m, vn, ctx)) {
                 // The materialized array and hoisted element bindings are
                 // temporary inputs to this fold, not globals. Keep them in a
-                // child scope so scope_free reclaims them immediately after
-                // the consumer is folded.
+                // child scope so its cache-owned values can be reclaimed
+                // immediately after the consumer is folded.
                 va_scope := scope_new(scope)
                 if materialize_va(va_scope, e, m, vn, ctx) {
                     for k in 0..e.children.len() {
@@ -1516,6 +1295,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                     }
                     va_done.push(own vn.clone())
                 }
+                scope_drop_owned_bindings(va_scope)
                 scope_free(own va_scope)
             }
         }
@@ -1634,7 +1414,7 @@ priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
 // constfolder because the runtime Scope it builds has no upstream equivalent
 // (the typer builds a TypeScope; scavenge invalidates AST pointers before
 // the interpreter rebuilds its own).
-constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Context) {
+constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -1645,19 +1425,16 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Cont
         switch stmt.node_type {
         case NodeType.Decl(dd):
             if is_def {
-                // Register the def in the fold scope: Value.Func tag=9,
-                // data = pointer to child(0).
-                val := val_none()
-                memcpy(val, 9, 4)
-                write_ptr(ptr_add(val, 8), rhs)
-                scope_set_owned(global, dd.name, val)
+                raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                write_ptr(raw, rhs)
+                scope_set_raw_owned(global, dd.name, raw, Type.Body, dd.own_type, ctx)
             } else if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
                 // Issue #191: register literal global constants so macro
                 // bodies that read them can fold. Only literals register;
                 // complex expressions need full interpreter support.
-                mut v := val_none()
-                if is_known(ctx, rhs, v) {
-                    scope_set_owned(global, dd.name, v)
+                raw : Dynamic = is_known(ctx, rhs)
+                if raw.is_null().not() {
+                    scope_set_raw_owned(global, dd.name, raw, rhs.til_type(), dd.own_type, ctx)
                 }
             }
         case:
@@ -1673,20 +1450,24 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, ctx: Cont
 // Str.cap, which the interpreter decodes at the USize width. Build the
 // U64 forms with bnot to avoid out-of-I64-range literals.
 // 32-bit: CAP_VIEW = 0xFFFFFFFE = 4294967294, CAP_LIT = 0xFFFFFFFF = 4294967295.
-constfolder_register_core_constants := func(mut global: Scope, usize_name: Str) {
+constfolder_register_core_constants := func(global: Scope, usize_name: Str) {
     if usize_name == "U64" {
         mut lit64 : U64 = 0
         lit64 = lit64.bnot()       // -1 as U64
         mut view64 : U64 = 1
         view64 = view64.bnot()     // -2 as U64
-        cap_view_val := Value.Uint64(view64)
-        scope_set_owned(global, "CAP_VIEW", cap_view_val)
-        cap_lit_val := Value.Uint64(lit64)
-        scope_set_owned(global, "CAP_LIT", cap_lit_val)
+        cap_view_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
+        write_u64(cap_view_raw, view64)
+        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U64), OwnType.Own, NULL)
+        cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
+        write_u64(cap_lit_raw, lit64)
+        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U64), OwnType.Own, NULL)
     } else {
-        cap_view_val := Value.Uint32(4294967294)
-        scope_set_owned(global, "CAP_VIEW", cap_view_val)
-        cap_lit_val := Value.Uint32(4294967295)
-        scope_set_owned(global, "CAP_LIT", cap_lit_val)
+        cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
+        write_u32(cap_view_raw, 4294967294)
+        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U32), OwnType.Own, NULL)
+        cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
+        write_u32(cap_lit_raw, 4294967295)
+        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U32), OwnType.Own, NULL)
     }
 }

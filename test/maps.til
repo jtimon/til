@@ -41,6 +41,30 @@ test_str_map := test() {
     assert_eq(I64, sb, 2)
 }
 
+test_map_remove := test() {
+    m := Map(Str, I64).new()
+    m.set("a", own 1)
+    m.set("b", own 2)
+    m.set("c", own 3)
+    m.set("d", own 4)
+
+    assert(m.remove("missing").not())
+    assert_eq(USize, m.len(), 4)
+
+    assert(m.remove("a"))
+    assert(m.has("a").not())
+    assert_eq(I64, m["b"], 2)
+
+    assert(m.remove("c"))
+    assert(m.has("c").not())
+    assert_eq(I64, m["d"], 4)
+
+    assert(m.remove("d"))
+    assert(m.has("d").not())
+    assert_eq(USize, m.len(), 1)
+    assert_eq(I64, m["b"], 2)
+}
+
 // --- Map literal tests ---
 
 test_map_literal_str_i64 := test() {

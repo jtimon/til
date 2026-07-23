@@ -2897,7 +2897,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             // Use .is rather than .eq so the desugared check is a
                             // tag-only comparison and never recurses through a
                             // user-defined eq (which is itself often defined as a
-                            // switch -- e.g. Value.eq).
+                            // switch -- e.g. an enum's generated eq).
                             // #264: width-correct tag comparison via is_n.
                             sw_tag_sz := enum_tag_size(enum_def)
                             mut iv_id := Expr.new(ident_node("is_n"), sw_line, sw_col)
@@ -2980,7 +2980,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 bind_decl.add_child(own field_acc_bind)
                                 sp_bindings.push(own bind_decl)
                             } else {
-                                // Value match (literal/expr) or nested pattern.
+                                // Literal/expression match or nested pattern.
                                 // Recurse with sw_ref = sw.field_name; the recursive
                                 // call may itself prepend bindings to case_body.
                                 mut field_acc_match := Expr.new(field_access_node(field_name), sw_line, sw_col)
@@ -4345,8 +4345,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // An FCall in FieldAccess BASE position (`f().field`, and the
     // receiver of a chained method call `f().method(...)`) was never
     // hoisted, so the builder emitted `((T *)f(...))->field` and the
-    // owned result box leaked -- nothing ever deleted it (the
-    // ctx_field_layout/StructInstance.clone leak class). Hoist the base
+    // owned result storage leaked -- nothing ever deleted it. Hoist the base
     // into a temp Decl so the garbager schedules its delete like any
     // other owned local. Ref-returning subscript gets are also hoisted,
     // but as Ref temps via hoist_to_temp; this lets receivers like
@@ -4419,11 +4418,13 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             fi++
         }
         }
-        if arg.node_type.is(NodeType.FCall).not() {
-            if arg.node_type.is_nonnull_literal().not() {
-                continue
-            }
+        mut needs_hoist := arg.node_type.is(NodeType.FCall).or(arg.node_type.is_nonnull_literal())
+        switch arg.node_type {
+        case NodeType.FuncDef(fd):
+            if fd.captures.len() > 0 { needs_hoist = true }
+        case:
         }
+        if needs_hoist.not() { continue }
 
         mut slot_is_own := false
         if is_ctor_call.and(hoist_sdef.is_null().not()) {

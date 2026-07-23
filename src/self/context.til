@@ -334,9 +334,8 @@ Context := struct {
     path := ""
     path_modes := Map(Str, Mode).new()
     mode_registry := Map(Str, Mode).new()
-    // #286 commit 1: the raw-bytes runtime heap (rstil's EvalHeap), threaded
-    // through Context since Context already flows everywhere eval runs.
-    // Eval does not use it yet -- commits 2-3 migrate values onto it.
+    // The raw-bytes runtime heap (rstil's EvalHeap), threaded through Context
+    // since Context already flows everywhere eval runs.
     eval_heap := EvalHeap.new()
     target_usize_pname := "U32"
     target_uptr_pname := "U64"
@@ -345,7 +344,7 @@ Context := struct {
     // so the Str-ownership hot path (str_usize_read_width -> str_has_owned_
     // storage) can read the target width WITHOUT dereferencing an owned heap
     // Str: that path also runs during Context teardown, where the owned
-    // target_usize_pname field is freed before the interned Value tables whose
+    // target_usize_pname field is freed before the interned runtime tables whose
     // delete calls it -- reading it there is a heap-use-after-free (#309).
     target_usize_bytes : USize = 4
     anon_type_counter : I64 = 0
@@ -356,26 +355,32 @@ Context := struct {
     // runs (default false = interpret).
     compile_mode := false
 
-    // Value-owning runtime tables must delete before imported ASTs: their
-    // Struct/Enum payloads carry type/layout refs into those ASTs.
+    // Raw-owning runtime tables must delete before imported ASTs: aggregate
+    // payloads carry type/layout refs into those ASTs.
     constfolder_foldables := Map(Str, FuncType).new()
-    constfolder_known := Map(Str, Value).new()
+    ref constfolder_known : Scope = NULL
     constfolder_assigned := Set(Str).new()
     has_return := false
     has_break := false
     has_continue := false
-    return_value := Value.None
+    // Non-owning pointer to the interpreter's current raw return allocation.
+    // eval_user_func_call takes and clears it before Context teardown.
+    ref return_value : Dynamic = NULL
     // True while the interpreter runs the body of a `returns ref`
     // function (saved/restored per call in eval_user_func_call).
-    // reclone_return and the call-boundary return handling consult it:
+    // return propagation and the call boundary consult it:
     // a ref return aliases storage that outlives the call (the typer
     // rejects ref returns of locals), so deep-cloning it would detach
     // the caller's ref from the real payload and lose writes.
     interp_ret_is_ref := false
+    // Non-owning destination supplied by the current function's caller.
+    ref interp_ret_dest : Dynamic = NULL
+    // Non-owning pointer to the current function's declared return type.
+    ref interp_ret_type : Str = NULL
+    interp_ret_own_type := OwnType.Shallow
     constfold_active := false
     constfold_aborted := false
-    ns_fields := Map(Str, Value).new()
-    ns_keys := Vec(Dynamic).new()
+    ref ns_fields : Scope = NULL
     ns_inited := false
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
@@ -562,14 +567,14 @@ Context := struct {
     ref current_fdef : Expr = NULL
 
     // #177 interpreter caches for well-known core types, populated during
-    // interpret_register_defs by interpret_register_struct_defs and read
-    // back by make_str_value / build_array_from_argv. These were the
-    // remaining six module-scope ref-mut + NULL globals after #178.
-    // ORDERING: these are borrowed refs into the imported ASTs, and the Value
+    // interpret_register_defs by interpret_register_struct_defs and read by
+    // raw allocation, field-layout, and argv construction paths. These were
+    // the remaining six module-scope ref-mut + NULL globals after #178.
+    // ORDERING: these are borrowed refs into the imported ASTs, and raw-value
     // teardown reads cached_str_name (str_owns_c_str -> str_count_at ->
-    // ctx_field_layout). They MUST stay declared after the Value-owning
-    // tables (constfolder_known / ns_fields) above; auto-delete runs in
-    // declaration order, and moving them earlier -- or the Value tables
+    // ctx_field_layout). They MUST stay declared after the raw-owning
+    // tables (constfolder_known / ns_fields) above; teardown runs in
+    // declaration order, and moving them earlier -- or the raw tables
     // later than `imported` -- reintroduces the #299 Context_delete
     // heap-use-after-free.
     ref cached_str_def : Expr = NULL
@@ -592,7 +597,7 @@ Context := struct {
     // Dispatch / FFI runtime state (previously module-level globals in
     // the interpreter's FFI dispatch code). FFIEntry / FFITypePtrBox are
     // defined in interpreter.til but resolve here via whole-program merge
-    // (same as ns_fields' Value).
+    // (same whole-program type resolution as ns_fields).
     // ffi_cleanup frees the inner C-heap pointers (cifs etc.) and resets
     // these maps to fresh, so Context's auto-delete only ever frees empty
     // containers -- no double free of the libffi allocations.

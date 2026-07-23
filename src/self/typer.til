@@ -2067,9 +2067,7 @@ priv check_free_managed_local := proc(scope: TypeScope, e: Expr, ctx: Context) {
 // non-integer-reinterpret-able type. F32 (4 bytes) and Bool are
 // deliberately excluded -- `cast` is a bit reinterpret, not a value
 // conversion. All four integer widths (1/2/4/8) carry a full same-size
-// signed/unsigned pair in both the codegen and interpreter value model
-// (Value.Sbyte/Byte, Value.Short/Ushort, Value.Int32/Uint32,
-// Value.Int/Uint64).
+// signed/unsigned pair in both codegen and the interpreter's raw-byte model.
 priv cast_int_size := func(t: Type) returns USize {
     tn := til_type_name_c(t)
     if tn.eq("I8").or(tn.eq("U8"))   { return 1 }
@@ -2513,7 +2511,7 @@ priv infer_set_lit_expr := proc(scope: TypeScope, expr: Expr, in_func: I32, ctx:
 // never touched, the delete cannot possibly free it and any heap
 // allocation the field's `own` qualifier announced is leaked at every
 // destruction site (Map.delete, Vec.delete, scope_free, the
-// auto-generated Value.delete chain, etc.).
+// auto-generated delete chain, etc.).
 priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
     switch e.node_type {
     case NodeType.FieldAccess(fa_name):
@@ -2826,7 +2824,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     ctx.typing_namespace_member = saved_in_ns
     // Static check: a hand-written `delete` must free (or transfer) every
     // `own` field, otherwise the auto-generated destructor chain through
-    // Value.delete / Map.delete / Vec.delete / scope_free leaks the
+    // generated delete / Map.delete / Vec.delete / scope_free leaks the
     // allocation the field's `own` qualifier declared.
     if expr.node_type.is(NodeType.StructDef) {
         check_user_delete_frees_own_fields(ctx.current_type_name, expr, ctx)
@@ -5544,7 +5542,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     }
     // #164: record that this binding was written through. Done before
     // the ScopeFind.Found read below because get_binding returns a ref
-    // so the write actually persists (find returns Value semantics).
+    // so the write actually persists (find returns by-value semantics).
     {
         ref mut ab_w : TypeBinding = scope.get_binding(aname)
         if ab_w.is_null().not() { ab_w.written = true }
@@ -6302,6 +6300,14 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
             if cap.name.eq(var_name).and(cap.own_type.is(OwnType.Own)) { return true }
         }
         return false
+    case NodeType.FCall(fcd):
+        if fcd.swap_replace.and(e.children.len().gte(3)) {
+            switch e.children[2].node_type {
+            case NodeType.Ident(src):
+                if src.ident_name() == var_name { return true }
+            case:
+            }
+        }
     case:
     }
     if fcall_has_own_arg(e, var_name, scope) { return true }

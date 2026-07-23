@@ -181,6 +181,37 @@ test_vec_pop := test() {
     free(own popped)
 }
 
+test_vec_remove_at := test() {
+    v := Vec(I64).new()
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+    v.push(own 40)
+
+    v.remove_at(0)!
+    assert_eq(I64, v[0], 20)
+
+    v.remove_at(1)!
+    assert_eq(I64, v[1], 40)
+
+    v.remove_at(1)!
+    assert_eq(USize, v.len(), 1)
+    assert_eq(I64, v[0], 20)
+}
+
+test_vec_remove_at_oob := test() {
+    v := Vec(Str).new()
+    v.push(own "kept")
+    mut caught := false
+    v.remove_at(2)?
+    catch (err: OutOfBounds) {
+        caught = true
+    }
+    assert(caught)
+    assert_eq(USize, v.len(), 1)
+    assert_eq(Str, v[0], "kept")
+}
+
 test_vec_take_prefix := test() {
     v := Vec(I64).new()
     v.push(own 10)

@@ -377,20 +377,16 @@ retarget_loaded_aliases := func(lp: LoadedProgram) {
 // Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
 priv constfolder_imported := proc(mut lp: LoadedProgram) {
-    // Make codegen_lp() available so dispatch helpers like make_str_value can
-    // read shared Context fields
+    // Make codegen_lp() available so raw dispatch helpers can read Context fields
     // (cached_str/array/vec_def) populated by interpreter_init_ns below.
-    // Only clear the fold-results map here; the foldable-name table
+    // Only reset the fold-results scope here; the foldable-name table
     // (constfolder_foldables) was populated upstream by the typer
     // (constfolder_classify_stmt) and must survive into this phase.
     constfolder_clear_known(lp.ctx)
+    lp.ctx.constfolder_known = scope_new_boxed(NULL)
     // Issue #109: populate ctx.cached_str/array/vec_def BEFORE
-    // constfolder_register_fold_scope, so the is_known -> expr_to_value
-    // -> make_str_value(_view) path inside the fold-scope walk
-    // produces Value.Struct values with struct_name = "Str" instead
-    // of "". With NULL/empty struct_name, cleanup_value_payload's
-    // si.struct_name.eq("Str") check fails and the inner Str
-    // c_str buffer leaks at scope_free(own global) below.
+    // constfolder_register_fold_scope, so the raw Str path inside the
+    // fold-scope walk has the field layout needed to clone and drop strings.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
@@ -468,11 +464,14 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         }
     }
 
+    scope_drop_owned_bindings(global)
     scope_free(own global)
+    interpreter_free_ns(lp.ctx)
+    constfolder_reset_state(lp.ctx)
+    constfolder_clear_known(lp.ctx)
     // The fold pass is over; release the Scope boxes it parked in the pool
     // (the build path never reaches interp_session_free's drain).
     scope_pool_drain()
-    constfolder_reset_state(lp.ctx)
 }
 
 priv repl_classify_foldables_program := func(ctx: Context, program: Expr) {
@@ -511,6 +510,7 @@ priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
 
 priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     constfolder_clear_known(lp.ctx)
+    lp.ctx.constfolder_known = scope_new_boxed(NULL)
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
@@ -570,6 +570,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
         process_body(global, delta, lp.ctx, true)
     }
 
+    scope_drop_owned_bindings(global)
     scope_free(own global)
     // Same pool release as the full fold pass above (REPL delta pass).
     scope_pool_drain()
@@ -756,10 +757,10 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // then walks each kept method's body normally.
         if name.starts_with("*.") {
             wc_method := name.substr(2, name.len() - 2)
-            for wk in top.keys {
+            for wk, _ in top {
                 push_qn(worklist, wk, wc_method)
             }
-            for wk2 in core_top.keys {
+            for wk2, _ in core_top {
                 push_qn(worklist, wk2, wc_method)
             }
             continue
@@ -1291,7 +1292,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
 // --- Doc registry synthesis ---
 
 // Escape raw bytes for use as a NodeType.Literal(Literal.Str) text. The interpreter
-// (eval_expr in interpreter.til) and the C codegen (Str_lit in builder.til)
+// (eval_expr_raw in interpreter.til) and the C codegen (Str_lit in builder.til)
 // both expect the source-level form: \\, \", \n, \t. Escaping here keeps
 // both paths happy when synthesised doc text contains newlines or quotes.
 priv escape_doc_for_literal_str := func(raw: Str) returns Str {
@@ -4480,6 +4481,7 @@ finish_init_and_type_program := proc(mut lp: LoadedProgram) {
     // interpreter scopes are created on the compile paths, so release the
     // Scope boxes the constfold evals parked in the pool. The interpret
     // path drains again in interp_session_free.
+    constfolder_clear_known(lp.ctx)
     scope_pool_drain()
 }
 

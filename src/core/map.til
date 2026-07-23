@@ -105,6 +105,26 @@ namespace:
         }
     }
 
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    remove := func(mut self: Map(K, V), key: K) returns Bool {
+        mut lo : USize = 0
+        mut hi : USize = self.keys.count
+        while lo < hi {
+            mid : USize = lo.add(hi.sub(lo) / 2)
+            c : I64 = K.cmp(self.keys.unsafe_get(mid), key)
+            if c < 0 { lo = mid + 1 }
+            else {
+                if c > 0 { hi = mid }
+                else {
+                    self.keys.remove_at(mid)!
+                    self.values.remove_at(mid)!
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     delete := func(own self: Map(K, V), call_free: Bool = true) {
         own self.keys.delete(false)
         own self.values.delete(false)

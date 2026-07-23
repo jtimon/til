@@ -459,9 +459,10 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
     //     because the typer marks these decls Shallow and the builder
     //     emits them as stack compound literals -- no allocation, and
     //     the paired delete is a no-op view cleanup.
-    //   - `_t_*` with FCall RHS: the binding is unused, but the FCall
-    //     may have side effects, so we replace the Decl stmt with the
-    //     bare FCall rather than dropping it.
+    //   - `_t_*` with a trivial stack-scalar FCall RHS: the binding is
+    //     unused, but the FCall may have side effects, so replace the Decl
+    //     with the bare FCall. Results that own storage stay as Decl + delete:
+    //     the garbager's AST, not either backend, says how they are reclaimed.
     candidates := Set(Str).new()
     candidates_replace := Set(Str).new()
     for stmt : Expr in body.children {
@@ -494,8 +495,10 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
             } else if rhs_is_pure_byvalue(rhs) {
                 candidates.add(own dd.name.clone())
             } else if rhs.node_type.is(NodeType.FCall).and(dd.name.starts_with("hoisted__")) {
-                candidates.add(own dd.name.clone())
-                candidates_replace.add(own dd.name.clone())
+                if dd.gc_storage.is(GcStorage.Stack).and(rhs.til_type().is(Type.Primitive).or(rhs.til_type().is(Type.None))) {
+                    candidates.add(own dd.name.clone())
+                    candidates_replace.add(own dd.name.clone())
+                }
             }
         case:
         }
