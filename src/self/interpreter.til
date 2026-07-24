@@ -241,6 +241,10 @@ HeapBinding := struct {
     is_erased_dynamic := false
     is_static_callable := false
     moved_out := false
+    // #302: an own-primitive binding whose ptr is a BARE raw-allocation
+    // pointer (malloc family), not a boxed value block. Readers that
+    // collapse prim blocks to words must skip these.
+    is_raw_alloc := false
 }
 
 Scope := struct {
@@ -538,6 +542,242 @@ priv call_raw_result_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns
     return call_result_is_ref(e, ctx).and(call_copies_ref_str(scope, e, ctx).not())
 }
 
+// --- Inline-scalar value words ------------------------------------------
+// A raw value word for a PRIMITIVE-typed expression holds the scalar's
+// bytes zero-extended in the word itself (canonical: unused high bits
+// zero, Bool is 0/1); with is_ref it holds the BARE storage ADDRESS
+// instead. A None-typed result is the null word. Aggregates, Dynamic,
+// and callables keep heap-pointer words. BINDINGS always keep a real
+// heap block (hb.ptr) so refs share stable storage and FFI sees real
+// addresses; words exist only between evals. This restores the old
+// Value box's inline scalars (reads/temps/results allocate nothing)
+// while aggregates stay raw.
+
+raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
+    switch t {
+    case Type.Primitive: return true
+    case Type.Custom(name): return raw_type_is_prim(type_from_name_init(name, ctx.scope), ctx)
+    case:
+    }
+    return false
+}
+
+// Canonicalize integer bits into a value word for primitive type `t`:
+// mask to the type's width (Bool to 0/1) so compares and unsigned reads
+// can trust the high bits.
+priv scalar_word_encode := func(shallow t: Type, bits: U64, ctx: Context) returns Dynamic {
+    switch t {
+    case Type.Primitive(prim):
+        switch prim {
+        case Primitive.U8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
+        case Primitive.I8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
+        case Primitive.I16: return bits_word(bits.cast(I64).to_u16().cast(U64))
+        case Primitive.U16: return bits_word(bits.cast(I64).to_u16().cast(U64))
+        case Primitive.I32: return bits_word(bits.to_u32().cast(U64))
+        case Primitive.U32: return bits_word(bits.to_u32().cast(U64))
+        case Primitive.F32: return bits_word(bits.to_u32().cast(U64))
+        case Primitive.Bool:
+            if bits == 0 { return bits_word(0) }
+            return bits_word(1)
+        case: return bits_word(bits)
+        }
+    case Type.Custom(name): return scalar_word_encode(type_from_name_init(name, ctx.scope), bits, ctx)
+    case:
+    }
+    panic("scalar_word_encode on non-primitive: ", til_type_name_c(t))
+    return NULL
+}
+
+// Load a scalar's bytes at `addr` into a canonical inline word.
+scalar_word_load := func(shallow t: Type, addr: Dynamic, ctx: Context) returns Dynamic {
+    switch t {
+    case Type.Primitive(prim):
+        switch prim {
+        case Primitive.U8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case Primitive.I8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case Primitive.I16:  ref v : U16 = addr; return bits_word(v.cast(U64))
+        case Primitive.U16:  ref v : U16 = addr; return bits_word(v.cast(U64))
+        case Primitive.I32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case Primitive.U32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case Primitive.F32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case Primitive.Bool: ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case: ref v : U64 = addr; return bits_word(v.clone())
+        }
+    case Type.Custom(name): return scalar_word_load(type_from_name_init(name, ctx.scope), addr, ctx)
+    case:
+    }
+    panic("scalar_word_load on non-primitive: ", til_type_name_c(t))
+    return NULL
+}
+
+// ctx.struct_layouts is deliberately HOST width (initer #192: the
+// compile-time interpreter operates on host-laid-out struct bytes), while
+// a USize/UPtr field's til_type resolves to the TARGET primitive. Field
+// scalar accesses must use the LAYOUT width: an 8-byte access at a 4-byte
+// host slot merges the neighbouring field (--usize=64 count/cap pairs).
+// USize/UPtr are the only width-varying prims and both are unsigned, so
+// the substitute type is U32/U64 by the layout size.
+field_word_type := func(shallow ft: Type, field_size: USize, ctx: Context) returns Type {
+    if raw_type_size(ft, ctx) == field_size { return ft.clone() }
+    if field_size == 4 { return Type.Primitive(Primitive.U32) }
+    if field_size == 8 { return Type.Primitive(Primitive.U64) }
+    return ft.clone()
+}
+
+// Store an inline word's scalar at `addr` (the type's exact width).
+priv scalar_word_store := func(shallow t: Type, addr: Dynamic, w: Dynamic, ctx: Context) {
+    bits := word_bits(w)
+    switch t {
+    case Type.Primitive(prim):
+        switch prim {
+        case Primitive.U8:   write_u8(addr, bits.cast(I64).to_u8())
+        case Primitive.I8:   write_u8(addr, bits.cast(I64).to_u8())
+        case Primitive.I16:  write_u16(addr, bits.cast(I64).to_u16())
+        case Primitive.U16:  write_u16(addr, bits.cast(I64).to_u16())
+        case Primitive.I32:  write_u32(addr, bits.to_u32())
+        case Primitive.U32:  write_u32(addr, bits.to_u32())
+        case Primitive.F32:  write_u32(addr, bits.to_u32())
+        case Primitive.Bool: write_u8(addr, bits.cast(I64).to_u8())
+        case: write_u64(addr, bits)
+        }
+        return
+    case Type.Custom(name): scalar_word_store(type_from_name_init(name, ctx.scope), addr, w, ctx); return
+    case:
+    }
+    panic("scalar_word_store on non-primitive: ", til_type_name_c(t))
+}
+
+// Result placeholder for intercepts and value-less falls: primitive,
+// None, and Unknown-typed results are the null word (no allocation);
+// aggregates still get a zeroed block of their size.
+priv raw_unit_result := func(shallow t: Type, ctx: Context) returns Dynamic {
+    if t.is(Type.None).or(t.is(Type.Unknown)) { return NULL }
+    if raw_type_is_prim(t, ctx) { return NULL }
+    return dispatch_result_alloc(t, ctx)
+}
+
+// Fresh binding block holding the word's scalar: bindings need stable
+// heap storage even though transient values ride inline.
+scalar_block_from_word := func(shallow t: Type, w: Dynamic, ctx: Context) returns Dynamic {
+    block : Dynamic = dispatch_result_alloc(t, ctx)
+    scalar_word_store(t, block, w, ctx)
+    return block
+}
+
+// True when a decl's RHS is a #302 raw-allocation call: the allocator
+// trio declares `own Dynamic` but the typer re-stamps the call to the
+// decl's primitive, so the eval value is a BARE pointer (the same
+// malloc/calloc/realloc name set the garbager's LocalInfo model keys on).
+priv rhs_is_raw_alloc_call := func(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case NodeType.FCall:
+        if rhs.children.len() == 0 { return false }
+        switch rhs.children[0].node_type {
+        case NodeType.Ident(cid):
+            return cid.ident_name().eq("malloc").or(cid.ident_name().eq("calloc")).or(cid.ident_name().eq("realloc"))
+        case:
+        }
+    case:
+    }
+    return false
+}
+
+// Value-word -> binding-slot boundary: primitive VALUES box into a fresh
+// block; a #302 raw-alloc POINTER (an allocator call, whatever the decl's
+// own-ness, or an own-consumed rhs still stamped Dynamic) already IS a
+// bare pointer and stays the slot itself. An own-consumed prim VALUE
+// local (`x := 42` later passed `own`) is still a value: decide by the
+// RHS, not own_type alone.
+priv binding_block_from_word := func(shallow t: Type, w: Dynamic, rhs_is_pointer: Bool, ctx: Context) returns Dynamic {
+    if raw_type_is_prim(t, ctx).and(rhs_is_pointer.not()) { return scalar_block_from_word(t, w, ctx) }
+    return w
+}
+
+// Depth-stack of 8-byte result slots for ext/builtin dispatch with a
+// primitive or None result type: handlers keep their write-into-buffer
+// contract, but the buffer is a reusable stack slot instead of a heap
+// block per call. Push/pop are balanced inside the dispatching frame,
+// so arbitrarily nested dispatches each see their own live slot.
+// The slot arenas live in fixed C-side static storage (ext.c): slot
+// addresses are immortal, so no allocation, growth, or teardown can
+// invalidate one while a dispatch is in flight.
+DISPATCH_SCRATCH_SLOTS : USize = 4096
+priv mut dispatch_scratch_depth : USize = 0
+
+priv dispatch_scratch_push := func() returns Dynamic {
+    if dispatch_scratch_depth == DISPATCH_SCRATCH_SLOTS { panic("dispatch scratch overflow") }
+    off := dispatch_scratch_depth.mul(8)
+    dispatch_scratch_depth = dispatch_scratch_depth + 1
+    return ptr_add(dispatch_scratch_base(), off)
+}
+
+priv dispatch_scratch_pop := func() {
+    dispatch_scratch_depth = dispatch_scratch_depth - 1
+}
+
+// Rotating ring of 8-byte slots that give a WORD a real address for the
+// raw-memory builtins (memcmp operands, enum payload sources). Slots stay
+// valid until the ring wraps; callers must take their pointers only after
+// every nested eval of the same call is done (evaluate size args first).
+WORD_RING_SLOTS : USize = 4096
+priv mut word_ring_idx : USize = 0
+
+priv word_ring_slot := func(shallow t: Type, w: Dynamic, ctx: Context) returns Dynamic {
+    off := word_ring_idx.mul(8)
+    word_ring_idx = word_ring_idx + 1
+    if word_ring_idx == WORD_RING_SLOTS { word_ring_idx = 0 }
+    write_u64(ptr_add(word_ring_base(), off), 0)
+    scalar_word_store(t, ptr_add(word_ring_base(), off), w, ctx)
+    return ptr_add(word_ring_base(), off)
+}
+
+// True when the eval of `e` yields an INLINE WORD (a prim-stamped
+// literal, call result, or dispatch result); false when it yields an
+// address or a heap block. An IDENT eval is always the bare binding
+// address (expr_raw_is_ref is true for every non-callable Ident), so
+// Idents are never word-shaped.
+priv expr_word_shaped := func(_s: Scope, e: Expr, ctx: Context) returns Bool {
+    switch e.node_type {
+    case NodeType.Ident: return false
+    case:
+    }
+    return raw_type_is_prim(e.til_type(), ctx)
+}
+
+// Collapse an already-evaluated raw for the scalar-typed expr `e` into an
+// inline word, whatever the eval produced: a word passes through, a ref
+// (a BARE borrowed target address) or an erased Dynamic slot loads
+// through its address. Frees an owned block raw; refs stay borrowed.
+priv scalar_word_of_raw := func(s: Scope, e: Expr, raw: Dynamic, shallow decode_type: Type, ctx: Context) returns Dynamic {
+    if expr_raw_is_ref(s, e, ctx) {
+        // A ref raw is the bare target address: load through it; the
+        // target still owns its storage.
+        return scalar_word_load(decode_type, raw, ctx)
+    }
+    if expr_word_shaped(s, e, ctx).not() {
+        // A non-ref non-word prim-decoded eval is a Dynamic slot (a
+        // prim-stamped erased result): load through its pointer and
+        // reclaim the slot. (Idents never reach here -- they are refs.)
+        ref addr : Dynamic = deref(raw)
+        loaded : Dynamic = scalar_word_load(decode_type, addr, ctx)
+        mut owned_raw : Dynamic = raw
+        EvalHeap.heap_free(own owned_raw)
+        return loaded
+    }
+    return raw
+}
+
+// Evaluate a scalar-typed argument down to an inline word.
+priv eval_scalar_arg_word := proc(s: Scope, e: Expr, shallow decode_type: Type, mut ctx: Context) returns Dynamic {
+    raw : Dynamic = eval_expr_raw(s, e, ctx)
+    return scalar_word_of_raw(s, e, raw, decode_type, ctx)
+}
+
+// Evaluate a Bool-typed argument to a til-level truth value.
+priv eval_bool_arg := proc(s: Scope, e: Expr, mut ctx: Context) returns Bool {
+    return word_bits(eval_scalar_arg_word(s, e, Type.Primitive(Primitive.Bool), ctx)) != 0
+}
+
 priv expr_raw_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall) { return call_raw_result_is_ref(scope, e, ctx) }
     if e.node_type.is(NodeType.FieldAccess) { return field_access_returns_ref(scope, e, ctx) }
@@ -560,18 +800,31 @@ priv raw_block_free := func(raw: Dynamic) {
 priv raw_result_reframe := func(shallow t: Type, raw: Dynamic, from_ref: Bool, to_ref: Bool, ctx: Context) returns Dynamic {
     if from_ref == to_ref { return raw }
     if from_ref {
+        // A ref result is a BARE target address; converting to a value
+        // loads the primitive inline instead of cloning a block.
+        if raw_type_is_prim(t, ctx) { return scalar_word_load(t, raw, ctx) }
         return heap_clone_by_type(t, raw, ctx)
     }
+    if raw_type_is_prim(t, ctx) { panic("cannot reframe a primitive value as a ref: ", til_type_name_c(t)) }
     return raw
 }
 
 priv raw_result_move_into := proc(shallow t: Type, dst: Dynamic, src: Dynamic, return_is_ref: Bool, ctx: Context) {
     mut size : USize = 0
     switch t {
-    case Type.None: size = 1
+    case Type.None: return
     case Type.Primitive(prim):
-        mut align : USize = 0
-        builtin_primitive_size_align(prim, size, align)
+        // A ref result is a BARE target address: deref-copy the scalar
+        // out; the target still owns its block. A value result is the
+        // inline word itself.
+        if return_is_ref {
+            mut align : USize = 0
+            builtin_primitive_size_align(prim, size, align)
+            memcpy(dst, src, size)
+            return
+        }
+        scalar_word_store(t, dst, src, ctx)
+        return
     case Type.Struct(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = ctx_total_size(name, ctx) }
@@ -618,6 +871,9 @@ priv raw_result_drop_nested := proc(shallow t: Type, raw: Dynamic, return_is_ref
 
 raw_result_drop := proc(shallow t: Type, raw: Dynamic, return_is_ref: Bool, ctx: Context) {
     if return_is_ref { return }
+    // A non-ref primitive or None result is an inline word: nothing was
+    // allocated, nothing to free.
+    if raw_type_is_prim(t, ctx).or(t.is(Type.None)) { return }
     raw_result_drop_nested(t, raw, return_is_ref, ctx)
     mut owned_raw : Dynamic = raw
     EvalHeap.heap_free(own owned_raw)
@@ -638,18 +894,21 @@ priv raw_widen_numeric := func(raw: Dynamic, shallow source_type: Type, target_n
     source_name := til_type_name_c(source_type)
     ref resolved_target : Str = resolve_type_alias(ctx.scope, target_name)
     if resolved_target == source_name { return raw }
+    // Pure word-to-word conversion: decode the source scalar (with sign
+    // extension) from the inline word, re-encode at the target's width.
     mut signed_value : I64 = 0
     mut unsigned_value : U64 = 0
+    bits := word_bits(raw)
     mut is_unsigned := false
     switch source_type {
     case Type.Primitive(prim):
         switch prim {
-        case Primitive.U8: ref value : U8 = raw; unsigned_value = value.cast(U64); is_unsigned = true
-        case Primitive.I8: ref value : I8 = raw; signed_value = value.cast(I64)
-        case Primitive.I16: ref value : I16 = raw; signed_value = value.cast(I64)
-        case Primitive.U16: ref value : U16 = raw; unsigned_value = value.cast(U64); is_unsigned = true
-        case Primitive.I32: ref value : I32 = raw; signed_value = value.cast(I64)
-        case Primitive.U32: ref value : U32 = raw; unsigned_value = value.cast(U64); is_unsigned = true
+        case Primitive.U8: unsigned_value = bits; is_unsigned = true
+        case Primitive.I8: signed_value = bits.cast(I64).to_u8().cast(I8).cast(I64)
+        case Primitive.I16: signed_value = bits.cast(I64).to_u16().cast(I16).cast(I64)
+        case Primitive.U16: unsigned_value = bits; is_unsigned = true
+        case Primitive.I32: signed_value = bits.cast(I64).to_u32().cast(I32).cast(I64)
+        case Primitive.U32: unsigned_value = bits; is_unsigned = true
         case:
             return raw
         }
@@ -658,22 +917,22 @@ priv raw_widen_numeric := func(raw: Dynamic, shallow source_type: Type, target_n
     }
     if is_unsigned.not() { unsigned_value = signed_value.cast(U64) }
     else { signed_value = unsigned_value.cast(I64) }
-    target_type := type_from_name_init(target_name, ctx.scope)
-    mut result : Dynamic = dispatch_result_alloc(target_type, ctx)
-    if resolved_target == "I64" { write_i64(result, signed_value) }
-    else if resolved_target == "U64" { write_u64(result, unsigned_value) }
-    else if resolved_target == "I32" { write_i32(result, signed_value.to_i32()) }
-    else if resolved_target == "U32" { write_u32(result, unsigned_value.to_u32()) }
-    else { EvalHeap.heap_free(own result); return raw }
-    raw_block_free(raw)
-    return result
+    if resolved_target == "I64" { return bits_word(signed_value.cast(U64)) }
+    if resolved_target == "U64" { return bits_word(unsigned_value) }
+    if resolved_target == "I32" { return scalar_word_encode(Type.Primitive(Primitive.I32), signed_value.cast(U64), ctx) }
+    if resolved_target == "U32" { return scalar_word_encode(Type.Primitive(Primitive.U32), unsigned_value, ctx) }
+    return raw
 }
 
 priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow target_type: Type, ctx: Context, target_own_type: OwnType = OwnType.Shallow) returns Dynamic {
     if target_type.is(Type.Dynamic).and(source_type.is(Type.Dynamic).not()) {
         if heap_type_is_callable(source_type) { return raw }
+        // A primitive word has no storage yet: box the scalar into a real
+        // block first so the Dynamic slot can point at bytes (C's &x).
+        mut boxed : Dynamic = raw
+        if raw_type_is_prim(source_type, ctx) { boxed = scalar_block_from_word(source_type, raw, ctx) }
         wrapper : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-        write_ptr(wrapper, raw)
+        write_ptr(wrapper, boxed)
         return wrapper
     }
     switch source_type {
@@ -683,6 +942,15 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
         if target_type.is(Type.Dynamic).not() {
             if heap_type_is_callable(target_type).and(callable_box_is(deref(raw))) { return raw }
             ref pointed : Dynamic = deref(raw)
+            // Unboxing to a SHALLOW primitive loads the scalar inline; the
+            // pointed block stays owned by whoever boxed it. An own/ref
+            // primitive target keeps the pointer-transfer below (#302
+            // raw-alloc params take the block pointer itself as the datum).
+            if raw_type_is_prim(target_type, ctx).and(target_own_type.is(OwnType.Shallow)) {
+                loaded : Dynamic = scalar_word_load(target_type, pointed, ctx)
+                raw_block_free(raw)
+                return loaded
+            }
             mut result : Dynamic = pointed
             if target_own_type.is(OwnType.Shallow) {
                 result = heap_clone_by_type(target_type, pointed, ctx)
@@ -717,22 +985,22 @@ priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
 }
 
 priv raw_to_u64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns U64 {
+    // The scalar rides inline in the word (canonical, zero-extended);
+    // signed types re-extend from their width.
+    bits := word_bits(raw)
     switch t {
     case Type.Primitive(prim):
         switch prim {
-        case Primitive.I64: ref value : I64 = raw; return value.cast(U64)
-        case Primitive.U8: ref value : U8 = raw; return value.cast(U64)
-        case Primitive.I8: ref value : I8 = raw; return value.cast(I64).cast(U64)
-        case Primitive.I16: ref value : I16 = raw; return value.cast(I64).cast(U64)
-        case Primitive.U16: ref value : U16 = raw; return value.cast(U64)
-        case Primitive.I32: ref value : I32 = raw; return value.cast(I64).cast(U64)
-        case Primitive.U32: ref value : U32 = raw; return value.cast(U64)
-        case Primitive.U64: ref value : U64 = raw; return value.clone()
+        case Primitive.I64: return bits
+        case Primitive.U8: return bits
+        case Primitive.I8: return bits.cast(I64).to_u8().cast(I8).cast(I64).cast(U64)
+        case Primitive.I16: return bits.cast(I64).to_u16().cast(I16).cast(I64).cast(U64)
+        case Primitive.U16: return bits
+        case Primitive.I32: return bits.cast(I64).to_u32().cast(I32).cast(I64).cast(U64)
+        case Primitive.U32: return bits
+        case Primitive.U64: return bits
         case Primitive.F32: panic("cannot convert F32 raw bits to U64")
-        case Primitive.Bool:
-            ref value : Bool = raw
-            if value { return 1 }
-            return 0
+        case Primitive.Bool: return bits
         }
     case Type.Custom(name): return raw_to_u64(type_from_name_init(name, ctx.scope), raw, ctx)
     case:
@@ -747,7 +1015,7 @@ priv raw_to_i64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns I64
 
 priv raw_to_f32 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns F32 {
     switch t {
-    case Type.Primitive(Primitive.F32): ref value : F32 = raw; return value.clone()
+    case Type.Primitive(Primitive.F32): return word_f32(word_bits(raw))
     case:
         return raw_to_i64(t, raw, ctx).to_f32()
     }
@@ -777,6 +1045,9 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         value_raw = to_ptr(hb.ptr)
         value_type = hb.til_type
     case:
+        // A primitive temp's word has no storage: park the scalar in a
+        // ring slot so raw-memory builtins get a real address.
+        if raw_type_is_prim(value_type, ctx) { return word_ring_slot(value_type, raw, ctx) }
     }
     switch value_type {
     case Type.Dynamic: return deref(value_raw)
@@ -890,6 +1161,17 @@ priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: U
         }
         return
     }
+    // Shallow primitive field init from an inline word, at the layout
+    // width (host struct bytes; see field_word_type). A ref or place
+    // arg is a BARE address into the source's storage (an Ident eval,
+    // a field ref): load the scalar out at the SOURCE type's width
+    // first.
+    if raw_type_is_prim(dd.til_type, ctx) {
+        mut field_w : Dynamic = raw
+        if raw_is_ref.or(raw_is_place) { field_w = scalar_word_load(raw_type, raw, ctx) }
+        scalar_word_store(field_word_type(dd.til_type, field_size, ctx), dst, field_w, ctx)
+        return
+    }
     memcpy(dst, raw, field_size)
     if raw_is_place.not() { raw_block_free(raw) }
 }
@@ -935,7 +1217,7 @@ priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns
         if hb.til_type.is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type() }
         return hb.til_type.clone()
     case NodeType.FieldAccess(fa):
-        if interp_fa_is_ns(scope, e) {
+        if interp_fa_is_ns(scope, e, ctx) {
             return ns_field_type(field_access_sname(e), fa.field_access_name(), ctx)
         }
         ref fdecl : Declaration = field_access_decl(e, ctx)
@@ -984,7 +1266,7 @@ priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns re
 }
 
 priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
-    if interp_fa_is_ns(scope, e) { return false }
+    if interp_fa_is_ns(scope, e, ctx) { return false }
     ref fdecl : Declaration = field_access_decl(e, ctx)
     if fdecl.is_null() { return false }
     if decl_is_funcsig(fdecl, ctx) { return false }
@@ -994,7 +1276,7 @@ priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) retur
 priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destination: Dynamic = NULL) returns Dynamic {
     switch e.node_type {
     case NodeType.FieldAccess(fa):
-        if interp_fa_is_ns(scope, e) {
+        if interp_fa_is_ns(scope, e, ctx) {
             sname := field_access_sname(e)
             ref namespace_def : Expr = lookup_interp_type_def(sname, ctx)
             if namespace_def.is_null().not().and(namespace_def.node_type.is(NodeType.EnumDef)) {
@@ -1013,6 +1295,10 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destinatio
                 exit(1)
             }
             stored_type := ns_field_type(sname, fa.field_access_name(), ctx)
+            if raw_type_is_prim(stored_type, ctx) {
+                ns_word : Dynamic = scalar_word_load(stored_type, stored, ctx)
+                return raw_result_finish(stored_type, ns_word, destination, false, ctx)
+            }
             cloned : Dynamic = heap_clone_by_type(stored_type, stored, ctx)
             return raw_result_finish(stored_type, cloned, destination, false, ctx)
         }
@@ -1133,28 +1419,38 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         str_write_count_cap(result, j, CAP_LIT, ctx)
         return result
     case NodeType.Literal(Literal.Num(num_str)):
-        mut result : Dynamic = destination
-        if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
+        // Numeric literals are inline words: parse, canonicalize, done --
+        // no allocation. A caller-provided destination gets the scalar
+        // stored at its width instead.
+        mut num_word : Dynamic = 0
         switch e.til_type() {
-        case Type.Primitive(Primitive.U8):  write_u8(result, num_str.to_u8())
-        case Type.Primitive(Primitive.I8):  write_i8(result, num_str.to_i8())
-        case Type.Primitive(Primitive.I16): write_i16(result, num_str.to_i16())
-        case Type.Primitive(Primitive.U16): write_u16(result, num_str.to_u16())
-        case Type.Primitive(Primitive.I32): write_i32(result, num_str.to_i32())
-        case Type.Primitive(Primitive.U32): write_u32(result, num_str.to_u32())
-        case Type.Primitive(Primitive.U64): write_u64(result, num_str.to_u64())
-        case Type.Primitive(Primitive.F32): write_f32(result, num_str.to_f32())
-        case: write_i64(result, num_str.to_i64())
+        case Type.Primitive(Primitive.U8):  num_word = bits_word(num_str.to_u8().cast(U64))
+        case Type.Primitive(Primitive.I8):  num_word = scalar_word_encode(e.til_type(), num_str.to_i8().cast(U8).cast(U64), ctx)
+        case Type.Primitive(Primitive.I16): num_word = scalar_word_encode(e.til_type(), num_str.to_i16().cast(U16).cast(U64), ctx)
+        case Type.Primitive(Primitive.U16): num_word = bits_word(num_str.to_u16().cast(U64))
+        case Type.Primitive(Primitive.I32): num_word = scalar_word_encode(e.til_type(), num_str.to_i32().cast(U32).cast(U64), ctx)
+        case Type.Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
+        case Type.Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
+        case Type.Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
+        case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
-        return result
+        if destination.is_null() { return num_word }
+        scalar_word_store(e.til_type(), destination, num_word, ctx)
+        return destination
     case NodeType.Literal(Literal.Bool(b)):
-        mut result : Dynamic = destination
-        if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
-        write_bool(result, b)
-        return result
+        if destination.is_null().not() {
+            write_bool(destination, b)
+            return destination
+        }
+        if b { return bits_word(1) }
+        return bits_word(0)
     case NodeType.Literal(Literal.Null):
+        // A primitive-typed null is the zero word; other classes keep a
+        // zeroed block of the type's size (a Dynamic null slot, a zeroed
+        // aggregate).
         if destination.is_null().not() { return destination }
-        return dispatch_result_alloc(e.til_type(), ctx)
+        if raw_type_is_prim(e.til_type(), ctx) { return bits_word(0) }
+        return raw_unit_result(e.til_type(), ctx)
     case NodeType.Ident(ident):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, ident.ident_name())
         if hb.is_null() { panic("expression binding not found: ", ident.ident_name()) }
@@ -1214,7 +1510,7 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
     case:
         interp_lang_error(e, "cannot evaluate node as expression", ctx)
         exit(1)
-        return dispatch_result_alloc(e.til_type(), ctx)
+        return raw_unit_result(e.til_type(), ctx)
     }
 }
 
@@ -1275,9 +1571,9 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
         return raw_switch_key(scope, resolved, ctx)
     case:
     }
-    raw : Dynamic = eval_expr_raw(scope, e, ctx)
     switch raw_type {
     case Type.Enum(enum_name):
+        raw : Dynamic = eval_expr_raw(scope, e, ctx)
         tag_ptr : Dynamic = raw_arg_pointer(scope, e, raw, ctx)
         ref enum_def : Expr = lookup_interp_type_def(enum_name, ctx)
         if enum_def.is_null() { panic("switch enum definition not found: ", enum_name) }
@@ -1285,11 +1581,13 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
         raw_result_drop(raw_type, raw, expr_raw_is_ref(scope, e, ctx), ctx)
         return result
     case Type.Primitive:
-        result := raw_to_i64(raw_type, raw_arg_pointer(scope, e, raw, ctx), ctx)
-        raw_result_drop(raw_type, raw, expr_raw_is_ref(scope, e, ctx), ctx)
-        return result
+        return raw_to_i64(raw_type, eval_scalar_arg_word(scope, e, raw_type, ctx), ctx)
     case Type.Dynamic:
-        result := raw_to_i64(raw_type, raw_arg_pointer(scope, e, raw, ctx), ctx)
+        // An erased scalar subject: the value is a Dynamic slot; read the
+        // pointed scalar as I64 (the pre-word behavior read through the
+        // arg pointer the same way).
+        raw : Dynamic = eval_expr_raw(scope, e, ctx)
+        result := raw_to_i64(Type.Primitive(Primitive.I64), scalar_word_load(Type.Primitive(Primitive.I64), raw_arg_pointer(scope, e, raw, ctx), ctx), ctx)
         raw_result_drop(raw_type, raw, expr_raw_is_ref(scope, e, ctx), ctx)
         return result
     case:
@@ -1401,6 +1699,22 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             }
             return
         }
+        // A SHALLOW primitive source COPIES by value (C scalar semantics):
+        // load the scalar (through the Dynamic box for an erased source),
+        // widen, and give the new binding its own block. The source
+        // binding keeps its storage untouched. Own-primitive sources
+        // (#302 raw allocations) keep the block-transfer paths below.
+        mut prim_value_type := source_hb.til_type.clone()
+        if source_hb.til_type.is(Type.Dynamic) { prim_value_type = decl_type.clone() }
+        if source_hb.own_type.is(OwnType.Shallow).not().and(source_hb.til_type.is(Type.Dynamic).not()) { prim_value_type = Type.Unknown }
+        if raw_type_is_prim(prim_value_type, ctx).and(decl_type.is(Type.Dynamic).not()).and(dd.own_type.is(OwnType.Own).not()) {
+            mut prim_src : Dynamic = source_raw
+            if source_hb.til_type.is(Type.Dynamic) { prim_src = deref(source_raw) }
+            mut w : Dynamic = scalar_word_load(prim_value_type, prim_src, ctx)
+            w = raw_widen_numeric(w, prim_value_type, dd.explicit_type, ctx)
+            scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, w, ctx), decl_type, dd.own_type, ctx)
+            return
+        }
         if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(source_hb.til_type, source_raw)) {
             mut copied : Dynamic = source_raw
             if source_hb.til_type.is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
@@ -1410,7 +1724,13 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                 copied = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
             }
             if source_hb.til_type.is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
-                copied = raw_coerce_value(copied, source_hb.til_type, decl_type, ctx, dd.own_type)
+                if heap_type_is_callable(source_hb.til_type).not() {
+                    // Box the cloned BLOCK into a Dynamic slot directly
+                    // (raw_coerce_value's boxing arm now takes value words).
+                    wrapper : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                    write_ptr(wrapper, copied)
+                    copied = wrapper
+                }
                 scope_set_heap_owned(scope, dd.name, copied, decl_type, dd.own_type, source_hb.ctx, true)
                 return
             }
@@ -1427,7 +1747,13 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             source_hb.ptr = NULL
             source_hb.moved_out = true
             if source_hb.til_type.is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
-                moved = raw_coerce_value(moved, source_hb.til_type, decl_type, ctx, dd.own_type)
+                if heap_type_is_callable(source_hb.til_type).not() {
+                    // Box the moved BLOCK into a Dynamic slot directly
+                    // (raw_coerce_value's boxing arm now takes value words).
+                    wrapper : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                    write_ptr(wrapper, moved)
+                    moved = wrapper
+                }
                 scope_set_heap_owned(scope, dd.name, moved, decl_type, dd.own_type, source_hb.ctx, true)
                 return
             }
@@ -1440,7 +1766,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         mut destination : Dynamic = 0
         mut destination_is_raw_block := false
         switch decl_type {
-        case Type.Primitive: destination_is_raw_block = dd.own_type.is(OwnType.Own)
+        case Type.Primitive: destination_is_raw_block = dd.own_type.is(OwnType.Own).or(rhs_is_raw_alloc_call(rhs))
         case:
         }
         if is_ref.not().and(destination_is_raw_block.not()).and(til_type_name_c(rhs_type) == til_type_name_c(decl_type)) {
@@ -1466,6 +1792,11 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                 dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(dynamic_slot, pointed)
                 scope_set_raw_owned(scope, dd.name, dynamic_slot, decl_type, dd.own_type, ctx)
+            } else if raw_type_is_prim(rhs_type, ctx) {
+                // A ref prim rhs is a bare source address: load the scalar
+                // word, widen, and give the binding its own block.
+                prim_w : Dynamic = raw_widen_numeric(scalar_word_load(rhs_type, pointed, ctx), rhs_type, dd.explicit_type, ctx)
+                scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, prim_w, ctx), decl_type, dd.own_type, ctx)
             } else {
                 mut copied : Dynamic = heap_clone_by_type(rhs_type, pointed, ctx)
                 copied = raw_coerce_value(copied, rhs_type, decl_type, ctx, dd.own_type)
@@ -1478,9 +1809,29 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                 EvalHeap.heap_free(own raw)
                 return
             }
-            raw = raw_coerce_value(raw, rhs_type, decl_type, ctx, dd.own_type)
-            raw = raw_result_finish(decl_type, raw, destination, false, ctx)
+            rhs_is_pointer := rhs.til_type().is(Type.Dynamic).and(dd.own_type.is(OwnType.Own)).or(rhs_is_raw_alloc_call(rhs))
+            if rhs_is_pointer.and(rhs_type.is(Type.Dynamic)).and(raw_type_is_prim(decl_type, ctx)) {
+                // #302 raw-alloc bind from a Dynamic-slot eval: the POINTER
+                // is the binding datum -- raw_coerce_value's shallow value
+                // unbox would read the box's bytes as the value and drop
+                // the allocation on the floor.
+                ref alloc_pointed : Dynamic = deref(raw)
+                alloc_ptr : Dynamic = alloc_pointed
+                EvalHeap.heap_free(own raw)
+                raw = alloc_ptr
+            } else {
+                raw = raw_coerce_value(raw, rhs_type, decl_type, ctx, dd.own_type)
+            }
+            if destination.is_null().not() {
+                raw = raw_result_finish(decl_type, raw, destination, false, ctx)
+            } else {
+                raw = binding_block_from_word(decl_type, raw, rhs_is_pointer, ctx)
+            }
             scope_set_raw_owned(scope, dd.name, raw, decl_type, dd.own_type, ctx)
+            if raw_type_is_prim(decl_type, ctx).and(rhs_is_pointer) {
+                ref pointer_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name)
+                pointer_hb.is_raw_alloc = true
+            }
         }
     }
 }
@@ -1529,10 +1880,7 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
 }
 
 priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
-    cond : Dynamic = eval_expr_raw(scope, stmt.children[0], ctx)
-    ref cv_ref : Bool = to_ptr(raw_arg_pointer(scope, stmt.children[0], cond, ctx))
-    cv := cv_ref.clone()
-    raw_result_drop(stmt.children[0].til_type(), cond, expr_raw_is_ref(scope, stmt.children[0], ctx), ctx)
+    cv := eval_bool_arg(scope, stmt.children[0], ctx)
     if cv {
         then_scope := scope_new(scope)
         eval_body(then_scope, stmt.children[1], ctx)
@@ -1551,10 +1899,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         // A const-folder abort inside the loop body stops iteration (the
         // body's eval_body already bailed); don't re-evaluate the condition.
         if c.constfold_aborted { break }
-        cond : Dynamic = eval_expr_raw(scope, stmt.children[0], ctx)
-        ref cv_ref : Bool = to_ptr(raw_arg_pointer(scope, stmt.children[0], cond, ctx))
-        cv := cv_ref.clone()
-        raw_result_drop(stmt.children[0].til_type(), cond, expr_raw_is_ref(scope, stmt.children[0], ctx), ctx)
+        cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
         while_scope := scope_new(scope)
         eval_body(while_scope, stmt.children[1], ctx)
@@ -1590,13 +1935,33 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             } else {
                 new_raw = eval_expr_raw(scope, rhs, ctx)
                 if expr_raw_is_ref(scope, rhs, ctx) {
-                    copied : Dynamic = heap_clone_by_type(assign_hb.til_type, new_raw, assign_hb.ctx)
-                    new_raw = copied
+                    // A ref raw is the bare target address: load the scalar
+                    // inline / clone the aggregate; the target keeps its
+                    // storage.
+                    if raw_type_is_prim(assign_hb.til_type, ctx) {
+                        new_raw = scalar_word_load(assign_hb.til_type, new_raw, ctx)
+                    } else {
+                        copied : Dynamic = heap_clone_by_type(assign_hb.til_type, new_raw, assign_hb.ctx)
+                        new_raw = copied
+                    }
                 } else {
                     new_raw = raw_coerce_value(new_raw, rhs.til_type(), assign_hb.til_type, ctx, assign_hb.own_type)
                 }
             }
-            if assign_hb.is_borrowed {
+            if raw_type_is_prim(assign_hb.til_type, ctx).and(assign_hb.own_type.is(OwnType.Own).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
+                // Primitive assignment writes the scalar into the existing
+                // block in place (C's x = v) -- for a ref/borrowed binding
+                // the block IS the target storage, so this is write-through.
+                // No drop, no allocation. Own-primitives (#302 raw-alloc
+                // pointers) keep the pointer-transfer path below. A
+                // consumed raw-alloc binding (own-arg freed + reassigned)
+                // has no block left -- give it a fresh one.
+                if assign_hb.ptr.is_null() {
+                    fresh_block : Dynamic = scalar_block_from_word(assign_hb.til_type, new_raw, ctx)
+                    assign_hb.ptr = to_ptr(fresh_block)
+                }
+                else { scalar_word_store(assign_hb.til_type, to_ptr(assign_hb.ptr), new_raw, ctx) }
+            } else if assign_hb.is_borrowed {
                 ref assign_data : Dynamic = to_ptr(assign_hb.ptr)
                 _ := heap_move_ptr_into_slot(assign_hb.til_type, assign_data, new_raw, assign_hb.ctx)
             } else {
@@ -1631,7 +1996,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     val_is_ref = expr_raw_is_ref(scope, val_expr, ctx)
                 }
             }
-            if interp_fa_is_ns(scope, stmt) {
+            if interp_fa_is_ns(scope, stmt, ctx) {
                 mut sname := til_type_name(stmt.children[0].til_type())
                 if sname.len() == 0 {
                     switch stmt.children[0].node_type {
@@ -1645,6 +2010,8 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     val_raw = owned
                 } else {
                     val_raw = raw_coerce_value(val_raw, val_expr.til_type(), target_type, ctx)
+                    // ns storage is a binding: a scalar word needs a block.
+                    val_raw = binding_block_from_word(target_type, val_raw, false, ctx)
                 }
                 ns_set(sname, fname, val_raw, target_type, ctx)
             } else {
@@ -1739,8 +2106,43 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     if return_hb.is_null() { panic("return binding not found: ", ret_ident.ident_name()) }
                     return_source_type = return_hb.til_type.clone()
                     return_source_is_ref = return_hb.own_type.is(OwnType.Ref)
-                    if scope_return_move_is_local(scope, ret_ident.ident_name()) {
+                    // A SHALLOW primitive return reads the scalar word; the
+                    // binding keeps its block (nothing inner to move).
+                    if scope_return_move_is_local(scope, ret_ident.ident_name()).and(raw_type_is_prim(return_hb.til_type, ctx).and(return_hb.own_type.is(OwnType.Shallow)).not()) {
                         return_raw = scope_move_bound_raw(scope, ret_ident.ident_name(), ctx)
+                        // An own-prim VALUE binding's moved block collapses to
+                        // the inline word callers expect from a prim-stamped
+                        // call; a #302 raw-alloc POINTER binding keeps its
+                        // bare pointer (which already travels as word bits) --
+                        // unless the fn's declared return type is Dynamic, in
+                        // which case callers expect the Dynamic wrapper shape
+                        // (slot -> value storage): box the bare pointer.
+                        if raw_type_is_prim(return_hb.til_type, ctx).and(return_source_is_ref.not()) {
+                            if return_hb.is_raw_alloc.and(type_from_name_init(c.interp_ret_type, ctx.scope).is(Type.Dynamic)) {
+                                // A #302 raw-alloc pointer returned at a
+                                // Dynamic-declared type: callers expect the
+                                // Dynamic wrapper shape (slot -> value
+                                // storage), so box the bare pointer.
+                                alloc_wrap : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                                write_ptr(alloc_wrap, return_raw)
+                                return_raw = alloc_wrap
+                                // The value is now Dynamic-shaped; the prim
+                                // source stamp would make raw_result_reframe
+                                // re-read the wrapper's low bytes.
+                                return_source_type = Type.Dynamic
+                            } else {
+                                // The moved block (an own-prim VALUE binding's
+                                // block, or a #302 raw-alloc VALUE box such as
+                                // Vec.pop's malloc'd `out`) collapses to the
+                                // inline word callers expect from a
+                                // prim-stamped call, and the block is
+                                // reclaimed here -- the block model's
+                                // move_into copied-and-freed the same way.
+                                moved_word : Dynamic = scalar_word_load(return_hb.til_type, return_raw, ctx)
+                                EvalHeap.heap_free(own return_raw)
+                                return_raw = moved_word
+                            }
+                        }
                     } else {
                         return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(), ctx)
                     }
@@ -1777,7 +2179,8 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
                 context_return_set(c, return_raw)
             } else {
-                context_return_set(c, dispatch_result_alloc(Type.None, ctx))
+                // A bare return carries the null None word: no allocation.
+                context_return_set(c, NULL)
             }
         case NodeType.Switch:
             eval_switch(scope, stmt, ctx)
@@ -1823,7 +2226,17 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                             source_hb.ptr = NULL
                             source_hb.moved_out = true
                         }
-                        dynamic_data = raw_coerce_value(dynamic_data, source_hb.til_type, Type.Dynamic, ctx, param.own_type)
+                        if raw_type_is_prim(source_hb.til_type, ctx) {
+                            // The moved/cloned prim BLOCK is already the value
+                            // storage: the Dynamic slot points AT it. The
+                            // word-based prim->Dynamic coerce would box the
+                            // block ADDRESS as the scalar.
+                            prim_dyn_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                            write_ptr(prim_dyn_slot, dynamic_data)
+                            dynamic_data = prim_dyn_slot
+                        } else {
+                            dynamic_data = raw_coerce_value(dynamic_data, source_hb.til_type, Type.Dynamic, ctx, param.own_type)
+                        }
                         scope_set_heap_owned(call_scope, param.name, dynamic_data, Type.Dynamic, param.own_type, ctx, true)
                     } else if param.own_type.is(OwnType.Ref) {
                         scope_set_heap_owned(call_scope, param.name, dynamic_data, Type.Dynamic, param.own_type, ctx, false, true, true)
@@ -1845,7 +2258,16 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         source_hb.ptr = NULL
                         source_hb.moved_out = true
                     }
-                    owned_raw = raw_coerce_value(owned_raw, source_hb.til_type, bind_type, ctx, param.own_type)
+                    if raw_type_is_prim(source_hb.til_type, ctx).and(source_hb.is_raw_alloc.not()).and(til_type_name_c(source_hb.til_type) != til_type_name_c(bind_type)) {
+                        // Width-converting prim move: re-box at the param
+                        // width (a narrow block bound under a wider type
+                        // over-reads on the word load).
+                        own_src_w : Dynamic = scalar_word_load(source_hb.til_type, owned_raw, ctx)
+                        EvalHeap.heap_free(own owned_raw)
+                        owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, source_hb.til_type, param.explicit_type, ctx), ctx)
+                    } else {
+                        owned_raw = raw_coerce_value(owned_raw, source_hb.til_type, bind_type, ctx, param.own_type)
+                    }
                     scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type, param.own_type, ctx)
                 } else {
                     mut bind_type := source_hb.til_type.clone()
@@ -1858,9 +2280,19 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
                         scope_set_borrowed(call_scope, param.name, bind_type, param.own_type, arg_ident.ident_name(), arg_source_scope)
                     } else if til_type_name_c(source_hb.til_type) != til_type_name_c(bind_type) {
-                        mut converted : Dynamic = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
-                        converted = raw_coerce_value(converted, source_hb.til_type, bind_type, ctx, param.own_type)
-                        scope_set_raw_owned(call_scope, param.name, converted, bind_type, param.own_type, ctx)
+                        if raw_type_is_prim(source_hb.til_type, ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
+                            // Width-converting prim copy: load the scalar at
+                            // the SOURCE width, widen, and box at the param
+                            // width (a narrow clone bound under a wider type
+                            // over-reads on the word load).
+                            src_w : Dynamic = scalar_word_load(source_hb.til_type, source_raw, ctx)
+                            widened_w : Dynamic = raw_widen_numeric(src_w, source_hb.til_type, param.explicit_type, ctx)
+                            scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type, param.own_type, ctx)
+                        } else {
+                            mut converted : Dynamic = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
+                            converted = raw_coerce_value(converted, source_hb.til_type, bind_type, ctx, param.own_type)
+                            scope_set_raw_owned(call_scope, param.name, converted, bind_type, param.own_type, ctx)
+                        }
                     } else {
                         ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
                         scope_set_borrowed(call_scope, param.name, bind_type, param.own_type, arg_ident.ident_name(), arg_source_scope)
@@ -1878,10 +2310,20 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         }
                     } else if param.own_type.is(OwnType.Ref) {
                         mut pointed : Dynamic = arg_raw
+                        if arg_is_ref.not().and(expr_word_shaped(caller_scope, arg_expr, ctx)) {
+                            // A scalar word has no storage: box it so the
+                            // borrowed Dynamic view has bytes to point at.
+                            pointed = scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx)
+                        }
                         scope_set_heap_owned(call_scope, param.name, pointed, Type.Dynamic, param.own_type, ctx, false, true, true)
                     } else {
                         dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                         if arg_is_ref { write_ptr(dynamic_slot, arg_raw) }
+                        else if expr_word_shaped(caller_scope, arg_expr, ctx) {
+                            // Box the scalar word: the Dynamic slot points at
+                            // real bytes (C's &x), as the block model did.
+                            write_ptr(dynamic_slot, scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx))
+                        }
                         else { write_ptr(dynamic_slot, arg_raw) }
                         scope_set_heap_owned(call_scope, param.name, dynamic_slot, Type.Dynamic, param.own_type, ctx, true)
                     }
@@ -1899,6 +2341,17 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                             case:
                             }
                         }
+                        // A scalar word needs real storage to become a
+                        // binding slot. The Dynamic-source own/ref-target
+                        // coercion transfers a pointer (#302) and stays.
+                        mut arg_word := raw_type_is_prim(bind_type, ctx).and(borrowed.not())
+                        if arg_expr.til_type().is(Type.Dynamic).and(param.own_type.is(OwnType.Shallow).not()) { arg_word = false }
+                        // A prim-stamped eval can still be a BLOCK (an Own-prim
+                        // binding read: a #302 raw-alloc pointer datum). That is
+                        // already storage-shaped; boxing it would store the
+                        // block ADDRESS as the scalar.
+                        if raw_type_is_prim(arg_expr.til_type(), ctx).and(expr_word_shaped(caller_scope, arg_expr, ctx).not()) { arg_word = false }
+                        if arg_word { arg_raw = scalar_block_from_word(bind_type, arg_raw, ctx) }
                     }
                     scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type, param.own_type, ctx, borrowed)
                 }
@@ -1942,14 +2395,28 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         result = context_return_take(c)
     } else {
         result = destination
-        if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
+        if result.is_null() { result = raw_unit_result(e.til_type(), ctx) }
     }
     switch func_def.node_type {
     case NodeType.FuncDef(result_fd):
         if result_fd.return_type.len() > 0 {
             source_result_type := type_from_name_init(result_fd.return_type, ctx.scope)
             if callee_ret_is_ref.not() {
-                result = raw_coerce_value(result, source_result_type, e.til_type(), ctx, result_fd.return_own_type)
+                if source_result_type.is(Type.Dynamic).and(raw_type_is_prim(e.til_type(), ctx)) {
+                    // A Dynamic-declared result re-stamped primitive by the
+                    // typer: the caller consumes the VALUE word. Unbox
+                    // through the wrapper and reclaim the owned storage.
+                    ref unbox_pointed : Dynamic = deref(result)
+                    unboxed_w : Dynamic = scalar_word_load(e.til_type(), unbox_pointed, ctx)
+                    if result_fd.return_own_type.is(OwnType.Own) {
+                        mut owned_pointed : Dynamic = unbox_pointed
+                        EvalHeap.heap_free(own owned_pointed)
+                    }
+                    EvalHeap.heap_free(own result)
+                    result = unboxed_w
+                } else {
+                    result = raw_coerce_value(result, source_result_type, e.til_type(), ctx, result_fd.return_own_type)
+                }
             }
         }
     case:
@@ -1994,13 +2461,13 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic,
         eval_body(body_scope, func_def.children[0], ctx)
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
-        return dispatch_result_alloc(e.til_type(), ctx)
+        return raw_unit_result(e.til_type(), ctx)
     case NodeType.FuncDef:
         return eval_user_func_call(caller_scope, e, func_def, parent_scope, ctx, destination)
     case:
         interp_error(e, "callee did not evaluate to a function", ctx)
         exit(1)
-        return dispatch_result_alloc(e.til_type(), ctx)
+        return raw_unit_result(e.til_type(), ctx)
     }
 }
 
@@ -2018,6 +2485,15 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 mut enum_raw : Dynamic = destination
                 if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
                 if enum_method_dispatch(callee_field.field_access_name(), scope, enum_def, enum_name, e, enum_raw, ctx) {
+                    // A prim-stamped result (is() -> Bool) collapses to an
+                    // inline word; enum values stay blocks. A caller-provided
+                    // destination stays the caller's storage -- free only a
+                    // block this call allocated itself.
+                    if raw_type_is_prim(e.til_type(), ctx) {
+                        prim_w : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
+                        if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
+                        return prim_w
+                    }
                     return enum_raw
                 }
                 if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
@@ -2108,6 +2584,13 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
                                 if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
                                     callable_raw_free(fn_raw, ctx)
+                                    // A prim-stamped result (is() -> Bool)
+                                    // collapses to an inline word.
+                                    if raw_type_is_prim(e.til_type(), ctx) {
+                                        prim_w2 : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
+                                        EvalHeap.heap_free(own enum_raw)
+                                        return prim_w2
+                                    }
                                     return enum_raw
                                 }
                                 if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
@@ -2202,8 +2685,12 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         }
         mut ext_storage_type := ext_result_type.clone()
         if ext_result_is_ref { ext_storage_type = Type.Dynamic }
+        // Primitive/None dispatch results use a reusable scratch slot and
+        // come back as inline words: no allocation per scalar op.
+        ext_prim_result := raw_type_is_prim(ext_storage_type, ctx).or(ext_storage_type.is(Type.None))
         mut ext_raw : Dynamic = 0
-        if ext_result_is_ref.not().and(destination.is_null().not()).and(til_type_name_c(ext_result_type) == til_type_name_c(e.til_type())) {
+        if ext_prim_result { ext_raw = dispatch_scratch_push() }
+        else if ext_result_is_ref.not().and(destination.is_null().not()).and(til_type_name_c(ext_result_type) == til_type_name_c(e.til_type())) {
             ext_raw = destination
         } else {
             ext_raw = dispatch_result_alloc(ext_storage_type, ctx)
@@ -2228,6 +2715,16 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     }
                 }
             }
+            if ext_prim_result {
+                mut ext_word : Dynamic = 0
+                if ext_storage_type.is(Type.None).not() { ext_word = scalar_word_load(ext_storage_type, ext_raw, ctx) }
+                dispatch_scratch_pop()
+                // The scratch slot is borrowed storage: consume the local
+                // without freeing.
+                word_drop(own ext_raw)
+                ext_word = raw_coerce_value(ext_word, ext_result_type, e.til_type(), ctx, ext_return_own_type)
+                return ext_word
+            }
             if ext_result_is_ref {
                 ref ext_ref_result : Dynamic = deref(ext_raw)
                 direct_ref_result : Dynamic = ext_ref_result
@@ -2238,20 +2735,19 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             ext_raw = raw_result_finish(e.til_type(), ext_raw, destination, false, ctx)
             return ext_raw
         }
-        if ext_raw.ptr_eq(destination).not() { EvalHeap.heap_free(own ext_raw) }
+        if ext_prim_result { dispatch_scratch_pop(); word_drop(own ext_raw) }
+        else if ext_raw.ptr_eq(destination).not() { EvalHeap.heap_free(own ext_raw) }
 
         // User-defined function or struct instantiation
         // A miss means the callee name is bound nowhere -- undefined. The typer
         // rejects undefined names, so this only fires under the constfolder's
         // speculative eval, where the exit is caught via ctx.constfold_active in
-        // h_exit. On success scope_get returns a non-null cell, so no guard is
-        // needed past the catch.
-        ref fn_slot_probe : Dynamic = scope_get(scope, name.ident_name())?
-        catch (knf: KeyNotFound) {
+        // h_exit. The ext dispatch probe above already walked the scope chain
+        // for this exact name; reuse its result instead of a second walk.
+        if ext_slot.is_null() {
             interp_error(e, format(Str.clone(name.ident_name()), " is undefined"), ctx)
             exit(1)
         }
-        expect(fn_slot_probe.is_null().not(), "callee binding slot is null")
         fn_raw : Dynamic = eval_expr_raw(scope, callee_expr, ctx)
         ref fn_def : Expr = callable_raw_func_def(fn_raw)
 
@@ -2267,7 +2763,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     if ctx.constfold_active.not() { panic("ext_func is not registered: ", name.ident_name()) }
                     ctx.constfold_aborted = true
                     if destination.is_null().not() { return destination }
-                    return dispatch_result_alloc(e.til_type(), ctx)
+                    return raw_unit_result(e.til_type(), ctx)
                 }
             case:
         }
@@ -2359,6 +2855,16 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                             source_hb.moved_out = true
                                         }
                                     }
+                                    // An own-prim VALUE binding's moved/cloned
+                                    // block collapses to its inline word; the
+                                    // field writer would store the block
+                                    // ADDRESS as the scalar. #302 raw-alloc
+                                    // pointer bindings keep the bare pointer.
+                                    if raw_type_is_prim(source_hb.til_type, ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
+                                        ctor_prim_word : Dynamic = scalar_word_load(source_hb.til_type, arg_raw, ctx)
+                                        EvalHeap.heap_free(own arg_raw)
+                                        arg_raw = ctor_prim_word
+                                    }
                                 } else if fdd.own_type.is(OwnType.Ref) {
                                     ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
                                     arg_raw = source_ptr
@@ -2373,6 +2879,15 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 arg_raw = eval_expr_raw(scope, arg, ctx)
                                 arg_is_ref = expr_raw_is_ref(scope, arg, ctx)
                                 arg_is_place = arg_is_ref
+                            }
+                            // A SHALLOW prim field takes a value WORD: a
+                            // ref/place arg is a bare source address, so load
+                            // the scalar out first (the source keeps its
+                            // storage), then widen like any value word.
+                            if raw_type_is_prim(fdd.til_type, ctx).and(fdd.own_type.is(OwnType.Shallow)).and(arg_is_ref.or(arg_is_place)) {
+                                arg_raw = scalar_word_load(arg.til_type(), arg_raw, ctx)
+                                arg_is_ref = false
+                                arg_is_place = false
                             }
                             arg_raw = raw_widen_numeric(arg_raw, arg.til_type(), fdd.explicit_type, ctx)
                             ref ctor_fl : FieldLayout = ctx_field_layout(name.ident_name(), fdd.name, ctx)
@@ -2409,7 +2924,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
     case:
         UNREACHABLE()
         if destination.is_null().not() { return destination }
-        return dispatch_result_alloc(e.til_type(), ctx)
+        return raw_unit_result(e.til_type(), ctx)
     }
 }
 
@@ -3153,6 +3668,11 @@ priv scope_read_heap_binding_raw := func(hb: HeapBinding, name: Str, ctx: Contex
         result : Dynamic = heap_data
         return result
     }
+    // A SHALLOW primitive read loads the scalar straight into an inline
+    // word -- no clone, no allocation (the old Value box's inline-scalar
+    // read). Own-primitive bindings (#302 raw allocations) carry the
+    // pointer as their datum and keep the block path.
+    if raw_type_is_prim(hb.til_type, ctx).and(hb.own_type.is(OwnType.Shallow)) { return scalar_word_load(hb.til_type, heap_data, ctx) }
     return heap_clone_by_type(hb.til_type, heap_data, ctx)
 }
 
@@ -3447,26 +3967,38 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     return false
 }
 
-priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str) returns Bool {
+priv interp_fa_is_ns_inner := func(scope: Scope, e: Expr, sname: Str, ctx: Context) returns Bool {
     ref obj_expr : Expr = e.children[0]
+    // The ctx type registry answers "is sname a struct/enum" in ONE map
+    // get; the old scope_get(sname) walked the whole scope chain to
+    // global (a Str-keyed map probe per level) on every field access.
+    // Builtin primitive namespaces (I64.neq, ...) are not registered
+    // there, so a miss still falls back to the scope walk.
+    ref registry_def : Expr = lookup_interp_type_def(sname, ctx)
+    if registry_def.is_null().not() {
+        return interp_fa_is_ns_def(obj_expr, e, sname, registry_def)
+    }
     ref tc : Dynamic = scope_get(scope, sname)?
     catch (knf: KeyNotFound) { return false }
-    ref raw : Dynamic = tc
-    ref sdef : Expr = callable_raw_func_def(raw)
-        if sdef.node_type.is(NodeType.StructDef).not() {
-            if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-        }
-        switch e.node_type {
-        case NodeType.FieldAccess(fname):
-            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname.field_access_name())
-        case NodeType.FieldAssign(fad):
-            return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name)
-        case:
-            return false
-        }
+    ref walked_def : Expr = callable_raw_func_def(tc)
+    return interp_fa_is_ns_def(obj_expr, e, sname, walked_def)
 }
 
-priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
+priv interp_fa_is_ns_def := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr) returns Bool {
+    if sdef.node_type.is(NodeType.StructDef).not() {
+        if sdef.node_type.is(NodeType.EnumDef).not() { return false }
+    }
+    switch e.node_type {
+    case NodeType.FieldAccess(fname):
+        return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname.field_access_name())
+    case NodeType.FieldAssign(fad):
+        return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name)
+    case:
+        return false
+    }
+}
+
+priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     ref obj_expr : Expr = e.children[0]
     switch obj_expr.node_type {
     case NodeType.Ident(type_ident):
@@ -3474,22 +4006,22 @@ priv interp_fa_is_ns := func(scope: Scope, e: Expr) returns Bool {
         if type_hb.is_null().not().and(heap_type_is_callable(type_hb.til_type)) {
             ref type_def : Expr = callable_raw_func_def(to_ptr(type_hb.ptr))
             if type_def.node_type.is(NodeType.StructDef).or(type_def.node_type.is(NodeType.EnumDef)) {
-                return interp_fa_is_ns_inner(scope, e, type_ident.ident_name())
+                return interp_fa_is_ns_inner(scope, e, type_ident.ident_name(), ctx)
             }
         }
     case:
     }
     sname := til_type_name(obj_expr.til_type())
-    if sname.len() > 0 { return interp_fa_is_ns_inner(scope, e, sname) }
+    if sname.len() > 0 { return interp_fa_is_ns_inner(scope, e, sname, ctx) }
     switch obj_expr.node_type {
-    case NodeType.Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name())
+    case NodeType.Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name(), ctx)
     case:
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
     // returns "" for I64/U8/etc, fall back to til_type_name_c.
     tn := til_type_name_c(obj_expr.til_type())
     if tn.eq("unknown").not().and(tn.eq("?").not()).and(tn.eq("Dynamic").not()) {
-        return interp_fa_is_ns_inner(scope, e, tn)
+        return interp_fa_is_ns_inner(scope, e, tn, ctx)
     }
     return false
 }
@@ -3588,6 +4120,9 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                 if expr_raw_is_ref(global, nsd.default_value, ctx) {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
                     raw = owned
+                } else if expr_word_shaped(global, nsd.default_value, ctx) {
+                    // ns storage is a binding: a scalar word needs a block.
+                    raw = scalar_block_from_word(ns_decl_raw_type(nsd), raw, ctx)
                 }
                 ns_set(dd.name, nsd.name, raw, ns_decl_raw_type(nsd), ctx)
             }
@@ -3757,6 +4292,9 @@ read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, fie
         write_ptr(result, ptr)
         return result
     }
+    // A shallow primitive field reads straight into an inline word, at the
+    // layout width (host struct bytes; see field_word_type).
+    if raw_type_is_prim(dd.til_type, ctx) { return scalar_word_load(field_word_type(dd.til_type, field_size, ctx), ptr, ctx) }
     result : Dynamic = dispatch_result_alloc(dd.til_type, ctx)
     mut copy_size := raw_type_size(dd.til_type, ctx)
     if field_size < copy_size { copy_size = field_size }
@@ -3840,6 +4378,16 @@ priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USiz
         }
         write_ptr(dst, source)
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
+        return
+    }
+    // Shallow primitive field: the value is an inline word (a ref value
+    // is the BARE source address -- load the scalar through it; the
+    // source keeps its storage). The store uses the layout width (host
+    // struct bytes; see field_word_type).
+    if raw_type_is_prim(raw_type, ctx) {
+        mut w : Dynamic = raw
+        if raw_is_ref { w = scalar_word_load(raw_type, raw, ctx) }
+        scalar_word_store(field_word_type(raw_type, field_size, ctx), dst, w, ctx)
         return
     }
     mut copy_size := raw_type_size(raw_type, ctx)
@@ -4574,29 +5122,17 @@ priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
 }
 
 priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
-    raw : Dynamic = eval_expr_raw(s, e, ctx)
-    value_ptr : Dynamic = raw_arg_pointer(s, e, raw, ctx)
-    ref value : Bool = to_ptr(value_ptr)
-    result := value.clone()
-    raw_type := scalar_raw_source_type(s, e, ctx)
-    raw_result_drop(raw_type, raw, expr_raw_is_ref(s, e, ctx), ctx)
-    return result
+    return eval_bool_arg(s, e, ctx)
 }
 
 priv eval_i64_arg := proc(s: Scope, e: Expr, ctx: Context) returns I64 {
-    raw : Dynamic = eval_expr_raw(s, e, ctx)
     raw_type := scalar_raw_source_type(s, e, ctx)
-    result := raw_to_i64(raw_type, raw_arg_pointer(s, e, raw, ctx), ctx)
-    raw_result_drop(raw_type, raw, expr_raw_is_ref(s, e, ctx), ctx)
-    return result
+    return raw_to_i64(raw_type, eval_scalar_arg_word(s, e, raw_type, ctx), ctx)
 }
 
 priv eval_u64_arg := proc(s: Scope, e: Expr, ctx: Context) returns U64 {
-    raw : Dynamic = eval_expr_raw(s, e, ctx)
     raw_type := scalar_raw_source_type(s, e, ctx)
-    result := raw_to_u64(raw_type, raw_arg_pointer(s, e, raw, ctx), ctx)
-    raw_result_drop(raw_type, raw, expr_raw_is_ref(s, e, ctx), ctx)
-    return result
+    return raw_to_u64(raw_type, eval_scalar_arg_word(s, e, raw_type, ctx), ctx)
 }
 
 // Dispatch and call results are raw value bytes.
@@ -4754,8 +5290,9 @@ priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
         return true
     }
     src_type := scalar_raw_source_type(s, src_expr, ctx)
-    raw := raw_to_u64(src_type, raw_arg_pointer(s, src_expr, src, ctx), ctx)
-    raw_result_drop(src_type, src, expr_raw_is_ref(s, src_expr, ctx), ctx)
+    // Collapse the eval to an inline word first: raw_to_u64 is word-based,
+    // and the pre-word raw_arg_pointer form fed it an ADDRESS.
+    raw := raw_to_u64(src_type, scalar_word_of_raw(s, src_expr, src, src_type, ctx), ctx)
     if tn == "I8"  { write_i8(r, raw.cast(I64).to_i8()); return true }
     if tn == "U8"  { write_u8(r, raw.cast(I64).to_u8()); return true }
     if tn == "I16" { write_i16(r, raw.cast(I64).to_i16()); return true }
@@ -5899,15 +6436,9 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
     fake_call.add_child(own field_access)
 
     result : Dynamic = eval_call(s, fake_call, ctx)
-    ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
-    if usize_name == "U32" {
-        ref value : U32 = to_ptr(result)
-        size := value.cast(U64).to_usize()
-        raw_result_drop(fake_call.til_type(), result, false, ctx)
-        return size
-    }
-    ref value : U64 = to_ptr(result)
-    size := value.to_usize()
+    // A prim-stamped call result is an inline word (canonical
+    // zero-extended, so one decode covers both USize widths).
+    size := word_bits(result).to_usize()
     raw_result_drop(fake_call.til_type(), result, false, ctx)
     return size
 }
@@ -5959,13 +6490,20 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     }
                 }
                 if transferred_ident.not() { pdata = eval_expr_raw(scope, payload_expr, ctx) }
+                mut pdata_is_word := false
                 if payload_transfers.not().and(expr_raw_is_ref(scope, payload_expr, ctx)) {
                     pdata = heap_clone_by_type(payload_expr.til_type(), pdata, ctx)
+                } else if transferred_ident.not().and(expr_word_shaped(scope, payload_expr, ctx)) {
+                    // A scalar payload word: park it in a ring slot so the
+                    // flat-enum writer has bytes to copy from.
+                    pdata = word_ring_slot(payload_expr.til_type(), pdata, ctx)
+                    pdata_is_word = true
                 }
                 psz := raw_type_size(payload_expr.til_type(), ctx)
                 write_enum_flat(result, enum_name, ctor_tag, pdata, psz, vtype == "Str", true, ctx)
                 // write_enum_flat moved nested ownership into the enum bytes.
-                EvalHeap.heap_free(own pdata)
+                if pdata_is_word { word_drop(own pdata) }
+                else { EvalHeap.heap_free(own pdata) }
             } else {
                 write_enum_flat(result, enum_name, ctor_tag, NULL, 0, false, false, ctx)
             }
@@ -6044,11 +6582,13 @@ priv ffi_write_shallow_arg := func(scope: Scope, e: Expr, raw: Dynamic, atype: D
         if expr_type.is(Type.Dynamic).not().and(expr_raw_is_ref(scope, e, ctx).not()) { source = deref(source) }
         source_type = type_from_name_init(tn, ctx.scope)
     }
+    // `source` is an ADDRESS (raw_arg_pointer materializes words); load
+    // the scalar into a word before decoding.
     if tn == "F32" {
-        tmp : F32 = raw_to_f32(source_type, source, ctx)
+        tmp : F32 = raw_to_f32(source_type, scalar_word_load(source_type, source, ctx), ctx)
         memcpy(dst, tmp, 4)
     } else {
-        tmp : U64 = raw_to_u64(source_type, source, ctx)
+        tmp : U64 = raw_to_u64(source_type, scalar_word_load(source_type, source, ctx), ctx)
         memcpy(dst, tmp, sz)
     }
     return true
@@ -6189,10 +6729,18 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
             // owned raw Str storage.
             if fe.return_is_ref { dispatch_write_str(result, sp.data, sp.count, ctx) }
             else {
-                // Adopt the ext_func's Str* contents; ExtStr and Str share the
-                // {ptr, count, cap} layout. Preserve CAP_VIEW/CAP_LIT because
-                // those tags describe whether the returned c_str is owned.
-                memcpy(result, raw_ptr, ctx_total_size(ctx.cached_str_name, ctx))
+                // Adopt the ext_func's Str* contents into the raw result AT
+                // THE TARGET LAYOUT: the C-side Str is host-layout, so copy
+                // the buffer pointer and rewrite count/cap at the ctx width.
+                // Preserve CAP_VIEW/CAP_LIT (they say whether the returned
+                // c_str is owned; the sentinels survive width truncation),
+                // else cap=count so typed teardown reclaims the c_str. The
+                // old whole-struct memcpy fused the host count+cap pair into
+                // the target count under --usize=64.
+                write_ptr(result, sp.data)
+                mut adopted_cap : USize = sp.count
+                if sp.cap >= CAP_VIEW { adopted_cap = sp.cap }
+                str_write_count_cap(result, sp.count, adopted_cap, ctx)
                 mut owned_str_wrapper : Dynamic = raw_ptr
                 EvalHeap.heap_free(own owned_str_wrapper)
             }
@@ -6423,18 +6971,9 @@ priv scalar_write_raw := func(t: Str, result: Dynamic, v: I64) {
     }
 }
 
-priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type, ctx: Context, mut borrowed: Bool) returns Dynamic {
+priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type, ctx: Context) returns Dynamic {
     source_type := scalar_raw_source_type(scope, arg, ctx)
-    source_is_ref := expr_raw_is_ref(scope, arg, ctx)
-    mut raw : Dynamic = eval_expr_raw(scope, arg, ctx)
-    if source_is_ref {
-        if til_type_name_c(source_type) == til_type_name_c(target_type) {
-            borrowed = true
-            return raw
-        }
-        result : Dynamic = heap_clone_by_type(source_type, raw, ctx)
-        raw = result
-    }
+    raw : Dynamic = eval_scalar_arg_word(scope, arg, source_type, ctx)
     return raw_coerce_value(raw, source_type, target_type, ctx)
 }
 
@@ -6450,10 +6989,8 @@ priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type,
 priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, ctx: Context) {
     ref arg : Expr = e.children[1]
     scalar_type := type_from_name_init(type_str, ctx.scope)
-    mut cur_borrowed := false
-    cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx, cur_borrowed)
+    cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
     nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
-    raw_result_drop(scalar_type, cur, cur_borrowed, ctx)
     switch e.children[1].node_type {
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
@@ -6491,17 +7028,13 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     if scalar_is_cmp(op_str) {
         ref ae : Expr = e.children[1]
         ref be : Expr = e.children[2]
-        mut av_borrowed := false
-        mut bv_borrowed := false
-        av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx, av_borrowed)
-        bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx, bv_borrowed)
+        av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
+        bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
         mut cmp_result := false
         if cat == "u" { cmp_result = scalar_cmp_u64(op_str, raw_to_u64(scalar_type, av, ctx), raw_to_u64(scalar_type, bv, ctx)) }
         else if cat == "i" { cmp_result = scalar_cmp_i64(op_str, raw_to_i64(scalar_type, av, ctx), raw_to_i64(scalar_type, bv, ctx)) }
         else { cmp_result = scalar_cmp_f32(op_str, raw_to_f32(scalar_type, av, ctx), raw_to_f32(scalar_type, bv, ctx)) }
         write_bool(result, cmp_result)
-        raw_result_drop(scalar_type, av, av_borrowed, ctx)
-        raw_result_drop(scalar_type, bv, bv_borrowed, ctx)
         return true
     }
 
@@ -6510,11 +7043,9 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     // arm; no dead cat guard).
     if op_str == "bnot" {
         ref arg : Expr = e.children[1]
-        mut av_borrowed := false
-        av : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx, av_borrowed)
+        av : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
         if cat == "u" { scalar_write_raw(type_str, result, raw_to_u64(scalar_type, av, ctx).bnot().cast(I64)) }
         else { scalar_write_raw(type_str, result, raw_to_i64(scalar_type, av, ctx).bnot()) }
-        raw_result_drop(scalar_type, av, av_borrowed, ctx)
         return true
     }
 
@@ -6526,31 +7057,21 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
     if scalar_is_binop(op_str) {
         ref ae : Expr = e.children[1]
         ref be : Expr = e.children[2]
-        mut av_borrowed := false
-        mut bv_borrowed := false
-        av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx, av_borrowed)
-        bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx, bv_borrowed)
+        av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
+        bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
         if cat == "u" {
             scalar_write_raw(type_str, result, scalar_apply_u64(op_str, raw_to_u64(scalar_type, av, ctx), raw_to_u64(scalar_type, bv, ctx)).cast(I64))
-            raw_result_drop(scalar_type, av, av_borrowed, ctx)
-            raw_result_drop(scalar_type, bv, bv_borrowed, ctx)
             return true
         }
         if cat == "i" {
             scalar_write_raw(type_str, result, scalar_apply_i64(op_str, raw_to_i64(scalar_type, av, ctx), raw_to_i64(scalar_type, bv, ctx)))
-            raw_result_drop(scalar_type, av, av_borrowed, ctx)
-            raw_result_drop(scalar_type, bv, bv_borrowed, ctx)
             return true
         }
         // cat == "f": only add/sub/mul/div exist on F32 (no bitwise/shift/mod).
         if (op_str == "add").or(op_str == "sub").or(op_str == "mul").or(op_str == "div") {
             write_f32(result, scalar_apply_f32(op_str, raw_to_f32(scalar_type, av, ctx), raw_to_f32(scalar_type, bv, ctx)))
-            raw_result_drop(scalar_type, av, av_borrowed, ctx)
-            raw_result_drop(scalar_type, bv, bv_borrowed, ctx)
             return true
         }
-        raw_result_drop(scalar_type, av, av_borrowed, ctx)
-        raw_result_drop(scalar_type, bv, bv_borrowed, ctx)
         return false
     }
 

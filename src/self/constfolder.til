@@ -22,6 +22,16 @@ priv constfolder_known_has := func(ctx: Context, name: Str) returns Bool {
     return scope_lookup_heap_binding(ctx.constfolder_known, name).is_null().not()
 }
 
+// A comptime-known VALUE with a primitive type binds Shallow: reads then
+// collapse to the inline word every prim consumer assumes. Binding it Own
+// would flag a #302 raw-allocation POINTER datum, whose reads clone a
+// BLOCK -- and the word-assuming re-bind sites would box the block
+// ADDRESS as the scalar (truncated pointer bits as the value).
+priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType {
+    if raw_type_is_prim(t, ctx) { return OwnType.Shallow }
+    return OwnType.Own
+}
+
 priv constfolder_known_borrow_view := func(ctx: Context) returns ref Scope {
     ref view : Scope = scope_new_boxed(NULL)
     for name, hb in ctx.constfolder_known.heap_bindings {
@@ -179,23 +189,24 @@ priv str_to_source_form := func(s: Str) returns Str {
 priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Expr {
     switch t {
     case Type.Primitive(prim):
+        // Primitive values arrive as inline words (nested field/payload
+        // callers load them from storage before recursing here).
         switch prim {
         case Primitive.Bool:
-            ref b : Bool = raw
-            return Expr.new(NodeType.Literal(Literal.Bool(b)), src.line, src.col)
+            return Expr.new(NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col)
         case Primitive.F32:
-            ref n : F32 = raw
+            n := word_f32(word_bits(raw))
             mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
             e.set_til_type(t)
             return e
-        case Primitive.I64: ref n : I64 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U8:  ref n : U8 = raw;  mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I8:  ref n : I8 = raw;  mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I16: ref n : I16 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U16: ref n : U16 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I32: ref n : I32 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U32: ref n : U32 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U64: ref n : U64 = raw; mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case Primitive.I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+        case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
         }
     case Type.Enum(ename):
         ref tag_ref : I32 = raw
@@ -215,7 +226,9 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 variant.set_til_type(t)
                 ref payload_name : Str = edd.payload_types[tag.cast(I64)]
                 payload_type := type_from_name_init(payload_name, ctx.scope)
-                ref payload_raw : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
+                ref payload_addr : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
+                mut payload_raw : Dynamic = payload_addr
+                if raw_type_is_prim(payload_type, ctx) { payload_raw = scalar_word_load(payload_type, payload_addr, ctx) }
                 mut payload : Expr = raw_to_expr(payload_raw, payload_type, src, ctx)
                 if payload.is_null() { return NULL }
                 mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
@@ -261,7 +274,10 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             for fd : Declaration in sfd.fields {
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return NULL }
                 ref fl : FieldLayout = ctx_field_layout(sname, fd.name, ctx)
-                mut field_expr : Expr = raw_to_expr(ptr_add(raw, fl.offset), fd.til_type, src, ctx)
+                ref field_addr : Dynamic = ptr_add(raw, fl.offset)
+                mut field_raw : Dynamic = field_addr
+                if raw_type_is_prim(fd.til_type, ctx) { field_raw = scalar_word_load(field_word_type(fd.til_type, fl.size, ctx), field_addr, ctx) }
+                mut field_expr : Expr = raw_to_expr(field_raw, fd.til_type, src, ctx)
                 if field_expr.is_null() { return NULL }
                 ctor.add_child(own field_expr)
             }
@@ -352,7 +368,12 @@ priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
         return expr_to_known_raw(e, ctx)
     case NodeType.Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
-            return scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            ref known_hb : HeapBinding = scope_lookup_heap_binding(ctx.constfolder_known, id.ident_name())
+            raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            // is_known's contract is an OWNED BLOCK: box a scalar word so
+            // every consumer can bind or free it uniformly.
+            if raw_type_is_prim(known_hb.til_type, ctx) { return scalar_block_from_word(known_hb.til_type, raw, ctx) }
+            return raw
         }
         return NULL
     case:
@@ -737,14 +758,25 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 if slot.is_null().not().and(ctx.constfolder_assigned.has(arg_id.ident_name()).not()) {
                     ref scoped_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_id.ident_name())
                     if scoped_hb.is_null() { panic("scoped known binding has no metadata: ", arg_id.ident_name()) }
-                    scoped_raw : Dynamic = scope_read_bound_raw(scope, arg_id.ident_name(), ctx)
-                    scoped_is_ref := scoped_hb.own_type.is(OwnType.Ref)
-                    mut scoped_value_raw : Dynamic = scoped_raw
-                    mut scoped_lit : Expr = raw_to_expr(scoped_value_raw, scoped_hb.til_type, arg, ctx)
-                    raw_result_drop(scoped_hb.til_type, scoped_raw, scoped_is_ref, ctx)
-                    if scoped_lit.is_null().not() {
-                        ec.add_child(own scoped_lit)
-                        continue
+                    // An Own-prim binding is a #302 raw-allocation POINTER
+                    // datum; a pointer cannot fold into a literal, so skip
+                    // the substitution for those.
+                    scoped_own_prim := raw_type_is_prim(scoped_hb.til_type, ctx).and(scoped_hb.own_type.is(OwnType.Own))
+                    if scoped_own_prim.not() {
+                        scoped_raw : Dynamic = scope_read_bound_raw(scope, arg_id.ident_name(), ctx)
+                        scoped_is_ref := scoped_hb.own_type.is(OwnType.Ref)
+                        mut scoped_value_raw : Dynamic = scoped_raw
+                        if scoped_is_ref.and(raw_type_is_prim(scoped_hb.til_type, ctx)) {
+                            // A ref read is the BARE target address: load the
+                            // word raw_to_expr's prim arm expects.
+                            scoped_value_raw = scalar_word_load(scoped_hb.til_type, scoped_raw, ctx)
+                        }
+                        mut scoped_lit : Expr = raw_to_expr(scoped_value_raw, scoped_hb.til_type, arg, ctx)
+                        raw_result_drop(scoped_hb.til_type, scoped_raw, scoped_is_ref, ctx)
+                        if scoped_lit.is_null().not() {
+                            ec.add_child(own scoped_lit)
+                            continue
+                        }
                     }
                 }
             case:
@@ -793,8 +825,16 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             }
             return NULL
         }
-        mut arg_lit : Expr = raw_to_expr(arg_raw, arg.til_type(), arg, ctx)
-        raw_result_drop(arg.til_type(), arg_raw, false, ctx)
+        // is_known's contract is an OWNED BLOCK even for prims (NULL is its
+        // "not known" sentinel, so a bare word cannot carry it): load the
+        // scalar word out of the block before the word-shaped raw_to_expr,
+        // and free the block itself (raw_result_drop would treat a non-ref
+        // prim as an inline word and free nothing).
+        mut arg_value_raw : Dynamic = arg_raw
+        if raw_type_is_prim(arg.til_type(), ctx) { arg_value_raw = scalar_word_load(arg.til_type(), arg_raw, ctx) }
+        mut arg_lit : Expr = raw_to_expr(arg_value_raw, arg.til_type(), arg, ctx)
+        if raw_type_is_prim(arg.til_type(), ctx) { EvalHeap.heap_free(own arg_raw) }
+        else { raw_result_drop(arg.til_type(), arg_raw, false, ctx) }
         if arg_lit.is_null() {
             return NULL
         }
@@ -860,9 +900,10 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
 priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
-        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), OwnType.Own, ctx)
-        scope_raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, name, ctx)
-        scope_set_raw_owned(scope, name, scope_raw, rhs.til_type(), OwnType.Own, ctx)
+        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), known_bind_own_type(rhs.til_type(), ctx), ctx)
+        mut scope_raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, name, ctx)
+        if raw_type_is_prim(rhs.til_type(), ctx) { scope_raw = scalar_block_from_word(rhs.til_type(), scope_raw, ctx) }
+        scope_set_raw_owned(scope, name, scope_raw, rhs.til_type(), known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
 }
 
@@ -875,7 +916,7 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
 priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
-        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), OwnType.Own, ctx)
+        scope_set_raw_owned(ctx.constfolder_known, name, raw, rhs.til_type(), known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
 }
 
@@ -993,8 +1034,9 @@ priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
     case NodeType.Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
             ref hb : HeapBinding = scope_lookup_heap_binding(ctx.constfolder_known, id.ident_name())
-            raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
-            scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type, OwnType.Own, hb.ctx)
+            mut raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            if raw_type_is_prim(hb.til_type, ctx) { raw = scalar_block_from_word(hb.til_type, raw, ctx) }
+            scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type, known_bind_own_type(hb.til_type, ctx), hb.ctx)
         }
     case:
     }
@@ -1012,7 +1054,8 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ct
         if dd.name.eq(va).or(dd.name.eq(ek)) {
             if stmt.children.len() > 0 {
                 bind_known_idents_in(scope, stmt.children[0], ctx)
-                raw : Dynamic = eval_expr_raw(scope, stmt.children[0], ctx)
+                mut raw : Dynamic = eval_expr_raw(scope, stmt.children[0], ctx)
+                if raw_type_is_prim(stmt.children[0].til_type(), ctx) { raw = scalar_block_from_word(stmt.children[0].til_type(), raw, ctx) }
                 scope_set_raw_owned(scope, dd.name, raw, stmt.children[0].til_type(), dd.own_type, ctx)
             }
         }
@@ -1431,10 +1474,12 @@ constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context)
             } else if dd.is_mut.not().and(dd.own_type.is(OwnType.Ref).not()) {
                 // Issue #191: register literal global constants so macro
                 // bodies that read them can fold. Only literals register;
-                // complex expressions need full interpreter support.
+                // complex expressions need full interpreter support. The
+                // registry copy binds prim values Shallow regardless of the
+                // decl's own_type (see known_bind_own_type).
                 raw : Dynamic = is_known(ctx, rhs)
                 if raw.is_null().not() {
-                    scope_set_raw_owned(global, dd.name, raw, rhs.til_type(), dd.own_type, ctx)
+                    scope_set_raw_owned(global, dd.name, raw, rhs.til_type(), known_bind_own_type(rhs.til_type(), ctx), ctx)
                 }
             }
         case:
@@ -1451,6 +1496,10 @@ constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context)
 // U64 forms with bnot to avoid out-of-I64-range literals.
 // 32-bit: CAP_VIEW = 0xFFFFFFFE = 4294967294, CAP_LIT = 0xFFFFFFFF = 4294967295.
 constfolder_register_core_constants := func(global: Scope, usize_name: Str) {
+    // Shallow, not Own: these are prim VALUES. An Own-prim binding means a
+    // #302 raw-allocation POINTER datum, whose reads clone a BLOCK -- and
+    // every word-assuming consumer would then use the block ADDRESS as the
+    // sentinel value.
     if usize_name == "U64" {
         mut lit64 : U64 = 0
         lit64 = lit64.bnot()       // -1 as U64
@@ -1458,16 +1507,16 @@ constfolder_register_core_constants := func(global: Scope, usize_name: Str) {
         view64 = view64.bnot()     // -2 as U64
         cap_view_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_view_raw, view64)
-        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U64), OwnType.Own, NULL)
+        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U64), OwnType.Shallow, NULL)
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_lit_raw, lit64)
-        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U64), OwnType.Own, NULL)
+        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U64), OwnType.Shallow, NULL)
     } else {
         cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_view_raw, 4294967294)
-        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U32), OwnType.Own, NULL)
+        scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, Type.Primitive(Primitive.U32), OwnType.Shallow, NULL)
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_lit_raw, 4294967295)
-        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U32), OwnType.Own, NULL)
+        scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, Type.Primitive(Primitive.U32), OwnType.Shallow, NULL)
     }
 }

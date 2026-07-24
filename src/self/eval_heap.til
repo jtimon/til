@@ -28,6 +28,24 @@ mode lib
 // Expression evaluation, scopes, const folding, and FFI all use these raw
 // bytes directly. Exercised on its own by test/eval_heap.til.
 
+// Inline-scalar value words (#286 perf): a primitive-typed interpreter
+// value is its bytes zero-extended into the pointer-sized word itself --
+// no heap block, so scalar reads/temps/results allocate nothing (the old
+// Value box inlined scalars the same way; the raw model keeps that for
+// scalars while aggregates stay raw heap pointers). These reinterpret a
+// word's integer bits and back; implemented in src/c/ext.c.
+word_bits := ext_func(w: Dynamic) returns shallow U64 {}
+bits_word := ext_func(shallow b: U64) returns shallow Dynamic {}
+f32_word := ext_func(shallow f: F32) returns shallow U64 {}
+word_f32 := ext_func(shallow b: U64) returns shallow F32 {}
+// Ownership sink for an inline-scalar word: consumes the own Dynamic
+// without freeing (the word holds value bits, not a heap pointer).
+word_drop := ext_func(own w: Dynamic) {}
+// Fixed C-side arenas for the interpreter's scalar-word slots (stable
+// addresses, no allocation, no teardown).
+dispatch_scratch_base := ext_func() returns shallow Dynamic {}
+word_ring_base := ext_func() returns shallow Dynamic {}
+
 EvalHeap := struct {
     // #286: the EvalHeap is the chokepoint for value-payload memory. It holds
     // no state -- heap_alloc / heap_free are static (no self), so the whole

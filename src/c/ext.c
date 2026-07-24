@@ -555,6 +555,23 @@ void write_u64(void *dest, U64 val) { *(U64 *)dest = val; }
 void write_f32(void *dest, F32 val) { *(F32 *)dest = val; }
 void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
+// Inline-scalar value words (interpreter): reinterpret a pointer-sized
+// word as its integer bits and back. A primitive-typed interpreter value
+// is its bytes zero-extended into the word itself, not a heap block.
+U64 word_bits(const void *w) { return (U64)(uintptr_t)w; }
+void *bits_word(U64 b) { return (void *)(uintptr_t)b; }
+U64 f32_word(F32 f) { union { F32 f; U32 u; } x; x.f = f; return (U64)x.u; }
+F32 word_f32(U64 b) { union { F32 f; U32 u; } x; x.u = (U32)b; return x.f; }
+// Ownership sink for inline-scalar words: consumes an own Dynamic that
+// holds VALUE BITS (not a heap pointer), so nothing must be freed.
+void word_drop(void *w) { (void)w; }
+// Interpreter scalar-word arenas: fixed static storage so slot addresses
+// are immortal (no realloc, no runtime teardown). Sizes mirror the til
+// constants DISPATCH_SCRATCH_SLOTS / WORD_RING_SLOTS.
+static U64 til_dispatch_scratch[4096];
+void *dispatch_scratch_base(void) { return til_dispatch_scratch; }
+static U64 til_word_ring[4096];
+void *word_ring_base(void) { return til_word_ring; }
 void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr); }
 
 // CLI arg parsing
