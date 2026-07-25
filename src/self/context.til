@@ -690,6 +690,22 @@ align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
+// The interpreter's flat enum format: tag at offset 0 (its real 1/2/4/8-byte
+// width), payload at this fixed offset. Single source of truth for the
+// interpreter/constfolder payload accesses AND compute_enum_layout's enum
+// sizing, so the two can't drift apart. Invariants that make the fixed
+// offset valid:
+// - It must be >= the widest allowed tag (enum(U64) -> 8, see #264), so the
+//   payload never overlaps the tag.
+// - Host C enum structs place `data` at this same offset because
+//   emit_enum_struct_body pins the payload union to pointer alignment (the
+//   void* sentinel): align_up(tag <= 8, 8) == 8 on the 64-bit host. That
+//   agreement is what lets raw enum buffers cross between the interpreter
+//   and compiled host code (dyn dispatch). Emitted TARGET code never uses
+//   this constant -- it reads/writes payloads via offsetof(E, data) (#311),
+//   which is what makes narrower layouts (e.g. 32-bit targets) correct.
+ENUM_PAYLOAD_OFFSET : USize = 8
+
 // Issue #309: type-size intrinsics (`X.size()`, `dyn_size_of`) normally fold
 // to a compile-time literal taken from the HOST struct layout
 // (ctx.struct_layouts, which the compile-time interpreter needs at host

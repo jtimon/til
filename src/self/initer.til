@@ -2120,22 +2120,18 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
         }
         mut total : USize = tag_size
         if max_payload_size > 0 {
-            // The enum ABI accesses the payload at the fixed
-            // ENUM_PAYLOAD_OFFSET == sizeof(void *) (get_payload in ext.c,
-            // the emitted pattern-match `(U8 *)self + sizeof(void *)`, and
-            // the interpreter's ENUM_PAYLOAD_OFFSET all agree), and
-            // emit_enum_struct_body pins the payload union to pointer
-            // alignment with a void* sentinel so its slot is at least
-            // pointer-sized. Mirror both here so ctx.struct_layouts / a
-            // folded X.size() match the emitted C sizeof -- otherwise a
-            // container of a narrow-payload enum (a U8/U16/U32-only enum,
-            // or a USize payload under --usize=32) strides by the wrong
-            // element size and corrupts. Use UPtr.size() (this compiler's
-            // own pointer width, the host width these layouts run at).
+            // Size payload-carrying enums against the interpreter's flat
+            // format: payload at the shared ENUM_PAYLOAD_OFFSET (see
+            // context.til for the invariants), slot at least pointer-sized
+            // (emit_enum_struct_body's void* union sentinel), so
+            // ctx.struct_layouts / a folded X.size() match both the flat
+            // interpreter buffers and the emitted host C sizeof. Deriving
+            // the offset independently here (the old UPtr.size()) let the
+            // two drift; use the one constant.
             ptr_w := UPtr.size()
             mut payload_slot := max_payload_size
             if payload_slot < ptr_w { payload_slot = ptr_w }
-            total = ptr_w + payload_slot
+            total = ENUM_PAYLOAD_OFFSET + payload_slot
             max_payload_align = ptr_w
         }
         total = align_up(total, max_payload_align)
