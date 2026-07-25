@@ -1,6 +1,6 @@
 mode gui
 
-import("../lib/music")
+import("lib/music")
 
 // Music mode viewer. Defaults to 7 Greek modes; the top selector switches to
 // the 5 Global modes or experimental nathex while keeping the staff and piano

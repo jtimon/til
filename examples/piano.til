@@ -1,6 +1,6 @@
 mode gui
 
-import("../lib/music")
+import("lib/music")
 
 // Playable piano with scrolling piano roll
 // QWERTY keyboard maps to 3 octaves (C3-B5).

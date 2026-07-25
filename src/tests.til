@@ -165,7 +165,7 @@ append_source_doc_doctests := func(mut out: Str, path: Str, source: Str, count: 
 
 append_tracked_doc_doctests := proc(mut out: Str) returns USize {
     mut listing := ""
-    result := run_cmd(listing, "git", "ls-files", "src/core/*.til", "src/std/*.til", "src/self/*.til", "src/modes/*.til", "src/til.til", "lib/*.til", "vendor/bindings/*.til")
+    result := run_cmd(listing, "git", "ls-files", "src/core/*.til", "src/std/*.til", "src/self/*.til", "src/modes/*.til", "src/til.til", "examples/lib/*.til", "vendor/bindings/*.til")
     if result != 0 { panic("failed to list documented til sources") }
     mut count : USize = 0
     mut pos : USize = 0

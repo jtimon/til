@@ -31,7 +31,7 @@ The core arc is in master:
   - cast(e, T) for same-size integer reinterpret: free C cast, no
     range check, no panic -- explicit T at the call site is the safety
     contract.
-  - Migration of `src/`, `lib/`, `test/`, `examples/`: every same-size
+  - Migration of `src/`, `test/`, `examples/`: every same-size
     `.to_<T>()` call site rewritten to `.cast(T)`; the four redundant
     same-size methods (I64.to_u64, U64.to_i64, I32.to_u32, U32.to_i32)
     and their ext.h/ext.c backing removed.

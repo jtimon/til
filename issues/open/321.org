@@ -30,7 +30,7 @@ system instead of by runtime null-deref panics (the generated C
 - ~NULL~ is a keyword (KwNull, src/self/lexer.til:164) producing
   ~Literal.Null~, and ~is_null()~ checks plus ~return NULL~ from
   ref-returning lookups are everywhere: ~840 NULL/is_null occurrences
-  across src/, lib/, examples/, test/.
+  across src/, examples/, test/.
 
 *** Steps
 

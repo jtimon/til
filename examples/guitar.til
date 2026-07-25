@@ -1,6 +1,6 @@
 mode gui
 
-import("../lib/music")
+import("lib/music")
 
 // Clickable 6-string guitar simulator.
 // Display toggles change note labels: Solfege, Letters, Hextaves, or Nathex.
