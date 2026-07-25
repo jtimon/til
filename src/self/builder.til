@@ -2419,7 +2419,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         emit_stmt_decl(f, e, depth, ctx)
     case NodeType.Assign(ad):
         aname := ad.name
-        ref rhs : Expr = e.children[0]
+        ref mut rhs : Expr = e.children[0]
+        // #302 stage 4: a marked move consumes the clone's ARG. The
+        // garbager records the decision (is_move) instead of editing the
+        // shared AST; the bare-ident substitution happens here, at
+        // consumption, so every branch below routes exactly as it did on
+        // the old rewritten shape.
+        if ad.is_move.and(rhs_is_clone_fcall(rhs)).and(rhs.children.len().gte(2)) {
+            rhs = rhs.children[1]
+        }
         if ctx.closure_emit_captures.has(aname) {
             f.write("(*").write(ctx.closure_emit_env).write("->").write(aname).write(") = ")
             emit_deref(f, rhs, depth, ctx)
@@ -2589,7 +2597,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     case NodeType.FieldAssign(fad):
         fname := fad.name
         ref obj : Expr = e.children[0]
-        ref rhs_fa : Expr = e.children[1]
+        ref mut rhs_fa : Expr = e.children[1]
+        // #302 stage 4: same marked-move substitution as the Assign arm.
+        if fad.is_move.and(rhs_is_clone_fcall(rhs_fa)).and(rhs_fa.children.len().gte(2)) {
+            rhs_fa = rhs_fa.children[1]
+        }
         did_save_old := fad.save_old_delete
         mut old_ctype := ""
         if did_save_old {

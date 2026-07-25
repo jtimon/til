@@ -982,8 +982,18 @@ let the ownership pass insert temps itself; start with the check.
     incrementally instead of a big-bang builder+interpreter cutover.
     Pass-1 C == pass-2 C byte-exact (the marker is not yet read);
     make clean && make test 176/176.
-  - [ ] Stage 4 (rest): migrate downstream consumers onto the is_move
-    record and then retire the textual bare-ident rewrite; user-facing
+  - [X] 2026-07-16 Stage 4: the clone-elision REWRITE IS RETIRED. The
+    garbager now only records (is_move); the bare-ident substitution
+    happens at the CONSUMERS: the builder's Assign/FieldAssign arms
+    rebind rhs to the clone's arg on marked moves (emitted C proven
+    byte-exact), and the interpreter's transfers_own Ident-move path
+    does the same substitution -- without it the kept clone was
+    deep-copied and bug256's interp run leaked (caught by the suite,
+    fixed, re-verified with bug256 + bug258 + full 176/176). D4's
+    "move expressed by silently editing an expression" channel is
+    dead: decision recorded in one place, executed by each backend
+    from the record.
+  - [ ] Stage 4 (rest): user-facing
     move for the container memcpy+memset idiom (census class c) --
     NOTE: push/pop write UNINITIALIZED slots, so move() (which
     destroys dest's old value) cannot express them; a placement-adopt

@@ -2022,7 +2022,16 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             assign_hb.moved_out = false
         case NodeType.FieldAssign(fad):
             fname := fad.name
-            ref val_expr : Expr = stmt.children[1]
+            ref mut val_expr : Expr = stmt.children[1]
+            // #302 stage 4: a marked move consumes the clone's ARG -- the
+            // same substitution the builder does at consumption. Without
+            // it the transfers_own Ident-move path below would instead
+            // evaluate the kept clone (a deep copy) and the moved-from
+            // binding's teardown would double-account (bug256's interp
+            // leak, caught by the suite when the AST rewrite retired).
+            if fad.is_move.and(rhs_is_clone_fcall(val_expr)).and(val_expr.children.len().gte(2)) {
+                val_expr = val_expr.children[1]
+            }
             mut val_raw : Dynamic = 0
             mut val_is_ref := false
             if fad.transfers_own {
