@@ -198,11 +198,11 @@ void write_bool(void *dest, Bool val);
 
 // System primitives
 // File_readfile / File_writefile are namespace ext methods of the File
-// struct (src/std/file.til). Namespace ext methods get their prototype
-// from the builder's forward-decl pass, which does not apply the FFI
-// const convention, so these params must stay non-const to match.
-Str *File_readfile(Str *path);
-void File_writefile(Str *path, Str *content);
+// struct (src/std/file.til). The builder's is_ext_h_func skips their
+// forward-decl emission (see src/self/builder.til), so ext.h owns the
+// signature and can apply the FFI const convention to the Ref params.
+Str *File_readfile(const Str *path);
+void File_writefile(const Str *path, const Str *content);
 void stdio_capture_begin(const Str *path);
 void stdio_capture_end(void);
 Str *doc_org_load_core_info(const Str *index_path);

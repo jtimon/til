@@ -1870,8 +1870,6 @@ Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool call_free);
 U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
-Str * File_readfile(Str * path);
-void File_writefile(Str * path, Str * content);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
 void File_close(File * self);
