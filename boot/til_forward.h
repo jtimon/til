@@ -302,8 +302,10 @@ typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
+typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__I32 Vec__I32;
 typedef struct Array__U8 Array__U8;
+typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
 typedef struct ProgramUnit ProgramUnit;
@@ -819,6 +821,13 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
 } priv___src_self_garbager_til__LocalInfo;
 
 
+typedef struct priv___src_self_garbager_til__GcBorrowEdge {
+    Str owner;
+    Str borrower;
+    I32 fixed_reach;
+} priv___src_self_garbager_til__GcBorrowEdge;
+
+
 typedef struct Vec__I32 {
     U8 *data;
     USize count;
@@ -830,6 +839,13 @@ typedef struct Array__U8 {
     U8 *data;
     USize cap;
 } Array__U8;
+
+
+typedef struct Vec__GcBorrowEdge {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__GcBorrowEdge;
 
 
 typedef struct Vec__LocalInfo {
@@ -2804,7 +2820,14 @@ Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * targe
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
 Str * priv___src_self_garbager_til__enum_ref_payload_borrow_src(Expr * e, TypeScope * scope);
-void priv___src_self_garbager_til__extend_enum_ref_payload_borrows(Expr * e, I32 body_last, Vec__LocalInfo * locals, TypeScope * scope, Bool * ref_changed);
+priv___src_self_garbager_til__GcBorrowEdge * priv___src_self_garbager_til__GcBorrowEdge_clone(priv___src_self_garbager_til__GcBorrowEdge * self);
+void priv___src_self_garbager_til__GcBorrowEdge_delete(priv___src_self_garbager_til__GcBorrowEdge * self, Bool call_free);
+U64 priv___src_self_garbager_til__GcBorrowEdge_hash(priv___src_self_garbager_til__GcBorrowEdge * self, HashFn hasher);
+USize priv___src_self_garbager_til__GcBorrowEdge_size(void);
+void priv___src_self_garbager_til__gc_add_borrow_edge(Vec__GcBorrowEdge * edges, Str * owner, Str * borrower, I32 fixed_reach);
+void priv___src_self_garbager_til__collect_enum_ref_payload_edges(Expr * e, I32 body_last, Vec__GcBorrowEdge * edges, TypeScope * scope);
+Vec__GcBorrowEdge * priv___src_self_garbager_til__collect_borrow_edges(Expr * body, TypeScope * scope);
+void priv___src_self_garbager_til__propagate_borrow_edges(Vec__GcBorrowEdge * edges, Vec__LocalInfo * locals);
 void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__while_spine_transfers(Expr * wbody, Str * name, TypeScope * scope, Context * ctx);
@@ -2849,6 +2872,14 @@ void Array__U8_set(Array__U8 * self, USize i, U8 * val, I64 * _err_kind);
 void Array__U8_delete(Array__U8 * self, Bool call_free);
 Array__U8 * Array__U8_clone(Array__U8 * self);
 USize Array__U8_size(void);
+Vec__GcBorrowEdge * Vec__GcBorrowEdge_new(void);
+USize Vec__GcBorrowEdge_len(Vec__GcBorrowEdge * self);
+void Vec__GcBorrowEdge_clear(Vec__GcBorrowEdge * self);
+void Vec__GcBorrowEdge_push(Vec__GcBorrowEdge * self, priv___src_self_garbager_til__GcBorrowEdge * val);
+priv___src_self_garbager_til__GcBorrowEdge * Vec__GcBorrowEdge_unsafe_get(Vec__GcBorrowEdge * self, USize * i);
+void Vec__GcBorrowEdge_delete(Vec__GcBorrowEdge * self, Bool call_free);
+Vec__GcBorrowEdge * Vec__GcBorrowEdge_clone(Vec__GcBorrowEdge * self);
+USize Vec__GcBorrowEdge_size(void);
 Vec__LocalInfo * Vec__LocalInfo_new(void);
 USize Vec__LocalInfo_len(Vec__LocalInfo * self);
 void Vec__LocalInfo_clear(Vec__LocalInfo * self);

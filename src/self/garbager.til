@@ -1088,198 +1088,179 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     return ""
 }
 
-// Walk `e`'s subtree extending the lifetime of every local borrowed into an
-// enum ref payload (shape (c) of extend_ref_local_lifetimes).
-priv extend_enum_ref_payload_borrows := func(e: Expr, body_last: I32, locals: Vec(LocalInfo), scope: TypeScope, mut ref_changed: Bool) {
+// #302 stage 3: borrow edges, consolidated. extend_ref_local_lifetimes
+// used to interleave its lifetime rules inside one hand-rolled
+// fixpoint; they are now COLLECTED once as explicit borrower->owner
+// edges and solved by one max-propagation. The rules (unchanged
+// semantics -- max-lattice fixpoints are order-independent, so the
+// final last_use values are identical by construction):
+//   1. FieldAssign to a Ref field (`holder.f = src`): src must outlive
+//      any later access of holder; without aliasing analysis the bound
+//      is END OF BODY (borrows propagate through shallow clones of the
+//      holder).
+//   2. Ref-capturing closures (FuncDef/BodyValue capture lists): each
+//      ref-captured local lives as long as the closure binding.
+//   3. `ref x := src` / `ref x := src.field` / `ref x := f(args)`:
+//      the borrow source (the FieldAccess root / each FCall arg's
+//      ident root) lives as long as x's reach -- x's last textual use
+//      after its decl, max'd with x's own (possibly extended)
+//      last_use.
+//   4. #320: an enum-variant ctor with a ref payload borrows its arg
+//      into the enum value (`o := Opt.Some(src)`): src stays alive
+//      through scope exit, the same conservative bound as rule 1.
+priv GcBorrowEdge := struct {
+    owner := ""
+    // "" for a body-end edge (rule 1); otherwise the borrower binding
+    // whose current last_use joins the reach.
+    borrower := ""
+    fixed_reach : I32 = -1
+}
+
+priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrower: Str, fixed_reach: I32) {
+    mut e := GcBorrowEdge(fixed_reach = fixed_reach)
+    e.owner = owner.clone()
+    e.borrower = borrower.clone()
+    edges.push(own e)
+}
+
+// Rule 4's collector: walk a statement subtree adding a body-end edge
+// for every local borrowed into an enum ref payload.
+priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope) {
     src_name := enum_ref_payload_borrow_src(e, scope)
     if src_name.len() > 0 {
-        for local : LocalInfo in locals {
-            if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
-                local.last_use = body_last
-                ref_changed = true
-            }
-        }
+        gc_add_borrow_edge(edges, src_name, "", body_last)
     }
     for c : Expr in e.children {
-        extend_enum_ref_payload_borrows(c, body_last, locals, scope, ref_changed)
+        collect_enum_ref_payload_edges(c, body_last, edges, scope)
     }
 }
 
-priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope) {
-    mut ref_changed := true
-    // (c) #320: an enum-variant ctor with a ref payload borrows its arg
-    // into the enum value: `o := Opt.Some(src)` must keep src alive as
-    // long as o (or anything o was copied into) can be read. Same
-    // conservative bound as (a): extend src through scope exit. Unlike
-    // (a)/(b), the detection is pure syntax -- it never reads last_use --
-    // so ONE pass before the fixpoint loop suffices; keeping it inside
-    // the loop just re-walked every subtree per iteration for nothing.
-    for cstmt : Expr in body.children {
-        extend_enum_ref_payload_borrows(cstmt, body.children.len().sub(1).to_i32(), locals, scope, ref_changed)
+priv collect_borrow_edges := func(body: Expr, scope: TypeScope) returns Vec(GcBorrowEdge) {
+    mut edges := Vec(GcBorrowEdge).new()
+    body_last := body.children.len().sub(1).to_i32()
+    // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
+    // anywhere in the statement subtree.
+    for stmt : Expr in body.children {
+        collect_enum_ref_payload_edges(stmt, body_last, edges, scope)
+        if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
+        if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
+        if stmt.children.len() < 2 { continue }
+        ref mut target : Expr = stmt.children[0]
+        while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
+            target = target.children[0]
+        }
+        mut holder_name := ""
+        switch target.node_type {
+        case NodeType.Ident(hn): holder_name = Str.clone(hn.ident_name())
+        case:
+        }
+        if holder_name.len() == 0 { continue }
+        ref value : Expr = stmt.children[1]
+        switch value.node_type {
+        case NodeType.Ident(sn):
+            gc_add_borrow_edge(edges, sn.ident_name(), "", body_last)
+        case:
+        }
     }
-    while ref_changed {
-        ref_changed = false
-        // (a) FieldAssign-to-Ref-field: `holder.f = src` where f is declared
-        // `ref mut f : T = NULL` borrows src into holder. src must outlive
-        // any later access of holder (via holder.f or holder field-access
-        // chains), or the borrow dangles. Extend src's last_use to match
-        // holder's. Same shape as the `ref local := src` case handled below
-        // (which is the `ref`-Decl form of the same borrow relationship).
-        // (Issue #109: test/ref.til's test_ref_struct_field leaked b's
-        // 16B RefNode wrapper because the typer treated `a.next = b` as a
-        // transfer and skipped b's scope-end delete; with that
-        // misclassification fixed in expr_transfers_own, b would otherwise
-        // be deleted at the FieldAssign itself, dangling `a.next` for the
-        // later asserts.)
-        for mut stmt : Expr in body.children {
-            if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
-            if stmt.fa_own_type(scope).is(OwnType.Ref).not() { continue }
-            if stmt.children.len() < 2 { continue }
-            // target side: walk down the FieldAccess chain to find the
-            // root Ident (the holder local's name).
-            ref mut target : Expr = stmt.children[0]
-            while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
-                target = target.children[0]
-            }
-            mut holder_name := ""
-            switch target.node_type {
-            case NodeType.Ident(hn): holder_name = Str.clone(hn.ident_name())
-            case:
-            }
-            if holder_name.len() == 0 { continue }
-            // source side: the FieldAssign RHS, if an Ident, names the
-            // local whose lifetime we extend.
-            ref value : Expr = stmt.children[1]
-            mut src_name := ""
-            switch value.node_type {
-            case NodeType.Ident(sn): src_name = Str.clone(sn.ident_name())
-            case:
-            }
-            if src_name.len() == 0 { continue }
-            // Extend src's last_use to the body's final stmt. Conservative:
-            // the borrow could be propagated through shallow clones of the
-            // holder (e.g. `c := a.clone()` makes c.next alias a.next ==
-            // src). Without aliasing analysis we can't pin a tighter bound,
-            // so keep src alive through scope exit.
-            body_last := body.children.len().sub(1).to_i32()
-            for local : LocalInfo in locals {
-                if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
-                    local.last_use = body_last
-                    ref_changed = true
+    for i in 0..body.children.len() {
+        ref stmt : Expr = body.children[i]
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        mut dd_name := ""
+        mut dd_is_ref := false
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            dd_name = dd.name.clone()
+            dd_is_ref = dd.own_type.is(OwnType.Ref)
+        case:
+        }
+        if stmt.children.len() > 0 {
+            // Rule 2: ref captures live as long as the closure binding.
+            switch stmt.children[0].node_type {
+            case NodeType.FuncDef(fd):
+                for cap : Declaration in fd.captures {
+                    if cap.own_type.is(OwnType.Ref).not() { continue }
+                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i32())
                 }
+            case NodeType.BodyValue(bd):
+                for cap : Declaration in bd.captures {
+                    if cap.own_type.is(OwnType.Ref).not() { continue }
+                    gc_add_borrow_edge(edges, cap.name, dd_name, i.to_i32())
+                }
+            case:
             }
         }
-        for i in 0..body.children.len() {
-            ref mut stmt : Expr = body.children[i]
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            mut dd_name := ""
-            mut dd_is_ref := false
-            switch stmt.node_type {
-            case NodeType.Decl(dd):
-                dd_name = dd.name.clone()
-                dd_is_ref = dd.own_type.is(OwnType.Ref)
-            case:
+        if dd_is_ref.not() { continue }
+        // Rule 3: the ref's reach = its last textual use after the decl
+        // (at least the decl itself); the borrower term joins the ref's
+        // own extended last_use during propagation.
+        mut ref_last : I32 = -1
+        for j in i.add(1)..body.children.len() {
+            if expr_uses_var(body.children[j], dd_name) {
+                ref_last = j.to_i32()
             }
-            if stmt.children.len() > 0 {
-                switch stmt.children[0].node_type {
-                case NodeType.FuncDef(fd):
-                    mut closure_last : I32 = i.to_i32()
-                    for local : LocalInfo in locals {
-                        if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
-                            closure_last = local.last_use
-                        }
-                    }
-                    for cap : Declaration in fd.captures {
-                        if cap.own_type.is(OwnType.Ref).not() { continue }
-                        for local2 : LocalInfo in locals {
-                            if local2.name.eq(cap.name).and(local2.last_use.lt(closure_last)) {
-                                local2.last_use = closure_last
-                                ref_changed = true
-                            }
-                        }
-                    }
-                case NodeType.BodyValue(bd):
-                    mut closure_last : I32 = i.to_i32()
-                    for local : LocalInfo in locals {
-                        if local.name.eq(dd_name).and(local.last_use.gt(closure_last)) {
-                            closure_last = local.last_use
-                        }
-                    }
-                    for cap : Declaration in bd.captures {
-                        if cap.own_type.is(OwnType.Ref).not() { continue }
-                        for local2 : LocalInfo in locals {
-                            if local2.name.eq(cap.name).and(local2.last_use.lt(closure_last)) {
-                                local2.last_use = closure_last
-                                ref_changed = true
-                            }
-                        }
-                    }
-                case:
-                }
+        }
+        if ref_last == -1 { ref_last = i.to_i32() }
+        ref mut rhs : Expr = stmt.children[0]
+        switch rhs.node_type {
+        case NodeType.Ident(src_name):
+            gc_add_borrow_edge(edges, src_name.ident_name(), dd_name, ref_last)
+            continue
+        case:
+        }
+        if rhs.node_type.is(NodeType.FieldAccess) {
+            ref mut root : Expr = rhs
+            while root.node_type.is(NodeType.FieldAccess).and(root.children.len().gt(0)) {
+                root = root.children[0]
             }
-            if dd_is_ref.not() { continue }
-            ref mut rhs : Expr = stmt.children[0]
-
-            mut ref_last : I32 = -1
-            for j in i.add(1)..body.children.len() {
-                if expr_uses_var(body.children[j], dd_name) {
-                    ref_last = j.to_i32()
-                }
-            }
-            if ref_last == -1 { ref_last = i.to_i32() }
-            for local : LocalInfo in locals {
-                if local.name.eq(dd_name).and(local.last_use.gt(ref_last)) {
-                    ref_last = local.last_use
-                }
-            }
-
-            switch rhs.node_type {
+            switch root.node_type {
             case NodeType.Ident(src_name):
-                for local : LocalInfo in locals {
-                    if local.name.eq(src_name.ident_name()).and(local.last_use.lt(ref_last)) {
-                        local.last_use = ref_last
-                        ref_changed = true
-                    }
-                }
-                continue
+                gc_add_borrow_edge(edges, src_name.ident_name(), dd_name, ref_last)
             case:
             }
-            if rhs.node_type.is(NodeType.FieldAccess) {
-                ref mut root : Expr = rhs
-                while root.node_type.is(NodeType.FieldAccess).and(root.children.len().gt(0)) {
-                    root = root.children[0]
-                }
-                switch root.node_type {
-                case NodeType.Ident(src_name):
-                    for local : LocalInfo in locals {
-                        if local.name.eq(src_name.ident_name()).and(local.last_use.lt(ref_last)) {
-                            local.last_use = ref_last
-                            ref_changed = true
-                        }
-                    }
-                case:
-                }
-                continue
+            continue
+        }
+        if rhs.node_type.is(NodeType.FCall).not() { continue }
+        for a in 1..rhs.children.len() {
+            ref mut arg : Expr = rhs.children[a]
+            while arg.node_type.is(NodeType.FieldAccess).and(arg.children.len().gt(0)) {
+                arg = arg.children[0]
             }
-            if rhs.node_type.is(NodeType.FCall).not() { continue }
-            for a in 1..rhs.children.len() {
-                ref mut arg : Expr = rhs.children[a]
-                while arg.node_type.is(NodeType.FieldAccess).and(arg.children.len().gt(0)) {
-                    arg = arg.children[0]
-                }
-                switch arg.node_type {
-                case NodeType.Ident(aname):
-                    for local : LocalInfo in locals {
-                        if local.name.eq(aname.ident_name()).and(local.last_use.lt(ref_last)) {
-                            local.last_use = ref_last
-                            ref_changed = true
-                        }
+            switch arg.node_type {
+            case NodeType.Ident(aname):
+                gc_add_borrow_edge(edges, aname.ident_name(), dd_name, ref_last)
+            case:
+            }
+        }
+    }
+    return edges
+}
+
+priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalInfo)) {
+    mut changed := true
+    while changed {
+        changed = false
+        for e : GcBorrowEdge in edges {
+            mut reach := e.fixed_reach
+            if e.borrower.len() > 0 {
+                for bl : LocalInfo in locals {
+                    if bl.name.eq(e.borrower).and(bl.last_use.gt(reach)) {
+                        reach = bl.last_use
                     }
-                case:
+                }
+            }
+            for local : LocalInfo in locals {
+                if local.name.eq(e.owner).and(local.last_use.lt(reach)) {
+                    local.last_use = reach
+                    changed = true
                 }
             }
         }
     }
+}
+
+priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope) {
+    edges := collect_borrow_edges(body, scope)
+    propagate_borrow_edges(edges, locals)
 }
 
 // Issue #250: a view binding (a Decl whose initializer reads a local's heap
@@ -1301,6 +1282,15 @@ priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), 
 // (slightly over-eager) transitive taint -- which also follows clone results
 // that no longer alias the buffer -- only pushes the delete a touch later.
 priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
+    // #302 stage 3: the taint rule expressed as borrow edges on the
+    // same machinery as rules 1-3 (collect_borrow_edges). Discovery is
+    // unchanged (collect_hoist_taint's transitive initializer-read
+    // walk); the extension is one edge per owner whose reach is the
+    // last statement consuming any tainted binding. Kept as a separate
+    // application AFTER the use-after-transfer check on purpose: an
+    // over-eager taint must not spuriously flag a transfer (see the
+    // call site).
+    mut edges := Vec(GcBorrowEdge).new()
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
         tainted := collect_hoist_taint(local.name, body.children)
@@ -1312,8 +1302,9 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
                 if expr_uses_var(body.children[j], t) { view_last = j.to_i32() }
             }
         }
-        if view_last > local.last_use { local.last_use = view_last }
+        if view_last >= 0 { gc_add_borrow_edge(edges, local.name, "", view_last) }
     }
+    propagate_borrow_edges(edges, locals)
 }
 
 // A while body whose UNGUARDED spine transfers `name` -- i.e. the

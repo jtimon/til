@@ -919,6 +919,12 @@ let the ownership pass insert temps itself; start with the check.
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).
+    FIRST SLICE LANDED 2026-07-16: extend_ref_local_lifetimes' three
+    interleaved rules are now explicit GcBorrowEdge records
+    (collect_borrow_edges) solved by one max-propagation
+    (propagate_borrow_edges) -- pass-1 C == pass-2 C byte-exact, suite
+    176/176. Rule 4 (the taint machinery) still stands alone; next
+    slice converts it and rhs_depends_on_var onto the same edges.
     REPLACEMENT DESIGN (mapped 2026-07-16 from a full read of the
     machinery; execute with the pass-1-vs-pass-2 empty-diff referee):
     all four lifetime walkers compute ONE fact -- extended last_use
@@ -999,15 +1005,28 @@ let the ownership pass insert temps itself; start with the check.
     the garbager's delete statements as its reclamation signal, and
     suppressing even the scalar class corrupted constfold evaluation
     (ASAN heap-buffer-overflow off a stale interp cell; reproduced
-    with a scalars-only gate, gone on revert). GATE LIFTED 2026-07-16:
-    #286 is FIXED (a1ad866, typed raw EvalHeap storage; the boxed
-    Value/StructInstance/EnumInstance model and its conversion/cleanup
-    helpers are gone). On raw storage a stack-scalar delete should be
-    a true no-op interp-side too -- RE-PROBE the same scalars-only
-    gate first (the probe recipe is one gc_delete_is_noop predicate +
-    a gc_make_delete wrapper over the six factory sites, see this
-    entry's history), with the same referees (pass-diff classes +
-    ASAN suite). The OTHER stage-6 items (swap_freed, CAP laundering
+    with a scalars-only gate, gone on revert). GATE LIFTED 2026-07-16
+    (#286 fixed, a1ad866) and RE-PROBED SAME DAY: still blocked, but
+    by a DIFFERENT, latent bug the probe EXPOSES in the raw-storage
+    constfolder/scope ownership -- not by delete semantics. Evidence
+    (scalars-only gate, reverted after): even `x := 1` crashes at
+    translate; gdb pins the constfolder folding src/core/ast.til's
+    TYPE_STR ctor literal (483:31), track_literal's is_known returning
+    a Str block reading {c_str=0x3, count=0} -- freed-and-reused bytes
+    -- for the hoisted literal temp; SEGV cloning it
+    (clone_str_storage_into <- heap_clone <- scope_read_bound_raw).
+    With scalar deletes absent, scalar bindings live to scope teardown
+    and some block referenced by a constfolder_known entry is
+    freed/reused early -- a real double-ownership hole in the new
+    runtime that the deletes' presence papers over by shifting
+    allocation patterns. A same-name rebind ptr_eq fix in
+    scope_set_heap_owned was tried and did NOT fix it (reverted --
+    unverified edits do not ship). NEXT: root-cause the known-table
+    adoption vs scope teardown ownership (suggest filing as its own
+    interpreter bug); the no-op item lands after that fix, with the
+    same recipe (gc_delete_is_noop + gc_make_delete over the six
+    factory sites) and referees (pass-diff classes + ASAN suite).
+    The OTHER stage-6 items (swap_freed, CAP laundering
     at return boxing, the FieldAssign cap test, the "Asap fix" inline
     free) each need their own gap-first fix per the stage's rule.
   - [ ] Stage 7: interpreter compensation removal -- UNGATED and
