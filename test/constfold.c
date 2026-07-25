@@ -1320,7 +1320,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = (((void *)((U8 *)(_fc_Array__Str_57->data) + (((U64)(_fi_USize_57 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_57->data) + (((U64)(_fi_USize_57 * 16))))));
             U32 hoisted__U32_60 = 1;
             (void)hoisted__U32_60;
             U32 hoisted__U32_61 = ((U32)(_fi_USize_57 + hoisted__U32_60));
@@ -1349,7 +1349,7 @@ Str * format(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = (((void *)((U8 *)(_fc_Array__Str_64->data) + (((U64)(_fi_USize_64 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_64->data) + (((U64)(_fi_USize_64 * 16))))));
             U32 hoisted__U32_67 = 1;
             (void)hoisted__U32_67;
             U32 hoisted__U32_68 = ((U32)(_fi_USize_64 + hoisted__U32_67));
@@ -1689,13 +1689,13 @@ Str * Array__Str_unsafe_get(Array__Str * self, USize * i) {
 }
 
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
-    Str *hoisted__Str_631 = (((void *)((U8 *)(self->data) + (((U64)(i * 16))))));
+    Str *hoisted__Str_631 = ((Str *)((void *)((U8 *)(self->data) + (((U64)(i * 16))))));
     (void)hoisted__Str_631;
     (void)hoisted__Str_631;
     Bool hoisted__Bool_632 = 0;
     (void)hoisted__Bool_632;
     Str_delete(hoisted__Str_631, hoisted__Bool_632);
-    Str *hoisted__Str_633 = (((void *)((U8 *)(self->data) + (((U64)(i * 16))))));
+    Str *hoisted__Str_633 = ((Str *)((void *)((U8 *)(self->data) + (((U64)(i * 16))))));
     (void)hoisted__Str_633;
     (void)hoisted__Str_633;
     U64 hoisted__U64_634 = 16ULL;
@@ -5797,7 +5797,7 @@ void println(Array__Str * parts) {
             } else {
                 break;
             }
-            Str *s = (((void *)((U8 *)(_fc_Array__Str_6362->data) + (((U64)(_fi_USize_6362 * 16))))));
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_6362->data) + (((U64)(_fi_USize_6362 * 16))))));
             U32 hoisted__U32_6365 = 1;
             (void)hoisted__U32_6365;
             U32 hoisted__U32_6366 = ((U32)(_fi_USize_6362 + hoisted__U32_6365));

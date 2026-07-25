@@ -595,6 +595,12 @@ priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx:
         ref rv : Expr = ret.children[0]
         f.write("(")
         if fd.return_own_type.is(OwnType.Ref) {
+            // The spliced expression is ptr_add's (void *) lowering; cast it
+            // back to the accessor's real C return type so the inline is a
+            // drop-in for the out-of-line call. Without the cast, a chained
+            // field access on the result -- `v.unsafe_get(i).x` -- emits
+            // `((void *)...)->x`, which C rejects.
+            f.write("(").write(func_return_ctype(fd, ctx)).write(")")
             emit_as_ptr(f, rv, depth, false, ctx)
         } else {
             emit_expr(f, rv, depth, ctx)

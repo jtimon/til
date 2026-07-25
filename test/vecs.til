@@ -329,6 +329,24 @@ test_vec_for_in_str := test() {
     assert_eq(Str, joined, "abc")
 }
 
+// Chained member access on the inlined accessor's result: the emitter
+// splices unsafe_get into ptr_add's (void *) lowering, and without the
+// cast back to the element pointer type the chained `.x` emitted
+// `((void *)...)->x` -- a C compile error (found porting #307).
+ChainPoint := struct {
+    x := 0
+    y := 0
+}
+
+test_vec_unsafe_get_chained_field := test() {
+    v := Vec(ChainPoint).new()
+    v.push(own ChainPoint(x = 41, y = 2))
+    v.push(own ChainPoint(x = 5, y = 7))
+    assert_eq(I64, v.unsafe_get(0).x, 41)
+    assert_eq(I64, v.unsafe_get(1).y, 7)
+    assert_eq(Str, v.unsafe_get(0).x.to_str(), "41")
+}
+
 test_vec_take_prefix_append_roundtrip := test() {
     v := Vec(I64).new()
     v.push(own 5)
