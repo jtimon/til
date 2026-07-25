@@ -50,14 +50,24 @@
   rejected ("only valid on type arguments of type templates").
   Tests: test_ref_type_arg_* in test/first_class.til, misuse case in
   test/typer_errors.til (count 165->166).
-- [ ] Gap 1 remainder: ref type args for direct generic function
-  calls (currently a loud panic).
-- [ ] Found while testing (pre-existing, NOT ref-related): switching
-  a macro-generated enum through its ALIAS (`Opt := make_opt(I64);
-  switch o { case Opt.Some(v): }`) fails "non-exhaustive switch";
-  only in-macro self-reference patterns work. Worth its own issue.
-- [ ] Niche layout rule (see below).
-- [ ] Option in core, ala Rust.
+- [X] Gap 1 remainder: ref type args for direct generic function
+  calls -- `gpick(ref X, v)` monomorphizes `gpick__ref_X` with
+  `returns T` as a borrowed return, through the same ref_params
+  substitution; a ref bit on a VALUE-arg position of a generic still
+  panics loudly (it would be silently dropped by the call rewrite).
+  Test: test_generic_func_ref_type_arg (test/first_class.til).
+- [X] The alias-switch bug found while testing was filed and fixed as
+  #322 (issues/fixed/322.org): switch coverage compared the case
+  pattern's type name textually, so alias-spelled patterns (any
+  template instantiation alias, but also plain `Color2 := Color`)
+  never matched; all four comparison sites now resolve through
+  resolve_type_alias.
+- [X] Option in core, ala Rust: src/core/option.til, imported by the
+  core prelude -- `Option := macro(T: Type) returns EnumDef` with
+  None/Some plus is_some/is_none/unwrap_or; one template serves
+  Option(X) and Option(ref X) (unwrap_or returns the BORROW under the
+  ref instantiation). Tests: test/option.til (both backends).
+- [ ] Niche layout rule (see below) -- the remaining #320 item.
 
 Prerequisite for #321 (Forbid NULL). To express ~Option(ref T)~ ala
 Rust's ~Option<&T>~, two currently-missing capabilities are needed;

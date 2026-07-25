@@ -4225,8 +4225,8 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
     return inst_data
 }
 
-// Cache-only pass: populate ctx.cached_str/array/vec_def/name before raw
-// allocation and layout helpers need the canonical aggregate definitions.
+// Cache-only pass: populate ctx.cached_str_name (and the type-def map)
+// before raw allocation and layout helpers need the canonical Str name.
 populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
@@ -4237,9 +4237,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name == "Str"   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
-                if dd.name == "Array" { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
-                if dd.name == "Vec"   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
+                if dd.name == "Str" { ctx.cached_str_name = dd.name.clone() }
             }
             tdv : Dynamic = malloc(I64.size())
             write_ptr(tdv, sdef)
@@ -4263,9 +4261,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                 if sdef.node_type.is(NodeType.EnumDef).not() { continue }
             }
             if sdef.node_type.is(NodeType.StructDef) {
-                if dd.name == "Str"   { ctx.cached_str_def   = stmt.children[0]; ctx.cached_str_name   = dd.name }
-                if dd.name == "Array" { ctx.cached_array_def = stmt.children[0]; ctx.cached_array_name = dd.name }
-                if dd.name == "Vec"   { ctx.cached_vec_def   = stmt.children[0]; ctx.cached_vec_name   = dd.name }
+                if dd.name == "Str" { ctx.cached_str_name = dd.name.clone() }
             }
             // Register every struct/enum AST in the comprehensive type-def map
             // so readers can replace Declaration.field_struct_def with a name lookup.

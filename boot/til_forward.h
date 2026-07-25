@@ -258,6 +258,11 @@ typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
+typedef enum {
+    Option__ref_Expr_TAG_None,
+    Option__ref_Expr_TAG_Some
+} Option__ref_Expr_tag;
+typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
@@ -1325,6 +1330,14 @@ typedef struct Map__Str_call_Vec_Str {
 } Map__Str_call_Vec_Str;
 
 
+struct Option__ref_Expr {
+    U8 tag;
+    union {
+        Expr *Some;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct Map__Str_FFIEntry {
     Vec__Str keys;
     Vec__FFIEntry values;
@@ -1353,7 +1366,7 @@ typedef struct priv___src_self_typer_til__CoverageNode {
 
 
 typedef struct priv___src_self_garbager_til__GcCfgBlock {
-    Expr *body;
+    Option__ref_Expr body;
     I32 start;
     I32 end;
     Bool is_root;
@@ -1482,13 +1495,8 @@ typedef struct Context {
     Vec__Str builder_str_lit_values;
     Map__Str_Str builder_str_lit_ident_symbols;
     Set__Str swap_freed;
-    Expr *current_fdef;
-    Expr *cached_str_def;
-    Str *cached_str_name;
-    Expr *cached_array_def;
-    Str *cached_array_name;
-    Expr *cached_vec_def;
-    Str *cached_vec_name;
+    Option__ref_Expr current_fdef;
+    Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
     InternedTypes interned_types;
     Map__Str_Dynamic dispatch_map;
@@ -2234,6 +2242,11 @@ void Map__Str_call_Vec_Str_delete(Map__Str_call_Vec_Str * self, Bool call_free);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_clone(Map__Str_call_Vec_Str * self);
 U64 Map__Str_call_Vec_Str_hash(Map__Str_call_Vec_Str * self, HashFn hasher);
 USize Map__Str_call_Vec_Str_size(void);
+Option__ref_Expr * Option__ref_Expr_None(void);
+Option__ref_Expr * Option__ref_Expr_Some(Expr * val);
+void Option__ref_Expr_delete(Option__ref_Expr * self, Bool call_free);
+Option__ref_Expr * Option__ref_Expr_clone(Option__ref_Expr * self);
+USize Option__ref_Expr_size(void);
 Map__Str_Dynamic * Map__Str_Dynamic_new(void);
 Bool Map__Str_Dynamic_has(Map__Str_Dynamic * self, Str * key);
 void * Map__Str_Dynamic_get(Map__Str_Dynamic * self, Str * key, I64 * _err_kind);
@@ -2839,6 +2852,7 @@ Bool priv___src_self_garbager_til__gc_audit_local_is_noise(priv___src_self_garba
 void priv___src_self_garbager_til__gc_audit_dump(Context * ctx, Expr * body, Vec__LocalInfo * locals);
 priv___src_self_garbager_til__GcCfgBlock * priv___src_self_garbager_til__GcCfgBlock_clone(priv___src_self_garbager_til__GcCfgBlock * self);
 void priv___src_self_garbager_til__GcCfgBlock_delete(priv___src_self_garbager_til__GcCfgBlock * self, Bool call_free);
+U64 priv___src_self_garbager_til__GcCfgBlock_hash(priv___src_self_garbager_til__GcCfgBlock * self, HashFn hasher);
 USize priv___src_self_garbager_til__GcCfgBlock_size(void);
 I32 priv___src_self_garbager_til__cfg_new_block(Vec__GcCfgBlock * blocks, Expr * body, I32 start, Bool is_root);
 void priv___src_self_garbager_til__cfg_set_end(Vec__GcCfgBlock * blocks, I32 id, I32 end);
@@ -4088,6 +4102,8 @@ TokenType *TokenType_KwPriv();
 TokenType *TokenType_Error();
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
+Option__ref_Expr *Option__ref_Expr_None();
+Option__ref_Expr *Option__ref_Expr_Some(Expr *);
 Bool Lang_eq(Lang *, Lang *);
 Lang *Lang_C();
 Lang *Lang_HolyC();

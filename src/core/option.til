@@ -1,0 +1,32 @@
+mode lib
+
+import("bool")
+
+/// Optional value, ala Rust's Option<T> (#320): Some carries a value of
+/// type T, None carries nothing. ONE template serves owned payloads
+/// (Option(X)) and borrowed ones (Option(ref X)) via ref-qualified type
+/// arguments; a borrowed Some shares its pointee (the enum does not own
+/// it). Option(ref T) is the shape #321's NULL removal migrates ref
+/// fields and lookup returns onto.
+Option := macro(T: Type) returns EnumDef {
+    return enum {
+        None
+        Some: T
+    namespace:
+        is_some := func(self: Option(T)) returns Bool {
+            switch self {
+            case Option(T).Some(_v): return true
+            case: return false
+            }
+        }
+        is_none := func(self: Option(T)) returns Bool {
+            return self.is_some().not()
+        }
+        unwrap_or := func(self: Option(T), default_v: T) returns T {
+            switch self {
+            case Option(T).Some(v): return v
+            case: return default_v
+            }
+        }
+    }
+}

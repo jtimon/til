@@ -166,6 +166,29 @@ semantics on purpose (test/ref.til RefNode.next linked list,
 test/aliases.til, test/typer_errors.til, test/priv_error.til) stay
 until the language-level removal.
 
+**** Step-1 Option migration, batch 1 (post-#320, Option in core)
+
+- garbager GcCfgBlock.body -> Option(ref Expr) (None only for the
+  synthetic exit block; consumers switched, root-block reader fails
+  loud on None).
+- Context cached_* block: cached_str_def / cached_array_def/_name /
+  cached_vec_def/_name were WRITE-ONLY (dead) and are REMOVED;
+  cached_str_name became an OWNED Str clone ("" = not registered),
+  which also dissolves this field's #299 teardown-ordering hazard
+  (no more borrow into the imported ASTs).
+- Context.current_fdef -> Option(ref Expr) (builder read sites
+  switched; save/restore of the Option value at closure emission).
+
+Remaining ref-NULL fields for the next batch: TypeScope.parent,
+Context.constfolder_known / ns_fields, Context.return_value /
+interp_ret_dest (reclassify as plain Dynamic per the quarantine
+decision) / interp_ret_type, InterpSession.global, FFIEntry.* (mixed
+Option/Dynamic), test fixtures (RefNode.next, aliases), THEN the
+forbid: drop check_ref_field_owned_default's NULL exception for
+non-ext structs (ext_structs keep NULL defaults until the niche
+layout gives Option(ref T) the C pointer ABI), plus doc table
+updates (qualifiers.org / ownership.org / enums.org).
+
 *** Decisions (2026-07-21 design discussion)
 
 - NO unsafe blocks. Rust needs unsafe REGIONS because its raw

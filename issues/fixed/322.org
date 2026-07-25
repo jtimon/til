@@ -1,0 +1,26 @@
+# priority: medium
+# category: bugs
+** FIXED #322 Enum aliases fail in switch case patterns (non-exhaustive)
+
+   Post-mortem: the switch coverage machinery compared the case
+   pattern's TYPE NAME textually against the scrutinee's resolved type
+   name. A pattern spelled through an alias (~Color2.Red~ where
+   ~Color2 := Color~, or ~Opt.Some(v)~ where ~Opt := make_opt(I64)~ --
+   the alias every type-gen macro instantiation is bound to) never
+   matched, so no variant was marked covered and every alias-spelled
+   switch died with "non-exhaustive switch ... missing cases", listing
+   the very cases written below it. Root cause, not symptom: all four
+   textual comparisons (bare-variant and payload arms of BOTH
+   mark_pattern_coverage and its read-only twin is_pattern_covered,
+   src/self/typer.til) now resolve the pattern's name through
+   resolve_type_alias before comparing. The payload-binding path
+   (prepend_clike_payload_binding) was already alias-safe -- it keys on
+   the scrutinee's def and the variant name only.
+
+   Regression tests: test_option_alias_switch (test/option.til) for the
+   macro-alias form the bug was found through, and the plain-alias form
+   is covered by the same resolve path.
+
+   Found while testing #320: template Option ergonomics were unusable
+   without it (every ~switch o { case Opt.Some(v): }~ failed; only
+   in-macro self-reference patterns worked).

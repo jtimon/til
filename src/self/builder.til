@@ -100,8 +100,8 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         // instead of through param.explicit_type + scope.find indirection.
         // The Type.FuncPtrSig predicate filters out non-FuncSig params
         // (Struct/Enum) without needing the bodyless-FuncDef gate.
-        ref cf1 : Expr = ctx.current_fdef
-        if cf1.is_null().not() {
+        switch ctx.current_fdef {
+        case Option(ref Expr).Some(cf1):
             switch cf1.node_type {
             case NodeType.FuncDef(cur_fd):
                 for p : Declaration in cur_fd.params {
@@ -116,6 +116,7 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
                 }
             case:
             }
+        case Option(ref Expr).None:
         }
         // Fallback 2: local FuncPtr decl whose signature was captured at
         // emit_stmt_decl time.
@@ -188,16 +189,18 @@ priv is_stack_lit_str_local := func(name: Str, ctx: Context) returns Bool {
 }
 
 priv is_current_func_param := func(name: Str, ctx: Context) returns Bool {
-    ref cf : Expr = ctx.current_fdef
-    if cf.is_null() { return false }
-    switch cf.node_type {
-    case NodeType.FuncDef(fd):
-        for p : Declaration in fd.params {
-            if p.name == name { return true }
+    switch ctx.current_fdef {
+    case Option(ref Expr).None: return false
+    case Option(ref Expr).Some(cf):
+        switch cf.node_type {
+        case NodeType.FuncDef(fd):
+            for p : Declaration in fd.params {
+                if p.name == name { return true }
+            }
+            return false
+        case:
+            return false
         }
-        return false
-    case:
-        return false
     }
 }
 
@@ -741,8 +744,9 @@ priv builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
 }
 
 priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
-    ref cf : Expr = ctx.current_fdef
-    if cf.is_null() { return false }
+    switch ctx.current_fdef {
+    case Option(ref Expr).None: return false
+    case Option(ref Expr).Some(cf):
     switch cf.node_type {
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {
@@ -756,6 +760,7 @@ priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
     case:
         UNREACHABLE()
         return false
+    }
     }
 }
 
@@ -2157,13 +2162,14 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
 }
 
 priv emit_return_ctype := func(rv: Expr, ctx: Context) returns Str {
-    ref cf : Expr = ctx.current_fdef
-    if cf.is_null().not() {
+    switch ctx.current_fdef {
+    case Option(ref Expr).Some(cf):
         switch cf.node_type {
         case NodeType.FuncDef(fd):
             if fd.return_type.len() > 0 { return type_name_to_c_value(fd.return_type, ctx) }
         case:
         }
+    case Option(ref Expr).None:
     }
     return c_type_name(rv.til_type(), til_type_name(rv.til_type()), ctx)
 }
@@ -2201,8 +2207,9 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             }
         }
         // Ref return
-        ref cf2 : Expr = ctx.current_fdef
-        if cf2.is_null().not() {
+        switch ctx.current_fdef {
+        case Option(ref Expr).None:
+        case Option(ref Expr).Some(cf2):
             switch cf2.node_type {
             case NodeType.FuncDef(fd):
                 if fd.return_own_type.is(OwnType.Ref) {
@@ -2254,13 +2261,14 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             switch rv.node_type {
             case NodeType.Ident(rv_name):
                 mut is_shallow_ret := false
-                ref cf3 : Expr = ctx.current_fdef
-                if cf3.is_null().not() {
+                switch ctx.current_fdef {
+                case Option(ref Expr).Some(cf3):
                     switch cf3.node_type {
                     case NodeType.FuncDef(fd):
                         is_shallow_ret = fd.return_own_type.is(OwnType.Shallow)
                     case:
                     }
+                case Option(ref Expr).None:
                 }
                 if is_stack_local(rv_name.ident_name(), ctx).or(is_value_global(rv_name.ident_name(), ctx)) {
                     if is_shallow_ret.not() {
@@ -4468,7 +4476,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             }
         }
         lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = func_def
+        lp.ctx.current_fdef = Option(ref Expr).Some(func_def)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
@@ -4522,13 +4530,13 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_env := lp.ctx.closure_emit_env.clone()
         saved_caps := lp.ctx.closure_emit_captures.clone()
         saved_in_func_def := lp.ctx.in_func_def
-        ref saved_current_fdef : Expr = lp.ctx.current_fdef
+        saved_current_fdef := lp.ctx.current_fdef
         saved_builder_func := lp.ctx.builder_func.clone()
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Str).new()
         for cap2 : Declaration in fd.captures { lp.ctx.closure_emit_captures.add(own cap2.name.clone()) }
         lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = closure_expr
+        lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
@@ -4571,13 +4579,13 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         saved_env_b := lp.ctx.closure_emit_env.clone()
         saved_caps_b := lp.ctx.closure_emit_captures.clone()
         saved_in_func_def_b := lp.ctx.in_func_def
-        ref saved_current_fdef_b : Expr = lp.ctx.current_fdef
+        saved_current_fdef_b := lp.ctx.current_fdef
         saved_builder_func_b := lp.ctx.builder_func.clone()
         lp.ctx.closure_emit_env = "til_env"
         lp.ctx.closure_emit_captures = Set(Str).new()
         for cap_b3 : Declaration in bd.captures { lp.ctx.closure_emit_captures.add(own cap_b3.name.clone()) }
         lp.ctx.in_func_def = true
-        lp.ctx.current_fdef = closure_expr
+        lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)

@@ -1,0 +1,80 @@
+mode test
+
+// Core Option(T) (#320): one template, owned (Option(X)) and borrowed
+// (Option(ref X)) instantiations.
+
+OptSrc := struct {
+    n := 0
+namespace:
+    eq := func(a: OptSrc, b: OptSrc) returns Bool { return a.n.eq(b.n) }
+    to_str := func(self: OptSrc) returns Str { return self.n.to_str() }
+}
+
+OptI := Option(I64)
+OptRefSrc := Option(ref OptSrc)
+
+test_option_owned_basics := test() {
+    some := OptI.Some(42)
+    none := OptI.None
+    expect(some.is_some(), "Some is_some")
+    expect(some.is_none().not(), "Some not is_none")
+    expect(none.is_none(), "None is_none")
+    assert_eq(I64, some.unwrap_or(0), 42)
+    assert_eq(I64, none.unwrap_or(7), 7)
+}
+
+// #322: switching through the alias name works for template enums.
+test_option_alias_switch := test() {
+    o := OptI.Some(9)
+    mut got := -1
+    switch o {
+    case OptI.Some(v): got = v
+    case OptI.None: got = 0
+    }
+    assert_eq(I64, got, 9)
+}
+
+test_option_ref_borrows := test() {
+    mut src := OptSrc(n = 1)
+    o := OptRefSrc.Some(src)
+    // The payload is a borrow: source mutations are visible through it.
+    src.n = 5
+    mut got := -1
+    switch o {
+    case OptRefSrc.Some(p): got = p.n
+    case OptRefSrc.None: got = 0
+    }
+    assert_eq(I64, got, 5)
+    expect(o.is_some(), "ref Some is_some")
+    expect(OptRefSrc.None.is_none(), "ref None is_none")
+    assert_eq(I64, src.n, 5)
+}
+
+test_option_ref_unwrap_or := test() {
+    mut src := OptSrc(n = 3)
+    fallback := OptSrc(n = 0)
+    o := OptRefSrc.Some(src)
+    // Option(ref T).unwrap_or returns the BORROW (returns T -> returns
+    // ref OptSrc under the ref instantiation).
+    ref r : OptSrc = o.unwrap_or(fallback)
+    src.n = 8
+    assert_eq(I64, r.n, 8)
+    assert_eq(I64, src.n, 8)
+    assert_eq(I64, fallback.n, 0)
+}
+
+// Annotation position: Option(ref X) as a parameter type resolves to the
+// same instantiation as the alias.
+opt_src_str := func(o: Option(ref OptSrc)) returns Str {
+    switch o {
+    case Option(ref OptSrc).Some(p): return p.to_str()
+    case Option(ref OptSrc).None: return "none"
+    }
+}
+
+test_option_annotation_position := test() {
+    src := OptSrc(n = 6)
+    assert_eq(Str, opt_src_str(OptRefSrc.Some(src)), "6")
+    assert_eq(Str, opt_src_str(OptRefSrc.None), "none")
+    assert_eq(I64, src.n, 6)
+}

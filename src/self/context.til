@@ -632,25 +632,18 @@ Context := struct {
     builder_str_lit_values := Vec(Str).new()
     builder_str_lit_ident_symbols := Map(Str, Str).new()
     swap_freed := Set(Str).new()
-    ref current_fdef : Expr = NULL
+    // #321: None outside any function-body emission.
+    current_fdef := Option(ref Expr).None
 
-    // #177 interpreter caches for well-known core types, populated during
-    // interpret_register_defs by interpret_register_struct_defs and read by
-    // raw allocation, field-layout, and argv construction paths. These were
-    // the remaining six module-scope ref-mut + NULL globals after #178.
-    // ORDERING: these are borrowed refs into the imported ASTs, and raw-value
-    // teardown reads cached_str_name (str_owns_c_str -> str_count_at ->
-    // ctx_field_layout). They MUST stay declared after the raw-owning
-    // tables (constfolder_known / ns_fields) above; teardown runs in
-    // declaration order, and moving them earlier -- or the raw tables
-    // later than `imported` -- reintroduces the #299 Context_delete
-    // heap-use-after-free.
-    ref cached_str_def : Expr = NULL
-    ref cached_str_name : Str = NULL
-    ref cached_array_def : Expr = NULL
-    ref cached_array_name : Str = NULL
-    ref cached_vec_def : Expr = NULL
-    ref cached_vec_name : Str = NULL
+    // #177 interpreter cache for the canonical Str type name, populated by
+    // populate_cached_aggregate_defs / interpreter_init_ns and read by raw
+    // allocation, field-layout, and argv construction paths. #321: now an
+    // OWNED clone ("" = not yet registered), so raw-value teardown
+    // (str_owns_c_str -> str_count_at -> ctx_field_layout) no longer reads
+    // a borrow into the imported ASTs -- the #299 ordering hazard for this
+    // field is gone. The five sibling caches (cached_str/array/vec_def,
+    // cached_array/vec_name) were write-only and are removed.
+    cached_str_name := ""
 
     // Interpreter type-def registry: maps every struct/enum name to its
     // AST def Expr. Populated by interpreter_init_ns, read via

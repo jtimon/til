@@ -3513,18 +3513,15 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // in place to the concrete `gname__T1_T2(valargs)`.
 priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
     ref call : Expr = parent.children[call_idx]
-    // #320: ref-qualified type args are only implemented for type-gen
-    // macros so far; fail loudly instead of silently monomorphizing with
-    // the qualifier dropped.
-    if fcall_has_ref_args(call) {
-        panic(ctx.path, ":", call.line.to_str(), ":", call.col.to_str(),
-            ": 'ref' type arguments are not yet supported for direct generic function calls (#320)")
-    }
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
         // Build the type-param substitution map and the mono name from
         // the type-args at the Type-param positions.
         mut subs := Map(Str, Expr).new()
+        // #320: type params whose arg carried the `ref` qualifier
+        // (`gpick(ref X, v)`); substitution makes `returns T` a borrowed
+        // return etc., exactly as for type-gen macros.
+        mut ref_params := Set(Str).new()
         mut mono := format(gname, "__")
         mut first := true
         mut ok := true
@@ -3537,7 +3534,18 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             // fills its default into the monomorphized call later. Bailing on
             // a missing value-arg (the old behaviour) left the generic call
             // un-monomorphized and tripped desugar's UNREACHABLE.
-            if p.explicit_type.eq("Type").not() { continue }
+            if p.explicit_type.eq("Type").not() {
+                // #320: a ref bit on a VALUE-arg position would be
+                // silently lost by the rewrite below -- reject it loudly.
+                argi_v := i + 1
+                if argi_v < call.children.len() {
+                    if get_ref_arg(call, argi_v) {
+                        panic(ctx.path, ":", call.line.to_str(), ":", call.col.to_str(),
+                            ": 'ref' argument qualifier is only valid on type arguments (got one on a value argument of generic '", gname, "')")
+                    }
+                }
+                continue
+            }
             argidx := i + 1
             if argidx >= call.children.len() { ok = false; break }
             ref arg : Expr = call.children[argidx]
@@ -3547,6 +3555,12 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                 mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
                 subs.set(p.name, own tid)
                 if first.not() { mono = format(mono, "_") }
+                // #320: same `ref_` mangle segment as the type-gen paths,
+                // so owned and borrowed monomorphizations stay distinct.
+                if get_ref_arg(call, argidx) {
+                    ref_params.add(own p.name.clone())
+                    mono = format(mono, "ref_")
+                }
                 mono = format(mono, tn)
                 first = false
             case:
@@ -3577,9 +3591,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                     }
                 case:
                 }
-                // No ref-qualified type args here: the guard at the top of
-                // this func rejects them for direct generics (#320).
-                init_substitute_type_params(cloned, subs, Set(Str).new())
+                init_substitute_type_params(cloned, subs, ref_params)
                 // Composition: the freshly-substituted body may now contain
                 // calls to OTHER generic funcs (or to this one with different
                 // type-args). Walk it with the same generics/seen/synthesized,

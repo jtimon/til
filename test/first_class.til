@@ -1097,3 +1097,17 @@ test_ref_type_arg_annotation_position := test() {
     assert_eq(Str, optq_read(o), "7")
     assert_eq(I64, src.n, 7)
 }
+
+// #320: ref-qualified type args on DIRECT generic funcs -- `returns T`
+// under a ref T monomorphizes to a borrowed return.
+gpick_ref := func(T: Type, a: T) returns T { return a }
+
+test_generic_func_ref_type_arg := test() {
+    mut src := OptQBlob(n = 2)
+    ref r : OptQBlob = gpick_ref(ref OptQBlob, src)
+    src.n = 10
+    assert_eq(I64, r.n, 10)
+    assert_eq(I64, src.n, 10)
+    // The owned instantiation of the same generic coexists.
+    assert_eq(I64, gpick_ref(I64, 5), 5)
+}

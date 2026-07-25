@@ -6885,7 +6885,11 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                 case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
                 case:
                 }
-                if type_name == expected_type_name {
+                // #322: the pattern may spell the enum through an ALIAS
+                // (`Opt := make_opt(I64); case Opt.Some:`) while
+                // expected_type_name is the resolved name from the
+                // scrutinee's type -- resolve before comparing.
+                if resolve_type_alias(scope, type_name) == expected_type_name {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx >= 0 {
                         ref sub : CoverageNode = coverage.sub_nodes[idx.to_usize()]
@@ -6913,7 +6917,8 @@ priv is_pattern_covered := func(scope: TypeScope, coverage: CoverageNode, expect
                         case NodeType.FieldAccess(vn2): variant_name2 = Str.clone(vn2.field_access_name())
                         case:
                         }
-                        if type_name2 == expected_type_name {
+                        // #322: same alias resolution as the bare-variant arm.
+                        if resolve_type_alias(scope, type_name2) == expected_type_name {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2 >= 0 {
                                 ref sub2 : CoverageNode = coverage.sub_nodes[idx2.to_usize()]
@@ -6970,7 +6975,11 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                 case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
                 case:
                 }
-                if type_name == expected_type_name {
+                // #322: the pattern may spell the enum through an ALIAS
+                // (`Opt := make_opt(I64); case Opt.Some:`) while
+                // expected_type_name is the resolved name from the
+                // scrutinee's type -- resolve before comparing.
+                if resolve_type_alias(scope, type_name) == expected_type_name {
                     idx := coverage_sub_index(coverage, variant_name)
                     if idx >= 0 {
                         ref mut sub : CoverageNode = coverage.sub_nodes[idx.to_usize()]
@@ -7000,7 +7009,8 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
                         case NodeType.FieldAccess(vn2): variant_name2 = Str.clone(vn2.field_access_name())
                         case:
                         }
-                        if type_name2 == expected_type_name {
+                        // #322: same alias resolution as the bare-variant arm.
+                        if resolve_type_alias(scope, type_name2) == expected_type_name {
                             idx2 := coverage_sub_index(coverage, variant_name2)
                             if idx2 >= 0 {
                                 ref mut sub2 : CoverageNode = coverage.sub_nodes[idx2.to_usize()]

@@ -547,6 +547,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/constfold.til", flags)
     add_both(tests, "test/strings.til", flags)
     add_both(tests, "test/enums.til", flags)
+    add_both(tests, "test/option.til", flags)
     add_both(tests, "test/match.til", flags)
     add_both(tests, "test/lazy.til", flags)
     add_both(tests, "test/dynamic.til", flags)

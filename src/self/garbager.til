@@ -328,8 +328,8 @@ priv gc_audit_dump := proc(ctx: Context, body: Expr, locals: Vec(LocalInfo)) {
 // flow.
 
 priv GcCfgBlock := struct {
-    // Owning Body node; NULL only for the synthetic exit block.
-    ref body : Expr = NULL
+    // Backing Body node; None only for the synthetic exit block (#321).
+    body := Option(ref Expr).None
     start : I32 = 0
     end : I32 = 0
     // True when `body` IS the view's root Body: this block's span
@@ -343,7 +343,7 @@ priv GcCfgBlock := struct {
 priv cfg_new_block := func(mut blocks: Vec(GcCfgBlock), body: Expr, start: I32, is_root: Bool) returns I32 {
     id := blocks.len().to_i32()
     mut b := GcCfgBlock(start = start, end = start, is_root = is_root)
-    b.body = body
+    b.body = Option(ref Expr).Some(body)
     blocks.push(own b)
     return id
 }
@@ -474,17 +474,18 @@ priv gc_cfg_dump := proc(ctx: Context, body: Expr, blocks: Vec(GcCfgBlock)) {
         " blocks=", blocks.len().to_str())
     for i in 0..blocks.len() {
         ref b : GcCfgBlock = blocks[i]
-        if b.body.is_null() {
-            println("GC-CFG block ", i.to_str(), " exit")
-            continue
-        }
         mut ss := ""
         for j in 0..b.succs.len() {
             if j > 0 { ss = format(ss, ",") }
             ss = format(ss, b.succs[j].to_str())
         }
-        println("GC-CFG block ", i.to_str(), " body=", b.body.line.to_str(), ":", b.body.col.to_str(),
-            " span=", b.start.to_str(), "..", b.end.to_str(), " succs=", ss)
+        switch b.body {
+        case Option(ref Expr).Some(bb):
+            println("GC-CFG block ", i.to_str(), " body=", bb.line.to_str(), ":", bb.col.to_str(),
+                " span=", b.start.to_str(), "..", b.end.to_str(), " succs=", ss)
+        case Option(ref Expr).None:
+            println("GC-CFG block ", i.to_str(), " exit")
+        }
     }
 }
 
@@ -537,31 +538,36 @@ priv gc_flow_stmt_effect := func(stmt: Expr, name: Str, state: U8, scope: TypeSc
 
 priv gc_flow_block_out := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, state_in: U8, scope: TypeScope, ctx: Context) returns U8 {
     ref b : GcCfgBlock = blocks[bid]
-    if b.body.is_null() { return state_in }
-    mut st := state_in
-    mut j := b.start
-    while j < b.end {
-        ref stmt : Expr = b.body.children[j.to_usize()]
-        if is_compile_directive(stmt) { j = j.add(1); continue }
-        mut tail_compound := false
-        if j.add(1).eq(b.end) {
-            tail_compound = stmt.node_type.is(NodeType.If)
-                .or(stmt.node_type.is(NodeType.While))
-                .or(stmt.node_type.is(NodeType.Switch))
-                .or(stmt.node_type.is(NodeType.Body))
-        }
-        if tail_compound {
-            // Only the condition/subject evaluates here; a bare Body
-            // contributes nothing at the tail.
-            if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
-                st = gc_flow_stmt_effect(stmt.children[0], name, st, scope, ctx)
+    switch b.body {
+    case Option(ref Expr).None:
+        // Synthetic exit block: no statements, state passes through.
+        return state_in
+    case Option(ref Expr).Some(bbody):
+        mut st := state_in
+        mut j := b.start
+        while j < b.end {
+            ref stmt : Expr = bbody.children[j.to_usize()]
+            if is_compile_directive(stmt) { j = j.add(1); continue }
+            mut tail_compound := false
+            if j.add(1).eq(b.end) {
+                tail_compound = stmt.node_type.is(NodeType.If)
+                    .or(stmt.node_type.is(NodeType.While))
+                    .or(stmt.node_type.is(NodeType.Switch))
+                    .or(stmt.node_type.is(NodeType.Body))
             }
-        } else {
-            st = gc_flow_stmt_effect(stmt, name, st, scope, ctx)
+            if tail_compound {
+                // Only the condition/subject evaluates here; a bare Body
+                // contributes nothing at the tail.
+                if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
+                    st = gc_flow_stmt_effect(stmt.children[0], name, st, scope, ctx)
+                }
+            } else {
+                st = gc_flow_stmt_effect(stmt, name, st, scope, ctx)
+            }
+            j = j.add(1)
         }
-        j = j.add(1)
+        return st
     }
-    return st
 }
 
 // Naive fixpoint: sweep until stable. States only descend the lattice
@@ -659,14 +665,20 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
         if b.start.lte(stmt_idx).and(stmt_idx.lt(b.end)) {
             mut st : U8 = FLOW_UNREACHED
             if ins[bi].eq(FLOW_UNREACHED).not() {
-                mut j := b.start
-                st = gc_flow_meet(st, ins[bi])
-                while j < stmt_idx {
-                    ref stmt : Expr = b.body.children[j.to_usize()]
-                    if is_compile_directive(stmt).not() {
-                        st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                switch b.body {
+                case Option(ref Expr).Some(bbody):
+                    mut j := b.start
+                    st = gc_flow_meet(st, ins[bi])
+                    while j < stmt_idx {
+                        ref stmt : Expr = bbody.children[j.to_usize()]
+                        if is_compile_directive(stmt).not() {
+                            st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                        }
+                        j = j.add(1)
                     }
-                    j = j.add(1)
+                case Option(ref Expr).None:
+                    // Root blocks always carry a body (cfg_new_block).
+                    UNREACHABLE()
                 }
             }
             return st == FLOW_OWNED
