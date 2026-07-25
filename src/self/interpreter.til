@@ -231,6 +231,12 @@ InterpCallableBox := struct {
     ref env : Scope
 }
 
+// Typed view of a binding's borrowed canonical type (see the
+// til_type_p field comment). Not priv: the constfolder reads it too.
+hb_type := func(hb: HeapBinding) returns ref Type {
+    return to_ptr(hb.til_type_p)
+}
+
 HeapBinding := struct {
     // Non-owning address of the raw value block; ownership is described by
     // the flags below and discharged explicitly by scope teardown.
@@ -238,7 +244,16 @@ HeapBinding := struct {
     // ptr is still NULLed at move-out/teardown -- that runtime state is
     // step-2 material (Option or the moved_out flag alone).
     ref ptr : U8
-    til_type := Type.Unknown
+    // Borrowed canonical type, read via hb_type(). Points at a
+    // Context-interned Type block (interp_intern_type), an ast.til TYPE_*
+    // const, or another binding's (itself canonical) type -- NEVER at a
+    // local, a TypeScope binding value, or an Expr stamp: those move or
+    // die under map inserts and constfold rewrites. Bindings never own or
+    // delete it. REM: stored as a pointer word (the `ref ptr : U8` idiom)
+    // because the builder does not emit enum-typed `ref` FIELDS at arg /
+    // switch sites yet; if it learns to, this can become `ref t : Type`
+    // and hb_type() can go away.
+    ref til_type_p : U8
     own_type := OwnType.Shallow
     ref ctx : Context
     is_local := false
@@ -808,7 +823,7 @@ priv expr_raw_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
         if hb.is_null() { panic("reference query binding not found: ", id.ident_name()) }
-        if heap_type_is_callable(hb.til_type) { return false }
+        if heap_type_is_callable(hb_type(hb)) { return false }
         return true
     case:
     }
@@ -907,9 +922,12 @@ priv raw_result_drop_ptr := proc(shallow t: Type, raw: Dynamic, return_is_ref: B
     raw_result_drop(t, owned_raw, return_is_ref, ctx)
 }
 
-scope_set_raw_owned := func(scope: Scope, name: Str, raw: Dynamic, shallow t: Type, own_type: OwnType, ctx: Context, borrowed: Bool = false) {
+// t_w is the canonical Type as a raw pointer word (interp_intern_type /
+// another binding's til_type_p): the binding will borrow it.
+scope_set_raw_owned := func(scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, borrowed: Bool = false) {
+    ref t : Type = to_ptr(t_w)
     if t.is(Type.Unknown) { panic("cannot bind raw value with unknown type: ", name) }
-    scope_set_heap_owned(scope, name, raw, t, own_type, ctx, true, borrowed)
+    scope_set_heap_owned(scope, name, raw, t_w, own_type, ctx, true, borrowed)
 }
 
 priv raw_widen_numeric := func(raw: Dynamic, shallow source_type: Type, target_name: Str, ctx: Context) returns Dynamic {
@@ -1050,7 +1068,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         case NodeType.Ident(id):
             ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
             if hb.is_null() { panic("argument binding not found: ", id.ident_name()) }
-            if hb.til_type.is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
+            if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
                 ref dynamic_value_ref : Dynamic = deref(raw)
                 dynamic_value : Dynamic = dynamic_value_ref
                 return dynamic_value
@@ -1066,7 +1084,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
         if hb.is_null() { panic("argument binding not found: ", id.ident_name()) }
         value_raw = to_ptr(hb.ptr)
-        value_type = hb.til_type
+        value_type = hb_type(hb)
     case:
         // A primitive temp's word has no storage: park the scalar in a
         // ring slot so raw-memory builtins get a real address.
@@ -1237,8 +1255,8 @@ priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
         if hb.is_null() { panic("scalar source binding not found: ", id.ident_name()) }
-        if hb.til_type.is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type().clone() }
-        return hb.til_type.clone()
+        if hb_type(hb).is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type().clone() }
+        return hb_type(hb).clone()
     case NodeType.FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
             return ns_field_type(field_access_sname(e), fa.field_access_name(), ctx)
@@ -1498,9 +1516,9 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         case:
         }
         ref place : Dynamic = to_ptr(hb.ptr)
-        if heap_type_is_callable(hb.til_type) {
-            cloned : Dynamic = heap_clone_by_type(hb.til_type, place, hb.ctx)
-            return raw_result_finish(hb.til_type, cloned, destination, false, ctx)
+        if heap_type_is_callable(hb_type(hb)) {
+            cloned : Dynamic = heap_clone_by_type(hb_type(hb), place, hb.ctx)
+            return raw_result_finish(hb_type(hb), cloned, destination, false, ctx)
         }
         result : Dynamic = place
         return result
@@ -1552,7 +1570,7 @@ priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns ref
     case NodeType.Ident(ident):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, ident.ident_name())
         if hb.is_null() { return NULL }
-        switch hb.til_type {
+        switch hb_type(hb) {
         case Type.Struct:
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
             return to_ptr(hb.ptr)
@@ -1568,7 +1586,7 @@ priv resolve_field_assign_sname := func(scope: Scope, obj_expr: Expr) returns St
     case NodeType.Ident(ident):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, ident.ident_name())
         if hb.is_null() { return "" }
-        switch hb.til_type {
+        switch hb_type(hb) {
         case Type.Struct(sname):
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
             return sname.clone()
@@ -1696,6 +1714,9 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     if stmt.til_type().is(Type.None) {
         if rhs.node_type.is(NodeType.Ident) { return }
     }
+    // Canonical block (as a raw word) for the binding to borrow;
+    // decl_type stays the owned working copy for the value logic below.
+    bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
     switch rhs.node_type {
     case NodeType.Ident(rhs_ident):
         ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, rhs_ident.ident_name())
@@ -1707,18 +1728,18 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         case Type.Enum(type_name):
             if (type_name == "Type").and(source_hb.is_static_callable) {
                 runtime_type : Dynamic = eval_expr_raw(scope, rhs, ctx)
-                scope_set_raw_owned(scope, dd.name, runtime_type, decl_type, dd.own_type, ctx)
+                scope_set_raw_owned(scope, dd.name, runtime_type, bind_type_w, dd.own_type, ctx)
                 return
             }
         case:
         }
         if dd.own_type.is(OwnType.Ref) {
-            if source_hb.til_type.is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
                 mut pointed : Dynamic = source_raw
                 if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
-                scope_set_heap_owned(scope, dd.name, pointed, decl_type, dd.own_type, source_hb.ctx, false, true)
+                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, source_hb.ctx, false, true)
             } else {
-                scope_set_borrowed(scope, dd.name, decl_type, dd.own_type, rhs_ident.ident_name(), source_scope)
+                scope_set_borrowed(scope, dd.name, bind_type_w, dd.own_type, rhs_ident.ident_name(), source_scope)
             }
             return
         }
@@ -1727,41 +1748,41 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         // widen, and give the new binding its own block. The source
         // binding keeps its storage untouched. Own-primitive sources
         // (#302 raw allocations) keep the block-transfer paths below.
-        mut prim_value_type := source_hb.til_type.clone()
-        if source_hb.til_type.is(Type.Dynamic) { prim_value_type = decl_type.clone() }
-        if source_hb.own_type.is(OwnType.Shallow).not().and(source_hb.til_type.is(Type.Dynamic).not()) { prim_value_type = Type.Unknown }
+        mut prim_value_type := hb_type(source_hb).clone()
+        if hb_type(source_hb).is(Type.Dynamic) { prim_value_type = decl_type.clone() }
+        if source_hb.own_type.is(OwnType.Shallow).not().and(hb_type(source_hb).is(Type.Dynamic).not()) { prim_value_type = Type.Unknown }
         if raw_type_is_prim(prim_value_type, ctx).and(decl_type.is(Type.Dynamic).not()).and(dd.own_type.is(OwnType.Own).not()) {
             mut prim_src : Dynamic = source_raw
-            if source_hb.til_type.is(Type.Dynamic) { prim_src = deref(source_raw) }
+            if hb_type(source_hb).is(Type.Dynamic) { prim_src = deref(source_raw) }
             mut w : Dynamic = scalar_word_load(prim_value_type, prim_src, ctx)
             w = raw_widen_numeric(w, prim_value_type, dd.explicit_type, ctx)
-            scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, w, ctx), decl_type, dd.own_type, ctx)
+            scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, w, ctx), bind_type_w, dd.own_type, ctx)
             return
         }
-        if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(source_hb.til_type, source_raw)) {
+        if dd.name.starts_with("hoisted__").or(source_hb.is_borrowed).or(heap_slot_is_static_callable(hb_type(source_hb), source_raw)) {
             mut copied : Dynamic = source_raw
-            if source_hb.til_type.is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
                 ref dynamic_data : Dynamic = deref(source_raw)
                 copied = heap_clone_by_type(decl_type, dynamic_data, source_hb.ctx)
             } else {
-                copied = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
+                copied = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
             }
-            if source_hb.til_type.is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
-                if heap_type_is_callable(source_hb.til_type).not() {
+            if hb_type(source_hb).is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
+                if heap_type_is_callable(hb_type(source_hb)).not() {
                     // Box the cloned BLOCK into a Dynamic slot directly
                     // (raw_coerce_value's boxing arm now takes value words).
                     wrapper : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(wrapper, copied)
                     copied = wrapper
                 }
-                scope_set_heap_owned(scope, dd.name, copied, decl_type, dd.own_type, source_hb.ctx, true)
+                scope_set_heap_owned(scope, dd.name, copied, bind_type_w, dd.own_type, source_hb.ctx, true)
                 return
             }
-            copied = raw_widen_numeric(copied, source_hb.til_type, dd.explicit_type, ctx)
-            scope_set_raw_owned(scope, dd.name, copied, decl_type, dd.own_type, source_hb.ctx)
+            copied = raw_widen_numeric(copied, hb_type(source_hb), dd.explicit_type, ctx)
+            scope_set_raw_owned(scope, dd.name, copied, bind_type_w, dd.own_type, source_hb.ctx)
         } else {
             mut moved : Dynamic = source_raw
-            if source_hb.til_type.is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
+            if hb_type(source_hb).is(Type.Dynamic).and(decl_type.is(Type.Dynamic).not()) {
                 ref dynamic_data2 : Dynamic = deref(source_raw)
                 moved = dynamic_data2
                 owned_holder : Dynamic = source_raw
@@ -1769,19 +1790,19 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             }
             source_hb.ptr = NULL
             source_hb.moved_out = true
-            if source_hb.til_type.is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
-                if heap_type_is_callable(source_hb.til_type).not() {
+            if hb_type(source_hb).is(Type.Dynamic).not().and(decl_type.is(Type.Dynamic)) {
+                if heap_type_is_callable(hb_type(source_hb)).not() {
                     // Box the moved BLOCK into a Dynamic slot directly
                     // (raw_coerce_value's boxing arm now takes value words).
                     wrapper : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(wrapper, moved)
                     moved = wrapper
                 }
-                scope_set_heap_owned(scope, dd.name, moved, decl_type, dd.own_type, source_hb.ctx, true)
+                scope_set_heap_owned(scope, dd.name, moved, bind_type_w, dd.own_type, source_hb.ctx, true)
                 return
             }
-            moved = raw_widen_numeric(moved, source_hb.til_type, dd.explicit_type, ctx)
-            scope_set_raw_owned(scope, dd.name, moved, decl_type, dd.own_type, source_hb.ctx)
+            moved = raw_widen_numeric(moved, hb_type(source_hb), dd.explicit_type, ctx)
+            scope_set_raw_owned(scope, dd.name, moved, bind_type_w, dd.own_type, source_hb.ctx)
         }
         return
     case:
@@ -1808,27 +1829,27 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             case:
             }
             if borrowed_pointer_field {
-                scope_set_heap_owned(scope, dd.name, pointed, decl_type, dd.own_type, ctx, false, true)
+                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true)
             } else if dd.own_type.is(OwnType.Ref) {
-                scope_set_heap_owned(scope, dd.name, pointed, decl_type, dd.own_type, ctx, false, true, decl_type.is(Type.Dynamic))
+                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true, decl_type.is(Type.Dynamic))
             } else if decl_type.is(Type.Dynamic) {
                 dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(dynamic_slot, pointed)
-                scope_set_raw_owned(scope, dd.name, dynamic_slot, decl_type, dd.own_type, ctx)
+                scope_set_raw_owned(scope, dd.name, dynamic_slot, bind_type_w, dd.own_type, ctx)
             } else if raw_type_is_prim(rhs_type, ctx) {
                 // A ref prim rhs is a bare source address: load the scalar
                 // word, widen, and give the binding its own block.
                 prim_w : Dynamic = raw_widen_numeric(scalar_word_load(rhs_type, pointed, ctx), rhs_type, dd.explicit_type, ctx)
-                scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, prim_w, ctx), decl_type, dd.own_type, ctx)
+                scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, prim_w, ctx), bind_type_w, dd.own_type, ctx)
             } else {
                 mut copied : Dynamic = heap_clone_by_type(rhs_type, pointed, ctx)
                 copied = raw_coerce_value(copied, rhs_type, decl_type, ctx, dd.own_type)
-                scope_set_raw_owned(scope, dd.name, copied, decl_type, dd.own_type, ctx)
+                scope_set_raw_owned(scope, dd.name, copied, bind_type_w, dd.own_type, ctx)
             }
         } else {
             if dd.own_type.is(OwnType.Ref).and(decl_type.is(Type.Dynamic)) {
                 ref pointed : Dynamic = deref(raw)
-                scope_set_heap_owned(scope, dd.name, pointed, decl_type, dd.own_type, ctx, false, true, true)
+                scope_set_heap_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx, false, true, true)
                 EvalHeap.heap_free(own raw)
                 return
             }
@@ -1850,7 +1871,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             } else {
                 raw = binding_block_from_word(decl_type, raw, rhs_is_pointer, ctx)
             }
-            scope_set_raw_owned(scope, dd.name, raw, decl_type, dd.own_type, ctx)
+            scope_set_raw_owned(scope, dd.name, raw, bind_type_w, dd.own_type, ctx)
             if raw_type_is_prim(decl_type, ctx).and(rhs_is_pointer) {
                 ref pointer_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name)
                 pointer_hb.is_raw_alloc = true
@@ -1890,7 +1911,7 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
             if sw_src_hb.is_borrowed { panic("swap_replace from borrowed source: ", sw_src) }
             ref sw_data : Dynamic = to_ptr(sw_hb.ptr)
             ref sw_src_data : Dynamic = to_ptr(sw_src_hb.ptr)
-            _ := heap_move_ptr_into_slot(sw_hb.til_type, sw_data, sw_src_data, sw_hb.ctx)
+            _ := heap_move_ptr_into_slot(hb_type(sw_hb), sw_data, sw_src_data, sw_hb.ctx)
             sw_src_hb.ptr = NULL
             sw_src_hb.moved_out = true
             did_swap_replace = true
@@ -1961,17 +1982,17 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     // A ref raw is the bare target address: load the scalar
                     // inline / clone the aggregate; the target keeps its
                     // storage.
-                    if raw_type_is_prim(assign_hb.til_type, ctx) {
-                        new_raw = scalar_word_load(assign_hb.til_type, new_raw, ctx)
+                    if raw_type_is_prim(hb_type(assign_hb), ctx) {
+                        new_raw = scalar_word_load(hb_type(assign_hb), new_raw, ctx)
                     } else {
-                        copied : Dynamic = heap_clone_by_type(assign_hb.til_type, new_raw, assign_hb.ctx)
+                        copied : Dynamic = heap_clone_by_type(hb_type(assign_hb), new_raw, assign_hb.ctx)
                         new_raw = copied
                     }
                 } else {
-                    new_raw = raw_coerce_value(new_raw, rhs.til_type(), assign_hb.til_type, ctx, assign_hb.own_type)
+                    new_raw = raw_coerce_value(new_raw, rhs.til_type(), hb_type(assign_hb), ctx, assign_hb.own_type)
                 }
             }
-            if raw_type_is_prim(assign_hb.til_type, ctx).and(assign_hb.own_type.is(OwnType.Own).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
+            if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.own_type.is(OwnType.Own).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
                 // Primitive assignment writes the scalar into the existing
                 // block in place (C's x = v) -- for a ref/borrowed binding
                 // the block IS the target storage, so this is write-through.
@@ -1980,13 +2001,13 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 // consumed raw-alloc binding (own-arg freed + reassigned)
                 // has no block left -- give it a fresh one.
                 if assign_hb.ptr.is_null() {
-                    fresh_block : Dynamic = scalar_block_from_word(assign_hb.til_type, new_raw, ctx)
+                    fresh_block : Dynamic = scalar_block_from_word(hb_type(assign_hb), new_raw, ctx)
                     assign_hb.ptr = to_ptr(fresh_block)
                 }
-                else { scalar_word_store(assign_hb.til_type, to_ptr(assign_hb.ptr), new_raw, ctx) }
+                else { scalar_word_store(hb_type(assign_hb), to_ptr(assign_hb.ptr), new_raw, ctx) }
             } else if assign_hb.is_borrowed {
                 ref assign_data : Dynamic = to_ptr(assign_hb.ptr)
-                _ := heap_move_ptr_into_slot(assign_hb.til_type, assign_data, new_raw, assign_hb.ctx)
+                _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx)
             } else {
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
                 assign_hb.ptr = to_ptr(new_raw)
@@ -2127,11 +2148,11 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case NodeType.Ident(ret_ident):
                     ref return_hb : HeapBinding = scope_lookup_heap_binding(scope, ret_ident.ident_name())
                     if return_hb.is_null() { panic("return binding not found: ", ret_ident.ident_name()) }
-                    return_source_type = return_hb.til_type.clone()
+                    return_source_type = hb_type(return_hb).clone()
                     return_source_is_ref = return_hb.own_type.is(OwnType.Ref)
                     // A SHALLOW primitive return reads the scalar word; the
                     // binding keeps its block (nothing inner to move).
-                    if scope_return_move_is_local(scope, ret_ident.ident_name()).and(raw_type_is_prim(return_hb.til_type, ctx).and(return_hb.own_type.is(OwnType.Shallow)).not()) {
+                    if scope_return_move_is_local(scope, ret_ident.ident_name()).and(raw_type_is_prim(hb_type(return_hb), ctx).and(return_hb.own_type.is(OwnType.Shallow)).not()) {
                         return_raw = scope_move_bound_raw(scope, ret_ident.ident_name(), ctx)
                         // An own-prim VALUE binding's moved block collapses to
                         // the inline word callers expect from a prim-stamped
@@ -2140,7 +2161,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         // unless the fn's declared return type is Dynamic, in
                         // which case callers expect the Dynamic wrapper shape
                         // (slot -> value storage): box the bare pointer.
-                        if raw_type_is_prim(return_hb.til_type, ctx).and(return_source_is_ref.not()) {
+                        if raw_type_is_prim(hb_type(return_hb), ctx).and(return_source_is_ref.not()) {
                             if return_hb.is_raw_alloc.and(type_from_name_init(c.interp_ret_type, ctx.scope).is(Type.Dynamic)) {
                                 // A #302 raw-alloc pointer returned at a
                                 // Dynamic-declared type: callers expect the
@@ -2161,7 +2182,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                                 // prim-stamped call, and the block is
                                 // reclaimed here -- the block model's
                                 // move_into copied-and-freed the same way.
-                                moved_word : Dynamic = scalar_word_load(return_hb.til_type, return_raw, ctx)
+                                moved_word : Dynamic = scalar_word_load(hb_type(return_hb), return_raw, ctx)
                                 EvalHeap.heap_free(own return_raw)
                                 return_raw = moved_word
                             }
@@ -2214,15 +2235,15 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
     }
 }
 
-priv interp_param_bind_type := func(param: Declaration, source_type: Type, is_variadic: Bool, scope: TypeScope) returns Type {
-    if is_variadic { return source_type.clone() }
+priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
+    if is_variadic { return source_type_w }
     switch param.til_type {
     case Type.Custom(name):
-        ref binding : TypeBinding = scope.get_binding(name)
+        ref binding : TypeBinding = ctx.scope.get_binding(name)
         if binding.is_null() { panic("interpreter parameter type is not registered: ", name) }
-        return binding.type.clone()
+        return interp_intern_type(binding.type, ctx)
     case:
-        return param.til_type.clone()
+        return interp_intern_type(param.til_type, ctx)
     }
 }
 
@@ -2236,6 +2257,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
 
     call_scope := scope_new(parent_scope)
     call_scope.is_call_scope = true
+    dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     switch func_def.node_type {
     case NodeType.FuncDef(fdef_params):
         for pi in 0..fdef_params.params.len() {
@@ -2249,19 +2271,19 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 if source_hb.is_null() { panic("argument binding not found: ", arg_ident.ident_name()) }
                 if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
                 ref source_raw : Dynamic = to_ptr(source_hb.ptr)
-                if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(source_hb.til_type.is(Type.Dynamic).not()) {
+                if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(hb_type(source_hb).is(Type.Dynamic).not()) {
                     mut dynamic_data : Dynamic = source_raw
                     if arg_transfers {
                         if source_hb.is_borrowed {
-                            scope_set_heap_owned(call_scope, param.name, dynamic_data, Type.Dynamic, param.own_type, ctx, false, true, true)
+                            scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
                             continue
-                        } else if heap_slot_is_static_callable(source_hb.til_type, source_raw) {
-                            dynamic_data = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
+                        } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
+                            dynamic_data = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
                         } else {
                             source_hb.ptr = NULL
                             source_hb.moved_out = true
                         }
-                        if raw_type_is_prim(source_hb.til_type, ctx) {
+                        if raw_type_is_prim(hb_type(source_hb), ctx) {
                             // The moved/cloned prim BLOCK is already the value
                             // storage: the Dynamic slot points AT it. The
                             // word-based prim->Dynamic coerce would box the
@@ -2270,65 +2292,67 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                             write_ptr(prim_dyn_slot, dynamic_data)
                             dynamic_data = prim_dyn_slot
                         } else {
-                            dynamic_data = raw_coerce_value(dynamic_data, source_hb.til_type, Type.Dynamic, ctx, param.own_type)
+                            dynamic_data = raw_coerce_value(dynamic_data, hb_type(source_hb), Type.Dynamic, ctx, param.own_type)
                         }
-                        scope_set_heap_owned(call_scope, param.name, dynamic_data, Type.Dynamic, param.own_type, ctx, true)
+                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, true)
                     } else if param.own_type.is(OwnType.Ref) {
-                        scope_set_heap_owned(call_scope, param.name, dynamic_data, Type.Dynamic, param.own_type, ctx, false, true, true)
+                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
                     } else {
                         dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                         write_ptr(dynamic_slot, dynamic_data)
-                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, Type.Dynamic, param.own_type, ctx, true)
+                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
                     }
                 } else if arg_transfers {
                     mut owned_raw : Dynamic = source_raw
-                    bind_type := interp_param_bind_type(param, source_hb.til_type, is_variadic_param, ctx.scope)
+                    bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
+                    ref bind_type : Type = to_ptr(bind_type_w)
                     if source_hb.is_borrowed {
-                        scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type, param.own_type, source_hb.ctx, false, true, source_hb.is_erased_dynamic)
+                        scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, source_hb.ctx, false, true, source_hb.is_erased_dynamic)
                         continue
-                    } else if heap_slot_is_static_callable(source_hb.til_type, source_raw) {
-                        owned_raw = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
+                    } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
+                        owned_raw = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
                     } else {
                         source_hb.ptr = NULL
                         source_hb.moved_out = true
                     }
-                    if raw_type_is_prim(source_hb.til_type, ctx).and(source_hb.is_raw_alloc.not()).and(til_type_name_c(source_hb.til_type) != til_type_name_c(bind_type)) {
+                    if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.is_raw_alloc.not()).and(til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type)) {
                         // Width-converting prim move: re-box at the param
                         // width (a narrow block bound under a wider type
                         // over-reads on the word load).
-                        own_src_w : Dynamic = scalar_word_load(source_hb.til_type, owned_raw, ctx)
+                        own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
                         EvalHeap.heap_free(own owned_raw)
-                        owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, source_hb.til_type, param.explicit_type, ctx), ctx)
+                        owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.explicit_type, ctx), ctx)
                     } else {
-                        owned_raw = raw_coerce_value(owned_raw, source_hb.til_type, bind_type, ctx, param.own_type)
+                        owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
                     }
-                    scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type, param.own_type, ctx)
+                    scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, ctx)
                 } else {
-                    bind_type := interp_param_bind_type(param, source_hb.til_type, is_variadic_param, ctx.scope)
-                    if source_hb.til_type.is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
+                    bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
+                    ref bind_type : Type = to_ptr(bind_type_w)
+                    if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
                         mut pointed : Dynamic = source_raw
                         if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
-                        scope_set_heap_owned(call_scope, param.name, pointed, bind_type, param.own_type, source_hb.ctx, false, true)
-                    } else if heap_type_is_callable(source_hb.til_type).and(heap_type_is_callable(bind_type)) {
+                        scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
+                    } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
                         ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                        scope_set_borrowed(call_scope, param.name, bind_type, param.own_type, arg_ident.ident_name(), arg_source_scope)
-                    } else if til_type_name_c(source_hb.til_type) != til_type_name_c(bind_type) {
-                        if raw_type_is_prim(source_hb.til_type, ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
+                        scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
+                    } else if til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type) {
+                        if raw_type_is_prim(hb_type(source_hb), ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
                             // Width-converting prim copy: load the scalar at
                             // the SOURCE width, widen, and box at the param
                             // width (a narrow clone bound under a wider type
                             // over-reads on the word load).
-                            src_w : Dynamic = scalar_word_load(source_hb.til_type, source_raw, ctx)
-                            widened_w : Dynamic = raw_widen_numeric(src_w, source_hb.til_type, param.explicit_type, ctx)
-                            scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type, param.own_type, ctx)
+                            src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
+                            widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.explicit_type, ctx)
+                            scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
                         } else {
-                            mut converted : Dynamic = heap_clone_by_type(source_hb.til_type, source_raw, source_hb.ctx)
-                            converted = raw_coerce_value(converted, source_hb.til_type, bind_type, ctx, param.own_type)
-                            scope_set_raw_owned(call_scope, param.name, converted, bind_type, param.own_type, ctx)
+                            mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
+                            converted = raw_coerce_value(converted, hb_type(source_hb), bind_type, ctx, param.own_type)
+                            scope_set_raw_owned(call_scope, param.name, converted, bind_type_w, param.own_type, ctx)
                         }
                     } else {
                         ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                        scope_set_borrowed(call_scope, param.name, bind_type, param.own_type, arg_ident.ident_name(), arg_source_scope)
+                        scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
                     }
                 }
             case:
@@ -2337,9 +2361,9 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
                     if arg_expr.til_type().is(Type.Dynamic) {
                         if param.own_type.is(OwnType.Ref) {
-                            scope_set_heap_owned(call_scope, param.name, arg_raw, Type.Dynamic, param.own_type, ctx, false, true, true)
+                            scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, false, true, true)
                         } else {
-                            scope_set_heap_owned(call_scope, param.name, arg_raw, Type.Dynamic, param.own_type, ctx, true)
+                            scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, true)
                         }
                     } else if param.own_type.is(OwnType.Ref) {
                         mut pointed : Dynamic = arg_raw
@@ -2348,7 +2372,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                             // borrowed Dynamic view has bytes to point at.
                             pointed = scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx)
                         }
-                        scope_set_heap_owned(call_scope, param.name, pointed, Type.Dynamic, param.own_type, ctx, false, true, true)
+                        scope_set_heap_owned(call_scope, param.name, pointed, dynamic_type_w, param.own_type, ctx, false, true, true)
                     } else {
                         dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                         if arg_is_ref { write_ptr(dynamic_slot, arg_raw) }
@@ -2358,10 +2382,11 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                             write_ptr(dynamic_slot, scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx))
                         }
                         else { write_ptr(dynamic_slot, arg_raw) }
-                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, Type.Dynamic, param.own_type, ctx, true)
+                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
                     }
                 } else {
-                    bind_type := interp_param_bind_type(param, param.til_type, is_variadic_param, ctx.scope)
+                    bind_type_w : Dynamic = interp_param_bind_type(param, interp_intern_type(param.til_type, ctx), is_variadic_param, ctx)
+                    ref bind_type : Type = to_ptr(bind_type_w)
                     mut borrowed := false
                     if arg_is_ref {
                         borrowed = true
@@ -2385,7 +2410,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         if raw_type_is_prim(arg_expr.til_type(), ctx).and(expr_word_shaped(caller_scope, arg_expr, ctx).not()) { arg_word = false }
                         if arg_word { arg_raw = scalar_block_from_word(bind_type, arg_raw, ctx) }
                     }
-                    scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type, param.own_type, ctx, borrowed)
+                    scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type_w, param.own_type, ctx, borrowed)
                 }
             }
         }
@@ -2551,7 +2576,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 }
                 if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
                     for qn, nsv_hb in c.ns_fields.heap_bindings {
-                        if heap_type_is_callable(nsv_hb.til_type).not() { continue }
+                        if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
                         ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
                         ref nsv_fdef : Expr = callable_raw_func_def(nsv)
                         if nsv_fdef.ptr_eq(func_def) {
@@ -2839,22 +2864,22 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                     ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
                                     mut preserve_outer := get_keep_outer_arg(e, cur_idx)
                                     if fdd.own_type.is(OwnType.Shallow) {
-                                        switch source_hb.til_type {
+                                        switch hb_type(source_hb) {
                                         case Type.Struct: preserve_outer = true
                                         case Type.Enum: preserve_outer = true
                                         case:
                                         }
                                     }
                                     if preserve_outer {
-                                        arg_raw = EvalHeap.heap_alloc(raw_type_size(source_hb.til_type, ctx))
-                                        memcpy(arg_raw, source_ptr, raw_type_size(source_hb.til_type, ctx))
+                                        arg_raw = EvalHeap.heap_alloc(raw_type_size(hb_type(source_hb), ctx))
+                                        memcpy(arg_raw, source_ptr, raw_type_size(hb_type(source_hb), ctx))
                                     } else if source_hb.is_borrowed.and(source_hb.is_erased_dynamic) {
                                         arg_raw = EvalHeap.heap_alloc(Dynamic.size())
                                         write_ptr(arg_raw, source_ptr)
                                     } else {
-                                        mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(source_hb.til_type, source_ptr))
+                                        mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(hb_type(source_hb), source_ptr))
                                         mut promote_str_view := false
-                                        switch source_hb.til_type {
+                                        switch hb_type(source_hb) {
                                         case Type.Struct(source_name):
                                             if (source_name == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
                                                 clone_source = true
@@ -2863,8 +2888,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                         case:
                                         }
                                         if clone_source {
-                                            arg_raw = heap_clone_by_type(source_hb.til_type, source_ptr, source_hb.ctx)
-                                            switch source_hb.til_type {
+                                            arg_raw = heap_clone_by_type(hb_type(source_hb), source_ptr, source_hb.ctx)
+                                            switch hb_type(source_hb) {
                                             case Type.Struct(source_name2):
                                                 if (source_name2 == "Str").and(promote_str_view) {
                                                     cnt := str_count_at(source_ptr, ctx)
@@ -2892,8 +2917,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                     // field writer would store the block
                                     // ADDRESS as the scalar. #302 raw-alloc
                                     // pointer bindings keep the bare pointer.
-                                    if raw_type_is_prim(source_hb.til_type, ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
-                                        ctor_prim_word : Dynamic = scalar_word_load(source_hb.til_type, arg_raw, ctx)
+                                    if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
+                                        ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
                                         EvalHeap.heap_free(own arg_raw)
                                         arg_raw = ctor_prim_word
                                     }
@@ -2905,7 +2930,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 } else {
                                     arg_raw = eval_expr_raw(scope, arg, ctx)
                                     arg_is_ref = source_hb.own_type.is(OwnType.Ref)
-                                    arg_is_place = heap_type_is_callable(source_hb.til_type).not()
+                                    arg_is_place = heap_type_is_callable(hb_type(source_hb)).not()
                                 }
                             case:
                                 arg_raw = eval_expr_raw(scope, arg, ctx)
@@ -3686,15 +3711,15 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
 }
 
 priv scope_read_heap_binding_raw := func(hb: HeapBinding, name: Str, ctx: Context) returns Dynamic {
-    if hb.moved_out { panic("read of moved binding: ", name, " type ", til_type_name_c(hb.til_type)) }
+    if hb.moved_out { panic("read of moved binding: ", name, " type ", til_type_name_c(hb_type(hb))) }
     ref heap_data : Dynamic = to_ptr(hb.ptr)
-    if hb.til_type.is(Type.Unknown) { panic("binding has unknown raw type: ", name) }
+    if hb_type(hb).is(Type.Unknown) { panic("binding has unknown raw type: ", name) }
     if hb.is_static_callable {
         result : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         write_ptr(result, deref(heap_data))
         return result
     }
-    if heap_type_is_callable(hb.til_type) { return heap_clone_by_type(hb.til_type, heap_data, hb.ctx) }
+    if heap_type_is_callable(hb_type(hb)) { return heap_clone_by_type(hb_type(hb), heap_data, hb.ctx) }
     if heap_data.is_null() { panic("binding has null raw storage: ", name) }
     if hb.own_type.is(OwnType.Ref) {
         result : Dynamic = heap_data
@@ -3704,8 +3729,8 @@ priv scope_read_heap_binding_raw := func(hb: HeapBinding, name: Str, ctx: Contex
     // word -- no clone, no allocation (the old Value box's inline-scalar
     // read). Own-primitive bindings (#302 raw allocations) carry the
     // pointer as their datum and keep the block path.
-    if raw_type_is_prim(hb.til_type, ctx).and(hb.own_type.is(OwnType.Shallow)) { return scalar_word_load(hb.til_type, heap_data, ctx) }
-    return heap_clone_by_type(hb.til_type, heap_data, ctx)
+    if raw_type_is_prim(hb_type(hb), ctx).and(hb.own_type.is(OwnType.Shallow)) { return scalar_word_load(hb_type(hb), heap_data, ctx) }
+    return heap_clone_by_type(hb_type(hb), heap_data, ctx)
 }
 
 scope_read_bound_raw := func(scope: Scope, name: Str, ctx: Context) returns Dynamic {
@@ -3725,12 +3750,106 @@ priv scope_move_bound_raw := func(scope: Scope, name: Str, ctx: Context) returns
             borrowed_result : Dynamic = heap_data
             return borrowed_result
         }
-        return heap_clone_by_type(hb.til_type, heap_data, ctx)
+        return heap_clone_by_type(hb_type(hb), heap_data, ctx)
     }
     result : Dynamic = heap_data
     hb.ptr = NULL
     hb.moved_out = true
     return result
+}
+
+// --- Type interning (#286 follow-up) ---
+// HeapBinding.til_type is a borrow; these helpers provide the stable
+// storage it points into (ctx.interned_types, see InternedTypes in
+// context.til). Everything that flows a NEW Type value into a binding
+// interns it first; binding-to-binding flows just copy the pointer.
+
+// Fixed slot per payload-less Type variant in InternedTypes.simples.
+priv intern_simple_index := func(shallow t: Type) returns USize {
+    switch t {
+    case Type.Unknown: return 0
+    case Type.None: return 1
+    case Type.StructDef: return 2
+    case Type.EnumDef: return 3
+    case Type.FuncDef: return 4
+    case Type.FuncPtr: return 5
+    case Type.Dynamic: return 6
+    case Type.Body: return 7
+    case:
+        panic("intern_simple_index: variant carries a payload")
+    }
+}
+
+// Fixed slot per Primitive in InternedTypes.prims.
+priv intern_prim_index := func(p: Primitive) returns USize {
+    switch p {
+    case Primitive.I16: return 0
+    case Primitive.U16: return 1
+    case Primitive.I8: return 2
+    case Primitive.U8: return 3
+    case Primitive.U32: return 4
+    case Primitive.I32: return 5
+    case Primitive.U64: return 6
+    case Primitive.I64: return 7
+    case Primitive.F32: return 8
+    case Primitive.Bool: return 9
+    }
+}
+
+// Clone t into its own heap block (the interp_program_to_heap pattern:
+// transfer the clone's bits, zero the shell so its scope-exit delete
+// frees nothing nested).
+priv intern_type_box := func(shallow t: Type) returns Dynamic {
+    raw : Dynamic = malloc(Type.size())
+    cloned := t.clone()
+    memcpy(raw, cloned, Type.size())
+    memset(cloned, 0, Type.size())
+    return raw
+}
+
+priv intern_named := func(mut m: Map(Str, Dynamic), name: Str, shallow t: Type) returns Dynamic {
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) {
+        raw : Dynamic = intern_type_box(t)
+        cell : Dynamic = malloc(Dynamic.size())
+        write_ptr(cell, raw)
+        m.set(name, own cell)
+        return raw
+    }
+    return deref(slot)
+}
+
+priv intern_slot := func(mut v: Vec(Dynamic), idx: USize, shallow t: Type) returns Dynamic {
+    // Vec(Dynamic).push takes an allocated 8-byte temp, copies the pointer
+    // bytes, then frees the temp (see topo_emit_struct_enum_defs_lp).
+    while v.len() <= idx {
+        empty_cell : I64 = malloc(I64.size())
+        memset(empty_cell, 0, I64.size())
+        v.push(own empty_cell)
+    }
+    ref slot : Dynamic = v.unsafe_get(idx)
+    ref existing : Dynamic = deref(slot)
+    if existing.is_null().not() {
+        found : Dynamic = existing
+        return found
+    }
+    raw : Dynamic = intern_type_box(t)
+    write_ptr(slot, raw)
+    return raw
+}
+
+// Canonical, address-stable heap Type block for t (returned as the raw
+// pointer word -- hop through to_ptr for a typed view); lives until
+// Context teardown.
+interp_intern_type := func(shallow t: Type, mut ctx: Context) returns Dynamic {
+    switch t {
+    case Type.Struct(name): return intern_named(ctx.interned_types.structs, name, t)
+    case Type.Enum(name): return intern_named(ctx.interned_types.enums, name, t)
+    case Type.Custom(name): return intern_named(ctx.interned_types.customs, name, t)
+    case Type.FuncPtrSig(name): return intern_named(ctx.interned_types.funcsigs, name, t)
+    case Type.Primitive(p): return intern_slot(ctx.interned_types.prims, intern_prim_index(p), t)
+    case: return intern_slot(ctx.interned_types.simples, intern_simple_index(t), t)
+    }
 }
 
 priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested: Bool = true) {
@@ -3741,19 +3860,23 @@ priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested:
     if hb.moved_out { return }
     old_ptr : Dynamic = hb.ptr
     if old_ptr.is_null() { return }
-    if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb.til_type, old_ptr, hb.ctx) }
+    if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb_type(hb), old_ptr, hb.ctx) }
     EvalHeap.heap_free(own old_ptr)
     hb.ptr = NULL
     hb.moved_out = true
 }
 
-scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, shallow til_type: Type, own_type: OwnType, ctx: Context, is_local: Bool, is_borrowed: Bool = false, is_erased_dynamic: Bool = false) {
+// til_type_w is the canonical Type as a raw pointer word (from
+// interp_intern_type or another binding's til_type_p -- storage that
+// outlives every scope): the binding BORROWS it for its whole lifetime.
+scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dynamic, own_type: OwnType, ctx: Context, is_local: Bool, is_borrowed: Bool = false, is_erased_dynamic: Bool = false) {
+    ref til_type : Type = to_ptr(til_type_w)
     if ptr.is_null() {
         if is_borrowed.not().and(til_type.is(Type.Struct).or(til_type.is(Type.Enum))) { panic("null aggregate heap binding: ", name) }
     }
     is_static_callable := heap_slot_is_static_callable(til_type, ptr)
     scope_drop_existing_heap_slot(s, name)
-    meta := HeapBinding(ptr = to_ptr(ptr), til_type = til_type.clone(), own_type = own_type, ctx = ctx, is_local = is_local, is_borrowed = is_borrowed, is_erased_dynamic = is_erased_dynamic, is_static_callable = is_static_callable, moved_out = false)
+    meta := HeapBinding(ptr = to_ptr(ptr), til_type_p = til_type_w, own_type = own_type, ctx = ctx, is_local = is_local, is_borrowed = is_borrowed, is_erased_dynamic = is_erased_dynamic, is_static_callable = is_static_callable, moved_out = false)
     s.heap_bindings.set(name, own meta)
 }
 
@@ -3788,14 +3911,15 @@ scope_drop_owned_bindings := func(s: Scope) {
     for _, hb in s.heap_bindings {
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
         owned_ptr : Dynamic = hb.ptr
-        if hb.is_static_callable.not() { heap_drop_by_type(hb.til_type, owned_ptr, hb.ctx) }
+        if hb.is_static_callable.not() { heap_drop_by_type(hb_type(hb), owned_ptr, hb.ctx) }
         EvalHeap.heap_free(own owned_ptr)
         hb.ptr = NULL
         hb.moved_out = true
     }
 }
 
-priv scope_set_borrowed := func(mut s: Scope, name: Str, shallow til_type: Type, own_type: OwnType, source_name: Str, mut source_scope: Scope) {
+priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, own_type: OwnType, source_name: Str, mut source_scope: Scope) {
+    ref til_type : Type = to_ptr(til_type_w)
     if source_name.len() == 0 { panic("borrowed binding without source name: ", name) }
     if source_name.len() > 0 { s.heap_aliases.set(name, own source_name.clone()) }
     if source_scope.is_null() { source_scope = s.parent }
@@ -3804,8 +3928,8 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, shallow til_type: Type,
     if source_hb.is_null().or(source_hb.ptr.is_null()) { panic("borrow source not found: ", source_name) }
     if source_hb.moved_out { panic("borrow of moved binding: ", source_name) }
     ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
-    is_erased_dynamic := source_hb.is_erased_dynamic.or(til_type.is(Type.Dynamic).and(source_hb.til_type.is(Type.Dynamic).not()))
-    scope_set_heap_owned(s, name, source_ptr, til_type, own_type, source_hb.ctx, false, true, is_erased_dynamic)
+    is_erased_dynamic := source_hb.is_erased_dynamic.or(til_type.is(Type.Dynamic).and(hb_type(source_hb).is(Type.Dynamic).not()))
+    scope_set_heap_owned(s, name, source_ptr, til_type_w, own_type, source_hb.ctx, false, true, is_erased_dynamic)
 }
 scope_free := func(own s: Scope) {
     // Runtime slots represent compiled stack storage. Reclaim the outer slot,
@@ -3839,11 +3963,11 @@ priv closure_env_clone := func(env: Scope) returns ref Scope {
         ref src : Dynamic = to_ptr(hb.ptr)
         if src.is_null() { panic("closure clone from null binding: ", name) }
         if hb.is_borrowed {
-            scope_set_heap_owned(cloned, name, src, hb.til_type, hb.own_type, hb.ctx, false, true, hb.is_erased_dynamic)
+            scope_set_heap_owned(cloned, name, src, hb.til_type_p, hb.own_type, hb.ctx, false, true, hb.is_erased_dynamic)
             if env.heap_aliases.has(name) { cloned.heap_aliases.set(name, own env.heap_aliases[name].clone()) }
         } else {
-            copied : Dynamic = heap_clone_by_type(hb.til_type, src, hb.ctx)
-            scope_set_raw_owned(cloned, name, copied, hb.til_type, hb.own_type, hb.ctx)
+            copied : Dynamic = heap_clone_by_type(hb_type(hb), src, hb.ctx)
+            scope_set_raw_owned(cloned, name, copied, hb.til_type_p, hb.own_type, hb.ctx)
         }
     }
     return cloned
@@ -3857,15 +3981,15 @@ priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ct
     ref raw : Dynamic = to_ptr(hb.ptr)
     if raw.is_null() { panic("closure capture from null binding: ", cap.name) }
     if cap.own_type.is(OwnType.Ref) {
-        scope_set_borrowed(env, cap.name, hb.til_type, cap.own_type, cap.name, source_scope)
+        scope_set_borrowed(env, cap.name, hb.til_type_p, cap.own_type, cap.name, source_scope)
         return
     }
-    if cap.own_type.is(OwnType.Shallow).or(hb.is_borrowed).or(heap_slot_is_static_callable(hb.til_type, raw)) {
-        copied : Dynamic = heap_clone_by_type(hb.til_type, raw, ctx)
-        scope_set_raw_owned(env, cap.name, copied, hb.til_type, cap.own_type, ctx)
+    if cap.own_type.is(OwnType.Shallow).or(hb.is_borrowed).or(heap_slot_is_static_callable(hb_type(hb), raw)) {
+        copied : Dynamic = heap_clone_by_type(hb_type(hb), raw, ctx)
+        scope_set_raw_owned(env, cap.name, copied, hb.til_type_p, cap.own_type, ctx)
         return
     }
-    scope_set_raw_owned(env, cap.name, raw, hb.til_type, cap.own_type, ctx)
+    scope_set_raw_owned(env, cap.name, raw, hb.til_type_p, cap.own_type, ctx)
     hb.ptr = NULL
     hb.moved_out = true
 }
@@ -4028,7 +4152,7 @@ priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     switch obj_expr.node_type {
     case NodeType.Ident(type_ident):
         ref type_hb : HeapBinding = scope_lookup_heap_binding(scope, type_ident.ident_name())
-        if type_hb.is_null().not().and(heap_type_is_callable(type_hb.til_type)) {
+        if type_hb.is_null().not().and(heap_type_is_callable(hb_type(type_hb))) {
             ref type_def : Expr = callable_raw_func_def(to_ptr(type_hb.ptr))
             if type_def.node_type.is(NodeType.StructDef).or(type_def.node_type.is(NodeType.EnumDef)) {
                 return interp_fa_is_ns_inner(scope, e, type_ident.ident_name(), ctx)
@@ -4173,10 +4297,14 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     ref hb : HeapBinding = scope_lookup_heap_binding(c.ns_fields, qn)
-    mut raw_type := supplied_type.clone()
-    if hb.is_null().not() { raw_type = hb.til_type.clone() }
-    if raw_type.is(Type.Unknown) { panic("namespace field type not found: ", qn) }
-    scope_set_raw_owned(c.ns_fields, qn, raw, raw_type, OwnType.Own, ctx)
+    // An existing binding's type is already canonical; a fresh one interns
+    // the supplied type. scope_set_raw_owned panics on Unknown either way.
+    if hb.is_null().not() {
+        scope_set_raw_owned(c.ns_fields, qn, raw, hb.til_type_p, OwnType.Own, ctx)
+        return
+    }
+    if supplied_type.is(Type.Unknown) { panic("namespace field type not found: ", qn) }
+    scope_set_raw_owned(c.ns_fields, qn, raw, interp_intern_type(supplied_type, ctx), OwnType.Own, ctx)
 }
 
 priv ns_decl_raw_type := func(decl: Declaration) returns Type {
@@ -4195,7 +4323,7 @@ priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
     qn := ns_qname(sname, fname)
     ref hb : HeapBinding = scope_lookup_heap_binding(ctx.ns_fields, qn)
     if hb.is_null() { panic("namespace field type not found: ", qn) }
-    return hb.til_type.clone()
+    return hb_type(hb).clone()
 }
 
 interpreter_free_ns := func(mut ctx: Context) {
@@ -4421,7 +4549,7 @@ priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USiz
     raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
 }
 
-priv interpret_register_defs := func(global: Scope, prog: Expr) {
+priv interpret_register_defs := func(global: Scope, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
             ref decl_value : Expr = stmt.children[0]
@@ -4432,7 +4560,7 @@ priv interpret_register_defs := func(global: Scope, prog: Expr) {
                 case NodeType.Decl(dd):
                     raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(raw, stmt.children[0])
-                    scope_set_raw_owned(global, dd.name, raw, Type.Body, dd.own_type, NULL)
+                    scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, NULL)
                 case:
                 }
             }
@@ -4440,7 +4568,7 @@ priv interpret_register_defs := func(global: Scope, prog: Expr) {
     }
 }
 
-priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
+priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: Context) {
     for stmt : Expr in prog.children {
         if stmt.node_type.is(NodeType.Decl).not() { }
         else if stmt.til_type().is(Type.None).not() { }
@@ -4456,7 +4584,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr) {
                             case NodeType.Decl(dd):
                                 raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                                 write_ptr(raw, sdef)
-                                scope_set_raw_owned(global, dd.name, raw, Type.Body, dd.own_type, NULL)
+                                scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, NULL)
                             case:
                             }
                         }
@@ -4581,23 +4709,23 @@ interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedPro
     if lp.skip_core.not() {
         for u2 : ProgramUnit in lp.core_units {
             ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
-            interpret_register_defs(session.global, iu2.ast)
+            interpret_register_defs(session.global, iu2.ast, lp.ctx)
         }
     }
     for u3 : ProgramUnit in lp.units {
         ref iu3 : ImportUnit = lp.ctx.imported[u3.path]
-        interpret_register_defs(session.global, iu3.ast)
+        interpret_register_defs(session.global, iu3.ast, lp.ctx)
     }
 
     if lp.skip_core.not() {
         for u4 : ProgramUnit in lp.core_units {
             ref iu4 : ImportUnit = lp.ctx.imported[u4.path]
-            interpret_register_aliases(session.global, iu4.ast)
+            interpret_register_aliases(session.global, iu4.ast, lp.ctx)
         }
     }
     for u5 : ProgramUnit in lp.units {
         ref iu5 : ImportUnit = lp.ctx.imported[u5.path]
-        interpret_register_aliases(session.global, iu5.ast)
+        interpret_register_aliases(session.global, iu5.ast, lp.ctx)
     }
 
     if lp.skip_core.not() {
@@ -4883,11 +5011,11 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
                             ref va_array_binding : TypeBinding = lp.ctx.scope.get_binding(format("Array__", va_elem))
                             if va_array_binding.is_null() { panic("missing variadic Array type for ", va_elem) }
-                            scope_set_raw_owned(main_scope, param.name, arr, Type.Struct(va_array_binding.name.clone()), param.own_type, lp.ctx)
+                            scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                             argi = argi + va_count.to_i32()
                         } else {
                             raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
-                            scope_set_raw_owned(main_scope, param.name, raw, param.til_type, param.own_type, lp.ctx)
+                            scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(param.til_type, lp.ctx), param.own_type, lp.ctx)
                             argi++
                         }
                     }
@@ -5864,7 +5992,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) retu
         switch arg.node_type {
         case NodeType.Ident(type_arg_id):
             ref type_arg_hb : HeapBinding = scope_lookup_heap_binding(s, type_arg_id.ident_name())
-            panic("dyn_type_to_str: invalid Type for ", type_arg_id.ident_name(), ": tag=", type_tag.to_str(), " binding=", til_type_name_c(type_arg_hb.til_type), " ref=", type_arg_hb.own_type.is(OwnType.Ref).to_str(), " borrowed=", type_arg_hb.is_borrowed.to_str())
+            panic("dyn_type_to_str: invalid Type for ", type_arg_id.ident_name(), ": tag=", type_tag.to_str(), " binding=", til_type_name_c(hb_type(type_arg_hb)), " ref=", type_arg_hb.own_type.is(OwnType.Ref).to_str(), " borrowed=", type_arg_hb.is_borrowed.to_str())
         case:
             panic("dyn_type_to_str: invalid Type expression tag=", type_tag.to_str())
         }
@@ -6002,7 +6130,7 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
         if hb.is_null() { panic("free binding not found: ", ident.ident_name()) }
         if hb.moved_out { panic("free of moved binding: ", ident.ident_name()) }
         heap_data : Dynamic = hb.ptr
-        if hb.til_type.is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
+        if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
             ref pointed : Dynamic = deref(heap_data)
             if pointed.is_null().not() {
                 mut owned_pointed : Dynamic = pointed
@@ -6031,11 +6159,11 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
     switch e.children[1].node_type {
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(s, id.ident_name())
-        if hb.is_null().or(heap_type_is_callable(hb.til_type).not()) { panic("til_closure_delete: non-callable ", id.ident_name()) }
+        if hb.is_null().or(heap_type_is_callable(hb_type(hb)).not()) { panic("til_closure_delete: non-callable ", id.ident_name()) }
         if hb.moved_out.not() {
             ref heap_data : Dynamic = to_ptr(hb.ptr)
             if hb.is_borrowed.not() {
-                heap_drop_by_type(hb.til_type, heap_data, hb.ctx)
+                heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
                 mut owned_heap_data : Dynamic = heap_data
                 EvalHeap.heap_free(own owned_heap_data)
             }
@@ -6210,7 +6338,7 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
     case NodeType.Ident(base_id):
         ref hb : HeapBinding = scope_lookup_heap_binding(s, base_id.ident_name())
         if hb.is_null() { return NULL }
-        switch hb.til_type {
+        switch hb_type(hb) {
         case Type.Struct(sname):
             ref data : Dynamic = to_ptr(hb.ptr)
             ref fl : FieldLayout = ctx_field_layout(sname, fname, ctx)
@@ -7041,7 +7169,7 @@ priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, 
         if hb.is_null() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name()) }
         if hb.moved_out { panic(__LOC__, ": inc/dec target moved: ", id.ident_name()) }
         ref heap_data : Dynamic = to_ptr(hb.ptr)
-        if hb.til_type.is(Type.Primitive).not() { panic(__LOC__, ": inc/dec target has non-primitive type: ", id.ident_name()) }
+        if hb_type(hb).is(Type.Primitive).not() { panic(__LOC__, ": inc/dec target has non-primitive type: ", id.ident_name()) }
         scalar_write_raw(type_str, heap_data, nv)
     case:
         panic(__LOC__, ": inc/dec receiver is not an Ident")

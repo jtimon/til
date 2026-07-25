@@ -418,7 +418,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     if has_fold {
         // Issue #191: core constants registered after the defs walk so they
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).
-        constfolder_register_core_constants(global, lp.ctx.target_usize_pname)
+        constfolder_register_core_constants(global, lp.ctx.target_usize_pname, lp.ctx)
 
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
@@ -536,7 +536,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
 
     has_fold := lp.ctx.constfolder_foldables.len() > 0
     if has_fold {
-        constfolder_register_core_constants(global, lp.ctx.target_usize_pname)
+        constfolder_register_core_constants(global, lp.ctx.target_usize_pname, lp.ctx)
 
         if lp.skip_core.not() {
             for u4 : ProgramUnit in lp.core_units {

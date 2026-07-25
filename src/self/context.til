@@ -329,6 +329,65 @@ BuilderFuncScratch := struct {
     ptr_locals := Set(Str).new()
 }
 
+// #286 follow-up: canonical heap Type blocks that HeapBinding.til_type
+// borrows. A binding's type must outlive the binding, but neither
+// TypeScope.bindings values (sorted-Vec Map: realloc/memmove on insert)
+// nor Expr payload stamps (inline in children Vecs; constfold rewrites
+// replace and delete subtrees) are address-stable for that long. Entries
+// here are each their own allocation, never move, and are only freed at
+// Context teardown -- which outlives every scope (eval scopes die during
+// eval; ns_fields and the session global drop before the Context does).
+// Cells hold a Type* in a Dynamic word, the interp_type_defs pattern.
+
+// Free the Type blocks a word-vec's non-null elements point at. The
+// element WORD is read through a slot ref (loop element vars bind refs
+// into the vec data, so freeing them directly would free interior
+// pointers).
+priv interned_vec_free_pointees := func(v: Vec(Dynamic)) {
+    for i in 0..v.len() {
+        ref slot : Dynamic = v.unsafe_get(i)
+        ref pv : Dynamic = deref(slot)
+        pointee : Dynamic = pv
+        if pointee.is_null().not() { Type.delete(own to_ptr(pointee), true) }
+    }
+}
+
+InternedTypes := struct {
+    // Payload-less Type variants, indexed by intern_simple_index
+    // (interpreter.til). Slots are NULL until first interned.
+    simples := Vec(Dynamic).new()
+    // Type.Primitive singletons, indexed by intern_prim_index.
+    prims := Vec(Dynamic).new()
+    structs := Map(Str, Dynamic).new()
+    enums := Map(Str, Dynamic).new()
+    customs := Map(Str, Dynamic).new()
+    funcsigs := Map(Str, Dynamic).new()
+namespace:
+    // A cloned Context starts with a FRESH interner: entries are canonical
+    // per Context and freed by its teardown, so bitwise-cloning the words
+    // (the generated clone) would double free the shared blocks. Bindings
+    // made before the clone keep borrowing the source Context's blocks;
+    // the REPL retains the source program alongside its clones.
+    clone := func(_self: InternedTypes) returns InternedTypes {
+        return InternedTypes()
+    }
+    delete := func(own self: InternedTypes, call_free: Bool = true) {
+        interned_vec_free_pointees(self.simples)
+        interned_vec_free_pointees(self.prims)
+        interned_vec_free_pointees(self.structs.values)
+        interned_vec_free_pointees(self.enums.values)
+        interned_vec_free_pointees(self.customs.values)
+        interned_vec_free_pointees(self.funcsigs.values)
+        free(own self.simples.data)
+        free(own self.prims.data)
+        own self.structs.delete(false)
+        own self.enums.delete(false)
+        own self.customs.delete(false)
+        own self.funcsigs.delete(false)
+        if call_free { free(own self) }
+    }
+}
+
 Context := struct {
     mode := Mode()
     path := ""
@@ -593,6 +652,11 @@ Context := struct {
     // (same encoding as TypeScope.struct_defs / TypeScope.func_defs) so the field type
     // stays in scope at the Context definition in this file.
     interp_type_defs := Map(Str, Dynamic).new()
+
+    // #286 follow-up: canonical Type storage backing HeapBinding.til_type
+    // borrows (see InternedTypes above; interp_intern_type in
+    // interpreter.til is the only writer).
+    interned_types := InternedTypes()
 
     // Dispatch / FFI runtime state (previously module-level globals in
     // the interpreter's FFI dispatch code). FFIEntry / FFITypePtrBox are

@@ -247,8 +247,10 @@ typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
+typedef struct InternedTypes InternedTypes;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
+typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
@@ -265,7 +267,6 @@ typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
-typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Map__Str_I64 Map__Str_I64;
@@ -672,10 +673,23 @@ struct ScopeFind {
     } data;
 };
 
+typedef struct Vec__Dynamic {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__Dynamic;
+
+
 typedef struct Map__Str_Expr {
     Vec__Str keys;
     Vec__Expr values;
 } Map__Str_Expr;
+
+
+typedef struct Map__Str_Dynamic {
+    Vec__Str keys;
+    Vec__Dynamic values;
+} Map__Str_Dynamic;
 
 
 typedef struct Vec__FFITypePtrBox {
@@ -725,13 +739,6 @@ typedef struct Vec__call_Vec_Str {
     USize count;
     USize cap;
 } Vec__call_Vec_Str;
-
-
-typedef struct Vec__Dynamic {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__Dynamic;
 
 
 typedef struct Vec__FFIEntry {
@@ -975,7 +982,7 @@ typedef struct InterpCallableBox {
 
 typedef struct HeapBinding {
     U8 *ptr;
-    Type til_type;
+    U8 *til_type_p;
     OwnType own_type;
     Context *ctx;
     Bool is_local;
@@ -1163,6 +1170,29 @@ typedef struct ImportUnit {
 } ImportUnit;
 
 
+typedef struct BuilderFuncScratch {
+    Map__Str_Dynamic local_fn_sigs;
+    Set__Str stack_locals;
+    Map__Str_Str stack_local_types;
+    Set__Str stack_lit_str_locals;
+    Bool force_heap_stack_lit_str_own;
+    Set__Str unsafe_to_hoist;
+    Set__Str ref_locals;
+    Set__Str ref_dyn_locals;
+    Set__Str ptr_locals;
+} BuilderFuncScratch;
+
+
+typedef struct InternedTypes {
+    Vec__Dynamic simples;
+    Vec__Dynamic prims;
+    Map__Str_Dynamic structs;
+    Map__Str_Dynamic enums;
+    Map__Str_Dynamic customs;
+    Map__Str_Dynamic funcsigs;
+} InternedTypes;
+
+
 typedef struct Map__Str_TypeBinding {
     Vec__Str keys;
     Vec__TypeBinding values;
@@ -1197,12 +1227,6 @@ typedef struct Map__Str_call_Vec_Str {
     Vec__Str keys;
     Vec__call_Vec_Str values;
 } Map__Str_call_Vec_Str;
-
-
-typedef struct Map__Str_Dynamic {
-    Vec__Str keys;
-    Vec__Dynamic values;
-} Map__Str_Dynamic;
 
 
 typedef struct Map__Str_FFIEntry {
@@ -1323,19 +1347,6 @@ typedef struct TypeScope {
 } TypeScope;
 
 
-typedef struct BuilderFuncScratch {
-    Map__Str_Dynamic local_fn_sigs;
-    Set__Str stack_locals;
-    Map__Str_Str stack_local_types;
-    Set__Str stack_lit_str_locals;
-    Bool force_heap_stack_lit_str_own;
-    Set__Str unsafe_to_hoist;
-    Set__Str ref_locals;
-    Set__Str ref_dyn_locals;
-    Set__Str ptr_locals;
-} BuilderFuncScratch;
-
-
 typedef struct Context {
     Mode mode;
     Str path;
@@ -1418,6 +1429,7 @@ typedef struct Context {
     Expr *cached_vec_def;
     Str *cached_vec_name;
     Map__Str_Dynamic interp_type_defs;
+    InternedTypes interned_types;
     Map__Str_Dynamic dispatch_map;
     Bool dispatch_inited;
     Map__Str_FFIEntry ffi_map;
@@ -2014,6 +2026,11 @@ BuilderFuncScratch * BuilderFuncScratch_clone(BuilderFuncScratch * self);
 void BuilderFuncScratch_delete(BuilderFuncScratch * self, Bool call_free);
 U64 BuilderFuncScratch_hash(BuilderFuncScratch * self, HashFn hasher);
 USize BuilderFuncScratch_size(void);
+void priv___src_self_context_til__interned_vec_free_pointees(Vec__Dynamic * v);
+InternedTypes * InternedTypes_clone(InternedTypes * _self);
+void InternedTypes_delete(InternedTypes * self, Bool call_free);
+U64 InternedTypes_hash(InternedTypes * self, HashFn hasher);
+USize InternedTypes_size(void);
 Context * Context_clone(Context * self);
 void Context_delete(Context * self, Bool call_free);
 USize Context_size(void);
@@ -2083,6 +2100,16 @@ void Map__Str_TypeBinding_delete(Map__Str_TypeBinding * self, Bool call_free);
 Map__Str_TypeBinding * Map__Str_TypeBinding_clone(Map__Str_TypeBinding * self);
 U64 Map__Str_TypeBinding_hash(Map__Str_TypeBinding * self, HashFn hasher);
 USize Map__Str_TypeBinding_size(void);
+Vec__Dynamic * Vec__Dynamic_new(void);
+USize Vec__Dynamic_len(Vec__Dynamic * self);
+void Vec__Dynamic_clear(Vec__Dynamic * self);
+void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
+void * Vec__Dynamic_unsafe_get(Vec__Dynamic * self, USize * i);
+void * Vec__Dynamic_get(Vec__Dynamic * self, USize * i, I64 * _err_kind);
+void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, USize i, void * val);
+void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
+Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
+USize Vec__Dynamic_size(void);
 Map__Str_Mode * Map__Str_Mode_new(void);
 Bool Map__Str_Mode_has(Map__Str_Mode * self, Str * key);
 Mode * Map__Str_Mode_get(Map__Str_Mode * self, Str * key, I64 * _err_kind);
@@ -2208,16 +2235,6 @@ void Vec__call_Vec_Str_unsafe_set(Vec__call_Vec_Str * self, USize i, Vec__Str * 
 void Vec__call_Vec_Str_delete(Vec__call_Vec_Str * self, Bool call_free);
 Vec__call_Vec_Str * Vec__call_Vec_Str_clone(Vec__call_Vec_Str * self);
 USize Vec__call_Vec_Str_size(void);
-Vec__Dynamic * Vec__Dynamic_new(void);
-USize Vec__Dynamic_len(Vec__Dynamic * self);
-void Vec__Dynamic_clear(Vec__Dynamic * self);
-void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
-void * Vec__Dynamic_unsafe_get(Vec__Dynamic * self, USize * i);
-void * Vec__Dynamic_get(Vec__Dynamic * self, USize * i, I64 * _err_kind);
-void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, USize i, void * val);
-void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
-Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
-USize Vec__Dynamic_size(void);
 Vec__FFIEntry * Vec__FFIEntry_new(void);
 void Vec__FFIEntry_clear(Vec__FFIEntry * self);
 FFIEntry * Vec__FFIEntry_unsafe_get(Vec__FFIEntry * self, USize * i);
@@ -2866,7 +2883,7 @@ void priv___src_self_constfolder_til__fold_subtree(Scope * scope, Expr * e, Cont
 void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
-void constfolder_register_core_constants(Scope * global, Str * usize_name);
+void constfolder_register_core_constants(Scope * global, Str * usize_name, Context * ctx);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
@@ -3453,6 +3470,7 @@ void * priv___src_self_interpreter_til__heap_clone(Str * struct_name, void * dat
 InterpCallableBox * InterpCallableBox_clone(InterpCallableBox * self);
 void InterpCallableBox_delete(InterpCallableBox * self, Bool call_free);
 USize InterpCallableBox_size(void);
+Type * hb_type(HeapBinding * hb);
 HeapBinding * HeapBinding_clone(HeapBinding * self);
 void HeapBinding_delete(HeapBinding * self, Bool call_free);
 USize HeapBinding_size(void);
@@ -3503,7 +3521,7 @@ void * priv___src_self_interpreter_til__raw_result_finish(Type t, void * raw, vo
 void priv___src_self_interpreter_til__raw_result_drop_nested(Type t, void * raw, Bool return_is_ref, Context * ctx);
 void raw_result_drop(Type t, void * raw, Bool return_is_ref, Context * ctx);
 void priv___src_self_interpreter_til__raw_result_drop_ptr(Type t, void * raw, Bool return_is_ref, Context * ctx);
-void scope_set_raw_owned(Scope * scope, Str * name, void * raw, Type t, OwnType * own_type, Context * ctx, Bool borrowed);
+void scope_set_raw_owned(Scope * scope, Str * name, void * raw, void * t_w, OwnType * own_type, Context * ctx, Bool borrowed);
 void * priv___src_self_interpreter_til__raw_widen_numeric(void * raw, Type source_type, Str * target_name, Context * ctx);
 void * priv___src_self_interpreter_til__raw_coerce_value(void * raw, Type source_type, Type target_type, Context * ctx, OwnType * target_own_type);
 USize priv___src_self_interpreter_til__raw_type_size(Type t, Context * ctx);
@@ -3537,7 +3555,7 @@ void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, FCa
 void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
-Type * priv___src_self_interpreter_til__interp_param_bind_type(Declaration * param, Type * source_type, Bool is_variadic, TypeScope * scope);
+void * priv___src_self_interpreter_til__interp_param_bind_type(Declaration * param, void * source_type_w, Bool is_variadic, Context * ctx);
 void * priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx, void * destination);
 void * priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, void * callable, Context * ctx, void * destination);
 void * priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx, void * destination);
@@ -3583,11 +3601,17 @@ Bool priv___src_self_interpreter_til__heap_move_ptr_into_slot(Type til_type, voi
 void * priv___src_self_interpreter_til__scope_read_heap_binding_raw(HeapBinding * hb, Str * name, Context * ctx);
 void * scope_read_bound_raw(Scope * scope, Str * name, Context * ctx);
 void * priv___src_self_interpreter_til__scope_move_bound_raw(Scope * scope, Str * name, Context * ctx);
+USize priv___src_self_interpreter_til__intern_simple_index(Type t);
+USize priv___src_self_interpreter_til__intern_prim_index(Primitive * p);
+void * priv___src_self_interpreter_til__intern_type_box(Type t);
+void * priv___src_self_interpreter_til__intern_named(Map__Str_Dynamic * m, Str * name, Type t);
+void * priv___src_self_interpreter_til__intern_slot(Vec__Dynamic * v, USize idx, Type t);
+void * interp_intern_type(Type t, Context * ctx);
 void priv___src_self_interpreter_til__scope_drop_existing_heap_slot(Scope * s, Str * name, Bool drop_nested);
-void scope_set_heap_owned(Scope * s, Str * name, void * ptr, Type til_type, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
+void scope_set_heap_owned(Scope * s, Str * name, void * ptr, void * til_type_w, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
 Scope * scope_new_boxed(Scope * parent);
 void scope_drop_owned_bindings(Scope * s);
-void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, Type til_type, OwnType * own_type, Str * source_name, Scope * source_scope);
+void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, void * til_type_w, OwnType * own_type, Str * source_name, Scope * source_scope);
 void scope_free(Scope * s);
 Scope * priv___src_self_interpreter_til__scope_root_ref(Scope * s);
 Scope * priv___src_self_interpreter_til__closure_env_clone(Scope * env);
@@ -3621,8 +3645,8 @@ void priv___src_self_interpreter_til__free_owned_struct_slot(void * ptr, Str * s
 void priv___src_self_interpreter_til__free_inline_struct_slot(void * ptr, Str * struct_name, Context * ctx);
 void priv___src_self_interpreter_til__free_owned_enum_slot(void * ptr, Str * enum_name, Context * ctx);
 void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration * dd, USize field_offset, USize field_size, void * raw, Type raw_type, Bool raw_is_ref, Bool drop_old, Context * ctx);
-void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog);
-void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog);
+void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog, Context * ctx);
+void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog, Context * ctx);
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
 void interp_session_start(InterpSession * session, Vec__Str * user_argv);
 void interp_session_free(InterpSession * session);
