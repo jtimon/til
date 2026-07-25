@@ -1037,7 +1037,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         return raw
     }
     mut value_raw : Dynamic = raw
-    mut value_type := e.til_type()
+    ref mut value_type : Type = e.til_type()
     switch e.node_type {
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
@@ -1214,7 +1214,7 @@ priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns
     case NodeType.Ident(id):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, id.ident_name())
         if hb.is_null() { panic("scalar source binding not found: ", id.ident_name()) }
-        if hb.til_type.is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type() }
+        if hb.til_type.is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type().clone() }
         return hb.til_type.clone()
     case NodeType.FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
@@ -1235,7 +1235,7 @@ priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns
         }
         return fdecl.til_type.clone()
     case:
-        return e.til_type()
+        return e.til_type().clone()
     }
 }
 
@@ -1454,7 +1454,7 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
     case NodeType.Ident(ident):
         ref hb : HeapBinding = scope_lookup_heap_binding(scope, ident.ident_name())
         if hb.is_null() { panic("expression binding not found: ", ident.ident_name()) }
-        mut expr_type := e.til_type()
+        mut expr_type := e.til_type().clone()
         switch expr_type {
         case Type.Custom(expr_type_name): expr_type = type_from_name_init(expr_type_name, ctx.scope)
         case:
@@ -2098,7 +2098,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             if stmt.children.len() > 0 {
                 ref ret_expr : Expr = stmt.children[0]
                 mut return_raw : Dynamic = 0
-                mut return_source_type := ret_expr.til_type()
+                mut return_source_type := ret_expr.til_type().clone()
                 mut return_source_is_ref := false
                 switch ret_expr.node_type {
                 case NodeType.Ident(ret_ident):
@@ -2424,7 +2424,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     // A by-value Str result must outlive any temporary receiver hidden by the
     // typer's argument hoisting, so materialize views before returning them.
     if callee_ret_is_ref.not() {
-        mut return_type := e.til_type()
+        mut return_type := e.til_type().clone()
         switch return_type {
         case Type.Custom(return_type_name): return_type = type_from_name_init(return_type_name, ctx.scope)
         case:
@@ -2525,7 +2525,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                         if nsv_fdef.ptr_eq(func_def) {
                             fp_flat := qn.replace(".", "_")
                             orig_callee := callee_expr.clone()
-                            orig_result_type := e.til_type()
+                            orig_result_type := e.til_type().clone()
                             mut concrete_result_type := Type.None
                             mut concrete_return_own_type := OwnType.Shallow
                             switch nsv_fdef.node_type {
@@ -2618,7 +2618,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                         flat_str = sn.concat3("_", fn_name.field_access_name())
                     }
                     orig_callee_val := callee_expr.clone()
-                    orig_direct_result_type := e.til_type()
+                    orig_direct_result_type := e.til_type().clone()
                     mut flat_ident2 := callee_expr.clone()
                     flat_ident2.node_type = ident_node(flat_str)
                     e.children[0] = flat_ident2
@@ -2655,7 +2655,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             // expected miss. ext_cell stays NULL and the is_null guard below
             // skips return/param ownership checks.
         }
-        mut ext_result_type := e.til_type()
+        mut ext_result_type := e.til_type().clone()
         mut ext_return_own_type := OwnType.Shallow
         mut ext_variadic_index : I32 = -1
         ext_result_is_ref := call_raw_result_is_ref(scope, e, ctx)
@@ -2681,7 +2681,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         // call expression. Allocate dispatch storage at that contextual type.
         contextual_dynamic_result := ext_return_own_type.is(OwnType.Shallow).or(name.ident_name() == "dyn_call_ret")
         if ext_result_type.is(Type.Dynamic).and(contextual_dynamic_result).and(e.til_type().is(Type.Dynamic).not()) {
-            ext_result_type = e.til_type()
+            ext_result_type = e.til_type().clone()
         }
         mut ext_storage_type := ext_result_type.clone()
         if ext_result_is_ref { ext_storage_type = Type.Dynamic }
@@ -4156,7 +4156,7 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
 
 priv ns_decl_raw_type := func(decl: Declaration) returns Type {
     if decl.default_value.node_type.is(NodeType.FuncDef) { return Type.Body }
-    return decl.default_value.til_type()
+    return decl.default_value.til_type().clone()
 }
 
 priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
@@ -6574,7 +6574,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, e: Expr, raw: Dynamic, atype: D
     mut source : Dynamic = raw_arg_pointer(scope, e, raw, ctx)
     mut source_type := scalar_raw_source_type(scope, e, ctx)
     if source_type.is(Type.Dynamic) {
-        mut expr_type := e.til_type()
+        mut expr_type := e.til_type().clone()
         switch expr_type {
         case Type.Custom(name): expr_type = type_from_name_init(name, ctx.scope)
         case:
@@ -6618,7 +6618,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
         ref arg_expr : Expr = e.children[i + 1]
         arg_raw : Dynamic = eval_expr_raw(scope, arg_expr, ctx)
         write_ptr(ptr_add(arg_raws, i.mul(8)), arg_raw)
-        mut arg_type := arg_expr.til_type()
+        mut arg_type := arg_expr.til_type().clone()
         switch arg_type {
         case Type.Custom(type_name): arg_type = type_from_name_init(type_name, ctx.scope)
         case:

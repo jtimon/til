@@ -23,6 +23,27 @@
   ~test/variadic.til~, ~test/constfold.til~, and the ~ffi_interp~ check for
   ~examples/ffi/ext_module.til~.
 
+  Performance follow-up (landed after the merge): profiling the raw model
+  against pre-286 with callgrind showed the self-translate regression was
+  lookup and type-query churn, not the raw blocks themselves --
+  ~translate test/constfold.til~ cost 10.66G instructions pre-286 and
+  18.10G on the raw model, dominated by ~Str_cmp~ scope-chain walks,
+  ~Expr.til_type()~ clone traffic, and per-binding ~Type~ clones. Three
+  cuts recovered most of it: the merged #286 already resolves
+  ~interp_fa_is_ns~ receiver types through the ctx type registry (one map
+  get) instead of walking the whole scope chain per field access and
+  reuses the ext-dispatch scope probe for the user-callee lookup
+  (18.10G -> 17.12G); ~Expr.til_type()~ now returns a BORROWED ref --
+  stored stamps return payload refs, synthesized arms return the shared
+  ~TYPE_*~ constants in ast.til, owning call sites clone at their site --
+  killing the clone+delete+malloc round-trip every phase paid per type
+  query (17.12G -> 15.97G; ~interpret test/loops.til~ 7.11G -> 6.77G).
+  The new core consts exposed a scavenger blind spot fixed alongside:
+  core units' non-def top-level initializers are emitted as globals in
+  every mode but their refs were never seeded as scavenge roots, so a
+  core const referencing an enum def got the def pruned and the
+  builder's ns lookup walked a freed def in script builds.
+
   The interpreter's runtime value representation is the root cause of the
   recurring memory leaks (#275 and the long tail of follow-ups after it).
   Current master has the real-pointer ~EvalHeap~ and ~Scope.heap_index~

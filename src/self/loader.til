@@ -741,6 +741,22 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         }
     }
 
+    // Core top-level consts survive the filter (only defs are pruned) and
+    // their initializers are emitted as globals in every mode, so whatever
+    // those initializers reference must stay reachable too -- e.g. a core
+    // `X : Type = Type.None` const needs the Type enum def kept, or the
+    // builder's ns lookup walks a freed def.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+                if stmt.node_type.is(NodeType.Decl) {
+                    if is_def(stmt) { continue }
+                }
+                collect_refs(stmt, worklist)
+            }
+        }
+    }
+
     // 3) BFS
     mut visited := Set(Str).new()
     mut cursor : USize = 0

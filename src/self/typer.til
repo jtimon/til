@@ -2139,7 +2139,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     infer_expr(scope, e.children[1], in_func, ctx)
-    src_type := e.children[1].til_type()
+    ref src_type : Type = e.children[1].til_type()
     mut tname := ""
     switch e.children[2].node_type {
     case NodeType.Ident(tn0): tname = Str.clone(tn0.ident_name())
@@ -2656,7 +2656,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     // the field type from, so an explicit `: Type` is required.
                     fd.default_value.type_error(format("field '", fd.name, "' has no default value, so it needs an explicit type: '", fd.name, " : Type'"), ctx)
                 } else if fd.default_value.is_null().not() {
-                    fd.til_type =fd.default_value.til_type()
+                    fd.til_type =fd.default_value.til_type().clone()
                 }
             }
             inner.set(fd.name, fd.til_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type)
@@ -3766,7 +3766,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
 
 priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
-    if_cond_t := stmt.children[0].til_type()
+    ref if_cond_t : Type = stmt.children[0].til_type()
     if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
@@ -3980,7 +3980,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         case:
                         }
                         if handled_lit.not() {
-                            rhs_type := rhs.til_type()
+                            ref rhs_type : Type = rhs.til_type()
                             // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig
                             // wildcard-aware family-equality.
                             if rhs_type.is(fld_type).not().and(funcptr_eq(rhs_type, fld_type).not()) {
@@ -4028,7 +4028,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         case:
                         }
                         if handled_lit2.not() {
-                            rhs_type := rhs.til_type()
+                            ref rhs_type : Type = rhs.til_type()
                             if rhs_type.is(nsd_type).not().and(funcptr_eq(rhs_type, nsd_type).not()) {
                                 if rhs_type.is(Type.Unknown).not() {
                                     if rhs_type.is(Type.Dynamic).not() {
@@ -4065,7 +4065,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
 
 priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, ctx: Context) {
     infer_expr(scope, stmt.children[0], in_func, ctx)
-    while_cond_t := stmt.children[0].til_type()
+    ref while_cond_t : Type = stmt.children[0].til_type()
     if type_is_primitive(while_cond_t, Primitive.Bool).not().and(while_cond_t.is(Type.Unknown).not()) {
         stmt.type_error(format("while condition must be Bool, got ", type_to_name(stmt.children[0].til_type())), ctx)
     }
@@ -4268,7 +4268,7 @@ priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr)
 priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, ctx: Context) returns Type {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
-        mut declared := stmt.til_type()
+        mut declared := stmt.til_type().clone()
         switch declared {
         case Type.Unknown:
             declared = type_from_name(sdecl.explicit_type, scope, ctx)
@@ -4430,7 +4430,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
 
 priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
     ref rhs : Expr = stmt.children[0]
-    mut inferred := rhs.til_type()
+    mut inferred := rhs.til_type().clone()
     switch rhs.node_type {
     case NodeType.FuncDef(rhs_fd):
         if rhs_fd.captures.len() > 0 {
@@ -4543,7 +4543,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
         // later needs, and resolve_decl_fn_sig cannot recover the signature.
         if sdecl.explicit_type.len() == 0 {
             if stmt.til_type().is(Type.FuncPtrSig) {
-                sdecl.til_type = stmt.til_type()
+                sdecl.til_type = stmt.til_type().clone()
                 sdecl.explicit_type = til_type_name(stmt.til_type()).clone()
             }
         }
@@ -6856,7 +6856,7 @@ priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr,
             k++
         }
         infer_expr(arm_scope, trial.children[last_idx], in_func, ctx)
-        t = trial.children[last_idx].til_type()
+        t = trial.children[last_idx].til_type().clone()
     }
     return t
 }
@@ -6916,7 +6916,7 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
 priv lower_one_match := proc(scope: TypeScope, match_node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) returns Str {
     line := match_node.line
     col := match_node.col
-    result_t := match_node.til_type()
+    ref result_t : Type = match_node.til_type()
     tname := type_to_name(result_t)
     mname := format("_m_", type_prefix(result_t), "_", ctx.hoist_counter.to_str())
     ctx.hoist_counter++

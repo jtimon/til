@@ -1412,7 +1412,7 @@ priv fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
     // "void *" from callee_return_ctype). Limited to the Dynamic case
     // so struct-returning calls (like Array_new) keep their lookup.
     if callee_returns_dynamic(callee, ctx) {
-        t := fcall.til_type()
+        ref t : Type = fcall.til_type()
         if t.is(Type.Unknown).not().and(t.is(Type.Dynamic).not()) {
             return til_type_to_c(t)
         }
@@ -2642,7 +2642,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 case:
                 }
                 if target_name.len().gt(0).and(temp_name.len().gt(0)) {
-                    arg_type := swap_target.til_type()
+                    ref arg_type : Type = swap_target.til_type()
                     arg_tname := til_type_name(arg_type)
                     if arg_tname == "Str" {
                         // If the temp is a stack-local (Str value, not pointer),

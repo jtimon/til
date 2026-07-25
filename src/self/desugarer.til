@@ -2179,7 +2179,7 @@ priv process_throw_catch_in_body := proc(
         // 5. Rewrite Throw -> two assigns.
         if stmt.node_type.is(NodeType.Throw) {
             if stmt.children.len() == 1 {
-                throw_t := stmt.til_type()
+                ref throw_t : Type = stmt.til_type()
                 mut tn := ""
                 if throw_t.is(Type.Unknown).not().and(throw_t.is(Type.None).not()) {
                     tn = type_to_name(throw_t)
@@ -3077,7 +3077,7 @@ priv expr_has_unguarded_break := func(e: Expr) returns Bool {
 // Switch/Case nodes for the backends; everything else desugars to if/elif.
 switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: Bool) returns Bool {
     if is_match { return false }
-    sw_type := sw_expr.til_type()
+    ref sw_type : Type = sw_expr.til_type()
     sw_sname := til_type_name(sw_type)
     mut is_enum := false
     mut is_bool := false
@@ -4450,7 +4450,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
                 if is_aggregate(field_type).or(field_type.is(Type.Custom)) {
                     continue
                 }
-                arg_type := arg.til_type()
+                ref arg_type : Type = arg.til_type()
                 if is_aggregate(arg_type).or(arg_type.is(Type.Custom)) {
                     continue
                 }
@@ -4543,7 +4543,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
     hoist_expr(ctx, stmt.children[1], hoisted, scope)
     mut fa_hoist := true
     if stmt.fa_own_type(scope).is(OwnType.Shallow) {
-        rhs_type := stmt.children[1].til_type()
+        ref rhs_type : Type = stmt.children[1].til_type()
         if is_aggregate(rhs_type) {
             fa_hoist = false
         }
@@ -5035,7 +5035,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
 priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Bool {
     if stmt.fa_own_type(scope).is(OwnType.Ref) { return false }
     if stmt.fa_own_type(scope).is(OwnType.Shallow).not() { return true }
-    ft := stmt.children[1].til_type()
+    ref ft : Type = stmt.children[1].til_type()
     if is_aggregate(ft) { return true }
     return false
 }

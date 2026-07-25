@@ -1496,7 +1496,7 @@ ast_print := proc(e: Expr, indent: U32) {
         print("  ")
     }
     print("(", node_name(e.node_type))
-    et := e.til_type()
+    ref et : Type = e.til_type()
     if et.is(Type.Unknown).not() {
         print(":", til_type_name_c(et))
     }

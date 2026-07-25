@@ -469,6 +469,23 @@ namespace:
     to_str := func(_self: CaptureBlockData) returns Str { return "CaptureBlock" }
 }
 
+// Shared Type values for Expr.til_type()'s synthesized arms: node kinds
+// whose type is not stored in a payload (a Str literal is always
+// Type.Struct("Str"), an If is always Type.None, ...) return a ref to
+// these instead of constructing a fresh Type per query.
+TYPE_NONE : Type = Type.None
+TYPE_UNKNOWN : Type = Type.Unknown
+TYPE_DYNAMIC : Type = Type.Dynamic
+TYPE_FUNCPTR : Type = Type.FuncPtr
+TYPE_BODY : Type = Type.Body
+TYPE_BOOL : Type = Type.Primitive(Primitive.Bool)
+TYPE_I64 : Type = Type.Primitive(Primitive.I64)
+TYPE_STR : Type = Type.Struct("Str")
+TYPE_STRUCTDEF : Type = Type.Struct("StructDef")
+TYPE_ENUMDEF : Type = Type.Struct("EnumDef")
+TYPE_MAP : Type = Type.Struct("Map")
+TYPE_SET : Type = Type.Struct("Set")
+
 /// AST node kind. Each variant carries an optional payload (struct, string, bool).
 NodeType := enum {
     Body,
@@ -703,56 +720,60 @@ namespace:
         TODO("Expr.eq")
         return false
     }
-    til_type := func(self: Expr) returns Type {
+    // Returns a BORROWED view of the node's type: the typer establishes
+    // every type once (stamped into the payload, or one of the shared
+    // TYPE_* constants for kinds whose type never varies); later phases
+    // only read. Callers that store the result clone at their site.
+    til_type := func(self: Expr) returns ref Type {
         switch self.node_type {
-        case NodeType.Body:        return Type.None
-        case NodeType.Literal(Literal.Str):  return Type.Struct("Str")
+        case NodeType.Body:        return TYPE_NONE
+        case NodeType.Literal(Literal.Str):  return TYPE_STR
         case NodeType.Literal(Literal.Num(nd)):
-            if nd.til_type.is(Type.Unknown) { return Type.Primitive(Primitive.I64) }
-            return nd.til_type.clone()
-        case NodeType.Literal(Literal.Bool): return Type.Primitive(Primitive.Bool)
-        case NodeType.Literal(Literal.Null): return Type.Dynamic
-        case NodeType.Ident(id):   return id.til_type.clone()
-        case NodeType.Decl(dd):    return dd.til_type.clone()
+            if nd.til_type.is(Type.Unknown) { return TYPE_I64 }
+            return nd.til_type
+        case NodeType.Literal(Literal.Bool): return TYPE_BOOL
+        case NodeType.Literal(Literal.Null): return TYPE_DYNAMIC
+        case NodeType.Ident(id):   return id.til_type
+        case NodeType.Decl(dd):    return dd.til_type
         case NodeType.Assign:
-            if self.children.len() == 0 { return Type.Unknown }
+            if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
-        case NodeType.Literal(Literal.MapLit):      return Type.Struct("Map")
-        case NodeType.Literal(Literal.SetLit):      return Type.Struct("Set")
+        case NodeType.Literal(Literal.MapLit):      return TYPE_MAP
+        case NodeType.Literal(Literal.SetLit):      return TYPE_SET
         case NodeType.NamedArg:
-            if self.children.len() == 0 { return Type.Unknown }
+            if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
-        case NodeType.FCall(fcd):  return fcd.til_type.clone()
-        case NodeType.FuncDef:     return Type.FuncPtr
-        case NodeType.BodyValue:   return Type.Body
-        case NodeType.StructDef:   return Type.Struct("StructDef")
-        case NodeType.EnumDef:     return Type.Struct("EnumDef")
-        case NodeType.FieldAccess(fd): return fd.til_type.clone()
-        case NodeType.FieldAssign: return Type.None
+        case NodeType.FCall(fcd):  return fcd.til_type
+        case NodeType.FuncDef:     return TYPE_FUNCPTR
+        case NodeType.BodyValue:   return TYPE_BODY
+        case NodeType.StructDef:   return TYPE_STRUCTDEF
+        case NodeType.EnumDef:     return TYPE_ENUMDEF
+        case NodeType.FieldAccess(fd): return fd.til_type
+        case NodeType.FieldAssign: return TYPE_NONE
         case NodeType.Return:
-            if self.children.len() == 0 { return Type.None }
+            if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
-        case NodeType.If:          return Type.None
-        case NodeType.While:       return Type.None
-        case NodeType.ForIn(fd):   return fd.til_type.clone()
-        case NodeType.Break:       return Type.None
-        case NodeType.Continue:    return Type.None
-        case NodeType.Switch:      return Type.None
-        case NodeType.Match(md):   return md.til_type.clone()
-        case NodeType.Case:        return Type.None
-        case NodeType.NoDefaultArg:return Type.Unknown
+        case NodeType.If:          return TYPE_NONE
+        case NodeType.While:       return TYPE_NONE
+        case NodeType.ForIn(fd):   return fd.til_type
+        case NodeType.Break:       return TYPE_NONE
+        case NodeType.Continue:    return TYPE_NONE
+        case NodeType.Switch:      return TYPE_NONE
+        case NodeType.Match(md):   return md.til_type
+        case NodeType.Case:        return TYPE_NONE
+        case NodeType.NoDefaultArg:return TYPE_UNKNOWN
         // Issue #281: the __LOC__ sentinel stands in for a Str location literal
         // until infer_expr / the default-fill resolves it, so it types as Str.
-        case NodeType.Loc:         return Type.Struct("Str")
+        case NodeType.Loc:         return TYPE_STR
         case NodeType.Throw:
-            if self.children.len() == 0 { return Type.None }
+            if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
-        case NodeType.Catch:       return Type.None
-        case NodeType.RestPattern: return Type.Unknown
-        case NodeType.ListPattern: return Type.Unknown
-        case NodeType.CaptureBlock: return Type.None
+        case NodeType.Catch:       return TYPE_NONE
+        case NodeType.RestPattern: return TYPE_UNKNOWN
+        case NodeType.ListPattern: return TYPE_UNKNOWN
+        case NodeType.CaptureBlock: return TYPE_NONE
         }
-        return Type.Unknown
+        return TYPE_UNKNOWN
     }
     set_til_type := func(mut self: Expr, shallow t: Type) {
         switch self.node_type {

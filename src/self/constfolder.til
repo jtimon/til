@@ -294,7 +294,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
 priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     switch e.node_type {
     case NodeType.Literal(Literal.Num(num)):
-        t := e.til_type()
+        ref t : Type = e.til_type()
         result : Dynamic = dispatch_result_alloc(t, ctx)
         switch t {
         case Type.Primitive(Primitive.I64): write_i64(result, num.to_i64())

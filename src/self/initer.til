@@ -2365,7 +2365,7 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
     // via til_type). No Declaration is involved (parser.til:1428),
     // so init_rename_decl_in_place misses it; patch the Type.Custom
     // payload here.
-    custom_t := e.til_type()
+    ref custom_t : Type = e.til_type()
     switch custom_t {
     case Type.Custom(custom_name):
         new_custom := init_lookup_name(renamings, custom_name)
