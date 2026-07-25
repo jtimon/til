@@ -20,7 +20,7 @@ optimization in the same member/type-lookup territory:
   / 29.2MB per profiled translate, the #2 allocation row in
   doc/profiling.org. It now returns a BORROWED ref to the FieldLayout
   that ctx.struct_layouts already stores; misses borrow the shared zero
-  layout ctx.empty_field_layout (const field; must never be written
+  layout EMPTY_FIELD_LAYOUT (immutable top-level; must never be written
   through -- all ~52 call sites audited read-only). Measured with
   `bin/til run examples/profile.til test/maps.til 32`: allocations 933K
   -> 311K, 29164KB -> 7291KB, self_ms 284.9 -> 136.3. The remaining one

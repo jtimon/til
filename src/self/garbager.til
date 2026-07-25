@@ -999,7 +999,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                 ref li_rhs : Expr = li_stmt.children[0]
                 if li_rhs.node_type.is_literal_str() {
                     li.is_heap = false
-                } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope).neq(0)) {
+                } else if li_rhs.node_type.is(NodeType.FCall).and(fcall_returns_shallow(li_rhs, scope, ctx).neq(0)) {
                     li.is_heap = false
                 } else {
                     switch li_rhs.node_type {
@@ -1914,7 +1914,7 @@ priv promote_own_transferred_locals := func(ctx: Context, mut body: Expr, locals
             // builder assert caught it on the compiler's own
             // hoisted__TokenType temps (lookup_single_char is
             // `returns shallow TokenType`). Keep the Stack decision.
-            if rhs0.node_type.is(NodeType.FCall).and(fcall_returns_shallow(rhs0, ctx.scope).neq(0)) { continue }
+            if rhs0.node_type.is(NodeType.FCall).and(fcall_returns_shallow(rhs0, ctx.scope, ctx).neq(0)) { continue }
         }
         switch stmt.node_type {
         case NodeType.Decl(dd):

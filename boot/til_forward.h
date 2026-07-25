@@ -81,6 +81,7 @@ typedef struct LiteralNumData LiteralNumData;
 typedef struct IdentData IdentData;
 typedef struct FieldAccessData FieldAccessData;
 typedef struct StructDef StructDef;
+typedef struct VariantDef VariantDef;
 typedef struct EnumDef EnumDef;
 typedef struct FieldLayout FieldLayout;
 typedef struct StructLayout StructLayout;
@@ -132,9 +133,7 @@ typedef enum {
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Map__Str_U32 Map__Str_U32;
-typedef struct Map__I64_Str Map__I64_Str;
-typedef struct Vec__I64 Vec__I64;
-typedef struct Vec__Bool Vec__Bool;
+typedef struct Vec__VariantDef Vec__VariantDef;
 typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
@@ -238,6 +237,7 @@ typedef struct Vec__TokenType Vec__TokenType;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
 typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
+typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
@@ -271,6 +271,7 @@ typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Map__Str_I64 Map__Str_I64;
+typedef struct Vec__I64 Vec__I64;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -498,6 +499,15 @@ typedef struct StructDef {
 } StructDef;
 
 
+typedef struct VariantDef {
+    Str name;
+    Str payload_type;
+    Bool payload_const;
+    I64 tag_value;
+    Bool payload_ref;
+} VariantDef;
+
+
 typedef struct FieldLayout {
     USize offset;
     USize size;
@@ -549,18 +559,11 @@ typedef struct MatchData {
 } MatchData;
 
 
-typedef struct Vec__I64 {
+typedef struct Vec__VariantDef {
     U8 *data;
     USize count;
     USize cap;
-} Vec__I64;
-
-
-typedef struct Vec__Bool {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__Bool;
+} Vec__VariantDef;
 
 
 typedef struct Vec__FieldLayout {
@@ -658,6 +661,13 @@ typedef struct Map__Str_Str {
     Vec__Str keys;
     Vec__Str values;
 } Map__Str_Str;
+
+
+typedef struct Vec__Bool {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__Bool;
 
 
 typedef struct EvalHeap {
@@ -779,10 +789,11 @@ typedef struct Vec__ExprPtrBox {
 } Vec__ExprPtrBox;
 
 
-typedef struct Map__Str_I64 {
-    Vec__Str keys;
-    Vec__I64 values;
-} Map__Str_I64;
+typedef struct Vec__I64 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__I64;
 
 
 struct Lang {
@@ -1133,6 +1144,15 @@ typedef struct FunctionDef {
 } FunctionDef;
 
 
+typedef struct EnumDef {
+    Vec__Declaration *ns_decls;
+    Map__Str_U32 *ns_index;
+    Vec__VariantDef variants;
+    Str implements_name;
+    Str tag_type;
+} EnumDef;
+
+
 typedef struct StructLayout {
     USize total_size;
     USize align;
@@ -1147,16 +1167,40 @@ typedef struct CaptureBlockData {
 } CaptureBlockData;
 
 
+struct NodeType {
+    U8 tag;
+    union {
+        Literal Literal;
+        IdentData Ident;
+        Declaration Decl;
+        AssignData Assign;
+        FCallData FCall;
+        FunctionDef FuncDef;
+        StructDef StructDef;
+        EnumDef EnumDef;
+        FieldAccessData FieldAccess;
+        FieldAssignData FieldAssign;
+        ForInData ForIn;
+        Str NamedArg;
+        MatchData Match;
+        CaptureBlockData CaptureBlock;
+        CaptureBlockData BodyValue;
+        void *_til_payload_align;
+    } data;
+};
+
+typedef struct Expr {
+    NodeType node_type;
+    Vec__Expr children;
+    U32 line;
+    U32 col;
+} Expr;
+
+
 typedef struct Map__Str_U32 {
     Vec__Str keys;
     Vec__U32 values;
 } Map__Str_U32;
-
-
-typedef struct Map__I64_Str {
-    Vec__I64 keys;
-    Vec__Str values;
-} Map__I64_Str;
 
 
 typedef struct Map__Str_Tuple {
@@ -1266,6 +1310,20 @@ typedef struct Map__Str_ExprPtrBox {
 } Map__Str_ExprPtrBox;
 
 
+typedef struct Map__Str_I64 {
+    Vec__Str keys;
+    Vec__I64 values;
+} Map__Str_I64;
+
+
+struct priv___src_self_typer_til__CtorArg {
+    U8 tag;
+    union {
+        Expr Filled;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct priv___src_self_typer_til__CoverageNode {
     Bool fully_covered;
     Vec__Str sub_names;
@@ -1313,49 +1371,6 @@ typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
 } Map__Str_HeapBinding;
-
-
-typedef struct EnumDef {
-    Vec__Declaration *ns_decls;
-    Map__Str_U32 *ns_index;
-    Vec__Str variants;
-    Map__I64_Str payload_types;
-    Vec__Bool payload_consts;
-    Str implements_name;
-    Str tag_type;
-    Vec__I64 tag_values;
-    Vec__Bool payload_refs;
-} EnumDef;
-
-
-struct NodeType {
-    U8 tag;
-    union {
-        Literal Literal;
-        IdentData Ident;
-        Declaration Decl;
-        AssignData Assign;
-        FCallData FCall;
-        FunctionDef FuncDef;
-        StructDef StructDef;
-        EnumDef EnumDef;
-        FieldAccessData FieldAccess;
-        FieldAssignData FieldAssign;
-        ForInData ForIn;
-        Str NamedArg;
-        MatchData Match;
-        CaptureBlockData CaptureBlock;
-        CaptureBlockData BodyValue;
-        void *_til_payload_align;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType node_type;
-    Vec__Expr children;
-    U32 line;
-    U32 col;
-} Expr;
 
 
 typedef struct KwargsMap {
@@ -1413,7 +1428,6 @@ typedef struct Context {
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
-    FieldLayout empty_field_layout;
     Bool typing_namespace_member;
     Str closure_emit_env;
     Set__Str closure_emit_captures;
@@ -1466,14 +1480,6 @@ typedef struct Context {
     Bool ffi_type_cache_inited;
 } Context;
 
-
-struct priv___src_self_typer_til__CtorArg {
-    U8 tag;
-    union {
-        Expr Filled;
-        void *_til_payload_align;
-    } data;
-};
 
 typedef struct LoadedProgram {
     Vec__ProgramUnit *core_units;
@@ -1705,6 +1711,10 @@ Str * StructDef_member_name_at(StructDef * self, USize * i);
 StructDef * StructDef_clone(StructDef * self);
 void StructDef_delete(StructDef * self, Bool call_free);
 USize StructDef_size(void);
+VariantDef * VariantDef_clone(VariantDef * self);
+void VariantDef_delete(VariantDef * self, Bool call_free);
+U64 VariantDef_hash(VariantDef * self, HashFn hasher);
+USize VariantDef_size(void);
 void EnumDef_push_member(EnumDef * self, Declaration * nd);
 Str * EnumDef_member_name_at(EnumDef * self, USize * i);
 EnumDef * EnumDef_clone(EnumDef * self);
@@ -1774,34 +1784,15 @@ void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
 Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
 U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher);
 USize Map__Str_U32_size(void);
-Map__I64_Str * Map__I64_Str_new(void);
-USize Map__I64_Str_len(Map__I64_Str * self);
-Bool Map__I64_Str_has(Map__I64_Str * self, I64 key);
-Str * Map__I64_Str_get(Map__I64_Str * self, I64 * key, I64 * _err_kind);
-void Map__I64_Str_set(Map__I64_Str * self, I64 key, Str * val);
-void Map__I64_Str_delete(Map__I64_Str * self, Bool call_free);
-Map__I64_Str * Map__I64_Str_clone(Map__I64_Str * self);
-U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher);
-USize Map__I64_Str_size(void);
-Vec__I64 * Vec__I64_new(void);
-USize Vec__I64_len(Vec__I64 * self);
-void Vec__I64_clear(Vec__I64 * self);
-void Vec__I64_push(Vec__I64 * self, I64 * val);
-I64 * Vec__I64_unsafe_get(Vec__I64 * self, USize * i);
-I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
-void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
-void Vec__I64_delete(Vec__I64 * self, Bool call_free);
-Vec__I64 * Vec__I64_clone(Vec__I64 * self);
-USize Vec__I64_size(void);
-Vec__Bool * Vec__Bool_new(void);
-USize Vec__Bool_len(Vec__Bool * self);
-void Vec__Bool_clear(Vec__Bool * self);
-void Vec__Bool_push(Vec__Bool * self, Bool * val);
-Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
-Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
-void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
-Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
-USize Vec__Bool_size(void);
+Vec__VariantDef * Vec__VariantDef_new(void);
+USize Vec__VariantDef_len(Vec__VariantDef * self);
+void Vec__VariantDef_clear(Vec__VariantDef * self);
+void Vec__VariantDef_push(Vec__VariantDef * self, VariantDef * val);
+VariantDef * Vec__VariantDef_unsafe_get(Vec__VariantDef * self, USize * i);
+VariantDef * Vec__VariantDef_get(Vec__VariantDef * self, USize * i, I64 * _err_kind);
+void Vec__VariantDef_delete(Vec__VariantDef * self, Bool call_free);
+Vec__VariantDef * Vec__VariantDef_clone(Vec__VariantDef * self);
+USize Vec__VariantDef_size(void);
 Vec__FieldLayout * Vec__FieldLayout_new(void);
 USize Vec__FieldLayout_len(Vec__FieldLayout * self);
 void Vec__FieldLayout_clear(Vec__FieldLayout * self);
@@ -2025,6 +2016,14 @@ void Map__Str_Str_delete(Map__Str_Str * self, Bool call_free);
 Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
 U64 Map__Str_Str_hash(Map__Str_Str * self, HashFn hasher);
 USize Map__Str_Str_size(void);
+Vec__Bool * Vec__Bool_new(void);
+void Vec__Bool_clear(Vec__Bool * self);
+void Vec__Bool_push(Vec__Bool * self, Bool * val);
+Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
+Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
+void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
+Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
+USize Vec__Bool_size(void);
 EvalHeap EvalHeap_new(void);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);
@@ -2417,6 +2416,15 @@ void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
 Map__Str_I64 * Map__Str_I64_clone(Map__Str_I64 * self);
 U64 Map__Str_I64_hash(Map__Str_I64 * self, HashFn hasher);
 USize Map__Str_I64_size(void);
+Vec__I64 * Vec__I64_new(void);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_unsafe_get(Vec__I64 * self, USize * i);
+I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
+void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+USize Vec__I64_size(void);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);
 void Lang_delete(Lang * self, Bool call_free);
@@ -2617,7 +2625,8 @@ void priv___src_self_typer_til__infer_literal_expr(Expr * expr);
 void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);
 Bool fcall_is_get_method(Expr * fcall);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
-I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope);
+Bool priv___src_self_typer_til__fdef_returns_shallow_settled(FunctionDef * fd, TypeScope * scope, Context * ctx);
+I32 fcall_returns_shallow(Expr * fcall, TypeScope * scope, Context * ctx);
 priv___src_self_typer_til__CoverageNode * priv___src_self_typer_til__CoverageNode_clone(priv___src_self_typer_til__CoverageNode * self);
 void priv___src_self_typer_til__CoverageNode_delete(priv___src_self_typer_til__CoverageNode * self, Bool call_free);
 U64 priv___src_self_typer_til__CoverageNode_hash(priv___src_self_typer_til__CoverageNode * self, HashFn hasher);
@@ -4061,6 +4070,7 @@ extern Type TYPE_MAP;
 extern Type TYPE_SET;
 extern Map__Str_TokenType priv___src_self_lexer_til__KEYWORDS;
 extern U32 ENUM_PAYLOAD_OFFSET;
+extern FieldLayout EMPTY_FIELD_LAYOUT;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I8Name;

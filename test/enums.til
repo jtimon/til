@@ -1014,7 +1014,7 @@ test_enum_u64_high_value := test() {
 }
 
 // A payload variant with an explicit tag: guards the tag-vs-index split --
-// Num's tag value is 7 but its payload_types entry is at index 1.
+// Num's tag value is 7 but its VariantDef record sits at index 1.
 TagPayloadExplicit := enum(U8) { None = 5, Num: I64 = 7 }
 
 test_enum_explicit_payload := test() {

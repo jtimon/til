@@ -215,14 +215,15 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         switch edef.node_type {
         case NodeType.EnumDef(edd):
             if tag.to_usize() >= edd.variants.len() { return NULL }
-            ref vname : Str = edd.variants[tag.to_usize()]
-            if edd.payload_types.has(tag.cast(I64)) {
+            ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
+            ref vname : Str = cf_vd.name
+            if cf_vd.payload_type.len() > 0 {
                 mut recv := Expr.new(ident_node(ename), src.line, src.col)
                 recv.set_til_type(t)
                 mut variant := Expr.new(field_access_node(vname), src.line, src.col)
                 variant.add_child(own recv)
                 variant.set_til_type(t)
-                ref payload_name : Str = edd.payload_types[tag.cast(I64)]
+                ref payload_name : Str = cf_vd.payload_type
                 payload_type := type_from_name_init(payload_name, ctx.scope)
                 ref payload_addr : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
                 mut payload_raw : Dynamic = payload_addr
