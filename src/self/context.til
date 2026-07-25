@@ -78,6 +78,18 @@ priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref E
     return deref(slot)
 }
 
+// #307 follow-up: leaf single-probe lookup for TypeScope.bindings, the
+// binding-side twin of func_defs_lookup_one. The scope walkers used to
+// pay a has() probe plus a [] probe per level (two binary searches per
+// scope per lookup, ~850K has() calls per self-host translate); one
+// get()?+catch does it in one probe, mirroring the interpreter's
+// scope-chain collapse.
+priv bindings_lookup_one := func(m: Map(Str, TypeBinding), name: Str) returns ref TypeBinding {
+    ref b : TypeBinding = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
+    return b
+}
+
 TypeScope := struct {
     bindings := Map(Str, TypeBinding).new()
     target_usize_pname := "U32"
@@ -93,16 +105,20 @@ TypeScope := struct {
     struct_defs := Map(Str, Dynamic).new()
     ref parent : TypeScope = NULL
 namespace:
+    // Iterative single-probe walk (the interpreter's scope_get shape):
+    // one call frame per lookup, one binary search per level -- the
+    // recursive has()+[] version paid a call and up to two searches per
+    // level (417K lookups per self-host translate).
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
-        if self.bindings.has(name) {
-            ref b : TypeBinding = self.bindings[name]
-            return b
+        ref b : TypeBinding = self.bindings.get(name)?
+        catch (e: KeyNotFound) {
+            if self.parent.is_null().not() {
+                ref pb : TypeBinding = self.parent.get_binding(name)
+                return pb
+            }
+            return NULL
         }
-        if self.parent.is_null().not() {
-            ref pb : TypeBinding = self.parent.get_binding(name)
-            return pb
-        }
-        return NULL
+        return b
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
         ref b : TypeBinding = self.get_binding(name)
@@ -127,14 +143,19 @@ namespace:
     // resolve the top-level `Primitive` enum from the parent). This is
     // the semantic master's get_struct had via `b.struct_def`-then-
     // fall-through; now it reads the struct_defs map.
+    // Iterative single-probe walk (see get_binding): the hottest scope
+    // lookup in the compiler -- 2.6M calls per self-host translate, and
+    // the recursive has()+lookup version paid a call frame and up to two
+    // binary searches per scope level.
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
-        if self.struct_defs.has(name) {
-            return func_defs_lookup_one(self.struct_defs, name)
+        ref slot : Dynamic = self.struct_defs.get(name)?
+        catch (e: KeyNotFound) {
+            if self.parent.is_null().not() {
+                return self.parent.get_struct(name)
+            }
+            return NULL
         }
-        if self.parent.is_null().not() {
-            return self.parent.get_struct(name)
-        }
-        return NULL
+        return deref(slot)
     }
     // Issue #147: EXACT-BINDING struct def. Replaces direct
     // `binding.struct_def` field reads where the caller already holds a
@@ -144,11 +165,9 @@ namespace:
     // struct def or NULL -- it must NOT fall through to a parent type of
     // the same name, or a shadowing local var would be misread as a type.
     struct_def_of := func(self: TypeScope, name: Str) returns ref Expr {
-        if self.bindings.has(name) {
-            if self.struct_defs.has(name) {
-                return func_defs_lookup_one(self.struct_defs, name)
-            }
-            return NULL
+        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
+        if b.is_null().not() {
+            return func_defs_lookup_one(self.struct_defs, name)
         }
         if self.parent.is_null().not() {
             return self.parent.struct_def_of(name)
@@ -171,11 +190,9 @@ namespace:
         // function's def -- the bug that broke this migration. Mirrors
         // how the old per-binding `func_def` field (no parent walk)
         // behaved.
-        if self.bindings.has(name) {
-            if self.func_defs.has(name) {
-                return func_defs_lookup_one(self.func_defs, name)
-            }
-            return NULL
+        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
+        if b.is_null().not() {
+            return func_defs_lookup_one(self.func_defs, name)
         }
         if self.parent.is_null().not() {
             return self.parent.lookup_func(name)
@@ -183,8 +200,8 @@ namespace:
         return NULL
     }
     lookup_func_symbol := func(self: TypeScope, name: Str) returns ref Expr {
-        if self.bindings.has(name) {
-            ref b : TypeBinding = self.bindings[name]
+        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
+        if b.is_null().not() {
             if b.is_func_decl {
                 return func_defs_lookup_one(self.func_defs, name)
             }
@@ -1206,6 +1223,95 @@ def_ns_get := func(sdef: Expr, name: Str) returns ref Declaration {
         UNREACHABLE()
         return NULL
     }
+}
+
+// #307 follow-up: declaration-order position of a named member, -1 when
+// absent. The position twin of member_get.
+priv member_pos := func(idx: Map(Str, USize), name: Str) returns I64 {
+    ref p : USize = idx.get(name)?
+    catch (e: KeyNotFound) { return -1 }
+    return p.to_i64()
+}
+
+def_ns_pos := func(sdef: Expr, name: Str) returns I64 {
+    switch sdef.node_type {
+    case NodeType.StructDef(sd):
+        return member_pos(sd.ns_index, name)
+    case NodeType.EnumDef(ed):
+        return member_pos(ed.ns_index, name)
+    case:
+        UNREACHABLE()
+        return -1
+    }
+}
+
+// A namespace member that is a CONSTANT (has an initializer that is not
+// a FuncDef) -- the population ns_const_eval_order sequences.
+priv ns_decl_is_const := func(d: Declaration) returns Bool {
+    if d.default_value.is_null() { return false }
+    if d.default_value.node_type.is(NodeType.NoDefaultArg) { return false }
+    return d.default_value.node_type.is(NodeType.FuncDef).not()
+}
+
+// #307 follow-up (the known-latent sibling-order class): evaluation
+// order for a def's namespace CONSTANT members. A constant's
+// initializer may reference a sibling constant as `<TypeName>.<member>`;
+// the typer's member sweep and interpreter_init_ns used to process
+// constants in declaration order, so a forward reference read an
+// untyped / not-yet-evaluated sibling. Returns the constant members'
+// declaration positions ordered so every referenced sibling precedes
+// its referers (declaration order otherwise). A reference cycle is a
+// user error and panics with the member's qualified name.
+ns_const_eval_order := func(tname: Str, sdef: Expr) returns Vec(I64) {
+    ref decls : Vec(Declaration) = def_ns_decls(sdef)
+    // I64 positions, not USize: a Vec(USize) local vs a Vec(USize) param
+    // monomorphize under different width-alias spellings (Vec__U32 vs
+    // Vec__USize -- see StructDef.field_name_at for the same trap).
+    mut order := Vec(I64).new()
+    // 0 = unvisited, 1 = in progress (cycle detection), 2 = done.
+    mut state := Vec(I64).new()
+    for _ in 0..decls.len() { state.push(own 0) }
+    for i in 0..decls.len() {
+        ns_const_order_visit(tname, sdef, i, state, order)
+    }
+    return order
+}
+
+priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state: Vec(I64), mut order: Vec(I64)) {
+    ref decls : Vec(Declaration) = def_ns_decls(sdef)
+    ref d : Declaration = decls.unsafe_get(pos)
+    if ns_decl_is_const(d).not() { return }
+    ref st : I64 = state.unsafe_get(pos)
+    if st == 2 { return }
+    if st == 1 {
+        panic("namespace constant initializers form a reference cycle involving '",
+            tname, ".", def_ns_name_at(sdef, pos), "'")
+    }
+    state.unsafe_set(pos, own 1)
+    ns_const_order_deps(tname, sdef, d.default_value, state, order)
+    state.unsafe_set(pos, own 2)
+    order.push(own pos.to_i64())
+}
+
+// Walk a constant initializer for `<tname>.<member>` sibling-constant
+// references and visit each first.
+priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64)) {
+    if e.is_null() { return }
+    switch e.node_type {
+    case NodeType.FieldAccess(fa):
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(rid):
+                if rid.ident_name() == tname {
+                    p := def_ns_pos(sdef, fa.field_access_name())
+                    if p >= 0 { ns_const_order_visit(tname, sdef, p.to_usize(), state, order) }
+                }
+            case:
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children { ns_const_order_deps(tname, sdef, c, state, order) }
 }
 
 enum_has_payloads := func(enum_def: Expr) returns Bool {

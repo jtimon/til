@@ -1175,8 +1175,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             edd.push_member(own parse_ns_decl(p, enum_ns_priv))
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated.
-            // Variant docs aren't yet stored on VariantDef; discard any
-            // leading /// so it doesn't bleed into the next ns_decl.
+            // A leading /// run documents the variant (VariantDef.doc),
+            // like Declaration.doc for struct fields.
+            v_doc := p.pending_doc.clone()
             p.pending_doc = ""
             // #211: `const Variant: Type` makes the payload immutable
             // (default is mut, like struct fields).
@@ -1225,7 +1226,8 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 this_tag = expect_text(p, TokenType.Number).to_i64()
             }
             next_tag = this_tag + 1
-            mut vd := VariantDef(name = vname.clone(), payload_type = vtype.clone(),
+            mut vd := VariantDef(name = vname.clone(), doc = v_doc.clone(),
+                payload_type = vtype.clone(),
                 payload_const = v_payload_const, tag_value = this_tag,
                 payload_ref = v_payload_ref)
             edd.variants.push(own vd)

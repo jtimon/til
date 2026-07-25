@@ -842,6 +842,22 @@ test_enum_variant_primitives := test() {
     assert_eq(Str, "Str", enum_variant_payload_type("Shape56", 2))
 }
 
+// #307 follow-up: the record-completing primitives. Explicit tags (#264)
+// and a const payload (#211) round-trip through introspection.
+TagConst56 := enum(U16) { Plain = 5, const Locked: I64 = 9, Open: Str }
+
+test_enum_variant_record_primitives := test() {
+    s := TagConst56.Plain
+    expect(s.is(TagConst56.Plain), "TagConst56 stays live")
+    assert_eq(I64, enum_variant_tag_value("TagConst56", 0), 5)
+    assert_eq(I64, enum_variant_tag_value("TagConst56", 1), 9)
+    assert_eq(I64, enum_variant_tag_value("TagConst56", 2), 10)
+    assert_eq(I64, enum_variant_payload_is_const("TagConst56", 0), 0)
+    assert_eq(I64, enum_variant_payload_is_const("TagConst56", 1), 1)
+    assert_eq(I64, enum_variant_payload_is_const("TagConst56", 2), 0)
+    assert_eq(I64, enum_variant_payload_is_ref("TagConst56", 1), 0)
+}
+
 // --- enum_def_of assembler (issue #57/#58) ---
 // Builds an EnumDef value from the enum_variant_* primitives.
 
@@ -859,6 +875,23 @@ test_enum_def_of := test() {
     assert_eq(Str, "I64", v0.payload_type)
     assert_eq(Str, "Str", v2.payload_type)
     assert_eq(I64, 1, v1.tag_value)
+}
+
+// #307 follow-up: enum_def_of is lossless -- explicit tags and payload
+// flags land in the VariantDef records.
+test_enum_def_of_lossless := test() {
+    keep := TagConst56.Plain
+    expect(keep.is(TagConst56.Plain), "TagConst56 stays live")
+    def := enum_def_of("TagConst56")
+    assert_eq(USize, def.variants.len(), 3)
+    ref d0 : VariantDef = def.variants[0]
+    ref d1 : VariantDef = def.variants[1]
+    assert_eq(I64, 5, d0.tag_value)
+    assert_eq(I64, 9, d1.tag_value)
+    expect(d0.payload_const.not(), "Plain not const")
+    expect(d1.payload_const, "Locked payload is const")
+    expect(d1.payload_ref.not(), "Locked payload not ref")
+    assert_eq(Str, "I64", d1.payload_type)
 }
 
 // --- FuncSig introspection primitives (issue #58) ---

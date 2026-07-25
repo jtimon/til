@@ -262,6 +262,7 @@ typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
@@ -271,7 +272,6 @@ typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Map__Str_I64 Map__Str_I64;
-typedef struct Vec__I64 Vec__I64;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -502,6 +502,7 @@ typedef struct StructDef {
 
 typedef struct VariantDef {
     Str name;
+    Str doc;
     Str payload_type;
     Bool payload_const;
     I64 tag_value;
@@ -736,6 +737,13 @@ typedef struct Vec__FFITypePtrBox {
 } Vec__FFITypePtrBox;
 
 
+typedef struct Vec__I64 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__I64;
+
+
 typedef struct Vec__TypeBinding {
     U8 *data;
     USize count;
@@ -792,11 +800,10 @@ typedef struct Vec__ExprPtrBox {
 } Vec__ExprPtrBox;
 
 
-typedef struct Vec__I64 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__I64;
+typedef struct Map__Str_I64 {
+    Vec__Str keys;
+    Vec__I64 values;
+} Map__Str_I64;
 
 
 struct Lang {
@@ -1311,12 +1318,6 @@ typedef struct Map__Str_ExprPtrBox {
     Vec__Str keys;
     Vec__ExprPtrBox values;
 } Map__Str_ExprPtrBox;
-
-
-typedef struct Map__Str_I64 {
-    Vec__Str keys;
-    Vec__I64 values;
-} Map__Str_I64;
 
 
 struct priv___src_self_typer_til__CtorArg {
@@ -2046,6 +2047,7 @@ void ScopeFind_delete(ScopeFind * self, Bool call_free);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 USize ScopeFind_size(void);
 Expr * priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
+TypeBinding * priv___src_self_context_til__bindings_lookup_one(Map__Str_TypeBinding * m, Str * name);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
@@ -2112,6 +2114,12 @@ Vec__Declaration * def_ns_decls(Expr * sdef);
 Str * def_ns_name_at(Expr * sdef, USize * i);
 Bool def_ns_has(Expr * sdef, Str * name);
 Declaration * def_ns_get(Expr * sdef, Str * name);
+I64 priv___src_self_context_til__member_pos(Map__Str_U32 * idx, Str * name);
+I64 def_ns_pos(Expr * sdef, Str * name);
+Bool priv___src_self_context_til__ns_decl_is_const(Declaration * d);
+Vec__I64 * ns_const_eval_order(Str * tname, Expr * sdef);
+void priv___src_self_context_til__ns_const_order_visit(Str * tname, Expr * sdef, USize pos, Vec__I64 * state, Vec__I64 * order);
+void priv___src_self_context_til__ns_const_order_deps(Str * tname, Expr * sdef, Expr * e, Vec__I64 * state, Vec__I64 * order);
 Bool enum_has_payloads(Expr * enum_def);
 Str * enum_tag_type(Expr * enum_def);
 USize enum_tag_size(Expr * enum_def);
@@ -2241,6 +2249,16 @@ FFITypePtrBox * Vec__FFITypePtrBox_unsafe_get(Vec__FFITypePtrBox * self, USize *
 void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
 USize Vec__FFITypePtrBox_size(void);
+Vec__I64 * Vec__I64_new(void);
+USize Vec__I64_len(Vec__I64 * self);
+void Vec__I64_clear(Vec__I64 * self);
+void Vec__I64_push(Vec__I64 * self, I64 * val);
+I64 * Vec__I64_unsafe_get(Vec__I64 * self, USize * i);
+I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
+void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
+void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Vec__I64 * Vec__I64_clone(Vec__I64 * self);
+USize Vec__I64_size(void);
 Vec__TypeBinding * Vec__TypeBinding_new(void);
 USize Vec__TypeBinding_len(Vec__TypeBinding * self);
 void Vec__TypeBinding_clear(Vec__TypeBinding * self);
@@ -2420,15 +2438,6 @@ void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
 Map__Str_I64 * Map__Str_I64_clone(Map__Str_I64 * self);
 U64 Map__Str_I64_hash(Map__Str_I64 * self, HashFn hasher);
 USize Map__Str_I64_size(void);
-Vec__I64 * Vec__I64_new(void);
-void Vec__I64_clear(Vec__I64 * self);
-void Vec__I64_push(Vec__I64 * self, I64 * val);
-I64 * Vec__I64_unsafe_get(Vec__I64 * self, USize * i);
-I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
-void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
-void Vec__I64_delete(Vec__I64 * self, Bool call_free);
-Vec__I64 * Vec__I64_clone(Vec__I64 * self);
-USize Vec__I64_size(void);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);
 void Lang_delete(Lang * self, Bool call_free);
@@ -3808,6 +3817,9 @@ Bool priv___src_self_interpreter_til__h_enum_variant_count(Scope * s, Expr * e, 
 Bool priv___src_self_interpreter_til__h_enum_variant_name(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_enum_variant_has_payload(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_enum_variant_payload_type(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_tag_value(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_payload_is_const(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_enum_variant_payload_is_ref(Scope * s, Expr * e, void * r, Context * ctx);
 Expr * priv___src_self_interpreter_til__interp_lookup_funcsig(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
 Bool priv___src_self_interpreter_til__h_func_sig_param_count(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_func_sig_param_type(Scope * s, Expr * e, void * r, Context * ctx);

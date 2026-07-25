@@ -71,6 +71,12 @@ enum_variant_count := ext_func(type_name: Str) returns shallow I64 {}
 enum_variant_name := ext_func(type_name: Str, shallow index: I64) returns Str {}
 enum_variant_has_payload := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
 enum_variant_payload_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
+// #307 follow-up: the rest of the per-variant record, so enum_def_of is
+// lossless. tag_value is the discriminant (#264 explicit tags included);
+// the two flags mirror `const Type` (#211) and `ref Type` (#320) payloads.
+enum_variant_tag_value := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
+enum_variant_payload_is_const := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
+enum_variant_payload_is_ref := ext_func(type_name: Str, shallow index: I64) returns shallow I64 {}
 
 // FuncSig introspection primitives (issue #58). Query a registered
 // FuncSig type (a bodyless func/proc, e.g. `BinaryOp := func(I64, I64)
@@ -103,14 +109,17 @@ struct_def_of := func(type_name: Str) returns StructDef {
 }
 
 // Issue #57/#58: assemble an EnumDef value for a registered enum type via
-// the enum_variant_* primitives above. One VariantDef per variant; the
-// primitives expose no explicit tags, so tag_value falls back to the
-// declaration index. Mirrors rstil's enum_def_of.
+// the enum_variant_* primitives above. One VariantDef per variant,
+// lossless since #307: explicit tags and the const/ref payload flags come
+// from their own primitives. Mirrors rstil's enum_def_of.
 enum_def_of := func(type_name: Str) returns EnumDef {
     mut def := EnumDef()
     n := enum_variant_count(type_name)
     for i in 0..n {
-        mut vd := VariantDef(name = enum_variant_name(type_name, i), tag_value = i)
+        mut vd := VariantDef(name = enum_variant_name(type_name, i),
+            tag_value = enum_variant_tag_value(type_name, i),
+            payload_const = enum_variant_payload_is_const(type_name, i) == 1,
+            payload_ref = enum_variant_payload_is_ref(type_name, i) == 1)
         if enum_variant_has_payload(type_name, i) == 1 {
             vd.payload_type = enum_variant_payload_type(type_name, i)
         }

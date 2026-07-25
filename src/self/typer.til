@@ -2819,6 +2819,16 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     // Type-check ns_decls (stored directly by parser, not via body).
     // Flip ctx.typing_namespace_member so infer_func_def_expr accepts
     // test() decls at the namespace level (issue #51).
+    //
+    // #307 follow-up (the known-latent sibling-order class), three
+    // passes so member typing does not depend on declaration order:
+    //   1. register every function member's signature (a constant's
+    //      initializer may call a sibling method declared later),
+    //   2. infer constant initializers in sibling-dependency order
+    //      (ns_const_eval_order -- a constant may read a sibling
+    //      constant declared later),
+    //   3. infer function bodies (they may read any sibling constant's
+    //      settled type).
     saved_in_ns := ctx.typing_namespace_member
     ctx.typing_namespace_member = true
     ref tc_ns : Vec(Declaration) = def_ns_decls(expr)
@@ -2827,7 +2837,6 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
         ref tc_name : Str = def_ns_name_at(expr, tcni)
         tcni = tcni + 1
         if tc_nd.default_value.is_null() { continue }
-        if tc_nd.default_value.node_type.is(NodeType.NoDefaultArg) { continue }
         switch tc_nd.default_value.node_type {
         case NodeType.FuncDef(tc_fd):
             mut tc_rt := Type.None
@@ -2842,22 +2851,30 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)).or(tc_fd.func_type.is(FuncType.CoreLazyFunc)) {
                 tc_fb.is_builtin = true
             }
-            infer_func_def_expr(inner, tc_nd.default_value, ctx)
         case:
-            // A non-func namespace member is a constant (e.g. `MAX : F32 =
-            // 3.4..e38`). Coerce its numeric literals to the declared type
-            // before inference, exactly like top-level / local / field decls
-            // (infer_decl_typed_value), so a typed float/int literal isn't
-            // mis-parsed as I64 by the constfolder / interpreter.
-            if tc_nd.explicit_type.len() > 0 {
-                ns_declared := type_from_name(tc_nd.explicit_type, inner, ctx)
-                if is_numeric_type(ns_declared) {
-                    pre_coerce_decl_numeric_literals(tc_nd.default_value, ns_declared)
-                }
-            }
-            infer_expr(inner, tc_nd.default_value, 0, ctx)
-            tc_nd.til_type =tc_nd.default_value.til_type().clone()
         }
+    }
+    tc_const_order := ns_const_eval_order(ctx.current_type_name, expr)
+    for tc_ci_pos : I64 in tc_const_order {
+        ref tc_cd : Declaration = tc_ns.unsafe_get(tc_ci_pos.to_usize())
+        // A non-func namespace member is a constant (e.g. `MAX : F32 =
+        // 3.4..e38`). Coerce its numeric literals to the declared type
+        // before inference, exactly like top-level / local / field decls
+        // (infer_decl_typed_value), so a typed float/int literal isn't
+        // mis-parsed as I64 by the constfolder / interpreter.
+        if tc_cd.explicit_type.len() > 0 {
+            ns_declared := type_from_name(tc_cd.explicit_type, inner, ctx)
+            if is_numeric_type(ns_declared) {
+                pre_coerce_decl_numeric_literals(tc_cd.default_value, ns_declared)
+            }
+        }
+        infer_expr(inner, tc_cd.default_value, 0, ctx)
+        tc_cd.til_type =tc_cd.default_value.til_type().clone()
+    }
+    for tc_bd : Declaration in tc_ns {
+        if tc_bd.default_value.is_null() { continue }
+        if tc_bd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+        infer_func_def_expr(inner, tc_bd.default_value, ctx)
     }
     ctx.typing_namespace_member = saved_in_ns
     // Static check: a hand-written `delete` must free (or transfer) every

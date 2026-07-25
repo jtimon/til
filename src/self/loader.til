@@ -1630,7 +1630,7 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
 priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     mut cap : USize = name.len() + 128
     for v : VariantDef in edef.variants {
-        cap = cap.add(v.name.len()) + 96
+        cap = cap.add(v.name.len()).add(v.doc.len() * 2) + 96
     }
     mut eni : USize = 0
     for d : Declaration in edef.ns_decls {
@@ -1653,7 +1653,9 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     out.push_str(name)
     out.push_str(" {")
     for vd : VariantDef in edef.variants {
-        out.push_str("\n    ")
+        out.push_str("\n")
+        append_doc_lines_indented(out, vd.doc, "    ")
+        out.push_str("    ")
         out.push_str(vd.name)
         if vd.payload_type.len() > 0 {
             out.push_str(": ")
@@ -1782,6 +1784,12 @@ priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info
             variant_info.push_str(vd.payload_type)
         }
         append_packed_entry(info, qual, variant_info)
+        if vd.doc.is_empty().not() {
+            help_doc := format_doc_for_help(vd.doc)
+            if help_doc.is_empty().not() {
+                append_packed_entry(docs, qual, help_doc)
+            }
+        }
     }
     mut pnr2 : USize = 0
     for nd : Declaration in edef.ns_decls {

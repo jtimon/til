@@ -3462,7 +3462,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write("enum_variant_count(")
                 emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
-            } else if name.ident_name().eq("enum_variant_name").or(name.ident_name().eq("enum_variant_has_payload")).or(name.ident_name().eq("enum_variant_payload_type")) {
+            } else if name.ident_name().eq("enum_variant_name").or(name.ident_name().eq("enum_variant_has_payload")).or(name.ident_name().eq("enum_variant_payload_type"))
+            .or(name.ident_name().eq("enum_variant_tag_value")).or(name.ident_name().eq("enum_variant_payload_is_const")).or(name.ident_name().eq("enum_variant_payload_is_ref")) {
                 f.write(name.ident_name())
                 f.write("(")
                 emit_as_ptr(f, e.children[1], depth, false, ctx)
@@ -3960,12 +3961,13 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                         ref edef : Expr = stmt.children[0]
                         if edef.node_type.is(NodeType.EnumDef) { continue }
                         ref nii_ns : Vec(Declaration) = def_ns_decls(edef)
-                        mut nii : USize = 0
-                        for dd : Declaration in nii_ns {
-                            cur_nii := nii
-                            nii = nii + 1
-                            if dd.default_value.is_null() { continue }
-                            if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+                        // #307 follow-up: sibling-dependency order, like
+                        // interpreter_init_ns (a constant may read a
+                        // sibling constant declared later).
+                        nii_order := ns_const_eval_order(sdecl.name, edef)
+                        for nii_pos : I64 in nii_order {
+                            cur_nii := nii_pos.to_usize()
+                            ref dd : Declaration = nii_ns.unsafe_get(cur_nii)
                             if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
                             emit_indent(f, depth)
                             f.write(sdecl.name)
@@ -3991,12 +3993,10 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                     ref edef : Expr = stmt.children[0]
                     if edef.node_type.is(NodeType.EnumDef) { continue }
                     ref nii2_ns : Vec(Declaration) = def_ns_decls(edef)
-                    mut nii2 : USize = 0
-                    for dd : Declaration in nii2_ns {
-                        cur_nii2 := nii2
-                        nii2 = nii2 + 1
-                        if dd.default_value.is_null() { continue }
-                        if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
+                    nii2_order := ns_const_eval_order(sdecl.name, edef)
+                    for nii2_pos : I64 in nii2_order {
+                        cur_nii2 := nii2_pos.to_usize()
+                        ref dd : Declaration = nii2_ns.unsafe_get(cur_nii2)
                         if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
                         emit_indent(f, depth)
                         f.write(sdecl.name)
@@ -6680,6 +6680,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     f.write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
     f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
     f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index);\n")
+    f.write("I64 enum_variant_tag_value(Str *type_name, I64 *index);\n")
+    f.write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index);\n")
+    f.write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index);\n")
     f.write("I64 func_sig_param_count(Str *type_name);\n")
     f.write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
     f.write("I64 func_sig_return_count(Str *type_name);\n")
@@ -7115,7 +7118,8 @@ priv emit_struct_introspection_bodies := proc(f: File, lp: LoadedProgram) {
 }
 
 // Issue #57/#58: emit one enum's branch for an enum_variant_* function.
-// kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type.
+// kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type,
+// 4 = tag_value, 5 = payload_is_const, 6 = payload_is_ref (#307).
 priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -7140,6 +7144,12 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
                     emit_str_lit_expr(f, vd.name, ctx)
                 } else if kind == 2 {
                     if has_pl { f.write("1") } else { f.write("0") }
+                } else if kind == 4 {
+                    f.write(vd.tag_value.to_str()).write("LL")
+                } else if kind == 5 {
+                    if vd.payload_const { f.write("1") } else { f.write("0") }
+                } else if kind == 6 {
+                    if vd.payload_ref { f.write("1") } else { f.write("0") }
                 } else {
                     emit_str_lit_expr(f, vd.payload_type, ctx)
                 }
@@ -7186,6 +7196,18 @@ priv emit_enum_introspection_bodies := proc(f: File, lp: LoadedProgram) {
     f.write("Str *enum_variant_payload_type(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
     emit_enum_variant_branches(f, 3, lp)
     f.write("    fprintf(stderr, \"enum_variant_payload_type: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 enum_variant_tag_value(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 4, lp)
+    f.write("    fprintf(stderr, \"enum_variant_tag_value: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 5, lp)
+    f.write("    fprintf(stderr, \"enum_variant_payload_is_const: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
+
+    f.write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index) {\n    (void)type_name; (void)index;\n")
+    emit_enum_variant_branches(f, 6, lp)
+    f.write("    fprintf(stderr, \"enum_variant_payload_is_ref: type '%.*s' index out of range\\n\", (int)type_name->count, (char*)type_name->c_str);\n    exit(1);\n}\n\n")
 }
 
 // Issue #58: emit one FuncSig's branch for a func_sig_* function. A

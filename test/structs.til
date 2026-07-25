@@ -456,3 +456,29 @@ test_ext_struct_custom_tag := test() {
     t := TaggedThing(val = 42)
     assert_eq(I64, t.val, 42)
 }
+
+// --- #307 follow-up: namespace constants may reference siblings ---
+// declared LATER (both the typer's member sweep, the emitted C ns-init
+// order, and interpreter_init_ns follow ns_const_eval_order, not
+// declaration order). Covers explicit-typed and inferred constants,
+// a chain through a middle constant, and a constant calling a sibling
+// method declared after it.
+
+FwdConst := struct {
+    v := 0
+namespace:
+    a : I64 = FwdConst.b + 1
+    b : I64 = FwdConst.c + 1
+    c : I64 = 2
+    d := FwdConst.a + FwdConst.c
+    e : I64 = FwdConst.twice(3)
+    twice := func(n: I64) returns I64 { return n * 2 }
+}
+
+test_ns_const_forward_refs := test() {
+    assert_eq(I64, FwdConst.c, 2)
+    assert_eq(I64, FwdConst.b, 3)
+    assert_eq(I64, FwdConst.a, 4)
+    assert_eq(I64, FwdConst.d, 6)
+    assert_eq(I64, FwdConst.e, 6)
+}

@@ -4284,12 +4284,14 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                 fraw : Dynamic = eval_expr_raw(global, nsf.default_value, ctx)
                 ns_set(dd.name, def_ns_name_at(sdef, cur_nfi), fraw, Type.Body, ctx)
             }
-            mut nci : USize = 0
-            for nsd : Declaration in reg_ns {
-                cur_nci := nci
-                nci = nci + 1
-                if nsd.default_value.is_null() { continue }
-                if nsd.default_value.node_type.is(NodeType.FuncDef) { continue }
+            // #307 follow-up: constants evaluate in sibling-dependency
+            // order (ns_const_eval_order), not declaration order, so an
+            // initializer may reference a sibling constant declared
+            // later (`c : I64 = Bar.d + 1` before `d`).
+            const_order := ns_const_eval_order(dd.name, sdef)
+            for nci_pos : I64 in const_order {
+                cur_nci := nci_pos.to_usize()
+                ref nsd : Declaration = reg_ns.unsafe_get(cur_nci)
                 mut raw : Dynamic = eval_expr_raw(global, nsd.default_value, ctx)
                 if expr_raw_is_ref(global, nsd.default_value, ctx) {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
@@ -5771,6 +5773,60 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Con
     return true
 }
 
+priv h_enum_variant_tag_value := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx >= ed.variants.len() {
+            interp_error(e, "enum_variant_tag_value: index out of bounds", ctx)
+            exit(1)
+        }
+        ref vd : VariantDef = ed.variants[idx]
+        write_i64(r, vd.tag_value)
+    case:
+        UNREACHABLE()
+    }
+    return true
+}
+
+priv h_enum_variant_payload_is_const := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx >= ed.variants.len() {
+            interp_error(e, "enum_variant_payload_is_const: index out of bounds", ctx)
+            exit(1)
+        }
+        ref vd : VariantDef = ed.variants[idx]
+        if vd.payload_const { write_i64(r, 1) } else { write_i64(r, 0) }
+    case:
+        UNREACHABLE()
+    }
+    return true
+}
+
+priv h_enum_variant_payload_is_ref := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    idx := eval_index_arg(s, e, ctx)
+    ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
+    switch node.node_type {
+    case NodeType.EnumDef(ed):
+        if idx >= ed.variants.len() {
+            interp_error(e, "enum_variant_payload_is_ref: index out of bounds", ctx)
+            exit(1)
+        }
+        ref vd : VariantDef = ed.variants[idx]
+        if vd.payload_ref { write_i64(r, 1) } else { write_i64(r, 0) }
+    case:
+        UNREACHABLE()
+    }
+    return true
+}
+
 // Look up a registered FuncSig type's bodyless FuncDef node by name,
 // erroring out if the name is unknown or not a function signature.
 // Shared by the func_sig_* introspection handlers (issue #58).
@@ -6503,6 +6559,9 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("enum_variant_name", h_enum_variant_name, ctx)
     reg_dispatch("enum_variant_has_payload", h_enum_variant_has_payload, ctx)
     reg_dispatch("enum_variant_payload_type", h_enum_variant_payload_type, ctx)
+    reg_dispatch("enum_variant_tag_value", h_enum_variant_tag_value, ctx)
+    reg_dispatch("enum_variant_payload_is_const", h_enum_variant_payload_is_const, ctx)
+    reg_dispatch("enum_variant_payload_is_ref", h_enum_variant_payload_is_ref, ctx)
     reg_dispatch("func_sig_param_count", h_func_sig_param_count, ctx)
     reg_dispatch("func_sig_param_type", h_func_sig_param_type, ctx)
     reg_dispatch("func_sig_return_count", h_func_sig_return_count, ctx)

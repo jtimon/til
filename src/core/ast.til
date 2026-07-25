@@ -404,6 +404,8 @@ namespace:
 /// the declaration index the per-variant data used to be keyed by.
 VariantDef := struct {
     name := ""
+    /// Leading /// doc comment run, like Declaration.doc for fields.
+    doc := ""
     // Payload type name; "" means the variant carries no payload.
     payload_type := ""
     // #211: true when the payload was declared `const Type`.
