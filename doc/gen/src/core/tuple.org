@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * Tuple
@@ -101,6 +101,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__U32) returns shallow U32
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__U32, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__U32, shallow n: USize) returns Vec__U32

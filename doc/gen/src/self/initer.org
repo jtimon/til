@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * collect_enum_variants
@@ -102,6 +102,16 @@ func ctx_total_size(name: Str, ctx: Context) returns shallow USize
 func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref FieldLayout
 #+end_src
 
+* init_refresh_seeded_scope_defs
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_refresh_seeded_scope_defs
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope)
+#+end_src
+
 * init_declarations_global
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.init_declarations_global
@@ -187,6 +197,8 @@ namespace:
     func get(self: Map__Str_I64, key: Str, mut _err_kind: I64) returns ref I64
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_I64, key: Str, own val: I64)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64

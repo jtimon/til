@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * builtin_primitive_from_name
@@ -132,6 +132,26 @@ func set_own_arg(mut fcall: Expr, shallow arg_index: USize)
 func get_own_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
 #+end_src
 
+* set_keep_outer_arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.set_keep_outer_arg
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func set_keep_outer_arg(mut fcall: Expr, shallow arg_index: USize)
+#+end_src
+
+* get_keep_outer_arg
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.get_keep_outer_arg
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func get_keep_outer_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+#+end_src
+
 * func_type_name
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.parser.func_type_name
@@ -195,6 +215,8 @@ namespace:
     func get(self: Map__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Str, key: Str, own val: Str)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
     func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64

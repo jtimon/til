@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -305,6 +305,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -392,6 +394,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -479,6 +483,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DocEntry) returns DocEntry
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry

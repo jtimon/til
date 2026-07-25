@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -328,6 +328,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DynCallInfo) returns priv___src_self_builder_til__DynCallInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
@@ -419,6 +421,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__CollectionInfo) returns priv___src_self_builder_til__CollectionInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
@@ -510,6 +514,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DocEntry) returns DocEntry
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DocEntry, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DocEntry, shallow n: USize) returns Vec__DocEntry

@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -360,6 +360,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Str) returns Str
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__Str, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Str, shallow n: USize) returns Vec__Str

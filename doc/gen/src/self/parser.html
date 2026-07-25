@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -45,7 +45,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
-<li><a class="current" href="../../src/self/parser.html">src/self/parser.til</a><ul><li><a href="#til.src.self.parser.builtin_primitive_from_name">builtin_primitive_from_name</a></li><li><a href="#til.src.self.parser.builtin_primitive_size_align">builtin_primitive_size_align</a></li><li><a href="#til.src.self.parser.builtin_type_from_name">builtin_type_from_name</a></li><li><a href="#til.src.self.parser.til_type_from_explicit_type">til_type_from_explicit_type</a></li><li><a href="#til.src.self.parser.decl_typed">decl_typed</a></li><li><a href="#til.src.self.parser.parse">parse</a></li><li><a href="#til.src.self.parser.til_type_name_c">til_type_name_c</a></li><li><a href="#til.src.self.parser.node_name">node_name</a></li><li><a href="#til.src.self.parser.ident_node">ident_node</a></li><li><a href="#til.src.self.parser.literal_num_node">literal_num_node</a></li><li><a href="#til.src.self.parser.field_access_node">field_access_node</a></li><li><a href="#til.src.self.parser.set_own_arg">set_own_arg</a></li><li><a href="#til.src.self.parser.get_own_arg">get_own_arg</a></li><li><a href="#til.src.self.parser.func_type_name">func_type_name</a></li><li><a href="#til.src.self.parser.Set__Str">Set__Str</a></li><li><a href="#til.src.self.parser.Map__Str_Str">Map__Str_Str</a></li></ul></li>
+<li><a class="current" href="../../src/self/parser.html">src/self/parser.til</a><ul><li><a href="#til.src.self.parser.builtin_primitive_from_name">builtin_primitive_from_name</a></li><li><a href="#til.src.self.parser.builtin_primitive_size_align">builtin_primitive_size_align</a></li><li><a href="#til.src.self.parser.builtin_type_from_name">builtin_type_from_name</a></li><li><a href="#til.src.self.parser.til_type_from_explicit_type">til_type_from_explicit_type</a></li><li><a href="#til.src.self.parser.decl_typed">decl_typed</a></li><li><a href="#til.src.self.parser.parse">parse</a></li><li><a href="#til.src.self.parser.til_type_name_c">til_type_name_c</a></li><li><a href="#til.src.self.parser.node_name">node_name</a></li><li><a href="#til.src.self.parser.ident_node">ident_node</a></li><li><a href="#til.src.self.parser.literal_num_node">literal_num_node</a></li><li><a href="#til.src.self.parser.field_access_node">field_access_node</a></li><li><a href="#til.src.self.parser.set_own_arg">set_own_arg</a></li><li><a href="#til.src.self.parser.get_own_arg">get_own_arg</a></li><li><a href="#til.src.self.parser.set_keep_outer_arg">set_keep_outer_arg</a></li><li><a href="#til.src.self.parser.get_keep_outer_arg">get_keep_outer_arg</a></li><li><a href="#til.src.self.parser.func_type_name">func_type_name</a></li><li><a href="#til.src.self.parser.Set__Str">Set__Str</a></li><li><a href="#til.src.self.parser.Map__Str_Str">Map__Str_Str</a></li></ul></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
@@ -157,6 +157,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func get_own_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.parser.set_keep_outer_arg">
+<h2>set_keep_outer_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func set_keep_outer_arg(mut fcall: Expr, shallow arg_index: USize)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.parser.get_keep_outer_arg">
+<h2>get_keep_outer_arg</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func get_keep_outer_arg(fcall: Expr, shallow arg_index: USize) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.parser.func_type_name">
 <h2>func_type_name</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -208,6 +220,8 @@ namespace:
     func get(self: Map__Str_Str, key: Str, mut _err_kind: I64) returns ref Str
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Str, key: Str, own val: Str)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
     func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64

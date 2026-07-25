@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * TokenType
@@ -272,6 +272,8 @@ namespace:
     func get(self: Map__Str_TokenType, key: Str, mut _err_kind: I64) returns ref TokenType
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_TokenType, key: Str, own val: TokenType)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_TokenType, key: Str) returns shallow Bool
     func delete(own self: Map__Str_TokenType, shallow call_free: Bool)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
     func hash(self: Map__Str_TokenType, hasher: HashFn) returns shallow U64
@@ -341,6 +343,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Token) returns Token
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__Token, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Token, shallow n: USize) returns Vec__Token
@@ -432,6 +436,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__TokenType) returns TokenType
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__TokenType, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__TokenType, shallow n: USize) returns Vec__TokenType

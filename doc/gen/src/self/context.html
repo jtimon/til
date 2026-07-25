@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -46,7 +46,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
-<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_from_name_init">type_from_name_init</a></li><li><a href="#til.src.self.context.init_type_from_explicit_type">init_type_from_explicit_type</a></li><li><a href="#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.Map__Str_TypeBinding">Map__Str_TypeBinding</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Map__Str_Value">Map__Str_Value</a></li><li><a href="#til.src.self.context.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__Value">Vec__Value</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li></ul></li>
+<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_from_name_init">type_from_name_init</a></li><li><a href="#til.src.self.context.init_type_from_explicit_type">init_type_from_explicit_type</a></li><li><a href="#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.Map__Str_TypeBinding">Map__Str_TypeBinding</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li></ul></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
@@ -102,6 +102,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut written : Bool
     mut mut_explicit : Bool
     mut orig_name : Str
+    mut dynvec_elem : Str
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns shallow Bool
     func to_str(self: TypeBinding) returns Str
@@ -223,17 +224,19 @@ namespace:
     mut anon_type_counter : I64
     mut compile_mode : Bool
     mut constfolder_foldables : Map__Str_FuncType
-    mut constfolder_known : Map__Str_Value
+    ref mut constfolder_known : Scope
     mut constfolder_assigned : Set__Str
     mut has_return : Bool
     mut has_break : Bool
     mut has_continue : Bool
-    mut return_value : Value
+    ref mut return_value : Dynamic
     mut interp_ret_is_ref : Bool
+    ref mut interp_ret_dest : Dynamic
+    ref mut interp_ret_type : Str
+    mut interp_ret_own_type : OwnType
     mut constfold_active : Bool
     mut constfold_aborted : Bool
-    mut ns_fields : Map__Str_Value
-    mut ns_keys : Vec__Dynamic
+    ref mut ns_fields : Scope
     mut ns_inited : Bool
     mut imported : Map__Str_ImportUnit
     mut check_unused_imports : Bool
@@ -603,6 +606,8 @@ namespace:
     func get(self: Map__Str_TypeBinding, key: Str, mut _err_kind: I64) returns ref TypeBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
     func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
     func clone(self: Map__Str_TypeBinding) returns Map__Str_TypeBinding
     func hash(self: Map__Str_TypeBinding, hasher: HashFn) returns shallow U64
@@ -631,6 +636,8 @@ namespace:
     func get(self: Map__Str_Mode, key: Str, mut _err_kind: I64) returns ref Mode
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
     func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
@@ -659,124 +666,11 @@ namespace:
     func get(self: Map__Str_FuncType, key: Str, mut _err_kind: I64) returns ref FuncType
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
     func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Map__Str_Value">
-<h2>Map__Str_Value</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">struct Map__Str_Value {
-    mut keys : Vec__Str
-    mut values : Vec__Value
-namespace:
-    /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
-    func new() returns Map__Str_Value
-    func len(self: Map__Str_Value) returns shallow USize
-    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
-    func clear(mut self: Map__Str_Value)
-    /// True if a value exists for the given key.
-    func has(self: Map__Str_Value, key: Str) returns shallow Bool
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-    /// on a missing key.
-    func get(self: Map__Str_Value, key: Str, mut _err_kind: I64) returns ref Value
-    /// Insert or overwrite the value for `key`. The value is owned.
-    func set(mut self: Map__Str_Value, key: Str, own val: Value)
-    func delete(own self: Map__Str_Value, shallow call_free: Bool)
-    func clone(self: Map__Str_Value) returns Map__Str_Value
-    func hash(self: Map__Str_Value, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Vec__Dynamic">
-<h2>Vec__Dynamic</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">struct Vec__Dynamic {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__Dynamic
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__Dynamic
-    func len(self: Vec__Dynamic) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__Dynamic)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__Dynamic, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__Dynamic, own val: Dynamic)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__Dynamic, own other: Vec__Dynamic)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Dynamic, mut other: Vec__Dynamic)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__Dynamic) returns Dynamic
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__Dynamic, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__Dynamic, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns shallow USize
 }
 </code></pre>
@@ -802,6 +696,8 @@ namespace:
     func get(self: Map__Str_ImportUnit, key: Str, mut _err_kind: I64) returns ref ImportUnit
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
     func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
@@ -830,6 +726,8 @@ namespace:
     func get(self: Map__Str_Expr, key: Str, mut _err_kind: I64) returns ref Expr
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Expr, key: Str, own val: Expr)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
     func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
@@ -858,6 +756,8 @@ namespace:
     func get(self: Map__Str_StructLayout, key: Str, mut _err_kind: I64) returns ref StructLayout
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
     func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
@@ -886,6 +786,8 @@ namespace:
     func get(self: Map__Str_call_Vec_Str, key: Str, mut _err_kind: I64) returns ref Vec__Str
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
     func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
     func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
@@ -914,6 +816,8 @@ namespace:
     func get(self: Map__Str_Dynamic, key: Str, mut _err_kind: I64) returns ref Dynamic
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
     func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
@@ -942,6 +846,8 @@ namespace:
     func get(self: Map__Str_FFIEntry, key: Str, mut _err_kind: I64) returns ref FFIEntry
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
     func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
@@ -970,6 +876,8 @@ namespace:
     func get(self: Map__Str_ExprPtrBox, key: Str, mut _err_kind: I64) returns ref ExprPtrBox
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
     func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
@@ -1035,6 +943,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFITypePtrBox) returns FFITypePtrBox
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__FFITypePtrBox, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FFITypePtrBox, shallow n: USize) returns Vec__FFITypePtrBox
@@ -1122,6 +1032,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__TypeBinding) returns TypeBinding
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__TypeBinding, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__TypeBinding, shallow n: USize) returns Vec__TypeBinding
@@ -1209,6 +1121,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__Mode) returns Mode
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__Mode, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__Mode, shallow n: USize) returns Vec__Mode
@@ -1296,6 +1210,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FuncType) returns FuncType
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__FuncType, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FuncType, shallow n: USize) returns Vec__FuncType
@@ -1321,93 +1237,6 @@ namespace:
     func delete(own self: Vec__FuncType, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FuncType) returns Vec__FuncType
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Vec__Value">
-<h2>Vec__Value</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">struct Vec__Value {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__Value
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__Value
-    func len(self: Vec__Value) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__Value)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__Value, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__Value, own val: Value)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__Value, own other: Vec__Value)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Value, mut other: Vec__Value)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__Value, i: USize) returns ref Value
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__Value, i: USize, mut _err_kind: I64) returns ref Value
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__Value) returns Value
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__Value, shallow n: USize) returns Vec__Value
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__Value, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__Value, shallow i: USize, own val: Value)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Value, shallow i: USize, own val: Value, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__Value, mut src: Vec__Value, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__Value, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__Value) returns Vec__Value
     func size() returns shallow USize
 }
 </code></pre>
@@ -1470,6 +1299,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ImportUnit) returns ImportUnit
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__ImportUnit, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ImportUnit, shallow n: USize) returns Vec__ImportUnit
@@ -1557,6 +1388,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__StructLayout) returns StructLayout
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__StructLayout, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__StructLayout, shallow n: USize) returns Vec__StructLayout
@@ -1644,6 +1477,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__call_Vec_Str, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__call_Vec_Str, shallow n: USize) returns Vec__call_Vec_Str
@@ -1669,6 +1504,95 @@ namespace:
     func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Vec__Dynamic">
+<h2>Vec__Dynamic</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct Vec__Dynamic {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
+    func new() returns Vec__Dynamic
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
+    func with_capacity(shallow n: USize) returns Vec__Dynamic
+    func len(self: Vec__Dynamic) returns shallow USize
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__Dynamic)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__Dynamic, marks: Dynamic)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__Dynamic, own val: Dynamic)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__Dynamic, own other: Vec__Dynamic)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__Dynamic, mut other: Vec__Dynamic)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi &lt; len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__Dynamic, i: USize) returns ref Dynamic
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__Dynamic, i: USize, mut _err_kind: I64) returns ref Dynamic
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__Dynamic) returns Dynamic
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__Dynamic, shallow i: USize, mut _err_kind: I64)
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__Dynamic, shallow n: USize) returns Vec__Dynamic
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__Dynamic, shallow n: USize)
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__Dynamic, mut src: Vec__Dynamic, shallow i: USize)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__Dynamic, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns shallow USize
 }
 </code></pre>
@@ -1731,6 +1655,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__FFIEntry) returns FFIEntry
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__FFIEntry, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__FFIEntry, shallow n: USize) returns Vec__FFIEntry
@@ -1818,6 +1744,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ExprPtrBox) returns ExprPtrBox
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__ExprPtrBox, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ExprPtrBox, shallow n: USize) returns Vec__ExprPtrBox

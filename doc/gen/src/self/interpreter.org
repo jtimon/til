@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -10,122 +10,6 @@
 
 #+begin_src til
 ext_proc system_cmd(cmd: Str) returns shallow I32
-#+end_src
-
-* StructInstance
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.StructInstance
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct StructInstance {
-    ref mut struct_name : Str
-    mut is_str : Bool
-    mut is_str_container : Bool
-    ref mut ctx : Context
-    own mut data : U8
-    mut borrowed : Bool
-namespace:
-    func eq(a: StructInstance, b: StructInstance) returns shallow Bool
-    func to_str(self: StructInstance) returns Str
-    func clone(self: StructInstance) returns StructInstance
-    func delete(own self: StructInstance, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-#+end_src
-
-* EnumInstance
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.EnumInstance
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct EnumInstance {
-    ref mut enum_name : Str
-    own mut data : U8
-    mut data_size : USize
-    mut borrowed : Bool
-    mut is_str : Bool
-    ref mut ctx : Context
-namespace:
-    func eq(a: EnumInstance, b: EnumInstance) returns shallow Bool
-    func to_str(self: EnumInstance) returns Str
-    func clone(self: EnumInstance) returns EnumInstance
-    func delete(own self: EnumInstance, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-#+end_src
-
-* InterpClosure
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.InterpClosure
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct InterpClosure {
-    ref mut func_def : Expr
-    ref mut env : Scope
-    mut borrowed : Bool
-namespace:
-    func clone(self: InterpClosure) returns InterpClosure
-    func delete(own self: InterpClosure, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-#+end_src
-
-* Value
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Value
-:group: Compiler tools
-:END:
-
-#+begin_src til
-enum Value {
-    None
-    Int: I64
-    Byte: U8
-    Short: I16
-    Int32: I32
-    Uint32: U32
-    Uint64: U64
-    Float: F32
-    Boolean: Bool
-    Func: Dynamic
-    Struct: StructInstance
-    Enum: EnumInstance
-    Ref: Dynamic
-    Dynamic: Dynamic
-    Sbyte: I8
-    Ushort: U16
-    Closure: InterpClosure
-namespace:
-    func eq(a: Value, b: Value) returns shallow Bool
-    func to_str(self: Value) returns Str
-    func clone(self: Value) returns Value
-    ext_func None() returns Value
-    ext_func Int(val: I64) returns Value
-    ext_func Byte(val: U8) returns Value
-    ext_func Short(val: I16) returns Value
-    ext_func Int32(val: I32) returns Value
-    ext_func Uint32(val: U32) returns Value
-    ext_func Uint64(val: U64) returns Value
-    ext_func Float(val: F32) returns Value
-    ext_func Boolean(val: Bool) returns Value
-    ext_func Func(val: Dynamic) returns Value
-    ext_func Struct(own val: StructInstance) returns Value
-    ext_func Enum(own val: EnumInstance) returns Value
-    ext_func Ref(val: Dynamic) returns Value
-    ext_func Dynamic(val: Dynamic) returns Value
-    ext_func Sbyte(val: I8) returns Value
-    ext_func Ushort(val: U16) returns Value
-    ext_func Closure(own val: InterpClosure) returns Value
-    core_func is(self: Value, other: Value) returns shallow Bool
-    func delete(own self: Value, shallow call_free: Bool)
-    func size() returns shallow USize
-}
 #+end_src
 
 * CALLABLE_BOX_MAGIC
@@ -147,46 +31,11 @@ CALLABLE_BOX_MAGIC is a U64
 #+begin_src til
 struct InterpCallableBox {
     mut magic : U64
-    mut val : Value
+    ref mut func_def : Expr
+    ref mut env : Scope
 namespace:
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, shallow call_free: Bool)
-    func hash(self: InterpCallableBox, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-* Cell
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Cell
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct Cell {
-    mut val : Value
-namespace:
-    func clone(self: Cell) returns Cell
-    func delete(own self: Cell, shallow call_free: Bool)
-    func hash(self: Cell, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-* Binding
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Binding
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct Binding {
-    ref mut name : Str
-    ref mut cell : Cell
-    mut cell_is_local : Bool
-namespace:
-    func clone(self: Binding) returns Binding
-    func delete(own self: Binding, shallow call_free: Bool)
     func size() returns shallow USize
 }
 #+end_src
@@ -199,15 +48,19 @@ namespace:
 
 #+begin_src til
 struct HeapBinding {
+    ref mut ptr : U8
     mut til_type : Type
     mut own_type : OwnType
+    ref mut ctx : Context
     mut is_local : Bool
     mut is_borrowed : Bool
+    mut is_erased_dynamic : Bool
+    mut is_static_callable : Bool
     mut moved_out : Bool
+    mut is_raw_alloc : Bool
 namespace:
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, shallow call_free: Bool)
-    func hash(self: HeapBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -220,14 +73,9 @@ namespace:
 
 #+begin_src til
 struct Scope {
-    mut bindings : Map__Str_Binding
-    mut heap_index : Map__Str_Dynamic
     mut heap_bindings : Map__Str_HeapBinding
+    mut heap_aliases : Map__Str_Str
     ref mut parent : Scope
-    mut payload_aliases : Map__Str_Str
-    mut ref_primitive_ptrs : Map__Str_Dynamic
-    mut box_owned_dynamics : Vec__DynPtrBox
-    mut box_owned_callables : Vec__DynPtrBox
     mut is_call_scope : Bool
 namespace:
     func clone(self: Scope) returns Scope
@@ -266,16 +114,6 @@ namespace:
 func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 #+end_src
 
-* val_none
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.val_none
-:group: Compiler tools
-:END:
-
-#+begin_src til
-func val_none() returns shallow Value
-#+end_src
-
 * ENUM_PAYLOAD_OFFSET
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
@@ -286,14 +124,94 @@ func val_none() returns shallow Value
 ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
-* eval_expr
+* raw_type_is_prim
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.eval_expr
+:CUSTOM_ID: til.src.self.interpreter.raw_type_is_prim
 :group: Compiler tools
 :END:
 
 #+begin_src til
-proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
+func raw_type_is_prim(shallow t: Type, ctx: Context) returns shallow Bool
+#+end_src
+
+* scalar_word_load
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scalar_word_load
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scalar_word_load(shallow t: Type, addr: Dynamic, ctx: Context) returns Dynamic
+#+end_src
+
+* field_word_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.field_word_type
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func field_word_type(shallow ft: Type, shallow field_size: USize, ctx: Context) returns Type
+#+end_src
+
+* scalar_block_from_word
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scalar_block_from_word
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scalar_block_from_word(shallow t: Type, w: Dynamic, ctx: Context) returns Dynamic
+#+end_src
+
+* DISPATCH_SCRATCH_SLOTS
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS
+:group: Compiler tools
+:END:
+
+#+begin_src til
+DISPATCH_SCRATCH_SLOTS is a U32
+#+end_src
+
+* WORD_RING_SLOTS
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.WORD_RING_SLOTS
+:group: Compiler tools
+:END:
+
+#+begin_src til
+WORD_RING_SLOTS is a U32
+#+end_src
+
+* raw_result_drop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.raw_result_drop
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc raw_result_drop(shallow t: Type, raw: Dynamic, shallow return_is_ref: Bool, ctx: Context)
+#+end_src
+
+* scope_set_raw_owned
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_set_raw_owned
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scope_set_raw_owned(scope: Scope, name: Str, raw: Dynamic, shallow t: Type, own_type: OwnType, ctx: Context, shallow borrowed: Bool)
+#+end_src
+
+* eval_expr_raw
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.eval_expr_raw
+:group: Compiler tools
+:END:
+
+#+begin_src til
+proc eval_expr_raw(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic) returns Dynamic
 #+end_src
 
 * scope_get
@@ -303,7 +221,17 @@ proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
 :END:
 
 #+begin_src til
-func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Cell
+func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Dynamic
+#+end_src
+
+* scope_pool_drain
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_pool_drain
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scope_pool_drain()
 #+end_src
 
 * scope_new
@@ -316,16 +244,6 @@ func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Cell
 func scope_new(parent: Scope) returns Scope
 #+end_src
 
-* scope_lookup_offset
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.scope_lookup_offset
-:group: Compiler tools
-:END:
-
-#+begin_src til
-func scope_lookup_offset(mut s: Scope, name: Str) returns ref Dynamic
-#+end_src
-
 * scope_lookup_heap_binding
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.scope_lookup_heap_binding
@@ -336,14 +254,14 @@ func scope_lookup_offset(mut s: Scope, name: Str) returns ref Dynamic
 func scope_lookup_heap_binding(mut s: Scope, name: Str) returns ref HeapBinding
 #+end_src
 
-* scope_insert_offset
+* scope_read_bound_raw
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.scope_insert_offset
+:CUSTOM_ID: til.src.self.interpreter.scope_read_bound_raw
 :group: Compiler tools
 :END:
 
 #+begin_src til
-func scope_insert_offset(mut s: Scope, name: Str, own ptr: Dynamic)
+func scope_read_bound_raw(scope: Scope, name: Str, ctx: Context) returns Dynamic
 #+end_src
 
 * scope_set_heap_owned
@@ -353,7 +271,7 @@ func scope_insert_offset(mut s: Scope, name: Str, own ptr: Dynamic)
 :END:
 
 #+begin_src til
-func scope_set_heap_owned(mut s: Scope, name: Str, own ptr: Dynamic, shallow til_type: Type, own_type: OwnType, shallow is_local: Bool, shallow is_borrowed: Bool)
+func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, shallow til_type: Type, own_type: OwnType, ctx: Context, shallow is_local: Bool, shallow is_borrowed: Bool, shallow is_erased_dynamic: Bool)
 #+end_src
 
 * scope_set_heap_moved
@@ -366,14 +284,24 @@ func scope_set_heap_owned(mut s: Scope, name: Str, own ptr: Dynamic, shallow til
 func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
 #+end_src
 
-* scope_set_owned
+* scope_new_boxed
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.scope_set_owned
+:CUSTOM_ID: til.src.self.interpreter.scope_new_boxed
 :group: Compiler tools
 :END:
 
 #+begin_src til
-func scope_set_owned(mut s: Scope, name: Str, mut val: Value)
+func scope_new_boxed(parent: Scope) returns ref Scope
+#+end_src
+
+* scope_drop_owned_bindings
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.scope_drop_owned_bindings
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func scope_drop_owned_bindings(s: Scope)
 #+end_src
 
 * scope_free
@@ -413,7 +341,7 @@ proc interpreter_init_ns(mut ctx: Context, global: Scope, program: Expr)
 :END:
 
 #+begin_src til
-func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Value
+func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Dynamic
 #+end_src
 
 * interpreter_free_ns
@@ -446,36 +374,6 @@ func str_cap_at(str_base: Dynamic, ctx: Context) returns shallow USize
 func str_count_at(str_base: Dynamic, ctx: Context) returns shallow USize
 #+end_src
 
-* make_str_value
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.make_str_value
-:group: Compiler tools
-:END:
-
-#+begin_src til
-func make_str_value(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value
-#+end_src
-
-* make_str_value_view
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.make_str_value_view
-:group: Compiler tools
-:END:
-
-#+begin_src til
-func make_str_value_view(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value
-#+end_src
-
-* str_view
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.str_view
-:group: Compiler tools
-:END:
-
-#+begin_src til
-func str_view(shallow v: Value) returns shallow Str
-#+end_src
-
 * ENUM_PAYLOAD_OFFSET
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
@@ -493,7 +391,7 @@ ENUM_PAYLOAD_OFFSET is a U32
 :END:
 
 #+begin_src til
-func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: USize, ctx: Context) returns shallow Value
+func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: USize, shallow field_size: USize, ctx: Context) returns Dynamic
 #+end_src
 
 * interp_session_start
@@ -638,6 +536,7 @@ struct FFIEntry {
     ref mut return_type : Str
     mut nparam : USize
     ref mut param_shallows : U8
+    ref mut param_dynamics : U8
     mut return_is_shallow : Bool
     mut return_is_ref : Bool
     ref mut cif : ffi_cif
@@ -801,6 +700,26 @@ ext_proc til_built_with_asan() returns shallow Bool
 func ffi_init_struct_defs_append(program: Expr, ctx: Context)
 #+end_src
 
+* dispatch_result_alloc
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.dispatch_result_alloc
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func dispatch_result_alloc(t: Type, ctx: Context) returns Dynamic
+#+end_src
+
+* str_copy_into
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.str_copy_into
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func str_copy_into(result: Dynamic, src: Str, ctx: Context)
+#+end_src
+
 * ffi_init_scan_program
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.ffi_init_scan_program
@@ -831,38 +750,6 @@ proc ffi_cleanup(ctx: Context)
 Vec__USize
 #+end_src
 
-* Map__Str_Binding
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Map__Str_Binding
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct Map__Str_Binding {
-    mut keys : Vec__Str
-    mut values : Vec__Binding
-namespace:
-    /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
-    func new() returns Map__Str_Binding
-    func len(self: Map__Str_Binding) returns shallow USize
-    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
-    func clear(mut self: Map__Str_Binding)
-    /// True if a value exists for the given key.
-    func has(self: Map__Str_Binding, key: Str) returns shallow Bool
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-    /// on a missing key.
-    func get(self: Map__Str_Binding, key: Str, mut _err_kind: I64) returns ref Binding
-    /// Insert or overwrite the value for `key`. The value is owned.
-    func set(mut self: Map__Str_Binding, key: Str, own val: Binding)
-    func delete(own self: Map__Str_Binding, shallow call_free: Bool)
-    func clone(self: Map__Str_Binding) returns Map__Str_Binding
-    func hash(self: Map__Str_Binding, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
 * Map__Str_HeapBinding
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.Map__Str_HeapBinding
@@ -888,6 +775,8 @@ namespace:
     func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
     func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
@@ -957,6 +846,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
@@ -982,97 +873,6 @@ namespace:
     func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
-    func size() returns shallow USize
-}
-#+end_src
-
-* Vec__Binding
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__Binding
-:group: Compiler tools
-:END:
-
-#+begin_src til
-struct Vec__Binding {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__Binding
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0->1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__Binding
-    func len(self: Vec__Binding) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__Binding)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__Binding, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__Binding, own val: Binding)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__Binding, own other: Vec__Binding)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Binding, mut other: Vec__Binding)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__Binding, i: USize) returns ref Binding
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__Binding, i: USize, mut _err_kind: I64) returns ref Binding
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__Binding) returns Binding
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__Binding, shallow n: USize) returns Vec__Binding
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__Binding, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__Binding, shallow i: USize, own val: Binding)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Binding, shallow i: USize, own val: Binding, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__Binding, mut src: Vec__Binding, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__Binding, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__Binding) returns Vec__Binding
     func size() returns shallow USize
 }
 #+end_src
@@ -1139,6 +939,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__HeapBinding, shallow n: USize) returns Vec__HeapBinding

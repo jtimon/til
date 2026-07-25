@@ -1,6 +1,76 @@
 #+TITLE: src/self/eval_heap.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
+
+* word_bits
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.word_bits
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func word_bits(w: Dynamic) returns shallow U64
+#+end_src
+
+* bits_word
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.bits_word
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func bits_word(shallow b: U64) returns shallow Dynamic
+#+end_src
+
+* f32_word
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f32_word
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f32_word(shallow f: F32) returns shallow U64
+#+end_src
+
+* word_f32
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.word_f32
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func word_f32(shallow b: U64) returns shallow F32
+#+end_src
+
+* word_drop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.word_drop
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func word_drop(own w: Dynamic)
+#+end_src
+
+* dispatch_scratch_base
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.dispatch_scratch_base
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func dispatch_scratch_base() returns shallow Dynamic
+#+end_src
+
+* word_ring_base
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.word_ring_base
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func word_ring_base() returns shallow Dynamic
+#+end_src
 
 * EvalHeap
 :PROPERTIES:

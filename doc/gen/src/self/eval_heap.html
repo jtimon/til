@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -61,7 +61,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
-<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
+<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.word_bits">word_bits</a></li><li><a href="#til.src.self.eval_heap.bits_word">bits_word</a></li><li><a href="#til.src.self.eval_heap.f32_word">f32_word</a></li><li><a href="#til.src.self.eval_heap.word_f32">word_f32</a></li><li><a href="#til.src.self.eval_heap.word_drop">word_drop</a></li><li><a href="#til.src.self.eval_heap.dispatch_scratch_base">dispatch_scratch_base</a></li><li><a href="#til.src.self.eval_heap.word_ring_base">word_ring_base</a></li><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
 <li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
@@ -79,6 +79,48 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/self/eval_heap.til</h1>
+<article class="doc-entry" id="til.src.self.eval_heap.word_bits">
+<h2>word_bits</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func word_bits(w: Dynamic) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.bits_word">
+<h2>bits_word</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func bits_word(shallow b: U64) returns shallow Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f32_word">
+<h2>f32_word</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f32_word(shallow f: F32) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.word_f32">
+<h2>word_f32</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func word_f32(shallow b: U64) returns shallow F32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.word_drop">
+<h2>word_drop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func word_drop(own w: Dynamic)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.dispatch_scratch_base">
+<h2>dispatch_scratch_base</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func dispatch_scratch_base() returns shallow Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.word_ring_base">
+<h2>word_ring_base</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func word_ring_base() returns shallow Dynamic
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.eval_heap.EvalHeap">
 <h2>EvalHeap</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>

@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -362,6 +362,16 @@ proc type_repl_delta(path: Str, program: Expr, ctx: Context) returns shallow I32
 func rhs_is_clone_fcall(rhs: Expr) returns shallow Bool
 #+end_src
 
+* assign_target_is_func_local
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.assign_target_is_func_local
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func assign_target_is_func_local(mut scope: TypeScope, name: Str) returns shallow Bool
+#+end_src
+
 * is_numeric_type
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.typer.is_numeric_type
@@ -654,6 +664,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__CtorArg) returns priv___src_self_typer_til__CtorArg
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__CtorArg, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CtorArg, shallow n: USize) returns Vec__CtorArg
@@ -745,6 +757,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__CoverageNode) returns priv___src_self_typer_til__CoverageNode
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__CoverageNode, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__CoverageNode, shallow n: USize) returns Vec__CoverageNode

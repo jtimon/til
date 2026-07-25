@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-b5c4ff835</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -62,7 +62,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler tools</h2><ul>
 <li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
-<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.system_cmd">system_cmd</a></li><li><a href="#til.src.self.interpreter.StructInstance">StructInstance</a></li><li><a href="#til.src.self.interpreter.EnumInstance">EnumInstance</a></li><li><a href="#til.src.self.interpreter.InterpClosure">InterpClosure</a></li><li><a href="#til.src.self.interpreter.Value">Value</a></li><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.Cell">Cell</a></li><li><a href="#til.src.self.interpreter.Binding">Binding</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.val_none">val_none</a></li><li><a href="#til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.interpreter.eval_expr">eval_expr</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_offset">scope_lookup_offset</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.scope_insert_offset">scope_insert_offset</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_set_owned">scope_set_owned</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.make_str_value">make_str_value</a></li><li><a href="#til.src.self.interpreter.make_str_value_view">make_str_value_view</a></li><li><a href="#til.src.self.interpreter.str_view">str_view</a></li><li><a href="#til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.stderr_print">stderr_print</a></li><li><a href="#til.src.self.interpreter.unlink_path">unlink_path</a></li><li><a href="#til.src.self.interpreter.process_id">process_id</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Vec__USize">Vec__USize</a></li><li><a href="#til.src.self.interpreter.Map__Str_Binding">Map__Str_Binding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__Binding">Vec__Binding</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li></ul></li>
+<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.system_cmd">system_cmd</a></li><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.stderr_print">stderr_print</a></li><li><a href="#til.src.self.interpreter.unlink_path">unlink_path</a></li><li><a href="#til.src.self.interpreter.process_id">process_id</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Vec__USize">Vec__USize</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li></ul></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
 <h2>CLI</h2><ul>
@@ -85,106 +85,6 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">ext_proc system_cmd(cmd: Str) returns shallow I32
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.StructInstance">
-<h2>StructInstance</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct StructInstance {
-    ref mut struct_name : Str
-    mut is_str : Bool
-    mut is_str_container : Bool
-    ref mut ctx : Context
-    own mut data : U8
-    mut borrowed : Bool
-namespace:
-    func eq(a: StructInstance, b: StructInstance) returns shallow Bool
-    func to_str(self: StructInstance) returns Str
-    func clone(self: StructInstance) returns StructInstance
-    func delete(own self: StructInstance, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.EnumInstance">
-<h2>EnumInstance</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct EnumInstance {
-    ref mut enum_name : Str
-    own mut data : U8
-    mut data_size : USize
-    mut borrowed : Bool
-    mut is_str : Bool
-    ref mut ctx : Context
-namespace:
-    func eq(a: EnumInstance, b: EnumInstance) returns shallow Bool
-    func to_str(self: EnumInstance) returns Str
-    func clone(self: EnumInstance) returns EnumInstance
-    func delete(own self: EnumInstance, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.InterpClosure">
-<h2>InterpClosure</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct InterpClosure {
-    ref mut func_def : Expr
-    ref mut env : Scope
-    mut borrowed : Bool
-namespace:
-    func clone(self: InterpClosure) returns InterpClosure
-    func delete(own self: InterpClosure, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.Value">
-<h2>Value</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">enum Value {
-    None
-    Int: I64
-    Byte: U8
-    Short: I16
-    Int32: I32
-    Uint32: U32
-    Uint64: U64
-    Float: F32
-    Boolean: Bool
-    Func: Dynamic
-    Struct: StructInstance
-    Enum: EnumInstance
-    Ref: Dynamic
-    Dynamic: Dynamic
-    Sbyte: I8
-    Ushort: U16
-    Closure: InterpClosure
-namespace:
-    func eq(a: Value, b: Value) returns shallow Bool
-    func to_str(self: Value) returns Str
-    func clone(self: Value) returns Value
-    ext_func None() returns Value
-    ext_func Int(val: I64) returns Value
-    ext_func Byte(val: U8) returns Value
-    ext_func Short(val: I16) returns Value
-    ext_func Int32(val: I32) returns Value
-    ext_func Uint32(val: U32) returns Value
-    ext_func Uint64(val: U64) returns Value
-    ext_func Float(val: F32) returns Value
-    ext_func Boolean(val: Bool) returns Value
-    ext_func Func(val: Dynamic) returns Value
-    ext_func Struct(own val: StructInstance) returns Value
-    ext_func Enum(own val: EnumInstance) returns Value
-    ext_func Ref(val: Dynamic) returns Value
-    ext_func Dynamic(val: Dynamic) returns Value
-    ext_func Sbyte(val: I8) returns Value
-    ext_func Ushort(val: U16) returns Value
-    ext_func Closure(own val: InterpClosure) returns Value
-    core_func is(self: Value, other: Value) returns shallow Bool
-    func delete(own self: Value, shallow call_free: Bool)
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.interpreter.CALLABLE_BOX_MAGIC">
 <h2>CALLABLE_BOX_MAGIC</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -196,38 +96,11 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">struct InterpCallableBox {
     mut magic : U64
-    mut val : Value
+    ref mut func_def : Expr
+    ref mut env : Scope
 namespace:
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, shallow call_free: Bool)
-    func hash(self: InterpCallableBox, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.Cell">
-<h2>Cell</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct Cell {
-    mut val : Value
-namespace:
-    func clone(self: Cell) returns Cell
-    func delete(own self: Cell, shallow call_free: Bool)
-    func hash(self: Cell, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.Binding">
-<h2>Binding</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct Binding {
-    ref mut name : Str
-    ref mut cell : Cell
-    mut cell_is_local : Bool
-namespace:
-    func clone(self: Binding) returns Binding
-    func delete(own self: Binding, shallow call_free: Bool)
     func size() returns shallow USize
 }
 </code></pre>
@@ -236,15 +109,19 @@ namespace:
 <h2>HeapBinding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">struct HeapBinding {
+    ref mut ptr : U8
     mut til_type : Type
     mut own_type : OwnType
+    ref mut ctx : Context
     mut is_local : Bool
     mut is_borrowed : Bool
+    mut is_erased_dynamic : Bool
+    mut is_static_callable : Bool
     mut moved_out : Bool
+    mut is_raw_alloc : Bool
 namespace:
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, shallow call_free: Bool)
-    func hash(self: HeapBinding, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 </code></pre>
@@ -253,14 +130,9 @@ namespace:
 <h2>Scope</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">struct Scope {
-    mut bindings : Map__Str_Binding
-    mut heap_index : Map__Str_Dynamic
     mut heap_bindings : Map__Str_HeapBinding
+    mut heap_aliases : Map__Str_Str
     ref mut parent : Scope
-    mut payload_aliases : Map__Str_Str
-    mut ref_primitive_ptrs : Map__Str_Dynamic
-    mut box_owned_dynamics : Vec__DynPtrBox
-    mut box_owned_callables : Vec__DynPtrBox
     mut is_call_scope : Bool
 namespace:
     func clone(self: Scope) returns Scope
@@ -291,28 +163,76 @@ namespace:
 <pre><code class="language-til">func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.val_none">
-<h2>val_none</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func val_none() returns shallow Value
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">
 <h2>ENUM_PAYLOAD_OFFSET</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">ENUM_PAYLOAD_OFFSET is a U32
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.eval_expr">
-<h2>eval_expr</h2>
+<article class="doc-entry" id="til.src.self.interpreter.raw_type_is_prim">
+<h2>raw_type_is_prim</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">proc eval_expr(scope: Scope, e: Expr, mut ctx: Context) returns shallow Value
+<pre><code class="language-til">func raw_type_is_prim(shallow t: Type, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scalar_word_load">
+<h2>scalar_word_load</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scalar_word_load(shallow t: Type, addr: Dynamic, ctx: Context) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.field_word_type">
+<h2>field_word_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func field_word_type(shallow ft: Type, shallow field_size: USize, ctx: Context) returns Type
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scalar_block_from_word">
+<h2>scalar_block_from_word</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scalar_block_from_word(shallow t: Type, w: Dynamic, ctx: Context) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">
+<h2>DISPATCH_SCRATCH_SLOTS</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">DISPATCH_SCRATCH_SLOTS is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.WORD_RING_SLOTS">
+<h2>WORD_RING_SLOTS</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">WORD_RING_SLOTS is a U32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.raw_result_drop">
+<h2>raw_result_drop</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc raw_result_drop(shallow t: Type, raw: Dynamic, shallow return_is_ref: Bool, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scope_set_raw_owned">
+<h2>scope_set_raw_owned</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scope_set_raw_owned(scope: Scope, name: Str, raw: Dynamic, shallow t: Type, own_type: OwnType, ctx: Context, shallow borrowed: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.eval_expr_raw">
+<h2>eval_expr_raw</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">proc eval_expr_raw(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_get">
 <h2>scope_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Cell
+<pre><code class="language-til">func scope_get(mut s: Scope, name: Str, mut _err_kind: I64) returns ref Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scope_pool_drain">
+<h2>scope_pool_drain</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scope_pool_drain()
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_new">
@@ -321,28 +241,22 @@ namespace:
 <pre><code class="language-til">func scope_new(parent: Scope) returns Scope
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.scope_lookup_offset">
-<h2>scope_lookup_offset</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func scope_lookup_offset(mut s: Scope, name: Str) returns ref Dynamic
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_lookup_heap_binding">
 <h2>scope_lookup_heap_binding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">func scope_lookup_heap_binding(mut s: Scope, name: Str) returns ref HeapBinding
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.scope_insert_offset">
-<h2>scope_insert_offset</h2>
+<article class="doc-entry" id="til.src.self.interpreter.scope_read_bound_raw">
+<h2>scope_read_bound_raw</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func scope_insert_offset(mut s: Scope, name: Str, own ptr: Dynamic)
+<pre><code class="language-til">func scope_read_bound_raw(scope: Scope, name: Str, ctx: Context) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_set_heap_owned">
 <h2>scope_set_heap_owned</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func scope_set_heap_owned(mut s: Scope, name: Str, own ptr: Dynamic, shallow til_type: Type, own_type: OwnType, shallow is_local: Bool, shallow is_borrowed: Bool)
+<pre><code class="language-til">func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, shallow til_type: Type, own_type: OwnType, ctx: Context, shallow is_local: Bool, shallow is_borrowed: Bool, shallow is_erased_dynamic: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_set_heap_moved">
@@ -351,10 +265,16 @@ namespace:
 <pre><code class="language-til">func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.scope_set_owned">
-<h2>scope_set_owned</h2>
+<article class="doc-entry" id="til.src.self.interpreter.scope_new_boxed">
+<h2>scope_new_boxed</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func scope_set_owned(mut s: Scope, name: Str, mut val: Value)
+<pre><code class="language-til">func scope_new_boxed(parent: Scope) returns ref Scope
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scope_drop_owned_bindings">
+<h2>scope_drop_owned_bindings</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scope_drop_owned_bindings(s: Scope)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_free">
@@ -378,7 +298,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.ns_get">
 <h2>ns_get</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Value
+<pre><code class="language-til">func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.interpreter_free_ns">
@@ -399,24 +319,6 @@ namespace:
 <pre><code class="language-til">func str_count_at(str_base: Dynamic, ctx: Context) returns shallow USize
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.make_str_value">
-<h2>make_str_value</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func make_str_value(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.make_str_value_view">
-<h2>make_str_value_view</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func make_str_value_view(data: Dynamic, shallow len: USize, ctx: Context) returns shallow Value
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.str_view">
-<h2>str_view</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func str_view(shallow v: Value) returns shallow Str
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.interpreter.ENUM_PAYLOAD_OFFSET">
 <h2>ENUM_PAYLOAD_OFFSET</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -426,7 +328,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.read_field">
 <h2>read_field</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: USize, ctx: Context) returns shallow Value
+<pre><code class="language-til">func read_field(inst_data: Dynamic, dd: Declaration, shallow field_offset: USize, shallow field_size: USize, ctx: Context) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.interp_session_start">
@@ -515,6 +417,7 @@ namespace:
     ref mut return_type : Str
     mut nparam : USize
     ref mut param_shallows : U8
+    ref mut param_dynamics : U8
     mut return_is_shallow : Bool
     mut return_is_ref : Bool
     ref mut cif : ffi_cif
@@ -622,6 +525,18 @@ namespace:
 <pre><code class="language-til">func ffi_init_struct_defs_append(program: Expr, ctx: Context)
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.interpreter.dispatch_result_alloc">
+<h2>dispatch_result_alloc</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func dispatch_result_alloc(t: Type, ctx: Context) returns Dynamic
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.str_copy_into">
+<h2>str_copy_into</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func str_copy_into(result: Dynamic, src: Str, ctx: Context)
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.interpreter.ffi_init_scan_program">
 <h2>ffi_init_scan_program</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -638,34 +553,6 @@ namespace:
 <h2>Vec__USize</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">Vec__USize
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.Map__Str_Binding">
-<h2>Map__Str_Binding</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct Map__Str_Binding {
-    mut keys : Vec__Str
-    mut values : Vec__Binding
-namespace:
-    /// Create an empty Map of the types provided for the key and values respectively.
-    /// The key type must implement `cmp`.
-    func new() returns Map__Str_Binding
-    func len(self: Map__Str_Binding) returns shallow USize
-    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
-    func clear(mut self: Map__Str_Binding)
-    /// True if a value exists for the given key.
-    func has(self: Map__Str_Binding, key: Str) returns shallow Bool
-    /// Return a ref to the value for `key`. Throws KeyNotFound if
-    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
-    /// on a missing key.
-    func get(self: Map__Str_Binding, key: Str, mut _err_kind: I64) returns ref Binding
-    /// Insert or overwrite the value for `key`. The value is owned.
-    func set(mut self: Map__Str_Binding, key: Str, own val: Binding)
-    func delete(own self: Map__Str_Binding, shallow call_free: Bool)
-    func clone(self: Map__Str_Binding) returns Map__Str_Binding
-    func hash(self: Map__Str_Binding, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Map__Str_HeapBinding">
@@ -689,6 +576,8 @@ namespace:
     func get(self: Map__Str_HeapBinding, key: Str, mut _err_kind: I64) returns ref HeapBinding
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
     func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
@@ -754,6 +643,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DynPtrBox, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DynPtrBox, shallow n: USize) returns Vec__DynPtrBox
@@ -779,93 +670,6 @@ namespace:
     func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.interpreter.Vec__Binding">
-<h2>Vec__Binding</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">struct Vec__Binding {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0-&gt;1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__Binding
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0-&gt;1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__Binding
-    func len(self: Vec__Binding) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__Binding)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__Binding, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__Binding, own val: Binding)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__Binding, own other: Vec__Binding)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Binding, mut other: Vec__Binding)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi &lt; len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__Binding, i: USize) returns ref Binding
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__Binding, i: USize, mut _err_kind: I64) returns ref Binding
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__Binding) returns Binding
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__Binding, shallow n: USize) returns Vec__Binding
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__Binding, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i &lt; self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__Binding, shallow i: USize, own val: Binding)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Binding, shallow i: USize, own val: Binding, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__Binding, mut src: Vec__Binding, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__Binding, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__Binding) returns Vec__Binding
     func size() returns shallow USize
 }
 </code></pre>
@@ -928,6 +732,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__HeapBinding, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__HeapBinding, shallow n: USize) returns Vec__HeapBinding

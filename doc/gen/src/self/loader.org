@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-b5c4ff835
+#+SUBTITLE: til 0.0.1-c545271f6
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -369,6 +369,8 @@ namespace:
     func get(self: Map__Str_DeclRef, key: Str, mut _err_kind: I64) returns ref priv___src_self_loader_til__DeclRef
     /// Insert or overwrite the value for `key`. The value is owned.
     func set(mut self: Map__Str_DeclRef, key: Str, own val: priv___src_self_loader_til__DeclRef)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_DeclRef, key: Str) returns shallow Bool
     func delete(own self: Map__Str_DeclRef, shallow call_free: Bool)
     func clone(self: Map__Str_DeclRef) returns Map__Str_DeclRef
     func hash(self: Map__Str_DeclRef, hasher: HashFn) returns shallow U64
@@ -438,6 +440,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ProgramUnit) returns ProgramUnit
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__ProgramUnit, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ProgramUnit, shallow n: USize) returns Vec__ProgramUnit
@@ -529,6 +533,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__ImportCheckEntry) returns priv___src_self_loader_til__ImportCheckEntry
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__ImportCheckEntry, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__ImportCheckEntry, shallow n: USize) returns Vec__ImportCheckEntry
@@ -620,6 +626,8 @@ namespace:
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
     func pop(mut self: Vec__DeclRef) returns priv___src_self_loader_til__DeclRef
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DeclRef, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     func take_prefix(mut self: Vec__DeclRef, shallow n: USize) returns Vec__DeclRef

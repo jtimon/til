@@ -111,6 +111,7 @@
 *** does_throw := false
 *** is_bang := false
 *** own_args : U64 = 0
+*** keep_outer_args : U64 = 0
 *** swap_replace := false
 *** til_type := Type.Unknown
 ** LiteralNumData: StructDef
@@ -149,6 +150,7 @@
 *** total_size : USize = 0
 *** align : USize = 1
 *** fields := Vec(FieldLayout).new()
+*** is_interface := false
 ** AssignData: StructDef
 *** name := ""
 *** save_old_delete := false
@@ -157,6 +159,7 @@
 ** FieldAssignData: StructDef
 *** name := ""
 *** save_old_delete := false
+*** transfers_own := false
 ** ForInData: StructDef
 *** name := ""
 *** is_mut := false
@@ -245,6 +248,7 @@
 *** written := false
 *** mut_explicit := false
 *** orig_name := ""
+*** dynvec_elem := ""
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -282,23 +286,23 @@
 *** anon_type_counter : I64 = 0
 *** compile_mode := false
 *** constfolder_foldables := Map(Str, FuncType).new()
-*** constfolder_known := Map(Str, Value).new()
+*** ref constfolder_known : Scope = NULL
 *** constfolder_assigned := Set(Str).new()
 *** has_return := false
 *** has_break := false
 *** has_continue := false
-*** return_value := Value.None
+*** ref return_value : Dynamic = NULL
 *** interp_ret_is_ref := false
+*** ref interp_ret_dest : Dynamic = NULL
+*** ref interp_ret_type : Str = NULL
+*** interp_ret_own_type := OwnType.Shallow
 *** constfold_active := false
 *** constfold_aborted := false
-*** ns_fields := Map(Str, Value).new()
-*** ns_keys := Vec(Dynamic).new()
+*** ref ns_fields : Scope = NULL
 *** ns_inited := false
 *** imported := Map(Str, ImportUnit).new()
 *** check_unused_imports := false
-*** import_use_edges := Set(Str).new()
-*** imports_init_seed_done := Set(Str).new()
-*** ... (60 more)
+*** ... (62 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -372,7 +376,14 @@
 *** skip_scope_delete := false
 *** is_heap := false
 *** dtor_transfer := false
+*** shallow_copy_transfer := false
 *** raw_alloc := false
+** GcCfgBlock: StructDef
+*** ref body : Expr = NULL
+*** start : I32 = 0
+*** end : I32 = 0
+*** is_root := false
+*** succs := Vec(I32).new()
 * builder
 ** CollectionInfo: StructDef
 *** ref type_name : Str = NULL
@@ -403,66 +414,25 @@
 ** DocCatalog: StructDef
 *** entries := Vec(DocEntry).new()
 * interpreter
-** StructInstance: StructDef
-*** ref struct_name : Str = NULL
-*** is_str := false
-*** is_str_container := false
-*** ref ctx : Context = NULL
-*** own data : U8 = 0
-*** borrowed := false
-** EnumInstance: StructDef
-*** ref enum_name : Str = NULL
-*** own data : U8 = 0
-*** data_size : USize = 0
-*** borrowed := false
-*** is_str := false
-*** ref ctx : Context = NULL
-** InterpClosure: StructDef
-*** ref func_def : Expr = NULL
-*** ref env : Scope = NULL
-*** borrowed := false
-** Value: EnumDef
-*** None
-*** Int:I64
-*** Byte:U8
-*** Short:I16
-*** Int32:I32
-*** Uint32:U32
-*** Uint64:U64
-*** Float:F32
-*** Boolean:Bool
-*** Func:Dynamic
-*** Struct:StructInstance
-*** Enum:EnumInstance
-*** Ref:Dynamic
-*** Dynamic:Dynamic
-*** Sbyte:I8
-*** Ushort:U16
-*** Closure:InterpClosure
 ** InterpCallableBox: StructDef
 *** magic : U64 = 0
-*** val := Value.None
-** Cell: StructDef
-*** val := Value.None
-** Binding: StructDef
-*** ref name : Str = NULL
-*** ref cell : Cell = NULL
-*** cell_is_local := false
+*** ref func_def : Expr = NULL
+*** ref env : Scope = NULL
 ** HeapBinding: StructDef
+*** ref ptr : U8 = NULL
 *** til_type := Type.Unknown
 *** own_type := OwnType.Shallow
+*** ref ctx : Context = NULL
 *** is_local := false
 *** is_borrowed := false
+*** is_erased_dynamic := false
+*** is_static_callable := false
 *** moved_out := false
+*** is_raw_alloc := false
 ** Scope: StructDef
-*** bindings := Map(Str, Binding).new()
-*** heap_index := Map(Str, Dynamic).new()
 *** heap_bindings := Map(Str, HeapBinding).new()
+*** heap_aliases := Map(Str, Str).new()
 *** ref parent : Scope = NULL
-*** payload_aliases := Map(Str, Str).new()
-*** ref_primitive_ptrs := Map(Str, Dynamic).new()
-*** box_owned_dynamics := Vec(DynPtrBox).new()
-*** box_owned_callables := Vec(DynPtrBox).new()
 *** is_call_scope := false
 ** InterpSession: StructDef
 *** ref global : Scope = NULL
@@ -481,6 +451,7 @@
 *** ref return_type : Str = NULL
 *** nparam : USize = 0
 *** ref param_shallows : U8 = NULL
+*** ref param_dynamics : U8 = NULL
 *** return_is_shallow := false
 *** return_is_ref := false
 *** ref cif : ffi_cif = NULL
