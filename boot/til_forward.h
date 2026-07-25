@@ -3532,6 +3532,7 @@ void priv___src_self_interpreter_til__eval_fcall(Scope * scope, Expr * stmt, FCa
 void priv___src_self_interpreter_til__eval_if(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_while(Scope * scope, Expr * stmt, Context * ctx);
 void priv___src_self_interpreter_til__eval_body(Scope * scope, Expr * body, Context * ctx);
+Type * priv___src_self_interpreter_til__interp_param_bind_type(Declaration * param, Type * source_type, Bool is_variadic, TypeScope * scope);
 void * priv___src_self_interpreter_til__eval_user_func_call(Scope * caller_scope, Expr * e, Expr * func_def, Scope * parent_scope, Context * ctx, void * destination);
 void * priv___src_self_interpreter_til__eval_callable_call(Scope * caller_scope, Expr * e, void * callable, Context * ctx, void * destination);
 void * priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Context * ctx, void * destination);

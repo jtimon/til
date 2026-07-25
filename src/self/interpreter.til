@@ -2191,6 +2191,18 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
     }
 }
 
+priv interp_param_bind_type := func(param: Declaration, source_type: Type, is_variadic: Bool, scope: TypeScope) returns Type {
+    if is_variadic { return source_type.clone() }
+    switch param.til_type {
+    case Type.Custom(name):
+        ref binding : TypeBinding = scope.get_binding(name)
+        if binding.is_null() { panic("interpreter parameter type is not registered: ", name) }
+        return binding.type.clone()
+    case:
+        return param.til_type.clone()
+    }
+}
+
 priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, parent_scope: Scope, mut ctx: Context, destination: Dynamic = NULL) returns Dynamic {
     ref mut c : Context = ctx
     if func_def.children.len() == 0 {
@@ -2247,8 +2259,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     }
                 } else if arg_transfers {
                     mut owned_raw : Dynamic = source_raw
-                    mut bind_type := source_hb.til_type.clone()
-                    if is_variadic_param.not().and(param.explicit_type.len().gt(0)) { bind_type = type_from_name_init(param.explicit_type, ctx.scope) }
+                    bind_type := interp_param_bind_type(param, source_hb.til_type, is_variadic_param, ctx.scope)
                     if source_hb.is_borrowed {
                         scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type, param.own_type, source_hb.ctx, false, true, source_hb.is_erased_dynamic)
                         continue
@@ -2270,8 +2281,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     }
                     scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type, param.own_type, ctx)
                 } else {
-                    mut bind_type := source_hb.til_type.clone()
-                    if is_variadic_param.not().and(param.explicit_type.len().gt(0)) { bind_type = type_from_name_init(param.explicit_type, ctx.scope) }
+                    bind_type := interp_param_bind_type(param, source_hb.til_type, is_variadic_param, ctx.scope)
                     if source_hb.til_type.is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
                         mut pointed : Dynamic = source_raw
                         if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
@@ -2328,8 +2338,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                         scope_set_heap_owned(call_scope, param.name, dynamic_slot, Type.Dynamic, param.own_type, ctx, true)
                     }
                 } else {
-                    mut bind_type := param.til_type.clone()
-                    if is_variadic_param.not().and(param.explicit_type.len().gt(0)) { bind_type = type_from_name_init(param.explicit_type, ctx.scope) }
+                    bind_type := interp_param_bind_type(param, param.til_type, is_variadic_param, ctx.scope)
                     mut borrowed := false
                     if arg_is_ref {
                         borrowed = true
@@ -2374,8 +2383,8 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         c.interp_ret_type = ret_fd.return_type
         c.interp_ret_own_type = ret_fd.return_own_type
         if ret_fd.return_type.len() > 0 {
-            declared_return_type := type_from_name_init(ret_fd.return_type, ctx.scope)
-            if til_type_name_c(declared_return_type) != til_type_name_c(e.til_type()) { use_return_destination = false }
+            ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type)
+            if declared_return_name != til_type_name_c(e.til_type()) { use_return_destination = false }
         }
         if e.til_type().is(Type.Unknown).and(ret_fd.return_type.len() > 0) {
             e.set_til_type(type_from_name_init(ret_fd.return_type, ctx.scope))
