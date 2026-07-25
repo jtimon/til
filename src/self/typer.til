@@ -6412,6 +6412,191 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
     return false
 }
 
+// --- Set-building mirrors of the per-name scanners above (perf) ---
+// The garbager's per-local loops asked expr_uses_var / expr_contains_decl
+// / expr_used_in_nested_func / expr_transfers_own once per (statement,
+// name): O(locals x stmts x subtree), the single largest cost in a
+// self-translate profile. These collectors walk a statement ONCE and
+// record every name the predicate would answer true for, so those loops
+// become set probes. Each mirror must stay in lockstep with its
+// predicate above; the recursion cuts (FuncDef opacity) are identical.
+
+expr_collect_uses := func(e: Expr, mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case NodeType.Ident(id):
+        if out.has(id.ident_name()).not() { out.add(own id.ident_name().clone()) }
+    case NodeType.Assign(asgn):
+        if out.has(asgn.name).not() { out.add(own asgn.name.clone()) }
+    case:
+    }
+    for e_i : Expr in e.children { expr_collect_uses(e_i, out) }
+}
+
+expr_collect_decls := func(e: Expr, mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case NodeType.Decl(dd):
+        if out.has(dd.name).not() { out.add(own dd.name.clone()) }
+    case:
+    }
+    for e_i : Expr in e.children { expr_collect_decls(e_i, out) }
+}
+
+// expr_used_in_nested_func's shadow rule, applied at add time so the
+// FuncDef body's uses never need materializing separately.
+priv nested_uses_add := func(name: Str, params: Vec(Declaration), mut out: Set(Str)) {
+    for p : Declaration in params { if p.name == name { return } }
+    if out.has(name).not() { out.add(own name.clone()) }
+}
+
+priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case NodeType.Ident(id):
+        nested_uses_add(id.ident_name(), params, out)
+    case NodeType.Assign(asgn):
+        nested_uses_add(asgn.name, params, out)
+    case:
+    }
+    for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, out) }
+}
+
+expr_collect_nested_uses := func(e: Expr, mut out: Set(Str)) {
+    switch e.node_type {
+    case NodeType.FuncDef(fdef):
+        if e.children.len() > 0 {
+            expr_collect_uses_excluding(e.children[0], fdef.params, out)
+        }
+        return
+    case:
+    }
+    for e_i : Expr in e.children { expr_collect_nested_uses(e_i, out) }
+}
+
+// Mirrors check_own_args: every arg name in an own param position.
+priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.params.len() == 0 { return }
+        for i in 0..fd.params.len() {
+            if i + 1 >= fcall.children.len() { return }
+            ref p : Declaration = fd.params[i]
+            if p.own_type.is(OwnType.Own) {
+                ref arg : Expr = fcall.children[i + 1]
+                switch arg.node_type {
+                case NodeType.Ident(ai):
+                    if out.has(ai.ident_name()).not() { out.add(own ai.ident_name().clone()) }
+                case:
+                }
+            }
+        }
+    case:
+    }
+}
+
+// Mirrors fcall_has_own_arg: one signature/ctor-field derivation per call
+// SITE (with its scope lookups) instead of one per (site, name) query.
+priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out: Set(Str)) {
+    if fcall.node_type.is(NodeType.FCall).not() { return }
+    if fcall.children.len() < 2 { return }
+    // Struct constructor
+    fcall_sname := til_type_name(fcall.til_type())
+    if fcall_sname.len() > 0 {
+        switch fcall.children[0].node_type {
+        case NodeType.Ident(c0s):
+            if c0s.ident_name() == fcall_sname {
+                ref sdef : Expr = scope.get_struct(fcall_sname)
+                if sdef.is_null().not() {
+                    switch sdef.node_type {
+                    case NodeType.StructDef(fcoa_sdd):
+                        mut fi : USize = 0
+                        for fld_decl : Declaration in fcoa_sdd.fields {
+                            arg_idx := fi + 1
+                            fi = fi + 1
+                            if arg_idx < fcall.children.len() {
+                                ref arg : Expr = fcall.children[arg_idx]
+                                switch arg.node_type {
+                                case NodeType.Ident(an):
+                                    if fld_decl.own_type.is(OwnType.Ref).not() {
+                                        if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                                            if out.has(an.ident_name()).not() { out.add(own an.ident_name().clone()) }
+                                        }
+                                    }
+                                case:
+                                }
+                            }
+                        }
+                    case:
+                    }
+                }
+            }
+        case:
+        }
+    }
+    // Direct call
+    switch fcall.children[0].node_type {
+    case NodeType.Ident(fn_name):
+        ref fb : TypeBinding = scope.get_binding(fn_name.ident_name())
+        if fb.is_null().not() {
+            ref fb_fd : Expr = scope.lookup_func(fb.name)
+            if fb_fd.is_null() { return }
+            collect_own_arg_names(fb_fd, fcall, out)
+        }
+        return
+    case NodeType.FieldAccess(method):
+        // Namespace method call
+        if fa_is_ns(fcall.children[0], scope) {
+            ref type_node : Expr = fcall.children[0].children[0]
+            switch type_node.node_type {
+            case NodeType.Ident(tn):
+                ref ns_sdef : Expr = scope.get_struct(tn.ident_name())
+                if ns_sdef.is_null() { return }
+                ref fd : Declaration = def_ns_get(ns_sdef, method.field_access_name())
+                if fd.is_null().not() {
+                    if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
+                        collect_own_arg_names(fd.default_value, fcall, out)
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+}
+
+// Mirrors expr_transfers_own for all names at once. The predicate's ctx
+// parameter is recursion-only, so the collector does not need one.
+expr_collect_transfers := func(e: Expr, scope: TypeScope, mut out: Set(Str)) {
+    switch e.node_type {
+    case NodeType.FuncDef(fd):
+        for cap : Declaration in fd.captures {
+            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
+        }
+        return
+    case NodeType.FCall(fcd):
+        if fcd.swap_replace.and(e.children.len().gte(3)) {
+            switch e.children[2].node_type {
+            case NodeType.Ident(src):
+                if out.has(src.ident_name()).not() { out.add(own src.ident_name().clone()) }
+            case:
+            }
+        }
+    case:
+    }
+    fcall_collect_own_arg_names(e, scope, out)
+    if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
+        if e.children.len() > 1 {
+            switch e.children[1].node_type {
+            case NodeType.Ident(ei):
+                if out.has(ei.ident_name()).not() { out.add(own ei.ident_name().clone()) }
+            case:
+            }
+        }
+    }
+    for e_i : Expr in e.children { expr_collect_transfers(e_i, scope, out) }
+}
+
 priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
     if e.node_type.is_literal_null() { return true }
     if e.node_type.is(NodeType.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }

@@ -303,9 +303,11 @@ typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
+typedef struct priv___src_self_garbager_til__StmtFacts priv___src_self_garbager_til__StmtFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__I32 Vec__I32;
 typedef struct Array__U8 Array__U8;
+typedef struct Vec__StmtFacts Vec__StmtFacts;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
@@ -842,6 +844,14 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
 } priv___src_self_garbager_til__LocalInfo;
 
 
+typedef struct priv___src_self_garbager_til__StmtFacts {
+    Set__Str uses;
+    Set__Str decls;
+    Set__Str nested;
+    Set__Str transfers;
+} priv___src_self_garbager_til__StmtFacts;
+
+
 typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     Str owner;
     Str borrower;
@@ -860,6 +870,13 @@ typedef struct Array__U8 {
     U8 *data;
     USize cap;
 } Array__U8;
+
+
+typedef struct Vec__StmtFacts {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__StmtFacts;
 
 
 typedef struct Vec__GcBorrowEdge {
@@ -2614,7 +2631,6 @@ Bool priv___src_self_typer_til__type_has_to_str(TypeScope * scope, Str * type_na
 Bool priv___src_self_typer_til__expr_contains_fcall(Expr * e);
 Bool expr_uses_var(Expr * e, Str * name);
 Bool expr_contains_decl(Expr * e, Str * name);
-Bool expr_used_in_nested_func(Expr * e, Str * name);
 Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
 Expr * make_closure_delete_call(Str * var_name, Expr * src);
@@ -2631,6 +2647,14 @@ Bool priv___src_self_typer_til__is_enum_variant_ctor_with_payload(Expr * expr, T
 Bool priv___src_self_typer_til__check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool priv___src_self_typer_til__fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope, Context * ctx);
+void expr_collect_uses(Expr * e, Set__Str * out);
+void expr_collect_decls(Expr * e, Set__Str * out);
+void priv___src_self_typer_til__nested_uses_add(Str * name, Vec__Declaration * params, Set__Str * out);
+void priv___src_self_typer_til__expr_collect_uses_excluding(Expr * e, Vec__Declaration * params, Set__Str * out);
+void expr_collect_nested_uses(Expr * e, Set__Str * out);
+void priv___src_self_typer_til__collect_own_arg_names(Expr * fdef, Expr * fcall, Set__Str * out);
+void priv___src_self_typer_til__fcall_collect_own_arg_names(Expr * fcall, TypeScope * scope, Set__Str * out);
+void expr_collect_transfers(Expr * e, TypeScope * scope, Set__Str * out);
 Bool priv___src_self_typer_til__expr_is_borrow_source(Expr * e, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_stable_field_base(Expr * e, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_ref_decl_source(Expr * e, TypeScope * scope);
@@ -2832,6 +2856,7 @@ Bool priv___src_self_garbager_til__gc_flow_owned_at_stmt(Expr * body, priv___src
 void priv___src_self_garbager_til__gc_flow_dump(Context * ctx, Vec__GcCfgBlock * blocks, Vec__LocalInfo * locals, TypeScope * scope);
 Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
 Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
+Vec__Str * priv___src_self_garbager_til__collect_hoist_taint_facts(Str * target, Vec__Expr * preceding, Vec__StmtFacts * facts);
 Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__clone_arg_may_be_view(priv___src_self_garbager_til__LocalInfo * local);
 Bool priv___src_self_garbager_til__str_rhs_provably_owning(Expr * rhs);
@@ -2840,6 +2865,11 @@ Bool priv___src_self_garbager_til__expr_has_unproven_str_def(Expr * e, Str * nam
 Bool priv___src_self_garbager_til__str_clone_to_move_provably_safe(Str * name, Vec__Expr * preceding);
 Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__Expr * preceding);
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
+priv___src_self_garbager_til__StmtFacts * priv___src_self_garbager_til__StmtFacts_clone(priv___src_self_garbager_til__StmtFacts * self);
+void priv___src_self_garbager_til__StmtFacts_delete(priv___src_self_garbager_til__StmtFacts * self, Bool call_free);
+U64 priv___src_self_garbager_til__StmtFacts_hash(priv___src_self_garbager_til__StmtFacts * self, HashFn hasher);
+USize priv___src_self_garbager_til__StmtFacts_size(void);
+Vec__StmtFacts * priv___src_self_garbager_til__body_stmt_facts(Expr * body, TypeScope * scope, Bool with_transfers);
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
 Str * priv___src_self_garbager_til__enum_ref_payload_borrow_src(Expr * e, TypeScope * scope);
 Str * priv___src_self_garbager_til__expr_root_ident_name(Expr * e);
@@ -2895,6 +2925,13 @@ void Array__U8_set(Array__U8 * self, USize i, U8 * val, I64 * _err_kind);
 void Array__U8_delete(Array__U8 * self, Bool call_free);
 Array__U8 * Array__U8_clone(Array__U8 * self);
 USize Array__U8_size(void);
+Vec__StmtFacts * Vec__StmtFacts_new(void);
+void Vec__StmtFacts_clear(Vec__StmtFacts * self);
+void Vec__StmtFacts_push(Vec__StmtFacts * self, priv___src_self_garbager_til__StmtFacts * val);
+priv___src_self_garbager_til__StmtFacts * Vec__StmtFacts_unsafe_get(Vec__StmtFacts * self, USize * i);
+void Vec__StmtFacts_delete(Vec__StmtFacts * self, Bool call_free);
+Vec__StmtFacts * Vec__StmtFacts_clone(Vec__StmtFacts * self);
+USize Vec__StmtFacts_size(void);
 Vec__GcBorrowEdge * Vec__GcBorrowEdge_new(void);
 USize Vec__GcBorrowEdge_len(Vec__GcBorrowEdge * self);
 void Vec__GcBorrowEdge_clear(Vec__GcBorrowEdge * self);

@@ -4176,7 +4176,13 @@ priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
         if type_hb.is_null().not().and(heap_type_is_callable(hb_type(type_hb))) {
             ref type_def : Expr = callable_raw_func_def(to_ptr(type_hb.ptr))
             if type_def.node_type.is(NodeType.StructDef).or(type_def.node_type.is(NodeType.EnumDef)) {
-                return interp_fa_is_ns_inner(scope, e, type_ident.ident_name(), ctx)
+                // The scope walk just resolved the def; hand it straight to
+                // the decision leaf instead of re-resolving the name through
+                // the registry (and, for alias names the registry lacks, a
+                // SECOND full scope walk) inside interp_fa_is_ns_inner. The
+                // walked def also respects shadowing, which the registry
+                // probe by name cannot.
+                return interp_fa_is_ns_def(obj_expr, e, type_ident.ident_name(), type_def)
             }
         }
     case:

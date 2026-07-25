@@ -766,6 +766,41 @@ priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(
     return tainted
 }
 
+// Facts-probing twin of collect_hoist_taint for the extend_hoist pass:
+// preceding is index-aligned with facts (the whole body). A statement's
+// uses set differs from its initializer's only by the Decl/Assign target
+// name itself, which both query paths already exclude (hname==target
+// skip; already-tainted skip), so probing stmt-level uses is exact.
+priv collect_hoist_taint_facts := func(target: Str, preceding: Vec(Expr), facts: Vec(StmtFacts)) returns Vec(Str) {
+    mut tainted := Vec(Str).new()
+    mut changed := true
+    while changed {
+        changed = false
+        for pi in 0..preceding.len() {
+            ref pst : Expr = preceding.unsafe_get(pi)
+            if pst.children.len() < 1 { continue }
+            mut hname := ""
+            switch pst.node_type {
+            case NodeType.Decl(dd): hname = dd.name
+            case NodeType.Assign(ad): hname = ad.name
+            case:
+            }
+            if hname.len() == 0 { continue }
+            if hname == target { continue }
+            mut already := false
+            for t : Str in tainted { if t == hname { already = true } }
+            if already { continue }
+            ref fp : StmtFacts = facts.unsafe_get(pi)
+            mut dep := fp.uses.has(target)
+            if dep.not() {
+                for t : Str in tainted { if fp.uses.has(t) { dep = true } }
+            }
+            if dep { tainted.push(own hname.clone()); changed = true }
+        }
+    }
+    return tainted
+}
+
 priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec(Expr)) returns Bool {
     if expr_uses_var(rhs, vname) { return true }
     tainted := collect_hoist_taint(vname, preceding)
@@ -896,7 +931,34 @@ is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     return is_pod_enum_clone_of(e, scope.get_struct(tname))
 }
 
+// Per-statement name facts for one body (perf): each set is built in a
+// single walk (the expr_collect_* mirrors in typer.til) and probed by
+// the per-local loops below, which previously rescanned every statement
+// subtree once per (statement, local-name) query -- the top cost of a
+// self-translate profile. scope may be NULL when with_transfers=false
+// (the transfers walk is the only scope consumer).
+priv StmtFacts := struct {
+    uses := Set(Str).new()
+    decls := Set(Str).new()
+    nested := Set(Str).new()
+    transfers := Set(Str).new()
+}
+
+priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool) returns Vec(StmtFacts) {
+    mut facts := Vec(StmtFacts).new()
+    for stmt : Expr in body.children {
+        mut f := StmtFacts()
+        expr_collect_uses(stmt, f.uses)
+        expr_collect_decls(stmt, f.decls)
+        expr_collect_nested_uses(stmt, f.nested)
+        if with_transfers { expr_collect_transfers(stmt, scope, f.transfers) }
+        facts.push(own f)
+    }
+    return facts
+}
+
 priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec(LocalInfo)) {
+    facts := body_stmt_facts(body, scope, true)
     for b in scope.bindings.values {
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
@@ -920,7 +982,8 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         }
         if decl_idx == -1 {
             for j in 0..body.children.len() {
-                if expr_contains_decl(body.children[j], b.name) {
+                ref fjd : StmtFacts = facts.unsafe_get(j)
+                if fjd.decls.has(b.name) {
                     decl_idx = j.to_i32()
                     break
                 }
@@ -936,11 +999,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         for j in scan_from..body.children.len() {
             ref stmt : Expr = body.children[j]
             if is_compile_directive(stmt) { continue }
-            if expr_uses_var(stmt, b.name) {
+            ref fju : StmtFacts = facts.unsafe_get(j)
+            if fju.uses.has(b.name) {
                 last_use = j.to_i32()
             }
             if own_transfer == -1 {
-                if expr_transfers_own(stmt, b.name, scope, ctx) {
+                if fju.transfers.has(b.name) {
                     own_transfer = j.to_i32()
                 }
             }
@@ -958,7 +1022,8 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
                 if is_compile_directive(body.children[j]) { continue }
-                if expr_used_in_nested_func(body.children[j], b.name) {
+                ref fjn : StmtFacts = facts.unsafe_get(j)
+                if fjn.nested.has(b.name) {
                     skip_scope_delete = true
                     break
                 }
@@ -1147,6 +1212,7 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: 
 
 priv collect_borrow_edges := func(body: Expr, scope: TypeScope) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
+    facts := body_stmt_facts(body, scope, false)
     body_last := body.children.len().sub(1).to_i32()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
@@ -1205,7 +1271,8 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope) returns Vec(GcBo
         // own extended last_use during propagation.
         mut ref_last : I32 = -1
         for j in i.add(1)..body.children.len() {
-            if expr_uses_var(body.children[j], dd_name) {
+            ref fjr : StmtFacts = facts.unsafe_get(j)
+            if fjr.uses.has(dd_name) {
                 ref_last = j.to_i32()
             }
         }
@@ -1301,15 +1368,17 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     // over-eager taint must not spuriously flag a transfer (see the
     // call site).
     mut edges := Vec(GcBorrowEdge).new()
+    facts := body_stmt_facts(body, NULL, false)
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
-        tainted := collect_hoist_taint(local.name, body.children)
+        tainted := collect_hoist_taint_facts(local.name, body.children, facts)
         if tainted.len() == 0 { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
             if is_compile_directive(body.children[j]) { continue }
+            ref fjv : StmtFacts = facts.unsafe_get(j)
             for t : Str in tainted {
-                if expr_uses_var(body.children[j], t) { view_last = j.to_i32() }
+                if fjv.uses.has(t) { view_last = j.to_i32() }
             }
         }
         if view_last >= 0 { gc_add_borrow_edge(edges, local.name, "", view_last) }
