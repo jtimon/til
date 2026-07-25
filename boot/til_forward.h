@@ -466,6 +466,7 @@ typedef struct FCallData {
     Bool swap_replace;
     Type til_type;
     Bool noreturn_call;
+    U64 ref_args;
 } FCallData;
 
 
@@ -1950,7 +1951,7 @@ void priv___src_self_parser_til__set_decl_type(Declaration * d, Str * name);
 Str * priv___src_self_parser_til__anon_decl_key(Str * dname, Declaration * d);
 Str * priv___src_self_parser_til__anon_def_key(Expr * def);
 Str * priv___src_self_parser_til__anon_lift(priv___src_self_parser_til__Parser * p, Expr * def, U32 line, U32 col);
-void priv___src_self_parser_til__type_gen_lift(priv___src_self_parser_til__Parser * p, Str * name, Vec__Str * args, Str * mangled, U32 line, U32 col);
+void priv___src_self_parser_til__type_gen_lift(priv___src_self_parser_til__Parser * p, Str * name, Vec__Str * args, Vec__Bool * arg_refs, Str * mangled, U32 line, U32 col);
 Bool priv___src_self_parser_til__parser_has_active_type_param(priv___src_self_parser_til__Parser * p, Str * name);
 Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Parser * p);
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
@@ -1996,6 +1997,9 @@ NodeType * literal_num_node(Str * text);
 NodeType * field_access_node(Str * name);
 void set_own_arg(Expr * fcall, USize arg_index);
 Bool get_own_arg(Expr * fcall, USize arg_index);
+void set_ref_arg(Expr * fcall, USize arg_index);
+Bool get_ref_arg(Expr * fcall, USize arg_index);
+Bool fcall_has_ref_args(Expr * fcall);
 void set_keep_outer_arg(Expr * fcall, USize arg_index);
 Bool get_keep_outer_arg(Expr * fcall, USize arg_index);
 Str * func_type_name(FuncType * ft);
@@ -2348,13 +2352,13 @@ void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_pre
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec__Expr * top_level);
-Str * priv___src_self_initer_til__init_subst_ident_name(Map__Str_Expr * subs, Str * name);
-void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map__Str_Expr * subs);
-void priv___src_self_initer_til__init_subst_default_slot(Declaration * holder, Map__Str_Expr * subs);
-void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map__Str_Expr * subs);
-void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map__Str_Expr * subs);
-void priv___src_self_initer_til__init_subst_func_params(FunctionDef * fdd, Map__Str_Expr * subs);
-void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map__Str_Expr * subs);
+Str * priv___src_self_initer_til__init_subst_ident_name(Map__Str_Expr * subs, Set__Str * ref_params, Str * name);
+void priv___src_self_initer_til__init_substitute_idents(Expr * e, Map__Str_Expr * subs, Set__Str * ref_params);
+void priv___src_self_initer_til__init_subst_default_slot(Declaration * holder, Map__Str_Expr * subs, Set__Str * ref_params);
+void priv___src_self_initer_til__init_subst_struct_params(StructDef * sdef, Map__Str_Expr * subs, Set__Str * ref_params);
+void priv___src_self_initer_til__init_subst_enum_params(EnumDef * edef, Map__Str_Expr * subs, Set__Str * ref_params);
+void priv___src_self_initer_til__init_subst_func_params(FunctionDef * fdd, Map__Str_Expr * subs, Set__Str * ref_params);
+void priv___src_self_initer_til__init_substitute_type_params(Expr * def, Map__Str_Expr * subs, Set__Str * ref_params);
 I32 priv___src_self_initer_til__init_macro_cond_eval(Expr * cond);
 Expr * priv___src_self_initer_til__init_macro_pick_return(Expr * body, Map__Str_Expr * subs);
 Bool priv___src_self_initer_til__init_is_type_gen_macro_def(Expr * fdef);

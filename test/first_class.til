@@ -1003,3 +1003,64 @@ test_generic_func_angle_swap := test() {
     assert_eq(I64, x, 2)
     assert_eq(I64, y, 1)
 }
+
+// --- #320 Gap 1: ref-qualified type arguments ---
+// One macro serves owned AND borrowed instantiations: `make_optq(ref X)`
+// marks the substituted payload borrowed (stage-a ref-payload machinery)
+// and mangles the distinct type `make_optq__ref_X`. Self-references
+// `make_optq(T)` inside the body land on the same instantiation in both
+// type position (mangled-name segment surgery) and value position (the
+// ref bit rides the substituted call).
+OptQBlob := struct {
+    n := 0
+namespace:
+    eq := func(a: OptQBlob, b: OptQBlob) returns Bool { return a.n.eq(b.n) }
+    to_str := func(self: OptQBlob) returns Str { return self.n.to_str() }
+}
+
+make_optq := macro(T: Type) returns EnumDef {
+    return enum {
+        NoneQ
+        SomeQ: T
+    namespace:
+        some_str := func(self: make_optq(T)) returns Str {
+            switch self {
+            case make_optq(T).SomeQ(p): return p.to_str()
+            case: return "none"
+            }
+        }
+    }
+}
+
+OptQOwn := make_optq(OptQBlob)
+OptQRef := make_optq(ref OptQBlob)
+
+test_ref_type_arg_borrows := test() {
+    mut src := OptQBlob(n = 4)
+    o := OptQRef.SomeQ(src)
+    // The payload is a borrow: mutating the source is visible through it.
+    src.n = 11
+    assert_eq(Str, o.some_str(), "11")
+    assert_eq(Str, o.to_str(), format("SomeQ(", src.to_str(), ")"))
+    assert_eq(I64, src.n, 11)
+}
+
+test_ref_type_arg_distinct_from_owned := test() {
+    own_o := OptQOwn.SomeQ(OptQBlob(n = 5))
+    assert_eq(Str, own_o.some_str(), "5")
+    n := OptQRef.NoneQ
+    assert_eq(Str, n.some_str(), "none")
+}
+
+// Annotation position resolves to the SAME `__ref_X` instantiation, so
+// params can name it without going through the alias.
+optq_read := func(o: make_optq(ref OptQBlob)) returns Str {
+    return o.some_str()
+}
+
+test_ref_type_arg_annotation_position := test() {
+    src := OptQBlob(n = 7)
+    o := OptQRef.SomeQ(src)
+    assert_eq(Str, optq_read(o), "7")
+    assert_eq(I64, src.n, 7)
+}

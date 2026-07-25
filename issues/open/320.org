@@ -25,10 +25,37 @@
   (expr_root_ident_name in shape (c)). Tests:
   test_ref_payload_field_chain_borrow (test/enums.til) and the
   temporary-rejection case in test/typer_errors.til (count 164->165).
-- [ ] Gap 2 remainder: ref payloads inside template-generated enums
-  (needs Gap 1 so the substituted `Some: T` can BECOME `Some: ref X`).
-- [ ] Gap 1: qualifiers in template type args (type annotation
-  position, type-gen macro calls, direct generic funcs) + mangling.
+- [X] Gap 2 remainder: ref payloads inside template-generated enums.
+  Baked form (`Some: ref T` in the macro body) needed NOTHING beyond
+  stage a -- payload_ref survives substitution untouched (verified;
+  construction borrows and write-through works). Qualified form via
+  Gap 1 below.
+- [X] Gap 1 (type-gen macro slice): `make_opt(ref X)` in value
+  position (parse_call accepts a `ref` arg prefix ->
+  FCallData.ref_args bitmask, own_args-style) and `make_opt(ref X)` /
+  `Opt(ref X)` in type-annotation position (parse_type_ref +
+  type_gen_lift), both mangling `__ref_X` so owned and borrowed
+  instantiations are distinct deduped types. Expansion threads a
+  ref_params set through the substitution family: a payload `Some: T`
+  under ref T becomes a borrowed payload (payload_ref), a struct
+  field `x : T` becomes a ref field, `returns T` becomes
+  `returns ref X`; params need no flag (aggregates borrow by
+  default). Self-references land on the same `__ref_X` type in both
+  type position (mangled-segment surgery keeps the ref_ segment) and
+  value position (the ref bit rides the substituted call into the
+  hoist). Scope notes: uses of T that carry no ownership slot (e.g.
+  T.size()-style value uses) substitute the bare name; direct generic
+  func calls with a ref type arg panic loudly ("not yet supported",
+  the third path); any FCall still carrying a ref bit at typing is
+  rejected ("only valid on type arguments of type templates").
+  Tests: test_ref_type_arg_* in test/first_class.til, misuse case in
+  test/typer_errors.til (count 165->166).
+- [ ] Gap 1 remainder: ref type args for direct generic function
+  calls (currently a loud panic).
+- [ ] Found while testing (pre-existing, NOT ref-related): switching
+  a macro-generated enum through its ALIAS (`Opt := make_opt(I64);
+  switch o { case Opt.Some(v): }`) fails "non-exhaustive switch";
+  only in-macro self-reference patterns work. Worth its own issue.
 - [ ] Niche layout rule (see below).
 - [ ] Option in core, ala Rust.
 

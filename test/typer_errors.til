@@ -843,3 +843,8 @@ terr_ref_result_return := func(terr_rt_s: Str) returns Str {
 RefPayErrSrc := struct { n := 0 }
 RefPayErr := enum { NoneV, SomeRef: ref RefPayErrSrc }
 rp_bad := RefPayErr.SomeRef(RefPayErrSrc(n = 1))
+
+// #320: the ref argument qualifier is only valid on type arguments of
+// type templates; a surviving ref bit on an ordinary call is rejected
+ref_arg_misuse := func(x: I64) returns I64 { return x }
+rp_bad2 := ref_arg_misuse(ref 5)

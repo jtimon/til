@@ -246,6 +246,13 @@ FCallData := struct {
     // a user function shadowing e.g. `panic` no longer counts as
     // diverging unless it really is.
     noreturn_call := false
+    // #320: bitmap of `ref`-qualified TYPE arguments (`make_opt(ref T)`),
+    // mirroring own_args' indexing. Only meaningful on type-gen macro
+    // instantiations; init expansion consumes it (mangling `__ref_T` and
+    // marking substituted enum payloads / struct fields borrowed), and
+    // the typer rejects any call that still carries a bit after init.
+    // Appended at the END so the committed boot's layout stays stable.
+    ref_args : U64 = 0
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

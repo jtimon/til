@@ -2538,7 +2538,7 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // arg expression (e.g. `LiteralNum 5`). Type-position substitutions use
 // the ident name when possible, or the deterministic macro-inst arg name
 // for nested template args like `Vec(Str)`.
-priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str {
+priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Set(Str), name: Str) returns Str {
     if subs.has(name) {
         ref repl : Expr = subs[name]
         switch repl.node_type {
@@ -2567,6 +2567,11 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
         if i > 0 { out = format(out, "_") }
         ref arg : Str = args[i]
         if subs.has(arg) {
+            // #320: a ref-qualified type param keeps the instantiation's
+            // `ref_` mangle segment in self-references, so `Opt__T` under
+            // a ref T lands on `Opt__ref_X` -- the SAME type being
+            // expanded, not the owned sibling.
+            if ref_params.has(arg) { out = format(out, "ref_") }
             ref repl_arg : Expr = subs[arg]
             switch repl_arg.node_type {
             case NodeType.Ident(idn_arg):
@@ -2584,7 +2589,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), name: Str) returns Str 
     return ""
 }
 
-priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
+priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_params: Set(Str)) {
     switch e.node_type {
     case NodeType.Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
@@ -2592,7 +2597,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
         // string, not an Ident expr, so substitute it here too -- otherwise
         // T stays unresolved inside macro-templated method bodies. Then fall
         // through to recurse into the RHS value child below.
-        new_type := init_subst_ident_name(subs, dd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, dd.explicit_type)
         if new_type.len() > 0 {
             dd.explicit_type = new_type.clone()
             dd.til_type = til_type_from_explicit_type(dd.explicit_type)
@@ -2606,6 +2611,13 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
         case NodeType.Ident(idn):
             ref nm : Str = idn.ident_name()
             if subs.has(nm) {
+                // #320: replacing a ref-qualified type param used as a
+                // CALL ARGUMENT (a value-position self-reference like
+                // `Opt(T).Some(x)`) must carry the ref bit onto the call,
+                // so the later hoist mangles the same `__ref_X` type.
+                if ref_params.has(nm).and(e.node_type.is(NodeType.FCall)) {
+                    set_ref_arg(e, i)
+                }
                 // Substitute through the parent slot: Vec.set deep-deletes
                 // the old Ident, so no manual in-place rewrite is needed
                 // (issue #272; replaces the old Expr.replace_with).
@@ -2615,7 +2627,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
             }
         case:
         }
-        if replaced.not() { init_substitute_idents(c, subs) }
+        if replaced.not() { init_substitute_idents(c, subs, ref_params) }
     }
 }
 
@@ -2628,7 +2640,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
 // CHILDREN (through the parent's children.set), so slot owners replace
 // the whole Expr via plain field assignment -- the old value is
 // reclaimed by the FieldAssign's own delete (issue #272).
-priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr)) {
+priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Set(Str)) {
     mut nm := ""
     switch holder.default_value.node_type {
     case NodeType.Ident(idn): nm = Str.clone(idn.ident_name())
@@ -2637,23 +2649,28 @@ priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Exp
     if nm.len().gt(0).and(subs.has(nm)) {
         holder.default_value = subs[nm].clone()
     } else {
-        init_substitute_idents(holder.default_value, subs)
+        init_substitute_idents(holder.default_value, subs, ref_params)
     }
 }
 
-priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
+priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr), ref_params: Set(Str)) {
     for mut fd : Declaration in sdef.fields {
-        new_type := init_subst_ident_name(subs, fd.explicit_type)
+        // #320: a field typed by a ref-qualified type param becomes a ref
+        // (borrowed) field of the substituted type; with no default it is
+        // mandatory at instantiation (#242), matching hand-written ref
+        // fields.
+        if ref_params.has(fd.explicit_type) { fd.own_type = OwnType.Ref }
+        new_type := init_subst_ident_name(subs, ref_params, fd.explicit_type)
         if new_type.len() > 0 {
             fd.explicit_type = new_type.clone()
             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
         }
         if fd.default_value.is_null().not() {
-            init_subst_default_slot(fd, subs)
+            init_subst_default_slot(fd, subs, ref_params)
         }
     }
     for mut nd : Declaration in sdef.ns_decls {
-        new_type := init_subst_ident_name(subs, nd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, nd.explicit_type)
         if new_type.len() > 0 {
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
@@ -2664,25 +2681,29 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr)) {
             // body) so `T` resolves inside methods, not just in struct fields.
             // Non-FuncDef ns defaults (constants) only need Ident substitution.
             if nd.default_value.node_type.is(NodeType.FuncDef) {
-                init_substitute_type_params(nd.default_value, subs)
+                init_substitute_type_params(nd.default_value, subs, ref_params)
             } else {
-                init_subst_default_slot(nd, subs)
+                init_subst_default_slot(nd, subs, ref_params)
             }
         }
     }
 }
 
-priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr)) {
+priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref_params: Set(Str)) {
     for mut vd : VariantDef in edef.variants {
         if vd.payload_type.len() > 0 {
-            new_pt := init_subst_ident_name(subs, vd.payload_type)
+            // #320: a payload typed by a ref-qualified type param is a
+            // BORROWED payload of the substituted type (`Some: T` under a
+            // ref T becomes `Some: ref X`), riding the stage-a machinery.
+            if ref_params.has(vd.payload_type) { vd.payload_ref = true }
+            new_pt := init_subst_ident_name(subs, ref_params, vd.payload_type)
             if new_pt.len() > 0 {
                 vd.payload_type = new_pt.clone()
             }
         }
     }
     for mut nd : Declaration in edef.ns_decls {
-        new_type := init_subst_ident_name(subs, nd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, nd.explicit_type)
         if new_type.len() > 0 {
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
@@ -2695,51 +2716,55 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr)) {
             // miss them. Non-FuncDef ns defaults (constants) only need
             // Ident substitution.
             if nd.default_value.node_type.is(NodeType.FuncDef) {
-                init_substitute_type_params(nd.default_value, subs)
+                init_substitute_type_params(nd.default_value, subs, ref_params)
             } else {
-                init_subst_default_slot(nd, subs)
+                init_subst_default_slot(nd, subs, ref_params)
             }
         }
     }
 }
 
-priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr)) {
+priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Set(Str)) {
     for mut pd : Declaration in fdd.params {
-        new_type := init_subst_ident_name(subs, pd.explicit_type)
+        new_type := init_subst_ident_name(subs, ref_params, pd.explicit_type)
         if new_type.len() > 0 {
             pd.explicit_type = new_type.clone()
             pd.til_type = til_type_from_explicit_type(pd.explicit_type)
         }
         if pd.default_value.is_null().not() {
-            init_subst_default_slot(pd, subs)
+            init_subst_default_slot(pd, subs, ref_params)
         }
     }
-    new_ret := init_subst_ident_name(subs, fdd.return_type)
+    // #320: `returns T` under a ref-qualified T is a borrowed return
+    // (`returns ref X`); params need no flag -- aggregates are borrowed
+    // by default.
+    if ref_params.has(fdd.return_type) { fdd.return_own_type = OwnType.Ref }
+    new_ret := init_subst_ident_name(subs, ref_params, fdd.return_type)
     if new_ret.len() > 0 {
         fdd.return_type = new_ret.clone()
     }
     for i in 0..fdd.throw_types.len() {
-        new_throw := init_subst_ident_name(subs, fdd.throw_types[i])
+        new_throw := init_subst_ident_name(subs, ref_params, fdd.throw_types[i])
         if new_throw.len() > 0 {
             fdd.throw_types[i] = new_throw.clone()
         }
     }
 }
 
-priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr)) {
+priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), ref_params: Set(Str)) {
     switch def.node_type {
     case NodeType.StructDef(sdd):
-        init_subst_struct_params(sdd, subs)
+        init_subst_struct_params(sdd, subs, ref_params)
     case NodeType.EnumDef(edd):
-        init_subst_enum_params(edd, subs)
+        init_subst_enum_params(edd, subs, ref_params)
     case NodeType.FuncDef(fdd):
-        init_subst_func_params(fdd, subs)
+        init_subst_func_params(fdd, subs, ref_params)
         // Walk the function body too, substituting Ident references to
         // type-params (e.g. T used inside expressions, struct/enum
         // literals nested in the body).
         if def.children.len() > 0 {
             ref mut fnbody : Expr = def.children[0]
-            init_substitute_idents(fnbody, subs)
+            init_substitute_idents(fnbody, subs, ref_params)
         }
     case:
     }
@@ -2847,7 +2872,9 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns re
         ref cond_repl : Expr = subs[cond_root]
         cond_clone = cond_repl.clone()
     } else {
-        init_substitute_idents(cond_clone, subs)
+        // Condition eval only reads type NAMES; ref-ness never changes
+        // which branch a `T.is(...)` condition picks.
+        init_substitute_idents(cond_clone, subs, Set(Str).new())
     }
     res := init_macro_cond_eval(cond_clone)
     if res < 0 { return NULL }
@@ -3014,6 +3041,9 @@ priv init_macro_inst_name := func(e: Expr) returns Str {
     }
     for k in 1..e.children.len() {
         if k > 1 { out = format(out, "_") }
+        // #320: a ref-qualified type arg mangles with a `ref_` prefix,
+        // matching parse_type_ref's annotation-position mangling.
+        if get_ref_arg(e, k) { out = format(out, "ref_") }
         ref arg : Expr = e.children[k]
         out = format(out, init_macro_inst_arg_name(arg))
     }
@@ -3029,6 +3059,8 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
     }
     for k in 1..e.children.len() {
         if k > 1 { out = format(out, "_") }
+        // #320: same `ref_` prefix as init_macro_inst_name.
+        if get_ref_arg(e, k) { out = format(out, "ref_") }
         ref arg : Expr = e.children[k]
         mut is_type_arg := false
         switch macro_fdef.node_type {
@@ -3481,6 +3513,13 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // in place to the concrete `gname__T1_T2(valargs)`.
 priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
     ref call : Expr = parent.children[call_idx]
+    // #320: ref-qualified type args are only implemented for type-gen
+    // macros so far; fail loudly instead of silently monomorphizing with
+    // the qualifier dropped.
+    if fcall_has_ref_args(call) {
+        panic(ctx.path, ":", call.line.to_str(), ":", call.col.to_str(),
+            ": 'ref' type arguments are not yet supported for direct generic function calls (#320)")
+    }
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
         // Build the type-param substitution map and the mono name from
@@ -3538,7 +3577,9 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                     }
                 case:
                 }
-                init_substitute_type_params(cloned, subs)
+                // No ref-qualified type args here: the guard at the top of
+                // this func rejects them for direct generics (#320).
+                init_substitute_type_params(cloned, subs, Set(Str).new())
                 // Composition: the freshly-substituted body may now contain
                 // calls to OTHER generic funcs (or to this one with different
                 // type-args). Walk it with the same generics/seen/synthesized,
@@ -3764,6 +3805,11 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             // init_subst_ident_name still extracts the receiving type name for
             // explicit-type strings when the substitution is Ident-shaped.
             mut subs := Map(Str, Expr).new()
+            // #320: type params whose arg carried the `ref` qualifier
+            // (`make_opt(ref X)`); their substitution marks enum payloads /
+            // struct fields borrowed and keeps the `ref_` mangle segment in
+            // self-references.
+            mut ref_params := Set(Str).new()
             switch macro_fdef.node_type {
             case NodeType.FuncDef(mfd):
                 for j in 0..mfd.params.len() {
@@ -3771,6 +3817,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
                     ref param : Declaration = mfd.params[j]
                     ref arg : Expr = rhs.children[j + 1]
                     if param.explicit_type.eq("Type").and(arg.node_type.is(NodeType.Ident)) {
+                        if get_ref_arg(rhs, j + 1) { ref_params.add(own param.name.clone()) }
                         switch arg.node_type {
                         case NodeType.Ident(an):
                             type_arg_name := init_type_arg_name(scope, an.ident_name())
@@ -3799,7 +3846,7 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             // `Name(T)` self-references that became concrete value-position
             // instantiations after substitution (`Name(I64)(...)`).
             mut cloned := ret_val.clone()
-            init_substitute_type_params(cloned, subs)
+            init_substitute_type_params(cloned, subs, ref_params)
             mut nested_synthesized := Vec(Expr).new()
             init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, true)
             stmt.children[0] = cloned

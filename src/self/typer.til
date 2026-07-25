@@ -2284,6 +2284,13 @@ priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_
 }
 
 priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
+    // #320: ref-qualified args (`f(ref x)`) only mean something on type
+    // arguments of type-gen macro instantiations, and those are fully
+    // expanded during init -- any call still carrying a ref bit here is
+    // user error, rejected instead of silently ignoring the qualifier.
+    if fcall_has_ref_args(e) {
+        e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
+    }
     // #164: a UFCS receiver `obj.method(args)` is conservatively treated
     // as "written" -- the namespace method may mutate it via `mut self`
     // (e.g. `Str.push_str(mut self: Str, s: Str)`), and the UFCS rewrite

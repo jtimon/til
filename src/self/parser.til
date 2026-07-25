@@ -269,13 +269,17 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     return result
 }
 
-priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), mangled: Str, line: U32, col: U32) {
+priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), mangled: Str, line: U32, col: U32) {
     if p.type_gen_seen.has(mangled) { return }
     mut callee := Expr.new(ident_node(name), line, col)
     mut call := Expr.new(NodeType.FCall(FCallData()), line, col)
     call.add_child(own callee)
-    for arg : Str in args {
-        mut arg_expr := Expr.new(ident_node(arg), line, col)
+    for i in 0..args.len() {
+        // #320: carry each arg's `ref` qualifier onto the generated call so
+        // the init expansion sees the same bits a value-position
+        // `Name(ref X)` instantiation would set.
+        if arg_refs[i] { set_ref_arg(call, call.children.len()) }
+        mut arg_expr := Expr.new(ident_node(args[i]), line, col)
         call.add_child(own arg_expr)
     }
     mut decl := Expr.new(NodeType.Decl(Declaration(name = mangled.clone())), line, col)
@@ -319,12 +323,24 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
     advance(p) // consume '('
     mut mangled := format(name, "__")
     mut args := Vec(Str).new()
+    mut arg_refs := Vec(Bool).new()
     mut argi := 0
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         if argi > 0 { mangled = format(mangled, "_") }
+        // #320: `Name(ref X)` -- a ref-qualified type argument. Mangles as
+        // `Name__ref_X` (the init inline-hoist produces the same name from
+        // the ref_args bit), so owned and borrowed instantiations are
+        // distinct types.
+        mut arg_is_ref := false
+        if check(p, TokenType.KwRef) {
+            advance(p)
+            arg_is_ref = true
+            mangled = format(mangled, "ref_")
+        }
         argname := expect_text(p, TokenType.Ident)
         mangled = format(mangled, argname)
         args.push(own argname.clone())
+        arg_refs.push(own arg_is_ref.clone())
         argi++
         if check(p, TokenType.Comma) { advance(p) }
     }
@@ -336,7 +352,7 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
         }
     }
     if has_active_type_param.not() {
-        type_gen_lift(p, name, args, mangled, tr_line, tr_col)
+        type_gen_lift(p, name, args, arg_refs, mangled, tr_line, tr_col)
     }
     return mangled
 }
@@ -1422,6 +1438,14 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
         if check(p, TokenType.KwOwn) {
             advance(p)
             is_own_arg = true
+        }
+        // #320: ref-qualified TYPE argument (`make_opt(ref T)`). Recorded
+        // as a bit on the FCall; init expansion consumes it, and the typer
+        // rejects any surviving bit (ref args are only valid on type
+        // arguments of type templates).
+        if check(p, TokenType.KwRef) {
+            advance(p)
+            set_ref_arg(call, call.children.len())
         }
         if is_splat { set_fcall_splat(call) }
         // Issue #56/#57: append_arg resolves a bare anonymous
@@ -2686,6 +2710,41 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         return fcd.own_args.band(bit) > 0
+    case:
+        UNREACHABLE()
+        return false
+    }
+}
+
+// #320: ref-qualified TYPE argument markers (`make_opt(ref T)`), same
+// bit indexing as own_args.
+set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit * 2 }
+        fcd.ref_args = fcd.ref_args.bor(bit)
+    case:
+        UNREACHABLE()
+    }
+}
+
+get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit * 2 }
+        return fcd.ref_args.band(bit) > 0
+    case:
+        UNREACHABLE()
+        return false
+    }
+}
+
+fcall_has_ref_args := func(fcall: Expr) returns Bool {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        return fcd.ref_args > 0
     case:
         UNREACHABLE()
         return false
