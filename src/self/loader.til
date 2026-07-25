@@ -596,12 +596,10 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     if is_struct_or_enum(tdecl).not() { return NULL }
     dot_u := dot.to_usize()
     method_part := name.substr(dot_u + 1, name.len().sub(dot_u) - 1)
-    ref ns : Vec(Declaration) = def_ns_decls(tdecl.children[0])
-    for nsd : Declaration in ns {
-        if nsd.name == method_part {
-            if nsd.default_value.is_null().not() {
-                return nsd.default_value
-            }
+    ref nsd : Declaration = def_ns_get(tdecl.children[0], method_part)
+    if nsd.is_null().not() {
+        if nsd.default_value.is_null().not() {
+            return nsd.default_value
         }
     }
     return NULL
@@ -707,15 +705,18 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                     if is_type_decl {
                         switch stmt.node_type {
                         case NodeType.Decl(sdecl):
-                            ref nstv : Vec(Declaration) = def_ns_decls(stmt.children[0])
-                            for nsd : Declaration in nstv {
+                            ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
+                            mut tvi : USize = 0
+                            for nsd : Declaration in tvi_ns {
+                                cur_tvi := tvi
+                                tvi = tvi + 1
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
                                 if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
                                 switch nsfdef.node_type {
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test) {
-                                        push_qn(worklist, sdecl.name, nsd.name)
+                                        push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
                                     }
                                 case:
                                     UNREACHABLE()
@@ -1520,11 +1521,11 @@ format_doc_for_help := func(doc: Str) returns Str {
 }
 
 // Append "    [own |ref |shallow ][mut ]name : Type" for a struct field.
-priv append_field_indented := func(mut out: Str, d: Declaration) {
+priv append_field_indented := func(mut out: Str, dname: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     append_qualifier_prefix(out, d, OwnType.Shallow)
-    out.push_str(d.name)
+    out.push_str(dname)
     if d.explicit_type.len() > 0 {
         out.push_str(" : ")
         out.push_str(d.explicit_type)
@@ -1532,7 +1533,7 @@ priv append_field_indented := func(mut out: Str, d: Declaration) {
 }
 
 // Append "    [kind ]name(sig) returns T" for a namespace method.
-priv append_ns_method_indented := func(mut out: Str, d: Declaration) {
+priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration) {
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     mut handled := false
@@ -1541,14 +1542,14 @@ priv append_ns_method_indented := func(mut out: Str, d: Declaration) {
         case NodeType.FuncDef(fd):
             out.push_str(func_kind(fd.func_type))
             out.push_str(" ")
-            out.push_str(d.name)
+            out.push_str(dname)
             append_fn_signature(out, fd)
             handled = true
         case:
         }
     }
     if handled.not() {
-        out.push_str(d.name)
+        out.push_str(dname)
         if d.explicit_type.len() > 0 {
             out.push_str(" : ")
             out.push_str(d.explicit_type)
@@ -1584,11 +1585,15 @@ priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
 
 priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     mut cap : USize = name.len() + 128
+    mut cfi : USize = 0
     for f : Declaration in sdef.fields {
-        cap = cap.add(f.name.len()).add(f.explicit_type.len()).add(f.doc.len() * 2) + 128
+        cap = cap.add(sdef.field_name_at(cfi).len()).add(f.explicit_type.len()).add(f.doc.len() * 2) + 128
+        cfi = cfi + 1
     }
+    mut cni : USize = 0
     for d : Declaration in sdef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len() * 2) + 192
+        cap = cap.add(sdef.member_name_at(cni).len()).add(d.doc.len() * 2) + 192
+        cni = cni + 1
         if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
@@ -1605,15 +1610,19 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     out.push_str("struct ")
     out.push_str(name)
     out.push_str(" {")
-    for f : Declaration in sdef.fields {
+    mut ffr : USize = 0
+    for f2 : Declaration in sdef.fields {
         out.push_str("\n")
-        append_field_indented(out, f)
+        append_field_indented(out, sdef.field_name_at(ffr), f2)
+        ffr = ffr + 1
     }
     if sdef.ns_decls.len() > 0 {
         out.push_str("\nnamespace:")
-        for d : Declaration in sdef.ns_decls {
+        mut fnr : USize = 0
+        for d2 : Declaration in sdef.ns_decls {
             out.push_str("\n")
-            append_ns_method_indented(out, d)
+            append_ns_method_indented(out, sdef.member_name_at(fnr), d2)
+            fnr = fnr + 1
         }
     }
     out.push_str("\n}")
@@ -1625,8 +1634,10 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     for v : Str in edef.variants {
         cap = cap.add(v.len()) + 96
     }
+    mut eni : USize = 0
     for d : Declaration in edef.ns_decls {
-        cap = cap.add(d.name.len()).add(d.doc.len() * 2) + 192
+        cap = cap.add(edef.member_name_at(eni).len()).add(d.doc.len() * 2) + 192
+        eni = eni + 1
         if d.default_value.is_null().not() {
             switch d.default_value.node_type {
             case NodeType.FuncDef(fd):
@@ -1653,9 +1664,11 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     }
     if edef.ns_decls.len() > 0 {
         out.push_str("\nnamespace:")
-        for d : Declaration in edef.ns_decls {
+        mut enr : USize = 0
+        for d2 : Declaration in edef.ns_decls {
             out.push_str("\n")
-            append_ns_method_indented(out, d)
+            append_ns_method_indented(out, edef.member_name_at(enr), d2)
+            enr = enr + 1
         }
     }
     out.push_str("\n}")
@@ -1682,8 +1695,8 @@ format_decl_info := func(stmt: Expr, scope: TypeScope) returns Str {
 }
 
 // Append "Type.method" qualified entry for a single namespace method.
-priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut info: Str, mut docs: Str) {
-    qual := type_name.format(".", d.name)
+priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declaration, mut info: Str, mut docs: Str) {
+    qual := type_name.format(".", dname)
     mut info_cap : USize = qual.len() + 64
     mut is_func := false
     if d.default_value.is_null().not() {
@@ -1730,8 +1743,11 @@ priv collect_member_method_packed := func(type_name: Str, d: Declaration, mut in
 // Register "Type.field" entries for each struct field, plus "Type.method"
 // entries for each namespace method.
 priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut info: Str, mut docs: Str) {
+    mut pfr : USize = 0
     for f : Declaration in sdef.fields {
-        qual := type_name.format(".", f.name)
+        ref pf_name : Str = sdef.field_name_at(pfr)
+        pfr = pfr + 1
+        qual := type_name.format(".", pf_name)
         mut field_info := Str.with_capacity(qual.len().add(f.explicit_type.len()) + 64)
         field_info.push_str("field ")
         append_qualifier_prefix(field_info, f, OwnType.Shallow)
@@ -1748,8 +1764,10 @@ priv collect_struct_members_packed := func(type_name: Str, sdef: StructDef, mut 
             }
         }
     }
-    for d : Declaration in sdef.ns_decls {
-        collect_member_method_packed(type_name, d, info, docs)
+    mut pnr : USize = 0
+    for nd : Declaration in sdef.ns_decls {
+        collect_member_method_packed(type_name, sdef.member_name_at(pnr), nd, info, docs)
+        pnr = pnr + 1
     }
 }
 
@@ -1767,8 +1785,10 @@ priv collect_enum_members_packed := func(type_name: Str, edef: EnumDef, mut info
         }
         append_packed_entry(info, qual, variant_info)
     }
-    for d : Declaration in edef.ns_decls {
-        collect_member_method_packed(type_name, d, info, docs)
+    mut pnr2 : USize = 0
+    for nd : Declaration in edef.ns_decls {
+        collect_member_method_packed(type_name, edef.member_name_at(pnr2), nd, info, docs)
+        pnr2 = pnr2 + 1
     }
 }
 
@@ -3923,11 +3943,10 @@ priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: Ty
     if sdef.is_null() { return "" }
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
-        for fld : Declaration in sdd.fields {
-            if fld.name.eq(field_name) {
-                if lazy_sigs.has(fld.explicit_type) { return fld.explicit_type.clone() }
-                return ""
-            }
+        ref fld : Declaration = member_get(sdd.fields_index, sdd.fields, field_name)
+        if fld.is_null().not() {
+            if lazy_sigs.has(fld.explicit_type) { return fld.explicit_type.clone() }
+            return ""
         }
     case:
     }

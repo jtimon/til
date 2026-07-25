@@ -96,7 +96,7 @@ test_inline_enum_payload_overwrite := test() {
 // `returns ref` payload alias across a call boundary: mutations through
 // the returned ref must land in the STORED payload. The interpreter used
 // to deep-clone borrowed return values at every block/call boundary, so
-// the parser's `ref sdd = structdef_of(def)` + sdd.fields.push writes
+// the parser's `ref sdd = structdef_of(def)` + sdd.push_field writes
 // were silently lost (parsed StructDefs read back with 0 fields).
 BagHolder := struct {
     pb := PayloadBox.Empty

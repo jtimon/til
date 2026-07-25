@@ -269,9 +269,14 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             mut callee := Expr.new(ident_node(sname), src.line, src.col)
             callee.set_til_type(t)
             ctor.add_child(own callee)
+            // sl.fields is positionally parallel to sfd.fields, so each
+            // field's layout row comes from its position -- no name probe.
+            ref rte_sl : StructLayout = ctx.struct_layouts[sname]
+            mut fi : USize = 0
             for fd : Declaration in sfd.fields {
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return NULL }
-                ref fl : FieldLayout = ctx_field_layout(sname, fd.name, ctx)
+                ref fl : FieldLayout = rte_sl.fields.unsafe_get(fi)
+                fi = fi + 1
                 ref field_addr : Dynamic = ptr_add(raw, fl.offset)
                 mut field_raw : Dynamic = field_addr
                 if raw_type_is_prim(fd.til_type, ctx) { field_raw = scalar_word_load(field_word_type(fd.til_type, fl.size, ctx), field_addr, ctx) }
@@ -1373,9 +1378,8 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
             // Namespace method bodies live in StructDef/EnumDef ns_decls,
             // not in the AST children tree -- walk them here.
-            ref ns : Vec(Declaration) = def_ns_decls(rhs)
-            for nsd_e : Declaration in ns {
-                ref nsd : Declaration = nsd_e
+            ref pb_ns : Vec(Declaration) = def_ns_decls(rhs)
+            for nsd : Declaration in pb_ns {
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 if nsd.default_value.children.len() == 0 { continue }

@@ -307,8 +307,21 @@ namespace:
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_struct_layout at typer time.
 StructDef : StructDef = struct {
-    fields := Vec(Declaration).new()
-    ns_decls := Vec(Declaration).new()
+    // Issue #307: members are stored in DECLARATION order in plain Vecs
+    // (fields order IS the C layout order), so every walk is an ordinary
+    // for-in over the collection. Each collection has a name -> position
+    // index Map beside it, and the name's SINGLE copy in the data model
+    // is the index key: stored member Declarations carry name == "".
+    // Append via push_field / push_member so vec and index never drift.
+    // `own` (pointer-sized in the layout): StructDef/EnumDef live INLINE
+    // in the NodeType payload union, and EnumDef is the union's largest
+    // member -- growing it grows every Expr in every program. Boxing the
+    // member containers keeps the union at its pre-#307 size; defs are
+    // few, Exprs are hundreds of thousands.
+    own fields : Vec(Declaration) = Vec(Declaration).new()
+    own ns_decls : Vec(Declaration) = Vec(Declaration).new()
+    own fields_index : Map(Str, USize) = Map(Str, USize).new()
+    own ns_index : Map(Str, USize) = Map(Str, USize).new()
     c_tag := ""
     // Issue #251: set by parse_interface_def. The body desugars to this
     // StructDef (empty fields, ns_decls = methods); the typer uses the
@@ -331,14 +344,63 @@ namespace:
         return a.fields.len() == b.fields.len()
     }
     to_str := func(_self: StructDef) returns Str { return "StructDef" }
+    /// Append a field: the index key becomes the single owner of the
+    /// field's name; the stored Declaration carries none. Appends never
+    /// shift declaration positions, so there is nothing to fix up.
+    push_field := func(mut self: StructDef, own fd: Declaration) {
+        pos : USize = self.fields.len()
+        self.fields_index.set(fd.name, own pos.clone())
+        fd.name = ""
+        self.fields.push(own fd)
+    }
+    /// Append a namespace member (see push_field). A duplicate name
+    /// re-points the index at the newest declaration.
+    push_member := func(mut self: StructDef, own nd: Declaration) {
+        pos : USize = self.ns_decls.len()
+        self.ns_index.set(nd.name, own pos.clone())
+        nd.name = ""
+        self.ns_decls.push(own nd)
+    }
+    /// Field name at declaration position i: reverse lookup over the
+    /// index (O(members), tiny and emit-time only). NULL for a position
+    /// shadowed by a later duplicate name. The scan is inlined (not a
+    /// shared Map(Str, USize) helper) because the USize width alias
+    /// monomorphizes differently for struct fields vs free-function
+    /// params (Map__Str_U32 vs Map__Str_USize).
+    field_name_at := func(self: StructDef, i: USize) returns ref Str {
+        for mi in 0..self.fields_index.len() {
+            if self.fields_index.values.unsafe_get(mi) == i { return self.fields_index.keys.unsafe_get(mi) }
+        }
+        return NULL
+    }
+    /// Field Declaration at declaration position i (name == "").
+    field_at := func(self: StructDef, i: USize) returns ref Declaration {
+        return self.fields.unsafe_get(i)
+    }
+    /// Namespace member name at declaration position i.
+    member_name_at := func(self: StructDef, i: USize) returns ref Str {
+        for mi in 0..self.ns_index.len() {
+            if self.ns_index.values.unsafe_get(mi) == i { return self.ns_index.keys.unsafe_get(mi) }
+        }
+        return NULL
+    }
+    /// Namespace member Declaration at declaration position i.
+    member_at := func(self: StructDef, i: USize) returns ref Declaration {
+        return self.ns_decls.unsafe_get(i)
+    }
 }
 
 /// Enum definition: variants, payload types, namespace methods.
 /// Issue #147 step 4: total_enum_size dropped from the AST in favour
 /// of ctx.struct_layouts[name].total_size, populated by
 /// compute_enum_layout at typer time.
+/// Issue #307: ns_decls gets the same name-keyed storage as StructDef's
+/// (see the StructDef doc comment); variants stays a plain Vec because
+/// its order IS the tag assignment and it holds the names themselves.
 EnumDef : StructDef = struct {
-    ns_decls := Vec(Declaration).new()
+    // own: see StructDef -- keeps the NodeType union at its pre-#307 size.
+    own ns_decls : Vec(Declaration) = Vec(Declaration).new()
+    own ns_index : Map(Str, USize) = Map(Str, USize).new()
     variants := Vec(Str).new()
     payload_types : Map(I64, Str) = Map(I64, Str).new()
     // #211: per-variant flag (indexed by variant tag) marking variants
@@ -373,6 +435,25 @@ namespace:
         return a.variants.len() == b.variants.len()
     }
     to_str := func(_self: EnumDef) returns Str { return "EnumDef" }
+    /// Append a namespace member (see StructDef.push_member).
+    push_member := func(mut self: EnumDef, own nd: Declaration) {
+        pos : USize = self.ns_decls.len()
+        self.ns_index.set(nd.name, own pos.clone())
+        nd.name = ""
+        self.ns_decls.push(own nd)
+    }
+    /// Namespace member name at declaration position i (see
+    /// StructDef.field_name_at for why the scan is inlined).
+    member_name_at := func(self: EnumDef, i: USize) returns ref Str {
+        for mi in 0..self.ns_index.len() {
+            if self.ns_index.values.unsafe_get(mi) == i { return self.ns_index.keys.unsafe_get(mi) }
+        }
+        return NULL
+    }
+    /// Namespace member Declaration at declaration position i.
+    member_at := func(self: EnumDef, i: USize) returns ref Declaration {
+        return self.ns_decls.unsafe_get(i)
+    }
 }
 
 // Issue #147 step 3: per-field and whole-type memory layout. Destined to

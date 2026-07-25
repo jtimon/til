@@ -238,6 +238,61 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
 // Filter top-level declarations and namespace methods in-place using a
 // precomputed visited set.
+// #307: member names live in the ns_index (name -> position), so the
+// mark pass walks the index pairs, the decl Vec compacts via
+// delete_marked (the same mark/sweep master used on named decls), and
+// the dropped members' entries leave the index with the surviving
+// positions renumbered in place. Zero clones: the survivors (and their
+// method-body ASTs) never move through a copy.
+priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map(Str, USize), type_name: Str, visited: Set(Str)) {
+    n := decls.len()
+    if n == 0 { return }
+    marks : U8 = malloc(n)
+    memset(marks, 0, n)
+    mut dropped_any := false
+    for q in 0..idx.keys.count {
+        scv_qn := qualified_name(type_name, idx.keys.unsafe_get(q))
+        if visited.has(scv_qn).not() {
+            p := idx.values.unsafe_get(q).clone()
+            memset(ptr_add(marks, p), 1, 1)
+            dropped_any = true
+        }
+    }
+    if dropped_any.not() { return }
+    decls.delete_marked(marks)
+    // Index maintenance: delete dead entries, renumber survivors (a
+    // surviving position falls by the dropped positions below it).
+    // Compacting the sorted parallel key/value vecs preserves their
+    // order; O(n^2) with tiny n, avoiding scratch allocations.
+    kn := idx.keys.count
+    mut nv := Vec(USize).new()
+    mut kw : USize = 0
+    mut kr : USize = 0
+    while kr < kn {
+        p2 := idx.values.unsafe_get(kr).clone()
+        ref km : Bool = ptr_add(marks, p2)
+        if km {
+            Str.delete(own ptr_add(idx.keys.data, kr.mul(Str.size())), false)
+            memset(ptr_add(idx.keys.data, kr.mul(Str.size())), 0, Str.size())
+        } else {
+            mut shift : USize = 0
+            for q2 in 0..p2 {
+                ref qm : Bool = ptr_add(marks, q2)
+                if qm { shift = shift + 1 }
+            }
+            np := p2 - shift
+            nv.push(own np)
+            if kw != kr {
+                memcpy(ptr_add(idx.keys.data, kw.mul(Str.size())), ptr_add(idx.keys.data, kr.mul(Str.size())), Str.size())
+            }
+            kw++
+        }
+        kr++
+    }
+    idx.keys.count = kw
+    idx.values.move_from(nv)
+}
+
 scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
@@ -270,18 +325,14 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
         if is_struct_or_enum(stmt).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(sdecl):
-            ref scv_ns2 : Vec(Declaration) = def_ns_decls(stmt.children[0])
-            scv_nn2 := scv_ns2.len()
-            if scv_nn2 > 0 {
-                scv_nm2 : U8 = malloc(scv_nn2)
-                memset(scv_nm2, 0, scv_nn2)
-                for j in 0..scv_nn2 {
-                    scv_qn2 := qualified_name(sdecl.name, scv_ns2[j].name)
-                    if visited.has(scv_qn2).not() {
-                        memset(ptr_add(scv_nm2, j), 1, 1)
-                    }
-                }
-                scv_ns2.delete_marked(scv_nm2)
+            ref sdef : Expr = stmt.children[0]
+            switch sdef.node_type {
+            case NodeType.StructDef(scv_sdd):
+                scavenge_members_in_place(scv_sdd.ns_decls, scv_sdd.ns_index, sdecl.name, visited)
+            case NodeType.EnumDef(scv_edd):
+                scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_index, sdecl.name, visited)
+            case:
+                UNREACHABLE()
             }
         case:
             UNREACHABLE()
@@ -651,9 +702,8 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
 }
 
 priv body_dce_ns := proc(rhs: Expr) {
-    ref ns : Vec(Declaration) = def_ns_decls(rhs)
-    for nsd_e : Declaration in ns {
-        ref nsd : Declaration = nsd_e
+    ref dce_ns : Vec(Declaration) = def_ns_decls(rhs)
+    for nsd : Declaration in dce_ns {
         if nsd.default_value.is_null() { continue }
         if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_value.children.len() == 0 { continue }

@@ -133,8 +133,16 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
             clone_container_buffer(struct_name, data, dst_data, ctx)
         } else if struct_def_shallow_safe(sdef_data, ctx) {
         } else {
+            // sl.fields is positionally parallel to sdef_data.fields
+            // (compute_struct_layout walks the same vec in the same order),
+            // so the layout row comes straight from the field's position --
+            // no per-field name probe.
+            ref hc_sl : StructLayout = ctx.struct_layouts[struct_name]
+            mut cfi : USize = 0
             for dd : Declaration in sdef_data.fields {
-                foff := ctx_field_layout(struct_name, dd.name, ctx).offset
+                ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
+                foff := hc_fl.offset
+                cfi = cfi + 1
                 ref ftype : Str = dd.explicit_type
                 ref nested_def : Expr = field_nested_def(dd, ctx)
                 if dd.own_type.is(OwnType.Own) {
@@ -2831,8 +2839,22 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 case NodeType.StructDef(sdd):
                     mut inst_data : Dynamic = destination
                     if inst_data.is_null() { inst_data = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx)) }
+                        // sl.fields is positionally parallel to sdd.fields, so
+                        // each arg's layout row comes from its position -- no
+                        // per-field name probe. Interface ctors also locate
+                        // iface_val/iface_owned once, up front, by index probe.
+                        ref ctor_sl : StructLayout = ctx.struct_layouts[name.ident_name()]
+                        mut iface_val_pos : USize = sdd.fields.len()
+                        mut iface_owned_pos : USize = sdd.fields.len()
+                        if sdd.is_interface {
+                            if sdd.fields_index.has("iface_val") { iface_val_pos = sdd.fields_index["iface_val"] }
+                            if sdd.fields_index.has("iface_owned") { iface_owned_pos = sdd.fields_index["iface_owned"] }
+                        }
                         mut arg_idx : USize = 1
+                        mut ctr : USize = 0
                         for fdd : Declaration in sdd.fields {
+                            cur_fpos := ctr
+                            ctr = ctr + 1
                             cur_idx := arg_idx
                             ref arg : Expr = e.children[cur_idx]
                             arg_idx++
@@ -2843,19 +2865,16 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                             case NodeType.Ident(arg_ident):
                                 ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name())
                                 mut move_iface_val := false
-                                if sdd.is_interface.and(fdd.name == "iface_val") {
-                                    for owned_i in 0..sdd.fields.len() {
-                                        if sdd.fields[owned_i].name == "iface_owned" {
-                                            switch e.children[owned_i + 1].node_type {
-                                            case NodeType.Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
-                                            case NodeType.Ident(owned_id):
-                                                ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name())
-                                                ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
-                                                ref owned_flag2 : Bool = owned_raw
-                                                move_iface_val = owned_flag2
-                                            case:
-                                            }
-                                            break
+                                if cur_fpos == iface_val_pos {
+                                    if iface_owned_pos < sdd.fields.len() {
+                                        switch e.children[iface_owned_pos + 1].node_type {
+                                        case NodeType.Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
+                                        case NodeType.Ident(owned_id):
+                                            ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name())
+                                            ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
+                                            ref owned_flag2 : Bool = owned_raw
+                                            move_iface_val = owned_flag2
+                                        case:
                                         }
                                     }
                                 }
@@ -2947,7 +2966,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 arg_is_place = false
                             }
                             arg_raw = raw_widen_numeric(arg_raw, arg.til_type(), fdd.explicit_type, ctx)
-                            ref ctor_fl : FieldLayout = ctx_field_layout(name.ident_name(), fdd.name, ctx)
+                            ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                             mut arg_is_null := false
                             switch arg.node_type {
                             case NodeType.Literal(Literal.Null): arg_is_null = true
@@ -4052,17 +4071,11 @@ priv callable_box_free := func(ptr: Dynamic) {
 // FieldAssign cases (which share an Str payload) can switch-destructure
 // `e.node_type` without duplicating ~50 lines of logic.
 priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, fname: Str) returns Bool {
-    mut has_ns := false
     mut has_inst := false
-    ref ins_ns : Vec(Declaration) = def_ns_decls(sdef)
-    for ins_d : Declaration in ins_ns {
-        if ins_d.name == fname { has_ns = true }
-    }
+    has_ns := def_ns_has(sdef, fname)
     switch sdef.node_type {
     case NodeType.StructDef(ins_sdd):
-        for dd : Declaration in ins_sdd.fields {
-            if dd.name == fname { has_inst = true }
-        }
+        has_inst = ins_sdd.fields_index.has(fname)
     case NodeType.EnumDef(ins_edd):
         for vn : Str in ins_edd.variants {
             if vn == fname { has_inst = true }
@@ -4248,21 +4261,25 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             tdv : Dynamic = malloc(I64.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
-            ref ien_ns : Vec(Declaration) = def_ns_decls(sdef)
             // #307: two passes so registration order does not depend on
             // declaration order. A namespace CONSTANT's initializer may
             // reference a sibling method (`MAX : U64 = U64.bnot(0)`);
             // register every function member first (their eval needs no
             // siblings), then evaluate the constants.
-            for d_f : Declaration in ien_ns {
-                ref nsf : Declaration = d_f
+            ref reg_ns : Vec(Declaration) = def_ns_decls(sdef)
+            mut nfi : USize = 0
+            for nsf : Declaration in reg_ns {
+                cur_nfi := nfi
+                nfi = nfi + 1
                 if nsf.default_value.is_null() { continue }
                 if nsf.default_value.node_type.is(NodeType.FuncDef).not() { continue }
                 fraw : Dynamic = eval_expr_raw(global, nsf.default_value, ctx)
-                ns_set(dd.name, nsf.name, fraw, Type.Body, ctx)
+                ns_set(dd.name, def_ns_name_at(sdef, cur_nfi), fraw, Type.Body, ctx)
             }
-            for d_j : Declaration in ien_ns {
-                ref nsd : Declaration = d_j
+            mut nci : USize = 0
+            for nsd : Declaration in reg_ns {
+                cur_nci := nci
+                nci = nci + 1
                 if nsd.default_value.is_null() { continue }
                 if nsd.default_value.node_type.is(NodeType.FuncDef) { continue }
                 mut raw : Dynamic = eval_expr_raw(global, nsd.default_value, ctx)
@@ -4273,7 +4290,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
                     // ns storage is a binding: a scalar word needs a block.
                     raw = scalar_block_from_word(ns_decl_raw_type(nsd), raw, ctx)
                 }
-                ns_set(dd.name, nsd.name, raw, ns_decl_raw_type(nsd), ctx)
+                ns_set(dd.name, def_ns_name_at(sdef, cur_nci), raw, ns_decl_raw_type(nsd), ctx)
             }
         case:
         }
@@ -4413,12 +4430,7 @@ priv str_usize_field_at := func(str_base: Dynamic, offset: USize, size: USize) r
 priv find_field_decl := func(struct_def: Expr, fname: Str) returns ref Declaration {
     switch struct_def.node_type {
     case NodeType.StructDef(ffd_sdd):
-        for dd : Declaration in ffd_sdd.fields {
-            if dd.name == fname {
-                return dd
-            }
-        }
-        return NULL
+        return member_get(ffd_sdd.fields_index, ffd_sdd.fields, fname)
     case:
         return NULL
     }
@@ -4608,13 +4620,15 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
                     ref tc_raw : Dynamic = tc
                     ref sdef : Expr = callable_raw_func_def(tc_raw)
                             if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
-                                ref ica_ns : Vec(Declaration) = def_ns_decls(sdef)
-                                for d_j : Declaration in ica_ns {
-                                    ref nsd : Declaration = d_j
-                                    ref raw : Dynamic = ns_get(rhs_ident.ident_name(), nsd.name, ctx)
+                                ref ini_ns : Vec(Declaration) = def_ns_decls(sdef)
+                                mut ini : USize = 0
+                                for nsd : Declaration in ini_ns {
+                                    ref in_name : Str = def_ns_name_at(sdef, ini)
+                                    ini = ini + 1
+                                    ref raw : Dynamic = ns_get(rhs_ident.ident_name(), in_name, ctx)
                                     if raw.is_null().not() {
                                         cloned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
-                                        ns_set(dd.name, nsd.name, cloned, ns_decl_raw_type(nsd), ctx)
+                                        ns_set(dd.name, in_name, cloned, ns_decl_raw_type(nsd), ctx)
                                     }
                                 }
                             }
@@ -4919,8 +4933,11 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case NodeType.Decl(sdd):
-                            ref ns : Vec(Declaration) = def_ns_decls(rhs)
-                            for nsd : Declaration in ns {
+                            ref tni_ns : Vec(Declaration) = def_ns_decls(rhs)
+                            mut tni : USize = 0
+                            for nsd : Declaration in tni_ns {
+                                cur_tni := tni
+                                tni = tni + 1
                                 ref nsfdef : Expr = nsd.default_value
                                 if nsfdef.is_null() { continue }
                                 switch nsfdef.node_type {
@@ -4935,7 +4952,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                     eprint_single("  pass: ")
                                     eprint_single(sdd.name)
                                     eprint_single(".")
-                                    eprint_single(nsd.name)
+                                    eprint_single(def_ns_name_at(rhs, cur_tni))
                                     eprint_single("\n")
                                 case:
                                 }
@@ -5616,8 +5633,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
             interp_error(e, "struct_field_name: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
-        str_copy_into(r, fd.name, ctx)
+        str_copy_into(r, sd.field_name_at(idx), ctx)
     case:
         UNREACHABLE()
     }
@@ -5634,7 +5650,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
             interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
+        ref fd : Declaration = sd.field_at(idx)
         if fd.is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
         UNREACHABLE()
@@ -5652,7 +5668,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
             interp_error(e, "struct_field_type: index out of bounds", ctx)
             exit(1)
         }
-        ref fd : Declaration = sd.fields[idx]
+        ref fd : Declaration = sd.field_at(idx)
         str_copy_into(r, fd.explicit_type, ctx)
     case:
         UNREACHABLE()
@@ -6099,13 +6115,14 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
     case NodeType.StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
         elements : Dynamic = malloc(nfields.add(1) * Dynamic.size())
-        for i in 0..nfields {
-            ref fd : Declaration = bsf_sdd.fields[i]
+        mut i : USize = 0
+        for fd : Declaration in bsf_sdd.fields {
             ref ft : ffi_type = field_ffi_type(fd, ctx)
             // The elements array holds ffi_type POINTERS; the old memcpy
             // copied the pointed struct's first 8 bytes (its size field)
             // instead, so libffi walked (ffi_type*)1-style garbage.
             write_ptr(ptr_add(elements, i * Dynamic.size()), ft)
+            i = i + 1
         }
         memset(ptr_add(elements, nfields * Dynamic.size()), 0, Dynamic.size())
         st : Dynamic = malloc(ffi_type.size())
@@ -6320,7 +6337,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
 // the real enum storage inside the base struct: eval_expr_raw would return
 // a detached COPY of the field, so a payload ref taken from it could
 // not write back -- the parser mutates parsed defs exactly that way
-// (`ref sdd : StructDef = structdef_of(def)` then sdd.fields.push),
+// (`ref sdd : StructDef = structdef_of(def)` then sdd.push_field),
 // and interpreted parses read back StructDefs with 0 fields. Returns
 // the enum data buffer (tag at +0), or NULL when the shape doesn't
 // match (non-Ident receiver, non-enum field), letting the caller fall
@@ -7405,8 +7422,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                 case NodeType.Decl(sdd):
                     switch stmt.children[0].node_type {
                     case NodeType.StructDef(sdd_data):
-                        for d_j : Declaration in sdd_data.ns_decls {
-                            ref fdd : Declaration = d_j
+                        mut fni : USize = 0
+                        for fdd : Declaration in sdd_data.ns_decls {
+                            cur_ni := fni
+                            fni = fni + 1
                             ref fdef : Expr = fdd.default_value
                             if fdef.is_null() { continue }
                             mut fd_func_type := FuncType.Func
@@ -7417,7 +7436,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                 continue
                             }
                             if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
-                                flat_name := sdd.name.concat3("_", fdd.name)
+                                flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
                                 ref fn_ptr : U8 = ffi_dlsym(flat_name)
                                 if fn_ptr.is_null().not() {
                                     ffi_register(flat_name, fn_ptr, fdef, ctx)

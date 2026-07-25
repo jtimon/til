@@ -97,7 +97,7 @@ struct_def_of := func(type_name: Str) returns StructDef {
         decl.name = struct_field_name(type_name, i)
         decl.is_mut = struct_field_is_mut(type_name, i) == 1
         decl.explicit_type = struct_field_type(type_name, i)
-        def.fields.push(own decl)
+        def.push_field(own decl)
     }
     return def
 }
