@@ -127,6 +127,31 @@ test_mixed_required_optional := test() {
     assert_eq(Str, m.label, "hi")
 }
 
+// #321 step 1: a ref field with no default is required at instantiation,
+// and the ctor arg may be a VALUE field access -- the emitter must borrow
+// it (take its address), same as a plain `holder.f = src` field assign.
+RefReqSrc := struct {
+    tag := 0
+    label := "src"
+}
+
+RefReq := struct {
+    ref name : Str
+    n := 0
+}
+
+test_required_ref_field_from_field_access := test() {
+    mut src := RefReqSrc(label = "borrowed")
+    r := RefReq(name = src.label)
+    assert_eq(Str, r.name, "borrowed")
+    assert_eq(I64, r.n, 0)
+    // Write-through: the field borrows src.label, it does not copy it.
+    src.label = "changed"
+    assert_eq(Str, r.name, "changed")
+    // Keep the borrowed source alive past the last read through r.
+    assert_eq(Str, src.label, "changed")
+}
+
 test_independence := test() {
     a := Point()
     b := Point()

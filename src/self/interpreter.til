@@ -223,19 +223,24 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
 
 CALLABLE_BOX_MAGIC : U64 = 1414745932
 
+// Only ever built raw on the EvalHeap (heap_alloc + field writes); the
+// ctor never runs, so the ref fields carry no defaults (#321).
 InterpCallableBox := struct {
     magic : U64 = 0
-    ref func_def : Expr = NULL
-    ref env : Scope = NULL
+    ref func_def : Expr
+    ref env : Scope
 }
 
 HeapBinding := struct {
     // Non-owning address of the raw value block; ownership is described by
     // the flags below and discharged explicitly by scope teardown.
-    ref ptr : U8 = NULL
+    // No default (#321): the one ctor site always passes ptr and ctx.
+    // ptr is still NULLed at move-out/teardown -- that runtime state is
+    // step-2 material (Option or the moved_out flag alone).
+    ref ptr : U8
     til_type := Type.Unknown
     own_type := OwnType.Shallow
-    ref ctx : Context = NULL
+    ref ctx : Context
     is_local := false
     is_borrowed := false
     is_erased_dynamic := false
@@ -252,7 +257,10 @@ Scope := struct {
     heap_bindings := Map(Str, HeapBinding).new()
     // Borrowed parameters name their source binding for write-through.
     heap_aliases := Map(Str, Str).new()
-    ref parent : Scope = NULL
+    // No default (#321): scope_new always passes parent. The ROOT scopes
+    // still pass a NULL value (scope_new_boxed(NULL)) -- parent-chain
+    // walking to the root is real control flow, Option material later.
+    ref parent : Scope
     is_call_scope := false
 }
 
@@ -3718,13 +3726,6 @@ priv scope_drop_existing_heap_slot := func(mut s: Scope, name: Str, drop_nested:
     if hb.moved_out { return }
     old_ptr : Dynamic = hb.ptr
     if old_ptr.is_null() { return }
-    switch hb.til_type {
-    case Type.Struct:
-        if hb.ctx.is_null() { panic("heap binding without ctx: ", name) }
-    case Type.Enum:
-        if hb.ctx.is_null() { panic("heap binding without ctx: ", name) }
-    case:
-    }
     if drop_nested.and(hb.is_static_callable.not()) { heap_drop_by_type(hb.til_type, old_ptr, hb.ctx) }
     EvalHeap.heap_free(own old_ptr)
     hb.ptr = NULL
@@ -4913,8 +4914,9 @@ cmd_interpret := proc(lp: LoadedProgram, user_argv: Vec(Str)) returns I32 {
 // src/self/dispatch.til). Routes interpreter calls to builtins
 // (the dispatch_map) and to libffi-backed ext_func/ext_proc calls. ---
 
+// Raw marshal mirror of the C Str layout; never built via the ctor.
 priv ExtStr := struct {
-    ref data : U8 = NULL
+    ref data : U8
     count : USize = 0
     cap : USize = 0
 }
@@ -4932,11 +4934,11 @@ FFIEntry := struct {
 }
 
 ExprPtrBox := struct {
-    ref ptr : Expr = NULL
+    ref ptr : Expr
 }
 
 FFITypePtrBox := struct {
-    ref ptr : ffi_type = NULL
+    ref ptr : ffi_type
 }
 
 // Reset all FFI state so a fresh scan can run.
@@ -7343,10 +7345,8 @@ ffi_cleanup := proc(ctx: Context) {
     ctx.ffi_loaded = false
     if ctx.ffi_type_cache_inited {
         for box : FFITypePtrBox in ctx.ffi_type_cache {
-            if box.ptr.is_null().not() {
-                free(own box.ptr.elements)
-                free(own box.ptr)
-            }
+            free(own box.ptr.elements)
+            free(own box.ptr)
         }
         ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi_type_cache_inited = false

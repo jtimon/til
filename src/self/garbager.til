@@ -23,7 +23,7 @@ import("context")
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
-    ref name : Str = NULL
+    ref name : Str
     type := Type.Unknown
     decl_index : I32 = 0
     last_use : I32 = 0
@@ -971,8 +971,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         main_cli_param := ctx.typer_in_main_func.and(b.is_param)
         if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
 
-        mut li := LocalInfo()
-        li.name = b.name
+        // Borrow via a ref local, not `name = b.name` directly: til_boot's
+        // emitter predates the emit_ctor_fields value-borrow fix landing in
+        // this same commit, and a ref local emits identically under both.
+        // Can be inlined once this commit's boot/ is the bootstrap base.
+        ref bname : Str = b.name
+        mut li := LocalInfo(name = bname)
         li.type = b.type
         li.decl_index = decl_idx
         li.last_use = last_use

@@ -22,7 +22,9 @@ cfile_read_n := ext_func(handle: Dynamic, shallow count: I64) returns Str {}
 
 /// File handle for reading or writing on disk.
 File := struct {
-    ref handle : U8 = NULL
+    // No default: a File without a live handle is not a state (#321);
+    // cfile_open exit(1)s on failure, so every constructor site has one.
+    ref handle : U8
     is_write := false
     // Opened for in-place update ("r+b"): both reads and writes are
     // allowed and the cursor can be moved with `seek`.
@@ -105,12 +107,11 @@ namespace:
         return self
     }
 
-    /// Close the underlying file handle and NULL it. Private: invoked
-    /// only from `delete`, which the garbager inserts after a File
-    /// local's last use.
-    priv close := func(mut self: File) {
+    /// Close the underlying file handle. Private: invoked only from
+    /// `delete`, which the garbager inserts after a File local's last
+    /// use, so nothing reads the handle afterwards.
+    priv close := func(self: File) {
         cfile_close(self.handle)
-        self.handle = NULL
     }
 
     /// Release the File: close the handle, then free the struct shell

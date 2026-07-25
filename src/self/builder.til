@@ -9,12 +9,12 @@ import("../std/file")
 system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
 
 priv CollectionInfo := struct {
-    ref type_name : Str = NULL
+    ref type_name : Str
     is_vec : I32 = 0
 }
 
 priv DynCallInfo := struct {
-    ref method : Str = NULL
+    ref method : Str
     nargs : I32 = 1
     has_return := false
 }
@@ -3763,7 +3763,11 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
         if fld_own.is(OwnType.Ref) {
             emit_field(f, var, fname, ctx)
             f.write(" = ")
-            emit_expr(f, arg, depth, ctx)
+            // Borrow into the ref field: pointer-shaped args (ref
+            // locals/params, Dynamic, NULL) emit unchanged; a VALUE arg
+            // (e.g. a field access like `b.name`) needs its address, same
+            // as the FieldAssign path for ptr fields.
+            emit_as_ptr(f, arg, depth, false, ctx)
             f.write(";\n")
         } else if fld_own.is(OwnType.Own) {
             if arg.node_type.is_literal_str() {

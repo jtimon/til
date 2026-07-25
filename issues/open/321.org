@@ -1,6 +1,6 @@
 # priority: medium
 # category: features
-** OPEN #321 Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
+** WIP #321 Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
 
 Depends on #320 (ownership qualifiers in template type args and enum
 variant payloads -- needed for ~Option(ref T)~).
@@ -112,6 +112,59 @@ system instead of by runtime null-deref panics (the generated C
   issue establishes -- Option(ref T) with the niche and the NULL-ref
   removal are one coherent transition, sequenced by the #320 -> #321
   dependency.
+
+*** Progress
+
+**** Step-1 survey of all ~ref ... = NULL~ struct fields (master a1ad866)
+
+Classification of every NULL-defaulted ref field outside vendor/ and
+test fixtures, by whether NULL is ever a real runtime state:
+
+DEFAULT DROPPED (first migration commit; field now mandatory at
+instantiation via #242 -- every ctor site already passed it):
+
+- src/std/file.til File.handle -- both ctors pass a handle (cfile_open
+  exit(1)s on failure). Also removed close's ~self.handle = NULL~
+  poison write: close is only called from delete, nothing reads after.
+- src/self/builder.til CollectionInfo.type_name, DynCallInfo.method --
+  single ctor site each.
+- src/self/garbager.til LocalInfo.name -- bare ctor + immediate
+  assign; the assign moved into the ctor call.
+- src/self/interpreter.til HeapBinding.ptr + HeapBinding.ctx -- the
+  one ctor site passes both. ptr is still NULLed at move-out/teardown
+  (real runtime state, step-2 material); the dead
+  "heap binding without ctx" panic guards went with the ctx default.
+- src/self/interpreter.til ExprPtrBox.ptr, FFITypePtrBox.ptr --
+  single ctor site each; the defensive ~box.ptr.is_null()~ teardown
+  check went too (every cache entry is built non-null).
+- src/self/interpreter.til InterpCallableBox.func_def/env and
+  ExtStr.data -- ctor NEVER runs (raw EvalHeap/marshal structs), the
+  defaults were dead code.
+- src/self/interpreter.til Scope.parent -- scope_new always passes
+  parent; the ROOT scopes pass a NULL value (scope_new_boxed(NULL)),
+  so the nullability itself stays until Option.
+
+NEEDS OPTION (NULL is a real expected state; blocked on #320):
+
+- src/self/context.til TypeScope.parent -- root scopes are bare
+  ~TypeScope()~ (context.til:433/626); parent-chain walk to root.
+- src/self/context.til Context lazy/per-phase transients:
+  constfolder_known, return_value ("takes and clears"),
+  interp_ret_dest, interp_ret_type, ns_fields, current_fdef, and the
+  six #177 caches (cached_str/array/vec_def/name).
+- src/self/interpreter.til InterpSession.global -- late-init, freed
+  and re-NULLed at teardown.
+- src/self/interpreter.til FFIEntry.* -- built incrementally from a
+  bare ctor; return_type is legitimately absent (procs).
+- src/self/garbager.til GcCfgBlock.body -- "NULL only for the
+  synthetic exit block", checked as real control flow.
+
+C BOUNDARY (generated bindings / marshal mirrors; handled by the
+binder + niche'd Option decisions above): vendor/bindings/libffi.til,
+raylib.til, nng.til pointer fields. Test fixtures exercising NULL
+semantics on purpose (test/ref.til RefNode.next linked list,
+test/aliases.til, test/typer_errors.til, test/priv_error.til) stay
+until the language-level removal.
 
 *** Decisions (2026-07-21 design discussion)
 
