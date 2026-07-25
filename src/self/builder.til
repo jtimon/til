@@ -3556,7 +3556,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // modes agree.
                 //
                 // A literal NULL base means "reinterpret an integer as a
-                // pointer" (interpreter Value payloads), not arithmetic:
+                // pointer" (an integer stored in raw interpreter bytes), not arithmetic:
                 // emit a standard (void *)(UPtr) cast for it. The generic
                 // `(U8 *)(NULL) + n` form is a GNU extension that Apple
                 // clang rejects under -Werror (-Wgnu-null-pointer-arithmetic,
@@ -3595,8 +3595,8 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // own offset (the ctor stores `r->data.V = *val;` at exactly
                 // `&r->data`), so read and write always agree. The interpreter
                 // evaluates get_payload via the registered h_get_payload handler
-                // (a core_func is not FFI-registered) using Values, not byte
-                // offsets, so both modes agree for every payload width.
+                // (a core_func is not FFI-registered) using the enum's typed raw
+                // bytes, so both modes agree for every payload width.
                 ename := til_type_name(e.children[1].til_type())
                 f.write("((void *)((U8 *)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)

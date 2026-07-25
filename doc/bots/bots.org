@@ -770,6 +770,15 @@ The base remote procedure:
 Soft-reset + regenerate is only required when (4) produced boot/*
 conflicts; a clean rebase needs no soft-reset on remote sessions.
 
+"Commit, rebase, soft-reset, continue" is a checkpoint and rebase
+workflow, not permission to stop or leave the work uncommitted. After
+the soft reset, resume the exact task and plan that were active before
+the checkpoint: finish the implementation, run the normal required
+verification, and create the final commit. The sequence changes only
+the base commit; it does not reduce scope, replace the final commit,
+or justify any other deviation from the previous plan or normal
+process.
+
 Exception -- "next to merge": when the user says the rebased branch
 is next to merge (no other remote branches will land between this
 push and the local merger picking it up), the soft-reset + regenerate

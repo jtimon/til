@@ -175,6 +175,20 @@ namespace:
         return out
     }
 
+    /// Remove and drop the element at `i`, shifting later elements left.
+    remove_at := func(mut self: Vec(T), i: USize) throws OutOfBounds {
+        if i >= self.count {
+            throw OutOfBounds()
+        }
+        T.delete(own self.unsafe_get(i), false)
+        tail := self.count.sub(i).sub(1)
+        if tail > 0 {
+            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.mul(T.size()))
+        }
+        self.count = self.count - 1
+        memset(self.unsafe_get(self.count), 0, T.size())
+    }
+
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
     take_prefix := func(mut self: Vec(T), n: USize) returns Vec(T) {

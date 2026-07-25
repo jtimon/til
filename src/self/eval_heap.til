@@ -2,9 +2,9 @@ mode lib
 
 // EvalHeap -- the raw-bytes runtime heap (#286 commit 1, rstil model).
 //
-// rstil (github.com/jtimon/rstil) drops the interpreter's boxed `Value`:
-// a variable is a NAME -> a raw heap POINTER (kept in the scope's
-// heap_index), and the value at that pointer is just the bytes the C
+// Like rstil (github.com/jtimon/rstil), the interpreter stores a variable as
+// NAME -> raw heap POINTER (kept in the scope's binding metadata), and the
+// value at that pointer is just the bytes the C
 // backend would emit. The type lives in the scope's symbol tables, not in
 // the value; reclamation is one heap_free per block instead of a per-value
 // hand-free.
@@ -24,11 +24,27 @@ mode lib
 // buffer. A single live_blocks counter is the cheap balance/leak sanity
 // signal; ASAN does the real leak detection.
 //
-// Commit 1 wires this in as standalone infrastructure: the module + a
-// Scope name->pointer heap_index + an EvalHeap on Context. Eval does not
-// read the heap yet -- commits 2-3 migrate Struct/Str/Enum/containers onto
-// it, and commit 4 drops the Value box. Exercised on its own by
-// test/eval_heap.til.
+// Scope owns name->pointer binding entries and Context carries the EvalHeap.
+// Expression evaluation, scopes, const folding, and FFI all use these raw
+// bytes directly. Exercised on its own by test/eval_heap.til.
+
+// Inline-scalar value words (#286 perf): a primitive-typed interpreter
+// value is its bytes zero-extended into the pointer-sized word itself --
+// no heap block, so scalar reads/temps/results allocate nothing (the old
+// Value box inlined scalars the same way; the raw model keeps that for
+// scalars while aggregates stay raw heap pointers). These reinterpret a
+// word's integer bits and back; implemented in src/c/ext.c.
+word_bits := ext_func(w: Dynamic) returns shallow U64 {}
+bits_word := ext_func(shallow b: U64) returns shallow Dynamic {}
+f32_word := ext_func(shallow f: F32) returns shallow U64 {}
+word_f32 := ext_func(shallow b: U64) returns shallow F32 {}
+// Ownership sink for an inline-scalar word: consumes the own Dynamic
+// without freeing (the word holds value bits, not a heap pointer).
+word_drop := ext_func(own w: Dynamic) {}
+// Fixed C-side arenas for the interpreter's scalar-word slots (stable
+// addresses, no allocation, no teardown).
+dispatch_scratch_base := ext_func() returns shallow Dynamic {}
+word_ring_base := ext_func() returns shallow Dynamic {}
 
 EvalHeap := struct {
     // #286: the EvalHeap is the chokepoint for value-payload memory. It holds
@@ -62,7 +78,7 @@ namespace:
 
     delete := func(own self: EvalHeap, call_free: Bool = true) {
         // EvalHeap owns no heap data of its own; the blocks belong to the
-        // scope heap_index that holds their pointers.
+        // scope bindings that hold their pointers.
         if call_free { free(own self) }
     }
 

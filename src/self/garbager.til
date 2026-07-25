@@ -2093,6 +2093,61 @@ priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
     }
 }
 
+// Stamp whether each field assignment consumes its RHS. The interpreter
+// cannot recover this from an Ident after the typer hoists an owning call.
+priv record_field_transfer_decisions := func(body: Expr, scope: TypeScope) {
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case NodeType.FieldAssign(fad):
+            fad.transfers_own = stmt.fa_own_type(scope).is(OwnType.Own)
+        case:
+        }
+    }
+}
+
+// A delete(..., false) consumes nested ownership but intentionally leaves the
+// outer allocation for the caller's following memset/free protocol.
+priv record_keep_outer_args_expr := proc(mut e: Expr, false_names: Set(Str)) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(2)).and(get_own_arg(e, 1)) {
+        mut is_delete := false
+        switch e.children[0].node_type {
+        case NodeType.FieldAccess(fa): is_delete = fa.field_access_name() == "delete"
+        case NodeType.Ident(id): is_delete = id.ident_name().ends_with("_delete")
+        case:
+        }
+        if is_delete {
+            mut call_free_is_false := false
+            switch e.children[2].node_type {
+            case NodeType.Literal(Literal.Bool(call_free)):
+                call_free_is_false = call_free.not()
+            case NodeType.Ident(id):
+                call_free_is_false = false_names.has(id.ident_name())
+            case:
+            }
+            if call_free_is_false { set_keep_outer_arg(e, 1) }
+        }
+    }
+    for mut child : Expr in e.children { record_keep_outer_args_expr(child, false_names) }
+}
+
+priv record_keep_outer_args := proc(mut body: Expr) {
+    false_names := Set(Str).new()
+    for stmt : Expr in body.children {
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            if stmt.children.len() > 0 {
+                switch stmt.children[0].node_type {
+                case NodeType.Literal(Literal.Bool(value)):
+                    if value.not() { false_names.add(own dd.name.clone()) }
+                case:
+                }
+            }
+        case:
+        }
+    }
+    record_keep_outer_args_expr(body, false_names)
+}
+
 // --- #302 stage 5: the temp contract, checked ------------------------------
 //
 // The hoisting division of labor says every owned-aggregate-producing
@@ -2111,7 +2166,17 @@ priv record_storage_decisions := func(body: Expr, locals: Vec(LocalInfo)) {
 // The walk stops at nested Body / FuncDef boundaries: those are
 // separate garbager views with their own check.
 priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeScope) {
-    if e.node_type.is(NodeType.Body).or(e.node_type.is(NodeType.FuncDef)) { return }
+    if e.node_type.is(NodeType.FuncDef) {
+        switch e.node_type {
+        case NodeType.FuncDef(fd):
+            if fd.captures.len().gt(0).and(consumed.not()) {
+                panic(__LOC__, ": unhoisted capturing closure temp at ", ctx.path, ":", e.line.to_str(), ":", e.col.to_str())
+            }
+        case:
+        }
+        return
+    }
+    if e.node_type.is(NodeType.Body) { return }
     // Struct/enum defs: field defaults and namespace members are owned
     // by the initer/constructor machinery, and method bodies are
     // separate garbager views -- not this body's temps.
@@ -2219,6 +2284,8 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
     flag_outer_assign_rebinds(body, locals_vec, scope)
+    record_field_transfer_decisions(body, scope)
+    record_keep_outer_args(body)
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 

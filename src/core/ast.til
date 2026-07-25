@@ -74,7 +74,7 @@ FuncType := enum {
     // natively (no emitted symbol, no per-backend impl) and the typer
     // FORBIDS indirecting them (dyn_fn / FuncPtr field / FFI). Appended at
     // the END so existing tag values stay stable for til_boot's committed
-    // boot/ (same constraint that appended Sbyte/Ushort to Value).
+    // boot/ (enum tags are part of the committed bootstrap ABI).
     CoreFunc, CoreProc,
     // core_lazy_func: a bodyless lazy core primitive (and/or). Like a
     // core_func, every backend lowers it natively (C: the short-circuiting
@@ -216,6 +216,7 @@ FCallData := struct {
     // declared throw type, then clears the flag.
     is_bang := false
     own_args : U64 = 0
+    keep_outer_args : U64 = 0
     swap_replace := false
     // Issue #206 slice 3: payload-resident result type. The typer
     // writes the resolved callee return type here via the
@@ -383,6 +384,7 @@ StructLayout := struct {
     total_size : USize = 0
     align : USize = 1
     fields := Vec(FieldLayout).new()
+    is_interface := false
 namespace:
     eq := func(a: StructLayout, b: StructLayout) returns Bool {
         return a.total_size.eq(b.total_size).and(a.align.eq(b.align))
@@ -406,6 +408,7 @@ namespace:
 FieldAssignData := struct {
     name := ""
     save_old_delete := false
+    transfers_own := false
 namespace:
     eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name == b.name }
     to_str := func(self: FieldAssignData) returns Str { return self.name }
@@ -798,4 +801,3 @@ namespace:
         return self.to_str_indent(0)
     }
 }
-

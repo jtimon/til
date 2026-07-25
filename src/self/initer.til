@@ -80,7 +80,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs at init so
-        // constfolder eval (which clones Values and looks up nested struct/enum
+        // constfolder eval (which clones typed raw bytes and looks up nested struct/enum
         // defs by name) sees a populated registry; interpret_units later
         // re-registers with the same value, which is idempotent.
         tdv : I64 = malloc(I64.size())
@@ -1834,6 +1834,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
         mut offset : USize = 0
         mut max_align : USize = 1
         mut sl := StructLayout()
+        sl.is_interface = struct_meta.is_interface
 
         for mut fd : Declaration in struct_meta.fields {
             mut fsz : USize = 0
