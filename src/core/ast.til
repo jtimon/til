@@ -361,6 +361,13 @@ EnumDef : StructDef = struct {
     // (enum_def_of) -- readers fall back to the variant index. Appended at
     // the end to minimise layout disturbance for til_boot.
     tag_values := Vec(I64).new()
+    // #320: per-variant flag (dense, parallel to `variants`, like
+    // payload_consts) marking variants whose payload was declared
+    // `ref Type` -- a BORROWED payload stored as a bare pointer: the
+    // enum does not own the pointee (clone copies the pointer, delete
+    // skips it). Appended at the end to minimise layout disturbance
+    // for til_boot.
+    payload_refs := Vec(Bool).new()
 namespace:
     eq := func(a: EnumDef, b: EnumDef) returns Bool {
         return a.variants.len() == b.variants.len()

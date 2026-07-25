@@ -132,8 +132,8 @@ typedef enum {
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
 typedef struct Map__I64_Str Map__I64_Str;
-typedef struct Vec__Bool Vec__Bool;
 typedef struct Vec__I64 Vec__I64;
+typedef struct Vec__Bool Vec__Bool;
 typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
@@ -533,18 +533,18 @@ typedef struct MatchData {
 } MatchData;
 
 
-typedef struct Vec__Bool {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__Bool;
-
-
 typedef struct Vec__I64 {
     U8 *data;
     USize count;
     USize cap;
 } Vec__I64;
+
+
+typedef struct Vec__Bool {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__Bool;
 
 
 typedef struct Vec__FieldLayout {
@@ -1274,6 +1274,7 @@ typedef struct EnumDef {
     Str implements_name;
     Str tag_type;
     Vec__I64 tag_values;
+    Vec__Bool payload_refs;
 } EnumDef;
 
 
@@ -1730,15 +1731,6 @@ void Map__I64_Str_delete(Map__I64_Str * self, Bool call_free);
 Map__I64_Str * Map__I64_Str_clone(Map__I64_Str * self);
 U64 Map__I64_Str_hash(Map__I64_Str * self, HashFn hasher);
 USize Map__I64_Str_size(void);
-Vec__Bool * Vec__Bool_new(void);
-USize Vec__Bool_len(Vec__Bool * self);
-void Vec__Bool_clear(Vec__Bool * self);
-void Vec__Bool_push(Vec__Bool * self, Bool * val);
-Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
-Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
-void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
-Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
-USize Vec__Bool_size(void);
 Vec__I64 * Vec__I64_new(void);
 USize Vec__I64_len(Vec__I64 * self);
 void Vec__I64_clear(Vec__I64 * self);
@@ -1749,6 +1741,15 @@ void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
 void Vec__I64_delete(Vec__I64 * self, Bool call_free);
 Vec__I64 * Vec__I64_clone(Vec__I64 * self);
 USize Vec__I64_size(void);
+Vec__Bool * Vec__Bool_new(void);
+USize Vec__Bool_len(Vec__Bool * self);
+void Vec__Bool_clear(Vec__Bool * self);
+void Vec__Bool_push(Vec__Bool * self, Bool * val);
+Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
+Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
+void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
+Vec__Bool * Vec__Bool_clone(Vec__Bool * self);
+USize Vec__Bool_size(void);
 Vec__FieldLayout * Vec__FieldLayout_new(void);
 USize Vec__FieldLayout_len(Vec__FieldLayout * self);
 void Vec__FieldLayout_clear(Vec__FieldLayout * self);
@@ -2029,9 +2030,9 @@ void constfolder_classify_stmt(Expr * stmt, Context * ctx);
 Expr * make_method_call_fcall(Expr * recv, Str * method, U32 line, U32 col);
 Expr * make_get_payload_fcall(Expr * arg, Type payload_type, U32 line, U32 col);
 Expr * make_is_tag_check_fcall(Str * arg_name, Str * ename, Str * vname, USize tag_size, U32 line, U32 col);
-Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col, Bool is_mut);
+Expr * make_payload_ref_decl(Expr * arg, Str * bind_name, Str * vtype, U32 line, U32 col, Bool is_mut, Bool is_ref_payload);
 Bool priv___src_self_context_til__expr_contains_ident_named(Expr * e, Str * name);
-Vec__Expr * make_payload_ref_decls(Expr * arg, Str * bind_name, Str * fresh_name, Str * vtype, U32 line, U32 col, Bool is_mut);
+Vec__Expr * make_payload_ref_decls(Expr * arg, Str * bind_name, Str * fresh_name, Str * vtype, U32 line, U32 col, Bool is_mut, Bool is_ref_payload);
 Bool type_is_primitive(Type * t, Primitive * p);
 Bool is_type_metatype(Type * t);
 Bool funcptr_eq(Type * a, Type * b);
@@ -2052,6 +2053,7 @@ I64 enum_variant_tag(Expr * enum_def, Str * variant_name);
 I32 enum_variant_index(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 idx);
 Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
+Bool enum_variant_payload_ref(Expr * enum_def, I32 idx);
 Bool rhs_is_allocator_call(Expr * e);
 Bool priv___src_self_context_til__contains_return(Expr * e);
 Bool fn_never_returns(Expr * body);
@@ -2754,6 +2756,8 @@ Bool priv___src_self_garbager_til__str_clone_to_move_provably_safe(Str * name, V
 Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__Expr * preceding);
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
+Str * priv___src_self_garbager_til__enum_ref_payload_borrow_src(Expr * e, TypeScope * scope);
+void priv___src_self_garbager_til__extend_enum_ref_payload_borrows(Expr * e, I32 body_last, Vec__LocalInfo * locals, TypeScope * scope, Bool * ref_changed);
 void priv___src_self_garbager_til__extend_ref_local_lifetimes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__extend_hoist_view_lifetimes(Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__while_spine_transfers(Expr * wbody, Str * name, TypeScope * scope, Context * ctx);
@@ -3465,6 +3469,7 @@ void * priv___src_self_interpreter_til__heap_clone_enum(Str * enum_name, void * 
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context * ctx);
 I64 priv___src_self_interpreter_til__enum_data_tag_key(void * data, Expr * enum_def);
 Str * priv___src_self_interpreter_til__enum_payload_type_ref(Str * enum_name, void * data, Context * ctx);
+Bool priv___src_self_interpreter_til__enum_payload_is_ref(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_free(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_clone(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__heap_drop_enum(Str * enum_name, void * data, Context * ctx);

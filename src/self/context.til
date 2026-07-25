@@ -835,10 +835,27 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     return is_call
 }
 
-make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Expr {
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, is_ref_payload: Bool = false) returns Expr {
     mut gc := make_get_payload_fcall(own arg, til_type_from_explicit_type(vtype), line, col)
     mut decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut)), line, col)
-    decl.add_child(own gc)
+    // REM: gc must be consumed in BOTH branches of a symmetric if/else --
+    // an if-with-return plus fall-through consumption is a two-site
+    // conditional transfer the garbager miscompiles (double free, found
+    // the hard way building this very function).
+    if is_ref_payload {
+        // #320: a ref payload's slot holds a bare pointer to the borrowed
+        // source, so the binding must LOAD the slot, not alias it: wrap in
+        // deref(...) (a ref-returning ext_func both backends already
+        // handle). Pre-typed to the payload type like get_payload itself.
+        mut dv := Expr.new(ident_node("deref"), line, col)
+        mut dc := Expr.new(NodeType.FCall(FCallData()), line, col)
+        dc.add_child(own dv)
+        dc.add_child(own gc)
+        dc.set_til_type(til_type_from_explicit_type(vtype))
+        decl.add_child(own dc)
+    } else {
+        decl.add_child(own gc)
+    }
     return decl
 }
 
@@ -865,16 +882,16 @@ priv expr_contains_ident_named := func(e: Expr, name: Str) returns Bool {
 // outer binding/param), then alias the user name to that ref -- a ref-to-ref,
 // so the arm body's uses of `bind_name` need no rewriting. `fresh_name` must be
 // unique (callers derive it from the binding's source location).
-make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool) returns Vec(Expr) {
+make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, is_ref_payload: Bool = false) returns Vec(Expr) {
     mut out := Vec(Expr).new()
     if expr_contains_ident_named(arg, bind_name) {
-        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut))
+        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, is_ref_payload))
         mut alias_rhs := Expr.new(ident_node(fresh_name), line, col)
         mut alias_decl := Expr.new(NodeType.Decl(decl_typed(name = bind_name, explicit_type = vtype, own_type = OwnType.Ref, is_mut = is_mut)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
-        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut))
+        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut, is_ref_payload))
     }
     return out
 }
@@ -1169,6 +1186,23 @@ enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
         idx_u := idx.to_usize()
         if idx_u < edd.payload_consts.len() {
             if edd.payload_consts[idx_u] { return true }
+        }
+    case:
+        UNREACHABLE()
+    }
+    return false
+}
+
+// #320: payload-ref flag of a variant by its declaration INDEX
+// (payload_refs is dense and index-keyed like payload_consts). True when
+// the variant's payload was declared `ref Type` -- a borrowed payload
+// stored as a bare pointer the enum does not own.
+enum_variant_payload_ref := func(enum_def: Expr, idx: I32) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        idx_u := idx.to_usize()
+        if idx_u < edd.payload_refs.len() {
+            if edd.payload_refs[idx_u] { return true }
         }
     case:
         UNREACHABLE()

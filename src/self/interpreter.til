@@ -366,9 +366,22 @@ priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) 
     return NULL
 }
 
+// #320: true when the CURRENT variant (by the tag stored in `data`) carries
+// a ref payload -- a borrowed pointer the enum does not own, which the
+// deep-clone/deep-free walkers must skip.
+priv enum_payload_is_ref := func(enum_name: Str, data: Dynamic, ctx: Context) returns Bool {
+    ref edef : Expr = lookup_interp_type_def(enum_name, ctx)
+    if edef.is_null() { return false }
+    idx := enum_variant_index_for_tag_key(enum_name, enum_data_tag_key(data, edef), ctx)
+    if idx < 0 { return false }
+    return enum_variant_payload_ref(edef, idx)
+}
+
 priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
     ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
     if payload_type.is_null() { return }
+    // #320: a ref payload is a borrowed pointer -- nothing to free.
+    if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
     resolved := type_from_name_init(payload_type, ctx.scope)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
@@ -388,6 +401,9 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
 priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context) {
     ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
     if payload_type.is_null() { return }
+    // #320: a ref payload is a borrowed pointer -- the copy shares the
+    // pointee; never deep-clone it.
+    if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_clone_str_payload(data, ctx); return }
     resolved := type_from_name_init(payload_type, ctx.scope)
     if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
@@ -6482,6 +6498,15 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
         if ctor_tag >= 0 {
             vtype := enum_variant_type(enum_def, ctor_idx)
             has_payload := vtype.len() > 0
+            if has_payload.and(enum_variant_payload_ref(enum_def, ctor_idx)) {
+                // #320: ref payload -- the payload word is the SOURCE's
+                // address (a borrow): no clone, no move, no ownership.
+                ref borrow_expr : Expr = e.children[1]
+                borrow_raw : Dynamic = eval_expr_raw(scope, borrow_expr, ctx)
+                write_enum_flat(result, enum_name, ctor_tag, NULL, 0, false, false, ctx)
+                write_ptr(ptr_add(result, ENUM_PAYLOAD_OFFSET), raw_arg_pointer(scope, borrow_expr, borrow_raw, ctx))
+                return true
+            }
             if has_payload {
                 ref payload_expr : Expr = e.children[1]
                 mut pdata : Dynamic = 0

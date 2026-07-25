@@ -971,12 +971,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         main_cli_param := ctx.typer_in_main_func.and(b.is_param)
         if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
 
-        // Borrow via a ref local, not `name = b.name` directly: til_boot's
-        // emitter predates the emit_ctor_fields value-borrow fix landing in
-        // this same commit, and a ref local emits identically under both.
-        // Can be inlined once this commit's boot/ is the bootstrap base.
-        ref bname : Str = b.name
-        mut li := LocalInfo(name = bname)
+        mut li := LocalInfo(name = b.name)
         li.type = b.type
         li.decl_index = decl_idx
         li.last_use = last_use
@@ -1050,10 +1045,68 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
     }
 }
 
+// #320: true when `e` is an enum-variant ctor FCall whose variant carries a
+// ref payload; returns the payload arg's root Ident name ("" otherwise).
+// Matches both the ns FieldAccess callee (`Opt.Some(x)`) and the flattened
+// Ident callee (`Opt_Some(x)`).
+priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str {
+    if e.node_type.is(NodeType.FCall).not() { return "" }
+    if e.children.len() != 2 { return "" }
+    ename := til_type_name(e.til_type())
+    if ename.len() == 0 { return "" }
+    mut vname := ""
+    switch e.children[0].node_type {
+    case NodeType.Ident(ci):
+        prefix := format(ename, "_")
+        if ci.ident_name().starts_with(prefix) {
+            vname = ci.ident_name().substr(prefix.len(), ci.ident_name().len() - prefix.len())
+        }
+    case NodeType.FieldAccess(cf):
+        vname = Str.clone(cf.field_access_name())
+    case:
+    }
+    if vname.len() == 0 { return "" }
+    ref def : Expr = scope.get_struct(ename)
+    if def.is_null() { return "" }
+    if def.node_type.is(NodeType.EnumDef).not() { return "" }
+    idx := enum_variant_index(def, vname)
+    if idx < 0 { return "" }
+    if enum_variant_payload_ref(def, idx).not() { return "" }
+    switch e.children[1].node_type {
+    case NodeType.Ident(an): return Str.clone(an.ident_name())
+    case:
+    }
+    return ""
+}
+
+// Walk `e`'s subtree extending the lifetime of every local borrowed into an
+// enum ref payload (shape (c) of extend_ref_local_lifetimes).
+priv extend_enum_ref_payload_borrows := func(e: Expr, body_last: I32, locals: Vec(LocalInfo), scope: TypeScope, mut ref_changed: Bool) {
+    src_name := enum_ref_payload_borrow_src(e, scope)
+    if src_name.len() > 0 {
+        for local : LocalInfo in locals {
+            if local.name.eq(src_name).and(local.last_use.lt(body_last)) {
+                local.last_use = body_last
+                ref_changed = true
+            }
+        }
+    }
+    for c : Expr in e.children {
+        extend_enum_ref_payload_borrows(c, body_last, locals, scope, ref_changed)
+    }
+}
+
 priv extend_ref_local_lifetimes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope) {
     mut ref_changed := true
     while ref_changed {
         ref_changed = false
+        // (c) #320: an enum-variant ctor with a ref payload borrows its arg
+        // into the enum value: `o := Opt.Some(src)` must keep src alive as
+        // long as o (or anything o was copied into) can be read. Same
+        // conservative bound as (a): extend src through scope exit.
+        for cstmt : Expr in body.children {
+            extend_enum_ref_payload_borrows(cstmt, body.children.len().sub(1).to_i32(), locals, scope, ref_changed)
+        }
         // (a) FieldAssign-to-Ref-field: `holder.f = src` where f is declared
         // `ref mut f : T = NULL` borrows src into holder. src must outlive
         // any later access of holder (via holder.f or holder field-access

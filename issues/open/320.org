@@ -1,6 +1,31 @@
 # priority: medium
 # category: features
-** OPEN #320 Ownership qualifiers in template type args and enum variant payloads
+** WIP #320 Ownership qualifiers in template type args and enum variant payloads
+
+*** Progress
+
+- [X] Gap 2 (stage a): ref payloads on plain enums -- `Variant: ref Type`
+  parses (redundant `own` rejected like redundant mut/const),
+  EnumDef.payload_refs (dense, parallel to payload_consts) +
+  enum_variant_payload_ref helper, ctor param borrows (no ownership
+  transfer at call sites), payload slot stored/laid out as a bare
+  pointer in both backends (union member `T *`, interpreter payload
+  word = source address), case bindings deref the slot via a
+  deref(get_payload(..)) wrap (make_payload_ref_decl is_ref_payload
+  flag), autogen clone shares the pointee, delete skips it, eq/to_str
+  go through the pointee, garbager extends the borrowed source's
+  lifetime through scope exit (extend_ref_local_lifetimes shape (c)).
+  Tests: test_ref_payload_* in test/enums.til (both backends).
+- [ ] Deferred from stage a: typer diagnostic rejecting a non-place
+  expr (owned temporary, e.g. an FCall result) as a ref-payload ctor
+  arg -- the borrow escapes into the enum value, so a temp dangles
+  (compiled) or leaks (interpreted). Mirror expr_is_ref_decl_source.
+- [ ] Gap 2 remainder: ref payloads inside template-generated enums
+  (needs Gap 1 so the substituted `Some: T` can BECOME `Some: ref X`).
+- [ ] Gap 1: qualifiers in template type args (type annotation
+  position, type-gen macro calls, direct generic funcs) + mangling.
+- [ ] Niche layout rule (see below).
+- [ ] Option in core, ala Rust.
 
 Prerequisite for #321 (Forbid NULL). To express ~Option(ref T)~ ala
 Rust's ~Option<&T>~, two currently-missing capabilities are needed;

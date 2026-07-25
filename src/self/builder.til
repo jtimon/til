@@ -1113,6 +1113,8 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
             if vt.len() == 0 { return false }
             if is_primitive_type(vt) { return false }
             if is_funcsig_type(vt, ctx).or(vt.eq("Dynamic")) { return false }
+            // #320: a ref payload is borrowed, never an ownership transfer.
+            if enum_variant_payload_ref(def, i.to_i32()) { return false }
             return true
         }
     case:
@@ -4649,7 +4651,11 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
                 f.write(name).write(" *").write(name).write("_").write(vn).write("(").write(ptype).write(" val) {\n")
                 f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
                 f.write("    r->tag = ").write(name).write("_TAG_").write(vn).write(";\n")
-                if is_primitive_type(vt) {
+                if enum_variant_payload_ref(enum_def, i.to_i32()) {
+                    // #320: borrow -- store the caller's pointer, no move,
+                    // no free; the enum does not own the pointee.
+                    f.write("    r->data.").write(vn).write(" = val;\n")
+                } else if is_primitive_type(vt) {
                     f.write("    r->data.").write(vn).write(" = *val;\n")
                 } else if is_funcsig_type(vt, lp.ctx).or(vt.eq("Dynamic")) {
                     f.write("    r->data.").write(vn).write(" = val;\n")
@@ -4689,8 +4695,14 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
             for j in 0..edd.variants.len() {
                 vt := enum_variant_type(enum_def, j.to_i32())
                 if vt.len() > 0 {
-                    tnv := type_name_to_c_value(vt, ctx)
-                    f.write("        ").write(tnv).write(" ").write(edd.variants[j]).write(";\n")
+                    // #320: a ref payload is stored as a bare pointer the
+                    // enum does not own.
+                    if enum_variant_payload_ref(enum_def, j.to_i32()) {
+                        f.write("        ").write(type_name_to_c_value(vt, ctx)).write(" *").write(edd.variants[j]).write(";\n")
+                    } else {
+                        tnv := type_name_to_c_value(vt, ctx)
+                        f.write("        ").write(tnv).write(" ").write(edd.variants[j]).write(";\n")
+                    }
                 }
             }
         case:

@@ -1026,3 +1026,82 @@ test_enum_explicit_payload := test() {
     }
     assert_eq(I64, got, 42)
 }
+
+// #320: ref variant payloads -- `Variant: ref Type` declares a BORROWED
+// payload: the enum stores a bare pointer, does not own the pointee, and
+// clone shares it. The case binding derefs the stored pointer, so the arm
+// body sees the borrowed source itself.
+RefPayloadSrc := struct {
+    n := 0
+    label := "src"
+namespace:
+    // eq/to_str present so the enum's generated eq/to_str pass the
+    // payload-support gate (a struct payload without them would leave
+    // the enum without eq/to_str too, ref or not).
+    eq := func(a: RefPayloadSrc, b: RefPayloadSrc) returns Bool {
+        return a.n.eq(b.n).and(a.label.eq(b.label))
+    }
+    to_str := func(self: RefPayloadSrc) returns Str {
+        return format("RPS(", self.n.to_str(), ")")
+    }
+}
+
+OptRef := enum {
+    NoneRef
+    SomeRef: ref RefPayloadSrc
+}
+
+test_ref_payload_basic := test() {
+    src := RefPayloadSrc(n = 7, label = "hello")
+    o := OptRef.SomeRef(src)
+    mut got := -1
+    switch o {
+    case OptRef.SomeRef(p):
+        got = p.n
+        assert_eq(Str, p.label, "hello")
+    case OptRef.NoneRef:
+        got = -2
+    }
+    assert_eq(I64, got, 7)
+    assert_eq(I64, src.n, 7)
+}
+
+test_ref_payload_borrows_not_copies := test() {
+    mut src := RefPayloadSrc(n = 1)
+    o := OptRef.SomeRef(src)
+    // Mutating the source is visible through the enum: the payload is a
+    // borrow, not a copy.
+    src.n = 42
+    mut got := -1
+    switch o {
+    case OptRef.SomeRef(p): got = p.n
+    case OptRef.NoneRef: got = -2
+    }
+    assert_eq(I64, got, 42)
+    assert_eq(I64, src.n, 42)
+}
+
+test_ref_payload_clone_shares := test() {
+    mut src := RefPayloadSrc(n = 3)
+    o := OptRef.SomeRef(src)
+    o2 := o.clone()
+    src.n = 99
+    mut got := -1
+    switch o2 {
+    case OptRef.SomeRef(p): got = p.n
+    case OptRef.NoneRef: got = -2
+    }
+    assert_eq(I64, got, 99)
+    assert_eq(I64, src.n, 99)
+}
+
+test_ref_payload_eq_and_to_str := test() {
+    src := RefPayloadSrc(n = 5, label = "x")
+    a := OptRef.SomeRef(src)
+    b := OptRef.SomeRef(src)
+    // eq compares pointees (ala Rust Option<&T>), and both borrow src.
+    expect(a.eq(b), "ref payload: eq via pointee")
+    expect(a.eq(OptRef.NoneRef).not(), "ref payload: Some neq None")
+    assert_eq(Str, a.to_str(), format("SomeRef(", src.to_str(), ")"))
+    assert_eq(I64, src.n, 5)
+}

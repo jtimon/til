@@ -1177,8 +1177,21 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             }
             vname := expect_text(p, TokenType.Ident)
             mut vtype := ""
+            // #320: `Variant: ref Type` declares a BORROWED payload -- the
+            // enum stores a bare pointer it does not own. `own` is the
+            // default for compound payloads and is rejected as redundant,
+            // mirroring the mut/const payload diagnostics above.
+            mut v_payload_ref := false
             if check(p, TokenType.Colon) {
                 advance(p)
+                if check(p, TokenType.KwOwn) {
+                    panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                        ": redundant 'own' on variant payload: payloads are owned by default; drop it (use 'ref' for a borrowed payload)")
+                }
+                if check(p, TokenType.KwRef) {
+                    advance(p)
+                    v_payload_ref = true
+                }
                 vtype = expect_text(p, TokenType.Ident)
             }
             // Issue #264 follow-up: optional explicit tag value `= N` (integer
@@ -1200,6 +1213,9 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             // payload_consts is dense, parallel to variants: push one
             // entry per variant (false for non-const / no-payload).
             edd.payload_consts.push(own v_payload_const.clone())
+            // payload_refs mirrors payload_consts (#320): dense, one entry
+            // per variant, false for owned / no-payload variants.
+            edd.payload_refs.push(own v_payload_ref.clone())
             variant_idx++
             if check(p, TokenType.Comma) { advance(p) }
         }
