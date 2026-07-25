@@ -974,13 +974,21 @@ let the ownership pass insert temps itself; start with the check.
     in collect_scope_locals beside dtor_transfer) instead of a ctor
     shape re-parse at delete-insertion time. Pass-1 C == pass-2 C
     byte-exact (plain commit); make clean && make test 176/176.
-  - [ ] Stage 4 (rest): move markers replace the clone-elision
-    rewrites (builder + interpreter learn one marker; the textual
-    bare-ident rewrite dies); user-facing move for the container
-    memcpy+memset idiom (census class c) -- NOTE: push/pop write
-    UNINITIALIZED slots, so move() (which destroys dest's old value)
-    cannot express them; a placement-adopt primitive would be a NEW
-    language surface and needs an explicit ruling first.
+  - [X] 2026-07-16 Stage 4: moves are RECORDED. AssignData.is_move /
+    FieldAssignData.is_move (appended fields), set by the garbager at
+    both clone-elision sites beside the rewrite. The rewrite remains
+    the mechanism for now -- the marker is the explicit channel, so
+    downstream consumers can migrate off shape re-recognition
+    incrementally instead of a big-bang builder+interpreter cutover.
+    Pass-1 C == pass-2 C byte-exact (the marker is not yet read);
+    make clean && make test 176/176.
+  - [ ] Stage 4 (rest): migrate downstream consumers onto the is_move
+    record and then retire the textual bare-ident rewrite; user-facing
+    move for the container memcpy+memset idiom (census class c) --
+    NOTE: push/pop write UNINITIALIZED slots, so move() (which
+    destroys dest's old value) cannot express them; a placement-adopt
+    primitive would be a NEW language surface and needs an explicit
+    ruling first.
   - [X] 2026-07-16 Stage 5 DONE: the temp contract is CHECKED. New
     temp_check_body/temp_check_expr walk in the garbager (runs for
     every body, before the zero-locals early return): an own-returning
@@ -1029,8 +1037,24 @@ let the ownership pass insert temps itself; start with the check.
     The OTHER stage-6 items (swap_freed, CAP laundering
     at return boxing, the FieldAssign cap test, the "Asap fix" inline
     free) each need their own gap-first fix per the stage's rule.
-  - [ ] Stage 7: interpreter compensation removal -- UNGATED and
-    LARGELY DELIVERED BY #286 ITSELF (fixed 2026-07-16, a1ad866).
+  - [X] Stage 7 DONE (2026-07-16): interpreter compensation removal --
+    largely delivered by #286 itself, and the remaining per-call audit
+    completed. All 36 surviving free/delete calls classify into the
+    legitimate homes: typed drop-by-layout machinery
+    (free_str_owned_storage / struct_deep_free's Str-c_str and
+    NodeType-payload drops, container buffer frees after per-element
+    deep-free), interpreter bookkeeping (scope_pool_drain, scope map
+    teardown -- whose own comment states "owns metadata and keys, not
+    nested program payloads", i.e. #275's rule verbatim --
+    session/LoadedProgram teardown, the interp_body_slice buffer
+    swap, the str-lit pool's miss path), the own-field write barrier
+    (dropping the old block on Own-field writes -- the runtime
+    executing the model), and the documented FFI islands (call
+    marshalling buffers, FFIEntry cif tables). ZERO compensations
+    remain: the interpreter executes the garbager's contract and
+    frees only its own machinery -- #275's two rules hold. Original
+    scope note kept below for the record.
+    (superseded scope text follows)
     Re-audit of interpreter.til post-#286: the file is ~7.3k lines and
     carries 36 explicit free/delete calls (census said 149); the
     interception layer is GONE -- del_method matching,

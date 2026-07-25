@@ -524,6 +524,7 @@ typedef struct AssignData {
     Bool save_old_delete;
     Bool is_payload_alias;
     Bool swap_replace;
+    Bool is_move;
 } AssignData;
 
 
@@ -531,6 +532,7 @@ typedef struct FieldAssignData {
     Str name;
     Bool save_old_delete;
     Bool transfers_own;
+    Bool is_move;
 } FieldAssignData;
 
 

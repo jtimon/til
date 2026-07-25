@@ -514,6 +514,14 @@ AssignData := struct {
     save_old_delete := false
     is_payload_alias := false
     swap_replace := false
+    // #302 stage 4: set by the garbager when the RHS clone of a dying
+    // local was elided into a move (`lhs = local.clone()` rewritten to
+    // bare `lhs = local` at the local's last use). The rewrite is the
+    // mechanism; this flag is the explicit record, so downstream
+    // phases can read the decision instead of re-recognizing the
+    // rewritten shape. Appended at the end to minimise layout
+    // disturbance for til_boot.
+    is_move := false
 namespace:
     eq := func(a: AssignData, b: AssignData) returns Bool { return a.name == b.name }
     to_str := func(self: AssignData) returns Str { return self.name }
@@ -523,6 +531,9 @@ FieldAssignData := struct {
     name := ""
     save_old_delete := false
     transfers_own := false
+    // #302 stage 4: same explicit move record as AssignData.is_move,
+    // for the `holder.f = T.clone(local)` elision. Appended at the end.
+    is_move := false
 namespace:
     eq := func(a: FieldAssignData, b: FieldAssignData) returns Bool { return a.name == b.name }
     to_str := func(self: FieldAssignData) returns Str { return self.name }
