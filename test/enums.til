@@ -1105,3 +1105,22 @@ test_ref_payload_eq_and_to_str := test() {
     assert_eq(Str, a.to_str(), format("SomeRef(", src.to_str(), ")"))
     assert_eq(I64, src.n, 5)
 }
+
+RefHolder := struct {
+    inner := RefPayloadSrc(n = 0)
+}
+
+test_ref_payload_field_chain_borrow := test() {
+    // The payload arg may be a field chain; the borrow roots in `h` and
+    // the garbager keeps h alive past the enum's last read.
+    mut h := RefHolder(inner = RefPayloadSrc(n = 11))
+    o := OptRef.SomeRef(h.inner)
+    h.inner.n = 12
+    mut got := -1
+    switch o {
+    case OptRef.SomeRef(p): got = p.n
+    case OptRef.NoneRef: got = -2
+    }
+    assert_eq(I64, got, 12)
+    assert_eq(I64, h.inner.n, 12)
+}

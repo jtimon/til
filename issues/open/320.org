@@ -16,10 +16,15 @@
   go through the pointee, garbager extends the borrowed source's
   lifetime through scope exit (extend_ref_local_lifetimes shape (c)).
   Tests: test_ref_payload_* in test/enums.til (both backends).
-- [ ] Deferred from stage a: typer diagnostic rejecting a non-place
-  expr (owned temporary, e.g. an FCall result) as a ref-payload ctor
-  arg -- the borrow escapes into the enum value, so a temp dangles
-  (compiled) or leaks (interpreted). Mirror expr_is_ref_decl_source.
+- [X] Typer diagnostic rejecting a non-place expr (owned temporary,
+  e.g. an FCall result) as a ref-payload ctor arg -- the borrow
+  escapes into the enum value, so a temp would dangle (compiled) or
+  leak (interpreted). Lands in the ns-call inference next to the
+  is_enum_variant_ctor own-arg marking; field-chain args are accepted
+  and the garbager extends the CHAIN ROOT's lifetime
+  (expr_root_ident_name in shape (c)). Tests:
+  test_ref_payload_field_chain_borrow (test/enums.til) and the
+  temporary-rejection case in test/typer_errors.til (count 164->165).
 - [ ] Gap 2 remainder: ref payloads inside template-generated enums
   (needs Gap 1 so the substituted `Some: T` can BECOME `Some: ref X`).
 - [ ] Gap 1: qualifiers in template type args (type annotation

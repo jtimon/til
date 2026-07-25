@@ -1054,11 +1054,12 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     if e.children.len() != 2 { return "" }
     // Cheap tag-only gates first: this predicate runs on every FCall of
     // every body, and til_type_name below builds a Str. A variant ctor's
-    // result type is always Type.Enum, and only an Ident arg can name a
-    // local to extend.
+    // result type is always Type.Enum, and only an Ident or field-chain
+    // arg can name a local to extend (the typer rejects temporaries).
     if e.til_type().is(Type.Enum).not() { return "" }
     switch e.children[1].node_type {
     case NodeType.Ident:
+    case NodeType.FieldAccess:
     case: return ""
     }
     ename := til_type_name(e.til_type())
@@ -1081,8 +1082,17 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     idx := enum_variant_index(def, vname)
     if idx < 0 { return "" }
     if enum_variant_payload_ref(def, idx).not() { return "" }
-    switch e.children[1].node_type {
+    // The borrowed source is the payload arg's ROOT binding: a bare Ident,
+    // or the root of a field chain (`Opt.SomeRef(s.field)` borrows into s).
+    return expr_root_ident_name(e.children[1])
+}
+
+// Root Ident name of an Ident / field-chain expr; "" for anything else.
+priv expr_root_ident_name := func(e: Expr) returns Str {
+    switch e.node_type {
     case NodeType.Ident(an): return Str.clone(an.ident_name())
+    case NodeType.FieldAccess:
+        if e.children.len() > 0 { return expr_root_ident_name(e.children[0]) }
     case:
     }
     return ""

@@ -1906,6 +1906,31 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         }
         if ns_fdef.is_enum_variant_ctor {
             set_fcall_own_args_for_own_params(e, ns_fdef)
+            // #320: a ref-payload ctor arg is a borrow that ESCAPES into
+            // the enum value, so it must name a place the garbager can
+            // keep alive (a variable or a field chain); an owned
+            // temporary (FCall result, literal, ...) would dangle in
+            // compiled code the moment its statement ends. sdef2 IS the
+            // enum def -- the variant ctor was found in its namespace --
+            // so no re-lookup and no null/EnumDef guard: if that
+            // invariant ever breaks, enum_variant_index's UNREACHABLE
+            // fails loudly here.
+            if e.children.len() > 1 {
+                rp_idx := enum_variant_index(sdef2, method)
+                if rp_idx.gte(0).and(enum_variant_payload_ref(sdef2, rp_idx)) {
+                    ref rp_arg : Expr = e.children[e.children.len() - 1]
+                    mut rp_is_place := false
+                    switch rp_arg.node_type {
+                    case NodeType.Ident: rp_is_place = true
+                    case NodeType.FieldAccess: rp_is_place = true
+                    case:
+                    }
+                    if rp_is_place.not() {
+                        rp_arg.type_error(format("variant '", obj3_sname, ".", method,
+                            "' has a 'ref' payload: the argument is borrowed, so it must be a variable or field, not a temporary"), ctx)
+                    }
+                }
+            }
         }
         validate_fcall_own_args_for_fdef(scope, e, ns_fdef, ctx)
         mut rt := Type.None

@@ -837,3 +837,9 @@ terr_ref_result_assign := func(terr_ra_s: Str) returns I64 {
 terr_ref_result_return := func(terr_rt_s: Str) returns Str {
     return terr_ref_result_src(terr_rt_s)
 }
+
+// #320: a ref-payload ctor arg is a borrow that escapes into the enum
+// value, so a temporary (ctor result here) is rejected
+RefPayErrSrc := struct { n := 0 }
+RefPayErr := enum { NoneV, SomeRef: ref RefPayErrSrc }
+rp_bad := RefPayErr.SomeRef(RefPayErrSrc(n = 1))

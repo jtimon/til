@@ -2829,6 +2829,7 @@ Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * targe
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void priv___src_self_garbager_til__collect_scope_locals(Context * ctx, Expr * body, TypeScope * scope, Bool is_program_scope, Vec__LocalInfo * locals_vec);
 Str * priv___src_self_garbager_til__enum_ref_payload_borrow_src(Expr * e, TypeScope * scope);
+Str * priv___src_self_garbager_til__expr_root_ident_name(Expr * e);
 priv___src_self_garbager_til__GcBorrowEdge * priv___src_self_garbager_til__GcBorrowEdge_clone(priv___src_self_garbager_til__GcBorrowEdge * self);
 void priv___src_self_garbager_til__GcBorrowEdge_delete(priv___src_self_garbager_til__GcBorrowEdge * self, Bool call_free);
 U64 priv___src_self_garbager_til__GcBorrowEdge_hash(priv___src_self_garbager_til__GcBorrowEdge * self, HashFn hasher);
