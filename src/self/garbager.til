@@ -1213,9 +1213,14 @@ priv gc_add_borrow_edge := func(mut edges: Vec(GcBorrowEdge), owner: Str, borrow
 // Rule 4's collector: walk a statement subtree adding a body-end edge
 // for every local borrowed into an enum ref payload.
 priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: Vec(GcBorrowEdge), scope: TypeScope) {
-    src_name := enum_ref_payload_borrow_src(e, scope)
-    if src_name.len() > 0 {
-        gc_add_borrow_edge(edges, src_name, "", body_last)
+    // Tag-only pre-gate: borrow_src constructs and returns a Str, so
+    // calling it per NODE paid a build+delete on every miss. Only a
+    // two-child FCall can be a variant ctor (borrow_src re-checks).
+    if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
+        src_name := enum_ref_payload_borrow_src(e, scope)
+        if src_name.len() > 0 {
+            gc_add_borrow_edge(edges, src_name, "", body_last)
+        }
     }
     for c : Expr in e.children {
         collect_enum_ref_payload_edges(c, body_last, edges, scope)

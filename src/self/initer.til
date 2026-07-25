@@ -3407,7 +3407,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
         }
     }
 
-    mut kept_stmts := Vec(Expr).new()
+    mut drop_idxs := Vec(I64).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
         mut keep := true
@@ -3443,11 +3443,19 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
             case:
             }
         }
-        if keep { kept_stmts.push(own stmt.clone()) }
+        if keep.not() {
+            drop_i : I64 = i.to_i64()
+            drop_idxs.push(own drop_i)
+        }
     }
-    program.children.clear()
-    for ks : Expr in kept_stmts {
-        program.children.push(own ks.clone())
+    // Remove in reverse so the collected indices stay valid. The old
+    // shape cloned every KEPT statement twice (into kept_stmts and back)
+    // and deleted the originals -- three deep passes over the whole unit
+    // to drop a handful of decls.
+    mut di := drop_idxs.len()
+    while di > 0 {
+        di = di - 1
+        program.children.remove_at(drop_idxs[di].to_usize())!
     }
 }
 
@@ -3511,7 +3519,7 @@ priv init_func_is_generic := func(rhs: Expr) returns Bool {
 // against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
 // (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
 // in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
+priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Dynamic), mut seen: Map(Str, Str), mut synthesized: Expr, ctx: Context) {
     ref call : Expr = parent.children[call_idx]
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
@@ -3601,7 +3609,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                 init_generic_walk(cloned, generics, seen, synthesized, ctx)
                 mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
                 decl.add_child(own cloned)
-                synthesized.push(own decl)
+                synthesized.add_child(own decl)
             }
             seen.set(mono, own mono.clone())
         }
@@ -3633,7 +3641,15 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
 
 // Walk `e`'s subtree rewriting every generic-func call to its
 // monomorphization. `generics` maps name -> generic funcdef Expr.
-priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: Map(Str, Str), mut synthesized: Vec(Expr), ctx: Context) {
+// Leaf single-probe lookup for the borrowed generic-def cells (the
+// func_defs_lookup_one shape; that one is priv to context.til).
+priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref Expr {
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return NULL }
+    return deref(slot)
+}
+
+priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut seen: Map(Str, Str), mut synthesized: Expr, ctx: Context) {
     // Namespace members (struct/enum `namespace:` decls, including inline
     // test() decls) live in ns_decls, not e.children, so the generic-call
     // rewrite must descend into their bodies separately -- otherwise a
@@ -3663,7 +3679,8 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
             switch c.children[0].node_type {
             case NodeType.Ident(cn):
                 ref gnm : Str = cn.ident_name()
-                if generics.has(gnm) {
+                ref gfd_expr : Expr = generics_lookup_one(generics, gnm)
+                if gfd_expr.is_null().not() {
                     // #154: calling a generic defined in another file counts
                     // as a use of that import (the call is rewritten to a
                     // local monomorphization, so the typer never sees a
@@ -3672,11 +3689,6 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
                     // Recurse into the args first (nested generic calls),
                     // then expand this call.
                     init_generic_walk(c, generics, seen, synthesized, ctx)
-                    ref gfd_expr : Expr = generics[gnm]
-                    // generics threaded through so the expander can
-                    // recursively walk the synthesized body for composed
-                    // generic calls (init_generic_expand_call signature
-                    // now takes generics).
                     init_generic_expand_call(e, i, gnm, gfd_expr, generics, seen, synthesized, ctx)
                     handled = true
                 }
@@ -3690,8 +3702,14 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Expr), mut seen: 
 }
 
 priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
-    // Collect top-level generic func/proc decls.
-    mut generics := Map(Str, Expr).new()
+    // Collect top-level generic func/proc decls. The map holds BORROWED
+    // def pointers (malloc'd Dynamic cells, the func_defs pattern): the
+    // pointees live in program.children (local decls; never rewritten or
+    // moved during the walk -- call rewrites replace elements in place)
+    // or in ctx.generic_funcs (cross-unit seeds; stable). The old shape
+    // deep-cloned EVERY public generic def into every unit up front,
+    // whether or not the unit called it.
+    mut generics := Map(Str, Dynamic).new()
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -3699,7 +3717,9 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
         if init_func_is_generic(rhs).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            generics.set(dd.name, own rhs.clone())
+            gcell : I64 = malloc(I64.size())
+            write_ptr(gcell, rhs)
+            generics.set(dd.name, own gcell)
         case:
         }
     }
@@ -3709,39 +3729,45 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     // A local decl of the same name already in `generics` wins.
     for gname, gdef in ctx.generic_funcs {
         if generics.has(gname) { continue }
-        generics.set(gname, own gdef.clone())
+        gcell2 : I64 = malloc(I64.size())
+        write_ptr(gcell2, gdef)
+        generics.set(gname, own gcell2)
     }
     if generics.len() == 0 { return }
 
     // Rewrite all calls (skipping the generic decls themselves, whose
-    // bodies reference the still-unbound type-param).
+    // bodies reference the still-unbound type-param). Synthesized
+    // monomorphizations accumulate as children of a holder node so they
+    // can be MOVED onto the unit at the end (take_children), not cloned.
     mut seen := Map(Str, Str).new()
-    mut synthesized := Vec(Expr).new()
+    mut synthesized := Expr.new(NodeType.Body, 0, 0)
     for mut stmt : Expr in program.children {
         is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.children[0]))
         if is_generic_decl { continue }
         init_generic_walk(stmt, generics, seen, synthesized, ctx)
     }
 
-    // Rebuild program.children: drop the generic decls, keep everything
-    // else, then append the synthesized monomorphizations. The dropped
-    // generic decls are freed here, so scope.func_defs still holds a
-    // (now dangling) pointer for each generic name; nothing dereferences it
+    // Drop the generic decls in place, then append the synthesized
+    // monomorphizations by moving them over. The dropped generic decls
+    // are freed by remove_at, so scope.func_defs still holds a (now
+    // dangling) pointer for each generic name; nothing dereferences it
     // -- calls were rewritten to the monomorphizations above, and the
     // type-gen-macro hoist skips generic names (init_lookup_type_gen_macro).
-    mut kept_stmts := Vec(Expr).new()
-    for stmt2 : Expr in program.children {
+    mut drop_idxs := Vec(I64).new()
+    for i2 in 0..program.children.len() {
+        ref stmt2 : Expr = program.children[i2]
         drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.children[0]))
-        if drop { continue }
-        kept_stmts.push(own stmt2.clone())
+        if drop {
+            drop_i : I64 = i2.to_i64()
+            drop_idxs.push(own drop_i)
+        }
     }
-    program.children.clear()
-    for ks : Expr in kept_stmts {
-        program.children.push(own ks.clone())
+    mut di := drop_idxs.len()
+    while di > 0 {
+        di = di - 1
+        program.children.remove_at(drop_idxs[di].to_usize())!
     }
-    for d : Expr in synthesized {
-        program.children.push(own d.clone())
-    }
+    program.take_children(synthesized)
 }
 
 priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ctx: Context) {

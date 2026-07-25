@@ -2618,6 +2618,24 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 // the parser unit (not context.til) so AST unit tests can import it:
 // context.til cannot be imported standalone because its interpreter runtime
 // types only load inside the full compiler program.
+// Ref twin of core til_type_name over an Expr's stamp: the payload name
+// for named variants, NULL for tag-only ones. Hot compiler paths use
+// this to avoid the per-call Str clone (and matching delete) the owning
+// version pays. Takes the EXPR, not a Type: binding the stamp ref here
+// keeps the returned payload ref pointing into the stamp's stable
+// storage (a Type passed as a call argument can ride a stack temp that
+// dies at the call boundary, dangling the payload ref).
+expr_type_name_ref := func(e: Expr) returns ref Str {
+    ref t : Type = e.til_type()
+    switch t {
+    case Type.Struct(s):     return s
+    case Type.Enum(s):       return s
+    case Type.Custom(s):     return s
+    case Type.FuncPtrSig(s): return s
+    case: return NULL
+    }
+}
+
 til_type_name_c := func(t: Type) returns Str {
     switch t {
     case Type.Unknown:   return "unknown"

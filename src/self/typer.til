@@ -6,28 +6,29 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     if e.children.len() == 0 { return false }
     if e.node_type.is(NodeType.FieldAccess).not().and(e.node_type.is(NodeType.FieldAssign).not()) { return false }
     ref obj : Expr = e.children[0]
-    mut sn := til_type_name(obj.til_type())
-    if sn.len() == 0 {
+    // Borrowed names only: this runs on every field access the typer
+    // sees, and the owning til_type_name/Str.clone forms paid three
+    // clone+delete pairs per call.
+    ref mut sn : Str = expr_type_name_ref(obj)
+    if sn.is_null() {
         switch obj.node_type {
         case NodeType.Ident(id):
-            sn = Str.clone(id.ident_name())
+            sn = id.ident_name()
         case:
             return false
         }
     }
     ref sdef : Expr = scope.get_struct(sn)
     if sdef.is_null() { return false }
-    mut fname := ""
     switch e.node_type {
     case NodeType.FieldAccess(fn):
-        fname = Str.clone(fn.field_access_name())
+        return def_ns_has(sdef, fn.field_access_name())
     case NodeType.FieldAssign(fad):
-        fname = fad.name
+        return def_ns_has(sdef, fad.name)
     case:
         UNREACHABLE()
         return false
     }
-    return def_ns_has(sdef, fname)
 }
 
 priv type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Bool {
@@ -6307,8 +6308,8 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len() < 2 { return false }
     // Struct constructor
-    fcall_sname := til_type_name(fcall.til_type())
-    if fcall_sname.len() > 0 {
+    ref fcall_sname : Str = expr_type_name_ref(fcall)
+    if fcall_sname.is_null().not() {
         switch fcall.children[0].node_type {
         case NodeType.Ident(c0s):
             if c0s.ident_name() == fcall_sname {
@@ -6501,8 +6502,8 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
     if fcall.node_type.is(NodeType.FCall).not() { return }
     if fcall.children.len() < 2 { return }
     // Struct constructor
-    fcall_sname := til_type_name(fcall.til_type())
-    if fcall_sname.len() > 0 {
+    ref fcall_sname : Str = expr_type_name_ref(fcall)
+    if fcall_sname.is_null().not() {
         switch fcall.children[0].node_type {
         case NodeType.Ident(c0s):
             if c0s.ident_name() == fcall_sname {
