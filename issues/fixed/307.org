@@ -2,15 +2,17 @@
 # category: cleanups
 ** FIXED #307 StructDef/EnumDef member lookups: kill the initer gather vecs; stop ctx_field_layout copying per call
 
-Post-mortem: re-scoped twice before landing. The original draft proposed
-a new OrderedMap container for StructDef/EnumDef members; a second draft
-kept the Vecs and added Map(Str, USize) name -> position indexes. Both
-were implemented and rejected: the scans they replace use Str.eq's O(1)
-length reject over tiny member lists, while the indexes pay Str.cmp
-probes, clone a key per member per def, and deep-clone inside every def
-clone -- a net regression with permanent name duplication. What actually
-ships is the part of the issue with standalone value plus a measured
-optimization in the same member/type-lookup territory:
+Post-mortem: re-scoped twice before the first landing, then finished
+across four more commits. The original draft proposed a new OrderedMap
+container for StructDef/EnumDef members; a second draft kept the Vecs
+and added Map(Str, USize) name -> position indexes. Both were
+implemented and rejected at the time: the scans they replace use
+Str.eq's O(1) length reject over tiny member lists, while the indexes
+pay Str.cmp probes, clone a key per member per def, and deep-clone
+inside every def clone -- a net regression with permanent name
+duplication. What shipped FIRST was the part of the issue with
+standalone value plus a measured optimization in the same
+member/type-lookup territory:
 
 - Deduplication: the initer clone/delete generators build directly off
   sdd.fields, deleting the field_names/field_refs and del_field_* gather
@@ -33,16 +35,65 @@ optimization in the same member/type-lookup territory:
   members before evaluating namespace constants, so a constant like
   `MAX : U64 = U64.bnot(0)` no longer depends on declaration order.
 
-Known-latent (predates #307, deliberately NOT fixed here): a namespace
-member whose initializer or body references a sibling member declared
-LATER in the same type still depends on declaration order in the typer's
-member sweep. Follow-up candidate (not filed): TypeScope_get_struct --
-3.0M calls, 8.0s total in the same profile -- parent-chain walk plus Map
-probe per receiver resolution; a cache needs care around init-time
-set_struct_def writes and child-scope shadowing.
+The simplification the issue was actually about landed afterwards, in
+four commits, one criterion throughout: order-bearing data stays a
+declaration-order Vec, name-keyed lookup goes through a Map, and
+nothing is stored twice.
+
+- Name-keyed member storage ("Two-pass: Issue #307: name-keyed member
+  storage"): fields/ns_decls stay declaration-order Vec(Declaration)s
+  and each gains a Map(Str, USize) name -> position index -- the index
+  design revived WITHOUT the earlier objections, because the index key
+  is now the name's single copy in the data model (stored member
+  Declarations carry name == "", appends go through
+  push_field/push_member). Name lookup is one binary-search probe via
+  get()?+catch (fieldless KeyNotFound, #316), no scan, no __LOC__
+  alloc. Positional consumers read the same Vec in the same order.
+- EnumDef variant collapse ("Issue #307 simplification"): the five
+  position-parallel per-variant collections (variants Vec(Str),
+  payload_types Map(I64, Str), payload_consts Vec(Bool), tag_values
+  Vec(I64), payload_refs Vec(Bool)) became one
+  variants : Vec(VariantDef) record vec
+  { name, doc, payload_type, payload_const, tag_value, payload_ref }.
+  variants stays a plain Vec because its order IS the tag assignment.
+  Two latent bugs surfaced and were fixed at the source: the builder's
+  Str constructor-argument copy freed hoisted literals (now
+  cap != TIL_CAP_LIT guarded like the field-assignment path), and the
+  garbager's fcall_returns_shallow read return_own_type before a
+  same-unit template instantiation's #223 auto-shallow normalization
+  settled it (now mirrored via fdef_returns_shallow_settled).
+- Follow-ups ("Issue #307 follow-ups"): variant /// docs stored on
+  VariantDef.doc and shown by info/help like field docs;
+  enum_variant_tag_value / enum_variant_payload_is_const /
+  enum_variant_payload_is_ref primitives make enum_def_of lossless;
+  the TypeScope scope walkers collapsed to one get()?+catch probe per
+  level (Str_cmp 13.4M -> 10.0M calls, get_struct total 6451ms ->
+  4266ms in the same profile harness); and namespace CONSTANTS became
+  sibling-order-independent (see below).
+
+The known-latent sibling-order class recorded at closing time (a
+namespace member referencing a sibling declared LATER) is FIXED for
+constants: ns_const_eval_order computes a sibling-dependency order over
+a def's constant members (reference cycles panic with the qualified
+member name), and all three consumers follow it -- the typer's member
+sweep (three passes: register function signatures, infer constants in
+dependency order, infer function bodies), the builder's emit_ns_inits,
+and interpreter_init_ns. Before the fix the emitted C ns-init silently
+read zeros for forward references; regression test
+test/structs.til:test_ns_const_forward_refs.
+
+The TypeScope_get_struct follow-up candidate (3.0M calls in the same
+profile) was addressed by the probe collapse above INSTEAD of a memo
+cache: the measured cost was the redundant has()+[] double probe and
+per-level call overhead, and a cache would buy only the remaining
+~300ms self time at the price of invalidation risk (init-time
+set_struct_def writes, child-scope shadowing) -- deliberately declined.
+
+Still out of scope, by the issue's own text: the string-churn question
+(index keys are byte-compared Strs; interning / SSO / hashed tables)
+stays separate and is largely post-#302 territory.
 
 Original problem statement: StructDef stores its members as two plain
 Vecs (fields, ns_decls), every lookup-by-name is a linear scan, and
 several places kept hand-rolled side collections on top (initer gather
-vecs; per-call rebuilt layout values). The scans stay -- they were never
-the measured cost; the side collections and the per-call copies were.
+vecs; per-call rebuilt layout values).
