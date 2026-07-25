@@ -310,8 +310,12 @@ static int copy_tree_cstr(const char *src, const char *dst) {
 // Internal helper for heap-allocating scalar values. The per-type
 // new_u8/new_i8/.../new_bool helpers were dropped when CLI argument
 // parsing moved into til and got inlined by the builder. new_i64 survives
-// because the process-spawn helpers below still box a pid/handle into I64*.
+// because the process-spawn helpers below still box a pid/handle into
+// I64* -- on every platform except emscripten, whose spawn branch has no
+// processes to box, leaving this unused (-Werror=unused-function).
+#ifndef __EMSCRIPTEN__
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
+#endif
 
 // --- Small libc wrappers ---
 
