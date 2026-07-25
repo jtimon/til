@@ -106,7 +106,7 @@ test_macro_to_f32_arg := test() {
     assert_eq(I64, macro_f32_id(MACRO_ONE_F.add(MACRO_ONE_F)).to_i64(), 2)
 }
 
-# Newton-sqrt macro reused from the lib/music.til case that surfaced #285.
+# Newton-sqrt macro reused from the examples/lib/music.til case that surfaced #285.
 calculate_sqrt := macro(x: F32) returns F32 {
     mut guess := x
     for _ in 0..12 {

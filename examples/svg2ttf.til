@@ -10,8 +10,8 @@ mode cli
 //   * Expects the exact viewBox/transform used by potrace/ImageMagick SVG
 //     output for the TIL logo. See lib/svg.til for the full grammar.
 
-import("../lib/svg")
-import("../lib/fonts")
+import("lib/svg")
+import("lib/fonts")
 import("../src/std/file")
 
 // Map the glyph to the ASCII codepoint for 'T' (decimal 84).

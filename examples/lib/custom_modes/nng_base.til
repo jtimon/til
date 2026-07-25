@@ -1,4 +1,4 @@
-import("../../vendor/bindings/nng")
+import("../../../vendor/bindings/nng")
 link("vendor/nng/libnng.a")
 link("pthread")
 link("atomic")

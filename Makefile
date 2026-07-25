@@ -21,7 +21,7 @@ all: bin/til
 CORE := $(wildcard src/core/*.til)
 STD := $(wildcard src/std/*.til)
 SELF := $(wildcard src/self/*.til)
-LIB_TIL := $(wildcard lib/*.til) $(wildcard vendor/bindings/*.til)
+LIB_TIL := $(wildcard examples/lib/*.til) $(wildcard vendor/bindings/*.til)
 LD_FLAGS := -rdynamic -ldl
 
 # Host gating (issue #25 phase 1): -lrt and -latomic do not exist on

@@ -20,7 +20,7 @@ Current examples:
 
 Recent progress:
 
-- Extracted and extended common music data in `lib/music.til`: QWERTY
+- Extracted and extended common music data in `examples/lib/music.til`: QWERTY
   keycodes, key labels, regular frequency tables, nathex frequency table
   generation, natural/black-key layout tables, solfege names, letter pitch
   names, shared display-mode constants, shared note-label helpers, and shared
