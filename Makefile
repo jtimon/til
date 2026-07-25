@@ -26,20 +26,20 @@ LD_FLAGS := -rdynamic -ldl
 
 # Host gating (issue #25 phase 1): -lrt and -latomic do not exist on
 # macOS (their contents live in libSystem), raylib needs the desktop
-# frameworks at final link, cc is clang (silence the same warning
-# families toolchain_extra_args silences for clang builds), and
-# xvfb-run is Linux-only (mac has no X11; run the suite bare there).
+# frameworks at final link, and xvfb-run is Linux-only (mac has no X11;
+# run the suite bare there). No warning suppressions on either host:
+# the generated C compiles clean under -Wall -Wextra -Werror on gcc and
+# clang alike (the old Darwin -Wno-* set mirrored the clang/cross set
+# toolchain_extra_args used to carry; both suppressed nothing).
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
 RAYLIB_SYS_FLAGS := -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo
 NNG_SYS_FLAGS :=
-CC_WNO := -Wno-sometimes-uninitialized -Wno-self-assign -Wno-uninitialized -Wno-unused-function
 XVFB_RUN :=
 else
 RAYLIB_SYS_FLAGS := -lrt
 NNG_SYS_FLAGS := -latomic
-CC_WNO :=
 XVFB_RUN := xvfb-run --auto-servernum
 endif
 
@@ -154,7 +154,7 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char $(CC_WNO) -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
@@ -189,7 +189,7 @@ bin/til_asan: bin/til $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til
 # --- Debug build (for gdb) ---
 
 bin/til_debug: bin/til
-	cc -g -O0 -Wall -Wextra -Werror -fsigned-char $(CC_WNO) \
+	cc -g -O0 -Wall -Wextra -Werror -fsigned-char \
 	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) \
 	  -o bin/til_debug

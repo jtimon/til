@@ -1,0 +1,50 @@
+# priority: low
+# category: cleanups
+** FIXED #303 Give panic/exit/UNREACHABLE/TODO a real noreturn attribute
+
+   Post-mortem: implemented without waiting for the core_func migration
+   (the attribute lives on FunctionDef, so it survives that migration
+   unchanged). FunctionDef.noreturn is seeded on core ~exit~ (the one
+   noreturn primitive with no til body -- the only ext_func in
+   core/exit.til, bound to libc exit) and inferred bottom-up for every
+   Func/Proc at the end of ~infer_func_def_expr~: a function is noreturn
+   iff its body has no return statement at its own nesting level and
+   every path diverges (~fn_never_returns~ in context.til). That marks
+   panic (ends in exit), UNREACHABLE/TODO (end in panic), and any user
+   wrapper with the same shape. ~resolve_fcall_return_type~ stamps
+   ~FCallData.noreturn_call~ when the resolved callee (via
+   ~scope.lookup_func~, so shadowing resolves correctly) carries the
+   flag, and ~stmt_always_diverges~ reads the stamp -- the hardcoded
+   name set in ~fcall_is_noreturn~ is gone (the function itself is
+   gone). The C backend emits ~__attribute__((noreturn))~ on the
+   forward decl and definition from the same FunctionDef.noreturn, so
+   the C compiler shares the knowledge. New capability: a user-defined
+   noreturn function now satisfies the all-paths-return check without a
+   dead trailing return.
+
+   Regression test: terr_nr_abort / terr_nr_pick in
+   test/typer_errors.til (zero-error cases -- if inference or stamping
+   breaks, the expected error count catches the new miss).
+
+  The divergence analysis shared by the typer's all-paths-return check
+  and the builder's ~__builtin_unreachable~ terminator treats a call as
+  non-returning by matching the callee name against a hardcoded set --
+  ~panic~, ~exit~, ~UNREACHABLE~, ~TODO~ (see ~fcall_is_noreturn~ in
+  ~src/self/context.til~). That is a stopgap: a user function shadowing
+  one of those names would be wrongly treated as noreturn (harmless here
+  -- it only makes the check more permissive, i.e. a missed error, never
+  a false rejection), and a genuinely-noreturn function under any other
+  name is not recognised.
+
+  The proper fix is to give ~panic~/~exit~/~UNREACHABLE~/~TODO~ a real
+  "noreturn" attribute -- most naturally once they are ~core_func~s (that
+  cleanup is in flight) -- carried on the FunctionDef / TypeBinding, and
+  have ~fcall_is_noreturn~ resolve the callee and read that attribute
+  instead of comparing names. C codegen can then also emit
+  ~__attribute__((noreturn))~ on those decls from the same source of
+  truth.
+
+  Touch points:
+  - ~src/self/context.til~: ~fcall_is_noreturn~ (name match -> attribute).
+  - ~src/core/exit.til~: the four function definitions.
+  - Whoever owns the ~core_func~ / noreturn-attribute cleanup.
