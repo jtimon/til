@@ -3337,6 +3337,8 @@ void emit_body_closure_call(File * f, Expr * callee, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_fcall_funcptr_args(File * f, Expr * e, Expr * sig, I32 depth, Context * ctx, Bool wrap_inline_closures);
 File * emit_capturing_closure_value(File * f, Expr * e, I32 * _depth, Context * _ctx);
 void priv___src_self_builder_til__emit_str_lit_expr(File * f, Str * s, Context * ctx);
+Bool priv___src_self_builder_til__assign_str_lit_needs_own_box(Str * aname, Str * ctype, Expr * rhs, Context * ctx);
+void priv___src_self_builder_til__emit_str_lit_own_box(File * f, Str * s);
 void priv___src_self_builder_til__emit_str_lit_temp_expr(File * f, Str * s);
 Str * priv___src_self_builder_til__num_lit_to_c(Str * text);
 File * priv___src_self_builder_til__emit_expr(File * f, Expr * e, I32 depth, Context * ctx);

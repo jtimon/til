@@ -1,0 +1,72 @@
+mode test
+
+// Regression: assigning a Str literal to a POINTER-typed local (one whose
+// declaration came from a call, so it is emitted as `Str *x`, not a by-value
+// stack `Str x`) used to rebind that pointer to the shared program-wide
+// `_til_str_lit_N` global. That alias is sound only while nothing writes
+// THROUGH the variable -- but passing the local as a `mut` argument does
+// exactly that: the callee's write-back is `*p = <new value>`, which
+// overwrote the global literal for the whole program. Two things then broke:
+// every later use of that same literal saw the callee's value instead, and
+// the local's next `Str_delete(_old, true)` free()d a static address.
+//
+// `til repl` hit both. run_repl is `next_mode = ""` followed by
+// `run_repl_session(cur, next_mode, ...)`, whose `mut next_mode_out` param
+// carries the new mode back, so entering `mode cli` (or any mode other than
+// the default script) overwrote the shared "" literal with "cli"; the loop
+// condition then read 3 > 0, re-entered, and free()d the static literal --
+// SIGSEGV in glibc's arena_for_chunk.
+//
+// Pointer locals that are passed as `mut` arguments now get their own heap
+// box (CAP_VIEW: the wrapper is freeable, the static char data is borrowed
+// and never freed), so the callee writes into storage the local owns.
+
+priv set_mode := func(mut out: Str, want: Bool) {
+    if want { out = "cli" }
+}
+
+// A clone of this is what makes the local a `Str *` rather than a by-value
+// stack `Str` -- the same shape as run_repl's `Str_clone(initial_mode)`. It
+// is a mutable global so the constfolder cannot replace the clone with the
+// literal and hand the tests below the by-value path, which never had the bug.
+mut seed_mode := "seed"
+
+// Two locals assigned the SAME literal used to end up pointing at the one
+// shared `_til_str_lit_N` global, so a write-back through one was visible
+// through the other -- and through every other use of "" in the program.
+// `other.len()` is read at runtime (unlike `"".len()`, which the constfolder
+// answers at compile time and which therefore cannot see the corruption).
+test_mut_arg_write_back_leaves_literal_intact := test() {
+    mut m := seed_mode.clone()
+    mut other := seed_mode.clone()
+    m = ""
+    other = ""
+    set_mode(m, true)
+    assert_eq(Str, m, "cli")
+    assert_eq(USize, other.len(), 0)
+}
+
+test_mut_arg_write_back_is_visible_to_caller := test() {
+    mut m := seed_mode.clone()
+    m = "script"
+    set_mode(m, false)
+    assert_eq(Str, m, "script")
+    set_mode(m, true)
+    assert_eq(Str, m, "cli")
+}
+
+// run_repl's exact shape: re-assign the literal at the top of each round and
+// hand the local to a `mut` param that sometimes writes back. The bound is
+// what turns a regression into a failed assertion instead of a hang -- with
+// the literal corrupted, `s = ""` no longer empties s and the loop never ends.
+test_literal_assign_then_mut_arg_in_loop := test() {
+    mut s := seed_mode.clone()
+    mut rounds : I64 = 0
+    while s.len() > 0 {
+        s = ""
+        set_mode(s, rounds == 0)
+        rounds = rounds + 1
+        if rounds >= 5 { break }
+    }
+    assert_eq(I64, rounds, 2)
+}

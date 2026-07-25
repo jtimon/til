@@ -604,6 +604,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug256.til", flags)
     add_both(tests, "test/bug258.til", flags)
     add_both(tests, "test/bug315.til", flags)
+    add_both(tests, "test/mut_arg_str_lit.til", flags)
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)

@@ -2514,11 +2514,13 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     f.write("; ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ").write(aname).write(" = *_new; free(_new); }\n")
                 }
             } else {
+                lit_owns_box := assign_str_lit_needs_own_box(aname, ctype, rhs, ctx)
                 f.write("{ ").write(ctype).write(" *_old = ").write(aname).write("; ").write(aname).write(" = ")
                 if ctype.eq("Str").and(rhs.node_type.is_literal_str()) {
                     switch rhs.node_type {
                     case NodeType.Literal(Literal.Str(lit_s)):
-                        emit_str_lit_expr(f, lit_s, ctx)
+                        if lit_owns_box { emit_str_lit_own_box(f, lit_s) }
+                        else { emit_str_lit_expr(f, lit_s, ctx) }
                     case:
                     }
                 } else {
@@ -2586,7 +2588,18 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 } else {
                     f.write(aname).write(" = ")
                 }
-                emit_expr(f, rhs, depth, ctx)
+                // Same shared-literal hazard as the save_old_delete branch
+                // above: this arm rebinds the pointer with no `_old` dance.
+                mut emitted_box := false
+                if assign_str_lit_needs_own_box(aname, c_type_name(e.til_type(), til_type_name(e.til_type()), ctx), rhs, ctx) {
+                    switch rhs.node_type {
+                    case NodeType.Literal(Literal.Str(lit_s)):
+                        emit_str_lit_own_box(f, lit_s)
+                        emitted_box = true
+                    case:
+                    }
+                }
+                if emitted_box.not() { emit_expr(f, rhs, depth, ctx) }
             } else if e.til_type().is_funcptr().or(e.til_type().is(Type.Body)) {
                 f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx)
             } else {
@@ -2693,14 +2706,23 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     ref arg_type : Type = swap_target.til_type()
                     arg_tname := til_type_name(arg_type)
                     if arg_tname == "Str" {
+                        // The written value describes the CHAR DATA, so a
+                        // literal source must land as CAP_VIEW (static chars,
+                        // borrowed) and not as CAP_LIT. CAP_LIT additionally
+                        // claims the destination STRUCT is static storage,
+                        // which is false here: the write goes through a
+                        // pointer into storage the caller owns, and stamping
+                        // CAP_LIT on it makes Str_delete skip freeing that
+                        // storage. Same demotion emit_return_box performs.
                         // If the temp is a stack-local (Str value, not pointer),
                         // assign directly without dereference and free.
                         if is_stack_local(temp_name, ctx) {
-                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_resolve_c_ident_name(temp_name, ctx)).write("; }\n")
+                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_resolve_c_ident_name(temp_name, ctx)).write("; ")
                         } else {
-                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); }\n")
+                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); ")
                             ctx.swap_freed.add(own temp_name.clone())
                         }
+                        f.write("if (").write(target_name).write("->cap == TIL_CAP_LIT) { ").write(target_name).write("->cap = TIL_CAP_VIEW; } }\n")
                         return
                     }
                 }
@@ -3093,6 +3115,34 @@ priv emit_str_lit_expr := proc(f: File, s: Str, ctx: Context) {
     f.write("ULL, .cap = TIL_CAP_LIT}; &_lit")
     emit_i32(f, id)
     f.write("; })")
+}
+
+// A Str literal assigned to a POINTER local normally rebinds it to the shared
+// program-wide `_til_str_lit_N` global -- cheap, and sound as long as nothing
+// ever writes THROUGH the variable. A local passed as a `mut` argument breaks
+// exactly that: the callee's write-back is `*p = <new value>`, which would
+// overwrite that one global for every other user of the same literal in the
+// program and leave the local pointing at static storage, so its next
+// `Str_delete(_old, true)` free()s a static address (a SIGSEGV deep inside
+// glibc, far from the cause -- this is what made `til repl` crash on any
+// `mode X` switch). unsafe_to_hoist already collects exactly the locals that
+// are handed to a `mut` param or aliased by a `ref` decl, so use it to decide.
+priv assign_str_lit_needs_own_box := func(aname: Str, ctype: Str, rhs: Expr, ctx: Context) returns Bool {
+    if ctype.eq("Str").not() { return false }
+    if rhs.node_type.is_literal_str().not() { return false }
+    return ctx.builder_func.unsafe_to_hoist.has(aname)
+}
+
+// The literal's own heap box: CAP_VIEW marks the static char data as borrowed
+// (Str_delete never frees it) while leaving the wrapper freeable, so the local
+// owns writable storage the callee can write back into. Same shape as the
+// CAP_LIT -> CAP_VIEW demotion emit_return_box performs.
+priv emit_str_lit_own_box := proc(f: File, s: Str) {
+    f.write("({ Str *_lb = malloc(sizeof(Str)); *_lb = (Str){.c_str = (void *)\"")
+    f.write(s)
+    f.write("\", .count = ")
+    emit_usize(f, c_lit_byte_count(s))
+    f.write("ULL, .cap = TIL_CAP_VIEW}; _lb; })")
 }
 
 priv emit_str_lit_temp_expr := proc(f: File, s: Str) {
