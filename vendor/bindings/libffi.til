@@ -148,8 +148,16 @@ FFI_64_BIT_MAX : I64 = 9223372036854775807
 /* The closure code assumes that this works on pointers, i.e. a size_t
    can hold a pointer.  */
 
+// Hand-audited edit, keep across regens: the C field is size_t, which
+// is 8 bytes on every supported host -- but til's USize follows the
+// TARGET width (U32 by default since #309), so a USize field here made
+// ffi_type.size() compute 16 for C's 24 and shifted every til-side
+// field offset. build_struct_ffi_type's malloc(ffi_type.size()) then
+// under-allocated by 8 and its elements write landed past the block
+// (heap corruption; aborted ffi_prep_cif_machdep on the arm CI hosts).
+// U64 pins the mirror to the host layout.
 ffi_type := ext_struct("_ffi_type") {
-    size : USize = 0
+    size : U64 = 0
     alignment : U16 = 0
     type : U16 = 0
     ref elements : Dynamic = NULL

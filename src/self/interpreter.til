@@ -5906,6 +5906,13 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns ref ffi_type {
     if type_name == "UPtr"  { return uptr_ffi_type(ctx) }
     if type_name == "F32"   { return ffi_type_ref("ffi_type_float") }
     if type_name == "Bool"  { return ffi_type_ref("ffi_type_uint8") }
+    // Dynamic IS the opaque pointer type. Its reflection def in
+    // src/core/dyn.til is a zero-field `Dynamic : StructDef = struct`,
+    // which the struct probe below would turn into a size-0 by-value
+    // struct ffi_type (FFI_BAD_TYPEDEF at prep); the first
+    // `shallow Dynamic` ext signatures (#286's word helpers) hit that
+    // and broke the arm CI hosts.
+    if type_name == "Dynamic" { return ffi_type_ref("ffi_type_pointer") }
     if ctx.ffi_struct_defs.has(type_name) {
         ref box : ExprPtrBox = ctx.ffi_struct_defs[type_name]
         return build_struct_ffi_type(box.ptr, ctx)
@@ -5942,7 +5949,10 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
         for i in 0..nfields {
             ref fd : Declaration = bsf_sdd.fields[i]
             ref ft : ffi_type = field_ffi_type(fd, ctx)
-            memcpy(ptr_add(elements, i * Dynamic.size()), ft, Dynamic.size())
+            // The elements array holds ffi_type POINTERS; the old memcpy
+            // copied the pointed struct's first 8 bytes (its size field)
+            // instead, so libffi walked (ffi_type*)1-style garbage.
+            write_ptr(ptr_add(elements, i * Dynamic.size()), ft)
         }
         memset(ptr_add(elements, nfields * Dynamic.size()), 0, Dynamic.size())
         st : Dynamic = malloc(ffi_type.size())
@@ -7163,7 +7173,12 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
                 rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }
         }
-        ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
+        prep_status := ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
+        if prep_status.eq(FFI_OK).not() {
+            // A failed prep leaves the cif garbage; calling through it
+            // later corrupts memory far from the cause. Fail here.
+            panic("ffi_prep_cif failed (status ", prep_status.cast(I64).to_str(), ") registering ext fn: ", name)
+        }
 
         // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
         // internally (ELEM_BOXED), so `name` can be passed directly; the

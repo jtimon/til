@@ -820,3 +820,20 @@ terr_nr_pick := func(terr_nr_b: Bool) returns I64 {
     if terr_nr_b { return 41 }
     terr_nr_abort(3)
 }
+
+// #286 follow-up: a ref-returning call's result is BORROWED. The Decl
+// form was already rejected; plain reassignment and by-value AGGREGATE
+// returns slipped past the typer and compiled into double frees.
+terr_ref_result_src := func(terr_rr_s: Str) returns ref Str {
+    return terr_rr_s
+}
+// storing the borrowed result in an owned (non-ref) binding
+terr_ref_result_assign := func(terr_ra_s: Str) returns I64 {
+    mut terr_ra_t := "x"
+    terr_ra_t = terr_ref_result_src(terr_ra_s)
+    return terr_ra_t.len().to_i64()
+}
+// returning the borrowed aggregate by value from an owned-returning func
+terr_ref_result_return := func(terr_rt_s: Str) returns Str {
+    return terr_ref_result_src(terr_rt_s)
+}

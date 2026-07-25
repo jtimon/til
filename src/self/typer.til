@@ -3755,14 +3755,16 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
             // the bang form (`return v.get(i)!`, via its hoisted temp Decl)
             // already reject this with "cannot own result of ref-returning
             // function"; the `?` return slipped past. Reject it the same way.
-            // Gate on the injected `_err_kind` out-arg so this fires ONLY for a
-            // lowered throwing call -- a plain non-throwing ref-returning call
-            // (`return deref(p)`) always yields a valid ref and is fine to
-            // return by value. Use `returns ref T` or `.clone()` instead.
+            // #286 follow-up: an AGGREGATE-typed ref result returned by value
+            // hands the caller a BORROWED block it will free as owned (a
+            // double free), so reject those even for non-throwing calls. A
+            // non-throwing ref-returning call of pointer/scalar shape
+            // (`return deref(p)`) copies the value and stays fine to return
+            // by value. Use `returns ref T` or `.clone()` instead.
             ref ret_val : Expr = stmt.children[0]
             if ret_val.node_type.is(NodeType.FCall)
                 .and(fcall_returns_ref(ret_val, scope).neq(0))
-                .and(fcall_has_injected_err_arg(ret_val)) {
+                .and(fcall_has_injected_err_arg(ret_val).or(is_aggregate(stmt.til_type()))) {
                 stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
             }
             switch stmt.children[0].node_type {
@@ -5608,6 +5610,17 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         }
     }
     if is_ref_target.not() {
+        // A ref-returning call's AGGREGATE result is BORROWED storage:
+        // reassigning it into an owned (non-ref) binding makes the
+        // target's teardown free the callee's block (a double free).
+        // The Decl form (`x := f()`) was already rejected in infer_decl;
+        // plain reassignment slipped past the typer and compiled into a
+        // double free. Pointer/scalar-shaped results (`p = deref(q)`,
+        // `c = s.unsafe_get(i)`) copy the value and stay legal to
+        // reassign.
+        if rhs.node_type.is(NodeType.FCall).and(fcall_returns_ref(rhs, scope).neq(0)).and(is_aggregate(existing)) {
+            stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
+        }
         if rhs.node_type.is(NodeType.Ident).or(
             rhs.node_type.is(NodeType.FieldAccess).and(
                 is_aggregate(rhs.til_type())
@@ -6043,6 +6056,17 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
 // This is the exact shape we want `make_free_call` to follow up. Other
 // transfer shapes -- own arg to a function, struct constructor with an Own
 // or Ref field -- already consume the wrapper, so we must NOT emit a free.
+// The value expr of a ctor arg: the wrapped child for a NamedArg
+// (`Type(field = local)`), the arg itself otherwise.
+priv named_arg_inner := func(arg: Expr) returns ref Expr {
+    switch arg.node_type {
+    case NodeType.NamedArg:
+        if arg.children.len() > 0 { return arg.children[0] }
+    case:
+    }
+    return arg
+}
+
 transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: TypeScope) returns Bool {
     if e.node_type.is(NodeType.FuncDef) { return false }
     if e.node_type.is(NodeType.FCall) {
@@ -6067,12 +6091,11 @@ transfer_is_shallow_field_value_copy := func(e: Expr, var_name: Str, scope: Type
                                 // so the local's wrapper leaked there.
                                 for ci in 1..e.children.len() {
                                     ref arg : Expr = e.children[ci]
-                                    mut inner : Expr = arg
+                                    ref inner : Expr = named_arg_inner(arg)
                                     mut field_name : Str = ""
                                     switch arg.node_type {
                                     case NodeType.NamedArg(nan):
                                         field_name = nan
-                                        if arg.children.len() > 0 { inner = arg.children[0] }
                                     case:
                                     }
                                     switch inner.node_type {

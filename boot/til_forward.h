@@ -923,7 +923,7 @@ typedef struct Vec__DocEntry {
 
 
 typedef struct _ffi_type {
-    USize size;
+    U64 size;
     U16 alignment;
     U16 type;
     void * *elements;
@@ -1813,8 +1813,8 @@ void Vec__Tuple_clear(Vec__Tuple * self);
 void Vec__Tuple_delete(Vec__Tuple * self, Bool call_free);
 Vec__Tuple * Vec__Tuple_clone(Vec__Tuple * self);
 USize Vec__Tuple_size(void);
-void panic(Array__Str * parts, Str * loc);
-void UNREACHABLE(Str * loc);
+__attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
+__attribute__((noreturn)) void UNREACHABLE(Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
 void swap_bytes(void * a, void * b, UPtr size);
@@ -2533,6 +2533,7 @@ Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
 Expr * make_closure_delete_call(Str * var_name, Expr * src);
 Expr * make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
+Expr * priv___src_self_typer_til__named_arg_inner(Expr * arg);
 Bool transfer_is_shallow_field_value_copy(Expr * e, Str * var_name, TypeScope * scope);
 Expr * make_free_call(Str * var_name, Type type, Expr * src);
 Expr * make_clone_call(Str * type_name, Type type, Expr * arg, Expr * src);
