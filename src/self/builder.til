@@ -353,6 +353,16 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
         switch pe_arg.node_type {
         case NodeType.FieldAccess(pe_vn):
             pe_sname := til_type_name(pe_arg.children[0].til_type())
+            // #320 niche: no tag field -- a payload-less variant is null.
+            ref pe_def : Expr = find_struct_def(pe_sname, ctx)
+            mut pe_niche := false
+            if pe_def.is_null().not() {
+                if pe_def.node_type.is(NodeType.EnumDef) { pe_niche = enum_is_niche(pe_def) }
+            }
+            if pe_niche {
+                f.write("(").write(pe_sname).write("){.data = NULL}")
+                return
+            }
             f.write("(").write(pe_sname).write("){.tag = ")
             f.write(pe_sname).write("_TAG_").write(pe_vn.field_access_name()).write("}")
             return
@@ -2352,7 +2362,16 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             sn := til_type_name(rv.children[0].til_type())
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
-                f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
+                ref nsv_def : Expr = find_struct_def(sn, ctx)
+                mut nsv_niche := false
+                if nsv_def.is_null().not() {
+                    if nsv_def.node_type.is(NodeType.EnumDef) { nsv_niche = enum_is_niche(nsv_def) }
+                }
+                if nsv_niche {
+                    f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->data = NULL;\n")
+                } else {
+                    f.write("{ ").write(sn).write(" *_r = malloc(sizeof(").write(sn).write(")); _r->tag = ").write(sn).write("_TAG_").write(vname.field_access_name()).write(";\n")
+                }
                 emit_indent(f, depth); f.write("return _r; }\n")
             case:
                 UNREACHABLE()
@@ -2410,12 +2429,23 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     mut enum_name := ""
     if is_enum { enum_name = til_type_name(scrut.til_type()) }
     f.write("switch (")
+    mut sw_is_niche := false
+    if is_enum {
+        ref sw_def : Expr = find_struct_def(enum_name, ctx)
+        if sw_def.is_null().not() {
+            if sw_def.node_type.is(NodeType.EnumDef) { sw_is_niche = enum_is_niche(sw_def) }
+        }
+    }
     if is_enum {
         // Switch on the tag field. emit_deref yields the enum value, so
         // `(value).tag` is the discriminant; labels are <Enum>_TAG_<Variant>.
+        // #320 niche: there is no tag -- the discriminant IS "is the
+        // pointer non-null", so the subject becomes that test and the
+        // labels below become 0 / 1.
         f.write("(")
         emit_deref(f, scrut, depth, ctx)
-        f.write(").tag")
+        if sw_is_niche { f.write(").data != NULL") }
+        else { f.write(").tag") }
     } else {
         emit_deref(f, scrut, depth, ctx)
     }
@@ -2445,9 +2475,16 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     }
                 case:
                 }
-                f.write(enum_name)
-                f.write("_TAG_")
-                f.write(vn)
+                if sw_is_niche {
+                    // 1 = the payload (non-null) variant, 0 = the other.
+                    ref lbl_def : Expr = find_struct_def(enum_name, ctx)
+                    if enum_variant_type(lbl_def, enum_variant_index(lbl_def, vn)).len() > 0 { f.write("1") }
+                    else { f.write("0") }
+                } else {
+                    f.write(enum_name)
+                    f.write("_TAG_")
+                    f.write(vn)
+                }
             } else if is_range_new_call(cn.children[0]) {
                 // #254 range case `lo..hi` -> C case range `lo ... hi`.
                 emit_expr(f, cn.children[0].children[1], depth, ctx)
@@ -3723,17 +3760,19 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // the same offset-0 tag bytes, so both modes agree.
                 isn_ret_c := til_type_name_c(e.til_type())
                 enum_c := til_type_name(e.children[1].til_type())
-                f.write("((")
-                f.write(isn_ret_c)
-                f.write(")(((")
-                f.write(enum_c)
-                f.write(" *)(")
-                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write("))->tag == ((")
-                f.write(enum_c)
-                f.write(" *)(")
-                emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
-                f.write("))->tag))")
+                // #320 niche: no tag field -- "same variant" is "both null
+                // or both non-null", the null-pointer optimization's whole
+                // discriminant.
+                mut isn_niche := false
+                ref isn_def : Expr = find_struct_def(enum_c, ctx)
+                if isn_def.is_null().not() {
+                    if isn_def.node_type.is(NodeType.EnumDef) { isn_niche = enum_is_niche(isn_def) }
+                }
+                f.write("((").write(isn_ret_c).write(")(")
+                emit_is_n_operand(f, e, 1, enum_c, isn_niche, depth, ctx)
+                f.write(" == ")
+                emit_is_n_operand(f, e, 2, enum_c, isn_niche, depth, ctx)
+                f.write("))")
             } else if name.ident_name().eq("is_null").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // is_null core_func: lower is_null(p) to a direct null test
                 // inline, dropping the call (6.2M --prof calls). The Dynamic arg
@@ -3872,13 +3911,24 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         if builder_fa_is_ns(e, ctx) {
             obj_sname := til_type_name(obj.til_type())
             if e.til_type().is(Type.Enum) {
-                f.write("&(")
-                f.write(obj_sname)
-                f.write("){.tag = ")
-                f.write(obj_sname)
-                f.write("_TAG_")
-                f.write(fname.field_access_name())
-                f.write("}")
+                ref nv_def : Expr = find_struct_def(obj_sname, ctx)
+                mut nv_niche := false
+                if nv_def.is_null().not() {
+                    if nv_def.node_type.is(NodeType.EnumDef) { nv_niche = enum_is_niche(nv_def) }
+                }
+                if nv_niche {
+                    // #320 niche: the payload-less variant IS the null
+                    // pointer.
+                    f.write("&(").write(obj_sname).write("){.data = NULL}")
+                } else {
+                    f.write("&(")
+                    f.write(obj_sname)
+                    f.write("){.tag = ")
+                    f.write(obj_sname)
+                    f.write("_TAG_")
+                    f.write(fname.field_access_name())
+                    f.write("}")
+                }
             } else {
                 f.write(obj_sname)
                 f.write("_")
@@ -4367,11 +4417,20 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 f.write(obj_sname)
                 f.write(")); *_oa = (")
                 f.write(obj_sname)
-                f.write("){.tag = ")
-                f.write(obj_sname)
-                f.write("_TAG_")
-                f.write(fname.field_access_name())
-                f.write("}; _oa; })")
+                ref nv2_def : Expr = find_struct_def(obj_sname, ctx)
+                mut nv2_niche := false
+                if nv2_def.is_null().not() {
+                    if nv2_def.node_type.is(NodeType.EnumDef) { nv2_niche = enum_is_niche(nv2_def) }
+                }
+                if nv2_niche {
+                    f.write("){.data = NULL}; _oa; })")
+                } else {
+                    f.write("){.tag = ")
+                    f.write(obj_sname)
+                    f.write("_TAG_")
+                    f.write(fname.field_access_name())
+                    f.write("}; _oa; })")
+                }
             } else {
                 emit_expr(f, e, depth, ctx)
             }
@@ -4869,6 +4928,21 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
                 f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
                 f.write("    return r;\n").write("}\n")
             }
+        } else if enum_is_niche(enum_def) {
+            // #320 niche: the ctors ARE the pointer. None writes null,
+            // Some stores the borrowed pointer.
+            for i in 0..edd.variants.len() {
+                ref vd : VariantDef = edd.variants[i]
+                ref vn : Str = vd.name
+                vt := enum_variant_type(enum_def, i.to_i32())
+                f.write(name).write(" *").write(name).write("_").write(vn).write("(")
+                if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
+                f.write(") {\n")
+                f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
+                if vt.len() > 0 { f.write("    r->data = val;\n") }
+                else { f.write("    r->data = NULL;\n") }
+                f.write("    return r;\n").write("}\n")
+            }
         } else {
             // Payload enum
             for i in 0..edd.variants.len() {
@@ -4919,8 +4993,48 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
     }
 }
 
+// #320: emit one operand of an is_n tag comparison. A tagged enum reads
+// its `tag` field; a NICHE enum has no tag, so the discriminant is "is the
+// pointer non-null". For a niche enum a bare variant name (the shape
+// make_is_tag_check_fcall builds: `is_n(x, E.Variant, w)`) has no value to
+// materialise -- it IS the constant answer, 1 for the payload variant and
+// 0 for the payload-less one.
+priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_niche: Bool, depth: I32, ctx: Context) {
+    ref operand : Expr = e.children[idx]
+    if is_niche {
+        mut vname := ""
+        switch operand.node_type {
+        case NodeType.FieldAccess(fa):
+            if builder_fa_is_ns(operand, ctx) { vname = Str.clone(fa.field_access_name()) }
+        case:
+        }
+        if vname.len() > 0 {
+            ref vdef : Expr = find_struct_def(enum_c, ctx)
+            if enum_variant_type(vdef, enum_variant_index(vdef, vname)).len() > 0 { f.write("1") }
+            else { f.write("0") }
+            return
+        }
+        f.write("(((").write(enum_c).write(" *)(")
+        emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
+        f.write("))->data != NULL)")
+        return
+    }
+    f.write("(((").write(enum_c).write(" *)(")
+    emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
+    f.write("))->tag)")
+}
+
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
     f.write("struct ").write(ename).write(" {\n")
+    // #320 niche: one pointer, no tag and no union. The payload-less
+    // variant is the null bit pattern, so the whole enum is ABI-identical
+    // to a nullable C pointer (Rust's Option<&T>).
+    if enum_is_niche(enum_def) {
+        niche_vt := enum_variant_type(enum_def, enum_niche_some_index(enum_def))
+        f.write("    ").write(type_name_to_c_value(niche_vt, ctx)).write(" *data;\n")
+        f.write("};\n\n")
+        return
+    }
     // #264: emit the tag field with the discriminant's integer type so
     // sizeof matches the chosen width (default U8); the `<ename>_TAG_X`
     // enum constants stay usable as plain integer values.

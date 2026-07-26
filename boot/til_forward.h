@@ -751,11 +751,7 @@ typedef struct Vec__Dynamic {
 
 
 struct Option__ref_Str {
-    U8 tag;
-    union {
-        Str *Some;
-        void *_til_payload_align;
-    } data;
+    Str *data;
 };
 
 typedef struct Map__Str_Expr {
@@ -765,11 +761,7 @@ typedef struct Map__Str_Expr {
 
 
 struct Option__ref_Expr {
-    U8 tag;
-    union {
-        Expr *Some;
-        void *_til_payload_align;
-    } data;
+    Expr *data;
 };
 
 typedef struct Map__Str_Dynamic {
@@ -786,11 +778,7 @@ typedef struct Vec__FFITypePtrBox {
 
 
 struct Option__ref_TypeScope {
-    U8 tag;
-    union {
-        TypeScope *Some;
-        void *_til_payload_align;
-    } data;
+    TypeScope *data;
 };
 
 typedef struct Vec__I64 {
@@ -857,11 +845,7 @@ typedef struct Vec__ExprPtrBox {
 
 
 struct Option__ref_Mode {
-    U8 tag;
-    union {
-        Mode *Some;
-        void *_til_payload_align;
-    } data;
+    Mode *data;
 };
 
 typedef struct Map__Str_I64 {
@@ -886,11 +870,7 @@ typedef struct Vec__CtorArg {
 
 
 struct Option__ref_Declaration {
-    U8 tag;
-    union {
-        Declaration *Some;
-        void *_til_payload_align;
-    } data;
+    Declaration *data;
 };
 
 typedef struct Vec__CoverageNode {
@@ -971,11 +951,7 @@ typedef struct Vec__GcCfgBlock {
 
 
 struct Option__ref_Scope {
-    U8 tag;
-    union {
-        Scope *Some;
-        void *_til_payload_align;
-    } data;
+    Scope *data;
 };
 
 typedef struct priv___src_self_loader_til__DeclRef {
@@ -2219,9 +2195,12 @@ Bool enum_has_payloads(Expr * enum_def);
 Str * enum_tag_type(Expr * enum_def);
 USize enum_tag_size(Expr * enum_def);
 I64 enum_variant_tag(Expr * enum_def, Str * variant_name);
+I64 enum_variant_tag_at(Expr * enum_def, I32 idx);
 I32 enum_variant_index(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 idx);
 Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
+Bool enum_is_niche(Expr * enum_def);
+I32 enum_niche_some_index(Expr * enum_def);
 Bool enum_variant_payload_ref(Expr * enum_def, I32 idx);
 Bool rhs_is_allocator_call(Expr * e);
 Bool priv___src_self_context_til__contains_return(Expr * e);
@@ -3476,6 +3455,7 @@ void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_is_n_operand(File * f, Expr * e, USize idx, Str * enum_c, Bool is_niche, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);

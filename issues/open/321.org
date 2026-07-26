@@ -353,6 +353,15 @@ for null (the binding was dead -- now just ~.is_none()~), and the
 "does this type have a delete?" check collapsed to a single
 ~.is_none()~ expression.
 
+**** #320's niche layout has LANDED (unblocks the hot migrations)
+
+Option(ref T) is now ONE pointer with None == null, so the two things
+this issue was sequencing behind it are unblocked: the hot
+ref-returning lookups (TypeScope.get_struct and friends) can migrate
+without doubling the value they return, and the C-boundary story in
+"Open questions" above is now real rather than planned -- an
+Option(ref T) IS a nullable C pointer.
+
 Perf note for the hot ones: an enum return is heap-boxed by default
 (~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup
 like ~TypeScope.get_struct~ wants either ~returns shallow Option(...)~

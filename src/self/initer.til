@@ -2087,6 +2087,12 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
 
 compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Context) returns USize {
     if ctx.struct_layouts.has(name) { return ctx_total_size(name, ctx) }
+    // #320: a niche enum IS a bare pointer -- no tag, no union, the
+    // payload-less variant is the null bit pattern.
+    if enum_is_niche(enum_def) {
+        ctx.struct_layouts.set(name, own StructLayout(total_size = UPtr.size(), align = UPtr.size()))
+        return UPtr.size()
+    }
     // Set sentinel before recursing to break self-referential cycles.
     ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
     switch enum_def.node_type {

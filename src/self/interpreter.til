@@ -366,6 +366,21 @@ priv enum_free_str_payload := func(data: Dynamic, ctx: Context) {
 }
 
 priv enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
+    // #320 niche: no tag is stored -- the discriminant IS whether the
+    // single pointer is null, so derive the tag value from that.
+    if enum_is_niche(enum_def) {
+        some_idx := enum_niche_some_index(enum_def)
+        // LOAD the stored pointer (deref), do not alias the slot address:
+        // `ref p : Dynamic = data` would bind the address itself, which is
+        // never null, so every value would read as the payload variant.
+        ref stored : Dynamic = deref(data)
+        mut want_idx := some_idx
+        if stored.is_null() {
+            want_idx = 0
+            if some_idx == 0 { want_idx = 1 }
+        }
+        return enum_variant_tag_at(enum_def, want_idx)
+    }
     tag_w := enum_tag_size(enum_def)
     if tag_w == 1 { ref t : U8 = data; return t.to_i64() }
     if tag_w == 2 { ref t : U16 = data; return t.to_i64() }
@@ -469,6 +484,16 @@ priv write_enum_flat := func(data: Dynamic, enum_name: Str, etag: I64, payload_d
     // name-registered, so the lookup legitimately misses -- such enums are the
     // historical default width (4 bytes).
     ref tedef : Expr = lookup_interp_type_def(enum_name, ctx)
+    // #320 niche: the value IS one pointer at offset 0 -- no tag to write,
+    // and the payload-less variant is written as null. The ctor path fills
+    // the Some pointer itself (see the ref-payload branch in
+    // enum_method_dispatch), so here None just zeroes the slot.
+    if tedef.is_null().not() {
+        if enum_is_niche(tedef) {
+            write_ptr(data, NULL)
+            return
+        }
+    }
     mut tag_w : USize = 4
     if tedef.is_null().not() { tag_w = enum_tag_size(tedef) }
     memcpy(data, etag, tag_w.cast(UPtr))
@@ -1341,6 +1366,14 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destinatio
                 if variant_idx >= 0 {
                     mut result : Dynamic = destination
                     if result.is_null() { result = dispatch_result_alloc(Type.Enum(sname.clone()), ctx) }
+                    // #320 niche: a payload-less variant read as a VALUE is
+                    // the null pointer, not a tag byte -- writing a 1-byte
+                    // tag into the 8-byte slot would leave the rest garbage
+                    // and read back as Some.
+                    if enum_is_niche(namespace_def) {
+                        write_ptr(result, NULL)
+                        return result
+                    }
                     tag := enum_variant_tag(namespace_def, fa.field_access_name())
                     memcpy(result, tag, enum_tag_size(namespace_def))
                     return result
@@ -5410,6 +5443,7 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
                 // whenever the pointee happens to be <= 8 bytes, exposed by
                 // a self-referential Option(ref T) field (a 16-byte enum
                 // sized as 8 + sizeof(T)).
+                if enum_is_niche(enum_def) { return UPtr.size() }
                 mut payload_w : USize = UPtr.size()
                 if enum_variant_payload_ref(enum_def, i.to_i32()).not() {
                     payload_w = container_elem_size(payload_type, ctx)
@@ -6515,14 +6549,22 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
 // for payload aliasing: the payload storage sits ENUM_PAYLOAD_OFFSET bytes
 // past the tag (see the #211 payload-alias machinery).
 priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    // #320 niche: the payload IS the whole value, at offset 0.
+    mut gp_off : USize = ENUM_PAYLOAD_OFFSET
+    ref gp_def : Expr = lookup_interp_type_def(til_type_name(e.children[1].til_type()), ctx)
+    if gp_def.is_null().not() {
+        if gp_def.node_type.is(NodeType.EnumDef) {
+            if enum_is_niche(gp_def) { gp_off = 0 }
+        }
+    }
     fa_payload : Dynamic = get_payload_field_addr(s, e.children[1], ctx)
     if fa_payload.is_null().not() {
-        write_ptr(r, ptr_add(fa_payload, ENUM_PAYLOAD_OFFSET))
+        write_ptr(r, ptr_add(fa_payload, gp_off))
         return true
     }
     ref arg : Expr = e.children[1]
     raw : Dynamic = eval_expr_raw(s, arg, ctx)
-    write_ptr(r, ptr_add(raw_arg_pointer(s, arg, raw, ctx), ENUM_PAYLOAD_OFFSET))
+    write_ptr(r, ptr_add(raw_arg_pointer(s, arg, raw, ctx), gp_off))
     raw_result_drop(arg.til_type(), raw, expr_raw_is_ref(s, arg, ctx), ctx)
     return true
 }
@@ -6781,7 +6823,11 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 ref borrow_expr : Expr = e.children[1]
                 borrow_raw : Dynamic = eval_expr_raw(scope, borrow_expr, ctx)
                 write_enum_flat(result, enum_name, ctor_tag, NULL, 0, false, false, ctx)
-                write_ptr(ptr_add(result, ENUM_PAYLOAD_OFFSET), raw_arg_pointer(scope, borrow_expr, borrow_raw, ctx))
+                // #320 niche: the borrow IS the whole value (offset 0);
+                // a tagged enum keeps it at the flat payload offset.
+                mut borrow_off : USize = ENUM_PAYLOAD_OFFSET
+                if enum_is_niche(enum_def) { borrow_off = 0 }
+                write_ptr(ptr_add(result, borrow_off), raw_arg_pointer(scope, borrow_expr, borrow_raw, ctx))
                 return true
             }
             if has_payload {

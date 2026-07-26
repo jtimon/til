@@ -1373,6 +1373,23 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
     return -1
 }
 
+// The tag VALUE of a variant by its declaration INDEX (the index-keyed
+// twin of enum_variant_tag, for callers that already hold a position --
+// e.g. the niche layout's derived discriminant).
+enum_variant_tag_at := func(enum_def: Expr, idx: I32) returns I64 {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        idx_u := idx.to_usize()
+        if idx_u < edd.variants.len() {
+            ref vd : VariantDef = edd.variants[idx_u]
+            return vd.tag_value.clone()
+        }
+    case:
+        UNREACHABLE()
+    }
+    return -1
+}
+
 // The declaration INDEX of a variant (0-based). Distinct from the tag VALUE
 // once explicit tags are used. Payload lookups by position must use this,
 // NOT enum_variant_tag.
@@ -1420,6 +1437,51 @@ enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
         UNREACHABLE()
     }
     return false
+}
+
+// #320 niche layout: an enum laid out as a BARE POINTER, with the
+// payload-less variant represented by the null bit pattern -- no tag, no
+// union. This is Rust's null-pointer optimization, and it is a GENERAL
+// rule rather than a blessing of Option by name: it applies to any enum
+// with exactly two variants, one carrying no payload and one carrying a
+// payload that can never itself be null (today: a `ref` payload; funcptr
+// payloads are the obvious next candidate).
+//
+// The soundness argument is #321's: a `ref` points at something, so the
+// null bit pattern is free to mean "the other variant". That is what
+// makes Option(ref T) one word and ABI-identical to a nullable C pointer.
+enum_is_niche := func(enum_def: Expr) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        if edd.variants.len() != 2 { return false }
+        mut payload_less := 0
+        mut ref_payloads := 0
+        for vi in 0..edd.variants.len() {
+            ref vd : VariantDef = edd.variants[vi]
+            if vd.payload_type.len() == 0 { payload_less++; continue }
+            if vd.payload_ref { ref_payloads++ }
+        }
+        return payload_less.eq(1).and(ref_payloads.eq(1))
+    case:
+        UNREACHABLE()
+        return false
+    }
+}
+
+// The index of the payload-carrying variant of a niche enum (the other
+// one IS null). Callers must have checked enum_is_niche first.
+enum_niche_some_index := func(enum_def: Expr) returns I32 {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for vi in 0..edd.variants.len() {
+            ref vd : VariantDef = edd.variants[vi]
+            if vd.payload_type.len() > 0 { return vi.to_i32() }
+        }
+    case:
+        UNREACHABLE()
+    }
+    panic(__LOC__, "niche enum without a payload variant")
+    return -1
 }
 
 // #320: payload-ref flag of a variant by its declaration INDEX. True when
