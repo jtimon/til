@@ -5327,7 +5327,17 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
         for i in 0..ed.variants.len() {
             payload_type := enum_variant_type(enum_def, i.to_i32())
             if payload_type.len() > 0 {
-                payload_end : USize = ENUM_PAYLOAD_OFFSET + container_elem_size(payload_type, ctx)
+                // #320: a `ref` payload stores a bare POINTER, not the
+                // pointee, so it must be sized at pointer width. Sizing it
+                // by the pointee overflows the enum's real slot -- masked
+                // whenever the pointee happens to be <= 8 bytes, exposed by
+                // a self-referential Option(ref T) field (a 16-byte enum
+                // sized as 8 + sizeof(T)).
+                mut payload_w : USize = UPtr.size()
+                if enum_variant_payload_ref(enum_def, i.to_i32()).not() {
+                    payload_w = container_elem_size(payload_type, ctx)
+                }
+                payload_end : USize = ENUM_PAYLOAD_OFFSET + payload_w
                 if size < payload_end { size = payload_end }
             }
         }

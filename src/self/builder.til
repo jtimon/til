@@ -4908,6 +4908,15 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                     }
                 case NodeType.EnumDef(dep_edd):
                     for fi in 0..dep_edd.variants.len() {
+                        // #320: a `ref` payload is a bare pointer, so the
+                        // payload type needs only its forward typedef --
+                        // not a layout dependency, exactly like the `ref`
+                        // struct fields the arm above skips. Without this,
+                        // a self-referential Option(ref T) stored inline in
+                        // T deadlocks the sort (T waits for the Option, the
+                        // Option waits for T) and the scan-order fallback
+                        // emits T with an incomplete field.
+                        if enum_variant_payload_ref(def, fi.to_i32()) { continue }
                         dep_vt := enum_variant_type(def, fi.to_i32())
                         if dep_vt.len() > 0 {
                             if is_primitive_type(dep_vt).not().and(is_funcsig_type(dep_vt, lp.ctx).not()) {

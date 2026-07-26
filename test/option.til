@@ -78,3 +78,33 @@ test_option_annotation_position := test() {
     assert_eq(Str, opt_src_str(OptRefSrc.None), "none")
     assert_eq(I64, src.n, 6)
 }
+
+// #320: a SELF-REFERENTIAL Option(ref T) field -- the Option sits inline
+// in the struct while its payload points back at that same struct. The C
+// emitter must order the enum body before the struct; a ref payload is a
+// bare pointer, so it is not a layout dependency (without that, the topo
+// sort deadlocks and the fallback emits an incomplete field type).
+OptNode := struct {
+    val := 0
+    next := Option(ref OptNode).None
+}
+
+test_option_self_referential_field := test() {
+    mut tail := OptNode(val = 2)
+    head := OptNode(val = 1, next = Option(ref OptNode).Some(tail))
+    mut got := -1
+    switch head.next {
+    case Option(ref OptNode).Some(n): got = n.val
+    case Option(ref OptNode).None: got = 0
+    }
+    assert_eq(I64, got, 2)
+    // The link is a borrow: mutating the target is visible through it.
+    tail.val = 9
+    switch head.next {
+    case Option(ref OptNode).Some(n2): got = n2.val
+    case Option(ref OptNode).None: got = 0
+    }
+    assert_eq(I64, got, 9)
+    assert_eq(I64, tail.val, 9)
+    assert_eq(I64, head.val, 1)
+}
