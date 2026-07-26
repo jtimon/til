@@ -1083,8 +1083,7 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
     // Same naming rule as the type-gen macro (resolve_type_alias_for_name):
     // user aliases resolve, width aliases (USize/UPtr) keep their spelling,
     // so the C type name matches the monomorphized struct (Array__USize).
-    resolved := resolve_type_alias_for_name(ctx.scope, elem_type).clone()
-    concrete := format("Array__", resolved)
+    concrete := format("Array__", resolve_type_alias_for_name(ctx.scope, elem_type))
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref array_func : Expr = ctx.scope.lookup_func("Array")
     if builder_is_type_gen_macro_def(array_func) { return concrete }
@@ -1093,8 +1092,7 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    resolved := resolve_type_alias_for_name(ctx.scope, elem_type).clone()
-    concrete := format("Vec__", resolved)
+    concrete := format("Vec__", resolve_type_alias_for_name(ctx.scope, elem_type))
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref vec_func : Expr = ctx.scope.lookup_func("Vec")
     if builder_is_type_gen_macro_def(vec_func) { return concrete }

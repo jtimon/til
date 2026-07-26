@@ -976,7 +976,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 if fld_d.default_value.node_type.is(NodeType.NoDefaultArg) {
                     // #242: a field with no default is required at
                     // instantiation; it must be supplied by name.
-                    e.type_error(format("missing required field '", ctor_sdd.field_name_at(i).clone(), "' in '", name, "(...)'"), ctx)
+                    e.type_error(format("missing required field '", ctor_sdd.field_name_at(i), "' in '", name, "(...)'"), ctx)
                     missing_required = true
                 } else {
                     field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_value, e, ctx))
@@ -6269,20 +6269,12 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
 // Array__USize, and that IS the generated instance's name.
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_null().not() { return "Array" }
-    // Bind to a local rather than format(resolve_type_alias_for_name(...))
-    // directly: this function is on the compiler's own self-host path, and
-    // the committed til_boot that first rebuilds bin/til predates the
-    // ref-returning-variadic-arg clone fix (build_variadic_array_set), so a
-    // direct ref-call arg here would miscompile the bootstrap compiler. The
-    // owned local sidesteps that; the clone fix covers every other site.
-    resolved := resolve_type_alias_for_name(scope, elem_type).clone()
-    return format("Array__", resolved)
+    return format("Array__", resolve_type_alias_for_name(scope, elem_type))
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Vec").is_null().not() { return "Vec" }
-    resolved := resolve_type_alias_for_name(scope, elem_type).clone()
-    return format("Vec__", resolved)
+    return format("Vec__", resolve_type_alias_for_name(scope, elem_type))
 }
 
 // True when `expr` is a syntactic enum-variant construction that supplies a
