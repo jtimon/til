@@ -65,11 +65,43 @@ Microbench (`bin/til run examples/bench_hashmap.til`), Str keys:
   | 100,000 |  35 / 43 ms |   17 / 24 ms    |  217 ms |      78 ms  |
 
 HashMap roughly halves lookup at 100K and crushes Map on Str insert
-(the sorted-array memmove). But note what the bench CANNOT tell us:
-its smallest size, 1,000, already reads 0ms, and the compiler's hot
-tables are ~170 entries -- the whole decision range is below the
-bench's resolution. It also never measures CONSTRUCTION, which is the
-deciding cost per criterion (c).
+(the sorted-array memmove). But that table could not answer either
+criterion: its smallest size, 1,000, already reads 0ms while the
+compiler's hot tables are ~170 entries, and it never measured
+construction. Both gaps are now filled (see Progress).
+
+Criterion (b) -- per-lookup cost, 2,000,000 Str lookups per row so the
+rows are comparable:
+
+  | N    | Map   | HashMap |
+  |------+-------+---------|
+  |   16 | 149ms |   168ms |
+  |   32 | 181ms |   173ms |
+  |   64 | 202ms |   174ms |
+  |  128 | 247ms |   190ms |
+  |  256 | 278ms |   184ms |
+  | 1024 | 459ms |   197ms |
+
+The crossover sits at N ~= 32, exactly where #214 guessed it. At the
+compiler's ~170 entries HashMap wins lookup by roughly 1.3x -- real,
+but not the 2x the 100K row suggests.
+
+Criterion (c) -- build and drop 200,000 tables (the per-scope
+pattern), I64 keys to keep Str allocation out of the number:
+
+  | entries | Map   | HashMap |
+  |---------+-------+---------|
+  |       0 |  16ms |   147ms |
+  |       4 |  77ms |   311ms |
+  |      16 | 308ms |  1228ms |
+
+An EMPTY HashMap costs 9x an empty Map to build (0.74us vs 0.08us
+each). That is the eager 16-bucket allocation, and it is decisive: at
+~28ns saved per lookup (the N=128 row), one extra construction needs
+~23 lookups against that table just to break even. A root scope
+answering millions of lookups clears that easily; a per-function scope
+answering a handful never does -- which is exactly #214's verdict,
+now with numbers behind it rather than reasoning.
 
 *** Correctness gate for every candidate: is the map ITERATED?
 
@@ -80,19 +112,36 @@ first making the consumer order-independent. Grep for `.keys` /
 Iteration-order sensitivity in this compiler has already produced real
 bugs (the #307 hardening fixes, the ns-constant ordering work).
 
-*** Known blocker to clear before ANY candidate lands
+*** The #214 emit blocker: VERIFIED GONE, no fix needed
 
-#214 documented a latent emit bug: a struct namespace data decl
-(`mut HashMap.hasher : HashFn = fnv1a`) reaches the generated forward
-header as a plain `void * HashMap_hasher;` instead of `extern void *
-HashMap_hasher;`. Nothing hits it today because no src/self file
-imports hashmap -- the moment one does, the link fails with "multiple
-definition of HashMap_hasher". #236 fixed a DIFFERENT bug in the same
-area (a file-level `mut X : HashFn = fn` emitting a shadowing local),
-so this one is most likely still live. #214 sketches the fix: thread a
-`header_extern` flag through topo_emit_struct_enum_defs /
-emit_struct_typedef in src/self/builder.til. Verify first, fix if
-still present -- candidate 1 cannot even build without it.
+#214 warned of a latent emit bug: a struct namespace data decl
+(`mut HashMap.hasher : HashFn = fnv1a`) reaching the generated forward
+header as a plain `void * HashMap_hasher;` instead of `extern ...`, so
+the first src/self file to import hashmap would fail to link with
+"multiple definition of HashMap_hasher".
+
+Checked directly and it does NOT reproduce. Method matters here,
+because the obvious check is vacuous: adding `import("../std/hashmap")`
+to src/self/context.til builds fine but emits NOTHING -- the scavenger
+prunes the unused import. Adding a HashMap-typed Context FIELD emits
+the type but still not the hasher, because nothing calls `set`, so
+`hash_key` (the only reader of `HashMap(K, V).hasher`) is pruned too.
+Only a probe that actually inserts pulls the symbol in.
+
+With such a probe (a Context field defaulted from a func that does one
+`set`), the self-host build compiles and links clean, `bin/til` runs
+the suite, and the symbol appears exactly once:
+
+  gen/til/til.c:  TilClosure * HashMap__Str_U32_hasher;   <- definition
+  gen/til/til.c:  HashMap__Str_U32_hasher = (void *)&fnv1a__til_closure;
+  gen/til/til_forward.h:  (absent)                        <- no dup decl
+
+The templated HashMap monomorphizes per specialization
+(HashMap__Str_U32_hasher, not HashMap_hasher), and the forward header
+does not declare namespace data decls at all any more, so there is
+nothing to collide. Whatever fixed it (#236's neighbourhood, or the
+template/emit work since 21153c7), no `header_extern` plumbing is
+needed. Probe reverted; nothing from this check is committed.
 
 *** Candidates, re-ranked against #214's criteria
 
@@ -154,9 +203,18 @@ still present -- candidate 1 cannot even build without it.
   on both sides. All added with tests; the ten containers now differ
   only where Dyn genuinely must (new_type_name(s), elem_size /
   elem_delete, Dynamic in signatures).
-- [ ] Clear the HashMap_hasher extern blocker (verify, fix if live)
-- [ ] Bench small-N + construction rows
-- [ ] Lazy HashMap.new buckets
+- [X] Clear the HashMap_hasher extern blocker: verified GONE, no fix
+  needed (see the section above for the method -- the naive checks are
+  vacuous because the scavenger prunes the import and then the hasher).
+- [X] Bench small-N + construction rows: examples/bench_hashmap.til
+  grows a lookup sweep at N=16..1024 with the total lookup count held
+  constant, and a construction row building 200,000 tables at 0/4/16
+  entries. Numbers in Measurements above. They put the lookup
+  crossover at N ~= 32 and price an empty HashMap at 9x an empty Map,
+  which is the number the per-scope candidates hinge on.
+- [ ] Lazy HashMap.new buckets -- now the clear next step: it attacks
+  the 147ms-per-200K empty-construction cost directly, and that single
+  figure is what disqualifies every per-scope candidate.
 - [ ] Candidate: ctx.interp_type_defs
 - [ ] Re-open the per-scope candidates only if lazy buckets land
 

@@ -151,6 +151,102 @@ bench_hashmap_str := proc(n: I64) returns Vec(I64) {
     return results
 }
 
+// --- #323: the range the self-host compiler actually lives in ---
+//
+// The N=1000/10000/100000 rows above are too coarse to choose a
+// container for the compiler: its hot tables hold ~170 entries, where
+// a single pass measures 0ms. These two benchmarks answer the
+// questions #214's criteria (b) and (c) ask.
+//
+// (b) Where is the per-lookup crossover? Hold the TOTAL lookup count
+// fixed and vary the table size, so the columns are comparable.
+
+bench_map_lookup_small := proc(n: I64, total: I64) returns I64 {
+    keys := Vec(Str).new()
+    for i in 0..n {
+        keys.push(own format("k", i.to_str()))
+    }
+    mut m := Map(Str, I64).new()
+    for i in 0..n {
+        ref k : Str = keys.get(i.to_usize())!
+        m.set(k, own i)
+    }
+    rounds := total / n
+    t0 := clock_ms()
+    mut sum : I64 = 0
+    for _ in 0..rounds {
+        for i in 0..n {
+            ref k : Str = keys.get(i.to_usize())!
+            ref v : I64 = m.get(k)!
+            sum = sum.add(v)
+        }
+    }
+    t := clock_ms().sub(t0)
+    if sum < 0 { println("unreachable") }
+    return t
+}
+
+bench_hashmap_lookup_small := proc(n: I64, total: I64) returns I64 {
+    keys := Vec(Str).new()
+    for i in 0..n {
+        keys.push(own format("k", i.to_str()))
+    }
+    mut m := HashMap(Str, I64).new()
+    for i in 0..n {
+        ref k : Str = keys.get(i.to_usize())!
+        m.set(k, own i)
+    }
+    rounds := total / n
+    t0 := clock_ms()
+    mut sum : I64 = 0
+    for _ in 0..rounds {
+        for i in 0..n {
+            ref k : Str = keys.get(i.to_usize())!
+            ref v : I64 = m.get(k)!
+            sum = sum.add(v)
+        }
+    }
+    t := clock_ms().sub(t0)
+    if sum < 0 { println("unreachable") }
+    return t
+}
+
+// (c) What does CONSTRUCTION cost? A TypeScope-style table is built
+// per function/block and thrown away holding a handful of entries (or
+// none), so the build cost is what decides those candidates -- not the
+// per-lookup cost. I64 keys here deliberately: Str keys would add
+// format/clone allocation noise on top of the container's own cost.
+
+bench_construct_map := proc(count: I64, entries: I64) returns I64 {
+    t0 := clock_ms()
+    mut sink : I64 = 0
+    for _ in 0..count {
+        mut m := Map(I64, I64).new()
+        for j in 0..entries {
+            m.set(j, own j)
+        }
+        sink = sink.add(m.len().to_i64())
+    }
+    t := clock_ms().sub(t0)
+    if sink < 0 { println("unreachable") }
+    return t
+}
+
+bench_construct_hashmap := proc(count: I64, entries: I64) returns I64 {
+    t0 := clock_ms()
+    mut sink : I64 = 0
+    for _ in 0..count {
+        mut m := HashMap(I64, I64).new()
+        for j in 0..entries {
+            m.set(j, own j)
+        }
+        sink = sink.add(m.len().to_i64())
+    }
+    t := clock_ms().sub(t0)
+    if sink < 0 { println("unreachable") }
+    return t
+}
+
 print_row := proc(label: Str, r: Vec(I64)) {
     ref t_ins : I64 = r.get(0)!
     ref t_has : I64 = r.get(1)!
@@ -174,8 +270,41 @@ run_size := proc(n: I64) {
     print_row("HashMap knuth ", bench_hashmap_str(n))
 }
 
+run_small := proc(n: I64) {
+    total : I64 = 2000000
+    mt := bench_map_lookup_small(n, total)
+    HashMap(Str, I64).hasher = fnv1a
+    ht := bench_hashmap_lookup_small(n, total)
+    println("N=", n.to_str(), "\tMap=", mt.to_str(), "ms\tHashMap=", ht.to_str(), "ms")
+}
+
+run_construct := proc(entries: I64) {
+    count : I64 = 200000
+    mt := bench_construct_map(count, entries)
+    ht := bench_construct_hashmap(count, entries)
+    println("entries=", entries.to_str(), "\tMap=", mt.to_str(), "ms\tHashMap=", ht.to_str(), "ms")
+}
+
 main := proc() {
     run_size(1000)
     run_size(10000)
     run_size(100000)
+
+    // #323 criterion (b): per-lookup cost vs table size, total work held
+    // constant at 2,000,000 Str lookups per row.
+    println("--- small-N lookup (2,000,000 Str lookups per row) ---")
+    run_small(16)
+    run_small(32)
+    run_small(64)
+    run_small(128)
+    run_small(256)
+    run_small(1024)
+
+    // #323 criterion (c): cost of building and dropping 200,000 tables,
+    // the per-scope pattern. entries=0 is the empty-table case that
+    // dominates real scopes.
+    println("--- construction (200,000 tables built and dropped) ---")
+    run_construct(0)
+    run_construct(4)
+    run_construct(16)
 }
