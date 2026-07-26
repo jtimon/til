@@ -1079,10 +1079,34 @@ let the ownership pass insert temps itself; start with the check.
     so the free would not even name a C local -- caught by the suite as
     a C compile error in closures/lazy) and params. Regression:
     test/regression.til test_bug302_shallow_return_named (both
-    spellings). One more D2 name-string dependency gone. The OTHER
-    stage-6 items (CAP laundering
-    at return boxing, the FieldAssign cap test, the "Asap fix" inline
-    free) each need their own gap-first fix per the stage's rule.
+    spellings). One more D2 name-string dependency gone.
+    FieldAssign cap test 2026-07-16: NARROWED to the residue that is
+    genuinely undecidable locally. The wrapper-release question is now
+    answered STATICALLY wherever provable: a clone-call RHS always
+    mallocs its wrapper (free unconditionally -- and the typer wraps
+    every Ident RHS in T.clone(), so this is the dominant shape), while
+    a literal Str or an Ident naming a stack local / value global is a
+    stack/static address (never freed). The runtime
+    `if (_fa->cap != TIL_CAP_LIT)` survives ONLY for other call RHSs,
+    and the reason is proven rather than assumed: an ext_func can
+    return a pointer straight into the static `_til_str_lits` table
+    (struct_field_name does), so "call result implies heap wrapper" is
+    FALSE at the C boundary -- a blanket static rule bad-frees,
+    ASAN-caught in test/first_class.til. That residue is exactly the
+    fallback doc/ownership.org sanctions (decide statically where
+    possible; let the runtime tag decide where the callee's storage is
+    unknowable here), so it is not a removable compensation.
+    MATCHED PAIR note for the remaining CAP-laundering item:
+    emit_return_box launders CAP_LIT to CAP_VIEW on the way out of a
+    Str-returning function precisely so this caller-side test frees the
+    heap wrapper. Retiring the laundering needs the same
+    callee-storage knowledge, so treat them as ONE item -- and the
+    honest reading is that both are the sanctioned runtime fallback
+    unless a callee-storage fact is added to the model (a real design
+    step, not a cleanup). Remaining stage-6 item: the "Asap fix" inline
+    free stays as a mechanism (above), so what is left of this stage is
+    the no-op-delete item, blocked on the latent constfolder/scope
+    ownership bug.
   - [X] Stage 7 DONE (2026-07-16): interpreter compensation removal --
     largely delivered by #286 itself, and the remaining per-call audit
     completed. All 36 surviving free/delete calls classify into the
