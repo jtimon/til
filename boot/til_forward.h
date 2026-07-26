@@ -1507,7 +1507,6 @@ typedef struct Context {
     Map__Str_Str builder_str_lit_symbols;
     Vec__Str builder_str_lit_values;
     Map__Str_Str builder_str_lit_ident_symbols;
-    Set__Str swap_freed;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
@@ -2866,6 +2865,7 @@ Expr * priv___src_self_desugarer_til__hoist_to_temp(Context * ctx, Expr * val, V
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 USize priv___src_self_garbager_til__LocalInfo_size(void);
+Bool priv___src_self_garbager_til__heap_local_is_callable(priv___src_self_garbager_til__LocalInfo * local);
 Bool priv___src_self_garbager_til__transfer_is_destructor_call(Expr * stmt, Str * name);
 Str * priv___src_self_garbager_til__gc_audit_flag(Bool b);
 Str * priv___src_self_garbager_til__gc_audit_strip_counter(Str * name);

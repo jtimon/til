@@ -5742,11 +5742,20 @@ priv type_ctor_consumes := func(t: Type) returns Bool {
     // `I32 *t = malloc(sizeof(I32)); *t = 0;` -- a per-LocalInfo leak that
     // never gets freed. (Issue #109.)
     if is_primitive(t) { return false }
+    // #302: every CALLABLE field consumes its ctor arg -- the field takes
+    // the callable box pointer itself. Type.FuncPtr alone missed the
+    // NAMED-signature form (`UnaryOp := func(I64) returns I64` is
+    // Type.FuncPtrSig) and Type.Body entirely, so those ctor args were
+    // never marked own: the transfer was invisible to the pass (it
+    // emitted a closure drop on the box the field now owned -- a
+    // use-after-free the builder masked with its swap_freed defusing
+    // set) and to the interpreter's own-arg move path.
+    if is_funcptr(t) { return true }
     switch t {
     case Type.Struct: return true
     case Type.Enum: return true
     case Type.Dynamic: return true
-    case Type.FuncPtr: return true
+    case Type.Body: return true
     case: return false
     }
 }

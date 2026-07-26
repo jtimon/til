@@ -628,6 +628,10 @@ translating existing code that uses leading underscores (eg the
   issue tracking files changed, run `make summary` instead
   (`make doc` may also be relevant). Prefix documentation-only
   commits with "Doc: " (e.g. "Doc: Update issue #105 progress").
+  Doc-only is judged from the commit's CURRENT diff, source files
+  only (regenerated boot/ churn does not make a commit "code"), and
+  is re-judged every time the diff changes -- see the rebase section
+  for the absorbed-upstream trap.
 - Always squash a feature branch into a single commit before pushing.
   Multiple commits on one branch are only justified when squashing
   isn't possible in self.org terms -- e.g. a preparation + use pair
@@ -804,6 +808,22 @@ The base remote procedure:
 
 Soft-reset + regenerate is only required when (4) produced boot/*
 conflicts; a clean rebase needs no soft-reset on remote sessions.
+
+After ANY rebase that dropped commits or absorbed hunks as
+already-upstream (git says "patch contents already upstream", or a
+conflict resolution kept master's side), re-read what actually
+SURVIVED in each remaining commit (`git show --stat`, then the source
+diff) and re-derive its subject prefix from that remaining diff -- the
+prefix follows from the diff content (see No Random "Adjustments"),
+and the diff may have changed out from under the message. The common
+trap: a code commit whose source hunks all landed on master via other
+merges rebases down to issue/doc edits plus regenerated boot/ churn --
+that is now a doc-only commit and MUST be renamed "Doc: " before
+pushing, or the merging computer spends a full merge-bottleneck cycle
+(suite + regen) on documentation. This re-derivation is not the
+forbidden unilateral prefix "adjustment": the rename follows a
+mechanical rule on the surviving diff, not a judgment call on a mixed
+one.
 
 "Commit, rebase, soft-reset, continue" is a checkpoint and rebase
 workflow, not permission to stop or leave the work uncommitted. After

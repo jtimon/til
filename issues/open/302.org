@@ -1044,7 +1044,28 @@ let the ownership pass insert temps itself; start with the check.
     interpreter bug); the no-op item lands after that fix, with the
     same recipe (gc_delete_is_noop + gc_make_delete over the six
     factory sites) and referees (pass-diff classes + ASAN suite).
-    The OTHER stage-6 items (swap_freed, CAP laundering
+    swap_freed 2026-07-16: FULLY RETIRED (field, producers and both
+    consumer guards deleted) in two steps. (1) The swap_replace producer
+    (hoist_param_swap_assign's Str move lowering) became a visible
+    transfer in the pass. (2) The funcptr/Body ctor-arg producer turned
+    out to be a TYPER gap, not a backend disagreement: type_ctor_consumes
+    listed only Type.FuncPtr, so a NAMED signature field
+    (`UnaryOp := func(I64) returns I64` is Type.FuncPtrSig) and every
+    Type.Body field never got set_own_arg -- the transfer was invisible
+    to the pass AND to the interpreter's own-arg move path. Empirically
+    pinned: the gc_audit dump showed own_transfer=-1 for the closure temp
+    in `OpHolder(op = make_multiplier(f))`, and the emitted C moved the
+    box pointer into the field and then ran til_closure_delete on it
+    (a use-after-free the builder's defusing set was masking, i.e. the
+    compensation hid a real bug). type_ctor_consumes now returns true for
+    any is_funcptr type and for Type.Body: both backends' move paths
+    engage, the pass stands its delete down, and the defusing set is
+    unnecessary. Belt-and-braces in the pass: a callable local whose
+    transfer is at this statement stands down explicitly
+    (heap_local_is_callable) -- is_aggregate is false for callables, so
+    the old flow fell through to the last-use delete. Pass-1 C == pass-2
+    C byte-exact; make clean && make test 178/178.
+    The OTHER stage-6 items (CAP laundering
     at return boxing, the FieldAssign cap test, the "Asap fix" inline
     free) each need their own gap-first fix per the stage's rule.
   - [X] Stage 7 DONE (2026-07-16): interpreter compensation removal --

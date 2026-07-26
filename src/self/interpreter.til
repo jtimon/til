@@ -1892,8 +1892,8 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
     // lowering of `param = rhs` for a mut aggregate param. The
     // compiled backend emits delete-copy-free (a MOVE: delete the
     // target's old value, value-copy the temp in, free the temp
-    // wrapper; the garbager's swap_freed accounting assumes the
-    // temp was consumed). Running the literal byte swap here
+    // wrapper; the garbager sees the swap_replace transfer and stands
+    // its delete down). Running the literal byte swap here
     // instead left the target and the temp aliasing one payload,
     // which blocks deep scope teardown (UAF). Mirror the move:
     // deep-delete the target's old raw value, move the temp's bytes in, and

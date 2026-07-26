@@ -635,7 +635,6 @@ Context := struct {
     builder_str_lit_symbols := Map(Str, Str).new()
     builder_str_lit_values := Vec(Str).new()
     builder_str_lit_ident_symbols := Map(Str, Str).new()
-    swap_freed := Set(Str).new()
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 

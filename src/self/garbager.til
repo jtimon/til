@@ -64,6 +64,13 @@ priv LocalInfo := struct {
     raw_alloc := false
 }
 
+// True when the local's value IS a callable (a funcptr or a Body
+// closure): its storage is the callable box pointer itself, not a
+// wrapper around separately-owned data.
+priv heap_local_is_callable := func(local: LocalInfo) returns Bool {
+    return local.type.is_funcptr().or(local.type.is(Type.Body))
+}
+
 // rhs_is_allocator_call moved to context.til (#303): the builder's
 // raw-alloc value-local emit needs the same predicate this pass uses.
 
@@ -1763,6 +1770,16 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
             // to preserve), not a garbager decision; a fix needs a language
             // -level call (runtime clone-if-view on Str field transfers, or
             // a diagnostic) and is out of scope here.
+            // #302 stage 6: a CALLABLE local (funcptr / Body closure box)
+            // transferred at this statement is consumed by the receiver --
+            // the ctor moves the box POINTER into the field. is_aggregate
+            // is false for callables, so without this the flow fell
+            // through to the last-use delete below and emitted a
+            // til_closure_delete on the box the field now owns (a
+            // use-after-free the builder was masking with its swap_freed
+            // defusing set). No wrapper free: a callable local IS the
+            // pointer, there is no separate box to release.
+            if local.own_transfer.eq(stmt_idx.to_i32()).and(heap_local_is_callable(local)) { continue }
             if local.is_heap.and(is_aggregate(local.type)) {
                 if local.own_transfer == stmt_idx.to_i32() {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
