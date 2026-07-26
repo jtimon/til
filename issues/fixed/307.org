@@ -89,9 +89,24 @@ per-level call overhead, and a cache would buy only the remaining
 ~300ms self time at the price of invalidation risk (init-time
 set_struct_def writes, child-scope shadowing) -- deliberately declined.
 
-Still out of scope, by the issue's own text: the string-churn question
-(index keys are byte-compared Strs; interning / SSO / hashed tables)
-stays separate and is largely post-#302 territory.
+Still out of scope: the string-churn question (interning / SSO /
+hashed tables) stays separate. The issue text justified deferring it
+as "index keys are still Strs compared byte-wise", which was already
+STALE when the issue was drafted (2026-07-08): Str.cmp had become a
+single memcmp over the common prefix on 2026-06-30, and Str.eq
+early-outs on a length mismatch and on a same-buffer pointer before
+touching bytes. So the residual cost is not byte scanning -- Str_cmp
+is the top self-time row (10.0M calls) because of CALL COUNT times
+per-call overhead (an emitted, non-inlined call that itself calls
+memcmp and, on the equal-prefix path, USize.cmp), amplified by the
+--prof build's per-function instrumentation. That reorders the
+remedies: fewer compares per probe (hashed tables) and pointer-equal
+keys (interning) attack the call count and are the real levers, while
+SSO -- storing short strings' bytes inline in the Str value instead of
+behind a heap pointer -- targets allocation and locality, not this
+row. Hashed tables have no #302 dependency and are filed as #323;
+interning and SSO change who owns a name / Str's own layout, so they
+stay behind the #302 ownership rework.
 
 Original problem statement: StructDef stores its members as two plain
 Vecs (fields, ns_decls), every lookup-by-name is a linear scan, and

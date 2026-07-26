@@ -1,0 +1,104 @@
+# priority: medium
+# category: optimizations
+** OPEN #323 Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
+
+til's core Map is two sorted parallel Vecs with a binary-search probe:
+O(log n) Str_cmp calls per lookup, ordered iteration, and a win on
+small tables. std's HashMap is separate chaining over dense parallel
+arrays: ~1 compare per lookup, insertion-ordered iteration, and a win
+on big ones. Several tables in the self-hosted compiler are big,
+hot, and never iterated -- those are the candidates.
+
+Profiled with `bin/til run examples/profile.til test/maps.til <N>`
+(post-#307 numbers, self_ms from an instrumented --prof build, which
+inflates small hot functions -- treat the CALL COUNTS as the signal
+and re-measure per commit):
+
+  Map__Str_Dynamic_get       2883715 calls    287.9 self_ms
+  Map__Str_TypeBinding_get    834825 calls    184.7 self_ms
+  Map__Str_U32_get            208616 calls     56.5 self_ms
+  Map__Str_U32_has            202657 calls     55.7 self_ms
+  Map__Str_HeapBinding_get    192487 calls     58.0 self_ms
+  Str_cmp                   10041303 calls    567.6 self_ms
+
+Str_cmp is the top self-time row and the Map binary searches are its
+dominant caller (~log2(n) compares per probe). Note Str.cmp is already
+one memcmp over the common prefix and Str.eq early-outs on length and
+same-buffer, so the remaining cost is CALL COUNT times per-call
+overhead, not byte scanning -- fewer compares per probe is the lever.
+
+*** Step 1 (prerequisite): make the hash containers' API match the
+    ordered ones
+
+Every container in the tree signals a miss by throwing, except the two
+hash maps:
+
+  Map.get          returns ref V throws KeyNotFound     <- convention
+  DynMap.get       returns ref Dynamic throws KeyNotFound
+  Vec.get / Array.get / DynVec.get / DynArray.get  throws OutOfBounds
+  HashMap.get      panics on a missing key             <- diverges
+  DynHashMap.get   panics on a missing key             <- diverges
+
+Also Map.remove returns Bool while HashMap.remove / DynHashMap.remove
+return nothing.
+
+Align them (HashMap and DynHashMap get a throwing `get`, and `remove`
+returns Bool) BEFORE any swap, because the swap depends on it: #307
+converted the hot call sites from has()+[] (two binary searches) to a
+single `get()? catch (e: KeyNotFound)` probe. Against today's HashMap
+those sites would have to go back to has()+get() -- two chain walks --
+which would eat the gain the swap is supposed to deliver. Check the
+rest of the std containers for the same divergence while there
+(DynSet/Set/DynMap were spot-checked and already conform).
+
+*** Correctness gate for every candidate: is the map ITERATED?
+
+Map iterates in KEY order; HashMap iterates in INSERTION order. Any
+table whose iteration order is observable cannot be swapped without
+first making the consumer order-independent. Grep for `.keys` /
+`.values` / `for k, v in <map>` on the specific field, do not assume.
+Iteration-order sensitivity in this compiler has already produced real
+bugs (the #307 hardening fixes, the ns-constant ordering work).
+
+*** Candidates, best first. One commit each, each measured on its own.
+
+1. TypeScope.struct_defs, TypeScope.func_defs, ctx.interp_type_defs
+   -- Map(Str, Dynamic), the 2.9M-call row and the hottest table in
+   the compiler. Verified NEVER iterated: they are pure name -> AST
+   pointer lookup tables (get_struct / lookup_func / struct_def_of /
+   lookup_interp_type_def). Biggest expected win, lowest risk; do this
+   one first and let its measurement decide whether the rest are worth
+   attempting.
+
+2. Scope.heap_bindings (interpreter) -- Map(Str, HeapBinding), 192K
+   gets. Iterated ONCE, in scope_drop_owned_bindings (teardown), where
+   the order only decides the order frees happen in; each binding is
+   freed independently. Low risk, but re-run the ASAN suite, not just
+   make test.
+
+3. TypeScope.bindings -- Map(Str, TypeBinding), 835K gets, but
+   iterated in SEVEN places (garbager collect_scope_locals, five typer
+   sites, one more) and collect_scope_locals' order is pinned by the
+   test/gc_audit.expected golden. Swapping this reorders the golden
+   and can reorder diagnostics. Do NOT attempt until 1 and 2 have
+   shown the win is real; it needs its own order-independence pass
+   first (or a deliberate golden regen with the diff reviewed).
+
+4. StructDef.fields_index / ns_index -- Map(Str, USize), ~410K
+   get+has. Iterated only by the positional reverse scan in
+   field_name_at / member_name_at, which works on any parallel
+   keys/values layout. BUT these tables are TINY (a struct has a
+   handful of members) and the binary-search Map is documented to win
+   there -- the honest expectation is that this one LOSES. Worth one
+   measurement to confirm, worth reverting when it does.
+
+*** Process
+
+Land one candidate per commit so each can be merged (or dropped) on
+its own measured result. Each commit states, in its message, the
+before/after rows from
+`bin/til run examples/profile.til test/maps.til <N>` for the table it
+touched plus the wall-clock of the run, so a swap that does not pay
+can be identified and reverted without unpicking the others. A
+candidate that measures neutral or worse is a RESULT, not a failure:
+record it here and move on.

@@ -37,6 +37,8 @@
 * Optimizations
 ** High
 *** [[./open/292.org][#292]] Intern identifier / type-name Strings (kills the #1 allocator and the #1 compare cost)
+** Medium
+*** [[./open/323.org][#323]] Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
 * Features
 ** Medium
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
