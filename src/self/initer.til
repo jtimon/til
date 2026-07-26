@@ -43,7 +43,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         existing_find := scope.find(sname)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if scope.struct_def_of(existing.name).is_null().not() {
+            if scope.struct_def_of(existing.name).is_some() {
                 if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
                     println(
                         ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
@@ -529,7 +529,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         existing_find := scope.find(ename)
         switch existing_find {
         case ScopeFind.Found(existing):
-            if scope.struct_def_of(existing.name).is_null().not() {
+            if scope.struct_def_of(existing.name).is_some() {
                 if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
                     println(
                         ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
@@ -1255,20 +1255,20 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
         find := scope.find(target_name)
         switch find {
         case ScopeFind.Found(target):
-            ref tgt_fd : Expr = scope.lookup_func(target.name)
-            ref tgt_sd : Expr = scope.struct_def_of(target.name)
-            if tgt_sd.is_null().and(target.is_builtin.not()) {
-                if tgt_fd.is_null() {
+            tgt_fd_o := scope.lookup_func(target.name)
+            if scope.struct_def_of(target.name).is_none().and(target.is_builtin.not()) {
+                if tgt_fd_o.is_none() {
                     return
                 }
-                if tgt_fd.children.len() != 0 {
+                if tgt_fd_o.unwrap().children.len() != 0 {
                     return
                 }
             }
             scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            if tgt_fd.is_null().not() { scope.set_func_def(sdecl.name, tgt_fd) }
+            if tgt_fd_o.is_some() { scope.set_func_def(sdecl.name, tgt_fd_o.unwrap()) }
             ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
-            if tgt_sd.is_null().not() { scope.set_struct_def(sdecl.name, tgt_sd) }
+            tgt_sd_o := scope.struct_def_of(target.name)
+            if tgt_sd_o.is_some() { scope.set_struct_def(sdecl.name, tgt_sd_o.unwrap()) }
             ab.is_func_decl = target.is_func_decl
             ab.is_builtin = target.is_builtin
             ab.is_type_alias = true
@@ -1368,8 +1368,9 @@ priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: Typ
             fs_find := scope.find(sdecl.explicit_type)
             switch fs_find {
             case ScopeFind.Found(fsb):
-                ref fsb_fd : Expr = scope.lookup_func(fsb.name)
-                if fsb_fd.is_null().not() {
+                fsb_fd_o := scope.lookup_func(fsb.name)
+                if fsb_fd_o.is_some() {
+                    ref fsb_fd : Expr = fsb_fd_o.unwrap()
                     if fsb_fd.children.len() == 0 {
                         ref sig : Expr = fsb_fd
                         switch def.node_type {
@@ -2916,8 +2917,9 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope
     // (heap-use-after-free, issue #58 cross-unit). The non-null check below
     // would otherwise pass on the freed-but-non-null pointer.
     if ctx.generic_funcs.has(name) { return NULL }
-    ref imported_macro : Expr = scope.lookup_func(name)
-    if imported_macro.is_null() { return NULL }
+    imported_macro_o := scope.lookup_func(name)
+    if imported_macro_o.is_none() { return NULL }
+    ref imported_macro : Expr = imported_macro_o.unwrap()
     if init_is_type_gen_macro_def(imported_macro).not() { return NULL }
     // #154: instantiating a template defined in another file counts as a
     // use of that import (the expansion clones the def into this unit, so

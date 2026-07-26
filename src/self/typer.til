@@ -35,10 +35,10 @@ priv type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) return
     if b.is_null() { return false }
     if b.is_type_alias { return true }
     if b.is_builtin { return true }
-    if scope.struct_def_of(b.name).is_null().not() { return true }
-    ref bfd : Expr = scope.lookup_func(b.name)
-    if bfd.is_null().not() {
-        if bfd.children.len() == 0 { return true }
+    if scope.struct_def_of(b.name).is_some() { return true }
+    bfd_o := scope.lookup_func(b.name)
+    if bfd_o.is_some() {
+        if bfd_o.unwrap().children.len() == 0 { return true }
     }
     return false
 }
@@ -254,10 +254,10 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns O
                 sf := scope.find(id.ident_name())
                 switch sf {
                 case ScopeFind.Found(b):
-                    ref bfd : Expr = scope.lookup_func(b.name)
-                    if bfd.is_null().not() { return Option(ref Expr).Some(bfd) }
-                    ref bsd : Expr = scope.struct_def_of(b.name)
-                    if bsd.is_null().not() { return Option(ref Expr).Some(bsd) }
+                    bfd_o := scope.lookup_func(b.name)
+                    if bfd_o.is_some() { return bfd_o }
+                    bsd_o := scope.struct_def_of(b.name)
+                    if bsd_o.is_some() { return bsd_o }
                 case:
                 }
             case:
@@ -392,8 +392,9 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
     ref top : TypeBinding = scope.get_binding(lookup_name)
     mut ufcs_match : I32 = 0
     if top.is_null().not() {
-        ref top_fd : Expr = scope.lookup_func(top.name)
-        if top_fd.is_null().not() {
+        top_fd_o := scope.lookup_func(top.name)
+        if top_fd_o.is_some() {
+            ref top_fd : Expr = top_fd_o.unwrap()
             switch top_fd.node_type {
             case NodeType.FuncDef(top_fdef):
                 if top_fdef.params.len() > 0 {
@@ -467,8 +468,9 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
         ref cb : TypeBinding = scope.get_binding(name.ident_name())
         if cb.is_null() { return Option(ref Expr).None }
         if cb.type.is_funcptr().not() { return Option(ref Expr).None }
-        ref cb_fd : Expr = scope.lookup_func(cb.name)
-        if cb_fd.is_null() { return Option(ref Expr).None }
+        cb_fd_o := scope.lookup_func(cb.name)
+        if cb_fd_o.is_none() { return Option(ref Expr).None }
+        ref cb_fd : Expr = cb_fd_o.unwrap()
         // A func-pointer value (not a function declaration) carries a
         // signature func_def: hand it back directly.
         if cb.is_func_decl.not() {
@@ -479,10 +481,10 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
             if cb_fdef.return_type.len() == 0 { return Option(ref Expr).None }
             ref rsb : TypeBinding = scope.get_binding(cb_fdef.return_type)
             if rsb.is_null() { return Option(ref Expr).None }
-            ref rsb_fd : Expr = scope.lookup_func(rsb.name)
-            if rsb_fd.is_null() { return Option(ref Expr).None }
-            if rsb_fd.children.len() != 0 { return Option(ref Expr).None }
-            return Option(ref Expr).Some(rsb_fd)
+            rsb_fd_o := scope.lookup_func(rsb.name)
+            if rsb_fd_o.is_none() { return Option(ref Expr).None }
+            if rsb_fd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
+            return rsb_fd_o
         case:
         }
         return Option(ref Expr).None
@@ -502,9 +504,9 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
                 // fd.explicit_type + get_binding indirection.
                 fsig_name := til_type_name(fd.til_type)
                 if fsig_name.len() > 0 {
-                    ref ftb_fd : Expr = scope.lookup_func(fsig_name)
-                    if ftb_fd.is_null().not() {
-                        if ftb_fd.children.len() == 0 { return Option(ref Expr).Some(ftb_fd) }
+                    ftb_fd_o := scope.lookup_func(fsig_name)
+                    if ftb_fd_o.is_some() {
+                        if ftb_fd_o.unwrap().children.len() == 0 { return ftb_fd_o }
                     }
                 }
             }
@@ -551,9 +553,9 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope) returns Bool {
         if ctor_sdef.is_null().not() { return true }
         ref cb : TypeBinding = scope.get_binding(cn.ident_name())
         if cb.is_null() { return false }
-        ref cb_fd : Expr = scope.lookup_func(cb.name)
-        if cb_fd.is_null() { return false }
-        switch cb_fd.node_type {
+        cb_fd_o := scope.lookup_func(cb.name)
+        if cb_fd_o.is_none() { return false }
+        switch cb_fd_o.unwrap().node_type {
         case NodeType.FuncDef(cfd):
             return fdef_returns_unborrowable(cfd, scope)
         case:
@@ -693,8 +695,10 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
             // + scope.find indirection.
             fpf_sig_name := til_type_name(fd.til_type)
             if fpf_sig_name.len() == 0 { return false }
-            ref ftb_fd : Expr = scope.lookup_func(fpf_sig_name)
-            if ftb_fd.is_null().or(ftb_fd.children.len().neq(0)) { return false }
+            ftb_fd_o := scope.lookup_func(fpf_sig_name)
+            if ftb_fd_o.is_none() { return false }
+            ref ftb_fd : Expr = ftb_fd_o.unwrap()
+            if ftb_fd.children.len().neq(0) { return false }
             fa.set_til_type(Type.FuncPtr)
             ref sig : Expr = ftb_fd
             mut nargs : USize = e.children.len()
@@ -831,9 +835,9 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
 
 priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBinding, ctx: Context) {
     if callee_bind.is_null() { return }
-    ref fdef : Expr = scope.lookup_func(callee_bind.name)
-    if fdef.is_null() { return }
-    switch fdef.node_type {
+    fdef_o := scope.lookup_func(callee_bind.name)
+    if fdef_o.is_none() { return }
+    switch fdef_o.unwrap().node_type {
     case NodeType.FuncDef(fdef_data):
         validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
     case:
@@ -1328,9 +1332,9 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
         infer_expr(scope, e.children[i], in_func, ctx)
     }
     if callee_bind.is_null() { return }
-    ref fdef : Expr = scope.lookup_func(callee_bind.name)
-    if fdef.is_null() { return }
-    switch fdef.node_type {
+    fdef_o := scope.lookup_func(callee_bind.name)
+    if fdef_o.is_none() { return }
+    switch fdef_o.unwrap().node_type {
     case NodeType.FuncDef(fdef_data):
         infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
     case:
@@ -1344,9 +1348,9 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
     // function of the same name -- the stamp reflects the callee that
     // actually runs. Read by stmt_always_diverges (context.til) in both
     // the all-paths-return check and the builder's terminator emit.
-    ref nr_fdef : Expr = scope.lookup_func(name)
-    if nr_fdef.is_null().not() {
-        switch nr_fdef.node_type {
+    nr_fdef_o := scope.lookup_func(name)
+    if nr_fdef_o.is_some() {
+        switch nr_fdef_o.unwrap().node_type {
         case NodeType.FuncDef(nr_fd):
             if nr_fd.noreturn {
                 switch e.node_type {
@@ -1389,9 +1393,9 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             // function/sig declaration) is called through its signature.
             if callee_bind.is_func_decl.not() {
                 e.children[0].set_til_type(Type.FuncPtr)
-                ref cb_func_def : Expr = scope.lookup_func(callee_bind.name)
-                if cb_func_def.is_null().not() {
-                    switch cb_func_def.node_type {
+                cb_func_def_o := scope.lookup_func(callee_bind.name)
+                if cb_func_def_o.is_some() {
+                    switch cb_func_def_o.unwrap().node_type {
                     case NodeType.FuncDef(cb_fdef):
                         if cb_fdef.return_type.len() > 0 {
                             ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.return_type)
@@ -1406,8 +1410,8 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                 } else {
                     e.set_til_type(Type.Dynamic)
                 }
-                if cb_func_def.is_null().not() {
-                    ref sig : Expr = cb_func_def
+                if cb_func_def_o.is_some() {
+                    ref sig : Expr = cb_func_def_o.unwrap()
                     switch sig.node_type {
                     case NodeType.FuncDef(sig_fdef):
                         mut nargs : USize = e.children.len()
@@ -2255,9 +2259,9 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
     ref sig_bind : TypeBinding = scope.get_binding(sig_name)
     if sig_bind.is_null() { return false }
     if sig_bind.type.is_funcptr().not() { return false }
-    ref sig_def : Expr = scope.lookup_func(sig_bind.name)
-    if sig_def.is_null() { return false }
-    switch sig_def.node_type {
+    sig_def_o := scope.lookup_func(sig_bind.name)
+    if sig_def_o.is_none() { return false }
+    switch sig_def_o.unwrap().node_type {
     case NodeType.FuncDef(sfd):
         nargs := e.children.len() - 1
         nparam := sfd.params.len()
@@ -2406,7 +2410,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         callee_bind.used = true
         note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, ctx)
-        if scope.lookup_func(callee_bind.name).is_null().not() {
+        if scope.lookup_func(callee_bind.name).is_some() {
             desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
         }
     }
@@ -2530,10 +2534,10 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
                 ib.used = true
             }
             check_priv_access(expr, id_name.ident_name(), ib, ctx)
-            if scope.lookup_func(ib.name).is_null().not() {
+            if scope.lookup_func(ib.name).is_some() {
                 expr.set_til_type(Type.FuncPtr)
             }
-            if scope.struct_def_of(ib.name).is_null().not() {
+            if scope.struct_def_of(ib.name).is_some() {
                 if til_type_name(expr.til_type()).len() == 0 {
                     ref resolved_name : Str = resolve_type_alias(scope, id_name.ident_name())
                     expr.set_til_type(Type.Custom(resolved_name.clone()))
@@ -2726,13 +2730,13 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     case NodeType.Ident(dv_id):
                         ref src : TypeBinding = inner.get_binding(dv_id.ident_name())
                         if src.is_null().not() {
-                            ref src_fd : Expr = inner.lookup_func(src.name)
-                            if src_fd.is_null().not() { inner.set_func_def(tc_fname, src_fd) }
+                            src_fd_o := inner.lookup_func(src.name)
+                            if src_fd_o.is_some() { inner.set_func_def(tc_fname, src_fd_o.unwrap()) }
                         }
                     case:
                     }
                 }
-                if inner.lookup_func(fb.name).is_null() {
+                if inner.lookup_func(fb.name).is_none() {
                     // Issue #58 / #147 step 5: read the FuncSig alias
                     // name from fd.til_type (Type.FuncPtrSig payload)
                     // instead of from fd.explicit_type + get_binding
@@ -2742,8 +2746,9 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     if fd.til_type.is(Type.FuncPtrSig) {
                         fsig_name := til_type_name(fd.til_type)
                         if fsig_name.len() > 0 {
-                            ref fsb_fd : Expr = inner.lookup_func(fsig_name)
-                            if fsb_fd.is_null().not() {
+                            fsb_fd_o := inner.lookup_func(fsig_name)
+                            if fsb_fd_o.is_some() {
+                                ref fsb_fd : Expr = fsb_fd_o.unwrap()
                                 if fsb_fd.children.len() == 0 {
                                     inner.set_func_def(tc_fname, fsb_fd)
                                 }
@@ -3011,9 +3016,9 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             // off the type instead of off `param.explicit_type`. This
             // is what makes the FuncPtrSig migration reach param-level
             // til_type, not just expr-level inferred types.
-            ref sig_fd_param : Expr = scope.lookup_func(resolved_ptype)
-            if sig_fd_param.is_null().not() {
-                if sig_fd_param.children.len() == 0 {
+            sig_fd_param_o := scope.lookup_func(resolved_ptype)
+            if sig_fd_param_o.is_some() {
+                if sig_fd_param_o.unwrap().children.len() == 0 {
                     param.til_type = Type.FuncPtrSig(resolved_ptype.clone())
                 }
             }
@@ -3088,9 +3093,9 @@ priv closure_borrowed_capture_name := func(e: Expr, scope: TypeScope) returns St
     case NodeType.FuncDef:
         return first_borrowed_capture_name(e)
     case NodeType.Ident(id):
-        ref fdef : Expr = scope.lookup_func(id.ident_name())
-        if fdef.is_null() { return "" }
-        return first_borrowed_capture_name(fdef)
+        fdef_o := scope.lookup_func(id.ident_name())
+        if fdef_o.is_none() { return "" }
+        return first_borrowed_capture_name(fdef_o.unwrap())
     case:
     }
     return ""
@@ -3343,8 +3348,9 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                     sf_fsb := scope.find(ptn)
                     switch sf_fsb {
                     case ScopeFind.Found(fsb):
-                        ref fsb_fd : Expr = scope.lookup_func(fsb.name)
-                        if fsb_fd.is_null().not() {
+                        fsb_fd_o := scope.lookup_func(fsb.name)
+                        if fsb_fd_o.is_some() {
+                            ref fsb_fd : Expr = fsb_fd_o.unwrap()
                             if fsb_fd.children.len() == 0 {
                                 func_scope.set_func_def(param.name, fsb_fd)
                             }
@@ -3548,8 +3554,8 @@ check_unused_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        if scope.struct_def_of(b.name).is_null().not() { continue }
-        if scope.lookup_func(b.name).is_null().not() { continue }
+        if scope.struct_def_of(b.name).is_some() { continue }
+        if scope.lookup_func(b.name).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         // Hoist temps are compiler-internal and always have their use
@@ -3578,8 +3584,8 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
         if b.is_param { continue }
         if b.is_builtin { continue }
         if b.is_type_alias { continue }
-        if scope.struct_def_of(b.name).is_null().not() { continue }
-        if scope.lookup_func(b.name).is_null().not() { continue }
+        if scope.struct_def_of(b.name).is_some() { continue }
+        if scope.lookup_func(b.name).is_some() { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         if b.name.starts_with("hoisted__") { continue }
@@ -3609,10 +3615,10 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
         mut kind := "value"
-        if scope.lookup_func(b.name).is_null().not() { kind = "func" }
-        ref b_sd : Expr = scope.struct_def_of(b.name)
-        if b_sd.is_null().not() {
-            if b_sd.node_type.is(NodeType.EnumDef) { kind = "enum" }
+        if scope.lookup_func(b.name).is_some() { kind = "func" }
+        b_sd_o := scope.struct_def_of(b.name)
+        if b_sd_o.is_some() {
+            if b_sd_o.unwrap().node_type.is(NodeType.EnumDef) { kind = "enum" }
             else { kind = "struct" }
         }
         // Two flavors of mangled priv names land here:
@@ -4252,8 +4258,9 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         ref sname : Str = sdecl.name
         ref existing : TypeBinding = scope.get_binding(sname)
         if existing.is_null().not() {
-            ref existing_sd : Expr = scope.struct_def_of(existing.name)
-            if existing_sd.is_null().not() {
+            existing_sd_o := scope.struct_def_of(existing.name)
+            if existing_sd_o.is_some() {
+                ref existing_sd : Expr = existing_sd_o.unwrap()
                 ref type_expr : Expr = stmt.children[0]
                 if existing_sd.line.neq(type_expr.line).or(
                     existing_sd.col.neq(type_expr.col).or(
@@ -4661,8 +4668,8 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             case NodeType.Ident(rhs_id):
                 ref src : TypeBinding = scope.get_binding(rhs_id.ident_name())
                 if src.is_null().not() {
-                    ref src_fd : Expr = scope.lookup_func(src.name)
-                    if src_fd.is_null().not() { scope.set_func_def(sdecl.name, src_fd) }
+                    src_fd_o := scope.lookup_func(src.name)
+                    if src_fd_o.is_some() { scope.set_func_def(sdecl.name, src_fd_o.unwrap()) }
                 }
             case NodeType.FCall:
                 switch resolve_fn_sig(rhs, scope) {
@@ -4673,15 +4680,16 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 if rhs_fd.captures.len() > 0 { scope.set_func_def(sdecl.name, rhs) }
             case:
             }
-            if scope.lookup_func(decl_b.name).is_null() {
+            if scope.lookup_func(decl_b.name).is_none() {
                 // Issue #58 / #147 step 5: read FuncSig alias name from
                 // sdecl.til_type (Type.FuncPtrSig payload) instead of
                 // sdecl.explicit_type + get_binding indirection.
                 if sdecl.til_type.is(Type.FuncPtrSig) {
                     sdsig_name := til_type_name(sdecl.til_type)
                     if sdsig_name.len() > 0 {
-                        ref fsb_fd : Expr = scope.lookup_func(sdsig_name)
-                        if fsb_fd.is_null().not() {
+                        fsb_fd_o := scope.lookup_func(sdsig_name)
+                        if fsb_fd_o.is_some() {
+                            ref fsb_fd : Expr = fsb_fd_o.unwrap()
                             if fsb_fd.children.len() == 0 {
                                 scope.set_func_def(sdecl.name, fsb_fd)
                             }
@@ -4800,9 +4808,9 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
                         needs_sig_fill = rhs_fd.params[0].explicit_type.len() == 0
                     }
                     if needs_sig_fill {
-                        ref sig_expr : Expr = scope.lookup_func(sdecl.explicit_type)
-                        if sig_expr.is_null().not() {
-                            switch sig_expr.node_type {
+                        sig_expr_o := scope.lookup_func(sdecl.explicit_type)
+                        if sig_expr_o.is_some() {
+                            switch sig_expr_o.unwrap().node_type {
                             case NodeType.FuncDef(sig_fd):
                                 if sig_fd.params.len() == rhs_fd.params.len() {
                                     for sig_i in 0..rhs_fd.params.len() {
@@ -5160,21 +5168,29 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
         case NodeType.Decl(rdecl):
             ref mut rb : TypeBinding = scope.get_binding(rdecl.name)
             if rb.is_null().not() {
-                ref rb_old_sd : Expr = scope.struct_def_of(rb.name)
-                if rb_old_sd.is_null().not().and(
+                rb_old_sd_o := scope.struct_def_of(rb.name)
+                if rb_old_sd_o.is_some().and(
                     rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef))) {
+                        ref rb_old_sd : Expr = rb_old_sd_o.unwrap()
                         scope.set_struct_def(rb.name, rstmt.children[0])
                         for b in scope.bindings.values {
-                            if b.ptr_eq(rb).not().and(scope.struct_def_of(b.name).ptr_eq(rb_old_sd)) {
+                            if b.ptr_eq(rb) { continue }
+                            b_old_sd_o := scope.struct_def_of(b.name)
+                            if b_old_sd_o.is_none() { continue }
+                            if b_old_sd_o.unwrap().ptr_eq(rb_old_sd) {
                                 scope.set_struct_def(b.name, rstmt.children[0])
                             }
                         }
                     }
-                ref rb_old_fd : Expr = scope.lookup_func(rb.name)
-                if rb_old_fd.is_null().not().and(rfirst.node_type.is(NodeType.FuncDef)) {
+                rb_old_fd_o := scope.lookup_func(rb.name)
+                if rb_old_fd_o.is_some().and(rfirst.node_type.is(NodeType.FuncDef)) {
+                    ref rb_old_fd : Expr = rb_old_fd_o.unwrap()
                     scope.set_func_def(rb.name, rstmt.children[0])
                     for b in scope.bindings.values {
-                        if b.ptr_eq(rb).not().and(scope.lookup_func(b.name).ptr_eq(rb_old_fd)) {
+                        if b.ptr_eq(rb) { continue }
+                        b_old_fd_o := scope.lookup_func(b.name)
+                        if b_old_fd_o.is_none() { continue }
+                        if b_old_fd_o.unwrap().ptr_eq(rb_old_fd) {
                             scope.set_func_def(b.name, rstmt.children[0])
                         }
                     }
@@ -5910,10 +5926,11 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
                 // a parent type of the same name. Clone the result: every
                 // type_from_name return path yields an owned Type that the
                 // caller Type_deletes.
-                if scope.lookup_func(b.name).is_null() { return b.type.clone() }
+                if scope.lookup_func(b.name).is_none() { return b.type.clone() }
             }
-            ref b_fd : Expr = scope.lookup_func(b.name)
-            if b_fd.is_null().not() {
+            b_fd_o := scope.lookup_func(b.name)
+            if b_fd_o.is_some() {
+                ref b_fd : Expr = b_fd_o.unwrap()
                 if b_fd.children.len() == 0 {
                     // Issue #58 / #147 step 5: a name that resolves to a
                     // bodyless FuncDef (a FuncSig alias like `BinaryOp`)
@@ -6404,9 +6421,9 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
     case NodeType.Ident(fn_name):
         ref fb : TypeBinding = scope.get_binding(fn_name.ident_name())
         if fb.is_null().not() {
-            ref fb_fd : Expr = scope.lookup_func(fb.name)
-            if fb_fd.is_null() { return false }
-            return check_own_args(fb_fd, fcall, var_name)
+            fb_fd_o := scope.lookup_func(fb.name)
+            if fb_fd_o.is_none() { return false }
+            return check_own_args(fb_fd_o.unwrap(), fcall, var_name)
         }
         return false
     case NodeType.FieldAccess(method):
@@ -6609,9 +6626,9 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
     case NodeType.Ident(fn_name):
         ref fb : TypeBinding = scope.get_binding(fn_name.ident_name())
         if fb.is_null().not() {
-            ref fb_fd : Expr = scope.lookup_func(fb.name)
-            if fb_fd.is_null() { return }
-            collect_own_arg_names(fb_fd, fcall, out)
+            fb_fd_o := scope.lookup_func(fb.name)
+            if fb_fd_o.is_none() { return }
+            collect_own_arg_names(fb_fd_o.unwrap(), fcall, out)
         }
         return
     case NodeType.FieldAccess(method):
@@ -6696,8 +6713,8 @@ priv expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns Bool {
         sf := scope.find(id.ident_name())
         switch sf {
         case ScopeFind.Found(b):
-            if scope.lookup_func(b.name).is_null().not() { return false }
-            if scope.struct_def_of(b.name).is_null().not() { return false }
+            if scope.lookup_func(b.name).is_some() { return false }
+            if scope.struct_def_of(b.name).is_some() { return false }
             return true
         case:
             return false
@@ -6773,9 +6790,9 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
     case NodeType.Ident(cn):
         ref cb : TypeBinding = scope.get_binding(cn.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null() { return 0 }
-            switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_none() { return 0 }
+            switch cb_fd_o.unwrap().node_type {
             case NodeType.FuncDef(cfd):
                 return cfd.return_own_type.is(OwnType.Ref)
             case:
@@ -6858,9 +6875,9 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope, ctx: Context) retur
     case NodeType.Ident(cn):
         ref cb : TypeBinding = scope.get_binding(cn.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null() { return 0 }
-            switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_none() { return 0 }
+            switch cb_fd_o.unwrap().node_type {
             case NodeType.FuncDef(cfd):
                 return fdef_returns_shallow_settled(cfd, scope, ctx)
             case:

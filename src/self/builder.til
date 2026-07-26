@@ -41,32 +41,28 @@ priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Ex
     return Option(ref Expr).Some(sig)
 }
 
-priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns ref Expr {
+priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns Option(ref Expr) {
     switch rhs.node_type {
     case NodeType.Ident(rhs_name):
-        ref fdef : Expr = find_callee_fdef(rhs_name.ident_name(), ctx)
-        if fdef.is_null().not() { return fdef }
+        fdef_o := find_callee_fdef(rhs_name.ident_name(), ctx)
+        if fdef_o.is_some() { return fdef_o }
         sf := scope.find(rhs_name.ident_name())
         switch sf {
         case ScopeFind.Found(b):
-            ref bfd : Expr = scope.lookup_func(b.name)
-            if bfd.is_null().not() { return bfd }
+            bfd_o := scope.lookup_func(b.name)
+            if bfd_o.is_some() { return bfd_o }
         case:
         }
         // A transitive first-class alias `h := g` where `g := f` is itself a
         // local funcptr value (#262): chase `g`'s signature captured at its
         // own emit_stmt_decl into local_fn_sigs, so `h` resolves the same sig.
-        switch resolve_local_fn_sig(ctx, rhs_name.ident_name()) {
-        case Option(ref Expr).Some(via_local_alias): return via_local_alias
-        case Option(ref Expr).None:
-        }
+        lsig := resolve_local_fn_sig(ctx, rhs_name.ident_name())
+        if lsig.is_some() { return lsig }
     case NodeType.FCall:
-        switch resolve_fn_sig(rhs, scope) {
-        case Option(ref Expr).Some(fdef): return fdef
-        case Option(ref Expr).None:
-        }
+        rsig := resolve_fn_sig(rhs, scope)
+        if rsig.is_some() { return rsig }
     case NodeType.FuncDef(rhs_fd):
-        if rhs_fd.captures.len() > 0 { return rhs }
+        if rhs_fd.captures.len() > 0 { return Option(ref Expr).Some(rhs) }
     case:
     }
     // Fall back to the declared FuncSig alias name. Issue #58 / #147
@@ -74,28 +70,26 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
     // of dd.explicit_type. til_type_name returns "" for a non-FuncPtrSig
     // type, so the empty-check below still guards the lookup.
     sig_name := til_type_name(dd.til_type)
-    if sig_name.len() == 0 { return NULL }
-    ref sig_bfd : Expr = scope.lookup_func(sig_name)
-    if sig_bfd.is_null().not() {
-        if sig_bfd.children.len() == 0 { return sig_bfd }
+    if sig_name.len() == 0 { return Option(ref Expr).None }
+    sig_bfd_o := scope.lookup_func(sig_name)
+    if sig_bfd_o.is_some() {
+        if sig_bfd_o.unwrap().children.len() == 0 { return sig_bfd_o }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
-priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
-    if fcall.is_null() { return NULL }
-    if fcall.node_type.is(NodeType.FCall).not() { return NULL }
-    if fcall.children.len() == 0 { return NULL }
+priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
+    if fcall.is_null() { return Option(ref Expr).None }
+    if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
     // Only FuncPtr-typed callees go through the indirect-call emit path, so
     // this is the only shape that actually needs an answer. Other callees
-    // (struct constructors, regular func calls) have null fn_sig today.
-    if callee.til_type().is_funcptr().not() { return NULL }
+    // (struct constructors, regular func calls) have no fn_sig today.
+    if callee.til_type().is_funcptr().not() { return Option(ref Expr).None }
     ref s : TypeScope = ctx.scope
-    switch resolve_fn_sig(fcall, s) {
-    case Option(ref Expr).Some(via_scope): return via_scope
-    case Option(ref Expr).None:
-    }
+    vs := resolve_fn_sig(fcall, s)
+    if vs.is_some() { return vs }
     // resolve_fn_sig only sees globals + struct fields. The remaining FuncPtr
     // shapes are params and locals of the function currently being emitted;
     // their bindings lived in a transient func_scope that is gone by now.
@@ -113,13 +107,13 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
             case NodeType.FuncDef(cur_fd):
                 for p : Declaration in cur_fd.params {
                     if p.name.eq(name.ident_name()).not() { continue }
-                    if p.til_type.is(Type.FuncPtrSig).not() { return NULL }
+                    if p.til_type.is(Type.FuncPtrSig).not() { return Option(ref Expr).None }
                     sig_name := til_type_name(p.til_type)
-                    if sig_name.len() == 0 { return NULL }
-                    ref pftbfd : Expr = s.lookup_func(sig_name)
-                    if pftbfd.is_null() { return NULL }
-                    if pftbfd.children.len() != 0 { return NULL }
-                    return pftbfd
+                    if sig_name.len() == 0 { return Option(ref Expr).None }
+                    pftbfd_o := s.lookup_func(sig_name)
+                    if pftbfd_o.is_none() { return Option(ref Expr).None }
+                    if pftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
+                    return pftbfd_o
                 }
             case:
             }
@@ -127,45 +121,41 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         }
         // Fallback 2: local FuncPtr decl whose signature was captured at
         // emit_stmt_decl time.
-        switch resolve_local_fn_sig(ctx, name.ident_name()) {
-        case Option(ref Expr).Some(via_local): return via_local
-        case Option(ref Expr).None:
-        }
+        vl := resolve_local_fn_sig(ctx, name.ident_name())
+        if vl.is_some() { return vl }
         // Fallback 3: the Ident itself is a known global function name used
         // as a FuncPtr value (e.g. an inlined ref to a top-level func).
-        ref via_global : Expr = find_callee_fdef(name.ident_name(), ctx)
-        if via_global.is_null().not() { return via_global }
-        return NULL
+        return find_callee_fdef(name.ident_name(), ctx)
     case NodeType.FCall:
         // Issue #58: `cast(value, BinaryOp)(args)`. The cast's til_type
         // is Type.FuncPtr (set by infer_cast_fcall on the user FuncSig
         // path), and child(2) is the FuncSig Ident kept verbatim so we
         // can resolve the signature here.
-        if callee.children.len() != 3 { return NULL }
+        if callee.children.len() != 3 { return Option(ref Expr).None }
         ref cast_head : Expr = callee.children[0]
         switch cast_head.node_type {
         case NodeType.Ident(cn):
-            if cn.ident_name().eq("cast").not() { return NULL }
+            if cn.ident_name().eq("cast").not() { return Option(ref Expr).None }
         case:
-            return NULL
+            return Option(ref Expr).None
         }
         mut sig_name := ""
         switch callee.children[2].node_type {
         case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
-        case: return NULL
+        case: return Option(ref Expr).None
         }
         sf := s.find(sig_name)
         switch sf {
         case ScopeFind.Found(ftb):
-            ref ftbfd : Expr = s.lookup_func(ftb.name)
-            if ftbfd.is_null() { return NULL }
-            if ftbfd.children.len() != 0 { return NULL }
-            return ftbfd
+            ftbfd_o := s.lookup_func(ftb.name)
+            if ftbfd_o.is_none() { return Option(ref Expr).None }
+            if ftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
+            return ftbfd_o
         case:
         }
-        return NULL
+        return Option(ref Expr).None
     case:
-        return NULL
+        return Option(ref Expr).None
     }
 }
 
@@ -452,8 +442,9 @@ priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
 // from that stamp claims a width the operation never had. Falls back to
 // the stamp when the callee cannot be resolved.
 priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) returns Str {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null().not() {
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_some() {
+        ref fdef : Expr = fdef_o.unwrap()
         switch fdef.node_type {
         case NodeType.FuncDef(fd):
             if fd.return_type.len() > 0 {
@@ -465,7 +456,7 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
     return til_type_name_c(e.til_type())
 }
 
-priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
+priv find_callee_fdef := func(name: Str, ctx: Context) returns Option(ref Expr) {
     return ctx.scope.lookup_func_symbol(name)
 }
 
@@ -573,8 +564,9 @@ priv builder_is_temp_delete := func(e: Expr) returns Bool {
 // outside the delete cleanups; emit_inline_accessor splices the inits back.
 priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
     if mname.eq("len").or(mname.eq("unsafe_get")).not() { return false }
-    ref fdef : Expr = find_callee_fdef(flat, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(flat, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.func_type.is(FuncType.Func).not() { return false }
@@ -658,8 +650,9 @@ priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx:
 // core_proc -- a primitive intrinsic the C backend lowers to a native
 // operator instead of a call (no emitted symbol).
 priv builder_callee_is_core := func(name: Str, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         return fd.func_type.is(FuncType.CoreFunc).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc))
@@ -789,8 +782,9 @@ priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
 }
 
 priv callee_returns_shallow := func(callee_name: Str, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         return fd.return_own_type.is(OwnType.Shallow)
@@ -805,8 +799,9 @@ priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool
     if callee_name == "realloc" { return true }
     if callee_name == "dyn_call_ret" { return true }
     if callee_name == "dyn_fn" { return true }
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         return fd.return_type == "Dynamic"
@@ -824,8 +819,9 @@ priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool
 priv delete_call_free_lit := func(type_name: Str, set_free: Bool, ctx: Context) returns Str {
     mut lit := "(Bool){0}"
     if set_free { lit = "(Bool){1}" }
-    ref fdef : Expr = find_callee_fdef(type_name.format("_delete"), ctx)
-    if fdef.is_null() { return lit }
+    fdef_o := find_callee_fdef(type_name.format("_delete"), ctx)
+    if fdef_o.is_none() { return lit }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len() > 1 {
@@ -839,8 +835,9 @@ priv delete_call_free_lit := func(type_name: Str, set_free: Bool, ctx: Context) 
 }
 
 priv callee_param_is_shallow := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
@@ -852,8 +849,9 @@ priv callee_param_is_shallow := func(callee_name: Str, arg_index: USize, ctx: Co
 }
 
 priv callee_param_is_usize := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
@@ -864,8 +862,9 @@ priv callee_param_is_usize := func(callee_name: Str, arg_index: USize, ctx: Cont
 }
 
 priv callee_param_is_uptr := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
@@ -876,8 +875,9 @@ priv callee_param_is_uptr := func(callee_name: Str, arg_index: USize, ctx: Conte
 }
 
 priv callee_param_is_own := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
@@ -896,8 +896,9 @@ priv callee_param_is_own := func(callee_name: Str, arg_index: USize, ctx: Contex
 // corrupting the typer's flow analysis. Such params must receive the caller's
 // real lvalue address instead, so exclude them from boxing (like `own`).
 priv callee_param_writes_back := func(callee_name: Str, arg_index: USize, ctx: Context) returns Bool {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return false }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return false }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return false }
@@ -909,8 +910,9 @@ priv callee_param_writes_back := func(callee_name: Str, arg_index: USize, ctx: C
 }
 
 priv callee_param_explicit_type := func(callee_name: Str, arg_index: USize, ctx: Context) returns Str {
-    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
-    if fdef.is_null() { return "" }
+    fdef_o := find_callee_fdef(callee_name, ctx)
+    if fdef_o.is_none() { return "" }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if arg_index >= fd.params.len() { return "" }
@@ -934,8 +936,9 @@ priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
         if callee_returns_shallow(flat, ctx) { return true }
     case:
     }
-    ref sig : Expr = fcall_fn_sig(fcall, ctx)
-    if sig.is_null().not() {
+    sig_o := fcall_fn_sig(fcall, ctx)
+    if sig_o.is_some() {
+        ref sig : Expr = sig_o.unwrap()
         switch sig.node_type {
         case NodeType.FuncDef(sfd):
             return sfd.return_own_type.is(OwnType.Shallow)
@@ -1095,7 +1098,6 @@ priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
 }
 
 priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
-    if fdef.is_null() { return false }
     if fdef.node_type.is(NodeType.FuncDef).not() { return false }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
@@ -1114,8 +1116,10 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
     // so the C type name matches the monomorphized struct (Array__USize).
     concrete := format("Array__", resolve_type_alias_for_name(ctx.scope, elem_type))
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
-    ref array_func : Expr = ctx.scope.lookup_func("Array")
-    if builder_is_type_gen_macro_def(array_func) { return concrete }
+    array_func_o := ctx.scope.lookup_func("Array")
+    if array_func_o.is_some() {
+        if builder_is_type_gen_macro_def(array_func_o.unwrap()) { return concrete }
+    }
     if ctx.scope.get_struct("Array").is_null().not() { return "Array" }
     return concrete
 }
@@ -1123,8 +1127,10 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
     concrete := format("Vec__", resolve_type_alias_for_name(ctx.scope, elem_type))
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
-    ref vec_func : Expr = ctx.scope.lookup_func("Vec")
-    if builder_is_type_gen_macro_def(vec_func) { return concrete }
+    vec_func_o := ctx.scope.lookup_func("Vec")
+    if vec_func_o.is_some() {
+        if builder_is_type_gen_macro_def(vec_func_o.unwrap()) { return concrete }
+    }
     if ctx.scope.get_struct("Vec").is_null().not() { return "Vec" }
     return concrete
 }
@@ -1462,8 +1468,9 @@ priv fcall_return_ctype := func(fcall: Expr, ctx: Context) returns Str {
             return til_type_to_c(t)
         }
     }
-    ref fdef : Expr = find_callee_fdef(callee, ctx)
-    if fdef.is_null() { return "" }
+    fdef_o := find_callee_fdef(callee, ctx)
+    if fdef_o.is_none() { return "" }
+    ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.return_type.len() == 0 { return "" }
@@ -1581,15 +1588,15 @@ priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
     case:
     }
     if e.node_type.is(NodeType.FCall) {
-        ref mut fdef : Expr = fcall_fn_sig(e, ctx)
-        if fdef.is_null() {
+        mut fdef_o := fcall_fn_sig(e, ctx)
+        if fdef_o.is_none() {
             callee := resolve_callee_name(e)
             if callee.len() > 0 {
-                fdef = find_callee_fdef(callee, ctx)
+                fdef_o = find_callee_fdef(callee, ctx)
             }
         }
-        if fdef.is_null().not() {
-            switch fdef.node_type {
+        if fdef_o.is_some() {
+            switch fdef_o.unwrap().node_type {
             case NodeType.FuncDef(fd):
                 if fd.params.len() > 0 {
                     for a in 1..e.children.len() {
@@ -1628,8 +1635,9 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
                     case NodeType.FCall:
                         callee := resolve_callee_name(rhs)
                         if callee.len() > 0 {
-                            ref fdef : Expr = find_callee_fdef(callee, ctx)
-                            if fdef.is_null().not() {
+                            fdef_o := find_callee_fdef(callee, ctx)
+                            if fdef_o.is_some() {
+                                ref fdef : Expr = fdef_o.unwrap()
                                 switch fdef.node_type {
                                 case NodeType.FuncDef(fd):
                                     if fd.return_own_type.is(OwnType.Ref) {
@@ -1960,8 +1968,9 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     // The original typer scope where `dd` lived is gone by emit time, so we
     // pin the FuncDef pointer here while we still have access to the rhs.
     if e.til_type().is_funcptr() {
-        ref decl_sig : Expr = resolve_decl_fn_sig(rhs, dd, ctx.scope, ctx)
-        if decl_sig.is_null().not() {
+        decl_sig_o := resolve_decl_fn_sig(rhs, dd, ctx.scope, ctx)
+        if decl_sig_o.is_some() {
+            ref decl_sig : Expr = decl_sig_o.unwrap()
             sig_buf : UPtr = malloc(UPtr.size())
             write_ptr(sig_buf, decl_sig)
             ref mut m : Map(Str, Dynamic) = ctx.builder_func.local_fn_sigs
@@ -3384,8 +3393,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             return f
         }
         if e.til_type().is_funcptr() {
-            ref ident_fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
-            if ident_fdef.is_null().not().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
+            if find_callee_fdef(ident.ident_name(), ctx).is_some().and(ctx.closure_value_names.has(ident.ident_name())).and(is_stack_local(ident.ident_name(), ctx).not()).and(is_ref_local(ident.ident_name(), ctx).not()).and(ctx.builder_func.ptr_locals.has(ident.ident_name()).not()) {
                 f.write("&")
                 f.write(closure_value_name(ident.ident_name()))
             } else {
@@ -3408,8 +3416,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 return f
             }
             if callee.til_type().is_funcptr() {
-                ref sig_cc : Expr = fcall_fn_sig(e, ctx)
-                if sig_cc.is_null().not() {
+                sig_cc_o := fcall_fn_sig(e, ctx)
+                if sig_cc_o.is_some() {
+                    ref sig_cc : Expr = sig_cc_o.unwrap()
                     emit_fcall_closure_call(f, e, callee, sig_cc, depth, ctx)
                     return f
                 }
@@ -3422,8 +3431,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 return f
             }
             if callee.til_type().is_funcptr() {
-                ref sig : Expr = fcall_fn_sig(e, ctx)
-                if sig.is_null().not() {
+                sig_o := fcall_fn_sig(e, ctx)
+                if sig_o.is_some() {
+                    ref sig : Expr = sig_o.unwrap()
                     emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
                     return f
                 }
@@ -3529,7 +3539,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // must not pay a call per iteration on any container. Keyed
                     // on the accessor method (single-return-expr body), not the
                     // container type -- no longer Vec-hardcoded.
-                    emit_inline_accessor(f, e, find_callee_fdef(flat, ctx), depth, ctx)
+                    emit_inline_accessor(f, e, find_callee_fdef(flat, ctx).unwrap(), depth, ctx)
                 } else if (mname.field_access_name() == "clone").and(is_primitive(e.til_type())).and(builder_fa_is_ptr(e.children[1], ctx).not()) {
                     // Peephole: a value primitive's clone is a value copy --
                     // emit the value directly instead of a <Prim>_clone() call
@@ -3768,8 +3778,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 emit_body_closure_call(f, callee, depth, ctx)
             } else if callee.til_type().is_funcptr() {
                 // Indirect call through function pointer variable
-                ref sig : Expr = fcall_fn_sig(e, ctx)
-                emit_fcall_closure_call(f, e, callee, sig, depth, ctx)
+                // The sig is dereferenced unconditionally downstream
+                // (emit_fcall_funcptr_cast UNREACHABLEs on a non-FuncDef),
+                // so a miss here is a broken invariant, not a state.
+                emit_fcall_closure_call(f, e, callee, fcall_fn_sig(e, ctx).unwrap(), depth, ctx)
             } else if name.ident_name().eq("is_n").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // is_n core_func: inline the variable-width enum-tag check
                 // by reading each operand's `tag` field through its enum C
@@ -6633,8 +6645,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
     switch e.node_type {
     case NodeType.Ident(ident):
         if e.til_type().is_funcptr() {
-            ref fdef : Expr = find_callee_fdef(ident.ident_name(), ctx)
-            if fdef.is_null().not() { names.add(own Str.clone(ident.ident_name())) }
+            if find_callee_fdef(ident.ident_name(), ctx).is_some() { names.add(own Str.clone(ident.ident_name())) }
         }
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {
@@ -8429,10 +8440,10 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
                 // from that definition's own forward-decl emit path; the
                 // ext_decl here would be a redundant prototype that
                 // disagrees with the body on const-ness, so skip it.
-                ref shadow_fdef : Expr = find_callee_fdef(dd.name, ctx)
+                shadow_fdef_o := find_callee_fdef(dd.name, ctx)
                 mut shadowed_by_func := false
-                if shadow_fdef.is_null().not() {
-                    switch shadow_fdef.node_type {
+                if shadow_fdef_o.is_some() {
+                    switch shadow_fdef_o.unwrap().node_type {
                     case NodeType.FuncDef(sfd):
                         if sfd.func_type.is(FuncType.ExtFunc).not().and(sfd.func_type.is(FuncType.ExtProc).not()) {
                             shadowed_by_func = true

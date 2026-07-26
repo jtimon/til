@@ -371,6 +371,36 @@ single pointer passed in a register -- the emitted C went from
 lookups (TypeScope.get_struct / get_binding and friends) are free to
 migrate now.
 
+**** Step 2, batch 11: the TypeScope func/struct-def lookup family
+
+The first HOT batch, unblocked by the niche + auto-shallow landing: the
+scope-walking name lookups themselves, plus the two leaf probes they
+share and the builder's signature-resolution family that forwards them.
+
+- context.til: ~func_defs_lookup_one~, ~bindings_lookup_one~ (leaves),
+  ~lookup_func~, ~lookup_func_symbol~, ~struct_def_of~.
+- builder.til: ~find_callee_fdef~ (a one-line forwarder over
+  lookup_func_symbol, so it MUST migrate with it), ~fcall_fn_sig~ and
+  ~resolve_decl_fn_sig~ -- the three cascade off it across 30 sites.
+- ~90 call sites across typer / desugarer / builder / loader / initer /
+  garbager / context.
+
+Two notes worth keeping:
+
+- Two guards died as a consequence, not as a cleanup:
+  ~builder_is_type_gen_macro_def~'s ~fdef.is_null()~ (its only nullable
+  caller was the ~lookup_func("Array"/"Vec")~ pair; every other caller
+  hands it a node it has already dereferenced), and the implicit null
+  ~sig~ reaching ~emit_fcall_closure_call~ from the Ident/funcptr emit
+  path -- that one is now ~.unwrap()~, since the sig is dereferenced
+  unconditionally downstream (~emit_fcall_funcptr_cast~ UNREACHABLEs on
+  a non-FuncDef). Another instance of batch 8's rule: a null nobody
+  tests is a missing invariant check.
+- The predicate-only sites read BETTER than before:
+  ~scope.lookup_func(n).is_null().not()~ -> ~.is_some()~, and the
+  alias-rebroadcast loops in typer.til lost their
+  ~NULL.ptr_eq(x)~-is-false trick for an explicit ~is_none~ skip.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
@@ -379,6 +409,11 @@ migrate now.
    whose type is not Dynamic (the quarantine exemption above), and
    convert the test fixtures in the same commit.
 3. Steps 2-4 of this issue (ref locals/returns, is_null, the keyword).
+   Next up in step 2: ~TypeScope.get_binding~ (89 sites) and
+   ~TypeScope.get_struct~ (100 sites) -- the last two hot lookups, and
+   the widest. ~get_binding~ drags its four in-namespace consumers
+   (~find~, ~get_type~, ~get_func_type~, ~is_mut~) and ~get_struct~
+   drags ~find_struct_def~ (builder).
 
 *** Decisions (2026-07-21 design discussion)
 

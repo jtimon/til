@@ -72,10 +72,11 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 // Kept as a standalone leaf so the catch/?-unwrap is the function's
 // whole body -- inlining it into lookup_func's parent-walk produced a
 // multi-branch CFG that GCC rejected with -Werror=return-type.
-priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref Expr {
+priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
     ref slot : Dynamic = m.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    ref fd : Expr = deref(slot)
+    return Option(ref Expr).Some(fd)
 }
 
 // #307 follow-up: leaf single-probe lookup for TypeScope.bindings, the
@@ -84,10 +85,10 @@ priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref E
 // scope per lookup, ~850K has() calls per self-host translate); one
 // get()?+catch does it in one probe, mirroring the interpreter's
 // scope-chain collapse.
-priv bindings_lookup_one := func(m: Map(Str, TypeBinding), name: Str) returns ref TypeBinding {
+priv bindings_lookup_one := func(m: Map(Str, TypeBinding), name: Str) returns Option(ref TypeBinding) {
     ref b : TypeBinding = m.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return b
+    catch (e: KeyNotFound) { return Option(ref TypeBinding).None }
+    return Option(ref TypeBinding).Some(b)
 }
 
 TypeScope := struct {
@@ -166,16 +167,15 @@ namespace:
     // specific binding (from get_binding / find / a bindings iteration)
     // and asks "is THIS binding a type def?". Gates on the first scope
     // that binds `name` (mirroring get_binding) and returns that scope's
-    // struct def or NULL -- it must NOT fall through to a parent type of
+    // struct def or None -- it must NOT fall through to a parent type of
     // the same name, or a shadowing local var would be misread as a type.
-    struct_def_of := func(self: TypeScope, name: Str) returns ref Expr {
-        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
-        if b.is_null().not() {
+    struct_def_of := func(self: TypeScope, name: Str) returns Option(ref Expr) {
+        if bindings_lookup_one(self.bindings, name).is_some() {
             return func_defs_lookup_one(self.struct_defs, name)
         }
         switch self.parent {
         case Option(ref TypeScope).Some(p): return p.struct_def_of(name)
-        case Option(ref TypeScope).None: return NULL
+        case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
@@ -185,37 +185,36 @@ namespace:
     // interpreter.til:lookup_interp_type_def) so the `?`/catch desugar
     // doesn't sit in a multi-branch function (which trips
     // -Werror=return-type in the emitted C).
-    lookup_func := func(self: TypeScope, name: Str) returns ref Expr {
+    lookup_func := func(self: TypeScope, name: Str) returns Option(ref Expr) {
         // Track get_binding's scope resolution exactly: the func_def of
         // a binding lives in the SAME scope as the binding. Stop at the
         // first scope that owns the binding and return its func_defs
-        // entry (or NULL). Walking func_defs independently of bindings
+        // entry (or None). Walking func_defs independently of bindings
         // would let a shadowing local in a child scope pick up a parent
         // function's def -- the bug that broke this migration. Mirrors
         // how the old per-binding `func_def` field (no parent walk)
         // behaved.
-        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
-        if b.is_null().not() {
+        if bindings_lookup_one(self.bindings, name).is_some() {
             return func_defs_lookup_one(self.func_defs, name)
         }
         switch self.parent {
         case Option(ref TypeScope).Some(p): return p.lookup_func(name)
-        case Option(ref TypeScope).None: return NULL
+        case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
-    lookup_func_symbol := func(self: TypeScope, name: Str) returns ref Expr {
-        ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
-        if b.is_null().not() {
-            if b.is_func_decl {
+    lookup_func_symbol := func(self: TypeScope, name: Str) returns Option(ref Expr) {
+        bo := bindings_lookup_one(self.bindings, name)
+        if bo.is_some() {
+            if bo.unwrap().is_func_decl {
                 return func_defs_lookup_one(self.func_defs, name)
             }
-            return NULL
+            return Option(ref Expr).None
         }
-        ref local : Expr = func_defs_lookup_one(self.func_defs, name)
-        if local.is_null().not() { return local }
+        local := func_defs_lookup_one(self.func_defs, name)
+        if local.is_some() { return local }
         switch self.parent {
         case Option(ref TypeScope).Some(p): return p.lookup_func_symbol(name)
-        case Option(ref TypeScope).None: return NULL
+        case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
@@ -1042,7 +1041,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
                 // (has a func_def): test "builtin and not a func", and
                 // clone the owned Type. See the matching note in
                 // typer.til:type_from_name.
-                if scope.lookup_func(b.name).is_null() { return b.type.clone() }
+                if scope.lookup_func(b.name).is_none() { return b.type.clone() }
             }
             if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
                 return Type.FuncPtr

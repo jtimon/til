@@ -135,8 +135,8 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
 }
 
 desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
-    ref fdef : Expr = scope.lookup_func(callee_bind.name)
-    switch fdef.node_type {
+    fdef_o := scope.lookup_func(callee_bind.name)
+    switch fdef_o.unwrap().node_type {
     case NodeType.FuncDef(fdef_data):
         _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
     case:
@@ -482,9 +482,9 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                                 et := array_vec_elem_type_name(rhs)
                                 if et.len() > 0 { tn = format("Vec__", et) }
                             } else {
-                                ref fdef_expr : Expr = ctx.scope.lookup_func(rhsn.name)
-                                if fdef_expr.is_null().not() {
-                                    switch fdef_expr.node_type {
+                                fdef_expr_o := ctx.scope.lookup_func(rhsn.name)
+                                if fdef_expr_o.is_some() {
+                                    switch fdef_expr_o.unwrap().node_type {
                                     case NodeType.FuncDef(fd): tn = fd.return_type.clone()
                                     case:
                                     }
@@ -627,9 +627,9 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
             if ctx.scope.get_struct(name.name).is_null().not() {
                 return name.name.clone()
             }
-            ref fdef_expr : Expr = ctx.scope.lookup_func(name.name)
-            if fdef_expr.is_null().not() {
-                switch fdef_expr.node_type {
+            fdef_expr_o := ctx.scope.lookup_func(name.name)
+            if fdef_expr_o.is_some() {
+                switch fdef_expr_o.unwrap().node_type {
                 case NodeType.FuncDef(fd): return fd.return_type.clone()
                 case:
                 }
@@ -1389,9 +1389,9 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             // scope, return its declared return_type instead.
             ref fb : TypeBinding = ctx.scope.get_binding(ng)
             if fb.is_null().not() {
-                ref fb_fd : Expr = ctx.scope.lookup_func(fb.name)
-                if fb_fd.is_null().not() {
-                    switch fb_fd.node_type {
+                fb_fd_o := ctx.scope.lookup_func(fb.name)
+                if fb_fd_o.is_some() {
+                    switch fb_fd_o.unwrap().node_type {
                     case NodeType.FuncDef(fdef):
                         if fdef.return_type.len() > 0 {
                             return normalize_ctor_type(fdef.return_type)
@@ -4691,9 +4691,9 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
     case NodeType.Ident(callee_name):
         ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null().not() {
-                switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_some() {
+                switch cb_fd_o.unwrap().node_type {
                 case NodeType.FuncDef(cb_fdef):
                     return fcall_variadic_count(fcall, cb_fdef.params.len(), cb_fdef.kwargs_index >= 0)
                 case:
@@ -4738,9 +4738,9 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
     case NodeType.Ident(callee_name):
         ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null().not() {
-                switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_some() {
+                switch cb_fd_o.unwrap().node_type {
                 case NodeType.FuncDef(cb_fdef):
                     return cb_fdef.variadic_index >= 0
                 case:
@@ -4787,9 +4787,9 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
     case NodeType.Ident(callee_name):
         ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null().not() {
-                switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_some() {
+                switch cb_fd_o.unwrap().node_type {
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
                     if fvi < 0 { return -1 }
@@ -4844,9 +4844,9 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
     case NodeType.Ident(callee_name):
         ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null().not() {
-                switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_some() {
+                switch cb_fd_o.unwrap().node_type {
                 case NodeType.FuncDef(cb_fdef):
                     return derive_fcall_kwargs_index(fcall, cb_fdef)
                 case:
@@ -4897,9 +4897,9 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
     case NodeType.Ident(callee_name):
         ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
         if cb.is_null().not() {
-            ref cb_fd : Expr = scope.lookup_func(cb.name)
-            if cb_fd.is_null().not() {
-                switch cb_fd.node_type {
+            cb_fd_o := scope.lookup_func(cb.name)
+            if cb_fd_o.is_some() {
+                switch cb_fd_o.unwrap().node_type {
                 case NodeType.FuncDef(cb_fdef):
                     fvi := cb_fdef.variadic_index
                     if fvi >= 0 {

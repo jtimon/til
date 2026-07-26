@@ -358,11 +358,11 @@ priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, targe
     ref target_binding : TypeBinding = scope.get_binding(target_name)
     if target_binding.is_null() { return }
     alias_binding.type = target_binding.type.clone()
-    ref target_sd : Expr = scope.struct_def_of(target_name)
-    if target_sd.is_null().not() { scope.set_struct_def(alias_name, target_sd) }
-    ref target_fd : Expr = scope.lookup_func(target_name)
-    if target_fd.is_null().not() {
-        scope.set_func_def(alias_name, target_fd)
+    target_sd_o := scope.struct_def_of(target_name)
+    if target_sd_o.is_some() { scope.set_struct_def(alias_name, target_sd_o.unwrap()) }
+    target_fd_o := scope.lookup_func(target_name)
+    if target_fd_o.is_some() {
+        scope.set_func_def(alias_name, target_fd_o.unwrap())
     }
     alias_binding.is_func_decl = target_binding.is_func_decl
     alias_binding.is_builtin = target_binding.is_builtin
@@ -2961,8 +2961,9 @@ priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context
     // a METHOD call sharing a generic's name (p.swap() vs core swap, #302:
     // heap-use-after-free in func_def_type).
     if ctx.generic_funcs.has(lname) { return NULL }
-    ref fdef : Expr = scope.lookup_func(lname)
-    if fdef.is_null() { return NULL }
+    fdef_o := scope.lookup_func(lname)
+    if fdef_o.is_none() { return NULL }
+    ref fdef : Expr = fdef_o.unwrap()
     ft := func_def_type(fdef)
     if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { return NULL }
     if fdef.children.len() == 0 { return NULL }
@@ -3073,8 +3074,9 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
             // Same dropped-generic guard as lazy_stmt_inlinable_call: a
             // name in ctx.generic_funcs points at a freed FuncDef.
             if lname.len().gt(0).and(ctx.generic_funcs.has(lname).not()) {
-                ref fdef : Expr = scope.lookup_func(lname)
-                if fdef.is_null().not() {
+                fdef_o := scope.lookup_func(lname)
+                if fdef_o.is_some() {
+                    ref fdef : Expr = fdef_o.unwrap()
                     ft := func_def_type(fdef)
                     if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
                         // Variadic lazy defs unroll over the call's operands
@@ -3690,9 +3692,9 @@ priv lazy_call_returns_sig := func(call: Expr, scope: TypeScope, lazy_sigs: Set(
     case:
     }
     if callee_name.len() == 0 { return "" }
-    ref cfd : Expr = scope.lookup_func(callee_name)
-    if cfd.is_null() { return "" }
-    switch cfd.node_type {
+    cfd_o := scope.lookup_func(callee_name)
+    if cfd_o.is_none() { return "" }
+    switch cfd_o.unwrap().node_type {
     case NodeType.FuncDef(fd):
         if lazy_sigs.has(fd.return_type) { return fd.return_type.clone() }
     case:
@@ -3715,9 +3717,9 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
     }
     if name.len() == 0 { return "" }
     if scope.get_struct(name).is_null().not() { return name.clone() }
-    ref cfd : Expr = scope.lookup_func(name)
-    if cfd.is_null() { return "" }
-    switch cfd.node_type {
+    cfd_o := scope.lookup_func(name)
+    if cfd_o.is_none() { return "" }
+    switch cfd_o.unwrap().node_type {
     case NodeType.FuncDef(fd):
         if scope.get_struct(fd.return_type).is_null().not() { return fd.return_type.clone() }
     case:
@@ -4029,8 +4031,9 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                 }
             }
             if fsig.len() > 0 {
-                ref sfd : Expr = scope.lookup_func(fsig)
-                if sfd.is_null().not() {
+                sfd_o := scope.lookup_func(fsig)
+                if sfd_o.is_some() {
+                    ref sfd : Expr = sfd_o.unwrap()
                     mut fnparams : USize = 0
                     switch sfd.node_type {
                     case NodeType.FuncDef(fd): fnparams = fd.params.len()
@@ -4059,8 +4062,9 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
                     // the call through the call-site name so the funcptr value keeps
                     // dispatching.
                     if lowered.has(canon).or(lazy_sigs.has(canon)) {
-                        ref fdef : Expr = scope.lookup_func(canon)
-                        if fdef.is_null().not() {
+                        fdef_o := scope.lookup_func(canon)
+                        if fdef_o.is_some() {
+                            ref fdef : Expr = fdef_o.unwrap()
                             mut nparams : USize = 0
                             switch fdef.node_type {
                             case NodeType.FuncDef(fd): nparams = fd.params.len()

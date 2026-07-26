@@ -250,6 +250,11 @@ typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
 typedef struct Context Context;
+typedef enum {
+    Option__ref_TypeBinding_TAG_None,
+    Option__ref_TypeBinding_TAG_Some
+} Option__ref_TypeBinding_tag;
+typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
@@ -741,6 +746,10 @@ struct ScopeFind {
         TypeBinding Found;
         void *_til_payload_align;
     } data;
+};
+
+struct Option__ref_TypeBinding {
+    TypeBinding *data;
 };
 
 typedef struct Vec__Dynamic {
@@ -2117,16 +2126,16 @@ Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
 void ScopeFind_delete(ScopeFind * self, Bool call_free);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 USize ScopeFind_size(void);
-Expr * priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
-TypeBinding * priv___src_self_context_til__bindings_lookup_one(Map__Str_TypeBinding * m, Str * name);
+Option__ref_Expr priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
+Option__ref_TypeBinding priv___src_self_context_til__bindings_lookup_one(Map__Str_TypeBinding * m, Str * name);
 TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
-Expr * TypeScope_struct_def_of(TypeScope * self, Str * name);
-Expr * TypeScope_lookup_func(TypeScope * self, Str * name);
-Expr * TypeScope_lookup_func_symbol(TypeScope * self, Str * name);
+Option__ref_Expr TypeScope_struct_def_of(TypeScope * self, Str * name);
+Option__ref_Expr TypeScope_lookup_func(TypeScope * self, Str * name);
+Option__ref_Expr TypeScope_lookup_func_symbol(TypeScope * self, Str * name);
 void TypeScope_set_func_def(TypeScope * self, Str * name, Expr * fdef);
 void TypeScope_set_func_symbol(TypeScope * self, Str * name, Expr * fdef);
 void TypeScope_set_struct_def(TypeScope * self, Str * name, Expr * sdef);
@@ -2224,6 +2233,13 @@ Bool is_aggregate(Type * t);
 Bool is_range_new_call(Expr * e);
 USize fcall_kwargs_count(Expr * fcall);
 USize fcall_variadic_count(Expr * fcall, USize nparam, Bool callee_has_kwargs);
+Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
+TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
+Option__ref_TypeBinding * Option__ref_TypeBinding_None(void);
+Option__ref_TypeBinding * Option__ref_TypeBinding_Some(TypeBinding * val);
+void Option__ref_TypeBinding_delete(Option__ref_TypeBinding * self, Bool call_free);
+Option__ref_TypeBinding Option__ref_TypeBinding_clone(Option__ref_TypeBinding self);
+USize Option__ref_TypeBinding_size(void);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
@@ -3320,8 +3336,8 @@ USize priv___src_self_builder_til__DynCallInfo_size(void);
 Str * closure_call_name(Str * name);
 Str * closure_value_name(Str * name);
 Option__ref_Expr priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * name);
-Expr * priv___src_self_builder_til__resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope, Context * ctx);
-Expr * priv___src_self_builder_til__fcall_fn_sig(Expr * fcall, Context * ctx);
+Option__ref_Expr priv___src_self_builder_til__resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope, Context * ctx);
+Option__ref_Expr priv___src_self_builder_til__fcall_fn_sig(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__is_stack_local(Str * name, Context * ctx);
 void priv___src_self_builder_til__assert_gc_stack(Declaration * dd, Str * shape);
 Bool priv___src_self_builder_til__is_stack_lit_str_local(Str * name, Context * ctx);
@@ -3342,7 +3358,7 @@ Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
 Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__inline_call_ret_ctype(Expr * e, Str * callee_name, Context * ctx);
-Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
+Option__ref_Expr priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
 void priv___src_self_builder_til__inline_subst(Expr * e, Vec__Declaration * params, Expr * call);
 void priv___src_self_builder_til__subst_ident_expr(Expr * e, Str * name, Expr * val);
 USize priv___src_self_builder_til__count_ident_uses(Expr * e, Str * name);
@@ -4187,6 +4203,8 @@ TokenType *TokenType_KwPriv();
 TokenType *TokenType_Error();
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
+Option__ref_TypeBinding *Option__ref_TypeBinding_None();
+Option__ref_TypeBinding *Option__ref_TypeBinding_Some(TypeBinding *);
 Option__ref_Str *Option__ref_Str_None();
 Option__ref_Str *Option__ref_Str_Some(Str *);
 Option__ref_Expr *Option__ref_Expr_None();

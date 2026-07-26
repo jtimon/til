@@ -1,6 +1,62 @@
 # priority: medium
 # category: features
-** WIP #320 Ownership qualifiers in template type args and enum variant payloads
+** FIXED #320 Ownership qualifiers in template type args and enum variant payloads
+
+*** Post-mortem
+
+Not a bug: the feature #321 (Forbid NULL) was blocked on. To spell
+"maybe absent" as ~Option(ref T)~ ala Rust, two capabilities were
+missing and had to land together -- a template type ARGUMENT could not
+carry a qualifier (~Option(ref Expr)~ did not parse in either type or
+value position, and the mangled instance name had no encoding for one),
+and an enum variant PAYLOAD could not be ~ref~ at all (payloads were
+stored owned, with no per-variant OwnType).
+
+What changed, in the order it landed:
+
+1. Ref payloads on plain enums: ~Variant: ref Type~ parses,
+   EnumDef.payload_refs rides alongside payload_consts, the slot is a
+   bare pointer in both backends, case bindings deref it, and the
+   garbager extends the borrowed source's lifetime through scope exit.
+2. A typer diagnostic rejecting a non-place expr (an owned temporary)
+   as a ref-payload ctor arg -- the borrow escapes into the enum value,
+   so a temp would dangle. Later relaxed to the typer's own
+   ~expr_is_ref_decl_source~ so a REF-RETURNING call is accepted.
+3. Qualified template args: ~Opt(ref X)~ / ~make_opt(ref X)~ in both
+   type and value position, mangled ~__ref_X~, with a ref_params set
+   threaded through the whole substitution family (payload, field,
+   return) -- including direct generic function calls.
+4. ~src/core/option.til~: one ~Option := macro(T: Type)~ serving both
+   Option(X) and Option(ref X), with is_some / is_none / unwrap_or, and
+   later unwrap (added when #321's batch 10 demanded it).
+5. The NICHE LAYOUT, as a general rule keyed on SHAPE, never on the
+   name "Option" (the design call recorded below): a two-variant enum
+   with one payload-less variant and one ~ref~ payload is emitted as a
+   bare pointer, no tag, None == null. Option(ref T) is one word and
+   ABI-identical to a nullable C pointer.
+6. Auto-shallow for niche enums, so such a return is a pointer in a
+   register instead of a malloc per call. That is what actually
+   unblocked #321's hot lookup migrations.
+
+Two things bit hard enough to be worth remembering. A self-referential
+~Option(ref TypeScope)~ field deadlocked the builder's struct topo sort
+("field 'parent' has incomplete type") -- ref payloads are pointers and
+must NOT count as layout dependencies -- and that fix was PROVEN to
+need a preparation+use commit pair, not two-pass (pass 1 emits
+uncompilable C, so the two-pass rebuild never gets off the ground).
+Separately, ~dispatch_enum_size~ sized a ref payload by its POINTEE,
+which ASAN caught as a 32-byte write into a 24-byte instance; it was
+invisible whenever the pointee happened to be <= 8 bytes.
+
+Tests: test/option.til (10 cases incl. test_option_niche_layout pinning
+~Option(ref OptSrc).size() == UPtr.size()~), test_ref_payload_* in
+test/enums.til, test_ref_type_arg_* / test_generic_func_ref_type_arg in
+test/first_class.til, and rejection cases in test/typer_errors.til.
+
+Found and fixed on the way, as its own issue: #322 (switch coverage
+compared case-pattern type names textually, so alias-spelled patterns
+never matched). Found and deferred: #324 (a ~ref~ FIELD can be passed
+to an ~own~ parameter).
 
 *** Progress
 
