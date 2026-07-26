@@ -6,19 +6,28 @@ mode lib
 // The print/stdin primitives stay in src/core/io.til because core's panic
 // depends on them and the compiler knows their names.
 
-cfile_open := ext_func(path: Str, shallow is_write: Bool) returns ref Dynamic {}
-cfile_open_update := ext_func(path: Str) returns ref Dynamic {}
-// Declared ext_func (not ext_proc) so File.delete -- which the garbager
-// inserts into arbitrary func bodies -- can release the handle. Same
-// rationale as `free` being an ext_func despite freeing memory.
+// Every primitive that touches the file system is an ext_proc, per the
+// doc/ffi.org audit rule ("does the C function read or modify global
+// state ... file system? then ext_proc"): opening creates/truncates,
+// reading observes bytes that change between compile time and run time
+// and advances the handle's cursor, and telling observes that cursor.
+// ext_func would mark them foldable, so a constant-argument call could
+// be evaluated by the constfolder and its result baked into the binary.
+cfile_open := ext_proc(path: Str, shallow is_write: Bool) returns ref Dynamic {}
+cfile_open_update := ext_proc(path: Str) returns ref Dynamic {}
+// The one exception: declared ext_func (not ext_proc) so File.delete --
+// which the garbager inserts into arbitrary func bodies -- can release
+// the handle. Same rationale as `free` being an ext_func despite
+// freeing memory. Folding it would need a compile-time handle, and a
+// handle can only come from cfile_open, which no longer folds.
 cfile_close := ext_func(handle: Dynamic) {}
 cfile_write_str := ext_proc(handle: Dynamic, s: Str) {}
-cfile_read_all := ext_func(handle: Dynamic) returns Str {}
-cfile_tell := ext_func(handle: Dynamic) returns shallow I64 {}
+cfile_read_all := ext_proc(handle: Dynamic) returns Str {}
+cfile_tell := ext_proc(handle: Dynamic) returns shallow I64 {}
 cfile_seek := ext_proc(handle: Dynamic, shallow pos: I64) {}
 cfile_seek_cur := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_seek_end := ext_proc(handle: Dynamic, shallow delta: I64) {}
-cfile_read_n := ext_func(handle: Dynamic, shallow count: I64) returns Str {}
+cfile_read_n := ext_proc(handle: Dynamic, shallow count: I64) returns Str {}
 
 /// File handle for reading or writing on disk.
 File := struct {
@@ -34,12 +43,6 @@ namespace:
     /// Read the entire file at `path` into a Str. Exits with an error if
     /// the file cannot be opened.
     readfile := proc(path: Str) returns Str {
-        // The read path is func-world (cfile_open/cfile_read_all are
-        // ext_funcs so File.delete can close handles), but readfile takes
-        // a Str and returns a Str, so as a func the constfolder would
-        // fold constant-path calls and bake file contents in at compile
-        // time. noop_proc keeps it a proc, i.e. never folded.
-        noop_proc()
         f := File.new(path, false)
         return f.read_all()
     }
@@ -52,7 +55,7 @@ namespace:
     }
 
     /// Open a file at `path` for reading or writing.
-    new := func(path: Str, is_write: Bool) returns File {
+    new := proc(path: Str, is_write: Bool) returns File {
         ref h : Dynamic = cfile_open(path, is_write)
         return File(handle = h, is_write = is_write)
     }
@@ -61,7 +64,7 @@ namespace:
     /// both allowed and the cursor can be moved with `seek`, so small
     /// regions can be patched without rewriting the whole file. The file
     /// must already exist.
-    update := func(path: Str) returns File {
+    update := proc(path: Str) returns File {
         ref h : Dynamic = cfile_open_update(path)
         return File(handle = h, is_update = true)
     }
@@ -79,7 +82,7 @@ namespace:
 
     /// Read the entire file contents into a Str. Panics if opened
     /// write-only.
-    read_all := func(self: File) returns Str {
+    read_all := proc(self: File) returns Str {
         if self.is_write {
             panic("File.read_all: file opened for writing")
         }
@@ -89,7 +92,7 @@ namespace:
     /// Read up to `count` bytes starting at the current cursor position
     /// and advance the cursor. The result is shorter than `count` near
     /// end-of-file. Panics if opened write-only.
-    read := func(self: File, count: I64) returns Str {
+    read := proc(self: File, count: I64) returns Str {
         if self.is_write {
             panic("File.read: file opened for writing")
         }
@@ -98,7 +101,7 @@ namespace:
 
     /// Return the current cursor position as a byte offset from the start
     /// of the file.
-    tell := func(self: File) returns I64 {
+    tell := proc(self: File) returns I64 {
         return cfile_tell(self.handle)
     }
 
