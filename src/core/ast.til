@@ -370,15 +370,9 @@ namespace:
     }
     /// Field name at declaration position i: reverse lookup over the
     /// index (O(members), tiny and emit-time only). NULL for a position
-    /// shadowed by a later duplicate name. The scan is inlined (not a
-    /// shared Map(Str, USize) helper) because the USize width alias
-    /// monomorphizes differently for struct fields vs free-function
-    /// params (Map__Str_U32 vs Map__Str_USize).
+    /// shadowed by a later duplicate name.
     field_name_at := func(self: StructDef, i: USize) returns ref Str {
-        for mi in 0..self.fields_index.len() {
-            if self.fields_index.values.unsafe_get(mi) == i { return self.fields_index.keys.unsafe_get(mi) }
-        }
-        return NULL
+        return member_name_of(self.fields_index, i)
     }
     /// Field Declaration at declaration position i (name == "").
     field_at := func(self: StructDef, i: USize) returns ref Declaration {
@@ -386,15 +380,22 @@ namespace:
     }
     /// Namespace member name at declaration position i.
     member_name_at := func(self: StructDef, i: USize) returns ref Str {
-        for mi in 0..self.ns_index.len() {
-            if self.ns_index.values.unsafe_get(mi) == i { return self.ns_index.keys.unsafe_get(mi) }
-        }
-        return NULL
+        return member_name_of(self.ns_index, i)
     }
     /// Namespace member Declaration at declaration position i.
     member_at := func(self: StructDef, i: USize) returns ref Declaration {
         return self.ns_decls.unsafe_get(i)
     }
+}
+
+/// Reverse index lookup shared by every *_name_at accessor: the name whose
+/// stored position is `pos`, NULL when no entry points at it (a position
+/// shadowed by a later duplicate name).
+member_name_of := func(idx: Map(Str, USize), pos: USize) returns ref Str {
+    for mi in 0..idx.len() {
+        if idx.values.unsafe_get(mi) == pos { return idx.keys.unsafe_get(mi) }
+    }
+    return NULL
 }
 
 /// Issue #307: one record per variant instead of the five position-parallel
@@ -459,13 +460,9 @@ namespace:
         nd.name = ""
         self.ns_decls.push(own nd)
     }
-    /// Namespace member name at declaration position i (see
-    /// StructDef.field_name_at for why the scan is inlined).
+    /// Namespace member name at declaration position i.
     member_name_at := func(self: EnumDef, i: USize) returns ref Str {
-        for mi in 0..self.ns_index.len() {
-            if self.ns_index.values.unsafe_get(mi) == i { return self.ns_index.keys.unsafe_get(mi) }
-        }
-        return NULL
+        return member_name_of(self.ns_index, i)
     }
     /// Namespace member Declaration at declaration position i.
     member_at := func(self: EnumDef, i: USize) returns ref Declaration {

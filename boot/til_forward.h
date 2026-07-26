@@ -1803,6 +1803,7 @@ Str * StructDef_member_name_at(StructDef * self, USize * i);
 StructDef * StructDef_clone(StructDef * self);
 void StructDef_delete(StructDef * self, Bool call_free);
 USize StructDef_size(void);
+Str * member_name_of(Map__Str_USize * idx, USize * pos);
 VariantDef * VariantDef_clone(VariantDef * self);
 void VariantDef_delete(VariantDef * self, Bool call_free);
 U64 VariantDef_hash(VariantDef * self, HashFn hasher);
