@@ -326,6 +326,11 @@ typedef struct Vec__StmtFacts Vec__StmtFacts;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
+typedef enum {
+    Option__ref_Scope_TAG_None,
+    Option__ref_Scope_TAG_Some
+} Option__ref_Scope_tag;
+typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -938,6 +943,14 @@ typedef struct Vec__GcCfgBlock {
     USize cap;
 } Vec__GcCfgBlock;
 
+
+struct Option__ref_Scope {
+    U8 tag;
+    union {
+        Scope *Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct priv___src_self_loader_til__DeclRef {
     Str path;
@@ -1557,7 +1570,7 @@ typedef struct LoadedProgram {
 typedef struct Scope {
     Map__Str_HeapBinding heap_bindings;
     Map__Str_Str heap_aliases;
-    Scope *parent;
+    Option__ref_Scope parent;
     Bool is_call_scope;
 } Scope;
 
@@ -3060,6 +3073,11 @@ void process_body(Scope * scope, Expr * body, Context * ctx, Bool at_global);
 Bool priv___src_self_constfolder_til__expr_uses_var_p(Expr * e, Str * name, Context * ctx);
 void constfolder_register_fold_scope(Scope * global, Expr * prog, Context * ctx);
 void constfolder_register_core_constants(Scope * global, Str * usize_name, Context * ctx);
+Option__ref_Scope * Option__ref_Scope_None(void);
+Option__ref_Scope * Option__ref_Scope_Some(Scope * val);
+void Option__ref_Scope_delete(Option__ref_Scope * self, Bool call_free);
+Option__ref_Scope * Option__ref_Scope_clone(Option__ref_Scope * self);
+USize Option__ref_Scope_size(void);
 Bool priv___src_self_scavenger_til__scav_fa_is_ns(Expr * e);
 Str * priv___src_self_scavenger_til__qualified_name(Str * type_name, Str * method_name);
 void vec_push_str(Vec__Str * v, Str * s);
@@ -3656,6 +3674,7 @@ void HeapBinding_delete(HeapBinding * self, Bool call_free);
 USize HeapBinding_size(void);
 Scope * Scope_clone(Scope * self);
 void Scope_delete(Scope * self, Bool call_free);
+U64 Scope_hash(Scope * self, HashFn hasher);
 USize Scope_size(void);
 InterpSession * InterpSession_clone(InterpSession * self);
 void InterpSession_delete(InterpSession * self, Bool call_free);
@@ -3771,7 +3790,7 @@ Bool priv___src_self_interpreter_til__scope_return_move_is_local(Scope * s, Str 
 void priv___src_self_interpreter_til__scope_pool_put(void * p);
 void scope_pool_drain(void);
 Scope * priv___src_self_interpreter_til__scope_get_binding_scope(Scope * s, Str * name);
-Scope * scope_new(Scope * parent);
+Scope * scope_new(Option__ref_Scope * parent);
 HeapBinding * scope_lookup_heap_binding(Scope * s, Str * name);
 Bool priv___src_self_interpreter_til__heap_type_is_callable(Type til_type);
 Bool priv___src_self_interpreter_til__heap_slot_is_static_callable(Type til_type, void * ptr);
@@ -3790,7 +3809,7 @@ void * priv___src_self_interpreter_til__intern_slot(Vec__Dynamic * v, USize idx,
 void * interp_intern_type(Type t, Context * ctx);
 void priv___src_self_interpreter_til__scope_drop_existing_heap_slot(Scope * s, Str * name, Bool drop_nested);
 void scope_set_heap_owned(Scope * s, Str * name, void * ptr, void * til_type_w, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
-Scope * scope_new_boxed(Scope * parent);
+Scope * scope_new_boxed(Option__ref_Scope * parent);
 void scope_drop_owned_bindings(Scope * s);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, void * til_type_w, OwnType * own_type, Str * source_name, Scope * source_scope);
 void scope_free(Scope * s);
@@ -4169,6 +4188,8 @@ Target *Target_Wasm32();
 Target *Target_TempleosX86();
 priv___src_self_typer_til__CtorArg *priv___src_self_typer_til__CtorArg_Unfilled();
 priv___src_self_typer_til__CtorArg *priv___src_self_typer_til__CtorArg_Filled(Expr *);
+Option__ref_Scope *Option__ref_Scope_None();
+Option__ref_Scope *Option__ref_Scope_Some(Scope *);
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;

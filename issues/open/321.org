@@ -243,11 +243,25 @@ updates (qualifiers.org / ownership.org / enums.org).
   None there is a broken invariant -- read through an accessor that
   panics rather than substituting a default.
 
+**** Step-1 Option migration, batch 5
+
+- interpreter Scope.parent -> Option(ref Scope), plus the ~parent~
+  params of scope_new / scope_new_boxed. The four walk loops keep
+  their iterative single-probe shape (the hot path: one frame per
+  lookup); only the "step outward" line becomes a switch.
+- LESSON worth keeping: those loops' ~while cur.is_null().not()~ was
+  doing TWO jobs -- terminating the parent walk AND absorbing a NULL
+  scope ARGUMENT (callers pass tables that may not be built yet, e.g.
+  ~ctx.ns_fields~ before interpreter_init_ns). Migrating only the
+  first silently dropped the second and segfaulted in ~ns_get~. The
+  argument guards are restored with a REM: they are about a nullable
+  ref PARAM (step 2), not about the chain. Every ~is_null~ removed in
+  this migration needs that same "which of the two nulls is this?"
+  question asked.
+
 Remaining for later batches: the three Scope-typed fields (blocked on
 #324), FFIEntry.* and return_value / interp_ret_dest (quarantine
-class -- reclassify as plain Dynamic), interpreter Scope.parent (six
-walk loops whose ~catch~/~continue~ shape wants its own careful
-commit), test fixtures.
+class -- reclassify as plain Dynamic), test fixtures.
 
 *** Decisions (2026-07-21 design discussion)
 

@@ -280,10 +280,10 @@ Scope := struct {
     heap_bindings := Map(Str, HeapBinding).new()
     // Borrowed parameters name their source binding for write-through.
     heap_aliases := Map(Str, Str).new()
-    // No default (#321): scope_new always passes parent. The ROOT scopes
-    // still pass a NULL value (scope_new_boxed(NULL)) -- parent-chain
-    // walking to the root is real control flow, Option material later.
-    ref parent : Scope
+    // #321: None at the root scope; the chain walks outward until it
+    // runs out. A genuine borrow -- scope teardown never frees the
+    // parent, it only walks to it.
+    parent := Option(ref Scope).None
     is_call_scope := false
 }
 
@@ -1696,14 +1696,14 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
             matched = raw_switch_key(scope, cn.children[0], ctx) == subj_i
         }
         if matched {
-        case_scope := scope_new(scope)
+        case_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(case_scope, cn.children[1], ctx)
             scope_free(own case_scope)
             return
         }
     }
     if has_default {
-        def_scope := scope_new(scope)
+        def_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(def_scope, stmt.children[default_idx].children[0], ctx)
         scope_free(own def_scope)
     }
@@ -1933,11 +1933,11 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
 priv eval_if := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     cv := eval_bool_arg(scope, stmt.children[0], ctx)
     if cv {
-        then_scope := scope_new(scope)
+        then_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(then_scope, stmt.children[1], ctx)
         scope_free(own then_scope)
     } else if stmt.children.len() > 2 {
-        else_scope := scope_new(scope)
+        else_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(else_scope, stmt.children[2], ctx)
         scope_free(own else_scope)
     }
@@ -1952,7 +1952,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         if c.constfold_aborted { break }
         cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
-        while_scope := scope_new(scope)
+        while_scope := scope_new(Option(ref Scope).Some(scope))
         eval_body(while_scope, stmt.children[1], ctx)
         scope_free(own while_scope)
         if c.has_break { c.has_break = false; break }
@@ -2140,14 +2140,14 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         case NodeType.FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
         case NodeType.Body:
-            block_scope := scope_new(scope)
+            block_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(block_scope, stmt, ctx)
             scope_free(own block_scope)
         case NodeType.CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
             // already enforced the capture restriction, so at runtime it
             // behaves exactly like a bare `{ ... }` block.
-            cb_scope := scope_new(scope)
+            cb_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(cb_scope, stmt.children[0], ctx)
             scope_free(own cb_scope)
         case NodeType.If:
@@ -2275,7 +2275,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     }
     ref body : Expr = func_def.children[0]
 
-    call_scope := scope_new(parent_scope)
+    call_scope := scope_new(Option(ref Scope).Some(parent_scope))
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     switch func_def.node_type {
@@ -2534,7 +2534,7 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic,
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
     case NodeType.BodyValue:
-        body_scope := scope_new(parent_scope)
+        body_scope := scope_new(Option(ref Scope).Some(parent_scope))
         eval_body(body_scope, func_def.children[0], ctx)
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
@@ -3532,22 +3532,39 @@ priv interp_ret_type_name := func(ctx: Context) returns ref Str {
 
 // Resolve `name` to its raw value block, walking inner to outer.
 scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFound {
+    // REM: the SCOPE ARGUMENT is still nullable (callers pass tables that
+    // may not be built yet, e.g. ctx.ns_fields before interpreter_init_ns)
+    // -- that is a nullable ref PARAM, #321 step 2 material, distinct from
+    // the parent chain's own None terminator below.
+    if s.is_null() { throw KeyNotFound() }
     ref mut cur : Scope = s
-    while cur.is_null().not() {
+    mut walking := true
+    while walking {
         ref hb : HeapBinding = cur.heap_bindings.get(name)?
-        catch (e: KeyNotFound) { cur = cur.parent; continue }
+        catch (e: KeyNotFound) {
+            switch cur.parent {
+            case Option(ref Scope).Some(p): cur = p
+            case Option(ref Scope).None: walking = false
+            }
+            continue
+        }
         return to_ptr(hb.ptr)
     }
     throw KeyNotFound()
 }
 
 priv scope_return_move_is_local := func(mut s: Scope, name: Str) returns Bool {
+    if s.is_null() { return false }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
-    while cur.is_null().not() {
+    mut walking := true
+    while walking {
         ref hb : HeapBinding = cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             if cur.is_call_scope { return false }
-            cur = cur.parent
+            switch cur.parent {
+            case Option(ref Scope).Some(p): cur = p
+            case Option(ref Scope).None: walking = false
+            }
             continue
         }
         return hb.is_local
@@ -3580,16 +3597,24 @@ scope_pool_drain := func() {
 }
 
 priv scope_get_binding_scope := func(mut s: Scope, name: Str) returns ref Scope {
+    if s.is_null() { return NULL }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
-    while cur.is_null().not() {
+    mut walking := true
+    while walking {
         cur.heap_bindings.get(name)?
-        catch (e: KeyNotFound) { cur = cur.parent; continue }
+        catch (e: KeyNotFound) {
+            switch cur.parent {
+            case Option(ref Scope).Some(p): cur = p
+            case Option(ref Scope).None: walking = false
+            }
+            continue
+        }
         return cur
     }
     return NULL
 }
 
-scope_new := func(parent: Scope) returns Scope {
+scope_new := func(parent: Option(ref Scope)) returns Scope {
     if scope_pool.len() > 0 {
         // Steal the last parked box: decrementing count makes the slot dead
         // (its own p is never elem-deleted), so ownership moves to the
@@ -3605,11 +3630,18 @@ scope_new := func(parent: Scope) returns Scope {
 
 // Look up the type/ownership metadata for a raw binding.
 scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns ref HeapBinding {
+    if s.is_null() { return NULL }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
-    while true {
-        if cur.is_null() { return NULL }
+    mut walking := true
+    while walking {
         ref b : HeapBinding = cur.heap_bindings.get(name)?
-        catch (e: KeyNotFound) { cur = cur.parent; continue }
+        catch (e: KeyNotFound) {
+            switch cur.parent {
+            case Option(ref Scope).Some(p): cur = p
+            case Option(ref Scope).None: walking = false
+            }
+            continue
+        }
         return b
     }
     return NULL
@@ -3938,7 +3970,7 @@ scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
     b.moved_out = moved_out
 }
 
-scope_new_boxed := func(parent: Scope) returns ref Scope {
+scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
     if scope_pool.len() > 0 {
         // Same steal-the-dead-slot recycle as scope_new above.
         ref e : DynPtrBox = scope_pool.unsafe_get(scope_pool.len() - 1)
@@ -3971,8 +4003,12 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
     ref til_type : Type = to_ptr(til_type_w)
     if source_name.len() == 0 { panic("borrowed binding without source name: ", name) }
     if source_name.len() > 0 { s.heap_aliases.set(name, own source_name.clone()) }
-    if source_scope.is_null() { source_scope = s.parent }
-    if source_scope.is_null() { panic("borrowed binding without source scope: ", name) }
+    if source_scope.is_null() {
+        switch s.parent {
+        case Option(ref Scope).Some(p): source_scope = p
+        case Option(ref Scope).None: panic("borrowed binding without source scope: ", name)
+        }
+    }
     ref source_hb : HeapBinding = scope_lookup_heap_binding(source_scope, source_name)
     if source_hb.is_null().or(source_hb.ptr.is_null()) { panic("borrow source not found: ", source_name) }
     if source_hb.moved_out { panic("borrow of moved binding: ", source_name) }
@@ -4001,8 +4037,10 @@ scope_free := func(own s: Scope) {
 }
 
 priv scope_root_ref := func(s: Scope) returns ref Scope {
-    if s.parent.is_null() { return s }
-    return scope_root_ref(s.parent)
+    switch s.parent {
+    case Option(ref Scope).Some(p): return scope_root_ref(p)
+    case Option(ref Scope).None: return s
+    }
 }
 
 priv closure_env_clone := func(env: Scope) returns ref Scope {
@@ -4044,7 +4082,7 @@ priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ct
 }
 
 priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) returns Dynamic {
-    ref env : Scope = scope_new_boxed(scope_root_ref(scope))
+    ref env : Scope = scope_new_boxed(Option(ref Scope).Some(scope_root_ref(scope)))
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         for cap : Declaration in fd.captures {
@@ -4271,7 +4309,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
 
 interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
     if ctx.ns_inited.not() {
-        ctx.ns_fields = scope_new_boxed(NULL)
+        ctx.ns_fields = scope_new_boxed(Option(ref Scope).None)
         ctx.ns_inited = true
     }
     for stmt : Expr in program.children {
@@ -4675,7 +4713,7 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
 }
 
 interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
-    session.global = scope_new_boxed(NULL)
+    session.global = scope_new_boxed(Option(ref Scope).None)
     session.core_evaluated = false
     session.user_argc = 0
     session.retained_programs = Vec(DynPtrBox).new()
@@ -4948,7 +4986,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
                                 test_count++
-                                test_scope := scope_new(session.global)
+                                test_scope := scope_new(Option(ref Scope).Some(session.global))
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 scope_free(own test_scope)
@@ -4978,7 +5016,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
-                                    test_scope := scope_new(session.global)
+                                    test_scope := scope_new(Option(ref Scope).Some(session.global))
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     scope_free(own test_scope)
@@ -5025,7 +5063,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 nparam := fd.params.len()
                 vi := fd.variadic_index
                 ref body : Expr = func_def.children[0]
-                main_scope := scope_new(session.global)
+                main_scope := scope_new(Option(ref Scope).Some(session.global))
 
                 if nparam > 0 {
                     mut fixed := nparam

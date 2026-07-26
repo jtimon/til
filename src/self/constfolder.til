@@ -13,7 +13,7 @@ constfolder_clear_known := func(mut ctx: Context) {
 
 constfolder_reset_state := func(mut ctx: Context) {
     constfolder_clear_known(ctx)
-    ctx.constfolder_known = scope_new_boxed(NULL)
+    ctx.constfolder_known = scope_new_boxed(Option(ref Scope).None)
     ctx.constfolder_foldables = Map(Str, FuncType).new()
     ctx.constfolder_assigned = Set(Str).new()
 }
@@ -35,7 +35,7 @@ priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType 
 priv constfolder_known_borrow_view := func(ctx: Context) returns ref Scope {
     // Body-local known values shadow an immutable parent snapshot; copying the
     // full known map here made nested-function folding quadratic.
-    return scope_new_boxed(ctx.constfolder_known)
+    return scope_new_boxed(Option(ref Scope).Some(ctx.constfolder_known))
 }
 
 // Collect every variable name that is the target of an assignment in the
@@ -1336,7 +1336,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                 // temporary inputs to this fold, not globals. Keep them in a
                 // child scope so its cache-owned values can be reclaimed
                 // immediately after the consumer is folded.
-                va_scope := scope_new(scope)
+                va_scope := scope_new(Option(ref Scope).Some(scope))
                 if materialize_va(va_scope, e, m, vn, ctx) {
                     for k in 0..e.children.len() {
                         fold_va_calls(va_scope, e.children[k], vn, ctx)
