@@ -108,6 +108,53 @@ case Tok.Eof:
 Plain mut/const on the variant tag itself (no payload, e.g. ~mut Eof~)
 is not meaningful and has no effect.
 
+* Borrowed payloads (#320)
+
+A payload declared ~ref Type~ is a BORROW: the enum stores a bare
+pointer and does not own the pointee. It is the enum-side counterpart
+of a ~ref~ struct field, and it is what makes ~Option(ref T)~ possible.
+
+#+begin_src til
+Node := struct { n := 0 }
+Maybe := enum {
+    Nothing
+    Just: ref Node          // borrowed payload: a pointer, not a copy
+}
+
+mut src := Node(n = 1)
+m := Maybe.Just(src)        // borrows src
+src.n = 42
+switch m {
+case Maybe.Just(p): assert_eq(I64, p.n, 42)   // sees the write
+case Maybe.Nothing:
+}
+#+end_src
+
+Semantics, all mirroring ~ref~ struct fields:
+
+  - Construction BORROWS: no clone, no ownership transfer. The
+    argument must be a borrow source (a variable, a field chain, or a
+    ~returns ref~ call) -- a temporary is a type error, since the
+    borrow escapes into the enum value and the temporary dies at the
+    end of its statement.
+  - The case binding derefs the stored pointer, so the arm body sees
+    the borrowed value itself (writes through it hit the source).
+  - Auto-generated methods: ~clone~ copies the POINTER (both enums
+    then borrow the same value), ~delete~ skips the payload entirely,
+    ~eq~ and ~to_str~ read through it (comparing pointees, as Rust's
+    ~Option<&T>~ does).
+  - The garbager extends the borrowed source's lifetime to cover the
+    enum value, exactly as it does for ~ref~ locals and ref-field
+    assignments (see doc/ownership.org).
+  - ~own~ on a payload is rejected as redundant: compound payloads are
+    owned by default.
+
+Layout: a ref payload occupies one POINTER, not ~sizeof(T)~ -- in the
+emitted C the union member is ~T *~, and the interpreter stores the
+source address in the payload slot. A self-referential
+~Option(ref T)~ FIELD inside T is therefore legal (the enum body is
+emitted before T, since a pointer needs only a forward declaration).
+
 Writes propagate in both backends: the compiled (C) backend lowers the
 case binding to a real ~T *p~ pointer into the enum's payload, so
 ~p = 99~ becomes ~*p = 99~. The AST interpreter detects the typer-emitted

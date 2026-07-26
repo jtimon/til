@@ -119,7 +119,17 @@ are existing references to a value, Mojo extends the lifetime of the owner."
 |-----------------------+----------------------+-----------------------------------------------------------|
 | ~field := default~    | inline (Shallow)     | ~FieldType.delete(field, false)~ -- inline, not freed     |
 | ~own field := ...~    | owned heap pointer   | ~FieldType.delete(own field, true)~ -- separate box freed |
-| ~ref field : T = NULL~| borrowed pointer     | NOT freed -- the field aliases data the holder doesn't own |
+| ~ref field : T~       | borrowed pointer     | NOT freed -- the field aliases data the holder doesn't own |
+| ~Option(ref T)~ field | optional borrow      | NOT freed -- Some borrows, None points at nothing (#321)   |
+| ~Variant: ref T~      | borrowed payload     | NOT freed -- clone copies the pointer, delete skips it      |
+
+An ~Option(ref T)~ field and a ~ref~ variant payload follow the same
+rule as a ~ref~ field: the holder borrows, so its destructor must not
+free the pointee (the generated ~delete~ skips a ref payload, and
+~clone~ copies the pointer rather than deep-copying). The garbager
+extends the borrowed source's lifetime to cover the borrower in all
+three shapes -- ~ref~ local, ref-field assignment, and construction of
+a ref-payload variant.
 
 A struct's auto-generated ~delete~ deletes each field by its own_type and
 then frees the struct box. Non-~own~ fields are contiguous in the parent's

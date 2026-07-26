@@ -259,9 +259,33 @@ updates (qualifiers.org / ownership.org / enums.org).
   this migration needs that same "which of the two nulls is this?"
   question asked.
 
-Remaining for later batches: the three Scope-typed fields (blocked on
-#324), FFIEntry.* and return_value / interp_ret_dest (quarantine
-class -- reclassify as plain Dynamic), test fixtures.
+**** Step-1 close-out findings (batch 6)
+
+- The quarantine class does NOT migrate, and "reclassify as plain
+  Dynamic" (written above) is WRONG -- tried and reverted. A
+  ~ref x : Dynamic = NULL~ field is a non-owning raw pointer slot, and
+  the ~ref~ is load-bearing: it is what makes the auto-generated
+  ~delete~ SKIP the field. Dropping it makes the field Shallow, and
+  the generated delete then emits ~Dynamic.delete(field, false)~
+  against a signature taking ~own self~ ("argument for 'own' parameter
+  'self' must be marked 'own'"). There is no plain ~Dynamic~ field
+  anywhere in the tree, which is why nobody had hit this. So
+  Context.return_value / interp_ret_dest and the FFIEntry pointers
+  KEEP their shape, and the eventual forbid must EXEMPT Dynamic-typed
+  ref fields -- exactly the Rust split this issue already chose:
+  ~&T~/~Option<&T>~ are non-null, raw ~*mut T~ is not.
+- Test fixtures (test/ref.til RefNode.next, test/aliases.til) exist to
+  COVER ref fields with NULL defaults, so they convert as PART of
+  landing the forbid, not before it.
+
+*** What is left before the forbid can land
+
+1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
+   three Scope-typed owning fields get a real ownership answer.
+2. Flip check_ref_field_owned_default: reject ~= NULL~ on a ref field
+   whose type is not Dynamic (the quarantine exemption above), and
+   convert the test fixtures in the same commit.
+3. Steps 2-4 of this issue (ref locals/returns, is_null, the keyword).
 
 *** Decisions (2026-07-21 design discussion)
 

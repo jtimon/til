@@ -103,8 +103,29 @@ redundant and rejected by the typer.
 | ~const field := default~     | ~Type field~     | immutable inline value               |
 | ~own field := default~       | ~Type *field~    | owned heap pointer (mutable)         |
 | ~own const field := default~ | ~Type *field~    | immutable owned heap pointer         |
-| ~ref field : Type = NULL~    | ~Type *field~    | borrowed pointer (caller owns data)  |
-| ~ref const field : Type = NULL~ | ~Type *field~ | immutable borrowed pointer           |
+| ~ref field : Type~           | ~Type *field~    | borrowed pointer (caller owns data)  |
+| ~ref const field : Type~     | ~Type *field~    | immutable borrowed pointer           |
+| ~field := Option(ref T).None~ | ~Option__ref_T field~ | optional borrow (see below)     |
+
+*** Optional borrows (#320 / #321)
+
+A ~ref~ field points at something. When absence is a real state, the
+field is not a nullable ref but an ~Option(ref T)~ -- the enum-payload
+form of a borrow (doc/enums.org "Borrowed payloads"):
+
+#+begin_src til
+Scope := struct {
+    parent := Option(ref Scope).None    // None at the root
+}
+#+end_src
+
+A no-default ~ref field : Type~ is REQUIRED at instantiation (#242), so
+the common "always initialized" case needs no sentinel at all. ~= NULL~
+as a ref-field default is being retired (#321); it survives today only
+in the ~Dynamic~ quarantine (raw non-owning pointer slots such as
+~ref return_value : Dynamic = NULL~), which is the untyped layer where
+a null bit pattern is legitimate -- the same split Rust draws between
+~&T~ / ~Option<&T>~ and raw ~*mut T~.
 
 ** Key rules
 
