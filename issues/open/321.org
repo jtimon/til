@@ -201,14 +201,39 @@ non-ext structs (ext_structs keep NULL defaults until the niche
 layout gives Option(ref T) the C pointer ABI), plus doc table
 updates (qualifiers.org / ownership.org / enums.org).
 
-Blocker found in batch 2, needed before the Scope-typed fields
-(constfolder_known / ns_fields / InterpSession.global) can migrate:
-those are assigned from ~scope_new_boxed(...)~, a REF-RETURNING call,
-but #320's ref-payload ctor check only accepts an Ident or field
-chain. A ref-returning call is a legitimate borrow source (the typer
-already accepts exactly that for ~ref~ DECLS via
-expr_is_ref_decl_source) -- the ctor check should use that same
-predicate instead of its own narrower place test.
+**** Step-1 Option migration, batch 3
+
+- Batch 2's blocker is fixed: #320's ref-payload ctor check now uses
+  the typer's own ~expr_is_ref_decl_source~, so a REF-RETURNING call
+  is accepted (the same borrow-source rule a ~ref~ DECL already
+  requires); temporaries stay rejected. Test:
+  test_option_ref_payload_from_ref_returning_call (test/option.til).
+
+- FINDING that stops the three Scope-typed fields here
+  (Context.constfolder_known, Context.ns_fields,
+  InterpSession.global): their problem is OWNERSHIP, not nullability.
+  Each is a manually-managed box (~scope_new_boxed~ ... ~scope_free~),
+  and the pre-#321 ~ref~ label was already a lie about ownership --
+  the field said "borrow" while the code freed it by hand. Wrapping
+  them as ~Option(ref Scope)~ makes the lie explicit and the typer
+  correctly refuses the teardown: "cannot pass ref variable to 'own'
+  parameter" at ~scope_free(own nsf)~, because ownership cannot be
+  transferred out of a BORROWED payload. Attempted and backed out.
+  What they need first is an ownership answer, not an Option:
+  either an ~own~ field (auto-deleted by the parent's generated
+  delete -- but teardown ORDER matters here, see the #299 note above),
+  or an owning Option payload shape, or the Dynamic quarantine. Same
+  question already flagged for return_value / interp_ret_dest.
+  Worth its own issue before #321 step 1 can close.
+  Bonus observed while attempting it: ~ns_fields~ carries a redundant
+  ~ns_inited~ Bool that an Option would subsume (the tag IS "is it
+  built?"), so whichever shape wins should drop that second source of
+  truth.
+
+Remaining for later batches once ownership is settled: the three
+Scope-typed fields above, Context.interp_ret_type (a genuine borrow),
+FFIEntry.* and return_value / interp_ret_dest (quarantine class),
+interpreter Scope.parent, test fixtures.
 
 *** Decisions (2026-07-21 design discussion)
 

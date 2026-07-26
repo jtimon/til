@@ -108,3 +108,26 @@ test_option_self_referential_field := test() {
     assert_eq(I64, tail.val, 9)
     assert_eq(I64, head.val, 1)
 }
+
+// #320/#321: a ref-payload argument may be a REF-RETURNING CALL, not just
+// a variable or field -- the same borrow-source rule a `ref` declaration
+// already uses. The referent outlives the call, so the borrow is sound.
+OptSrcHolder := struct {
+    inner := OptSrc(n = 0)
+}
+
+opt_inner_ref := func(h: OptSrcHolder) returns ref OptSrc { return h.inner }
+
+test_option_ref_payload_from_ref_returning_call := test() {
+    mut h := OptSrcHolder(inner = OptSrc(n = 4))
+    o := OptRefSrc.Some(opt_inner_ref(h))
+    // Still a borrow of h.inner: the write is visible through the Option.
+    h.inner.n = 6
+    mut got := -1
+    switch o {
+    case OptRefSrc.Some(p): got = p.n
+    case OptRefSrc.None: got = 0
+    }
+    assert_eq(I64, got, 6)
+    assert_eq(I64, h.inner.n, 6)
+}

@@ -1920,15 +1920,13 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 rp_idx := enum_variant_index(sdef2, method)
                 if rp_idx.gte(0).and(enum_variant_payload_ref(sdef2, rp_idx)) {
                     ref rp_arg : Expr = e.children[e.children.len() - 1]
-                    mut rp_is_place := false
-                    switch rp_arg.node_type {
-                    case NodeType.Ident: rp_is_place = true
-                    case NodeType.FieldAccess: rp_is_place = true
-                    case:
-                    }
-                    if rp_is_place.not() {
+                    // Same predicate a `ref` DECL requires of its source:
+                    // a ref-returning call is a legitimate borrow (its
+                    // referent outlives the call), so the rule is "must be
+                    // a borrow source", not "must be an Ident or field".
+                    if expr_is_ref_decl_source(rp_arg, scope).not() {
                         rp_arg.type_error(format("variant '", obj3_sname, ".", method,
-                            "' has a 'ref' payload: the argument is borrowed, so it must be a variable or field, not a temporary"), ctx)
+                            "' has a 'ref' payload: the argument is borrowed, so it must be a variable, a field, or a ref-returning call, not a temporary"), ctx)
                     }
                 }
             }
