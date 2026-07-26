@@ -1537,6 +1537,27 @@ priv emit_user_fcall_with_inline_closure_cleanup := proc(f: File, e: Expr, sourc
 }
 
 priv check_fcall_mut_args := proc(ctx: Context, e: Expr) {
+    // A `mut` capture is written THROUGH the closure env
+    // (`(*til_env->x) = <value>`), exactly like a `mut` argument, so the
+    // captured local needs the same treatment: it must own writable storage
+    // rather than aliasing a shared `_til_str_lit_N` global. Both closures
+    // (FuncDef.captures) and bare capture blocks (CaptureBlockData.captures)
+    // carry the list.
+    switch e.node_type {
+    case NodeType.FuncDef(cfd):
+        for cap : Declaration in cfd.captures {
+            if cap.is_mut { ctx.builder_func.unsafe_to_hoist.add(own cap.name.clone()) }
+        }
+    case NodeType.CaptureBlock(cbd):
+        for cap : Declaration in cbd.captures {
+            if cap.is_mut { ctx.builder_func.unsafe_to_hoist.add(own cap.name.clone()) }
+        }
+    case NodeType.BodyValue(bvd):
+        for cap : Declaration in bvd.captures {
+            if cap.is_mut { ctx.builder_func.unsafe_to_hoist.add(own cap.name.clone()) }
+        }
+    case:
+    }
     if e.node_type.is(NodeType.FCall) {
         ref mut fdef : Expr = fcall_fn_sig(e, ctx)
         if fdef.is_null() {
@@ -1647,9 +1668,14 @@ priv builder_reset_str_lit_pool := func(mut ctx: Context) {
     ctx.builder_str_lit_ident_symbols = Map(Str, Str).new()
 }
 
+// The shared literals live in ONE array rather than N separate statics, so
+// their addresses form a contiguous range TIL_LIT_GUARD can test in O(1).
+// The symbol is the indexed element itself, which reads exactly like the old
+// per-literal name at every use site: `&_til_str_lits[16]` takes its address,
+// `(void)_til_str_lits[16]` discards it, `*p = _til_str_lits[16]` copies it.
 priv builder_register_str_lit := func(mut ctx: Context, s: Str) returns Str {
     if ctx.builder_str_lit_symbols.has(s) { return ctx.builder_str_lit_symbols[s].clone() }
-    sym := format("_til_str_lit_", ctx.builder_str_lit_values.len().to_str())
+    sym := format("_til_str_lits[", ctx.builder_str_lit_values.len().to_str(), "]")
     ctx.builder_str_lit_symbols.set(s, own sym.clone())
     ctx.builder_str_lit_values.push(own s.clone())
     return sym
@@ -1665,12 +1691,12 @@ priv builder_resolve_c_ident_name := func(name: Str, ctx: Context) returns Str {
     return name.clone()
 }
 
-priv builder_emit_str_lit_decl := proc(f: File, name: Str, s: Str) {
-    f.write("static __attribute__((unused)) Str ").write(name).write(" = (Str){.c_str = (void *)\"")
+priv builder_emit_str_lit_elem := proc(f: File, s: Str) {
+    f.write("    (Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
     emit_usize(f, c_lit_byte_count(s))
-    f.write("ULL, .cap = TIL_CAP_LIT};\n")
+    f.write("ULL, .cap = TIL_CAP_LIT},\n")
 }
 
 priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
@@ -1753,13 +1779,34 @@ priv builder_register_str_lits := proc(lp: LoadedProgram) {
     builder_register_dyn_type_to_str_lits(lp)
 }
 
+// TIL_LIT_GUARD(p) fails loudly when `p` points INTO the shared literal pool.
+// Writing through such a pointer overwrites a literal for every other user of
+// it in the program and leaves the writer aliasing static storage, which the
+// next Str_delete then free()s -- silent corruption surfacing far from its
+// cause (the `til repl` mode-switch segfault). Codegen is supposed to make
+// this unreachable by giving every write-through target its own storage; the
+// guard is what turns "supposed to" into a hard failure at the exact write.
+// The comparison is on UPtr, not pointers, so it stays defined for a pointer
+// that is unrelated to the array.
 priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
-    for i in 0..ctx.builder_str_lit_values.len() {
-        ref val : Str = ctx.builder_str_lit_values[i]
-        ref sym : Str = ctx.builder_str_lit_symbols[val]
-        builder_emit_str_lit_decl(f, sym, val)
+    n := ctx.builder_str_lit_values.len()
+    if n == 0 {
+        // No pool at all -- nothing can point into it.
+        f.write("#define TIL_LIT_GUARD(p) ((void)0)\n\n")
+        return
     }
-    if ctx.builder_str_lit_values.len().gt(0) { f.write("\n") }
+    f.write("static Str _til_str_lits[")
+    emit_usize(f, n)
+    f.write("] = {\n")
+    for i in 0..n {
+        ref val : Str = ctx.builder_str_lit_values[i]
+        builder_emit_str_lit_elem(f, val)
+    }
+    f.write("};\n")
+    f.write("#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); ")
+    f.write("if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + ")
+    emit_usize(f, n)
+    f.write(")) { fprintf(stderr, \"panic: write through a shared string literal\\n\"); exit(1); } } while (0)\n\n")
 }
 
 priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
@@ -2437,9 +2484,29 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             rhs = rhs.children[1]
         }
         if ctx.closure_emit_captures.has(aname) {
-            f.write("(*").write(ctx.closure_emit_env).write("->").write(aname).write(") = ")
+            // Writes THROUGH the env pointer into the captured local's
+            // storage, so this arm owes the same two things the `mut`-param
+            // write-back does: run the OLD value's destructor before
+            // overwriting it (otherwise every write through the capture
+            // orphans whatever the local held), and land a literal as
+            // CAP_VIEW -- the char data is borrowed, but the destination
+            // struct is the caller's, not static.
+            cap_ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
+            cap_is_str := cap_ctype.eq("Str")
+            cap_target := format(ctx.closure_emit_env, "->", aname)
+            f.write("{ ")
+            if cap_is_str { f.write("TIL_LIT_GUARD(").write(cap_target).write("); ") }
+            if ad.save_old_delete.and(is_primitive_type(cap_ctype).not()) {
+                f.write(cap_ctype).write("_delete(").write(cap_target).write(", ").write(delete_call_free_lit(cap_ctype, false, ctx)).write("); ")
+            }
+            f.write("(*").write(cap_target).write(") = ")
             emit_deref(f, rhs, depth, ctx)
-            f.write(";\n")
+            f.write("; ")
+            if cap_is_str {
+                f.write("if ((*").write(cap_target).write(").cap == TIL_CAP_LIT) { (*").write(cap_target)
+                f.write(").cap = TIL_CAP_VIEW; } ")
+            }
+            f.write("}\n")
             return
         }
         if is_ref_local(aname, ctx) {
@@ -2449,14 +2516,22 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             // A ref assignment must write through `p`, not rebind it to the
             // literal wrapper pointer. Emit the value directly:
             // `*p = (Str){.c_str = "lit", ...};`.
+            //
+            // CAP_VIEW, not CAP_LIT: the value describes the CHAR DATA (static,
+            // borrowed, never freed -- both caps agree there), while CAP_LIT
+            // additionally claims the destination STRUCT is static storage.
+            // That is false here -- the write goes through a pointer into
+            // memory the caller owns, which may be a heap box -- and stamping
+            // CAP_LIT on it makes Str_delete skip freeing that box (a leak).
             if rhs.node_type.is_literal_str() {
+                f.write("TIL_LIT_GUARD(").write(aname).write("); ")
                 f.write("*").write(aname).write(" = (Str){.c_str = (void *)\"")
                 switch rhs.node_type {
                 case NodeType.Literal(Literal.Str(lit_s)):
                     f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
                 case:
                 }
-                f.write("ULL, .cap = TIL_CAP_LIT};\n")
+                f.write("ULL, .cap = TIL_CAP_VIEW};\n")
                 return
             }
             mut do_rebind := false
@@ -2724,10 +2799,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         // storage. Same demotion emit_return_box performs.
                         // If the temp is a stack-local (Str value, not pointer),
                         // assign directly without dereference and free.
+                        f.write("{ TIL_LIT_GUARD(").write(target_name).write("); ")
                         if is_stack_local(temp_name, ctx) {
-                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_resolve_c_ident_name(temp_name, ctx)).write("; ")
+                            f.write("Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = ").write(builder_resolve_c_ident_name(temp_name, ctx)).write("; ")
                         } else {
-                            f.write("{ Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); ")
+                            f.write("Str_delete(").write(target_name).write(", ").write(delete_call_free_lit("Str", false, ctx)).write("); *").write(target_name).write(" = *").write(temp_name).write("; free(").write(temp_name).write("); ")
                         }
                         f.write("if (").write(target_name).write("->cap == TIL_CAP_LIT) { ").write(target_name).write("->cap = TIL_CAP_VIEW; } }\n")
                         return

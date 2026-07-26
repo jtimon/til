@@ -6457,28 +6457,39 @@ expr_collect_decls := func(e: Expr, mut out: Set(Str)) {
 
 // expr_used_in_nested_func's shadow rule, applied at add time so the
 // FuncDef body's uses never need materializing separately.
-priv nested_uses_add := func(name: Str, params: Vec(Declaration), mut out: Set(Str)) {
+priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
     for p : Declaration in params { if p.name == name { return } }
+    // A REF capture is a TRACKED borrow, not an opaque nested use: the
+    // garbager's borrow-edge rule 2 already ties the captured local's
+    // lifetime to the closure binding, so the scope-end delete lands after
+    // the closure dies. Counting it as a nested use instead made
+    // collect_scope_locals set skip_scope_delete and drop that delete
+    // entirely, leaking whatever the captured local held. Own captures are
+    // left alone: those are ownership transfers, tracked by
+    // expr_transfers_own, and the closure's drop frees them.
+    for c : Declaration in caps {
+        if c.name == name { if c.own_type.is(OwnType.Ref) { return } }
+    }
     if out.has(name).not() { out.add(own name.clone()) }
 }
 
-priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), mut out: Set(Str)) {
+priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
     if e.node_type.is(NodeType.FuncDef) { return }
     switch e.node_type {
     case NodeType.Ident(id):
-        nested_uses_add(id.ident_name(), params, out)
+        nested_uses_add(id.ident_name(), params, caps, out)
     case NodeType.Assign(asgn):
-        nested_uses_add(asgn.name, params, out)
+        nested_uses_add(asgn.name, params, caps, out)
     case:
     }
-    for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, out) }
+    for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, caps, out) }
 }
 
 expr_collect_nested_uses := func(e: Expr, mut out: Set(Str)) {
     switch e.node_type {
     case NodeType.FuncDef(fdef):
         if e.children.len() > 0 {
-            expr_collect_uses_excluding(e.children[0], fdef.params, out)
+            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, out)
         }
         return
     case:

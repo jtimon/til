@@ -1,0 +1,109 @@
+mode test
+
+// Follow-up to the shared-literal write-through family (see
+// test/mut_arg_str_lit.til for the `mut` ARGUMENT case and the REPL segfault
+// it caused). A `mut` CAPTURE writes through the capture pointer just like a
+// `mut` param does, but collect_unsafe_to_hoist only walked call arguments --
+// never the capture lists -- so a captured local kept aliasing the one shared
+// `_til_str_lits[N]` global and the write overwrote it for the whole program.
+// Worse than the argument case: the stamped value kept .cap = CAP_LIT, so
+// nothing crashed and ASAN stayed silent. It was pure wrong answers.
+//
+// Captures now join `mut` args in unsafe_to_hoist, so the captured local owns
+// writable storage, and the write lands the value as CAP_VIEW: the static char
+// data stays borrowed and is never freed, while the destination struct remains
+// the caller's to free.
+//
+// The closure-VALUE and `ref mut` cases below were blocked on two separate
+// pre-existing defects, both fixed alongside this one:
+//   - the garbager treated a ref-CAPTURED name as an opaque nested use and set
+//     skip_scope_delete, so a mut-captured local never got its scope-end
+//     delete and leaked whatever it held; and the capture write never ran the
+//     OLD value's destructor before overwriting it, orphaning it every time.
+//   - the interpreter's borrowed-assign path dropped the old value regardless
+//     of Assign.save_old_delete, so when the garbager had emitted its own
+//     delete the referent's innards were freed twice.
+
+mut seed_word := "seed"
+
+priv set_via_mut_arg := func(mut dst: Str) returns I64 {
+    dst = "cli"
+    return 1
+}
+
+// A bare capture block writing a literal into the captured local, while a
+// second local holds the same shared literal. Pre-fix, `witness` read back as
+// "cli" because both aliased the one global.
+test_mut_capture_block_leaves_literal_intact := test() {
+    mut captured := seed_word.clone()
+    mut witness := seed_word.clone()
+    captured = ""
+    witness = ""
+    [mut captured] {
+        captured = "cli"
+    }
+    assert_eq(Str, captured, "cli")
+    assert_eq(USize, witness.len(), 0)
+}
+
+// The capture write must still reach the outer local (the fix must not turn
+// the write-through into a rebind of a private copy).
+test_mut_capture_block_write_is_visible_outside := test() {
+    mut captured := seed_word.clone()
+    captured = "script"
+    [mut captured] {
+        captured = "cli"
+    }
+    assert_eq(Str, captured, "cli")
+}
+
+// The closure-VALUE form of the same corruption: the capture lives in a heap
+// env rather than inline, so it also exercises the env write-through, the
+// old-value drop before that write, and the captured local's scope-end
+// delete (all three leak or corrupt without the fixes; `make test` runs this
+// under ASAN, which is what pins the leaks).
+test_mut_capture_closure_leaves_literal_intact := test() {
+    mut captured := seed_word.clone()
+    mut witness := seed_word.clone()
+    captured = ""
+    witness = ""
+    writer := func() returns I64 [mut captured] {
+        captured = "cli"
+        return 1
+    }
+    assert_eq(I64, writer(), 1)
+    assert_eq(Str, captured, "cli")
+    assert_eq(USize, witness.len(), 0)
+}
+
+// A mut-captured local holding HEAP data (no literal anywhere): the closure
+// overwrites it, so both the orphaned old buffer and the local itself must
+// still be freed.
+test_mut_capture_closure_heap_value_is_freed := test() {
+    mut captured := seed_word.clone()
+    writer := func() returns I64 [mut captured] {
+        captured = "replacement"
+        return 1
+    }
+    assert_eq(I64, writer(), 1)
+    assert_eq(Str, captured, "replacement")
+}
+
+// `ref mut` writing through to the referent, the interpreter's double-free
+// case. Runs interpreted and compiled.
+test_ref_literal_write_reaches_referent := test() {
+    mut target := seed_word.clone()
+    ref mut alias : Str = target
+    alias = "cli"
+    assert_eq(Str, target, "cli")
+    assert_eq(USize, target.len(), 3)
+}
+
+// The `mut` ARGUMENT path must not regress now that unsafe_to_hoist also
+// carries capture names.
+test_mut_arg_still_writes_back := test() {
+    mut m := seed_word.clone()
+    m = ""
+    assert_eq(I64, set_via_mut_arg(m), 1)
+    assert_eq(Str, m, "cli")
+}

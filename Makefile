@@ -249,10 +249,23 @@ test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64
 # two-pass compiler too (issue #309: the --usize=64 opt-out, previously gated
 # only by `test`/`test_fast`) -- invoked after the pass-2 rebuild so it exercises
 # the self-applied bin/til / bin/til_asan, not the pre-two_pass ones.
+#
+# `-o bin/til_boot -o bin/til` is what makes that true. check_usize64 lists
+# bin/til as a prerequisite, and bin/til comes from bin/til_boot, whose own
+# prerequisite `tmp` is .PHONY -- deliberately, since til_boot is built from
+# `git show HEAD:boot/...` and make cannot see that input as a file, so it has
+# to rebuild every invocation. In a RECURSIVE make that combination re-ran
+# pass 1 and its `cp gen/til/til.c boot/` overwrote the pass-2 artifacts this
+# target exists to produce, silently reducing every "Two-pass: " commit to an
+# ordinary one-pass boot/. --old-file pins both as current for the sub-make,
+# so check_usize64 runs against the self-applied compiler and boot/ keeps
+# pass 2. (`test` needs none of this: it reaches check_usize64 as an ordinary
+# prerequisite in a single make invocation, with no recursion to re-trigger
+# pass 1.)
 test_two_pass:
 	$(MAKE) two_pass
 	bin/til build --asan -o bin/til_asan src/til.til
-	$(MAKE) check_usize64
+	$(MAKE) -o bin/til_boot -o bin/til check_usize64
 	bin/til build src/test_runner.til
 	bin/til build examples/plot.til
 	bin/til build src/tests.til

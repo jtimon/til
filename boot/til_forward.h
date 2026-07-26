@@ -2685,8 +2685,8 @@ Bool priv___src_self_typer_til__fcall_has_own_arg(Expr * fcall, Str * var_name, 
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope, Context * ctx);
 void expr_collect_uses(Expr * e, Set__Str * out);
 void expr_collect_decls(Expr * e, Set__Str * out);
-void priv___src_self_typer_til__nested_uses_add(Str * name, Vec__Declaration * params, Set__Str * out);
-void priv___src_self_typer_til__expr_collect_uses_excluding(Expr * e, Vec__Declaration * params, Set__Str * out);
+void priv___src_self_typer_til__nested_uses_add(Str * name, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
+void priv___src_self_typer_til__expr_collect_uses_excluding(Expr * e, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
 void expr_collect_nested_uses(Expr * e, Set__Str * out);
 void priv___src_self_typer_til__collect_own_arg_names(Expr * fdef, Expr * fcall, Set__Str * out);
 void priv___src_self_typer_til__fcall_collect_own_arg_names(Expr * fcall, TypeScope * scope, Set__Str * out);
@@ -3352,7 +3352,7 @@ void priv___src_self_builder_til__builder_reset_str_lit_pool(Context * ctx);
 Str * priv___src_self_builder_til__builder_register_str_lit(Context * ctx, Str * s);
 void priv___src_self_builder_til__builder_register_str_lit_ident(Context * ctx, Str * name, Str * s);
 Str * priv___src_self_builder_til__builder_resolve_c_ident_name(Str * name, Context * ctx);
-void priv___src_self_builder_til__builder_emit_str_lit_decl(File * f, Str * name, Str * s);
+void priv___src_self_builder_til__builder_emit_str_lit_elem(File * f, Str * s);
 void priv___src_self_builder_til__builder_register_str_lits_for_expr(Expr * e, Context * ctx);
 void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedProgram * lp);
 void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
@@ -3760,7 +3760,7 @@ Bool priv___src_self_interpreter_til__heap_slot_is_static_callable(Type til_type
 void priv___src_self_interpreter_til__heap_drop_by_type(Type til_type, void * ptr, Context * ctx);
 void * priv___src_self_interpreter_til__primitive_heap_clone(Primitive * prim, void * ptr);
 void * priv___src_self_interpreter_til__heap_clone_by_type(Type til_type, void * ptr, Context * ctx);
-Bool priv___src_self_interpreter_til__heap_move_ptr_into_slot(Type til_type, void * dst, void * src, Context * ctx);
+Bool priv___src_self_interpreter_til__heap_move_ptr_into_slot(Type til_type, void * dst, void * src, Context * ctx, Bool drop_old);
 void * priv___src_self_interpreter_til__scope_read_heap_binding_raw(HeapBinding * hb, Str * name, Context * ctx);
 void * scope_read_bound_raw(Scope * scope, Str * name, Context * ctx);
 void * priv___src_self_interpreter_til__scope_move_bound_raw(Scope * scope, Str * name, Context * ctx);

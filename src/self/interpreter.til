@@ -2013,8 +2013,12 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
                 else { scalar_word_store(hb_type(assign_hb), to_ptr(assign_hb.ptr), new_raw, ctx) }
             } else if assign_hb.is_borrowed {
+                // Write THROUGH the borrow into the referent's storage. The
+                // old value's teardown follows save_old_delete exactly as the
+                // owning path below does; without that the garbager's own
+                // delete and this drop both free it.
                 ref assign_data : Dynamic = to_ptr(assign_hb.ptr)
-                _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx)
+                _ := heap_move_ptr_into_slot(hb_type(assign_hb), assign_data, new_raw, assign_hb.ctx, ad.save_old_delete)
             } else {
                 scope_drop_existing_heap_slot(scope_get_binding_scope(scope, ad.name), ad.name, ad.save_old_delete)
                 assign_hb.ptr = to_ptr(new_raw)
@@ -3680,7 +3684,13 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
     }
 }
 
-priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: Dynamic, ctx: Context) returns Bool {
+// drop_old mirrors scope_drop_existing_heap_slot's drop_nested: the old
+// value at `dst` is dropped here ONLY when the assignment itself owns that
+// teardown (Assign.save_old_delete). When the garbager instead emitted a
+// standalone delete for the old value, dropping here too frees its innards a
+// second time -- an interpreter-only double free, since the builder already
+// routes both cases through the same flag.
+priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: Dynamic, ctx: Context, drop_old: Bool = true) returns Bool {
     switch til_type {
     case Type.Primitive(prim):
         mut sz : USize = 0
@@ -3691,13 +3701,13 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         EvalHeap.heap_free(own owned_src)
         return true
     case Type.Struct(sname):
-        heap_drop_struct(sname, dst, ctx)
+        if drop_old { heap_drop_struct(sname, dst, ctx) }
         memcpy(dst, src, ctx_total_size(sname, ctx).cast(U64))
         owned_src2 : Dynamic = src
         EvalHeap.heap_free(own owned_src2)
         return true
     case Type.Enum(ename):
-        heap_drop_enum(ename, dst, ctx)
+        if drop_old { heap_drop_enum(ename, dst, ctx) }
         mut total : USize = ctx_total_size(ename, ctx)
         if total < 8 { total = 8 }
         memcpy(dst, src, total.cast(U64))

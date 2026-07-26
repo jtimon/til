@@ -1041,235 +1041,238 @@ void print_flush() {
     putchar('\n');
 }
 
-static __attribute__((unused)) Str _til_str_lit_0 = (Str){.c_str = (void *)"c_str", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_1 = (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_2 = (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_3 = (Str){.c_str = (void *)"USize", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_4 = (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_5 = (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_6 = (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_7 = (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_8 = (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_9 = (Str){.c_str = (void *)"I16", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_10 = (Str){.c_str = (void *)"U16", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_11 = (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_12 = (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_13 = (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_14 = (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_15 = (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_16 = (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_17 = (Str){.c_str = (void *)"Unknown", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_18 = (Str){.c_str = (void *)"None", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_19 = (Str){.c_str = (void *)"Struct", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_20 = (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_21 = (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_22 = (Str){.c_str = (void *)"Enum", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_23 = (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_24 = (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_25 = (Str){.c_str = (void *)"FuncPtr", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_26 = (Str){.c_str = (void *)"Custom", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_27 = (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_28 = (Str){.c_str = (void *)"FuncPtrSig", .count = 10ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_29 = (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_30 = (Str){.c_str = (void *)"Func", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_31 = (Str){.c_str = (void *)"Proc", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_32 = (Str){.c_str = (void *)"Test", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_33 = (Str){.c_str = (void *)"Macro", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_34 = (Str){.c_str = (void *)"ExtFunc", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_35 = (Str){.c_str = (void *)"ExtProc", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_36 = (Str){.c_str = (void *)"LazyFunc", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_37 = (Str){.c_str = (void *)"LazyProc", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_38 = (Str){.c_str = (void *)"CoreFunc", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_39 = (Str){.c_str = (void *)"CoreProc", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_40 = (Str){.c_str = (void *)"CoreLazyFunc", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_41 = (Str){.c_str = (void *)"Own", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_42 = (Str){.c_str = (void *)"Ref", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_43 = (Str){.c_str = (void *)"Shallow", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_44 = (Str){.c_str = (void *)"Unset", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_45 = (Str){.c_str = (void *)"Stack", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_46 = (Str){.c_str = (void *)"HeapBox", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_47 = (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_48 = (Str){.c_str = (void *)"doc", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_49 = (Str){.c_str = (void *)"explicit_type", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_50 = (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_51 = (Str){.c_str = (void *)"redundant_mut", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_52 = (Str){.c_str = (void *)"is_priv", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_53 = (Str){.c_str = (void *)"used", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_54 = (Str){.c_str = (void *)"own_type", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_55 = (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_56 = (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_57 = (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_58 = (Str){.c_str = (void *)"default_value", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_59 = (Str){.c_str = (void *)"Expr", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_60 = (Str){.c_str = (void *)"orig_name", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_61 = (Str){.c_str = (void *)"gc_storage", .count = 10ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_62 = (Str){.c_str = (void *)"GcStorage", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_63 = (Str){.c_str = (void *)"func_type", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_64 = (Str){.c_str = (void *)"FuncType", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_65 = (Str){.c_str = (void *)"params", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_66 = (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_67 = (Str){.c_str = (void *)"return_type", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_68 = (Str){.c_str = (void *)"throw_types", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_69 = (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_70 = (Str){.c_str = (void *)"variadic_index", .count = 14ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_71 = (Str){.c_str = (void *)"kwargs_index", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_72 = (Str){.c_str = (void *)"return_own_type", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_73 = (Str){.c_str = (void *)"return_shallow_explicit", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_74 = (Str){.c_str = (void *)"auto_generated", .count = 14ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_75 = (Str){.c_str = (void *)"is_enum_variant_ctor", .count = 20ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_76 = (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_77 = (Str){.c_str = (void *)"closure_name", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_78 = (Str){.c_str = (void *)"noreturn", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_79 = (Str){.c_str = (void *)"is_splat", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_80 = (Str){.c_str = (void *)"does_throw", .count = 10ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_81 = (Str){.c_str = (void *)"is_bang", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_82 = (Str){.c_str = (void *)"own_args", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_83 = (Str){.c_str = (void *)"keep_outer_args", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_84 = (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_85 = (Str){.c_str = (void *)"noreturn_call", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_86 = (Str){.c_str = (void *)"ref_args", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_87 = (Str){.c_str = (void *)"text", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_88 = (Str){.c_str = (void *)"fields", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_89 = (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_90 = (Str){.c_str = (void *)"fields_index", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_91 = (Str){.c_str = (void *)"Map__Str_USize", .count = 14ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_92 = (Str){.c_str = (void *)"ns_index", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_93 = (Str){.c_str = (void *)"c_tag", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_94 = (Str){.c_str = (void *)"is_interface", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_95 = (Str){.c_str = (void *)"interface_ns_marker", .count = 19ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_96 = (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_97 = (Str){.c_str = (void *)"payload_type", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_98 = (Str){.c_str = (void *)"payload_const", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_99 = (Str){.c_str = (void *)"tag_value", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_100 = (Str){.c_str = (void *)"payload_ref", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_101 = (Str){.c_str = (void *)"variants", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_102 = (Str){.c_str = (void *)"Vec__VariantDef", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_103 = (Str){.c_str = (void *)"tag_type", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_104 = (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_105 = (Str){.c_str = (void *)"is_payload_alias", .count = 16ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_106 = (Str){.c_str = (void *)"is_move", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_107 = (Str){.c_str = (void *)"transfers_own", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_108 = (Str){.c_str = (void *)"name2", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_109 = (Str){.c_str = (void *)"is_mut2", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_110 = (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_111 = (Str){.c_str = (void *)"LiteralNumData", .count = 14ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_112 = (Str){.c_str = (void *)"Null", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_113 = (Str){.c_str = (void *)"MapLit", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_114 = (Str){.c_str = (void *)"SetLit", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_115 = (Str){.c_str = (void *)"result_temp", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_116 = (Str){.c_str = (void *)"Map", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_117 = (Str){.c_str = (void *)"Set", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_118 = (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_119 = (Str){.c_str = (void *)"Ident", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_120 = (Str){.c_str = (void *)"IdentData", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_121 = (Str){.c_str = (void *)"Decl", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_122 = (Str){.c_str = (void *)"Declaration", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_123 = (Str){.c_str = (void *)"Assign", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_124 = (Str){.c_str = (void *)"AssignData", .count = 10ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_125 = (Str){.c_str = (void *)"FCall", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_126 = (Str){.c_str = (void *)"FCallData", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_127 = (Str){.c_str = (void *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_128 = (Str){.c_str = (void *)"FieldAccess", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_129 = (Str){.c_str = (void *)"FieldAccessData", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_130 = (Str){.c_str = (void *)"FieldAssign", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_131 = (Str){.c_str = (void *)"FieldAssignData", .count = 15ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_132 = (Str){.c_str = (void *)"Return", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_133 = (Str){.c_str = (void *)"If", .count = 2ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_134 = (Str){.c_str = (void *)"While", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_135 = (Str){.c_str = (void *)"ForIn", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_136 = (Str){.c_str = (void *)"ForInData", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_137 = (Str){.c_str = (void *)"NamedArg", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_138 = (Str){.c_str = (void *)"Break", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_139 = (Str){.c_str = (void *)"Continue", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_140 = (Str){.c_str = (void *)"Switch", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_141 = (Str){.c_str = (void *)"Match", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_142 = (Str){.c_str = (void *)"MatchData", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_143 = (Str){.c_str = (void *)"Case", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_144 = (Str){.c_str = (void *)"NoDefaultArg", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_145 = (Str){.c_str = (void *)"Throw", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_146 = (Str){.c_str = (void *)"Catch", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_147 = (Str){.c_str = (void *)"RestPattern", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_148 = (Str){.c_str = (void *)"CaptureBlock", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_149 = (Str){.c_str = (void *)"CaptureBlockData", .count = 16ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_150 = (Str){.c_str = (void *)"Loc", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_151 = (Str){.c_str = (void *)"BodyValue", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_152 = (Str){.c_str = (void *)"ListPattern", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_153 = (Str){.c_str = (void *)"node_type", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_154 = (Str){.c_str = (void *)"NodeType", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_155 = (Str){.c_str = (void *)"children", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_156 = (Str){.c_str = (void *)"Vec__Expr", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_157 = (Str){.c_str = (void *)"line", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_158 = (Str){.c_str = (void *)"col", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_159 = (Str){.c_str = (void *)"keys", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_160 = (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_161 = (Str){.c_str = (void *)"Vec__U32", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_162 = (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_163 = (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_164 = (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_165 = (Str){.c_str = (void *)"start", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_166 = (Str){.c_str = (void *)"end", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_167 = (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_168 = (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_169 = (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_170 = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_171 = (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_172 = (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_173 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_174 = (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_175 = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_176 = (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_177 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_178 = (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_179 = (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_180 = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_181 = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_182 = (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_183 = (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_184 = (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_185 = (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_186 = (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_187 = (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_188 = (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_189 = (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_190 = (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_191 = (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_192 = (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_193 = (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_194 = (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_195 = (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_196 = (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_197 = (Str){.c_str = (void *)"top_left", .count = 8ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_198 = (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_199 = (Str){.c_str = (void *)"bottom_right", .count = 12ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_200 = (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_201 = (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_202 = (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_203 = (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_204 = (Str){.c_str = (void *)"z", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_205 = (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_206 = (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_207 = (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_208 = (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_209 = (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_210 = (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_211 = (Str){.c_str = (void *)"Red", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_212 = (Str){.c_str = (void *)"Green", .count = 5ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_213 = (Str){.c_str = (void *)"Blue", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_214 = (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_215 = (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_216 = (Str){.c_str = (void *)"Name", .count = 4ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_217 = (Str){.c_str = (void *)"Eof", .count = 3ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_218 = (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_219 = (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_220 = (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_221 = (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_222 = (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_223 = (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_224 = (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_225 = (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_226 = (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_227 = (Str){.c_str = (void *)"Fn", .count = 2ULL, .cap = TIL_CAP_LIT};
-static __attribute__((unused)) Str _til_str_lit_228 = (Str){.c_str = (void *)"?", .count = 1ULL, .cap = TIL_CAP_LIT};
+static Str _til_str_lits[229] = {
+    (Str){.c_str = (void *)"c_str", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"count", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"USize", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"cap", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"data", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"I16", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"U16", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Unknown", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"None", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Struct", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Enum", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FuncDef", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FuncPtr", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Custom", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Primitive", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FuncPtrSig", .count = 10ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Func", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Proc", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Test", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Macro", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ExtFunc", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ExtProc", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"LazyFunc", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"LazyProc", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CoreFunc", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CoreProc", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CoreLazyFunc", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Own", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Ref", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Shallow", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Unset", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Stack", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"HeapBox", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"name", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"doc", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"explicit_type", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_mut", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"redundant_mut", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_priv", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"used", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"own_type", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"OwnType", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"til_type", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Type", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"default_value", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Expr", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"orig_name", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"gc_storage", .count = 10ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"GcStorage", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"func_type", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FuncType", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"params", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__Declaration", .count = 16ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"return_type", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"throw_types", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__Str", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"variadic_index", .count = 14ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"kwargs_index", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"return_own_type", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"return_shallow_explicit", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"auto_generated", .count = 14ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_enum_variant_ctor", .count = 20ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"captures", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"closure_name", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"noreturn", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_splat", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"does_throw", .count = 10ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_bang", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"own_args", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"keep_outer_args", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"swap_replace", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"noreturn_call", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ref_args", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"text", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"fields", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ns_decls", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"fields_index", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Map__Str_USize", .count = 14ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ns_index", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"c_tag", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_interface", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"interface_ns_marker", .count = 19ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"implements_name", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"payload_type", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"payload_const", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"tag_value", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"payload_ref", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"variants", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__VariantDef", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"tag_type", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"save_old_delete", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_payload_alias", .count = 16ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_move", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"transfers_own", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"name2", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"is_mut2", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Num", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"LiteralNumData", .count = 14ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Null", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"MapLit", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"SetLit", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"result_temp", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Map", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Set", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Literal", .count = 7ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Ident", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"IdentData", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Decl", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Declaration", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Assign", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"AssignData", .count = 10ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FCall", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FCallData", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FieldAccess", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FieldAccessData", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FieldAssign", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"FieldAssignData", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Return", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"If", .count = 2ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"While", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ForIn", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ForInData", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"NamedArg", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Break", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Continue", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Switch", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Match", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"MatchData", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Case", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"NoDefaultArg", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Throw", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Catch", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"RestPattern", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CaptureBlock", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CaptureBlockData", .count = 16ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Loc", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"BodyValue", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"ListPattern", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"node_type", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"NodeType", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"children", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__Expr", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"line", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"col", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"keys", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__U32", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"start", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"end", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:15:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:21:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:27:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:33:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:49:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:51:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:72:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:74:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:76:5", .count = 23ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:129:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:130:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:137:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:142:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:143:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"6.25", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:154:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"3.5", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:156:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"x", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"y", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:178:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:179:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:185:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:186:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"top_left", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"CfVec2", .count = 6ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"bottom_right", .count = 12ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:202:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:203:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:204:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:205:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"z", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"3", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:228:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"4", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:229:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"5", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:230:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Red", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Green", .count = 5ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Blue", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:240:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:241:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Name", .count = 4ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Eof", .count = 3ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:249:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:250:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:259:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:260:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:271:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"test/constfold.til:272:5", .count = 24ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Fn", .count = 2ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"?", .count = 1ULL, .cap = TIL_CAP_LIT},
+};
+#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + 229)) { fprintf(stderr, "panic: write through a shared string literal\n"); exit(1); } } while (0)
 
 U32 CAP_LIT;
 U32 CAP_VIEW;
@@ -5525,9 +5528,9 @@ __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     Array__Str_set(_va_Array_145, hoisted__U32_5932, hoisted__Str_5933, &_va_Array_145_ek);
     U32 hoisted__U32_5934 = 1;
     (void)hoisted__U32_5934;
-    (void)_til_str_lit_162;
-    (void)_til_str_lit_162;
-    Array__Str_set(_va_Array_145, hoisted__U32_5934, &_til_str_lit_162, &_va_Array_145_ek);
+    (void)_til_str_lits[162];
+    (void)_til_str_lits[162];
+    Array__Str_set(_va_Array_145, hoisted__U32_5934, &_til_str_lits[162], &_va_Array_145_ek);
     Array__Str *hoisted__Array__Str_5936 = Array__Str_clone(parts);
     (void)hoisted__Array__Str_5936;
     U32 hoisted__U32_5937 = 2;
@@ -5551,9 +5554,9 @@ __attribute__((noreturn)) void UNREACHABLE(Str * loc) {
     (void)_va_Array_147_ek;
     U32 hoisted__U32_5947 = 0;
     (void)hoisted__U32_5947;
-    (void)_til_str_lit_163;
-    (void)_til_str_lit_163;
-    Array__Str_set(_va_Array_147, hoisted__U32_5947, &_til_str_lit_163, &_va_Array_147_ek);
+    (void)_til_str_lits[163];
+    (void)_til_str_lits[163];
+    Array__Str_set(_va_Array_147, hoisted__U32_5947, &_til_str_lits[163], &_va_Array_147_ek);
     panic(_va_Array_147, loc);
 }
 
@@ -5569,9 +5572,9 @@ void assert(Bool cond, Str * loc) {
         (void)_va_Array_148_ek;
         U32 hoisted__U32_5950 = 0;
         (void)hoisted__U32_5950;
-        (void)_til_str_lit_164;
-        (void)_til_str_lit_164;
-        Array__Str_set(_va_Array_148, hoisted__U32_5950, &_til_str_lit_164, &_va_Array_148_ek);
+        (void)_til_str_lits[164];
+        (void)_til_str_lits[164];
+        Array__Str_set(_va_Array_148, hoisted__U32_5950, &_til_str_lits[164], &_va_Array_148_ek);
         panic(_va_Array_148, loc);
     }
 }
@@ -5639,91 +5642,91 @@ void test_simple_add(void) {
     I64 result = 3;
     I64 hoisted__I64_6017 = 3;
     (void)hoisted__I64_6017;
-    (void)_til_str_lit_167;
-    (void)_til_str_lit_167;
-    assert_eq__I64(result, hoisted__I64_6017, &_til_str_lit_167);
-    Str_delete(&_til_str_lit_167, (Bool){0});
+    (void)_til_str_lits[167];
+    (void)_til_str_lits[167];
+    assert_eq__I64(result, hoisted__I64_6017, &_til_str_lits[167]);
+    Str_delete(&_til_str_lits[167], (Bool){0});
 }
 
 void test_nested_arithmetic(void) {
     I64 result = 15;
     I64 hoisted__I64_6025 = 15;
     (void)hoisted__I64_6025;
-    (void)_til_str_lit_168;
-    (void)_til_str_lit_168;
-    assert_eq__I64(result, hoisted__I64_6025, &_til_str_lit_168);
-    Str_delete(&_til_str_lit_168, (Bool){0});
+    (void)_til_str_lits[168];
+    (void)_til_str_lits[168];
+    assert_eq__I64(result, hoisted__I64_6025, &_til_str_lits[168]);
+    Str_delete(&_til_str_lits[168], (Bool){0});
 }
 
 void test_deeply_nested(void) {
     I64 result = 26;
     I64 hoisted__I64_6033 = 26;
     (void)hoisted__I64_6033;
-    (void)_til_str_lit_169;
-    (void)_til_str_lit_169;
-    assert_eq__I64(result, hoisted__I64_6033, &_til_str_lit_169);
-    Str_delete(&_til_str_lit_169, (Bool){0});
+    (void)_til_str_lits[169];
+    (void)_til_str_lits[169];
+    assert_eq__I64(result, hoisted__I64_6033, &_til_str_lits[169]);
+    Str_delete(&_til_str_lits[169], (Bool){0});
 }
 
 void test_string_concat(void) {
     static Str result = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_170;
-    (void)_til_str_lit_170;
-    (void)_til_str_lit_171;
-    (void)_til_str_lit_171;
-    assert_eq__Str(&result, &_til_str_lit_170, &_til_str_lit_171);
-    Str_delete(&_til_str_lit_170, (Bool){0});
-    Str_delete(&_til_str_lit_171, (Bool){0});
+    (void)_til_str_lits[170];
+    (void)_til_str_lits[170];
+    (void)_til_str_lits[171];
+    (void)_til_str_lits[171];
+    assert_eq__Str(&result, &_til_str_lits[170], &_til_str_lits[171]);
+    Str_delete(&_til_str_lits[170], (Bool){0});
+    Str_delete(&_til_str_lits[171], (Bool){0});
     Str_delete(&result, (Bool){0});
 }
 
 void test_variadic_fold(void) {
     static Str r = (Str){.c_str = (void *)"hello world", .count = 11ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_170;
-    (void)_til_str_lit_170;
-    (void)_til_str_lit_172;
-    (void)_til_str_lit_172;
-    assert_eq__Str(&r, &_til_str_lit_170, &_til_str_lit_172);
-    Str_delete(&_til_str_lit_170, (Bool){0});
-    Str_delete(&_til_str_lit_172, (Bool){0});
+    (void)_til_str_lits[170];
+    (void)_til_str_lits[170];
+    (void)_til_str_lits[172];
+    (void)_til_str_lits[172];
+    assert_eq__Str(&r, &_til_str_lits[170], &_til_str_lits[172]);
+    Str_delete(&_til_str_lits[170], (Bool){0});
+    Str_delete(&_til_str_lits[172], (Bool){0});
     Str_delete(&r, (Bool){0});
     static Str r2 = (Str){.c_str = (void *)"a-b-c", .count = 5ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_173;
-    (void)_til_str_lit_173;
-    (void)_til_str_lit_174;
-    (void)_til_str_lit_174;
-    assert_eq__Str(&r2, &_til_str_lit_173, &_til_str_lit_174);
-    Str_delete(&_til_str_lit_173, (Bool){0});
-    Str_delete(&_til_str_lit_174, (Bool){0});
+    (void)_til_str_lits[173];
+    (void)_til_str_lits[173];
+    (void)_til_str_lits[174];
+    (void)_til_str_lits[174];
+    assert_eq__Str(&r2, &_til_str_lits[173], &_til_str_lits[174]);
+    Str_delete(&_til_str_lits[173], (Bool){0});
+    Str_delete(&_til_str_lits[174], (Bool){0});
     Str_delete(&r2, (Bool){0});
 }
 
 void test_variadic_direct_fold(void) {
     static Str d = (Str){.c_str = (void *)"x-y-z", .count = 5ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_175;
-    (void)_til_str_lit_175;
-    (void)_til_str_lit_176;
-    (void)_til_str_lit_176;
-    assert_eq__Str(&d, &_til_str_lit_175, &_til_str_lit_176);
+    (void)_til_str_lits[175];
+    (void)_til_str_lits[175];
+    (void)_til_str_lits[176];
+    (void)_til_str_lits[176];
+    assert_eq__Str(&d, &_til_str_lits[175], &_til_str_lits[176]);
     Str_delete(&d, (Bool){0});
-    Str_delete(&_til_str_lit_175, (Bool){0});
-    Str_delete(&_til_str_lit_176, (Bool){0});
+    Str_delete(&_til_str_lits[175], (Bool){0});
+    Str_delete(&_til_str_lits[176], (Bool){0});
     static Str d2 = (Str){.c_str = (void *)"abc", .count = 3ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_177;
-    (void)_til_str_lit_177;
-    (void)_til_str_lit_178;
-    (void)_til_str_lit_178;
-    assert_eq__Str(&d2, &_til_str_lit_177, &_til_str_lit_178);
+    (void)_til_str_lits[177];
+    (void)_til_str_lits[177];
+    (void)_til_str_lits[178];
+    (void)_til_str_lits[178];
+    assert_eq__Str(&d2, &_til_str_lits[177], &_til_str_lits[178]);
     Str_delete(&d2, (Bool){0});
-    Str_delete(&_til_str_lit_177, (Bool){0});
-    Str_delete(&_til_str_lit_178, (Bool){0});
+    Str_delete(&_til_str_lits[177], (Bool){0});
+    Str_delete(&_til_str_lits[178], (Bool){0});
     I64 d3 = 106;
     I64 hoisted__I64_6102 = 106;
     (void)hoisted__I64_6102;
-    (void)_til_str_lit_179;
-    (void)_til_str_lit_179;
-    assert_eq__I64(d3, hoisted__I64_6102, &_til_str_lit_179);
-    Str_delete(&_til_str_lit_179, (Bool){0});
+    (void)_til_str_lits[179];
+    (void)_til_str_lits[179];
+    assert_eq__I64(d3, hoisted__I64_6102, &_til_str_lits[179]);
+    Str_delete(&_til_str_lits[179], (Bool){0});
 }
 
 void test_lolalalo(void) {
@@ -5731,16 +5734,16 @@ void test_lolalalo(void) {
     static Str lola_it = (Str){.c_str = (void *)"lolololo\nlololola\nlololalo\nlololala\nlololeilo\nlololeila\nlolalolo\nlolalola\nlolalalo\nlolalala\nlolaleilo\nlolaleila\nlalololo\nlalolola\nlalolalo\nlalolala\nlaloleilo\nlaloleila\nlalalolo\nlalalola\nlalalalo\nlalalala\nlalaleilo\nlalaleila\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     static Str lalo_rec = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
     static Str lalo_it = (Str){.c_str = (void *)"lalalala\nlalalalo\nlalalola\nlalalolo\nlalaleila\nlalaleilo\nlalolala\nlalolalo\nlalolola\nlalololo\nlaloleila\nlaloleilo\nlolalala\nlolalalo\nlolalola\nlolalolo\nlolaleila\nlolaleilo\nlololala\nlololalo\nlololola\nlolololo\nlololeila\nlololeilo\n", .count = 224ULL, .cap = TIL_CAP_LIT};
-    (void)_til_str_lit_182;
-    (void)_til_str_lit_182;
-    assert_eq__Str(&lola_rec, &lola_it, &_til_str_lit_182);
-    Str_delete(&_til_str_lit_182, (Bool){0});
+    (void)_til_str_lits[182];
+    (void)_til_str_lits[182];
+    assert_eq__Str(&lola_rec, &lola_it, &_til_str_lits[182]);
+    Str_delete(&_til_str_lits[182], (Bool){0});
     Str_delete(&lola_it, (Bool){0});
     Str_delete(&lola_rec, (Bool){0});
-    (void)_til_str_lit_183;
-    (void)_til_str_lit_183;
-    assert_eq__Str(&lalo_rec, &lalo_it, &_til_str_lit_183);
-    Str_delete(&_til_str_lit_183, (Bool){0});
+    (void)_til_str_lits[183];
+    (void)_til_str_lits[183];
+    assert_eq__Str(&lalo_rec, &lalo_it, &_til_str_lits[183]);
+    Str_delete(&_til_str_lits[183], (Bool){0});
     Str_delete(&lalo_it, (Bool){0});
     Str_delete(&lalo_rec, (Bool){0});
 }
@@ -5749,48 +5752,48 @@ void test_fold_variable(void) {
     I64 result = 8;
     I64 hoisted__I64_6595 = 8;
     (void)hoisted__I64_6595;
-    (void)_til_str_lit_184;
-    (void)_til_str_lit_184;
-    assert_eq__I64(result, hoisted__I64_6595, &_til_str_lit_184);
-    Str_delete(&_til_str_lit_184, (Bool){0});
+    (void)_til_str_lits[184];
+    (void)_til_str_lits[184];
+    assert_eq__I64(result, hoisted__I64_6595, &_til_str_lits[184]);
+    Str_delete(&_til_str_lits[184], (Bool){0});
 }
 
 void test_loc_folded(void) {
     Bool hoisted__Bool_6599 = 1;
     (void)hoisted__Bool_6599;
-    (void)_til_str_lit_185;
-    (void)_til_str_lit_185;
-    assert(hoisted__Bool_6599, &_til_str_lit_185);
-    Str_delete(&_til_str_lit_185, (Bool){0});
+    (void)_til_str_lits[185];
+    (void)_til_str_lits[185];
+    assert(hoisted__Bool_6599, &_til_str_lits[185]);
+    Str_delete(&_til_str_lits[185], (Bool){0});
     Bool hoisted__Bool_6603 = 1;
     (void)hoisted__Bool_6603;
-    (void)_til_str_lit_186;
-    (void)_til_str_lit_186;
-    assert(hoisted__Bool_6603, &_til_str_lit_186);
-    Str_delete(&_til_str_lit_186, (Bool){0});
+    (void)_til_str_lits[186];
+    (void)_til_str_lits[186];
+    assert(hoisted__Bool_6603, &_til_str_lits[186]);
+    Str_delete(&_til_str_lits[186], (Bool){0});
 }
 
 void test_fold_f32(void) {
-    (void)_til_str_lit_187;
-    (void)_til_str_lit_187;
-    (void)_til_str_lit_187;
-    (void)_til_str_lit_187;
-    (void)_til_str_lit_188;
-    (void)_til_str_lit_188;
-    assert_eq__Str(&_til_str_lit_187, &_til_str_lit_187, &_til_str_lit_188);
-    Str_delete(&_til_str_lit_187, (Bool){0});
-    Str_delete(&_til_str_lit_187, (Bool){0});
-    Str_delete(&_til_str_lit_188, (Bool){0});
-    (void)_til_str_lit_189;
-    (void)_til_str_lit_189;
-    (void)_til_str_lit_189;
-    (void)_til_str_lit_189;
-    (void)_til_str_lit_190;
-    (void)_til_str_lit_190;
-    assert_eq__Str(&_til_str_lit_189, &_til_str_lit_189, &_til_str_lit_190);
-    Str_delete(&_til_str_lit_189, (Bool){0});
-    Str_delete(&_til_str_lit_189, (Bool){0});
-    Str_delete(&_til_str_lit_190, (Bool){0});
+    (void)_til_str_lits[187];
+    (void)_til_str_lits[187];
+    (void)_til_str_lits[187];
+    (void)_til_str_lits[187];
+    (void)_til_str_lits[188];
+    (void)_til_str_lits[188];
+    assert_eq__Str(&_til_str_lits[187], &_til_str_lits[187], &_til_str_lits[188]);
+    Str_delete(&_til_str_lits[187], (Bool){0});
+    Str_delete(&_til_str_lits[187], (Bool){0});
+    Str_delete(&_til_str_lits[188], (Bool){0});
+    (void)_til_str_lits[189];
+    (void)_til_str_lits[189];
+    (void)_til_str_lits[189];
+    (void)_til_str_lits[189];
+    (void)_til_str_lits[190];
+    (void)_til_str_lits[190];
+    assert_eq__Str(&_til_str_lits[189], &_til_str_lits[189], &_til_str_lits[190]);
+    Str_delete(&_til_str_lits[189], (Bool){0});
+    Str_delete(&_til_str_lits[189], (Bool){0});
+    Str_delete(&_til_str_lits[190], (Bool){0});
 }
 
 CfVec2 * CfVec2_clone(CfVec2 * self) {
@@ -5827,16 +5830,16 @@ void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
     I64 hoisted__I64_6648 = 42;
     (void)hoisted__I64_6648;
-    (void)_til_str_lit_193;
-    (void)_til_str_lit_193;
-    assert_eq__I64(v.x, hoisted__I64_6648, &_til_str_lit_193);
-    Str_delete(&_til_str_lit_193, (Bool){0});
+    (void)_til_str_lits[193];
+    (void)_til_str_lits[193];
+    assert_eq__I64(v.x, hoisted__I64_6648, &_til_str_lits[193]);
+    Str_delete(&_til_str_lits[193], (Bool){0});
     I64 hoisted__I64_6650 = 99;
     (void)hoisted__I64_6650;
-    (void)_til_str_lit_194;
-    (void)_til_str_lit_194;
-    assert_eq__I64(v.y, hoisted__I64_6650, &_til_str_lit_194);
-    Str_delete(&_til_str_lit_194, (Bool){0});
+    (void)_til_str_lits[194];
+    (void)_til_str_lits[194];
+    assert_eq__I64(v.y, hoisted__I64_6650, &_til_str_lits[194]);
+    Str_delete(&_til_str_lits[194], (Bool){0});
     CfVec2_delete(&v, (Bool){0});
 }
 
@@ -5844,16 +5847,16 @@ void test_struct_fold_values(void) {
     CfVec2 p = (CfVec2){.x = 10, .y = 20};
     I64 hoisted__I64_6654 = 10;
     (void)hoisted__I64_6654;
-    (void)_til_str_lit_195;
-    (void)_til_str_lit_195;
-    assert_eq__I64(p.x, hoisted__I64_6654, &_til_str_lit_195);
-    Str_delete(&_til_str_lit_195, (Bool){0});
+    (void)_til_str_lits[195];
+    (void)_til_str_lits[195];
+    assert_eq__I64(p.x, hoisted__I64_6654, &_til_str_lits[195]);
+    Str_delete(&_til_str_lits[195], (Bool){0});
     I64 hoisted__I64_6656 = 20;
     (void)hoisted__I64_6656;
-    (void)_til_str_lit_196;
-    (void)_til_str_lit_196;
-    assert_eq__I64(p.y, hoisted__I64_6656, &_til_str_lit_196);
-    Str_delete(&_til_str_lit_196, (Bool){0});
+    (void)_til_str_lits[196];
+    (void)_til_str_lits[196];
+    assert_eq__I64(p.y, hoisted__I64_6656, &_til_str_lits[196]);
+    Str_delete(&_til_str_lits[196], (Bool){0});
     CfVec2_delete(&p, (Bool){0});
 }
 
@@ -5891,28 +5894,28 @@ void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
     I64 hoisted__I64_6690 = 5;
     (void)hoisted__I64_6690;
-    (void)_til_str_lit_200;
-    (void)_til_str_lit_200;
-    assert_eq__I64(r.top_left.x, hoisted__I64_6690, &_til_str_lit_200);
-    Str_delete(&_til_str_lit_200, (Bool){0});
+    (void)_til_str_lits[200];
+    (void)_til_str_lits[200];
+    assert_eq__I64(r.top_left.x, hoisted__I64_6690, &_til_str_lits[200]);
+    Str_delete(&_til_str_lits[200], (Bool){0});
     I64 hoisted__I64_6692 = 10;
     (void)hoisted__I64_6692;
-    (void)_til_str_lit_201;
-    (void)_til_str_lit_201;
-    assert_eq__I64(r.top_left.y, hoisted__I64_6692, &_til_str_lit_201);
-    Str_delete(&_til_str_lit_201, (Bool){0});
+    (void)_til_str_lits[201];
+    (void)_til_str_lits[201];
+    assert_eq__I64(r.top_left.y, hoisted__I64_6692, &_til_str_lits[201]);
+    Str_delete(&_til_str_lits[201], (Bool){0});
     I64 hoisted__I64_6694 = 100;
     (void)hoisted__I64_6694;
-    (void)_til_str_lit_202;
-    (void)_til_str_lit_202;
-    assert_eq__I64(r.bottom_right.x, hoisted__I64_6694, &_til_str_lit_202);
-    Str_delete(&_til_str_lit_202, (Bool){0});
+    (void)_til_str_lits[202];
+    (void)_til_str_lits[202];
+    assert_eq__I64(r.bottom_right.x, hoisted__I64_6694, &_til_str_lits[202]);
+    Str_delete(&_til_str_lits[202], (Bool){0});
     I64 hoisted__I64_6696 = 200;
     (void)hoisted__I64_6696;
-    (void)_til_str_lit_203;
-    (void)_til_str_lit_203;
-    assert_eq__I64(r.bottom_right.y, hoisted__I64_6696, &_til_str_lit_203);
-    Str_delete(&_til_str_lit_203, (Bool){0});
+    (void)_til_str_lits[203];
+    (void)_til_str_lits[203];
+    assert_eq__I64(r.bottom_right.y, hoisted__I64_6696, &_til_str_lits[203]);
+    Str_delete(&_til_str_lits[203], (Bool){0});
     CfRect_delete(&r, (Bool){0});
 }
 
@@ -5950,34 +5953,34 @@ void test_struct_fold_f32(void) {
     CfVec3f v = (CfVec3f){.x = 3, .y = 4, .z = 5};
     Str *hoisted__Str_6738 = F32_to_str(v.x);
     (void)hoisted__Str_6738;
-    (void)_til_str_lit_205;
-    (void)_til_str_lit_205;
-    (void)_til_str_lit_206;
-    (void)_til_str_lit_206;
-    assert_eq__Str(hoisted__Str_6738, &_til_str_lit_205, &_til_str_lit_206);
+    (void)_til_str_lits[205];
+    (void)_til_str_lits[205];
+    (void)_til_str_lits[206];
+    (void)_til_str_lits[206];
+    assert_eq__Str(hoisted__Str_6738, &_til_str_lits[205], &_til_str_lits[206]);
     Str_delete(hoisted__Str_6738, 1);
-    Str_delete(&_til_str_lit_205, (Bool){0});
-    Str_delete(&_til_str_lit_206, (Bool){0});
+    Str_delete(&_til_str_lits[205], (Bool){0});
+    Str_delete(&_til_str_lits[206], (Bool){0});
     Str *hoisted__Str_6741 = F32_to_str(v.y);
     (void)hoisted__Str_6741;
-    (void)_til_str_lit_207;
-    (void)_til_str_lit_207;
-    (void)_til_str_lit_208;
-    (void)_til_str_lit_208;
-    assert_eq__Str(hoisted__Str_6741, &_til_str_lit_207, &_til_str_lit_208);
+    (void)_til_str_lits[207];
+    (void)_til_str_lits[207];
+    (void)_til_str_lits[208];
+    (void)_til_str_lits[208];
+    assert_eq__Str(hoisted__Str_6741, &_til_str_lits[207], &_til_str_lits[208]);
     Str_delete(hoisted__Str_6741, 1);
-    Str_delete(&_til_str_lit_207, (Bool){0});
-    Str_delete(&_til_str_lit_208, (Bool){0});
+    Str_delete(&_til_str_lits[207], (Bool){0});
+    Str_delete(&_til_str_lits[208], (Bool){0});
     Str *hoisted__Str_6744 = F32_to_str(v.z);
     (void)hoisted__Str_6744;
-    (void)_til_str_lit_209;
-    (void)_til_str_lit_209;
-    (void)_til_str_lit_210;
-    (void)_til_str_lit_210;
-    assert_eq__Str(hoisted__Str_6744, &_til_str_lit_209, &_til_str_lit_210);
+    (void)_til_str_lits[209];
+    (void)_til_str_lits[209];
+    (void)_til_str_lits[210];
+    (void)_til_str_lits[210];
+    assert_eq__Str(hoisted__Str_6744, &_til_str_lits[209], &_til_str_lits[210]);
     Str_delete(hoisted__Str_6744, 1);
-    Str_delete(&_til_str_lit_209, (Bool){0});
-    Str_delete(&_til_str_lit_210, (Bool){0});
+    Str_delete(&_til_str_lits[209], (Bool){0});
+    Str_delete(&_til_str_lits[210], (Bool){0});
     CfVec3f_delete(&v, (Bool){0});
 }
 
@@ -6051,18 +6054,18 @@ void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
     Bool hoisted__Bool_6761 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_6761;
-    (void)_til_str_lit_214;
-    (void)_til_str_lit_214;
-    assert(hoisted__Bool_6761, &_til_str_lit_214);
-    Str_delete(&_til_str_lit_214, (Bool){0});
+    (void)_til_str_lits[214];
+    (void)_til_str_lits[214];
+    assert(hoisted__Bool_6761, &_til_str_lits[214]);
+    Str_delete(&_til_str_lits[214], (Bool){0});
     Bool hoisted__Bool_6763 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_6763;
     Bool hoisted__Bool_6764 = ((Bool)(!(hoisted__Bool_6763)));
     (void)hoisted__Bool_6764;
-    (void)_til_str_lit_215;
-    (void)_til_str_lit_215;
-    assert(hoisted__Bool_6764, &_til_str_lit_215);
-    Str_delete(&_til_str_lit_215, (Bool){0});
+    (void)_til_str_lits[215];
+    (void)_til_str_lits[215];
+    assert(hoisted__Bool_6764, &_til_str_lits[215]);
+    Str_delete(&_til_str_lits[215], (Bool){0});
 }
 
 Token *Token_Num(I64 * val) {
@@ -6157,18 +6160,18 @@ void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
     Bool hoisted__Bool_6826 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
     (void)hoisted__Bool_6826;
-    (void)_til_str_lit_218;
-    (void)_til_str_lit_218;
-    assert(hoisted__Bool_6826, &_til_str_lit_218);
-    Str_delete(&_til_str_lit_218, (Bool){0});
+    (void)_til_str_lits[218];
+    (void)_til_str_lits[218];
+    assert(hoisted__Bool_6826, &_til_str_lits[218]);
+    Str_delete(&_til_str_lits[218], (Bool){0});
     Bool hoisted__Bool_6828 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag));
     (void)hoisted__Bool_6828;
     Bool hoisted__Bool_6829 = ((Bool)(!(hoisted__Bool_6828)));
     (void)hoisted__Bool_6829;
-    (void)_til_str_lit_219;
-    (void)_til_str_lit_219;
-    assert(hoisted__Bool_6829, &_til_str_lit_219);
-    Str_delete(&_til_str_lit_219, (Bool){0});
+    (void)_til_str_lits[219];
+    (void)_til_str_lits[219];
+    assert(hoisted__Bool_6829, &_til_str_lits[219]);
+    Str_delete(&_til_str_lits[219], (Bool){0});
     Token_delete(t, 1);
 }
 
@@ -6176,36 +6179,36 @@ void test_enum_return_fold(void) {
     Color c = (Color){.tag = Color_TAG_Green};
     Bool hoisted__Bool_6831 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
     (void)hoisted__Bool_6831;
-    (void)_til_str_lit_220;
-    (void)_til_str_lit_220;
-    assert(hoisted__Bool_6831, &_til_str_lit_220);
-    Str_delete(&_til_str_lit_220, (Bool){0});
+    (void)_til_str_lits[220];
+    (void)_til_str_lits[220];
+    assert(hoisted__Bool_6831, &_til_str_lits[220]);
+    Str_delete(&_til_str_lits[220], (Bool){0});
     Bool hoisted__Bool_6833 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
     (void)hoisted__Bool_6833;
     Bool hoisted__Bool_6834 = ((Bool)(!(hoisted__Bool_6833)));
     (void)hoisted__Bool_6834;
-    (void)_til_str_lit_221;
-    (void)_til_str_lit_221;
-    assert(hoisted__Bool_6834, &_til_str_lit_221);
-    Str_delete(&_til_str_lit_221, (Bool){0});
+    (void)_til_str_lits[221];
+    (void)_til_str_lits[221];
+    assert(hoisted__Bool_6834, &_til_str_lits[221]);
+    Str_delete(&_til_str_lits[221], (Bool){0});
 }
 
 void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
     Bool hoisted__Bool_6838 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
     (void)hoisted__Bool_6838;
-    (void)_til_str_lit_222;
-    (void)_til_str_lit_222;
-    assert(hoisted__Bool_6838, &_til_str_lit_222);
-    Str_delete(&_til_str_lit_222, (Bool){0});
+    (void)_til_str_lits[222];
+    (void)_til_str_lits[222];
+    assert(hoisted__Bool_6838, &_til_str_lits[222]);
+    Str_delete(&_til_str_lits[222], (Bool){0});
     Bool hoisted__Bool_6840 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag));
     (void)hoisted__Bool_6840;
     Bool hoisted__Bool_6841 = ((Bool)(!(hoisted__Bool_6840)));
     (void)hoisted__Bool_6841;
-    (void)_til_str_lit_223;
-    (void)_til_str_lit_223;
-    assert(hoisted__Bool_6841, &_til_str_lit_223);
-    Str_delete(&_til_str_lit_223, (Bool){0});
+    (void)_til_str_lits[223];
+    (void)_til_str_lits[223];
+    assert(hoisted__Bool_6841, &_til_str_lits[223]);
+    Str_delete(&_til_str_lits[223], (Bool){0});
     Token_delete(t, 1);
 }
 
@@ -6221,9 +6224,9 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
         (void)_va_Array_185_ek;
         U32 hoisted__U32_6901 = 0;
         (void)hoisted__U32_6901;
-        (void)_til_str_lit_224;
-        (void)_til_str_lit_224;
-        Array__Str_set(_va_Array_185, hoisted__U32_6901, &_til_str_lit_224, &_va_Array_185_ek);
+        (void)_til_str_lits[224];
+        (void)_til_str_lits[224];
+        Array__Str_set(_va_Array_185, hoisted__U32_6901, &_til_str_lits[224], &_va_Array_185_ek);
         U32 hoisted__U32_6903 = 1;
         (void)hoisted__U32_6903;
         Str *hoisted__Str_6904 = I64_to_str(a);
@@ -6231,9 +6234,9 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
         Array__Str_set(_va_Array_185, hoisted__U32_6903, hoisted__Str_6904, &_va_Array_185_ek);
         U32 hoisted__U32_6905 = 2;
         (void)hoisted__U32_6905;
-        (void)_til_str_lit_225;
-        (void)_til_str_lit_225;
-        Array__Str_set(_va_Array_185, hoisted__U32_6905, &_til_str_lit_225, &_va_Array_185_ek);
+        (void)_til_str_lits[225];
+        (void)_til_str_lits[225];
+        Array__Str_set(_va_Array_185, hoisted__U32_6905, &_til_str_lits[225], &_va_Array_185_ek);
         U32 hoisted__U32_6907 = 3;
         (void)hoisted__U32_6907;
         Str *hoisted__Str_6908 = I64_to_str(b);
@@ -6241,9 +6244,9 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
         Array__Str_set(_va_Array_185, hoisted__U32_6907, hoisted__Str_6908, &_va_Array_185_ek);
         U32 hoisted__U32_6909 = 4;
         (void)hoisted__U32_6909;
-        (void)_til_str_lit_226;
-        (void)_til_str_lit_226;
-        Array__Str_set(_va_Array_185, hoisted__U32_6909, &_til_str_lit_226, &_va_Array_185_ek);
+        (void)_til_str_lits[226];
+        (void)_til_str_lits[226];
+        Array__Str_set(_va_Array_185, hoisted__U32_6909, &_til_str_lits[226], &_va_Array_185_ek);
         panic(_va_Array_185, loc);
     }
 }
@@ -6260,9 +6263,9 @@ void assert_eq__Str(Str * a, Str * b, Str * loc) {
         (void)_va_Array_186_ek;
         U32 hoisted__U32_6913 = 0;
         (void)hoisted__U32_6913;
-        (void)_til_str_lit_224;
-        (void)_til_str_lit_224;
-        Array__Str_set(_va_Array_186, hoisted__U32_6913, &_til_str_lit_224, &_va_Array_186_ek);
+        (void)_til_str_lits[224];
+        (void)_til_str_lits[224];
+        Array__Str_set(_va_Array_186, hoisted__U32_6913, &_til_str_lits[224], &_va_Array_186_ek);
         U32 hoisted__U32_6915 = 1;
         (void)hoisted__U32_6915;
         Str *hoisted__Str_6916 = Str_to_str(a);
@@ -6270,9 +6273,9 @@ void assert_eq__Str(Str * a, Str * b, Str * loc) {
         Array__Str_set(_va_Array_186, hoisted__U32_6915, hoisted__Str_6916, &_va_Array_186_ek);
         U32 hoisted__U32_6917 = 2;
         (void)hoisted__U32_6917;
-        (void)_til_str_lit_225;
-        (void)_til_str_lit_225;
-        Array__Str_set(_va_Array_186, hoisted__U32_6917, &_til_str_lit_225, &_va_Array_186_ek);
+        (void)_til_str_lits[225];
+        (void)_til_str_lits[225];
+        Array__Str_set(_va_Array_186, hoisted__U32_6917, &_til_str_lits[225], &_va_Array_186_ek);
         U32 hoisted__U32_6919 = 3;
         (void)hoisted__U32_6919;
         Str *hoisted__Str_6920 = Str_to_str(b);
@@ -6280,9 +6283,9 @@ void assert_eq__Str(Str * a, Str * b, Str * loc) {
         Array__Str_set(_va_Array_186, hoisted__U32_6919, hoisted__Str_6920, &_va_Array_186_ek);
         U32 hoisted__U32_6921 = 4;
         (void)hoisted__U32_6921;
-        (void)_til_str_lit_226;
-        (void)_til_str_lit_226;
-        Array__Str_set(_va_Array_186, hoisted__U32_6921, &_til_str_lit_226, &_va_Array_186_ek);
+        (void)_til_str_lits[226];
+        (void)_til_str_lits[226];
+        Array__Str_set(_va_Array_186, hoisted__U32_6921, &_til_str_lits[226], &_va_Array_186_ek);
         panic(_va_Array_186, loc);
     }
 }
@@ -8030,22 +8033,22 @@ I64 struct_field_count(Str *type_name) {
 Str *struct_field_name(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_0;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[0];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "KeyNotFound", 11ULL) == 0) {
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "Array__Str", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[4];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__Str", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
     }
@@ -8066,156 +8069,156 @@ Str *struct_field_name(Str *type_name, I64 *index) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_48;
-        if (*index == 2LL) return &_til_str_lit_49;
-        if (*index == 3LL) return &_til_str_lit_50;
-        if (*index == 4LL) return &_til_str_lit_51;
-        if (*index == 5LL) return &_til_str_lit_52;
-        if (*index == 6LL) return &_til_str_lit_53;
-        if (*index == 7LL) return &_til_str_lit_54;
-        if (*index == 8LL) return &_til_str_lit_56;
-        if (*index == 9LL) return &_til_str_lit_58;
-        if (*index == 10LL) return &_til_str_lit_60;
-        if (*index == 11LL) return &_til_str_lit_61;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[48];
+        if (*index == 2LL) return &_til_str_lits[49];
+        if (*index == 3LL) return &_til_str_lits[50];
+        if (*index == 4LL) return &_til_str_lits[51];
+        if (*index == 5LL) return &_til_str_lits[52];
+        if (*index == 6LL) return &_til_str_lits[53];
+        if (*index == 7LL) return &_til_str_lits[54];
+        if (*index == 8LL) return &_til_str_lits[56];
+        if (*index == 9LL) return &_til_str_lits[58];
+        if (*index == 10LL) return &_til_str_lits[60];
+        if (*index == 11LL) return &_til_str_lits[61];
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_63;
-        if (*index == 1LL) return &_til_str_lit_65;
-        if (*index == 2LL) return &_til_str_lit_67;
-        if (*index == 3LL) return &_til_str_lit_68;
-        if (*index == 4LL) return &_til_str_lit_70;
-        if (*index == 5LL) return &_til_str_lit_71;
-        if (*index == 6LL) return &_til_str_lit_72;
-        if (*index == 7LL) return &_til_str_lit_73;
-        if (*index == 8LL) return &_til_str_lit_74;
-        if (*index == 9LL) return &_til_str_lit_75;
-        if (*index == 10LL) return &_til_str_lit_76;
-        if (*index == 11LL) return &_til_str_lit_77;
-        if (*index == 12LL) return &_til_str_lit_78;
+        if (*index == 0LL) return &_til_str_lits[63];
+        if (*index == 1LL) return &_til_str_lits[65];
+        if (*index == 2LL) return &_til_str_lits[67];
+        if (*index == 3LL) return &_til_str_lits[68];
+        if (*index == 4LL) return &_til_str_lits[70];
+        if (*index == 5LL) return &_til_str_lits[71];
+        if (*index == 6LL) return &_til_str_lits[72];
+        if (*index == 7LL) return &_til_str_lits[73];
+        if (*index == 8LL) return &_til_str_lits[74];
+        if (*index == 9LL) return &_til_str_lits[75];
+        if (*index == 10LL) return &_til_str_lits[76];
+        if (*index == 11LL) return &_til_str_lits[77];
+        if (*index == 12LL) return &_til_str_lits[78];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "FCallData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_79;
-        if (*index == 1LL) return &_til_str_lit_80;
-        if (*index == 2LL) return &_til_str_lit_81;
-        if (*index == 3LL) return &_til_str_lit_82;
-        if (*index == 4LL) return &_til_str_lit_83;
-        if (*index == 5LL) return &_til_str_lit_84;
-        if (*index == 6LL) return &_til_str_lit_56;
-        if (*index == 7LL) return &_til_str_lit_85;
-        if (*index == 8LL) return &_til_str_lit_86;
+        if (*index == 0LL) return &_til_str_lits[79];
+        if (*index == 1LL) return &_til_str_lits[80];
+        if (*index == 2LL) return &_til_str_lits[81];
+        if (*index == 3LL) return &_til_str_lits[82];
+        if (*index == 4LL) return &_til_str_lits[83];
+        if (*index == 5LL) return &_til_str_lits[84];
+        if (*index == 6LL) return &_til_str_lits[56];
+        if (*index == 7LL) return &_til_str_lits[85];
+        if (*index == 8LL) return &_til_str_lits[86];
     }
     if (type_name->count == 14ULL && memcmp(type_name->c_str, "LiteralNumData", 14ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_87;
-        if (*index == 1LL) return &_til_str_lit_56;
+        if (*index == 0LL) return &_til_str_lits[87];
+        if (*index == 1LL) return &_til_str_lits[56];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "IdentData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_56;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[56];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAccessData", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_56;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[56];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "StructDef", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_88;
-        if (*index == 1LL) return &_til_str_lit_89;
-        if (*index == 2LL) return &_til_str_lit_90;
-        if (*index == 3LL) return &_til_str_lit_92;
-        if (*index == 4LL) return &_til_str_lit_93;
-        if (*index == 5LL) return &_til_str_lit_94;
-        if (*index == 6LL) return &_til_str_lit_95;
-        if (*index == 7LL) return &_til_str_lit_96;
+        if (*index == 0LL) return &_til_str_lits[88];
+        if (*index == 1LL) return &_til_str_lits[89];
+        if (*index == 2LL) return &_til_str_lits[90];
+        if (*index == 3LL) return &_til_str_lits[92];
+        if (*index == 4LL) return &_til_str_lits[93];
+        if (*index == 5LL) return &_til_str_lits[94];
+        if (*index == 6LL) return &_til_str_lits[95];
+        if (*index == 7LL) return &_til_str_lits[96];
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "VariantDef", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_48;
-        if (*index == 2LL) return &_til_str_lit_97;
-        if (*index == 3LL) return &_til_str_lit_98;
-        if (*index == 4LL) return &_til_str_lit_99;
-        if (*index == 5LL) return &_til_str_lit_100;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[48];
+        if (*index == 2LL) return &_til_str_lits[97];
+        if (*index == 3LL) return &_til_str_lits[98];
+        if (*index == 4LL) return &_til_str_lits[99];
+        if (*index == 5LL) return &_til_str_lits[100];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_89;
-        if (*index == 1LL) return &_til_str_lit_92;
-        if (*index == 2LL) return &_til_str_lit_101;
-        if (*index == 3LL) return &_til_str_lit_96;
-        if (*index == 4LL) return &_til_str_lit_103;
+        if (*index == 0LL) return &_til_str_lits[89];
+        if (*index == 1LL) return &_til_str_lits[92];
+        if (*index == 2LL) return &_til_str_lits[101];
+        if (*index == 3LL) return &_til_str_lits[96];
+        if (*index == 4LL) return &_til_str_lits[103];
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "AssignData", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_104;
-        if (*index == 2LL) return &_til_str_lit_105;
-        if (*index == 3LL) return &_til_str_lit_84;
-        if (*index == 4LL) return &_til_str_lit_106;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[104];
+        if (*index == 2LL) return &_til_str_lits[105];
+        if (*index == 3LL) return &_til_str_lits[84];
+        if (*index == 4LL) return &_til_str_lits[106];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAssignData", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_104;
-        if (*index == 2LL) return &_til_str_lit_107;
-        if (*index == 3LL) return &_til_str_lit_106;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[104];
+        if (*index == 2LL) return &_til_str_lits[107];
+        if (*index == 3LL) return &_til_str_lits[106];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ForInData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_47;
-        if (*index == 1LL) return &_til_str_lit_50;
-        if (*index == 2LL) return &_til_str_lit_56;
-        if (*index == 3LL) return &_til_str_lit_108;
-        if (*index == 4LL) return &_til_str_lit_109;
+        if (*index == 0LL) return &_til_str_lits[47];
+        if (*index == 1LL) return &_til_str_lits[50];
+        if (*index == 2LL) return &_til_str_lits[56];
+        if (*index == 3LL) return &_til_str_lits[108];
+        if (*index == 4LL) return &_til_str_lits[109];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "MatchData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_56;
-        if (*index == 1LL) return &_til_str_lit_115;
+        if (*index == 0LL) return &_til_str_lits[56];
+        if (*index == 1LL) return &_til_str_lits[115];
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "CaptureBlockData", 16ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_76;
-        if (*index == 1LL) return &_til_str_lit_77;
+        if (*index == 0LL) return &_til_str_lits[76];
+        if (*index == 1LL) return &_til_str_lits[77];
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_153;
-        if (*index == 1LL) return &_til_str_lit_155;
-        if (*index == 2LL) return &_til_str_lit_157;
-        if (*index == 3LL) return &_til_str_lit_158;
+        if (*index == 0LL) return &_til_str_lits[153];
+        if (*index == 1LL) return &_til_str_lits[155];
+        if (*index == 2LL) return &_til_str_lits[157];
+        if (*index == 3LL) return &_til_str_lits[158];
     }
     if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_159;
-        if (*index == 1LL) return &_til_str_lit_160;
+        if (*index == 0LL) return &_til_str_lits[159];
+        if (*index == 1LL) return &_til_str_lits[160];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "Vec__Declaration", 16ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_5;
-        if (*index == 1LL) return &_til_str_lit_2;
-        if (*index == 2LL) return &_til_str_lit_4;
+        if (*index == 0LL) return &_til_str_lits[5];
+        if (*index == 1LL) return &_til_str_lits[2];
+        if (*index == 2LL) return &_til_str_lits[4];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_165;
-        if (*index == 1LL) return &_til_str_lit_166;
+        if (*index == 0LL) return &_til_str_lits[165];
+        if (*index == 1LL) return &_til_str_lits[166];
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_191;
-        if (*index == 1LL) return &_til_str_lit_192;
+        if (*index == 0LL) return &_til_str_lits[191];
+        if (*index == 1LL) return &_til_str_lits[192];
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_197;
-        if (*index == 1LL) return &_til_str_lit_199;
+        if (*index == 0LL) return &_til_str_lits[197];
+        if (*index == 1LL) return &_til_str_lits[199];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "CfVec3f", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_191;
-        if (*index == 1LL) return &_til_str_lit_192;
-        if (*index == 2LL) return &_til_str_lit_204;
+        if (*index == 0LL) return &_til_str_lits[191];
+        if (*index == 1LL) return &_til_str_lits[192];
+        if (*index == 2LL) return &_til_str_lits[204];
     }
     fprintf(stderr, "struct_field_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -8418,22 +8421,22 @@ I64 struct_field_is_mut(Str *type_name, I64 *index) {
 Str *struct_field_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_1;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[1];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "OutOfBounds", 11ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "KeyNotFound", 11ULL) == 0) {
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "Array__Str", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__Str", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Dynamic", 7ULL) == 0) {
     }
@@ -8454,156 +8457,156 @@ Str *struct_field_type(Str *type_name, I64 *index) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) {
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_20;
-        if (*index == 2LL) return &_til_str_lit_20;
-        if (*index == 3LL) return &_til_str_lit_15;
-        if (*index == 4LL) return &_til_str_lit_15;
-        if (*index == 5LL) return &_til_str_lit_15;
-        if (*index == 6LL) return &_til_str_lit_15;
-        if (*index == 7LL) return &_til_str_lit_55;
-        if (*index == 8LL) return &_til_str_lit_57;
-        if (*index == 9LL) return &_til_str_lit_59;
-        if (*index == 10LL) return &_til_str_lit_20;
-        if (*index == 11LL) return &_til_str_lit_62;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[20];
+        if (*index == 2LL) return &_til_str_lits[20];
+        if (*index == 3LL) return &_til_str_lits[15];
+        if (*index == 4LL) return &_til_str_lits[15];
+        if (*index == 5LL) return &_til_str_lits[15];
+        if (*index == 6LL) return &_til_str_lits[15];
+        if (*index == 7LL) return &_til_str_lits[55];
+        if (*index == 8LL) return &_til_str_lits[57];
+        if (*index == 9LL) return &_til_str_lits[59];
+        if (*index == 10LL) return &_til_str_lits[20];
+        if (*index == 11LL) return &_til_str_lits[62];
     }
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_64;
-        if (*index == 1LL) return &_til_str_lit_66;
-        if (*index == 2LL) return &_til_str_lit_20;
-        if (*index == 3LL) return &_til_str_lit_69;
-        if (*index == 4LL) return &_til_str_lit_12;
-        if (*index == 5LL) return &_til_str_lit_12;
-        if (*index == 6LL) return &_til_str_lit_55;
-        if (*index == 7LL) return &_til_str_lit_15;
-        if (*index == 8LL) return &_til_str_lit_15;
-        if (*index == 9LL) return &_til_str_lit_15;
-        if (*index == 10LL) return &_til_str_lit_66;
-        if (*index == 11LL) return &_til_str_lit_20;
-        if (*index == 12LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[64];
+        if (*index == 1LL) return &_til_str_lits[66];
+        if (*index == 2LL) return &_til_str_lits[20];
+        if (*index == 3LL) return &_til_str_lits[69];
+        if (*index == 4LL) return &_til_str_lits[12];
+        if (*index == 5LL) return &_til_str_lits[12];
+        if (*index == 6LL) return &_til_str_lits[55];
+        if (*index == 7LL) return &_til_str_lits[15];
+        if (*index == 8LL) return &_til_str_lits[15];
+        if (*index == 9LL) return &_til_str_lits[15];
+        if (*index == 10LL) return &_til_str_lits[66];
+        if (*index == 11LL) return &_til_str_lits[20];
+        if (*index == 12LL) return &_til_str_lits[15];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "FCallData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_15;
-        if (*index == 1LL) return &_til_str_lit_15;
-        if (*index == 2LL) return &_til_str_lit_15;
-        if (*index == 3LL) return &_til_str_lit_8;
-        if (*index == 4LL) return &_til_str_lit_8;
-        if (*index == 5LL) return &_til_str_lit_15;
-        if (*index == 6LL) return &_til_str_lit_57;
-        if (*index == 7LL) return &_til_str_lit_15;
-        if (*index == 8LL) return &_til_str_lit_8;
+        if (*index == 0LL) return &_til_str_lits[15];
+        if (*index == 1LL) return &_til_str_lits[15];
+        if (*index == 2LL) return &_til_str_lits[15];
+        if (*index == 3LL) return &_til_str_lits[8];
+        if (*index == 4LL) return &_til_str_lits[8];
+        if (*index == 5LL) return &_til_str_lits[15];
+        if (*index == 6LL) return &_til_str_lits[57];
+        if (*index == 7LL) return &_til_str_lits[15];
+        if (*index == 8LL) return &_til_str_lits[8];
     }
     if (type_name->count == 14ULL && memcmp(type_name->c_str, "LiteralNumData", 14ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_57;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[57];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "IdentData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_57;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[57];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAccessData", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_57;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[57];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "StructDef", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_66;
-        if (*index == 1LL) return &_til_str_lit_66;
-        if (*index == 2LL) return &_til_str_lit_91;
-        if (*index == 3LL) return &_til_str_lit_91;
-        if (*index == 4LL) return &_til_str_lit_20;
-        if (*index == 5LL) return &_til_str_lit_15;
-        if (*index == 6LL) return &_til_str_lit_15;
-        if (*index == 7LL) return &_til_str_lit_20;
+        if (*index == 0LL) return &_til_str_lits[66];
+        if (*index == 1LL) return &_til_str_lits[66];
+        if (*index == 2LL) return &_til_str_lits[91];
+        if (*index == 3LL) return &_til_str_lits[91];
+        if (*index == 4LL) return &_til_str_lits[20];
+        if (*index == 5LL) return &_til_str_lits[15];
+        if (*index == 6LL) return &_til_str_lits[15];
+        if (*index == 7LL) return &_til_str_lits[20];
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "VariantDef", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_20;
-        if (*index == 2LL) return &_til_str_lit_20;
-        if (*index == 3LL) return &_til_str_lit_15;
-        if (*index == 4LL) return &_til_str_lit_13;
-        if (*index == 5LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[20];
+        if (*index == 2LL) return &_til_str_lits[20];
+        if (*index == 3LL) return &_til_str_lits[15];
+        if (*index == 4LL) return &_til_str_lits[13];
+        if (*index == 5LL) return &_til_str_lits[15];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_66;
-        if (*index == 1LL) return &_til_str_lit_91;
-        if (*index == 2LL) return &_til_str_lit_102;
-        if (*index == 3LL) return &_til_str_lit_20;
-        if (*index == 4LL) return &_til_str_lit_20;
+        if (*index == 0LL) return &_til_str_lits[66];
+        if (*index == 1LL) return &_til_str_lits[91];
+        if (*index == 2LL) return &_til_str_lits[102];
+        if (*index == 3LL) return &_til_str_lits[20];
+        if (*index == 4LL) return &_til_str_lits[20];
     }
     if (type_name->count == 10ULL && memcmp(type_name->c_str, "AssignData", 10ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_15;
-        if (*index == 2LL) return &_til_str_lit_15;
-        if (*index == 3LL) return &_til_str_lit_15;
-        if (*index == 4LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[15];
+        if (*index == 2LL) return &_til_str_lits[15];
+        if (*index == 3LL) return &_til_str_lits[15];
+        if (*index == 4LL) return &_til_str_lits[15];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "FieldAssignData", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_15;
-        if (*index == 2LL) return &_til_str_lit_15;
-        if (*index == 3LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[15];
+        if (*index == 2LL) return &_til_str_lits[15];
+        if (*index == 3LL) return &_til_str_lits[15];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ForInData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_15;
-        if (*index == 2LL) return &_til_str_lit_57;
-        if (*index == 3LL) return &_til_str_lit_20;
-        if (*index == 4LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[15];
+        if (*index == 2LL) return &_til_str_lits[57];
+        if (*index == 3LL) return &_til_str_lits[20];
+        if (*index == 4LL) return &_til_str_lits[15];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "MatchData", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_57;
-        if (*index == 1LL) return &_til_str_lit_20;
+        if (*index == 0LL) return &_til_str_lits[57];
+        if (*index == 1LL) return &_til_str_lits[20];
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "CaptureBlockData", 16ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_66;
-        if (*index == 1LL) return &_til_str_lit_20;
+        if (*index == 0LL) return &_til_str_lits[66];
+        if (*index == 1LL) return &_til_str_lits[20];
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_154;
-        if (*index == 1LL) return &_til_str_lit_156;
-        if (*index == 2LL) return &_til_str_lit_11;
-        if (*index == 3LL) return &_til_str_lit_11;
+        if (*index == 0LL) return &_til_str_lits[154];
+        if (*index == 1LL) return &_til_str_lits[156];
+        if (*index == 2LL) return &_til_str_lits[11];
+        if (*index == 3LL) return &_til_str_lits[11];
     }
     if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_69;
-        if (*index == 1LL) return &_til_str_lit_161;
+        if (*index == 0LL) return &_til_str_lits[69];
+        if (*index == 1LL) return &_til_str_lits[161];
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "Vec__Declaration", 16ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_6;
-        if (*index == 1LL) return &_til_str_lit_3;
-        if (*index == 2LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[6];
+        if (*index == 1LL) return &_til_str_lits[3];
+        if (*index == 2LL) return &_til_str_lits[3];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_8;
-        if (*index == 1LL) return &_til_str_lit_8;
+        if (*index == 0LL) return &_til_str_lits[8];
+        if (*index == 1LL) return &_til_str_lits[8];
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_13;
-        if (*index == 1LL) return &_til_str_lit_13;
+        if (*index == 0LL) return &_til_str_lits[13];
+        if (*index == 1LL) return &_til_str_lits[13];
     }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_198;
-        if (*index == 1LL) return &_til_str_lit_198;
+        if (*index == 0LL) return &_til_str_lits[198];
+        if (*index == 1LL) return &_til_str_lits[198];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "CfVec3f", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_14;
-        if (*index == 1LL) return &_til_str_lit_14;
-        if (*index == 2LL) return &_til_str_lit_14;
+        if (*index == 0LL) return &_til_str_lits[14];
+        if (*index == 1LL) return &_til_str_lits[14];
+        if (*index == 2LL) return &_til_str_lits[14];
     }
     fprintf(stderr, "struct_field_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -8645,103 +8648,103 @@ I64 enum_variant_count(Str *type_name) {
 Str *enum_variant_name(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Primitive", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_9;
-        if (*index == 1LL) return &_til_str_lit_10;
-        if (*index == 2LL) return &_til_str_lit_1;
-        if (*index == 3LL) return &_til_str_lit_6;
-        if (*index == 4LL) return &_til_str_lit_11;
-        if (*index == 5LL) return &_til_str_lit_12;
-        if (*index == 6LL) return &_til_str_lit_8;
-        if (*index == 7LL) return &_til_str_lit_13;
-        if (*index == 8LL) return &_til_str_lit_14;
-        if (*index == 9LL) return &_til_str_lit_15;
+        if (*index == 0LL) return &_til_str_lits[9];
+        if (*index == 1LL) return &_til_str_lits[10];
+        if (*index == 2LL) return &_til_str_lits[1];
+        if (*index == 3LL) return &_til_str_lits[6];
+        if (*index == 4LL) return &_til_str_lits[11];
+        if (*index == 5LL) return &_til_str_lits[12];
+        if (*index == 6LL) return &_til_str_lits[8];
+        if (*index == 7LL) return &_til_str_lits[13];
+        if (*index == 8LL) return &_til_str_lits[14];
+        if (*index == 9LL) return &_til_str_lits[15];
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_17;
-        if (*index == 1LL) return &_til_str_lit_18;
-        if (*index == 2LL) return &_til_str_lit_19;
-        if (*index == 3LL) return &_til_str_lit_21;
-        if (*index == 4LL) return &_til_str_lit_22;
-        if (*index == 5LL) return &_til_str_lit_23;
-        if (*index == 6LL) return &_til_str_lit_24;
-        if (*index == 7LL) return &_til_str_lit_25;
-        if (*index == 8LL) return &_til_str_lit_7;
-        if (*index == 9LL) return &_til_str_lit_26;
-        if (*index == 10LL) return &_til_str_lit_27;
-        if (*index == 11LL) return &_til_str_lit_28;
-        if (*index == 12LL) return &_til_str_lit_29;
+        if (*index == 0LL) return &_til_str_lits[17];
+        if (*index == 1LL) return &_til_str_lits[18];
+        if (*index == 2LL) return &_til_str_lits[19];
+        if (*index == 3LL) return &_til_str_lits[21];
+        if (*index == 4LL) return &_til_str_lits[22];
+        if (*index == 5LL) return &_til_str_lits[23];
+        if (*index == 6LL) return &_til_str_lits[24];
+        if (*index == 7LL) return &_til_str_lits[25];
+        if (*index == 8LL) return &_til_str_lits[7];
+        if (*index == 9LL) return &_til_str_lits[26];
+        if (*index == 10LL) return &_til_str_lits[27];
+        if (*index == 11LL) return &_til_str_lits[28];
+        if (*index == 12LL) return &_til_str_lits[29];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_30;
-        if (*index == 1LL) return &_til_str_lit_31;
-        if (*index == 2LL) return &_til_str_lit_32;
-        if (*index == 3LL) return &_til_str_lit_33;
-        if (*index == 4LL) return &_til_str_lit_34;
-        if (*index == 5LL) return &_til_str_lit_35;
-        if (*index == 6LL) return &_til_str_lit_36;
-        if (*index == 7LL) return &_til_str_lit_37;
-        if (*index == 8LL) return &_til_str_lit_38;
-        if (*index == 9LL) return &_til_str_lit_39;
-        if (*index == 10LL) return &_til_str_lit_40;
+        if (*index == 0LL) return &_til_str_lits[30];
+        if (*index == 1LL) return &_til_str_lits[31];
+        if (*index == 2LL) return &_til_str_lits[32];
+        if (*index == 3LL) return &_til_str_lits[33];
+        if (*index == 4LL) return &_til_str_lits[34];
+        if (*index == 5LL) return &_til_str_lits[35];
+        if (*index == 6LL) return &_til_str_lits[36];
+        if (*index == 7LL) return &_til_str_lits[37];
+        if (*index == 8LL) return &_til_str_lits[38];
+        if (*index == 9LL) return &_til_str_lits[39];
+        if (*index == 10LL) return &_til_str_lits[40];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "OwnType", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_41;
-        if (*index == 1LL) return &_til_str_lit_42;
-        if (*index == 2LL) return &_til_str_lit_43;
+        if (*index == 0LL) return &_til_str_lits[41];
+        if (*index == 1LL) return &_til_str_lits[42];
+        if (*index == 2LL) return &_til_str_lits[43];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "GcStorage", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_44;
-        if (*index == 1LL) return &_til_str_lit_45;
-        if (*index == 2LL) return &_til_str_lit_46;
+        if (*index == 0LL) return &_til_str_lits[44];
+        if (*index == 1LL) return &_til_str_lits[45];
+        if (*index == 2LL) return &_til_str_lits[46];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Literal", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_110;
-        if (*index == 2LL) return &_til_str_lit_15;
-        if (*index == 3LL) return &_til_str_lit_112;
-        if (*index == 4LL) return &_til_str_lit_113;
-        if (*index == 5LL) return &_til_str_lit_114;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[110];
+        if (*index == 2LL) return &_til_str_lits[15];
+        if (*index == 3LL) return &_til_str_lits[112];
+        if (*index == 4LL) return &_til_str_lits[113];
+        if (*index == 5LL) return &_til_str_lits[114];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_29;
-        if (*index == 1LL) return &_til_str_lit_118;
-        if (*index == 2LL) return &_til_str_lit_119;
-        if (*index == 3LL) return &_til_str_lit_121;
-        if (*index == 4LL) return &_til_str_lit_123;
-        if (*index == 5LL) return &_til_str_lit_125;
-        if (*index == 6LL) return &_til_str_lit_24;
-        if (*index == 7LL) return &_til_str_lit_21;
-        if (*index == 8LL) return &_til_str_lit_23;
-        if (*index == 9LL) return &_til_str_lit_128;
-        if (*index == 10LL) return &_til_str_lit_130;
-        if (*index == 11LL) return &_til_str_lit_132;
-        if (*index == 12LL) return &_til_str_lit_133;
-        if (*index == 13LL) return &_til_str_lit_134;
-        if (*index == 14LL) return &_til_str_lit_135;
-        if (*index == 15LL) return &_til_str_lit_137;
-        if (*index == 16LL) return &_til_str_lit_138;
-        if (*index == 17LL) return &_til_str_lit_139;
-        if (*index == 18LL) return &_til_str_lit_140;
-        if (*index == 19LL) return &_til_str_lit_141;
-        if (*index == 20LL) return &_til_str_lit_143;
-        if (*index == 21LL) return &_til_str_lit_144;
-        if (*index == 22LL) return &_til_str_lit_145;
-        if (*index == 23LL) return &_til_str_lit_146;
-        if (*index == 24LL) return &_til_str_lit_147;
-        if (*index == 25LL) return &_til_str_lit_148;
-        if (*index == 26LL) return &_til_str_lit_150;
-        if (*index == 27LL) return &_til_str_lit_151;
-        if (*index == 28LL) return &_til_str_lit_152;
+        if (*index == 0LL) return &_til_str_lits[29];
+        if (*index == 1LL) return &_til_str_lits[118];
+        if (*index == 2LL) return &_til_str_lits[119];
+        if (*index == 3LL) return &_til_str_lits[121];
+        if (*index == 4LL) return &_til_str_lits[123];
+        if (*index == 5LL) return &_til_str_lits[125];
+        if (*index == 6LL) return &_til_str_lits[24];
+        if (*index == 7LL) return &_til_str_lits[21];
+        if (*index == 8LL) return &_til_str_lits[23];
+        if (*index == 9LL) return &_til_str_lits[128];
+        if (*index == 10LL) return &_til_str_lits[130];
+        if (*index == 11LL) return &_til_str_lits[132];
+        if (*index == 12LL) return &_til_str_lits[133];
+        if (*index == 13LL) return &_til_str_lits[134];
+        if (*index == 14LL) return &_til_str_lits[135];
+        if (*index == 15LL) return &_til_str_lits[137];
+        if (*index == 16LL) return &_til_str_lits[138];
+        if (*index == 17LL) return &_til_str_lits[139];
+        if (*index == 18LL) return &_til_str_lits[140];
+        if (*index == 19LL) return &_til_str_lits[141];
+        if (*index == 20LL) return &_til_str_lits[143];
+        if (*index == 21LL) return &_til_str_lits[144];
+        if (*index == 22LL) return &_til_str_lits[145];
+        if (*index == 23LL) return &_til_str_lits[146];
+        if (*index == 24LL) return &_til_str_lits[147];
+        if (*index == 25LL) return &_til_str_lits[148];
+        if (*index == 26LL) return &_til_str_lits[150];
+        if (*index == 27LL) return &_til_str_lits[151];
+        if (*index == 28LL) return &_til_str_lits[152];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_211;
-        if (*index == 1LL) return &_til_str_lit_212;
-        if (*index == 2LL) return &_til_str_lit_213;
+        if (*index == 0LL) return &_til_str_lits[211];
+        if (*index == 1LL) return &_til_str_lits[212];
+        if (*index == 2LL) return &_til_str_lits[213];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_110;
-        if (*index == 1LL) return &_til_str_lit_216;
-        if (*index == 2LL) return &_til_str_lit_217;
+        if (*index == 0LL) return &_til_str_lits[110];
+        if (*index == 1LL) return &_til_str_lits[216];
+        if (*index == 2LL) return &_til_str_lits[217];
     }
     fprintf(stderr, "enum_variant_name: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -8855,103 +8858,103 @@ I64 enum_variant_has_payload(Str *type_name, I64 *index) {
 Str *enum_variant_payload_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Primitive", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_16;
-        if (*index == 3LL) return &_til_str_lit_16;
-        if (*index == 4LL) return &_til_str_lit_16;
-        if (*index == 5LL) return &_til_str_lit_16;
-        if (*index == 6LL) return &_til_str_lit_16;
-        if (*index == 7LL) return &_til_str_lit_16;
-        if (*index == 8LL) return &_til_str_lit_16;
-        if (*index == 9LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[16];
+        if (*index == 3LL) return &_til_str_lits[16];
+        if (*index == 4LL) return &_til_str_lits[16];
+        if (*index == 5LL) return &_til_str_lits[16];
+        if (*index == 6LL) return &_til_str_lits[16];
+        if (*index == 7LL) return &_til_str_lits[16];
+        if (*index == 8LL) return &_til_str_lits[16];
+        if (*index == 9LL) return &_til_str_lits[16];
     }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Type", 4ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_20;
-        if (*index == 3LL) return &_til_str_lit_16;
-        if (*index == 4LL) return &_til_str_lit_20;
-        if (*index == 5LL) return &_til_str_lit_16;
-        if (*index == 6LL) return &_til_str_lit_16;
-        if (*index == 7LL) return &_til_str_lit_16;
-        if (*index == 8LL) return &_til_str_lit_16;
-        if (*index == 9LL) return &_til_str_lit_20;
-        if (*index == 10LL) return &_til_str_lit_27;
-        if (*index == 11LL) return &_til_str_lit_20;
-        if (*index == 12LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[20];
+        if (*index == 3LL) return &_til_str_lits[16];
+        if (*index == 4LL) return &_til_str_lits[20];
+        if (*index == 5LL) return &_til_str_lits[16];
+        if (*index == 6LL) return &_til_str_lits[16];
+        if (*index == 7LL) return &_til_str_lits[16];
+        if (*index == 8LL) return &_til_str_lits[16];
+        if (*index == 9LL) return &_til_str_lits[20];
+        if (*index == 10LL) return &_til_str_lits[27];
+        if (*index == 11LL) return &_til_str_lits[20];
+        if (*index == 12LL) return &_til_str_lits[16];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_16;
-        if (*index == 3LL) return &_til_str_lit_16;
-        if (*index == 4LL) return &_til_str_lit_16;
-        if (*index == 5LL) return &_til_str_lit_16;
-        if (*index == 6LL) return &_til_str_lit_16;
-        if (*index == 7LL) return &_til_str_lit_16;
-        if (*index == 8LL) return &_til_str_lit_16;
-        if (*index == 9LL) return &_til_str_lit_16;
-        if (*index == 10LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[16];
+        if (*index == 3LL) return &_til_str_lits[16];
+        if (*index == 4LL) return &_til_str_lits[16];
+        if (*index == 5LL) return &_til_str_lits[16];
+        if (*index == 6LL) return &_til_str_lits[16];
+        if (*index == 7LL) return &_til_str_lits[16];
+        if (*index == 8LL) return &_til_str_lits[16];
+        if (*index == 9LL) return &_til_str_lits[16];
+        if (*index == 10LL) return &_til_str_lits[16];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "OwnType", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[16];
     }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "GcStorage", 9ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[16];
     }
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "Literal", 7ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_20;
-        if (*index == 1LL) return &_til_str_lit_111;
-        if (*index == 2LL) return &_til_str_lit_15;
-        if (*index == 3LL) return &_til_str_lit_16;
-        if (*index == 4LL) return &_til_str_lit_16;
-        if (*index == 5LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[20];
+        if (*index == 1LL) return &_til_str_lits[111];
+        if (*index == 2LL) return &_til_str_lits[15];
+        if (*index == 3LL) return &_til_str_lits[16];
+        if (*index == 4LL) return &_til_str_lits[16];
+        if (*index == 5LL) return &_til_str_lits[16];
     }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_118;
-        if (*index == 2LL) return &_til_str_lit_120;
-        if (*index == 3LL) return &_til_str_lit_122;
-        if (*index == 4LL) return &_til_str_lit_124;
-        if (*index == 5LL) return &_til_str_lit_126;
-        if (*index == 6LL) return &_til_str_lit_127;
-        if (*index == 7LL) return &_til_str_lit_21;
-        if (*index == 8LL) return &_til_str_lit_23;
-        if (*index == 9LL) return &_til_str_lit_129;
-        if (*index == 10LL) return &_til_str_lit_131;
-        if (*index == 11LL) return &_til_str_lit_16;
-        if (*index == 12LL) return &_til_str_lit_16;
-        if (*index == 13LL) return &_til_str_lit_16;
-        if (*index == 14LL) return &_til_str_lit_136;
-        if (*index == 15LL) return &_til_str_lit_20;
-        if (*index == 16LL) return &_til_str_lit_16;
-        if (*index == 17LL) return &_til_str_lit_16;
-        if (*index == 18LL) return &_til_str_lit_16;
-        if (*index == 19LL) return &_til_str_lit_142;
-        if (*index == 20LL) return &_til_str_lit_16;
-        if (*index == 21LL) return &_til_str_lit_16;
-        if (*index == 22LL) return &_til_str_lit_16;
-        if (*index == 23LL) return &_til_str_lit_16;
-        if (*index == 24LL) return &_til_str_lit_16;
-        if (*index == 25LL) return &_til_str_lit_149;
-        if (*index == 26LL) return &_til_str_lit_16;
-        if (*index == 27LL) return &_til_str_lit_149;
-        if (*index == 28LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[118];
+        if (*index == 2LL) return &_til_str_lits[120];
+        if (*index == 3LL) return &_til_str_lits[122];
+        if (*index == 4LL) return &_til_str_lits[124];
+        if (*index == 5LL) return &_til_str_lits[126];
+        if (*index == 6LL) return &_til_str_lits[127];
+        if (*index == 7LL) return &_til_str_lits[21];
+        if (*index == 8LL) return &_til_str_lits[23];
+        if (*index == 9LL) return &_til_str_lits[129];
+        if (*index == 10LL) return &_til_str_lits[131];
+        if (*index == 11LL) return &_til_str_lits[16];
+        if (*index == 12LL) return &_til_str_lits[16];
+        if (*index == 13LL) return &_til_str_lits[16];
+        if (*index == 14LL) return &_til_str_lits[136];
+        if (*index == 15LL) return &_til_str_lits[20];
+        if (*index == 16LL) return &_til_str_lits[16];
+        if (*index == 17LL) return &_til_str_lits[16];
+        if (*index == 18LL) return &_til_str_lits[16];
+        if (*index == 19LL) return &_til_str_lits[142];
+        if (*index == 20LL) return &_til_str_lits[16];
+        if (*index == 21LL) return &_til_str_lits[16];
+        if (*index == 22LL) return &_til_str_lits[16];
+        if (*index == 23LL) return &_til_str_lits[16];
+        if (*index == 24LL) return &_til_str_lits[16];
+        if (*index == 25LL) return &_til_str_lits[149];
+        if (*index == 26LL) return &_til_str_lits[16];
+        if (*index == 27LL) return &_til_str_lits[149];
+        if (*index == 28LL) return &_til_str_lits[16];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Color", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_16;
-        if (*index == 1LL) return &_til_str_lit_16;
-        if (*index == 2LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[16];
+        if (*index == 1LL) return &_til_str_lits[16];
+        if (*index == 2LL) return &_til_str_lits[16];
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_13;
-        if (*index == 1LL) return &_til_str_lit_20;
-        if (*index == 2LL) return &_til_str_lit_16;
+        if (*index == 0LL) return &_til_str_lits[13];
+        if (*index == 1LL) return &_til_str_lits[20];
+        if (*index == 2LL) return &_til_str_lits[16];
     }
     fprintf(stderr, "enum_variant_payload_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -9284,8 +9287,8 @@ I64 func_sig_param_count(Str *type_name) {
 Str *func_sig_param_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "HashFn", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_7;
-        if (*index == 1LL) return &_til_str_lit_3;
+        if (*index == 0LL) return &_til_str_lits[7];
+        if (*index == 1LL) return &_til_str_lits[3];
     }
     fprintf(stderr, "func_sig_param_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
@@ -9303,7 +9306,7 @@ I64 func_sig_return_count(Str *type_name) {
 Str *func_sig_return_type(Str *type_name, I64 *index) {
     (void)type_name; (void)index;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "HashFn", 6ULL) == 0) {
-        if (*index == 0LL) return &_til_str_lit_8;
+        if (*index == 0LL) return &_til_str_lits[8];
     }
     fprintf(stderr, "func_sig_return_type: type '%.*s' index out of range\n", (int)type_name->count, (char*)type_name->c_str);
     exit(1);
