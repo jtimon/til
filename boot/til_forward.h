@@ -286,6 +286,11 @@ typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
+typedef enum {
+    Option__ref_Mode_TAG_None,
+    Option__ref_Mode_TAG_Some
+} Option__ref_Mode_tag;
+typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef enum {
     Lang_TAG_C,
@@ -315,6 +320,11 @@ typedef enum {
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__CtorArg Vec__CtorArg;
+typedef enum {
+    Option__ref_Declaration_TAG_None,
+    Option__ref_Declaration_TAG_Some
+} Option__ref_Declaration_tag;
+typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
@@ -846,6 +856,14 @@ typedef struct Vec__ExprPtrBox {
 } Vec__ExprPtrBox;
 
 
+struct Option__ref_Mode {
+    U8 tag;
+    union {
+        Mode *Some;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct Map__Str_I64 {
     Vec__Str keys;
     Vec__I64 values;
@@ -866,6 +884,14 @@ typedef struct Vec__CtorArg {
     USize cap;
 } Vec__CtorArg;
 
+
+struct Option__ref_Declaration {
+    U8 tag;
+    union {
+        Declaration *Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct Vec__CoverageNode {
     U8 *data;
@@ -2405,7 +2431,12 @@ void context_register_path_mode(Context * ctx, Str * path, Mode * mode);
 void context_set_mode_from_path(Context * ctx, Str * path);
 void context_enter_file(Context * ctx, Str * path);
 void context_init_mode_registry(Context * ctx);
-Mode * mode_resolve(Context * ctx, Str * name);
+Option__ref_Mode * mode_resolve(Context * ctx, Str * name);
+Option__ref_Mode * Option__ref_Mode_None(void);
+Option__ref_Mode * Option__ref_Mode_Some(Mode * val);
+void Option__ref_Mode_delete(Option__ref_Mode * self, Bool call_free);
+Option__ref_Mode * Option__ref_Mode_clone(Option__ref_Mode * self);
+USize Option__ref_Mode_size(void);
 Bool priv___src_self_initer_til__is_dynamic_type(Str * name);
 Bool priv___src_self_initer_til__primitive_type_info(Str * name, TypeScope * scope, Primitive * prim, USize * sz, USize * al, Bool * is_builtin);
 void priv___src_self_initer_til__register_body_type_token(Context * ctx, TypeScope * scope);
@@ -2571,7 +2602,7 @@ void type_error(Expr * e, Str * msg, Context * ctx);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);
 Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_comptime(Expr * e, TypeScope * scope);
-Declaration * find_ns_decl(Expr * sdef, Str * method);
+Option__ref_Declaration * find_ns_decl(Expr * sdef, Str * method);
 Bool priv___src_self_typer_til__try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name, Context * ctx);
 Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool priv___src_self_typer_til__fdef_returns_unborrowable(FunctionDef * fd, TypeScope * scope);
@@ -2766,6 +2797,11 @@ void Vec__CtorArg_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__C
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_clone(Vec__CtorArg * self);
 USize Vec__CtorArg_size(void);
+Option__ref_Declaration * Option__ref_Declaration_None(void);
+Option__ref_Declaration * Option__ref_Declaration_Some(Declaration * val);
+void Option__ref_Declaration_delete(Option__ref_Declaration * self, Bool call_free);
+Option__ref_Declaration * Option__ref_Declaration_clone(Option__ref_Declaration * self);
+USize Option__ref_Declaration_size(void);
 Vec__CoverageNode * Vec__CoverageNode_new(void);
 void Vec__CoverageNode_clear(Vec__CoverageNode * self);
 void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);
@@ -3298,7 +3334,7 @@ void priv___src_self_builder_til__DynCallInfo_delete(priv___src_self_builder_til
 USize priv___src_self_builder_til__DynCallInfo_size(void);
 Str * closure_call_name(Str * name);
 Str * closure_value_name(Str * name);
-Expr * priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * name);
+Option__ref_Expr * priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * name);
 Expr * priv___src_self_builder_til__resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope, Context * ctx);
 Expr * priv___src_self_builder_til__fcall_fn_sig(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__is_stack_local(Str * name, Context * ctx);
@@ -4169,6 +4205,8 @@ Option__ref_Expr *Option__ref_Expr_None();
 Option__ref_Expr *Option__ref_Expr_Some(Expr *);
 Option__ref_TypeScope *Option__ref_TypeScope_None();
 Option__ref_TypeScope *Option__ref_TypeScope_Some(TypeScope *);
+Option__ref_Mode *Option__ref_Mode_None();
+Option__ref_Mode *Option__ref_Mode_Some(Mode *);
 Bool Lang_eq(Lang *, Lang *);
 Lang *Lang_C();
 Lang *Lang_HolyC();
@@ -4188,6 +4226,8 @@ Target *Target_Wasm32();
 Target *Target_TempleosX86();
 priv___src_self_typer_til__CtorArg *priv___src_self_typer_til__CtorArg_Unfilled();
 priv___src_self_typer_til__CtorArg *priv___src_self_typer_til__CtorArg_Filled(Expr *);
+Option__ref_Declaration *Option__ref_Declaration_None();
+Option__ref_Declaration *Option__ref_Declaration_Some(Declaration *);
 Option__ref_Scope *Option__ref_Scope_None();
 Option__ref_Scope *Option__ref_Scope_Some(Scope *);
 

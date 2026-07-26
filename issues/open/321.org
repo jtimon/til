@@ -278,6 +278,29 @@ updates (qualifiers.org / ownership.org / enums.org).
   COVER ref fields with NULL defaults, so they convert as PART of
   landing the forbid, not before it.
 
+**** Step 2 starter (batch 7): ref RETURNS -> Option(ref T)
+
+First three lookups migrated, chosen for small call-site counts so the
+pattern is proven before the hot, high-fanout ones:
+
+- ~mode_resolve~ (src/self/modes.til, 2 sites)
+- ~resolve_local_fn_sig~ (src/self/builder.til, 2 sites)
+- ~find_ns_decl~ (src/self/typer.til, 3 sites)
+
+Pattern: the function returns ~Option(ref T)~ and each caller's
+~if x.is_null()~ becomes a ~switch~ whose None arm holds what the null
+branch used to do (panic, fall through to the next fallback, or emit
+the diagnostic). Note the two nulls again (see batch 5): where the
+lookup also takes a nullable ref ARG (find_ns_decl's ~sdef~), that
+guard stays -- a null def simply has no members -- and is step 2's
+separate param job.
+
+Perf note for the hot ones: an enum return is heap-boxed by default
+(~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup
+like ~TypeScope.get_struct~ wants either ~returns shallow Option(...)~
+or the niche layout first; that is why the mass migration is
+sequenced after #320's last item.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the

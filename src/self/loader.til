@@ -46,11 +46,12 @@ priv display_path := func(p: Str, cwd: Str) returns Str {
 }
 
 priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref Mode {
-    ref resolved : Mode = mode_resolve(ctx, mode_name)
-    if resolved.is_null() {
+    switch mode_resolve(ctx, mode_name) {
+    case Option(ref Mode).Some(resolved): return resolved
+    case Option(ref Mode).None:
         panic(": unknown mode '", mode_name, "'", loc = path)
+        return NULL
     }
-    return resolved
 }
 
 forward_header_path := func(path: Str) returns Str {
@@ -1059,12 +1060,12 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
     }
 
     // Store in lp.ctx.imported so it can be typechecked.
-    ref mode_mode_def : Mode = mode_resolve(lp.ctx, mode_str)
-    if mode_mode_def.is_null() {
+    mut iu := ImportUnit(mode_str = mode_str.clone())
+    switch mode_resolve(lp.ctx, mode_str) {
+    case Option(ref Mode).Some(mode_mode_def): iu.mode = mode_mode_def.clone()
+    case Option(ref Mode).None:
         panic("unknown mode '", mode_str, "' for mode file")
     }
-    mut iu := ImportUnit(mode_str = mode_str.clone())
-    iu.mode = mode_mode_def.clone()
     iu.ast.take_children(ast)
     context_register_path_mode(lp.ctx, disp, iu.mode)
     lp.ctx.imported.set(disp, own iu)

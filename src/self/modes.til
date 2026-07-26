@@ -26,9 +26,11 @@ context_init_mode_registry := func(mut ctx: Context) {
     ctx.mode_registry.set("mode", own Mode(decls_only = true, auto_import = "src/std/mode_type"))
 }
 
-mode_resolve := func(ctx: Context, name: Str) returns ref Mode {
+// #321 step 2: a lookup that can MISS returns Option(ref T) rather than
+// a null ref -- "not registered" is a real state the callers handle.
+mode_resolve := func(ctx: Context, name: Str) returns Option(ref Mode) {
     ref mr : Map(Str, Mode) = ctx.mode_registry
     ref m : Mode = mr.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return m
+    catch (e: KeyNotFound) { return Option(ref Mode).None }
+    return Option(ref Mode).Some(m)
 }

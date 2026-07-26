@@ -359,9 +359,14 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
 // Issue #179 step 5: locate a namespace member's Declaration so the
 // caller can read its is_priv flag (find_namespace_func only returns
 // the default_value FuncDef Expr).
-find_ns_decl := func(sdef: Expr, method: Str) returns ref Declaration {
-    if sdef.is_null() { return NULL }
-    return def_ns_get(sdef, method)
+// #321 step 2: "this type has no such namespace member" is a real state
+// -- an Option, not a null ref. (The sdef ARGUMENT is still a nullable
+// ref param, a separate step-2 item; a null def simply has no members.)
+find_ns_decl := func(sdef: Expr, method: Str) returns Option(ref Declaration) {
+    if sdef.is_null() { return Option(ref Declaration).None }
+    ref d : Declaration = def_ns_get(sdef, method)
+    if d.is_null() { return Option(ref Declaration).None }
+    return Option(ref Declaration).Some(d)
 }
 
 priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr, method: Str, type_name: Str, ctx: Context) returns Bool {
@@ -1775,11 +1780,14 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         e.set_til_type(Type.Unknown)
         return true
     }
-    ref fd : Declaration = find_ns_decl(sdef2, method)
     mut ns_member_priv := false
-    if fd.is_null().not() { ns_member_priv = fd.is_priv }
+    switch find_ns_decl(sdef2, method) {
+    case Option(ref Declaration).Some(fd):
+        ns_member_priv = fd.is_priv
+        if ctx.auto_gen_depth == 0 { fd.used = true }
+    case Option(ref Declaration).None:
+    }
     check_member_priv(e, obj3_sname, method, ns_member_priv, ctx)
-    if ctx.auto_gen_depth.eq(0).and(fd.is_null().not()) { fd.used = true }
     // #154: calling a method of a cross-file type uses that type's import.
     note_cross_file_type_use(scope, ctx, obj3_sname)
     // #269: a call to an ABSTRACT method through an interface-typed receiver
@@ -2407,8 +2415,9 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
             if dyn_tdef.is_null().not() {
                 switch e.children[2].node_type {
                 case NodeType.Literal(Literal.Str(dyn_meth)):
-                    ref dyn_md : Declaration = find_ns_decl(dyn_tdef, dyn_meth)
-                    if dyn_md.is_null().not() {
+                    switch find_ns_decl(dyn_tdef, dyn_meth) {
+                    case Option(ref Declaration).None:
+                    case Option(ref Declaration).Some(dyn_md):
                         switch dyn_md.default_value.node_type {
                         case NodeType.FuncDef(dyn_mfd):
                             if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)).or(dyn_mfd.func_type.is(FuncType.CoreLazyFunc)) {
@@ -2804,11 +2813,13 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     // Only abstract (ext_func/ext_proc) methods must be
                     // provided; func/proc defaults are inherited.
                     if am_fd.func_type.is(FuncType.ExtFunc).or(am_fd.func_type.is(FuncType.ExtProc)).not() { continue }
-                    ref impl_m : Declaration = find_ns_decl(expr, am_name)
-                    if impl_m.is_null() {
+                    switch find_ns_decl(expr, am_name) {
+                    case Option(ref Declaration).None:
                         expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
-                    } else if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
-                        impl_m.default_value.type_error(format("'", impl_self_name, ".", am_name, "' does not match the signature of '", impl_iface_name, ".", am_name, "' declared in the interface"), ctx)
+                    case Option(ref Declaration).Some(impl_m):
+                        if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
+                            impl_m.default_value.type_error(format("'", impl_self_name, ".", am_name, "' does not match the signature of '", impl_iface_name, ".", am_name, "' declared in the interface"), ctx)
+                        }
                     }
                 case:
                 }

@@ -34,10 +34,13 @@ closure_value_name := func(name: Str) returns Str {
 
 // --- Leaf functions ---
 
-priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns ref Expr {
+// #321 step 2: "no captured signature for this local" is a real state,
+// so the miss is an Option, not a null ref.
+priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Expr) {
     ref slot : Dynamic = ctx.builder_func.local_fn_sigs.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    ref sig : Expr = deref(slot)
+    return Option(ref Expr).Some(sig)
 }
 
 priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns ref Expr {
@@ -55,8 +58,10 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
         // A transitive first-class alias `h := g` where `g := f` is itself a
         // local funcptr value (#262): chase `g`'s signature captured at its
         // own emit_stmt_decl into local_fn_sigs, so `h` resolves the same sig.
-        ref via_local_alias : Expr = resolve_local_fn_sig(ctx, rhs_name.ident_name())
-        if via_local_alias.is_null().not() { return via_local_alias }
+        switch resolve_local_fn_sig(ctx, rhs_name.ident_name()) {
+        case Option(ref Expr).Some(via_local_alias): return via_local_alias
+        case Option(ref Expr).None:
+        }
     case NodeType.FCall:
         ref fdef : Expr = resolve_fn_sig(rhs, scope)
         if fdef.is_null().not() { return fdef }
@@ -120,8 +125,10 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
         }
         // Fallback 2: local FuncPtr decl whose signature was captured at
         // emit_stmt_decl time.
-        ref via_local : Expr = resolve_local_fn_sig(ctx, name.ident_name())
-        if via_local.is_null().not() { return via_local }
+        switch resolve_local_fn_sig(ctx, name.ident_name()) {
+        case Option(ref Expr).Some(via_local): return via_local
+        case Option(ref Expr).None:
+        }
         // Fallback 3: the Ident itself is a known global function name used
         // as a FuncPtr value (e.g. an inlined ref to a top-level func).
         ref via_global : Expr = find_callee_fdef(name.ident_name(), ctx)
