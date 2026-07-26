@@ -389,3 +389,39 @@ test_bug302_move_swap := test() {
     assert(c == "hello")
     assert(b == "hi")
 }
+
+// --- #302: shallow return of a USER-NAMED owned local ------------------
+//
+// A `returns shallow T` function copies the value out to the caller, so
+// the local's heap WRAPPER must be released at the return (the contents
+// transfer with the copy). The garbager cannot insert that delete --
+// insert_exit_deletes_into_stmt skips locals used in the return operand,
+// since freeing before the return would destroy what is copied -- so the
+// builder emits the capture-free-return dance. That emission used to be
+// gated on the `hoisted__` name prefix, which meant it fired only for
+// compiler temps: a user-named owned local leaked its wrapper on every
+// call (8 bytes per call, ASAN-verified). The gate is now structural
+// (any heap-box local), so both spellings are covered. ASAN verifies no
+// leak and no double-free of the transferred contents.
+
+Bug302ShRet := struct {
+    own s : Str = ""
+}
+
+bug302_shret_named := func() returns shallow Bug302ShRet {
+    w := Bug302ShRet(s = Str.clone("named-payload"))
+    return w
+}
+
+bug302_shret_hoisted := func() returns shallow Bug302ShRet {
+    return Bug302ShRet(s = Str.clone("hoisted-payload"))
+}
+
+test_bug302_shallow_return_named := test() {
+    mut a := bug302_shret_named()
+    assert(a.s == "named-payload")
+    Bug302ShRet.delete(own a, true)
+    mut b := bug302_shret_hoisted()
+    assert(b.s == "hoisted-payload")
+    Bug302ShRet.delete(own b, true)
+}

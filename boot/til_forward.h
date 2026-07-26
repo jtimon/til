@@ -1743,7 +1743,6 @@ void LiteralNumData_delete(LiteralNumData * self, Bool call_free);
 U64 LiteralNumData_hash(LiteralNumData * self, HashFn hasher);
 USize LiteralNumData_size(void);
 U32 IdentData_len(IdentData * self);
-Bool IdentData_starts_with(IdentData * self, Str * prefix);
 I8 * IdentData_unsafe_get(IdentData * self, USize * i);
 I8 * IdentData_get(IdentData * self, USize * i);
 Str * IdentData_ident_name(IdentData * self);

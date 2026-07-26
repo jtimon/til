@@ -1065,7 +1065,22 @@ let the ownership pass insert temps itself; start with the check.
     (heap_local_is_callable) -- is_aggregate is false for callables, so
     the old flow fell through to the last-use delete. Pass-1 C == pass-2
     C byte-exact; make clean && make test 178/178.
-    The OTHER stage-6 items (CAP laundering
+        "Asap fix" 2026-07-16: the inline free STAYS as a mechanism (the
+    capture-free-return dance is a C emission detail: the garbager
+    cannot insert it, since freeing before the return would destroy the
+    value being copied out), but its GATE is now structural instead of
+    name-based -- and that exposed a real leak. The emission was gated
+    on the `hoisted__` prefix, so it fired only for compiler temps: a
+    USER-NAMED owned local returned from a `returns shallow T` function
+    leaked its wrapper on every call (8 bytes, ASAN-verified repro
+    isolating named vs hoisted). The gate is now "any heap-box local",
+    excluding the shapes that own no frame-local wrapper: stack values,
+    value globals, Dynamic, closure captures (they live in `env->name`,
+    so the free would not even name a C local -- caught by the suite as
+    a C compile error in closures/lazy) and params. Regression:
+    test/regression.til test_bug302_shallow_return_named (both
+    spellings). One more D2 name-string dependency gone. The OTHER
+    stage-6 items (CAP laundering
     at return boxing, the FieldAssign cap test, the "Asap fix" inline
     free) each need their own gap-first fix per the stage's rule.
   - [X] Stage 7 DONE (2026-07-16): interpreter compensation removal --
