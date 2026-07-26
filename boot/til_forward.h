@@ -1937,6 +1937,7 @@ U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
+Str * File_read_all(File * self);
 void File_close(File * self);
 void File_delete(File * self, Bool call_free);
 File * File_fwrite(File * self, Array__Str * parts);
@@ -3315,7 +3316,6 @@ void priv___src_self_builder_til__emit_pod_enum_clone_arg(File * f, Expr * e, I3
 Bool priv___src_self_builder_til__is_pod_struct(Str * struct_name, Context * ctx);
 Bool priv___src_self_builder_til__is_funcsig_type(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
-Bool priv___src_self_builder_til__is_ext_h_func(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
 Expr * priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Expr * priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
@@ -3912,8 +3912,6 @@ Bool priv___src_self_interpreter_til__h_cast(Scope * s, Expr * e, void * r, Cont
 Bool priv___src_self_interpreter_til__h_print_single(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_print_flush(Scope * _s, Expr * _e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_exit(Scope * s, Expr * e, void * _r, Context * ctx);
-Bool priv___src_self_interpreter_til__h_readfile(Scope * s, Expr * e, void * r, Context * ctx);
-Bool priv___src_self_interpreter_til__h_writefile(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_spawn_cmd(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_dyn_has_method(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_dyn_fn(Scope * s, Expr * e, void * r, Context * ctx);

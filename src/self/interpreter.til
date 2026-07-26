@@ -5588,20 +5588,6 @@ priv h_exit := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     return true
 }
 
-priv h_readfile := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
-    path := eval_str_owned(s, e.children[1], ctx)
-    content := File.readfile(path)
-    dispatch_write_str(r, content.c_str, content.count, ctx)
-    return true
-}
-
-priv h_writefile := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
-    path := eval_str_owned(s, e.children[1], ctx)
-    content := eval_str_owned(s, e.children[2], ctx)
-    File.writefile(path, content)
-    return true
-}
-
 priv h_spawn_cmd := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     cmd := eval_str_owned(s, e.children[1], ctx)
     write_i64(r, spawn_cmd(cmd))
@@ -6641,8 +6627,6 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("func_sig_throw_count", h_func_sig_throw_count, ctx)
     reg_dispatch("func_sig_throw_type", h_func_sig_throw_type, ctx)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str, ctx)
-    reg_dispatch("File_readfile", h_readfile, ctx)
-    reg_dispatch("File_writefile", h_writefile, ctx)
     reg_dispatch("spawn_cmd", h_spawn_cmd, ctx)
     reg_dispatch("check_cmd_status", h_check_cmd_status, ctx)
     reg_dispatch("sleep", h_sleep, ctx)

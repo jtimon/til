@@ -583,41 +583,6 @@ void eprint_single(const Str *s) { fwrite(s->c_str, 1, (size_t)s->count, stderr)
 // --- System primitives ---
 // These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 
-Str *File_readfile(const Str *path) {
-    char *p = dup_n((const char *)path->c_str, path->count);
-    FILE *f = fopen(p, "rb");
-    if (!f) {
-        fprintf(stderr, "File.readfile: could not open '%s'\n", p);
-        free(p);
-        exit(1);
-    }
-    free(p);
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *buf = malloc(len);
-    fread(buf, 1, len, f);
-    fclose(f);
-    Str *s = malloc(sizeof(Str));
-    s->c_str = (I8 *)buf;
-    s->count = len;
-    s->cap = len;
-    return s;
-}
-
-void File_writefile(const Str *path, const Str *content) {
-    char *p = dup_n((const char *)path->c_str, path->count);
-    FILE *f = fopen(p, "wb");
-    if (!f) {
-        fprintf(stderr, "File.writefile: could not open '%s'\n", p);
-        free(p);
-        exit(1);
-    }
-    free(p);
-    fwrite(content->c_str, 1, content->count, f);
-    fclose(f);
-}
-
 typedef struct {
     char *data;
     size_t len;

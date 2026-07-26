@@ -197,12 +197,6 @@ void write_f32(void *dest, F32 val);
 void write_bool(void *dest, Bool val);
 
 // System primitives
-// File_readfile / File_writefile are namespace ext methods of the File
-// struct (src/std/file.til). The builder's is_ext_h_func skips their
-// forward-decl emission (see src/self/builder.til), so ext.h owns the
-// signature and can apply the FFI const convention to the Ref params.
-Str *File_readfile(const Str *path);
-void File_writefile(const Str *path, const Str *content);
 void stdio_capture_begin(const Str *path);
 void stdio_capture_end(void);
 Str *doc_org_load_core_info(const Str *index_path);
