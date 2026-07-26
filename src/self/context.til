@@ -228,18 +228,24 @@ namespace:
     // ctx.interp_type_defs pattern -- the cell is owned by the Map so
     // its cleanup frees the allocation; the Expr it points at lives
     // in the AST and is not owned by the Map.
+    //
+    // The cell is typed UPtr, not I64: it holds a POINTER, so its width
+    // must follow the pointer width (which is also what the Map's
+    // Dynamic value slot is sized at). I64 happened to work only because
+    // both are 8 bytes on 64-bit hosts; on a 32-bit target it allocated 8
+    // bytes for a 4-byte slot and called a pointer a signed integer.
     set_func_def := func(mut self: TypeScope, name: Str, fdef: Expr) {
         if self.bindings.has(name) {
             ref mut b : TypeBinding = self.bindings[name]
             b.func_type = func_def_type(fdef)
         }
-        cell : I64 = malloc(I64.size())
+        cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
     }
     set_func_symbol := func(mut self: TypeScope, name: Str, fdef: Expr) {
         if self.bindings.has(name) { return }
-        cell : I64 = malloc(I64.size())
+        cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
     }
@@ -248,7 +254,7 @@ namespace:
     // ref struct_def field). Same malloc'd-cell pattern as set_func_def
     // -- the cell is owned by the Map, the Expr lives in the AST.
     set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
-        cell : I64 = malloc(I64.size())
+        cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
     }

@@ -3892,7 +3892,7 @@ priv intern_named := func(mut m: Map(Str, Dynamic), name: Str, shallow t: Type) 
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) {
         raw : Dynamic = intern_type_box(t)
-        cell : Dynamic = malloc(Dynamic.size())
+        cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, raw)
         m.set(name, own cell)
         return raw
@@ -3904,8 +3904,8 @@ priv intern_slot := func(mut v: Vec(Dynamic), idx: USize, shallow t: Type) retur
     // Vec(Dynamic).push takes an allocated 8-byte temp, copies the pointer
     // bytes, then frees the temp (see topo_emit_struct_enum_defs_lp).
     while v.len() <= idx {
-        empty_cell : I64 = malloc(I64.size())
-        memset(empty_cell, 0, I64.size())
+        empty_cell : UPtr = malloc(UPtr.size())
+        memset(empty_cell, 0, UPtr.size())
         v.push(own empty_cell)
     }
     ref slot : Dynamic = v.unsafe_get(idx)
@@ -4299,7 +4299,7 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
             if sdef.node_type.is(NodeType.StructDef) {
                 if dd.name == "Str" { ctx.cached_str_name = dd.name.clone() }
             }
-            tdv : Dynamic = malloc(I64.size())
+            tdv : UPtr = malloc(UPtr.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
         case:
@@ -4328,7 +4328,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             // Clone the name for owned-key safety -- a CAP_VIEW key dangles if the
             // AST gets rebuilt later in the run. The map value is a malloc'd cell
             // holding the Expr pointer (same encoding as TypeScope.struct_defs).
-            tdv : Dynamic = malloc(I64.size())
+            tdv : UPtr = malloc(UPtr.size())
             write_ptr(tdv, sdef)
             ctx.interp_type_defs.set(dd.name, own tdv)
             // #307: two passes so registration order does not depend on
@@ -6573,7 +6573,7 @@ priv h_cfile_read_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 priv DispatchFn := proc(Scope, Expr, Dynamic, Context) returns Bool
 
 priv reg_dispatch := func(name: Str, handler: DispatchFn, ctx: Context) {
-    v : Dynamic = malloc(8)
+    v : UPtr = malloc(UPtr.size())
     write_ptr(v, handler)
     ctx.dispatch_map.set(name, own v)
 }
@@ -6910,16 +6910,16 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
     // args[i] = void* for each arg, arg_ptrs[i] = &args[i]
-    args : Dynamic = malloc(alloc_n.mul(8))
-    arg_ptrs : Dynamic = malloc(alloc_n.mul(8))
+    args : UPtr = malloc(alloc_n.mul(UPtr.size()))
+    arg_ptrs : UPtr = malloc(alloc_n.mul(UPtr.size()))
     // Per-arg flag: true when args[i] holds a scalar box WE malloc'd on
     // the deep path below. No ext callee takes `own` scalars (the C side
     // only borrows these boxes), so they must be freed after ffi_call --
     // skipping that leaked one box per non-shallow scalar arg per call.
-    boxed_flags : Dynamic = calloc(alloc_n, 1)
+    boxed_flags : U8 = calloc(alloc_n, 1)
     // Keep each raw result alive until ffi_call finishes because arg_ptrs may
     // point directly into aggregate storage.
-    arg_raws : Dynamic = malloc(alloc_n.mul(8))
+    arg_raws : UPtr = malloc(alloc_n.mul(UPtr.size()))
 
     for i in 0..nargs {
         ref arg_expr : Expr = e.children[i + 1]
