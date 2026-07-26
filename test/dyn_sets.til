@@ -51,3 +51,30 @@ test_dyn_set_literal_str := test() {
     assert(s.has("cherry"))
     assert(s.has("date").not())
 }
+
+// #323 API symmetry: DynSet.remove mirrors Set.remove.
+test_dyn_set_remove := test() {
+    mut s := DynSet.new(I64)
+    s.add(own 3)
+    s.add(own 1)
+    s.add(own 2)
+    assert(s.remove(2))
+    assert_eq(USize, s.len(), 2)
+    assert(s.has(2).not())
+    assert(s.has(1))
+    assert(s.has(3))
+    assert(s.remove(2).not())
+    assert_eq(USize, s.len(), 2)
+    assert(s.remove(1))
+    assert(s.remove(3))
+    assert_eq(USize, s.len(), 0)
+}
+
+test_dyn_set_remove_str_frees_elem := test() {
+    mut s := DynSet.new(Str)
+    s.add(own "alpha")
+    s.add(own "beta")
+    assert(s.remove("alpha"))
+    assert(s.has("alpha").not())
+    assert(s.has("beta"))
+}

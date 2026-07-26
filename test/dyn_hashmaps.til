@@ -13,9 +13,9 @@ test_dyn_hashmap_i64_basic := test() {
     assert(m.has(3))
     assert(m.has(4).not())
 
-    ref v1 : I64 = m.get(1)
-    ref v2 : I64 = m.get(2)
-    ref v3 : I64 = m.get(3)
+    ref v1 : I64 = m.get(1)!
+    ref v2 : I64 = m.get(2)!
+    ref v3 : I64 = m.get(3)!
     assert_eq(I64, v1, 10)
     assert_eq(I64, v2, 20)
     assert_eq(I64, v3, 30)
@@ -26,7 +26,7 @@ test_dyn_hashmap_i64_overwrite := test() {
     m.set(5, own 50)
     m.set(5, own 500)
     assert_eq(USize, m.len(), 1)
-    ref v : I64 = m.get(5)
+    ref v : I64 = m.get(5)!
     assert_eq(I64, v, 500)
 }
 
@@ -41,9 +41,9 @@ test_dyn_hashmap_str_keys := test() {
     assert(m.has("cherry"))
     assert(m.has("date").not())
 
-    ref va : I64 = m.get("apple")
-    ref vb : I64 = m.get("banana")
-    ref vc : I64 = m.get("cherry")
+    ref va : I64 = m.get("apple")!
+    ref vb : I64 = m.get("banana")!
+    ref vc : I64 = m.get("cherry")!
     assert_eq(I64, va, 1)
     assert_eq(I64, vb, 2)
     assert_eq(I64, vc, 3)
@@ -54,8 +54,8 @@ test_dyn_hashmap_str_value := test() {
     m.set("key1", own "value1")
     m.set("key2", own "value2")
     assert_eq(USize, m.len(), 2)
-    ref v1 : Str = m.get("key1")
-    ref v2 : Str = m.get("key2")
+    ref v1 : Str = m.get("key1")!
+    ref v2 : Str = m.get("key2")!
     assert_eq(Str, v1, "value1")
     assert_eq(Str, v2, "value2")
 }
@@ -68,7 +68,7 @@ test_dyn_hashmap_grow_past_initial_buckets := test() {
     assert_eq(USize, m.len(), 100)
     for i in 0..100 {
         assert(m.has(i))
-        ref v : I64 = m.get(i)
+        ref v : I64 = m.get(i)!
         assert_eq(I64, v, i.mul(10))
     }
     assert(m.has(100).not())
@@ -80,14 +80,14 @@ test_dyn_hashmap_str_overwrite_releases_old_value := test() {
     m.set("k", own "first")
     m.set("k", own "second")
     assert_eq(USize, m.len(), 1)
-    ref v : Str = m.get("k")
+    ref v : Str = m.get("k")!
     assert_eq(Str, v, "second")
 }
 
 test_dyn_hashmap_remove_missing_is_noop := test() {
     m := DynHashMap.new(I64, I64)
     m.set(1, own 10)
-    m.remove(99)
+    assert(m.remove(99).not())
     assert_eq(USize, m.len(), 1)
     assert(m.has(1))
 }
@@ -95,7 +95,7 @@ test_dyn_hashmap_remove_missing_is_noop := test() {
 test_dyn_hashmap_remove_only_entry := test() {
     m := DynHashMap.new(I64, I64)
     m.set(5, own 50)
-    m.remove(5)
+    assert(m.remove(5))
     assert_eq(USize, m.len(), 0)
     assert(m.has(5).not())
 }
@@ -103,10 +103,10 @@ test_dyn_hashmap_remove_only_entry := test() {
 test_dyn_hashmap_remove_then_reinsert := test() {
     m := DynHashMap.new(I64, I64)
     m.set(7, own 70)
-    m.remove(7)
+    assert(m.remove(7))
     m.set(7, own 700)
     assert_eq(USize, m.len(), 1)
-    ref v : I64 = m.get(7)
+    ref v : I64 = m.get(7)!
     assert_eq(I64, v, 700)
 }
 
@@ -115,16 +115,16 @@ test_dyn_hashmap_remove_swap_keeps_others_findable := test() {
     for i in 0..50 {
         m.set(i, own i.mul(10))
     }
-    m.remove(7)
-    m.remove(23)
-    m.remove(42)
+    assert(m.remove(7))
+    assert(m.remove(23))
+    assert(m.remove(42))
     assert_eq(USize, m.len(), 47)
     for i in 0..50 {
         if i.eq(7).or(i.eq(23)).or(i.eq(42)) {
             assert(m.has(i).not())
         } else {
             assert(m.has(i))
-            ref v : I64 = m.get(i)
+            ref v : I64 = m.get(i)!
             assert_eq(I64, v, i.mul(10))
         }
     }
@@ -136,7 +136,7 @@ test_dyn_hashmap_remove_all := test() {
         m.set(i, own i.mul(10))
     }
     for i in 0..20 {
-        m.remove(i)
+        assert(m.remove(i))
     }
     assert_eq(USize, m.len(), 0)
     for i in 0..20 {
@@ -144,7 +144,7 @@ test_dyn_hashmap_remove_all := test() {
     }
     m.set(99, own 990)
     assert_eq(USize, m.len(), 1)
-    ref v : I64 = m.get(99)
+    ref v : I64 = m.get(99)!
     assert_eq(I64, v, 990)
 }
 
@@ -152,10 +152,65 @@ test_dyn_hashmap_remove_str_key_frees_c_str := test() {
     m := DynHashMap.new(Str, I64)
     m.set("apple", own 1)
     m.set("banana", own 2)
-    m.remove("apple")
+    assert(m.remove("apple"))
     assert_eq(USize, m.len(), 1)
     assert(m.has("apple").not())
     assert(m.has("banana"))
-    ref v : I64 = m.get("banana")
+    ref v : I64 = m.get("banana")!
     assert_eq(I64, v, 2)
+}
+
+// #323 step 1: get throws KeyNotFound on a miss instead of panicking,
+// matching DynMap.get.
+priv dyn_hashmap_lookup_or := func(m: DynHashMap, key: Str, fallback: I64) returns I64 {
+    ref v : I64 = m.get(key)?
+    catch (e: KeyNotFound) { return fallback }
+    return v.clone()
+}
+
+test_dyn_hashmap_get_throws_key_not_found := test() {
+    m := DynHashMap.new(Str, I64)
+    m.set("hit", own 7)
+    assert_eq(I64, dyn_hashmap_lookup_or(m, "hit", -1), 7)
+    assert_eq(I64, dyn_hashmap_lookup_or(m, "miss", -1), -1)
+}
+
+test_dyn_hashmap_remove_returns_bool := test() {
+    m := DynHashMap.new(I64, I64)
+    m.set(1, own 10)
+    assert(m.remove(1))
+    assert(m.remove(1).not())
+    assert_eq(USize, m.len(), 0)
+}
+
+// #323 API symmetry: clear and clone, mirroring HashMap's.
+test_dyn_hashmap_clear := test() {
+    mut m := DynHashMap.new(Str, I64)
+    m.set("a", own 1)
+    m.set("b", own 2)
+    m.clear()
+    assert_eq(USize, m.len(), 0)
+    assert(m.has("a").not())
+    m.set("c", own 3)
+    assert_eq(USize, m.len(), 1)
+    ref v : I64 = m.get("c")!
+    assert_eq(I64, v, 3)
+    assert(m.has("a").not())
+}
+
+test_dyn_hashmap_clone := test() {
+    mut m := DynHashMap.new(Str, I64)
+    for i in 0..40 { m.set(format("k", i.to_str()), own i) }
+    c := m.clone()
+    assert_eq(USize, c.len(), 40)
+    for i in 0..40 {
+        ref v : I64 = c.get(format("k", i.to_str()))!
+        assert_eq(I64, v, i)
+    }
+    c.set("k0", own 999)
+    assert(c.remove("k1"))
+    ref src0 : I64 = m.get("k0")!
+    assert_eq(I64, src0, 0)
+    assert(m.has("k1"))
+    assert_eq(USize, m.len(), 40)
 }

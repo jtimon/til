@@ -43,8 +43,15 @@ println(s.has(20).to_str())
 // local `m` in HashMap.new.
 h := HashMap(Str, I64).new()
 h.set("one", own 1)
-ref hv : I64 = h.get("one")
-println(hv.to_str())
+// Wrapped for the same reason as get_a_from_m above: HashMap.get
+// throws KeyNotFound (#323 step 1), and the throw/catch pass does not
+// run on top-level script statements, so the bang needs a function.
+get_one_from_h := func() returns I64 {
+    ref hh : HashMap(Str, I64) = h
+    ref v : I64 = hh.get("one")!
+    return v.clone()
+}
+println(get_one_from_h().to_str())
 
 // format() iterates a Str* parts array (the `s` loop-var symptom).
 println(format("len=", m.len().to_str(), " set=", s.len().to_str()))

@@ -42,3 +42,24 @@ test_str_map := test() {
     assert_eq(I64, sa, 1)
     assert_eq(I64, sb, 2)
 }
+
+// #323 API symmetry: DynMap.remove mirrors core Map.remove (returns
+// whether anything was removed) and keeps the remaining keys ordered.
+test_dyn_map_remove := test() {
+    mut m := DynMap.new(Str, I64)
+    m.set("a", own 1)
+    m.set("b", own 2)
+    m.set("c", own 3)
+    assert(m.remove("missing").not())
+    assert_eq(USize, m.len(), 3)
+    assert(m.remove("b"))
+    assert_eq(USize, m.len(), 2)
+    assert(m.has("b").not())
+    ref va : I64 = m.get("a")!
+    ref vc : I64 = m.get("c")!
+    assert_eq(I64, va, 1)
+    assert_eq(I64, vc, 3)
+    assert(m.remove("a"))
+    assert(m.remove("c"))
+    assert_eq(USize, m.len(), 0)
+}

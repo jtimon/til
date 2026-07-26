@@ -39,6 +39,18 @@ namespace:
         return DynVec.new_type_name(elem_type)
     }
 
+    /// Create an empty DynVec with room for `n` elements, so filling it
+    /// with n items reallocs zero times (Vec.with_capacity's counterpart;
+    /// the element type is a runtime argument here, as for `new`).
+    with_capacity := func(T: Type, n: USize) returns DynVec {
+        mut v := DynVec.new(T)
+        if n > v.cap {
+            v.data = realloc(own v.data, n.mul(v.elem_size))
+            v.cap = n
+        }
+        return v
+    }
+
     len := func(self: DynVec) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated
@@ -54,6 +66,42 @@ namespace:
             }
         }
         self.count = 0
+    }
+
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries), then compact the
+    /// survivors forward and update count. Vec.delete_marked's
+    /// counterpart.
+    delete_marked := func(mut self: DynVec, marks: Dynamic) {
+        n := self.count
+        mut i : USize = 0
+        while i < n {
+            ref mark : Bool = ptr_add(marks, i)
+            if mark {
+                ref slot : Dynamic = ptr_add(self.data, i.mul(self.elem_size))
+                if self.elem_kind == ELEM_BOXED {
+                    self.elem_delete(slot, false)
+                } else if self.elem_kind == ELEM_FN {
+                    til_closure_slot_delete(slot)
+                }
+                memset(slot, 0, self.elem_size)
+            }
+            i++
+        }
+        mut w : USize = 0
+        mut r : USize = 0
+        while r < n {
+            ref mark : Bool = ptr_add(marks, r)
+            if mark.not() {
+                if w != r {
+                    memcpy(ptr_add(self.data, w.mul(self.elem_size)),
+                           ptr_add(self.data, r.mul(self.elem_size)), self.elem_size)
+                }
+                w++
+            }
+            r++
+        }
+        self.count = w
     }
 
     /// Append an element to the end. `val` is owned: after this call the
@@ -164,6 +212,44 @@ namespace:
         memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
         self.count = last
         return out
+    }
+
+    /// Remove and drop the element at `i`, shifting later elements left.
+    /// Vec.remove_at's counterpart.
+    remove_at := func(mut self: DynVec, i: USize) throws OutOfBounds {
+        if i >= self.count {
+            throw OutOfBounds()
+        }
+        if self.elem_kind == ELEM_BOXED {
+            self.elem_delete(self.unsafe_get(i), false)
+        } else if self.elem_kind == ELEM_FN {
+            til_closure_slot_delete(self.unsafe_get(i))
+        }
+        tail := self.count.sub(i).sub(1)
+        if tail > 0 {
+            memmove(self.unsafe_get(i), self.unsafe_get(i.add(1)), tail.mul(self.elem_size))
+        }
+        self.count = self.count - 1
+        memset(self.unsafe_get(self.count), 0, self.elem_size)
+    }
+
+    /// Drop the elements from index `n` to the end and set count to `n`
+    /// (the survivors [0, n) are left untouched). Panics if `n` exceeds
+    /// len. Vec.truncate's counterpart.
+    truncate := func(mut self: DynVec, n: USize) {
+        if n > self.count {
+            panic("DynVec.truncate: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        if self.elem_kind == ELEM_BOXED {
+            for i in n..self.count {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
+        } else if self.elem_kind == ELEM_FN {
+            for i in n..self.count {
+                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+            }
+        }
+        self.count = n
     }
 
     /// Split off the first `n` elements into a new DynVec. Panics if `n`

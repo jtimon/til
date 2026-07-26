@@ -50,6 +50,32 @@ namespace:
 
     len := func(self: DynHashMap) returns USize { return self.keys.count }
 
+    /// Drop all live keys and values but keep the allocated storage and
+    /// type metadata so the table can be reused (DynMap.clear's
+    /// counterpart). The bucket array is reset to empty, not freed.
+    clear := func(mut self: DynHashMap) {
+        DynVec.clear(self.keys)
+        DynVec.clear(self.values)
+        DynVec.clear(self.nexts)
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+    }
+
+    /// Deep copy. Cloning the dense keys/values/nexts vecs and the
+    /// bucket array preserves every chain link, so the copy needs no
+    /// rehash (DynMap.clone's counterpart).
+    clone := func(self: DynHashMap) returns DynHashMap {
+        mut m := DynHashMap()
+        m.keys = DynVec.clone(self.keys)
+        m.values = DynVec.clone(self.values)
+        m.buckets = DynVec.clone(self.buckets)
+        m.nexts = DynVec.clone(self.nexts)
+        m.key_hash = self.key_hash
+        m.key_cmp = self.key_cmp
+        return m
+    }
+
     hash_key := func(self: DynHashMap, key: Dynamic) returns U64 {
         return self.key_hash(key, DynHashMap.hasher)
     }
@@ -77,9 +103,12 @@ namespace:
         return self.find(key) >= 0
     }
 
-    get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic {
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` to panic on a missing
+    /// key. Same contract as DynMap.get.
+    get := func(self: DynHashMap, key: Dynamic) returns ref Dynamic throws KeyNotFound {
         idx := self.find(key)
-        if idx < 0 { panic("DynHashMap.get: key not found") }
+        if idx < 0 { throw KeyNotFound() }
         return self.values.unsafe_get(idx.to_usize())
     }
 
@@ -152,8 +181,10 @@ namespace:
         if call_free { free(own self) }
     }
 
-    remove := func(mut self: DynHashMap, key: Dynamic) {
-        if self.keys.count == 0 { return }
+    /// Remove `key`, dropping its key and value. Returns false if
+    /// absent (same contract as DynMap.remove / core Map.remove).
+    remove := func(mut self: DynHashMap, key: Dynamic) returns Bool {
+        if self.keys.count == 0 { return false }
         bi := bucket(self.hash_key(key), self.buckets.count)
 
         ref head : I64 = self.buckets.unsafe_get(bi)
@@ -171,7 +202,7 @@ namespace:
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
-        if found.not() { return }
+        if found.not() { return false }
 
         idx_u : USize = entry.to_usize()
         keys_off : USize = idx_u * self.keys.elem_size
@@ -222,5 +253,6 @@ namespace:
         self.keys.count = self.keys.count - 1
         self.values.count = self.values.count - 1
         self.nexts.count = self.nexts.count - 1
+        return true
     }
 }

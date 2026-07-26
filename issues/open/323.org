@@ -1,18 +1,47 @@
 # priority: medium
 # category: optimizations
-** OPEN #323 Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
+** WIP #323 Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
 
 til's core Map is two sorted parallel Vecs with a binary-search probe:
 O(log n) Str_cmp calls per lookup, ordered iteration, and a win on
 small tables. std's HashMap is separate chaining over dense parallel
 arrays: ~1 compare per lookup, insertion-ordered iteration, and a win
-on big ones. Several tables in the self-hosted compiler are big,
-hot, and never iterated -- those are the candidates.
+on big ones.
 
-Profiled with `bin/til run examples/profile.til test/maps.til <N>`
-(post-#307 numbers, self_ms from an instrumented --prof build, which
-inflates small hot functions -- treat the CALL COUNTS as the signal
-and re-measure per commit):
+*** READ #214 FIRST -- it already ran this experiment and said no
+
+#214 ("Unordered HashMap for big tables where key order does not
+matter") profiled the self-host compiler at 21153c7 and concluded the
+migration was empirically NOT worth it. Its finding: the only Map hot
+enough to matter was the typer's root TypeScope.bindings (~170
+entries), and a drop-in swap would REGRESS, because HashMap.new
+pre-allocates 16 buckets while a TypeScope is created per
+function/block -- construction cost swamps the per-lookup saving.
+
+#214 also left a re-check recipe and three go/no-go criteria. A
+migration is worth attempting only when ALL THREE hold:
+
+  a. the candidate appears near the top by INCLUSIVE (total_ms) time,
+  b. the implied typical-N is well above the crossover (call it 32),
+  c. the container is CONSTRUCTED RARELY -- once per build or per
+     pass, not once per function/block.
+
+Criterion (c) is the one that kills most candidates, and it is why
+this issue's first draft was wrong: it ranked TypeScope.struct_defs /
+func_defs top on call count alone, but those are FIELDS OF TypeScope,
+constructed per scope exactly like bindings. Same for the
+interpreter's Scope.heap_bindings.
+
+Worse, the gap has WIDENED since #214 measured: master f671bb1 made
+empty Vecs cost zero mallocs, so an empty core Map is now free, while
+HashMap.new still eagerly pushes 16 bucket entries. Every per-scope
+candidate is further behind than it was.
+
+*** Measurements
+
+Profile, post-#307 (`bin/til run examples/profile.til test/maps.til
+<N>`; self_ms from an instrumented --prof build, which inflates small
+hot functions -- treat CALL COUNTS as the signal):
 
   Map__Str_Dynamic_get       2883715 calls    287.9 self_ms
   Map__Str_TypeBinding_get    834825 calls    184.7 self_ms
@@ -22,34 +51,25 @@ and re-measure per commit):
   Str_cmp                   10041303 calls    567.6 self_ms
 
 Str_cmp is the top self-time row and the Map binary searches are its
-dominant caller (~log2(n) compares per probe). Note Str.cmp is already
-one memcmp over the common prefix and Str.eq early-outs on length and
-same-buffer, so the remaining cost is CALL COUNT times per-call
-overhead, not byte scanning -- fewer compares per probe is the lever.
+dominant caller (~log2(n) compares per probe). Str.cmp is already one
+memcmp over the common prefix and Str.eq early-outs on length and
+same-buffer, so the residual is CALL COUNT times per-call overhead,
+not byte scanning -- fewer compares per probe is the lever.
 
-*** Step 1 (prerequisite): make the hash containers' API match the
-    ordered ones
+Microbench (`bin/til run examples/bench_hashmap.til`), Str keys:
 
-Every container in the tree signals a miss by throwing, except the two
-hash maps:
+  | N       | Map has/get | HashMap has/get | Map ins | HashMap ins |
+  |---------+-------------+-----------------+---------+-------------|
+  |   1,000 |   0 / 0 ms  |    0 / 0 ms     |    0 ms |       0 ms  |
+  |  10,000 |   2 / 4 ms  |    1 / 2 ms     |    5 ms |       4 ms  |
+  | 100,000 |  35 / 43 ms |   17 / 24 ms    |  217 ms |      78 ms  |
 
-  Map.get          returns ref V throws KeyNotFound     <- convention
-  DynMap.get       returns ref Dynamic throws KeyNotFound
-  Vec.get / Array.get / DynVec.get / DynArray.get  throws OutOfBounds
-  HashMap.get      panics on a missing key             <- diverges
-  DynHashMap.get   panics on a missing key             <- diverges
-
-Also Map.remove returns Bool while HashMap.remove / DynHashMap.remove
-return nothing.
-
-Align them (HashMap and DynHashMap get a throwing `get`, and `remove`
-returns Bool) BEFORE any swap, because the swap depends on it: #307
-converted the hot call sites from has()+[] (two binary searches) to a
-single `get()? catch (e: KeyNotFound)` probe. Against today's HashMap
-those sites would have to go back to has()+get() -- two chain walks --
-which would eat the gain the swap is supposed to deliver. Check the
-rest of the std containers for the same divergence while there
-(DynSet/Set/DynMap were spot-checked and already conform).
+HashMap roughly halves lookup at 100K and crushes Map on Str insert
+(the sorted-array memmove). But note what the bench CANNOT tell us:
+its smallest size, 1,000, already reads 0ms, and the compiler's hot
+tables are ~170 entries -- the whole decision range is below the
+bench's resolution. It also never measures CONSTRUCTION, which is the
+deciding cost per criterion (c).
 
 *** Correctness gate for every candidate: is the map ITERATED?
 
@@ -60,37 +80,85 @@ first making the consumer order-independent. Grep for `.keys` /
 Iteration-order sensitivity in this compiler has already produced real
 bugs (the #307 hardening fixes, the ns-constant ordering work).
 
-*** Candidates, best first. One commit each, each measured on its own.
+*** Known blocker to clear before ANY candidate lands
 
-1. TypeScope.struct_defs, TypeScope.func_defs, ctx.interp_type_defs
-   -- Map(Str, Dynamic), the 2.9M-call row and the hottest table in
-   the compiler. Verified NEVER iterated: they are pure name -> AST
-   pointer lookup tables (get_struct / lookup_func / struct_def_of /
-   lookup_interp_type_def). Biggest expected win, lowest risk; do this
-   one first and let its measurement decide whether the rest are worth
-   attempting.
+#214 documented a latent emit bug: a struct namespace data decl
+(`mut HashMap.hasher : HashFn = fnv1a`) reaches the generated forward
+header as a plain `void * HashMap_hasher;` instead of `extern void *
+HashMap_hasher;`. Nothing hits it today because no src/self file
+imports hashmap -- the moment one does, the link fails with "multiple
+definition of HashMap_hasher". #236 fixed a DIFFERENT bug in the same
+area (a file-level `mut X : HashFn = fn` emitting a shadowing local),
+so this one is most likely still live. #214 sketches the fix: thread a
+`header_extern` flag through topo_emit_struct_enum_defs /
+emit_struct_typedef in src/self/builder.til. Verify first, fix if
+still present -- candidate 1 cannot even build without it.
 
-2. Scope.heap_bindings (interpreter) -- Map(Str, HeapBinding), 192K
-   gets. Iterated ONCE, in scope_drop_owned_bindings (teardown), where
-   the order only decides the order frees happen in; each binding is
-   freed independently. Low risk, but re-run the ASAN suite, not just
-   make test.
+*** Candidates, re-ranked against #214's criteria
 
-3. TypeScope.bindings -- Map(Str, TypeBinding), 835K gets, but
-   iterated in SEVEN places (garbager collect_scope_locals, five typer
-   sites, one more) and collect_scope_locals' order is pinned by the
-   test/gc_audit.expected golden. Swapping this reorders the golden
-   and can reorder diagnostics. Do NOT attempt until 1 and 2 have
-   shown the win is real; it needs its own order-independence pass
-   first (or a deliberate golden regen with the diff reviewed).
+1. ctx.interp_type_defs -- Map(Str, Dynamic), one instance on the
+   Context, holding every registered type def, read by
+   lookup_interp_type_def. Verified never iterated. The ONLY candidate
+   that passes criterion (c) as things stand. Start here.
 
-4. StructDef.fields_index / ns_index -- Map(Str, USize), ~410K
-   get+has. Iterated only by the positional reverse scan in
-   field_name_at / member_name_at, which works on any parallel
-   keys/values layout. BUT these tables are TINY (a struct has a
-   handful of members) and the binary-search Map is documented to win
-   there -- the honest expectation is that this one LOSES. Worth one
-   measurement to confirm, worth reverting when it does.
+2. Make HashMap.new lazy, then re-open the per-scope candidates. The
+   single fact disqualifying TypeScope.struct_defs / func_defs /
+   bindings and Scope.heap_bindings is HashMap.new's eager 16-bucket
+   allocation; core Vec already went lazy in f671bb1. Allocating
+   buckets on first insert would make an empty HashMap as cheap as an
+   empty Map and change the whole calculus -- this is probably worth
+   more than any individual swap, and it is a std-only change testable
+   on its own. #214 predates the lazy-Vec work and never considered
+   it.
+
+   Deferred pending 1 and 2 (all fail criterion (c) today, and all
+   were ranked wrongly in this issue's first draft):
+
+   - TypeScope.struct_defs / func_defs -- 2.9M gets, never iterated,
+     but per-scope.
+   - Scope.heap_bindings -- 192K gets, per-scope; iterated once at
+     teardown (free order only).
+   - TypeScope.bindings -- 835K gets, per-scope, AND iterated in seven
+     places, with collect_scope_locals' order pinned by the
+     test/gc_audit.expected golden. #214's original rejection.
+   - StructDef.fields_index / ns_index -- ~410K get+has, but tiny
+     tables (a handful of members each), so criterion (b) fails
+     outright: expected LOSS, worth at most one confirming
+     measurement.
+
+3. Teach examples/bench_hashmap.til the range we actually care about:
+   small-N rows (16 / 32 / 64 / 128 / 256) to locate the real
+   crossover, and a construct-N-empty-tables row so criterion (c) has
+   a number instead of an argument. Without this the bench cannot
+   answer the question this issue asks. Cheap, and it makes every
+   later candidate decision evidence-based; reasonable to do before 1.
+
+*** Progress
+
+- [X] Step 1: HashMap.get and DynHashMap.get throw KeyNotFound instead
+  of panicking; HashMap.remove and DynHashMap.remove return Bool. Both
+  were used only outside src/self, so the change was contained;
+  test/hashmaps.til and test/dyn_hashmaps.til move to `get(k)!` for
+  hits and assert remove's Bool, plus new tests for the `?`+catch
+  recovery path and the Bool contract. Survey of the other containers
+  found NO further throw-contract divergence: Map/DynMap.get throw
+  KeyNotFound, Vec/Array/DynVec/DynArray.get throw OutOfBounds, and the
+  remaining panics (Vec/DynVec take_prefix, truncate, push_take) are
+  bulk-mutator programmer-error contracts that already agree between
+  each core/dyn pair.
+- [X] Step 1b: close the container API gaps found by that survey. The
+  asymmetries were all one shape -- a core container gained a method
+  and its Dyn/hash twin never caught up: DynVec lacked with_capacity /
+  delete_marked / remove_at / truncate, DynMap lacked remove, HashMap
+  and DynHashMap lacked clear and clone, and Set/DynSet lacked remove
+  on both sides. All added with tests; the ten containers now differ
+  only where Dyn genuinely must (new_type_name(s), elem_size /
+  elem_delete, Dynamic in signatures).
+- [ ] Clear the HashMap_hasher extern blocker (verify, fix if live)
+- [ ] Bench small-N + construction rows
+- [ ] Lazy HashMap.new buckets
+- [ ] Candidate: ctx.interp_type_defs
+- [ ] Re-open the per-scope candidates only if lazy buckets land
 
 *** Process
 
@@ -101,4 +169,9 @@ before/after rows from
 touched plus the wall-clock of the run, so a swap that does not pay
 can be identified and reverted without unpicking the others. A
 candidate that measures neutral or worse is a RESULT, not a failure:
-record it here and move on.
+record it here and move on -- as #214 did, which is why this issue
+exists in a useful form at all.
+
+If the measurements repeat #214's verdict, the right outcome is to
+close this issue with the numbers and leave core Map in place, not to
+grind through the deferred list.

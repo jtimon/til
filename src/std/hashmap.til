@@ -40,6 +40,29 @@ namespace:
 
     len := func(self: HashMap(K, V)) returns USize { return self.keys.count }
 
+    /// Drop all live keys and values but keep the allocated storage so
+    /// the table can be reused (core Map.clear's counterpart). The
+    /// bucket array is reset to empty rather than freed.
+    clear := func(mut self: HashMap(K, V)) {
+        self.keys.clear()
+        self.values.clear()
+        self.nexts.clear()
+        for i in 0..self.buckets.count {
+            self.buckets.unsafe_set(i, own -1)
+        }
+    }
+
+    /// Deep copy. Cloning the dense keys/values/nexts Vecs and the
+    /// bucket array preserves every chain link, so the copy needs no
+    /// rehash (core Map.clone's counterpart).
+    clone := func(self: HashMap(K, V)) returns HashMap(K, V) {
+        return HashMap(K, V)(
+            keys = self.keys.clone(),
+            values = self.values.clone(),
+            buckets = self.buckets.clone(),
+            nexts = self.nexts.clone())
+    }
+
     // Hash via the key type's `hash(self, hasher)` method. The container
     // picks the algorithm (HashMap(K, V).hasher, fnv1a by default);
     // the type picks which bytes to feed it.
@@ -72,9 +95,13 @@ namespace:
         return self.find(key) >= 0
     }
 
-    get := func(self: HashMap(K, V), key: K) returns ref V {
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key. Same contract as core Map.get, so a table can
+    /// be swapped between the two without touching its call sites.
+    get := func(self: HashMap(K, V), key: K) returns ref V throws KeyNotFound {
         idx := self.find(key)
-        if idx < 0 { panic("HashMap.get: key not found") }
+        if idx < 0 { throw KeyNotFound() }
         return self.values.unsafe_get(idx.to_usize())
     }
 
@@ -164,7 +191,8 @@ namespace:
         if call_free { free(own self) }
     }
 
-    // Remove `key` if present. No-op when the key is absent. Uses a
+    /// Remove `key`, dropping its key and value. Returns false if
+    /// absent (same contract as core Map.remove). Uses a
     // swap-remove on the dense vectors: the trailing entry (count-1)
     // is relocated into the removed slot, then count is decremented.
     // That keeps the dense vectors compact at O(1) amortized cost,
@@ -173,8 +201,8 @@ namespace:
     // or in another entry's `nexts`) has to be rewritten to point at
     // the new index. Walk the swapped entry's own bucket chain to
     // find that pointer.
-    remove := func(mut self: HashMap(K, V), key: K) {
-        if self.keys.count == 0 { return }
+    remove := func(mut self: HashMap(K, V), key: K) returns Bool {
+        if self.keys.count == 0 { return false }
         bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
 
         // Find the entry and its predecessor in the chain.
@@ -193,7 +221,7 @@ namespace:
             ref nxt : I64 = self.nexts.unsafe_get(entry_u)
             entry = nxt.clone()
         }
-        if found.not() { return }
+        if found.not() { return false }
 
         idx_u : USize = entry.to_usize()
         keys_off : USize = idx_u * K.size()
@@ -252,5 +280,6 @@ namespace:
         self.keys.count = self.keys.count - 1
         self.values.count = self.values.count - 1
         self.nexts.count = self.nexts.count - 1
+        return true
     }
 }

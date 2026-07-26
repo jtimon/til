@@ -284,3 +284,68 @@ test_dyn_vec_take_prefix_append_roundtrip := test() {
     assert_eq(I64, p2, 7)
     assert_eq(I64, p3, 8)
 }
+
+// #323 API symmetry: the four Vec methods DynVec was missing.
+test_dyn_vec_with_capacity := test() {
+    mut v := DynVec.with_capacity(I64, 8)
+    assert_eq(USize, v.len(), 0)
+    assert(v.cap.gte(8))
+    for i in 0..8 { v.push(own i) }
+    assert_eq(USize, v.len(), 8)
+    ref first : I64 = v.get(0)!
+    ref last : I64 = v.get(7)!
+    assert_eq(I64, first, 0)
+    assert_eq(I64, last, 7)
+}
+
+test_dyn_vec_remove_at := test() {
+    mut v := DynVec.new(I64)
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+    v.remove_at(1)!
+    assert_eq(USize, v.len(), 2)
+    ref a : I64 = v.get(0)!
+    ref b : I64 = v.get(1)!
+    assert_eq(I64, a, 10)
+    assert_eq(I64, b, 30)
+}
+
+test_dyn_vec_remove_at_str_frees := test() {
+    mut v := DynVec.new(Str)
+    v.push(own "alpha")
+    v.push(own "beta")
+    v.remove_at(0)!
+    assert_eq(USize, v.len(), 1)
+    ref s : Str = v.get(0)!
+    assert_eq(Str, s, "beta")
+}
+
+test_dyn_vec_truncate := test() {
+    mut v := DynVec.new(Str)
+    for i in 0..5 { v.push(own format("s", i.to_str())) }
+    v.truncate(2)
+    assert_eq(USize, v.len(), 2)
+    ref s0 : Str = v.get(0)!
+    ref s1 : Str = v.get(1)!
+    assert_eq(Str, s0, "s0")
+    assert_eq(Str, s1, "s1")
+    v.truncate(0)
+    assert_eq(USize, v.len(), 0)
+}
+
+test_dyn_vec_delete_marked := test() {
+    mut v := DynVec.new(Str)
+    for i in 0..4 { v.push(own format("e", i.to_str())) }
+    marks : U8 = malloc(4)
+    memset(marks, 0, 4)
+    memset(ptr_add(marks, 1), 1, 1)
+    memset(ptr_add(marks, 3), 1, 1)
+    v.delete_marked(marks)
+    free(own marks)
+    assert_eq(USize, v.len(), 2)
+    ref k0 : Str = v.get(0)!
+    ref k1 : Str = v.get(1)!
+    assert_eq(Str, k0, "e0")
+    assert_eq(Str, k1, "e2")
+}

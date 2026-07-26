@@ -59,7 +59,7 @@ bench_hashmap_i64 := proc(n: I64) returns Vec(I64) {
     t2 := clock_ms()
     mut sum : I64 = 0
     for i in 0..n {
-        ref v : I64 = m.get(i)
+        ref v : I64 = m.get(i)!
         sum = sum.add(v)
     }
     t_get := clock_ms().sub(t2)
@@ -138,7 +138,7 @@ bench_hashmap_str := proc(n: I64) returns Vec(I64) {
     mut sum : I64 = 0
     for i in 0..n {
         ref k : Str = keys.get(i.to_usize())!
-        ref v : I64 = m.get(k)
+        ref v : I64 = m.get(k)!
         sum = sum.add(v)
     }
     t_get := clock_ms().sub(t2)
