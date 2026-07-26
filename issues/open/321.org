@@ -295,6 +295,24 @@ lookup also takes a nullable ref ARG (find_ns_decl's ~sdef~), that
 guard stays -- a null def simply has no members -- and is step 2's
 separate param job.
 
+**** Step 2, batch 8: three more lookups, and one null that was a LIE
+
+- ~resolve_fn_sig~ (src/self/typer.til, 3 sites): 16 separate
+  ~return NULL~ miss paths, all "no funcsig for this callee" -> one
+  Option return; callers switch and fall through to their next
+  fallback exactly as before.
+- ~enum_payload_type_ref~ (src/self/interpreter.til, 2 sites):
+  "this variant carries no payload" is a real state the deep
+  free/clone walkers branch on -> Option.
+- ~scope_get_binding_scope~ (src/self/interpreter.til, 5 sites): NOT
+  migrated to Option -- deleted the null instead. Every caller looks
+  the binding up FIRST and then dereferences the result unchecked, so
+  "not found" was never a reachable state; it was a null that could
+  only ever produce a segfault at the caller. It now panics at the
+  source with the name. Worth watching for more of these: a
+  ~return NULL~ whose callers never test it is not an Option
+  candidate, it is a missing invariant check.
+
 Perf note for the hot ones: an enum return is heap-boxed by default
 (~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup
 like ~TypeScope.get_struct~ wants either ~returns shallow Option(...)~

@@ -63,8 +63,10 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
         case Option(ref Expr).None:
         }
     case NodeType.FCall:
-        ref fdef : Expr = resolve_fn_sig(rhs, scope)
-        if fdef.is_null().not() { return fdef }
+        switch resolve_fn_sig(rhs, scope) {
+        case Option(ref Expr).Some(fdef): return fdef
+        case Option(ref Expr).None:
+        }
     case NodeType.FuncDef(rhs_fd):
         if rhs_fd.captures.len() > 0 { return rhs }
     case:
@@ -92,8 +94,10 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns ref Expr {
     // (struct constructors, regular func calls) have null fn_sig today.
     if callee.til_type().is_funcptr().not() { return NULL }
     ref s : TypeScope = ctx.scope
-    ref via_scope : Expr = resolve_fn_sig(fcall, s)
-    if via_scope.is_null().not() { return via_scope }
+    switch resolve_fn_sig(fcall, s) {
+    case Option(ref Expr).Some(via_scope): return via_scope
+    case Option(ref Expr).None:
+    }
     // resolve_fn_sig only sees globals + struct fields. The remaining FuncPtr
     // shapes are params and locals of the function currently being emitted;
     // their bindings lived in a transient func_scope that is gone by now.

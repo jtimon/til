@@ -374,18 +374,21 @@ priv enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
     return t.cast(I64)
 }
 
-priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) returns ref Str {
+// #321 step 2: "this variant carries no payload" is a real, expected
+// state -- the walkers below branch on it -- so it is an Option, not a
+// null ref.
+priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) returns Option(ref Str) {
     ref edef : Expr = lookup_interp_type_def(enum_name, ctx)
-    if edef.is_null() { return NULL }
+    if edef.is_null() { return Option(ref Str).None }
     switch edef.node_type {
     case NodeType.EnumDef(edd):
         idx := enum_variant_index_for_tag_key(enum_name, enum_data_tag_key(data, edef), ctx)
-        if idx < 0 { return NULL }
+        if idx < 0 { return Option(ref Str).None }
         ref vd : VariantDef = edd.variants[idx.to_usize()]
-        if vd.payload_type.len() > 0 { return vd.payload_type }
+        if vd.payload_type.len() > 0 { return Option(ref Str).Some(vd.payload_type) }
     case:
     }
-    return NULL
+    return Option(ref Str).None
 }
 
 // #320: true when the CURRENT variant (by the tag stored in `data`) carries
@@ -400,8 +403,11 @@ priv enum_payload_is_ref := func(enum_name: Str, data: Dynamic, ctx: Context) re
 }
 
 priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
-    ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
-    if payload_type.is_null() { return }
+    mut payload_type := ""
+    switch enum_payload_type_ref(enum_name, data, ctx) {
+    case Option(ref Str).Some(pt): payload_type = pt.clone()
+    case Option(ref Str).None: return
+    }
     // #320: a ref payload is a borrowed pointer -- nothing to free.
     if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
@@ -421,8 +427,11 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
 }
 
 priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context) {
-    ref payload_type : Str = enum_payload_type_ref(enum_name, data, ctx)
-    if payload_type.is_null() { return }
+    mut payload_type := ""
+    switch enum_payload_type_ref(enum_name, data, ctx) {
+    case Option(ref Str).Some(pt): payload_type = pt.clone()
+    case Option(ref Str).None: return
+    }
     // #320: a ref payload is a borrowed pointer -- the copy shares the
     // pointee; never deep-clone it.
     if enum_payload_is_ref(enum_name, data, ctx) { return }
@@ -3596,8 +3605,12 @@ scope_pool_drain := func() {
     memset(scope_pool, 0, Vec(DynPtrBox).size())
 }
 
+// #321 step 2: every caller looks this up AFTER finding the binding
+// itself and then dereferences the result unchecked, so "not found" was
+// never a real state here -- it is a broken invariant. Fail loudly at
+// the source instead of handing back a null ref for the caller to
+// segfault on.
 priv scope_get_binding_scope := func(mut s: Scope, name: Str) returns ref Scope {
-    if s.is_null() { return NULL }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
     mut walking := true
     while walking {
@@ -3611,6 +3624,7 @@ priv scope_get_binding_scope := func(mut s: Scope, name: Str) returns ref Scope 
         }
         return cur
     }
+    panic(__LOC__, "binding scope not found: ", name)
     return NULL
 }
 

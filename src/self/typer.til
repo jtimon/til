@@ -451,41 +451,43 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
 // Returns NULL when the binding is not in `scope` (e.g. param/local at
 // builder time after func_scope was destroyed). Callers that need to
 // resolve those cases must layer their own fallback on top.
-resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
-    if fcall.is_null() { return NULL }
-    if fcall.node_type.is(NodeType.FCall).not() { return NULL }
-    if fcall.children.len() == 0 { return NULL }
+// #321 step 2: every miss path in this resolver was a null ref; they
+// are all "no funcsig for this callee", a real state -> Option.
+resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.is_null() { return Option(ref Expr).None }
+    if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(name):
         ref cb : TypeBinding = scope.get_binding(name.ident_name())
-        if cb.is_null() { return NULL }
-        if cb.type.is_funcptr().not() { return NULL }
+        if cb.is_null() { return Option(ref Expr).None }
+        if cb.type.is_funcptr().not() { return Option(ref Expr).None }
         ref cb_fd : Expr = scope.lookup_func(cb.name)
-        if cb_fd.is_null() { return NULL }
+        if cb_fd.is_null() { return Option(ref Expr).None }
         // A func-pointer value (not a function declaration) carries a
         // signature func_def: hand it back directly.
         if cb.is_func_decl.not() {
-            return cb_fd
+            return Option(ref Expr).Some(cb_fd)
         }
         switch cb_fd.node_type {
         case NodeType.FuncDef(cb_fdef):
-            if cb_fdef.return_type.len() == 0 { return NULL }
+            if cb_fdef.return_type.len() == 0 { return Option(ref Expr).None }
             ref rsb : TypeBinding = scope.get_binding(cb_fdef.return_type)
-            if rsb.is_null() { return NULL }
+            if rsb.is_null() { return Option(ref Expr).None }
             ref rsb_fd : Expr = scope.lookup_func(rsb.name)
-            if rsb_fd.is_null() { return NULL }
-            if rsb_fd.children.len() != 0 { return NULL }
-            return rsb_fd
+            if rsb_fd.is_null() { return Option(ref Expr).None }
+            if rsb_fd.children.len() != 0 { return Option(ref Expr).None }
+            return Option(ref Expr).Some(rsb_fd)
         case:
         }
-        return NULL
+        return Option(ref Expr).None
     case NodeType.FieldAccess(method):
-        if callee.children.len() == 0 { return NULL }
+        if callee.children.len() == 0 { return Option(ref Expr).None }
         sname := til_type_name(callee.children[0].til_type())
-        if sname.len() == 0 { return NULL }
+        if sname.len() == 0 { return Option(ref Expr).None }
         ref sdef : Expr = scope.get_struct(sname)
-        if sdef.is_null() { return NULL }
+        if sdef.is_null() { return Option(ref Expr).None }
         switch sdef.node_type {
         case NodeType.StructDef(sdd):
             ref fd : Declaration = member_get(sdd.fields_index, sdd.fields, method.field_access_name())
@@ -498,15 +500,15 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns ref Expr {
                 if fsig_name.len() > 0 {
                     ref ftb_fd : Expr = scope.lookup_func(fsig_name)
                     if ftb_fd.is_null().not() {
-                        if ftb_fd.children.len() == 0 { return ftb_fd }
+                        if ftb_fd.children.len() == 0 { return Option(ref Expr).Some(ftb_fd) }
                     }
                 }
             }
         case:
         }
-        return NULL
+        return Option(ref Expr).None
     case:
-        return NULL
+        return Option(ref Expr).None
     }
 }
 
@@ -4637,9 +4639,9 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                     if src_fd.is_null().not() { scope.set_func_def(sdecl.name, src_fd) }
                 }
             case NodeType.FCall:
-                ref rfc_sig : Expr = resolve_fn_sig(rhs, scope)
-                if rfc_sig.is_null().not() {
-                    scope.set_func_def(sdecl.name, rfc_sig)
+                switch resolve_fn_sig(rhs, scope) {
+                case Option(ref Expr).Some(rfc_sig): scope.set_func_def(sdecl.name, rfc_sig)
+                case Option(ref Expr).None:
                 }
             case NodeType.FuncDef(rhs_fd):
                 if rhs_fd.captures.len() > 0 { scope.set_func_def(sdecl.name, rhs) }

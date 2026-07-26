@@ -2604,7 +2604,7 @@ Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_comptime(Expr * e, TypeScope * scope);
 Option__ref_Declaration * find_ns_decl(Expr * sdef, Str * method);
 Bool priv___src_self_typer_til__try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name, Context * ctx);
-Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
+Option__ref_Expr * resolve_fn_sig(Expr * fcall, TypeScope * scope);
 Bool priv___src_self_typer_til__fdef_returns_unborrowable(FunctionDef * fd, TypeScope * scope);
 Bool fcall_returns_own(Expr * fcall, TypeScope * scope);
 void priv___src_self_typer_til__check_ref_decl_owned_init(Expr * stmt, TypeScope * scope, Context * ctx);
@@ -3724,7 +3724,7 @@ void priv___src_self_interpreter_til__enum_clone_str_payload(void * data, Contex
 void * priv___src_self_interpreter_til__heap_clone_enum(Str * enum_name, void * data, USize data_size, Context * ctx);
 void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context * ctx);
 I64 priv___src_self_interpreter_til__enum_data_tag_key(void * data, Expr * enum_def);
-Str * priv___src_self_interpreter_til__enum_payload_type_ref(Str * enum_name, void * data, Context * ctx);
+Option__ref_Str * priv___src_self_interpreter_til__enum_payload_type_ref(Str * enum_name, void * data, Context * ctx);
 Bool priv___src_self_interpreter_til__enum_payload_is_ref(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_free(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_clone(Str * enum_name, void * data, Context * ctx);
