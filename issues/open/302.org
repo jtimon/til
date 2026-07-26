@@ -913,9 +913,25 @@ let the ownership pass insert temps itself; start with the check.
     test_bug302_use_after_diverged_transfer (ASAN both modes: no
     leak on fall-through, no double-free on the transfer path).
     make clean && make test 176/176.
-  - [ ] Stage 3 (rest): drive delete insertion from the dataflow
-    (Owned/Mixed edges into exit) beyond the sink's graft shapes;
-    then delete the index-model special cases the dataflow subsumes
+  - [X] 2026-07-16 Stage 3: the DATAFLOW now DECIDES the sink, for every
+    container kind. sink_conditional_transfer_deletes gates on
+    gc_flow_exit_is_mixed (some path leaves the local owned, another
+    moved it) instead of the positional approximation
+    `last_use > own_transfer`, which is deleted; uniform Moved (transfer
+    covers every path) and uniform Owned (ordinary scope-end delete)
+    both stand down. The If/Switch and Body branches now share one
+    verdict -- Body keeps only the loop-iteration hazard check
+    (transfer_lex_inside_while). This is the plan's "assert agreement,
+    then switch over" completing for this consumer: pass-1 C == pass-2
+    C byte-exact across the whole compiler corpus, i.e. the flow
+    reproduces the index model's decisions exactly, and the suite is
+    181/181. Probed and kept: `own_transfer < 0` is an INDEX guard, not
+    a semantic one (own_transfer is the statement index read right
+    below; -1 indexes out of bounds -- dropping it broke pass 2, now
+    documented in place).
+  - [ ] Stage 3 (rest): move the remaining insertion sites
+    (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
+    onto the same verdict; then delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).

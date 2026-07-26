@@ -2199,12 +2199,25 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
+        // Index guard, not a semantic one: own_transfer is the statement
+        // index read below, and -1 would index out of bounds.
         if local.own_transfer < 0 { continue }
         if local.is_heap.not() { continue }
         if is_aggregate(local.type).not() { continue }
         if type_to_name(local.type).len() == 0 { continue }
-        if local.last_use > local.own_transfer { continue }
         if local.own_transfer >= body.children.len().to_i32() { continue }
+        // #302 stage 3: the DATAFLOW decides whether a graft is needed,
+        // for every container kind. Mixed at exit means some path leaves
+        // the local still owned while another moved it -- exactly the
+        // conditional-transfer leak the sink repairs. Uniform Moved (the
+        // transfer covers every path) and uniform Owned (no path moved
+        // it; the ordinary scope-end delete applies) both stand down.
+        // This replaces the index precondition `last_use > own_transfer`,
+        // which approximated the same question positionally: a use after
+        // the transfer statement means the fall-through path still owns
+        // the local, which IS the Mixed verdict -- computed per path
+        // instead of by statement order.
+        if gc_flow_exit_is_mixed(body, local, scope, ctx).not() { continue }
         ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
         if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)) {
             sink_nontransfer_paths(tstmt, local, scope, ctx)
@@ -2230,8 +2243,9 @@ priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(Local
         //      transfer covers every path shows uniform Moved and
         //      stands down).
         if tstmt.node_type.is(NodeType.Body) {
-            if transfer_lex_inside_while(tstmt, local.name, scope, ctx).not()
-                .and(gc_flow_exit_is_mixed(body, local, scope, ctx)) {
+            // The Mixed verdict is already established by the shared
+            // gate above; only the loop-iteration hazard remains.
+            if transfer_lex_inside_while(tstmt, local.name, scope, ctx).not() {
                 sink_nontransfer_paths(tstmt, local, scope, ctx)
             }
         }
