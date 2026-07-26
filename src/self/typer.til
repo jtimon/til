@@ -1117,7 +1117,16 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     // a wider type must say so with an explicit `.cast(T)`. The USize/UPtr
     // coercion is intentionally kept (see can_implicit_usize_coerce).
     if can_implicit_usize_coerce(arg.til_type(), ptype, ptype_name) {
-        arg.set_til_type(ptype)
+        // ACCEPT, but do NOT re-stamp the argument. The stamp is the
+        // expression's own type and downstream readers use it as such:
+        // overwriting it with the PARAM's width made `i.cast(U32)` in a
+        // UPtr argument position emit/evaluate as a 64-bit cast (I32 -1
+        // sign-extended to 0xFFFFFFFFFFFFFFFF instead of reinterpreted to
+        // 0xFFFFFFFF), and dressed 32-bit arithmetic as ((U64)(a + b)).
+        // The widening to the param's width is done where it belongs: C's
+        // implicit conversion at the call in the compiled path, and
+        // raw_widen_numeric against the param's declared type in the
+        // interpreter.
         return
     }
     // Primitives all share the Type.Primitive tag, so the tag-only is()

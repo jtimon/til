@@ -444,6 +444,27 @@ priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
     return ctx.scope.get_struct(name)
 }
 
+// The C type an inline-lowered call's RESULT actually has. NOT the node's
+// stamp: validate_fcall_arg re-stamps an ARGUMENT node with the PARAM's
+// type (the USize/UPtr coercion), so any call sitting in an argument
+// position carries the param's width rather than its own -- 2359 FCall
+// nodes per self-translate, every one U32-stamped-as-U64. Emitting a cast
+// from that stamp claims a width the operation never had. Falls back to
+// the stamp when the callee cannot be resolved.
+priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) returns Str {
+    ref fdef : Expr = find_callee_fdef(callee_name, ctx)
+    if fdef.is_null().not() {
+        switch fdef.node_type {
+        case NodeType.FuncDef(fd):
+            if fd.return_type.len() > 0 {
+                return til_type_name_c(type_from_name_init(fd.return_type, ctx.scope))
+            }
+        case:
+        }
+    }
+    return til_type_name_c(e.til_type())
+}
+
 priv find_callee_fdef := func(name: Str, ctx: Context) returns ref Expr {
     return ctx.scope.lookup_func_symbol(name)
 }
@@ -3428,17 +3449,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // emitted `U32 t = ((U64)(n + 1));`. The widening to the
                     // param width still happens at the call boundary (C
                     // conversion / the USIZE_REF / UPTR_REF boxing).
-                    mut core_ret_c := til_type_name_c(e.til_type())
-                    ref core_fdef : Expr = find_callee_fdef(flat, ctx)
-                    if core_fdef.is_null().not() {
-                        switch core_fdef.node_type {
-                        case NodeType.FuncDef(core_fd):
-                            if core_fd.return_type.len() > 0 {
-                                core_ret_c = til_type_name_c(type_from_name_init(core_fd.return_type, ctx.scope))
-                            }
-                        case:
-                        }
-                    }
+                    core_ret_c := inline_call_ret_ctype(e, flat, ctx)
                     if core_op == "bnot" {
                         f.write("((")
                         f.write(core_ret_c)
@@ -3641,7 +3652,24 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // Issue #212: integer reinterpret or same-signedness
                 // widening -> bare C cast. The typer set this FCall's
                 // til_type to the target type T.
+                // The target is the type ARGUMENT, not the stamp: in an
+                // argument position the stamp carries the callee's param
+                // width, so `i.cast(U32)` passed to a UPtr param emitted
+                // ((U64)(i)) -- a sign-extending widening where the source
+                // asked for a same-size reinterpret (I32 -1 became
+                // 0xFFFFFFFFFFFFFFFF instead of 0xFFFFFFFF).
+                // children: [Ident cast, value, TypeName] in this flattened
+                // shape -- children[1] is the VALUE (emitted below), so the
+                // target name is children[2].
                 mut cast_c_type := til_type_name_c(e.til_type())
+                if e.children.len() >= 3 {
+                    switch e.children[2].node_type {
+                    case NodeType.Ident(cast_target):
+                        target_t := type_from_name_init(cast_target.ident_name(), ctx.scope)
+                        if target_t.is(Type.Unknown).not() { cast_c_type = til_type_name_c(target_t) }
+                    case:
+                    }
+                }
                 // Issue #58: cast-to-FuncSig. til_type_name_c yields "Fn",
                 // which is not a C type. For Dynamic -> FuncPtr the source
                 // is a slot pointer (Vec.get returned the slot address);
@@ -3756,7 +3784,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // (93M calls). The interpreter evaluates it via the registered
                 // h_is_n handler (a core_func is not FFI-registered), reading
                 // the same offset-0 tag bytes, so both modes agree.
-                isn_ret_c := til_type_name_c(e.til_type())
+                isn_ret_c := inline_call_ret_ctype(e, name.ident_name(), ctx)
                 enum_c := til_type_name(e.children[1].til_type())
                 // #320 niche: no tag field -- "same variant" is "both null
                 // or both non-null", the null-pointer optimization's whole
@@ -3783,7 +3811,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // handler (a core_func is not FFI-registered), so both modes
                 // agree.
                 f.write("((")
-                f.write(til_type_name_c(e.til_type()))
+                f.write(inline_call_ret_ctype(e, name.ident_name(), ctx))
                 f.write(")((UPtr)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
                 f.write(") == 0))")
@@ -3794,7 +3822,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // both modes agree. Gated on the callee actually being core,
                 // like is_null/ptr_add/is_n, not on the name alone.
                 f.write("((")
-                f.write(til_type_name_c(e.til_type()))
+                f.write(inline_call_ret_ctype(e, name.ident_name(), ctx))
                 f.write(")(!(")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(")))")
@@ -3806,7 +3834,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // C's && short-circuits natively, so the lowering is exact
                 // either way (33M and() calls per self-host translate).
                 f.write("((")
-                f.write(til_type_name_c(e.til_type()))
+                f.write(inline_call_ret_ctype(e, name.ident_name(), ctx))
                 f.write(")((")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(") && (")
@@ -3815,7 +3843,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             } else if name.ident_name().eq("or").and(builder_callee_is_core(name.ident_name(), ctx)) {
                 // core_lazy_func `or`: mirror of and, native ||.
                 f.write("((")
-                f.write(til_type_name_c(e.til_type()))
+                f.write(inline_call_ret_ctype(e, name.ident_name(), ctx))
                 f.write(")((")
                 emit_deref(f, e.children[1], depth, ctx)
                 f.write(") || (")

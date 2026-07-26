@@ -746,25 +746,25 @@ GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I
 GC-FLOW local hoisted__U32_#2 entry=I exit=X out=X,I,O,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=X out=X,I,O,I
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=X out=X,I,O,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,M,I
 GC-AUDIT body test/gc_audit.til:34:9 locals=7
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=7 last_use=8 own_transfer=-1 heap=1 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=5 last_use=7 own_transfer=7 heap=1 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.4 delete I64.delete(hoisted__I64_#0) call_free=0
-GC-AUDIT site 3.if0.5 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 3.if0.5 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 3.if0.6 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 4 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 9 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 12 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 9 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-CFG body test/gc_audit.til:43:13 blocks=5
 GC-CFG block 0 exit
 GC-CFG block 1 body=43:13 span=0..2 succs=3,4
@@ -775,21 +775,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:43:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:43:13 blocks=5
 GC-CFG block 0 exit
@@ -801,21 +801,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:43:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:43:13 blocks=17
 GC-CFG block 0 exit
@@ -847,14 +847,14 @@ GC-AUDIT site 3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 3.if0.0.while.12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(_re_U32_#0) call_free=0
@@ -887,14 +887,14 @@ GC-AUDIT site 0.body.3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_fre
 GC-AUDIT site 0.body.3.if0.0.while.7 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 0.body.3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 0.body.3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 0.body.3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 0.body.3.if0.0.while.12 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 0.body.3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 0.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 0.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 0.body.3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 0.body.3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 0.body.3.if1.0.while.12 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 0.body.4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 0.body.5 delete U32.delete(_re_U32_#0) call_free=0
@@ -908,28 +908,28 @@ GC-FLOW local hoisted__I32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__I64_#0 entry=I exit=M out=M,M
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:60:17 locals=9
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=8 last_use=10 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=2 last_use=4 own_transfer=4 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=4 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=6 last_use=10 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=4 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=6 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=7 last_use=10 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 5 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 6 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 7 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 15 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 16 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 16 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-CFG body test/gc_audit.til:58:13 blocks=7
 GC-CFG block 0 exit
 GC-CFG block 1 body=58:13 span=0..2 succs=3,4
@@ -948,34 +948,34 @@ GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 4.if0.5 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 4.if0.6 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 4.if0.7 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 4.if0.10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 4.if0.7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 4.if0.10 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 4.if0.15 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 4.if0.16 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 4.if0.17 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 4.if0.16 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 4.if0.17 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-CFG body test/gc_audit.til:71:21 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=71:21 span=0..8 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#1 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:71:21 locals=7
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=3 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=3 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=4 last_use=7 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__v_#1 type= decl=5 last_use=7 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 5 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 11 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 5 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 11 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-CFG body test/gc_audit.til:70:17 blocks=4
 GC-CFG block 0 exit
 GC-CFG block 1 body=70:17 span=0..2 succs=3,2
@@ -986,9 +986,9 @@ GC-AUDIT body test/gc_audit.til:70:17 locals=1
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 1.if0.5 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 1.if0.10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 1.if0.11 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 1.if0.12 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 1.if0.10 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 1.if0.11 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 1.if0.12 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 2 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-CFG body test/gc_audit.til:68:13 blocks=9
 GC-CFG block 0 exit
@@ -1011,9 +1011,9 @@ GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 5.if0.1.if0.2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 5.if0.1.if0.5 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 5.if0.1.if0.10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 5.if0.1.if0.11 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 5.if0.1.if0.12 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 5.if0.1.if0.10 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 5.if0.1.if0.11 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 5.if0.1.if0.12 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 5.if0.2 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 6 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-CFG body test/gc_audit.til:55:9 blocks=20
@@ -1051,19 +1051,19 @@ GC-AUDIT site 2.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2.while.4.if0.2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 2.while.4.if0.5 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 2.while.4.if0.6 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 2.while.4.if0.7 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 2.while.4.if0.10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 2.while.4.if0.7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 2.while.4.if0.10 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 2.while.4.if0.15 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 2.while.4.if0.16 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 2.while.4.if0.17 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 2.while.4.if0.16 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 2.while.4.if0.17 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 3 delete U32.delete(i) call_free=0
 GC-AUDIT site 6.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 6.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 6.while.5.if0.1.if0.2 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 6.while.5.if0.1.if0.5 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 6.while.5.if0.1.if0.10 delete U64.delete(hoisted__U64_#3) call_free=0
-GC-AUDIT site 6.while.5.if0.1.if0.11 delete U64.delete(hoisted__U64_#4) call_free=0
-GC-AUDIT site 6.while.5.if0.1.if0.12 delete U64.delete(hoisted__U64_#5) call_free=0
+GC-AUDIT site 6.while.5.if0.1.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 6.while.5.if0.1.if0.5 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 6.while.5.if0.1.if0.10 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 6.while.5.if0.1.if0.11 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 6.while.5.if0.1.if0.12 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 6.while.5.if0.2 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 6.while.6 delete Bool.delete(hoisted__Bool_#2) call_free=0
 GC-AUDIT site 7 delete U32.delete(n) call_free=0
@@ -1085,7 +1085,7 @@ GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__v_#0 entry=I exit=M out=M,I,M,I
 GC-FLOW local new_cap entry=I exit=O out=O,O,O,O
 GC-AUDIT body test/gc_audit.til:86:13 locals=7
@@ -1093,15 +1093,15 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=3 last_use=4 own_transfer=-1 heap
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#2 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=7 last_use=8 own_transfer=8 heap=1 skip=0
 GC-AUDIT local new_cap type=U32 decl=1 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 6.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 6.if0.2 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 7 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 10 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 15 delete U32.delete(new_cap) call_free=0
 GC-CFG body test/gc_audit.til:83:9 blocks=6
 GC-CFG block 0 exit
@@ -1115,38 +1115,38 @@ GC-FLOW local hoisted__I32_#0 entry=I exit=O out=O,I,O,I,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,I,O,I,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,O,I,I,I
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,O,I,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,O,I,I,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,I,O,I,I,I
-GC-FLOW local hoisted__U64_#2 entry=I exit=O out=O,I,O,I,I,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,O,I,I,I
+GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,O,I,I,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=O out=O,I,O,I,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,I,O,I,I,I
 GC-FLOW local val entry=O exit=O out=O,O,O,O,O,O
 GC-AUDIT body test/gc_audit.til:83:9 locals=10
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=3 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=3 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=4 last_use=6 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local val type=I64 decl=-1 last_use=9 own_transfer=-1 heap=1 skip=0
-GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 1.if0.5 delete U32.delete(hoisted__U32_#4) call_free=0
-GC-AUDIT site 1.if0.6.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 1.if0.5 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 1.if0.6.if0.2 delete U32.delete(hoisted__U32_#8) call_free=0
 GC-AUDIT site 1.if0.7 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 1.if0.10 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 1.if0.12 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 1.if0.10 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 1.if0.12 delete U32.delete(hoisted__U32_#10) call_free=0
 GC-AUDIT site 1.if0.15 delete U32.delete(new_cap) call_free=0
 GC-AUDIT site 2 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 9 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 9 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 14 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 15 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 15 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 16 delete I64.delete(val) call_free=1 own=1
-GC-AUDIT site 19 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 21 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 19 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 21 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-CFG body test/gc_audit.til:105:31 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=105:31 span=0..2 succs=0
@@ -1185,25 +1185,25 @@ GC-CFG block 9 body=106:26 span=0..2 succs=5
 GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=M out=M,I,I,I,I,M,I,I,I,I
 GC-FLOW local new_cap entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-AUDIT body test/gc_audit.til:104:13 locals=6
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=7 last_use=8 own_transfer=8 heap=1 skip=0
 GC-AUDIT local new_cap type=U32 decl=0 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 3 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 5 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 6.while.1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 6.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
-GC-AUDIT site 6.while.5 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 6.while.7 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 6.while.5 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 6.while.7 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 9 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 11 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 11 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 14 delete U32.delete(new_cap) call_free=0
 GC-CFG body test/gc_audit.til:99:9 blocks=14
 GC-CFG block 0 exit
@@ -1226,8 +1226,8 @@ GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
 GC-FLOW local hoisted__U32_#2 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
 GC-FLOW local hoisted__U32_#3 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
+GC-FLOW local hoisted__U32_#4 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I
 GC-FLOW local needed entry=I exit=X out=X,I,O,I,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local other entry=O exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O
@@ -1236,10 +1236,10 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap
 GC-AUDIT local hoisted__Bool_#1 type=Bool decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=8 last_use=10 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#3 type=U32 decl=13 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=7 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=7 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=8 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=13 last_use=14 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=9 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local needed type=U32 decl=3 last_use=12 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local other type=Vec__I64 decl=-1 last_use=14 own_transfer=-1 heap=1 skip=0
@@ -1247,23 +1247,23 @@ GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.0 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 3.if0.1 delete Vec__I64.delete(other) call_free=1 own=1
 GC-AUDIT site 4 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 7.if0.3 delete U32.delete(hoisted__U32_#4) call_free=0
-GC-AUDIT site 7.if0.4.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 7.if0.3 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 7.if0.4.if0.2 delete U32.delete(hoisted__U32_#7) call_free=0
 GC-AUDIT site 7.if0.5 delete Bool.delete(hoisted__Bool_#2) call_free=0
 GC-AUDIT site 7.if0.6.while.1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7.if0.6.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
-GC-AUDIT site 7.if0.6.while.5 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 7.if0.6.while.7 delete U32.delete(hoisted__U32_#7) call_free=0
-GC-AUDIT site 7.if0.9 delete U32.delete(hoisted__U32_#8) call_free=0
-GC-AUDIT site 7.if0.11 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 7.if0.6.while.5 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 7.if0.6.while.7 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 7.if0.9 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 7.if0.11 delete U32.delete(hoisted__U32_#11) call_free=0
 GC-AUDIT site 7.if0.14 delete U32.delete(new_cap) call_free=0
 GC-AUDIT site 8 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 11 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 15 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 18 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 15 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 18 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 20 delete U32.delete(needed) call_free=0
-GC-AUDIT site 23 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 23 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 24 delete Vec__I64.delete(other) call_free=1 own=1
 GC-CFG body test/gc_audit.til:124:13 blocks=5
 GC-CFG block 0 exit
@@ -1275,21 +1275,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:124:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:124:13 blocks=5
 GC-CFG block 0 exit
@@ -1301,21 +1301,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:124:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:124:13 blocks=17
 GC-CFG block 0 exit
@@ -1347,14 +1347,14 @@ GC-AUDIT site 3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 3.if0.0.while.12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(_re_U32_#0) call_free=0
@@ -1397,36 +1397,36 @@ GC-CFG block 9 body=131:26 span=0..2 succs=5
 GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,I,I,I,O,I,I,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=M out=M,I,I,I,I,M,I,I,I,I
 GC-FLOW local new_cap entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-AUDIT body test/gc_audit.til:129:13 locals=6
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=7 last_use=8 own_transfer=8 heap=1 skip=0
 GC-AUDIT local new_cap type=U32 decl=0 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 3 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 5 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 6.while.1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 6.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
-GC-AUDIT site 6.while.5 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 6.while.7 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 6.while.5 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 6.while.7 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 9 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 11 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 11 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 14 delete U32.delete(new_cap) call_free=0
 GC-CFG body test/gc_audit.til:138:13 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=138:13 span=0..3 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:138:13 locals=2
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 4 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 4 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-CFG body test/gc_audit.til:124:9 blocks=31
 GC-CFG block 0 exit
 GC-CFG block 1 body=124:9 span=0..1 succs=3
@@ -1475,32 +1475,32 @@ GC-AUDIT site 0.body.3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_fre
 GC-AUDIT site 0.body.3.if0.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 0.body.3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 0.body.3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 0.body.3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 0.body.3.if0.0.while.12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 0.body.3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 0.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 0.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 0.body.3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#3) call_free=0
-GC-AUDIT site 0.body.3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 0.body.3.if1.0.while.12 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 0.body.3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 0.body.4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 0.body.5 delete U32.delete(_re_U32_#0) call_free=0
 GC-AUDIT site 0.body.6 delete Bool.delete(hoisted__Bool_#4) call_free=0
-GC-AUDIT site 3.if0.3 delete U32.delete(hoisted__U32_#4) call_free=0
-GC-AUDIT site 3.if0.4.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 3.if0.3 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 3.if0.4.if0.2 delete U32.delete(hoisted__U32_#7) call_free=0
 GC-AUDIT site 3.if0.5 delete Bool.delete(hoisted__Bool_#5) call_free=0
 GC-AUDIT site 3.if0.6.while.1.if1.0 delete Bool.delete(_wcond_Bool_#2) call_free=0
 GC-AUDIT site 3.if0.6.while.2 delete Bool.delete(_wcond_Bool_#2) call_free=0
-GC-AUDIT site 3.if0.6.while.5 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 3.if0.6.while.7 delete U32.delete(hoisted__U32_#7) call_free=0
-GC-AUDIT site 3.if0.9 delete U32.delete(hoisted__U32_#8) call_free=0
-GC-AUDIT site 3.if0.11 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 3.if0.6.while.5 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 3.if0.6.while.7 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 3.if0.9 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 3.if0.11 delete U32.delete(hoisted__U32_#11) call_free=0
 GC-AUDIT site 3.if0.14 delete U32.delete(new_cap) call_free=0
 GC-AUDIT site 4 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 8.if0.2 delete U32.delete(hoisted__U32_#9) call_free=0
-GC-AUDIT site 8.if0.4 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 8.if0.2 delete U32.delete(hoisted__U32_#12) call_free=0
+GC-AUDIT site 8.if0.4 delete U32.delete(hoisted__U32_#13) call_free=0
 GC-AUDIT site 9 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 11 delete U32.delete(needed) call_free=0
 GC-AUDIT site 14 delete U32.delete(hoisted__U32_#1) call_free=0
@@ -1508,14 +1508,14 @@ GC-CFG body test/gc_audit.til:150:9 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=150:9 span=0..4 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:150:9 locals=3
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=2 last_use=3 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 4 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 4 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-CFG body test/gc_audit.til:159:13 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=159:13 span=0..2 succs=0
@@ -1579,11 +1579,11 @@ GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#2 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#3 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#4 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#6 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#7 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#8 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__v_#1 entry=I exit=O out=O,I,O,I
 GC-FLOW local last entry=I exit=O out=O,I,O,I
@@ -1593,32 +1593,32 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=15 last_use=17 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#3 type=U32 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=8 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=13 last_use=17 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=8 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#6 type=U32 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#7 type=U32 decl=13 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#8 type=U32 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=9 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__v_#1 type= decl=14 last_use=17 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local last type=U32 decl=4 last_use=18 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local out type=I64 decl=6 last_use=19 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 3.if0.2 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 3.if0.2 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 3.if0.7 delete I64.delete(_va_Array__ek#0) call_free=0
-GC-AUDIT site 3.if0.8 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 3.if0.8 delete U32.delete(hoisted__U32_#10) call_free=0
 GC-AUDIT site 3.if0.11 delete Str.delete(hoisted__Str_#0) call_free=0
 GC-AUDIT site 4 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 13 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 18 delete U64.delete(hoisted__U64_#2) call_free=0
-GC-AUDIT site 21 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 13 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 18 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 21 delete U32.delete(hoisted__U32_#6) call_free=0
 GC-AUDIT site 26 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 27 delete U64.delete(hoisted__U64_#3) call_free=0
-GC-AUDIT site 28 delete U64.delete(hoisted__U64_#4) call_free=0
+GC-AUDIT site 27 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 28 delete U32.delete(hoisted__U32_#8) call_free=0
 GC-AUDIT site 30 delete U32.delete(last) call_free=0
 GC-CFG body test/gc_audit.til:181:13 blocks=2
 GC-CFG block 0 exit
@@ -1635,18 +1635,18 @@ GC-FLOW local hoisted__I64_#1 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:186:13 locals=6
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=3 last_use=6 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__I64_#1 type=I64 decl=4 last_use=6 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#2 type=U32 decl=2 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 9 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-CFG body test/gc_audit.til:183:11 blocks=4
 GC-CFG block 0 exit
 GC-CFG block 1 body=183:11 span=0..9 succs=3,2
@@ -1662,7 +1662,7 @@ GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=O out=O,I,O,I
 GC-FLOW local tail entry=I exit=O out=O,O,O,O
 GC-AUDIT body test/gc_audit.til:183:11 locals=12
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
@@ -1675,23 +1675,23 @@ GC-AUDIT local hoisted__U32_#1 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0
 GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#3 type=U32 decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#4 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local tail type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 8 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 11 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 12.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
-GC-AUDIT site 12.if0.7 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 12.if0.9 delete U32.delete(hoisted__U32_#7) call_free=0
-GC-AUDIT site 12.if0.10 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 12.if0.2 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 12.if0.7 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 12.if0.9 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 12.if0.10 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 13 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 14 delete U32.delete(tail) call_free=0
 GC-AUDIT site 17 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 19 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 24 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 25 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 25 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-CFG body test/gc_audit.til:180:9 blocks=8
 GC-CFG block 0 exit
 GC-CFG block 1 body=180:9 span=0..2 succs=3,2
@@ -1719,13 +1719,13 @@ GC-AUDIT site 6.if0.11 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 6.if0.12.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 6.if0.12.if0.7 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 6.if0.12.if0.9 delete U32.delete(hoisted__U32_#5) call_free=0
-GC-AUDIT site 6.if0.12.if0.10 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 6.if0.12.if0.10 delete U32.delete(hoisted__U32_#6) call_free=0
 GC-AUDIT site 6.if0.13 delete Bool.delete(hoisted__Bool_#3) call_free=0
 GC-AUDIT site 6.if0.14 delete U32.delete(tail) call_free=0
-GC-AUDIT site 6.if0.17 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 6.if0.19 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 6.if0.17 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 6.if0.19 delete U32.delete(hoisted__U32_#8) call_free=0
 GC-AUDIT site 6.if0.24 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 6.if0.25 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 6.if0.25 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 7 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-CFG body test/gc_audit.til:196:13 blocks=2
 GC-CFG block 0 exit
@@ -1778,51 +1778,51 @@ GC-CFG body test/gc_audit.til:204:13 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=204:13 span=0..3 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:204:13 locals=2
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 4 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 4 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-CFG body test/gc_audit.til:208:13 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=208:13 span=0..6 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:208:13 locals=5
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=2 last_use=4 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=2 last_use=4 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=3 last_use=5 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 6 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 8 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 9 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 6 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 8 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 9 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-CFG body test/gc_audit.til:211:13 blocks=2
 GC-CFG block 0 exit
 GC-CFG block 1 body=211:13 span=0..7 succs=0
 GC-FLOW local hoisted__I32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,O
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:211:13 locals=6
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=2 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=1 last_use=6 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=2 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=3 last_use=6 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 9 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 11 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 11 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-CFG body test/gc_audit.til:195:9 blocks=12
 GC-CFG block 0 exit
 GC-CFG block 1 body=195:9 span=0..2 succs=3,2
@@ -1844,9 +1844,9 @@ GC-FLOW local hoisted__Bool_#4 entry=I exit=O out=O,I,I,I,I,I,I,I,O,I,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,I,O,I,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,I,I,O,I,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,I,I,O,I,O,O,O,O,O,O
-GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,I,I,I,I,O,I,O,O,O,O
-GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,I,I,I,I,I,I,O,I,O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,I,I,O,I,O,O,O,O,O,O
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,I,I,O,I,O,O,O,O,O,O
+GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,I,I,I,I,O,I,O,O,O,O
+GC-FLOW local hoisted__U32_#5 entry=I exit=O out=O,I,I,I,I,I,I,I,O,I,O,O
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=O out=O,I,I,I,I,I,I,I,I,I,O,I
 GC-FLOW local prefix_cap entry=I exit=O out=O,I,O,I,O,O,O,O,O,O,O,O
 GC-FLOW local prefix_data entry=I exit=M out=M,I,I,I,O,I,O,O,O,O,M,O
@@ -1859,44 +1859,44 @@ GC-AUDIT local hoisted__Bool_#3 type=Bool decl=14 last_use=15 own_transfer=-1 he
 GC-AUDIT local hoisted__Bool_#4 type=Bool decl=17 last_use=18 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#3 type=U32 decl=13 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#4 type=U32 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=9 last_use=10 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=13 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=20 last_use=21 own_transfer=-1 heap=1 skip=0
 GC-AUDIT local prefix_cap type=U32 decl=2 last_use=21 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local prefix_data type=U8 decl=8 last_use=21 own_transfer=20 heap=1 skip=0
 GC-AUDIT local tail_count type=U32 decl=12 last_use=19 own_transfer=-1 heap=0 skip=0
-GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
-GC-AUDIT site 1.if0.7 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 1.if0.11 delete U32.delete(hoisted__U32_#7) call_free=0
-GC-AUDIT site 1.if0.15 delete U32.delete(hoisted__U32_#8) call_free=0
-GC-AUDIT site 1.if0.19 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 1.if0.7 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 1.if0.11 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 1.if0.15 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 1.if0.19 delete U32.delete(hoisted__U32_#10) call_free=0
 GC-AUDIT site 1.if0.23 delete I64.delete(_va_Array__ek#0) call_free=0
-GC-AUDIT site 1.if0.24 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 1.if0.24 delete U32.delete(hoisted__U32_#11) call_free=0
 GC-AUDIT site 1.if0.27 delete Str.delete(hoisted__Str_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 6 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 7.if0.2 delete U32.delete(hoisted__U32_#11) call_free=0
+GC-AUDIT site 7.if0.2 delete U32.delete(hoisted__U32_#12) call_free=0
 GC-AUDIT site 8 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 11 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 13 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 16 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 17.if0.2 delete U32.delete(hoisted__U32_#12) call_free=0
-GC-AUDIT site 17.if0.4 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 13 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 16 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 17.if0.2 delete U32.delete(hoisted__U32_#13) call_free=0
+GC-AUDIT site 17.if0.4 delete U32.delete(hoisted__U32_#14) call_free=0
 GC-AUDIT site 18 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 22 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 23.if0.2 delete U32.delete(hoisted__U32_#13) call_free=0
-GC-AUDIT site 23.if0.6 delete U32.delete(hoisted__U32_#14) call_free=0
-GC-AUDIT site 23.if0.8 delete U64.delete(hoisted__U64_#2) call_free=0
-GC-AUDIT site 23.if0.9 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 22 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 23.if0.2 delete U32.delete(hoisted__U32_#15) call_free=0
+GC-AUDIT site 23.if0.6 delete U32.delete(hoisted__U32_#16) call_free=0
+GC-AUDIT site 23.if0.8 delete U32.delete(hoisted__U32_#17) call_free=0
+GC-AUDIT site 23.if0.9 delete U32.delete(hoisted__U32_#18) call_free=0
 GC-AUDIT site 24 delete Bool.delete(hoisted__Bool_#3) call_free=0
-GC-AUDIT site 27 delete U32.delete(hoisted__U32_#4) call_free=0
-GC-AUDIT site 28.if0.2 delete U32.delete(hoisted__U32_#15) call_free=0
-GC-AUDIT site 28.if0.7 delete U32.delete(hoisted__U32_#16) call_free=0
+GC-AUDIT site 27 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 28.if0.2 delete U32.delete(hoisted__U32_#19) call_free=0
+GC-AUDIT site 28.if0.7 delete U32.delete(hoisted__U32_#20) call_free=0
 GC-AUDIT site 28.if0.9 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 28.if0.10 delete U64.delete(hoisted__U64_#4) call_free=0
-GC-AUDIT site 28.if0.11 delete U64.delete(hoisted__U64_#5) call_free=0
+GC-AUDIT site 28.if0.10 delete U32.delete(hoisted__U32_#21) call_free=0
+GC-AUDIT site 28.if0.11 delete U32.delete(hoisted__U32_#22) call_free=0
 GC-AUDIT site 29 delete Bool.delete(hoisted__Bool_#4) call_free=0
 GC-AUDIT site 31 delete U32.delete(tail_count) call_free=0
 GC-AUDIT site 33 delete U32.delete(prefix_cap) call_free=0
@@ -1950,21 +1950,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:225:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:225:13 blocks=5
 GC-CFG block 0 exit
@@ -1976,21 +1976,21 @@ GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__Bool_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-AUDIT body test/gc_audit.til:225:13 locals=6
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=6 last_use=8 own_transfer=8 heap=0 skip=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 11 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:225:13 blocks=17
 GC-CFG block 0 exit
@@ -2022,14 +2022,14 @@ GC-AUDIT site 3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 3.if0.0.while.12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 3.if1.0.while.12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(_re_U32_#0) call_free=0
@@ -2073,14 +2073,14 @@ GC-AUDIT site 3.body.3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_fre
 GC-AUDIT site 3.body.3.if0.0.while.7 delete U32.delete(hoisted__U32_#6) call_free=0
 GC-AUDIT site 3.body.3.if0.0.while.10 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3.body.3.if0.0.while.11 delete Bool.delete(hoisted__Bool_#1) call_free=0
-GC-AUDIT site 3.body.3.if0.0.while.12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 3.body.3.if0.0.while.12 delete U32.delete(hoisted__U32_#7) call_free=0
 GC-AUDIT site 3.body.3.if0.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.body.3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 3.body.3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 3.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 3.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#8) call_free=0
 GC-AUDIT site 3.body.3.if1.0.while.10 delete I64.delete(hoisted__I64_#1) own=1
 GC-AUDIT site 3.body.3.if1.0.while.11 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 3.body.3.if1.0.while.12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 3.body.3.if1.0.while.12 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 3.body.3.if1.0.while.13 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.body.4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 3.body.5 delete U32.delete(_re_U32_#0) call_free=0
@@ -2092,22 +2092,22 @@ GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__I32_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__I64_#0 entry=I exit=M out=M,M
 GC-FLOW local hoisted__I64_#1 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
+GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O
 GC-FLOW local val entry=O exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:235:9 locals=7
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=6 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I64_#0 type=I64 decl=0 last_use=2 own_transfer=2 heap=0 skip=1
 GC-AUDIT local hoisted__I64_#1 type=I64 decl=3 last_use=5 own_transfer=-1 heap=0 skip=1
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=7 last_use=8 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local val type=I64 decl=-1 last_use=8 own_transfer=-1 heap=1 skip=0
 GC-AUDIT site 2 delete I64.delete(hoisted__I64_#0) own=1
 GC-AUDIT site 3 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 7 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 11 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#1) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#1) call_free=0
 GC-AUDIT site 13 delete I64.delete(val) call_free=1 own=1
 GC-CFG body test/gc_audit.til:245:13 blocks=2
 GC-CFG block 0 exit
@@ -2192,7 +2192,7 @@ GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,O,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,O,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,O,I
 GC-FLOW local hoisted__v_#0 entry=I exit=M out=M,I,M,I
 GC-FLOW local new_cap entry=I exit=O out=O,O,O,O
 GC-AUDIT body test/gc_audit.til:258:13 locals=7
@@ -2200,15 +2200,15 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=3 last_use=4 own_transfer=-1 heap
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#2 type=U32 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=7 last_use=8 own_transfer=8 heap=1 skip=0
 GC-AUDIT local new_cap type=U32 decl=1 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 6.if0.2 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 6.if0.2 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 7 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 10 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 12 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 12 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 15 delete U32.delete(new_cap) call_free=0
 GC-CFG body test/gc_audit.til:254:9 blocks=8
 GC-CFG block 0 exit
@@ -2227,11 +2227,11 @@ GC-FLOW local hoisted__U32_#1 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__U32_#2 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__U32_#3 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__U32_#4 entry=I exit=O out=O,I,I,I,O,I,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,I,I,I,O,I,I,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=O out=O,I,I,I,O,I,I,I
-GC-FLOW local hoisted__U64_#2 entry=I exit=O out=O,I,I,I,O,I,I,I
-GC-FLOW local hoisted__U64_#3 entry=I exit=O out=O,I,I,I,O,I,I,I
-GC-FLOW local hoisted__U64_#4 entry=I exit=O out=O,I,I,I,O,I,I,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=O out=O,I,I,I,O,I,I,I
+GC-FLOW local hoisted__U32_#6 entry=I exit=O out=O,I,I,I,O,I,I,I
+GC-FLOW local hoisted__U32_#7 entry=I exit=O out=O,I,I,I,O,I,I,I
+GC-FLOW local hoisted__U32_#8 entry=I exit=O out=O,I,I,I,O,I,I,I
+GC-FLOW local hoisted__U32_#9 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__v_#1 entry=I exit=O out=O,I,I,I,O,I,I,I
 GC-FLOW local hoisted__v_#2 entry=I exit=O out=O,I,I,I,O,I,I,I
@@ -2240,46 +2240,46 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap
 GC-AUDIT local hoisted__Bool_#1 type=Bool decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=15 last_use=17 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#3 type=U32 decl=18 last_use=19 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#4 type=U32 decl=19 last_use=20 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=7 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=13 last_use=17 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=7 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=10 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#6 type=U32 decl=13 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#7 type=U32 decl=16 last_use=17 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#8 type=U32 decl=18 last_use=19 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#9 type=U32 decl=19 last_use=20 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=8 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__v_#1 type= decl=9 last_use=11 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local hoisted__v_#2 type= decl=14 last_use=17 own_transfer=-1 heap=0 skip=1
-GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#5) call_free=0
-GC-AUDIT site 1.if0.7 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 1.if0.11 delete U32.delete(hoisted__U32_#7) call_free=0
-GC-AUDIT site 1.if0.15 delete U32.delete(hoisted__U32_#8) call_free=0
-GC-AUDIT site 1.if0.19 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 1.if0.2 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 1.if0.7 delete U32.delete(hoisted__U32_#11) call_free=0
+GC-AUDIT site 1.if0.11 delete U32.delete(hoisted__U32_#12) call_free=0
+GC-AUDIT site 1.if0.15 delete U32.delete(hoisted__U32_#13) call_free=0
+GC-AUDIT site 1.if0.19 delete U32.delete(hoisted__U32_#14) call_free=0
 GC-AUDIT site 1.if0.23 delete I64.delete(_va_Array__ek#0) call_free=0
-GC-AUDIT site 1.if0.24 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 1.if0.24 delete U32.delete(hoisted__U32_#15) call_free=0
 GC-AUDIT site 1.if0.27 delete Str.delete(hoisted__Str_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(hoisted__Bool_#0) call_free=0
-GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#11) call_free=0
-GC-AUDIT site 4.if0.5 delete U32.delete(hoisted__U32_#12) call_free=0
-GC-AUDIT site 4.if0.6.if0.2 delete U32.delete(hoisted__U32_#13) call_free=0
+GC-AUDIT site 4.if0.2 delete U32.delete(hoisted__U32_#16) call_free=0
+GC-AUDIT site 4.if0.5 delete U32.delete(hoisted__U32_#17) call_free=0
+GC-AUDIT site 4.if0.6.if0.2 delete U32.delete(hoisted__U32_#18) call_free=0
 GC-AUDIT site 4.if0.7 delete Bool.delete(hoisted__Bool_#2) call_free=0
-GC-AUDIT site 4.if0.10 delete U32.delete(hoisted__U32_#14) call_free=0
-GC-AUDIT site 4.if0.12 delete U64.delete(hoisted__U64_#5) call_free=0
+GC-AUDIT site 4.if0.10 delete U32.delete(hoisted__U32_#19) call_free=0
+GC-AUDIT site 4.if0.12 delete U32.delete(hoisted__U32_#20) call_free=0
 GC-AUDIT site 4.if0.15 delete U32.delete(new_cap) call_free=0
 GC-AUDIT site 5 delete Bool.delete(hoisted__Bool_#1) call_free=0
 GC-AUDIT site 8 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 11 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 16 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 18 delete U64.delete(hoisted__U64_#2) call_free=0
-GC-AUDIT site 21 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 11 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 16 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 18 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 21 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 26 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 27 delete U64.delete(hoisted__U64_#3) call_free=0
-GC-AUDIT site 28 delete U64.delete(hoisted__U64_#4) call_free=0
-GC-AUDIT site 31 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 33 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 27 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 28 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 31 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 33 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-CFG body test/gc_audit.til:272:9 blocks=4
 GC-CFG block 0 exit
 GC-CFG block 1 body=272:9 span=0..3 succs=3,2
@@ -2315,10 +2315,10 @@ GC-FLOW local cloned entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#2 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#4 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
@@ -2327,24 +2327,24 @@ GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0
 GC-AUDIT local cloned type=I64 decl=7 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=9 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=9 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=10 last_use=12 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=I64 decl=6 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 13 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 18 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 13 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 18 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 23 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 24 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 24 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 25 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:282:13 blocks=5
 GC-CFG block 0 exit
@@ -2357,10 +2357,10 @@ GC-FLOW local cloned entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__I32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#1 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
-GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#2 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#3 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#4 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U32_#5 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
@@ -2369,24 +2369,24 @@ GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0
 GC-AUDIT local cloned type=I64 decl=7 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__I32_#0 type=I32 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#1 type=U64 decl=9 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#3 type=U32 decl=9 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#4 type=U32 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#5 type=U32 decl=14 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__v_#0 type= decl=10 last_use=12 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=I64 decl=6 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT site 1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 13 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 17 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 18 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 13 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 17 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 18 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 23 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 24 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 24 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 25 delete U32.delete(i) call_free=0
 GC-CFG body test/gc_audit.til:282:13 blocks=17
 GC-CFG block 0 exit
@@ -2416,24 +2416,24 @@ GC-AUDIT local hoisted__Bool_#0 type=Bool decl=2 last_use=3 own_transfer=-1 heap
 GC-AUDIT site 3.if0.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 3.if0.0.while.7 delete U32.delete(hoisted__U32_#0) call_free=0
-GC-AUDIT site 3.if0.0.while.10 delete U64.delete(hoisted__U64_#0) call_free=0
-GC-AUDIT site 3.if0.0.while.13 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 3.if0.0.while.17 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 3.if0.0.while.18 delete U64.delete(hoisted__U64_#2) call_free=0
+GC-AUDIT site 3.if0.0.while.10 delete U32.delete(hoisted__U32_#1) call_free=0
+GC-AUDIT site 3.if0.0.while.13 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 3.if0.0.while.17 delete U32.delete(hoisted__U32_#3) call_free=0
+GC-AUDIT site 3.if0.0.while.18 delete U32.delete(hoisted__U32_#4) call_free=0
 GC-AUDIT site 3.if0.0.while.22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 3.if0.0.while.23 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 3.if0.0.while.24 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 3.if0.0.while.24 delete U32.delete(hoisted__U32_#5) call_free=0
 GC-AUDIT site 3.if0.0.while.25 delete U32.delete(i) call_free=0
 GC-AUDIT site 3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#2) call_free=0
-GC-AUDIT site 3.if1.0.while.10 delete U64.delete(hoisted__U64_#4) call_free=0
-GC-AUDIT site 3.if1.0.while.13 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 3.if1.0.while.17 delete U64.delete(hoisted__U64_#5) call_free=0
-GC-AUDIT site 3.if1.0.while.18 delete U64.delete(hoisted__U64_#6) call_free=0
+GC-AUDIT site 3.if1.0.while.7 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 3.if1.0.while.10 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 3.if1.0.while.13 delete U32.delete(hoisted__U32_#8) call_free=0
+GC-AUDIT site 3.if1.0.while.17 delete U32.delete(hoisted__U32_#9) call_free=0
+GC-AUDIT site 3.if1.0.while.18 delete U32.delete(hoisted__U32_#10) call_free=0
 GC-AUDIT site 3.if1.0.while.22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 3.if1.0.while.23 delete I32.delete(hoisted__I32_#1) call_free=0
-GC-AUDIT site 3.if1.0.while.24 delete U64.delete(hoisted__U64_#7) call_free=0
+GC-AUDIT site 3.if1.0.while.24 delete U32.delete(hoisted__U32_#11) call_free=0
 GC-AUDIT site 3.if1.0.while.25 delete U32.delete(i) call_free=0
 GC-AUDIT site 4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 5 delete U32.delete(_re_U32_#0) call_free=0
@@ -2463,44 +2463,44 @@ GC-CFG block 20 body=282:13 span=0..2 succs=16
 GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
-GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
+GC-FLOW local hoisted__U32_#2 entry=I exit=X out=X,I,O,I,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=X out=X,I,I,I,O,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I,I
 GC-FLOW local new_data entry=I exit=X out=X,I,O,I,M,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-AUDIT body test/gc_audit.til:280:9 locals=6
 GC-AUDIT local hoisted__Bool_#0 type=Bool decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#1 type=U32 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=4 last_use=5 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=7 last_use=8 own_transfer=-1 heap=1 skip=0
 GC-AUDIT local new_data type=U8 decl=5 last_use=8 own_transfer=7 heap=1 skip=0
 GC-AUDIT site 2 delete U32.delete(hoisted__U32_#0) call_free=0
 GC-AUDIT site 3.if0.4 delete I64.delete(hoisted__I64_#0) call_free=0
-GC-AUDIT site 3.if0.5 delete U32.delete(hoisted__U32_#2) call_free=0
+GC-AUDIT site 3.if0.5 delete U32.delete(hoisted__U32_#3) call_free=0
 GC-AUDIT site 3.if0.6 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 4 delete Bool.delete(hoisted__Bool_#0) call_free=0
 GC-AUDIT site 7 delete U32.delete(hoisted__U32_#1) call_free=0
-GC-AUDIT site 9 delete U64.delete(hoisted__U64_#0) call_free=0
+GC-AUDIT site 9 delete U32.delete(hoisted__U32_#2) call_free=0
 GC-AUDIT site 10.body.3.if0.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#0) call_free=0
 GC-AUDIT site 10.body.3.if0.0.while.2 delete Bool.delete(_wcond_Bool_#0) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.7 delete U32.delete(hoisted__U32_#3) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.10 delete U64.delete(hoisted__U64_#1) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.13 delete U32.delete(hoisted__U32_#4) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.17 delete U64.delete(hoisted__U64_#2) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.18 delete U64.delete(hoisted__U64_#3) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.7 delete U32.delete(hoisted__U32_#4) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.10 delete U32.delete(hoisted__U32_#5) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.13 delete U32.delete(hoisted__U32_#6) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.17 delete U32.delete(hoisted__U32_#7) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.18 delete U32.delete(hoisted__U32_#8) call_free=0
 GC-AUDIT site 10.body.3.if0.0.while.22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 10.body.3.if0.0.while.23 delete I32.delete(hoisted__I32_#0) call_free=0
-GC-AUDIT site 10.body.3.if0.0.while.24 delete U64.delete(hoisted__U64_#4) call_free=0
+GC-AUDIT site 10.body.3.if0.0.while.24 delete U32.delete(hoisted__U32_#9) call_free=0
 GC-AUDIT site 10.body.3.if0.0.while.25 delete U32.delete(i) call_free=0
 GC-AUDIT site 10.body.3.if1.0.while.1.if1.0 delete Bool.delete(_wcond_Bool_#1) call_free=0
 GC-AUDIT site 10.body.3.if1.0.while.2 delete Bool.delete(_wcond_Bool_#1) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#5) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.10 delete U64.delete(hoisted__U64_#5) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.13 delete U32.delete(hoisted__U32_#6) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.17 delete U64.delete(hoisted__U64_#6) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.18 delete U64.delete(hoisted__U64_#7) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.7 delete U32.delete(hoisted__U32_#10) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.10 delete U32.delete(hoisted__U32_#11) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.13 delete U32.delete(hoisted__U32_#12) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.17 delete U32.delete(hoisted__U32_#13) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.18 delete U32.delete(hoisted__U32_#14) call_free=0
 GC-AUDIT site 10.body.3.if1.0.while.22 delete I64.delete(cloned) call_free=0
 GC-AUDIT site 10.body.3.if1.0.while.23 delete I32.delete(hoisted__I32_#1) call_free=0
-GC-AUDIT site 10.body.3.if1.0.while.24 delete U64.delete(hoisted__U64_#8) call_free=0
+GC-AUDIT site 10.body.3.if1.0.while.24 delete U32.delete(hoisted__U32_#15) call_free=0
 GC-AUDIT site 10.body.3.if1.0.while.25 delete U32.delete(i) call_free=0
 GC-AUDIT site 10.body.4 delete U32.delete(_rc_U32_#0) call_free=0
 GC-AUDIT site 10.body.5 delete U32.delete(_re_U32_#0) call_free=0

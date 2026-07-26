@@ -302,6 +302,22 @@ test_uptr_alias_in_func := test() {
     assert_eq(I64, add_uptr(3, 7).cast(I64), 10)
 }
 
+uptr_identity := func(v: UPtr) returns UPtr {
+    return v
+}
+
+test_cast_reinterpret_in_uptr_arg := test() {
+    # `i.cast(U32)` is a same-size REINTERPRET: I32 -1 becomes 4294967295.
+    # In an ARGUMENT position the typer re-stamps the call node with the
+    # param's width (the USize/UPtr coercion), and the builder used to emit
+    # the cast from that stamp -- `(U64)(i)`, a sign-extending widening to
+    # 0xFFFFFFFFFFFFFFFF. The same expression outside an argument position
+    # emitted the correct `(U32)(i)`, so the value depended on where it was
+    # written.
+    i : I32 = -1
+    assert_eq(I64, uptr_identity(i.cast(U32)).cast(I64), 4294967295)
+}
+
 test_uptr_memory_api := test() {
     size : UPtr = 2
     buf : U8 = malloc(size)
