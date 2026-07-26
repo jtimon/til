@@ -2430,7 +2430,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
 
 priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScope, scope_exit: I32) returns Bool {
     if scope_exit == 0 { return false }
-    is_program_scope := scope.parent.is_null()
+    is_program_scope := scope.parent.is_none()
 
     mut locals_vec := Vec(LocalInfo).new()
     collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)

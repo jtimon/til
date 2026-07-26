@@ -2648,7 +2648,7 @@ priv interface_method_conforms := func(iface_name: Str, impl_name: Str, iface_fd
 
 priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     expr.set_til_type(Type.None)
-    inner := TypeScope(parent = scope)
+    inner := TypeScope(parent = Option(ref TypeScope).Some(scope))
     switch expr.node_type {
     case NodeType.StructDef(tc_sdd):
         mut tcfi : USize = 0
@@ -3185,7 +3185,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // Allowed at root scope, or at the immediate namespace
             // level of a struct/enum (issue #51).  Tests in arbitrary
             // nested function bodies are still rejected.
-            if scope.parent.is_null().not().and(ifd_in_ns.not()) {
+            if scope.parent.is_some().and(ifd_in_ns.not()) {
                 expr.type_error("test functions can only be declared at root scope or in a struct/enum namespace", ctx)
             }
             if fdef.return_type.len() > 0 {
@@ -3200,7 +3200,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 expr.type_error("proc not allowed in pure mode", ctx)
             }
         }
-        mut func_scope := TypeScope(parent = scope)
+        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
@@ -3333,7 +3333,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         saved_in_shallow_ret := ctx.typer_in_shallow_return
         ctx.typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
         saved_in_main_func := ctx.typer_in_main_func
-        ctx.typer_in_main_func = ctx.current_top_func_name.eq("main").and(scope.parent.is_null())
+        ctx.typer_in_main_func = ctx.current_top_func_name.eq("main").and(scope.parent.is_none())
         saved_return_type_name := ctx.typer_return_type_name.clone()
         if is_func { ctx.typer_return_type_name = fdef.return_type.clone() } else { ctx.typer_return_type_name = "" }
         // Issue #198: lower throw/catch BEFORE infer_body so the
@@ -3852,13 +3852,13 @@ priv infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_lo
     if type_is_primitive(if_cond_t, Primitive.Bool).not().and(if_cond_t.is(Type.Unknown).not()) {
         stmt.type_error("if condition must be Bool", ctx)
     }
-    then_scope := TypeScope(parent = scope)
+    then_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.children[1], then_scope)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
-        else_scope := TypeScope(parent = scope)
+        else_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt.children[2], else_scope)
         check_unused_locals(else_scope, ctx.path, ctx)
@@ -4188,7 +4188,7 @@ priv infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, re
         }
         body.children.move_from(new_ch)
     }
-    while_scope := TypeScope(parent = scope)
+    while_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
     garbager_destroy_body(ctx, stmt.children[1], while_scope)
     check_unused_locals(while_scope, ctx.path, ctx)
@@ -4862,8 +4862,10 @@ priv capture_is_mut := func(captures: Vec(Declaration), name: Str) returns Bool 
 
 // Walk up to the file/global root scope.
 priv scope_root_ref := func(s: TypeScope) returns ref TypeScope {
-    if s.parent.is_null() { return s }
-    return scope_root_ref(s.parent)
+    switch s.parent {
+    case Option(ref TypeScope).Some(p): return scope_root_ref(p)
+    case Option(ref TypeScope).None: return s
+    }
 }
 
 // Issue #54: a single name reference inside a capture block must resolve
@@ -4943,7 +4945,7 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
     }
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
-    body_scope := TypeScope(parent = scope)
+    body_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(body_scope, body, 0, 1, 0, 0, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, body_scope, root, captures, ctx)
@@ -4998,7 +5000,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
         return
     }
     ref mut body : Expr = stmt.children[0]
-    block_scope := TypeScope(parent = scope)
+    block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
@@ -5062,7 +5064,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
     case NodeType.If:
         infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref, ctx)
     case NodeType.Body:
-        block_scope := TypeScope(parent = scope)
+        block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, stmt, block_scope)
         check_unused_locals(block_scope, ctx.path, ctx)
@@ -5099,7 +5101,7 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
         // statements need infer_body so var refs etc. resolve.
         if stmt.children.len() == 3 {
             ref body_expr : Expr = stmt.children[2]
-            catch_scope := TypeScope(parent = scope)
+            catch_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             garbager_destroy_body(ctx, body_expr, catch_scope)
             check_unused_locals(catch_scope, ctx.path, ctx)
@@ -5177,7 +5179,7 @@ infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I
     body.set_til_type(Type.None)
     mut i : USize = 0
     while i < body.children.len() {
-        if scope.parent.is_null().and(in_func.eq(0)).and(in_type_body.eq(0)) {
+        if scope.parent.is_none().and(in_func.eq(0)).and(in_type_body.eq(0)) {
             context_set_mode_from_path(ctx, ctx.path)
         }
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
@@ -5691,12 +5693,14 @@ rhs_is_clone_fcall := func(rhs: Expr) returns Bool {
 }
 
 assign_target_is_func_local := func(mut scope: TypeScope, name: Str) returns Bool {
-    ref mut s : TypeScope = scope
-    while s.is_null().not() {
-        if s.parent.is_null().not().and(s.bindings.has(name)) { return true }
-        s = s.parent
+    // Walks to the root; the root scope itself never qualifies (a
+    // top-level binding is not a func local).
+    switch scope.parent {
+    case Option(ref TypeScope).None: return false
+    case Option(ref TypeScope).Some(p):
+        if scope.bindings.has(name) { return true }
+        return assign_target_is_func_local(p, name)
     }
-    return false
 }
 
 is_numeric_type := func(t: Type) returns Bool {
@@ -7124,7 +7128,7 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
 // node is untouched), prepends the pattern's payload bindings via the shared
 // switch helper, infers the bindings, then infers the value expression.
 priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
-    arm_scope := TypeScope(parent = scope)
+    arm_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     mut body_idx : USize = 0
     mut has_pattern := false
     if case_node.children.len() == 1 {
@@ -7330,7 +7334,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
             has_last_case = true
         }
         ref mut case_body : Expr = cn.children[body_idx]
-        case_scope := TypeScope(parent = scope)
+        case_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
         garbager_destroy_body(ctx, case_body, case_scope)
         check_unused_locals(case_scope, ctx.path, ctx)

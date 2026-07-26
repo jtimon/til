@@ -179,15 +179,36 @@ until the language-level removal.
 - Context.current_fdef -> Option(ref Expr) (builder read sites
   switched; save/restore of the Option value at closure emission).
 
-Remaining ref-NULL fields for the next batch: TypeScope.parent,
+**** Step-1 Option migration, batch 2
+
+- TypeScope.parent -> Option(ref TypeScope) (the compiler's hottest
+  scope chain: get_binding / get_struct / struct_def_of / lookup_func
+  / lookup_func_symbol / the target-width walkers, plus the typer and
+  garbager root-scope tests and all 11 TypeScope(parent = ...) ctor
+  sites). This is the first SELF-REFERENTIAL Option(ref T) field, and
+  it flushed out two places that still assumed an inline payload --
+  fixed in the preparation commit (builder topo sort, interpreter
+  dispatch_enum_size); see issue #320.
+
+Remaining ref-NULL fields for the next batch:
 Context.constfolder_known / ns_fields, Context.return_value /
 interp_ret_dest (reclassify as plain Dynamic per the quarantine
 decision) / interp_ret_type, InterpSession.global, FFIEntry.* (mixed
-Option/Dynamic), test fixtures (RefNode.next, aliases), THEN the
+Option/Dynamic), interpreter Scope.parent, test fixtures
+(RefNode.next, aliases), THEN the
 forbid: drop check_ref_field_owned_default's NULL exception for
 non-ext structs (ext_structs keep NULL defaults until the niche
 layout gives Option(ref T) the C pointer ABI), plus doc table
 updates (qualifiers.org / ownership.org / enums.org).
+
+Blocker found in batch 2, needed before the Scope-typed fields
+(constfolder_known / ns_fields / InterpSession.global) can migrate:
+those are assigned from ~scope_new_boxed(...)~, a REF-RETURNING call,
+but #320's ref-payload ctor check only accepts an Ident or field
+chain. A ref-returning call is a legitimate borrow source (the typer
+already accepts exactly that for ~ref~ DECLS via
+expr_is_ref_decl_source) -- the ctor check should use that same
+predicate instead of its own narrower place test.
 
 *** Decisions (2026-07-21 design discussion)
 

@@ -267,6 +267,11 @@ typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef enum {
+    Option__ref_TypeScope_TAG_None,
+    Option__ref_TypeScope_TAG_Some
+} Option__ref_TypeScope_tag;
+typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__Mode Vec__Mode;
@@ -731,6 +736,14 @@ typedef struct Map__Str_Expr {
 } Map__Str_Expr;
 
 
+struct Option__ref_Expr {
+    U8 tag;
+    union {
+        Expr *Some;
+        void *_til_payload_align;
+    } data;
+};
+
 typedef struct Map__Str_Dynamic {
     Vec__Str keys;
     Vec__Dynamic values;
@@ -743,6 +756,14 @@ typedef struct Vec__FFITypePtrBox {
     USize cap;
 } Vec__FFITypePtrBox;
 
+
+struct Option__ref_TypeScope {
+    U8 tag;
+    union {
+        TypeScope *Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct Vec__I64 {
     U8 *data;
@@ -1330,14 +1351,6 @@ typedef struct Map__Str_call_Vec_Str {
 } Map__Str_call_Vec_Str;
 
 
-struct Option__ref_Expr {
-    U8 tag;
-    union {
-        Expr *Some;
-        void *_til_payload_align;
-    } data;
-};
-
 typedef struct Map__Str_FFIEntry {
     Vec__Str keys;
     Vec__FFIEntry values;
@@ -1418,7 +1431,7 @@ typedef struct TypeScope {
     Str target_uptr_pname;
     Map__Str_Dynamic func_defs;
     Map__Str_Dynamic struct_defs;
-    TypeScope *parent;
+    Option__ref_TypeScope parent;
 } TypeScope;
 
 
@@ -2090,6 +2103,7 @@ Bool TypeScope_is_mut(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
+U64 TypeScope_hash(TypeScope * self, HashFn hasher);
 USize TypeScope_size(void);
 FuncType binding_func_type(TypeBinding * b);
 FuncType func_def_type(Expr * fdef);
@@ -2281,6 +2295,13 @@ FFITypePtrBox * Vec__FFITypePtrBox_unsafe_get(Vec__FFITypePtrBox * self, USize *
 void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
 USize Vec__FFITypePtrBox_size(void);
+Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope * self);
+Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope * self);
+Option__ref_TypeScope * Option__ref_TypeScope_None(void);
+Option__ref_TypeScope * Option__ref_TypeScope_Some(TypeScope * val);
+void Option__ref_TypeScope_delete(Option__ref_TypeScope * self, Bool call_free);
+Option__ref_TypeScope * Option__ref_TypeScope_clone(Option__ref_TypeScope * self);
+USize Option__ref_TypeScope_size(void);
 Vec__I64 * Vec__I64_new(void);
 USize Vec__I64_len(Vec__I64 * self);
 void Vec__I64_clear(Vec__I64 * self);
@@ -4107,6 +4128,8 @@ ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
 Option__ref_Expr *Option__ref_Expr_None();
 Option__ref_Expr *Option__ref_Expr_Some(Expr *);
+Option__ref_TypeScope *Option__ref_TypeScope_None();
+Option__ref_TypeScope *Option__ref_TypeScope_Some(TypeScope *);
 Bool Lang_eq(Lang *, Lang *);
 Lang *Lang_C();
 Lang *Lang_HolyC();

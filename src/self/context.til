@@ -103,7 +103,9 @@ TypeScope := struct {
     // bindings, while lookup_func_symbol reads them for codegen.
     func_defs := Map(Str, Dynamic).new()
     struct_defs := Map(Str, Dynamic).new()
-    ref parent : TypeScope = NULL
+    // #321: None at the root scope; every lookup below walks the chain
+    // until it runs out of parents. Real control flow, not a guard.
+    parent := Option(ref TypeScope).None
 namespace:
     // Iterative single-probe walk (the interpreter's scope_get shape):
     // one call frame per lookup, one binary search per level -- the
@@ -112,11 +114,13 @@ namespace:
     get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
         ref b : TypeBinding = self.bindings.get(name)?
         catch (e: KeyNotFound) {
-            if self.parent.is_null().not() {
-                ref pb : TypeBinding = self.parent.get_binding(name)
+            switch self.parent {
+            case Option(ref TypeScope).Some(p):
+                ref pb : TypeBinding = p.get_binding(name)
                 return pb
+            case Option(ref TypeScope).None:
+                return NULL
             }
-            return NULL
         }
         return b
     }
@@ -150,10 +154,10 @@ namespace:
     get_struct := func(self: TypeScope, name: Str) returns ref Expr {
         ref slot : Dynamic = self.struct_defs.get(name)?
         catch (e: KeyNotFound) {
-            if self.parent.is_null().not() {
-                return self.parent.get_struct(name)
+            switch self.parent {
+            case Option(ref TypeScope).Some(p): return p.get_struct(name)
+            case Option(ref TypeScope).None: return NULL
             }
-            return NULL
         }
         return deref(slot)
     }
@@ -169,10 +173,10 @@ namespace:
         if b.is_null().not() {
             return func_defs_lookup_one(self.struct_defs, name)
         }
-        if self.parent.is_null().not() {
-            return self.parent.struct_def_of(name)
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.struct_def_of(name)
+        case Option(ref TypeScope).None: return NULL
         }
-        return NULL
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
     // walking lookup. Replaces direct reads of TypeBinding.func_def.
@@ -194,10 +198,10 @@ namespace:
         if b.is_null().not() {
             return func_defs_lookup_one(self.func_defs, name)
         }
-        if self.parent.is_null().not() {
-            return self.parent.lookup_func(name)
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.lookup_func(name)
+        case Option(ref TypeScope).None: return NULL
         }
-        return NULL
     }
     lookup_func_symbol := func(self: TypeScope, name: Str) returns ref Expr {
         ref b : TypeBinding = bindings_lookup_one(self.bindings, name)
@@ -209,10 +213,10 @@ namespace:
         }
         ref local : Expr = func_defs_lookup_one(self.func_defs, name)
         if local.is_null().not() { return local }
-        if self.parent.is_null().not() {
-            return self.parent.lookup_func_symbol(name)
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.lookup_func_symbol(name)
+        case Option(ref TypeScope).None: return NULL
         }
-        return NULL
     }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
     // func_defs map (the replacement for the removed ref func_def
@@ -717,12 +721,18 @@ note_cross_file_type_use := func(scope: TypeScope, ctx: Context, type_name: Str)
 }
 
 scope_target_usize_pname := func(scope: TypeScope) returns ref Str {
-    if scope.parent.is_null().not() { return scope_target_usize_pname(scope.parent) }
+    switch scope.parent {
+    case Option(ref TypeScope).Some(p): return scope_target_usize_pname(p)
+    case Option(ref TypeScope).None:
+    }
     return scope.target_usize_pname
 }
 
 scope_target_uptr_pname := func(scope: TypeScope) returns ref Str {
-    if scope.parent.is_null().not() { return scope_target_uptr_pname(scope.parent) }
+    switch scope.parent {
+    case Option(ref TypeScope).Some(p): return scope_target_uptr_pname(p)
+    case Option(ref TypeScope).None:
+    }
     return scope.target_uptr_pname
 }
 
