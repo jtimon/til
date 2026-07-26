@@ -95,13 +95,38 @@ pattern), I64 keys to keep Str allocation out of the number:
   |       4 |  77ms |   311ms |
   |      16 | 308ms |  1228ms |
 
-An EMPTY HashMap costs 9x an empty Map to build (0.74us vs 0.08us
-each). That is the eager 16-bucket allocation, and it is decisive: at
-~28ns saved per lookup (the N=128 row), one extra construction needs
-~23 lookups against that table just to break even. A root scope
+An EMPTY HashMap cost 9x an empty Map to build (0.74us vs 0.08us
+each). That was the eager 16-bucket allocation, and it was decisive:
+at ~28ns saved per lookup (the N=128 row), one extra construction
+needed ~23 lookups against that table just to break even. A root scope
 answering millions of lookups clears that easily; a per-function scope
-answering a handful never does -- which is exactly #214's verdict,
-now with numbers behind it rather than reasoning.
+answering a handful never does -- which was exactly #214's verdict,
+with numbers behind it rather than reasoning.
+
+*** After lazy buckets (below), the same rows re-measured
+
+  | entries | Map   | HashMap before | HashMap after |
+  |---------+-------+----------------+---------------|
+  |       0 |  14ms |          147ms |          27ms |
+  |       4 |  67ms |          311ms |         321ms |
+  |      16 | 262ms |         1228ms |         987ms |
+
+(Absolute times drift a few percent between runs -- the Map column
+moved too -- so compare within a row, not across runs.)
+
+Empty construction drops 5x and the Map:HashMap ratio goes from 9.2x
+to 1.9x. Recomputing the break-even from the same run: an extra
+construction now costs (27-14)ms/200K = ~65ns, and the N=128 lookup
+rows save (154-111)ms/2M = ~21ns per lookup, so a table needs about
+THREE lookups to pay for itself instead of twenty-three.
+
+That is the number that re-opens the per-scope candidates. Tables
+built per function/block are mostly empty or near-empty and answer a
+handful of lookups each -- at 3 they are plausible, at 23 they were
+not. The entries=4 and entries=16 rows are unchanged, as expected:
+a table that inserts seeds its buckets anyway, so lazy buckets buy
+nothing there. The win is exactly and only in the empty case, which is
+the common one for scopes.
 
 *** Correctness gate for every candidate: is the map ITERATED?
 
@@ -143,44 +168,111 @@ nothing to collide. Whatever fixed it (#236's neighbourhood, or the
 template/emit work since 21153c7), no `header_extern` plumbing is
 needed. Probe reverted; nothing from this check is committed.
 
-*** Candidates, re-ranked against #214's criteria
+*** HANDOFF: the remaining steps are TIMING work -- run them locally
 
-1. ctx.interp_type_defs -- Map(Str, Dynamic), one instance on the
-   Context, holding every registered type def, read by
-   lookup_interp_type_def. Verified never iterated. The ONLY candidate
-   that passes criterion (c) as things stand. Start here.
+Everything measurable without a stopwatch is done (see Progress). What
+is left is candidate swaps whose whole point is a before/after number,
+and the remote sandbox is not a trustworthy stopwatch: absolute times
+drifted several percent between runs of an unchanged binary. A local
+session should take these.
 
-2. Make HashMap.new lazy, then re-open the per-scope candidates. The
-   single fact disqualifying TypeScope.struct_defs / func_defs /
-   bindings and Scope.heap_bindings is HashMap.new's eager 16-bucket
-   allocation; core Vec already went lazy in f671bb1. Allocating
-   buckets on first insert would make an empty HashMap as cheap as an
-   empty Map and change the whole calculus -- this is probably worth
-   more than any individual swap, and it is a std-only change testable
-   on its own. #214 predates the lazy-Vec work and never considered
-   it.
+**** Ground rules for the measurements
 
-   Deferred pending 1 and 2 (all fail criterion (c) today, and all
-   were ranked wrongly in this issue's first draft):
+- Compare WITHIN one run, never across runs. Every table in this issue
+  follows that rule; the Map column is re-measured alongside the
+  HashMap column each time precisely so drift cancels.
+- Build before measuring, and remember `bin/til` goes stale whenever
+  master moves: a stale compiler produced a phantom
+  "Map__Str_USize vs Map__Str_U32" type error here once. `make` first.
+- Bench:      bin/til run examples/bench_hashmap.til
+- Profile:    bin/til run examples/profile.til test/maps.til 60
+  (the profile harness builds bin/til_prof itself, ~100s, then runs
+  instrumented; self_ms is inflated for small hot functions, so read
+  CALL COUNTS and inclusive total_ms, per #214 step 3.)
+- Local-session conventions from CLAUDE.md apply: dedicated worktree,
+  `systemd-run --user --scope -p MemoryMax=64G make clean && make test`,
+  commit in the worktree, do NOT push.
 
-   - TypeScope.struct_defs / func_defs -- 2.9M gets, never iterated,
-     but per-scope.
-   - Scope.heap_bindings -- 192K gets, per-scope; iterated once at
-     teardown (free order only).
-   - TypeScope.bindings -- 835K gets, per-scope, AND iterated in seven
-     places, with collect_scope_locals' order pinned by the
-     test/gc_audit.expected golden. #214's original rejection.
-   - StructDef.fields_index / ns_index -- ~410K get+has, but tiny
-     tables (a handful of members each), so criterion (b) fails
-     outright: expected LOSS, worth at most one confirming
-     measurement.
+**** Decision rule per candidate
 
-3. Teach examples/bench_hashmap.til the range we actually care about:
-   small-N rows (16 / 32 / 64 / 128 / 256) to locate the real
-   crossover, and a construct-N-empty-tables row so criterion (c) has
-   a number instead of an argument. Without this the bench cannot
-   answer the question this issue asks. Cheap, and it makes every
-   later candidate decision evidence-based; reasonable to do before 1.
+Keep the swap only if the profile row for that table improves AND the
+suite wall-clock does not regress. A neutral or worse result is a
+RESULT: record the numbers here and revert the swap. If two candidates
+in a row measure neutral, stop and close the issue with the numbers --
+that is #214's answer confirmed, and it is a perfectly good outcome.
+
+**** Mechanical notes that will save time
+
+- Ergonomics are already equal: since step 1, HashMap supports
+  `m[k]` (bang-subscript), `m.get(k)? catch`, `for k, v in m`,
+  clear/clone/remove -- verified. A swap is a one-line type change at
+  the field plus whatever the compiler then complains about.
+- WATCH THE USize WIDTH ALIAS. A `Map(Str, USize)` field and a
+  `Map(Str, USize)` *parameter* monomorphize to different names
+  (Map__Str_U32 vs Map__Str_USize) and the typer rejects the mismatch.
+  This already bit twice (StructDef.field_name_at's comment, and
+  ns_const_eval_order, which had to return Vec(I64) instead of
+  Vec(USize)). Candidate 4 is a Map(Str, USize) -- expect it there.
+- A probe that "verifies" something by importing hashmap into
+  src/self is usually VACUOUS: the scavenger prunes an unused import,
+  and even a HashMap-typed field does not emit `hash_key` unless
+  something calls `set`. Make the probe insert.
+
+*** Candidates, with their gates already checked
+
+Two claims in this issue's earlier drafts were WRONG and are corrected
+below -- re-verify with the greps rather than trusting prose.
+
+1. ctx.interp_type_defs -- Map(Str, Dynamic), src/self/context.til:666.
+   ONE instance, on the Context: passes criterion (c) outright, which
+   is why it is first.
+   Writes: initer.til:88, initer.til:554. Read: interpreter.til:325
+   (lookup_interp_type_def).
+   ITERATED -- correcting the earlier "never iterated" claim:
+   interpreter.til:60, `stable_type_name`, walks the keys to find the
+   one equal to `name` and returns a REF to the stored key (callers
+   need a stable Str address, and Map.get hands back the value, not
+   the key). Order-INDEPENDENT: keys are unique, so exactly one entry
+   matches and iteration order cannot change the answer. Safe to swap;
+   the scan works the same over HashMap's dense keys Vec.
+
+2. TypeScope.struct_defs and TypeScope.func_defs -- Map(Str, Dynamic),
+   src/self/context.til:104-105. The 2.9M-get row, the hottest tables
+   in the compiler. NOT iterated anywhere (grep confirms zero
+   `.keys` / `.values` / `for .. in` sites). Per-scope, so this was
+   disqualified by criterion (c) until lazy buckets landed; at the new
+   ~3-lookup break-even it is the most interesting candidate in the
+   issue. Note both fields live on the same struct, so they can be
+   swapped independently or together -- try struct_defs alone first,
+   it carries the get_struct traffic.
+
+3. Scope.heap_bindings (interpreter) -- 192K gets. CORRECTION: the
+   earlier draft said "iterated once, at teardown". It is iterated in
+   SIX places, and three of them are a real hazard:
+   - interpreter.til:4006, 4036 -- teardown drops; order = free order,
+     independent.
+   - interpreter.til:4062 -- closure_env_clone copies every binding;
+     per-binding independent.
+   - interpreter.til:2607, 3384, 6437 -- these walk
+     ctx.ns_fields.heap_bindings looking for an entry whose func_def
+     POINTER matches, then use the key `qn` to build a name. If two
+     qualified names ever share one func_def, FIRST MATCH WINS and
+     which one is first changes with iteration order. That is a
+     behaviour change waiting to happen, not just a golden churn.
+   Also note ns_fields is a Scope too, so swapping the field type
+   changes the namespace table and the per-call scopes together.
+
+4. TypeScope.bindings -- 835K gets, iterated in SEVEN places
+   (garbager.til:981; typer.til:3521, 3551, 3579, 5141, 5150, 5248),
+   and collect_scope_locals' order is pinned by
+   test/gc_audit.expected. Swapping reorders that golden and can
+   reorder diagnostics. #214's original rejection; stays last
+   regardless of what 1-3 measure.
+
+5. StructDef.fields_index / ns_index -- Map(Str, USize), ~410K
+   get+has, but tiny tables (a handful of members each), so criterion
+   (b) fails outright: expected LOSS. Worth at most one confirming
+   measurement, and see the USize width-alias note above.
 
 *** Progress
 
@@ -212,11 +304,25 @@ needed. Probe reverted; nothing from this check is committed.
   entries. Numbers in Measurements above. They put the lookup
   crossover at N ~= 32 and price an empty HashMap at 9x an empty Map,
   which is the number the per-scope candidates hinge on.
-- [ ] Lazy HashMap.new buckets -- now the clear next step: it attacks
-  the 147ms-per-200K empty-construction cost directly, and that single
-  figure is what disqualifies every per-scope candidate.
-- [ ] Candidate: ctx.interp_type_defs
-- [ ] Re-open the per-scope candidates only if lazy buckets land
+- [X] Lazy HashMap.new buckets: HashMap.new and
+  DynHashMap.new_type_names no longer push HASHMAP_INIT_BUCKETS; `set`
+  seeds the array on the first insert instead. Zero buckets is already
+  a valid state for every other method -- find/has/get/remove return
+  early on `keys.count == 0`, clear/clone iterate an empty array -- so
+  only `set`, which computes a modulo by bucket count, needed the
+  guard. Empty construction 147ms -> 27ms per 200K (Map: 14ms), and
+  the break-even for a per-scope table falls from ~23 lookups to ~3.
+  Numbers above.
+- [ ] Candidate 1: ctx.interp_type_defs  (LOCAL -- timing)
+- [ ] Candidate 2: TypeScope.struct_defs / func_defs  (LOCAL -- timing)
+- [ ] Candidate 3: Scope.heap_bindings  (LOCAL -- timing; read its
+  first-match-wins hazard first)
+- [ ] Candidate 4: TypeScope.bindings  (LOCAL -- last regardless)
+- [ ] Candidate 5: StructDef.fields_index / ns_index  (expected loss)
+
+Every DONE item above was decidable without a stopwatch. Every
+remaining item is a before/after timing, which is why they are marked
+LOCAL and why the HANDOFF section exists.
 
 *** Process
 

@@ -26,16 +26,21 @@ namespace:
     /// algorithm for that concrete HashMap(K, V) specialization.
     mut hasher : HashFn = fnv1a
 
+    /// Create an empty HashMap. Allocates NOTHING: the bucket array is
+    /// seeded on the first insert (see `set`), so an empty table costs
+    /// what an empty Map costs. #323: eagerly pushing HASHMAP_INIT_BUCKETS
+    /// here made an empty HashMap ~9x an empty Map to build, which is
+    /// what disqualified every per-scope candidate for a Map -> HashMap
+    /// swap -- the tables built per function/block are mostly empty.
+    /// Every reader already guards on `keys.count == 0` before touching
+    /// `buckets`, so zero buckets is a valid state for find/has/get/
+    /// remove/clear/clone; only `set` must seed.
     new := func() returns HashMap(K, V) {
-        mut m := HashMap(K, V)(
+        return HashMap(K, V)(
             keys = Vec(K).new(),
             values = Vec(V).new(),
             buckets = Vec(I64).new(),
             nexts = Vec(I64).new())
-        for _ in 0..HASHMAP_INIT_BUCKETS {
-            m.buckets.push(own -1)
-        }
-        return m
     }
 
     len := func(self: HashMap(K, V)) returns USize { return self.keys.count }
@@ -107,6 +112,15 @@ namespace:
 
     // Insert or overwrite. The value is owned.
     set := func(mut self: HashMap(K, V), key: K, own val: V) {
+        // Seed the bucket array on first insert -- `new` leaves it empty
+        // so an unused table allocates nothing (see `new`). bucket()
+        // takes a modulo, so this must happen before any bucket index is
+        // computed.
+        if self.buckets.count == 0 {
+            for _ in 0..HASHMAP_INIT_BUCKETS {
+                self.buckets.push(own -1)
+            }
+        }
         bi := bucket(HashMap(K, V).hash_key(key), self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()

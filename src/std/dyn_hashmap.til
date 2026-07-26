@@ -36,9 +36,8 @@ namespace:
         m.nexts = DynVec.new(I64)
         m.key_hash = dyn_fn(key_type, "hash")
         m.key_cmp  = dyn_fn(key_type, "cmp")
-        for _ in 0..HASHMAP_INIT_BUCKETS {
-            m.buckets.push(own -1)
-        }
+        // Buckets are seeded on the first insert, as in HashMap.new --
+        // an unused table pays nothing for them (#323).
         return m
     }
 
@@ -113,6 +112,13 @@ namespace:
     }
 
     set := func(mut self: DynHashMap, key: Dynamic, own val: Dynamic) {
+        // Seed the bucket array on first insert (see new_type_names).
+        // bucket() takes a modulo, so this precedes any bucket index.
+        if self.buckets.count == 0 {
+            for _ in 0..HASHMAP_INIT_BUCKETS {
+                self.buckets.push(own -1)
+            }
+        }
         bi := bucket(self.hash_key(to_ptr(key)), self.buckets.count)
         ref head : I64 = self.buckets.unsafe_get(bi)
         mut entry : I64 = head.clone()
