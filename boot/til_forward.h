@@ -2317,6 +2317,8 @@ Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_clone(Map__Str_call_Vec_Str * self
 U64 Map__Str_call_Vec_Str_hash(Map__Str_call_Vec_Str * self, HashFn hasher);
 USize Map__Str_call_Vec_Str_size(void);
 Bool Option__ref_Expr_is_some(Option__ref_Expr * self);
+Bool Option__ref_Expr_is_none(Option__ref_Expr * self);
+Expr * Option__ref_Expr_unwrap(Option__ref_Expr * self);
 Option__ref_Expr * Option__ref_Expr_None(void);
 Option__ref_Expr * Option__ref_Expr_Some(Expr * val);
 void Option__ref_Expr_delete(Option__ref_Expr * self, Bool call_free);
@@ -2602,7 +2604,7 @@ priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_clone(pr
 USize priv___src_self_typer_til__CtorArg_size(void);
 void type_error(Expr * e, Str * msg, Context * ctx);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);
-Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
+Option__ref_Expr * find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_comptime(Expr * e, TypeScope * scope);
 Option__ref_Declaration * find_ns_decl(Expr * sdef, Str * method);
 Bool priv___src_self_typer_til__try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name, Context * ctx);

@@ -326,10 +326,32 @@ branch on. Two things fall out nicely:
 - the three presence-only call sites become ~.is_some()~ instead of
   ~.is_null().not()~ -- Option answers that question directly.
 
-Next candidate, deliberately left for its own commit:
-~find_namespace_func~ (18 call sites across builder / desugarer /
-typer) -- the first migration big enough that its call sites want
-their own review pass.
+**** Step 2, batch 10: find_namespace_func (18 sites) + Option.unwrap
+
+~find_namespace_func~ (src/self/typer.til) migrated across all 18 call
+sites in builder / desugarer / typer.
+
+This batch needed a new core method first. Several sites are
+guard-then-use inside long loop bodies (~if x.is_null() { continue }~
+followed by 30 lines using ~x~); a ~switch~ would have re-indented
+those whole bodies into the Some arm -- noisy and easy to get wrong.
+So ~Option.unwrap~ landed (panics on None, ala Rust), enabling the
+idiom the code was already written in:
+
+: o := find_namespace_func(...)
+: if o.is_none() { continue }
+: ref x : Expr = o.unwrap()
+
+That is the "until usage demands more" trigger we set when Option went
+in with only is_some / is_none / unwrap_or. Its doc comment says when
+NOT to reach for it: prefer ~switch~ when both arms do real work, and
+~unwrap_or~ when a default is meaningful -- ~unwrap~ is for when None
+is unreachable by construction, so it fails loudly if that changes.
+
+Two sites shrank instead of growing: one only ever tested the result
+for null (the binding was dead -- now just ~.is_none()~), and the
+"does this type have a delete?" check collapsed to a single
+~.is_none()~ expression.
 
 Perf note for the hot ones: an enum return is heap-boxed by default
 (~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup

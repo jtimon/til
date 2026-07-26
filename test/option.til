@@ -131,3 +131,26 @@ test_option_ref_payload_from_ref_returning_call := test() {
     assert_eq(I64, got, 6)
     assert_eq(I64, h.inner.n, 6)
 }
+
+test_option_unwrap := test() {
+    some := OptI.Some(12)
+    assert_eq(I64, some.unwrap(), 12)
+    // The idiom it exists for: absence handled first, so unwrap cannot fail.
+    mut total := 0
+    for v in 0..3 {
+        o := OptI.Some(v)
+        if o.is_none() { continue }
+        total = total.add(o.unwrap())
+    }
+    assert_eq(I64, total, 3)
+}
+
+test_option_ref_unwrap := test() {
+    mut src := OptSrc(n = 2)
+    o := OptRefSrc.Some(src)
+    // Under the ref instantiation unwrap returns the BORROW.
+    ref got : OptSrc = o.unwrap()
+    src.n = 8
+    assert_eq(I64, got.n, 8)
+    assert_eq(I64, src.n, 8)
+}

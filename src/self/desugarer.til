@@ -496,8 +496,9 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                                 if owner.len() > 0 {
                                     ref sdef : Expr = ctx.scope.get_struct(owner)
                                     if sdef.is_null().not() {
-                                        ref mdef : Expr = find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
-                                        if mdef.is_null().not() {
+                                        mdefo := find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
+                                        if mdefo.is_some() {
+                                            ref mdef : Expr = mdefo.unwrap()
                                             switch mdef.node_type {
                                             case NodeType.FuncDef(fd): tn = fd.return_type.clone()
                                             case:
@@ -1448,8 +1449,9 @@ priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, met
     if ctx.throws_global.has(key) { return key }
     ref sdef : Expr = ctx.scope.get_struct(owner)
     if sdef.is_null() { return "" }
-    ref mdef : Expr = find_namespace_func(sdef, method, ctx.scope)
-    if mdef.is_null() { return "" }
+    mdefo := find_namespace_func(sdef, method, ctx.scope)
+    if mdefo.is_none() { return "" }
+    ref mdef : Expr = mdefo.unwrap()
     switch mdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.throw_types.len() > 0 {
@@ -3429,8 +3431,9 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
     }
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return }
-    ref ns_func : Expr = find_namespace_func(sdef, method, scope)
-    if ns_func.is_null() { return }
+    nfo := find_namespace_func(sdef, method, scope)
+    if nfo.is_none() { return }
+    ref ns_func : Expr = nfo.unwrap()
     switch ns_func.node_type {
     case NodeType.FuncDef(fd):
         for i in 0..fd.params.len() {
@@ -3623,8 +3626,9 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     // the err out-args; fill anything past that from the callee's defaults,
     // with the variadic call as the caller. No-op until set carries such a
     // default. Same generic approach as the for-in get lowering.
-    ref set_def : Expr = find_namespace_func(scope.get_struct(array_type), "set", scope)
-    if set_def.is_null().not() {
+    set_defo := find_namespace_func(scope.get_struct(array_type), "set", scope)
+    if set_defo.is_some() {
+        ref set_def : Expr = set_defo.unwrap()
         switch set_def.node_type {
         case NodeType.FuncDef(set_fd):
             for sp : Declaration in set_fd.params {

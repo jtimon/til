@@ -7633,8 +7633,9 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     ref stmt : Expr = e_i
                     if is_struct_or_enum(stmt).not() { continue }
                     ref def : Expr = stmt.children[0]
-                    ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
-                    if method_fdef.is_null() { continue }
+                    mfo := find_namespace_func(def, method, lp.ctx.scope)
+                    if mfo.is_none() { continue }
+                    ref method_fdef : Expr = mfo.unwrap()
                     if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
                     // #269: skip abstract interface methods (ext_func/ext_proc
                     // inside an interface) -- there is no C function to
@@ -7712,8 +7713,9 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
                 ref def : Expr = stmt.children[0]
-                ref method_fdef : Expr = find_namespace_func(def, method, lp.ctx.scope)
-                if method_fdef.is_null() { continue }
+                mfo2 := find_namespace_func(def, method, lp.ctx.scope)
+                if mfo2.is_none() { continue }
+                ref method_fdef : Expr = mfo2.unwrap()
                 if method_fdef.node_type.is(NodeType.FuncDef).not() { continue }
                 // #269: skip abstract interface methods (ext_func/ext_proc
                 // inside an interface) -- there is no C function to

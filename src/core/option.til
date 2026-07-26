@@ -28,5 +28,18 @@ Option := macro(T: Type) returns EnumDef {
             case: return default_v
             }
         }
+        /// The contained value; PANICS on None, ala Rust's unwrap. For the
+        /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+        /// has already handled absence and unwrapping cannot fail. Prefer
+        /// a `switch` when both arms do real work, and `unwrap_or` when a
+        /// default is meaningful -- reach for this only when None is
+        /// unreachable by construction, so it fails loudly if that ever
+        /// stops being true.
+        unwrap := func(self: Option(T)) returns T {
+            switch self {
+            case Option(T).Some(v): return v
+            case: panic(__LOC__, "unwrap of a None Option")
+            }
+        }
     }
 }
