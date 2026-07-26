@@ -2182,7 +2182,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         // which case callers expect the Dynamic wrapper shape
                         // (slot -> value storage): box the bare pointer.
                         if raw_type_is_prim(hb_type(return_hb), ctx).and(return_source_is_ref.not()) {
-                            if return_hb.is_raw_alloc.and(type_from_name_init(c.interp_ret_type, ctx.scope).is(Type.Dynamic)) {
+                            if return_hb.is_raw_alloc.and(type_from_name_init(interp_ret_type_name(c), ctx.scope).is(Type.Dynamic)) {
                                 // A #302 raw-alloc pointer returned at a
                                 // Dynamic-declared type: callers expect the
                                 // Dynamic wrapper shape (slot -> value
@@ -2236,7 +2236,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_is_ref, c.interp_ret_is_ref, ctx)
                     }
                 }
-                target_return_type := type_from_name_init(c.interp_ret_type, ctx.scope)
+                target_return_type := type_from_name_init(interp_ret_type_name(c), ctx.scope)
                 if c.interp_ret_is_ref.not() {
                     return_raw = raw_coerce_value(return_raw, return_source_type, target_return_type, ctx, c.interp_ret_own_type)
                     return_raw = raw_result_finish(target_return_type, return_raw, c.interp_ret_dest, false, ctx)
@@ -2441,14 +2441,14 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     c.return_value = NULL
     saved_ret_is_ref := c.interp_ret_is_ref
     ref saved_ret_dest : Dynamic = c.interp_ret_dest
-    ref saved_ret_type : Str = c.interp_ret_type
+    saved_ret_type := c.interp_ret_type
     saved_ret_own_type := c.interp_ret_own_type
     mut callee_ret_is_ref := false
     mut use_return_destination := true
     switch func_def.node_type {
     case NodeType.FuncDef(ret_fd):
         callee_ret_is_ref = ret_fd.return_own_type.is(OwnType.Ref)
-        c.interp_ret_type = ret_fd.return_type
+        c.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
         c.interp_ret_own_type = ret_fd.return_own_type
         if ret_fd.return_type.len() > 0 {
             ref declared_return_name : Str = resolve_type_alias(ctx.scope, ret_fd.return_type)
@@ -3516,6 +3516,18 @@ priv clone_dyn_set_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Con
         }
     }
     write_ptr(ptr_add(dst_data, data_fl.offset), new_buf)
+}
+
+// #321: the declared return type of the call being evaluated. Every
+// reader runs while evaluating a `return` INSIDE a call, where
+// eval_user_func_call has set it -- a None here is a broken invariant.
+priv interp_ret_type_name := func(ctx: Context) returns ref Str {
+    switch ctx.interp_ret_type {
+    case Option(ref Str).Some(rt): return rt
+    case Option(ref Str).None:
+        panic(__LOC__, "return type read outside a call")
+        return NULL
+    }
 }
 
 // Resolve `name` to its raw value block, walking inner to outer.

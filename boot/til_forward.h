@@ -254,6 +254,11 @@ typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
+typedef enum {
+    Option__ref_Str_TAG_None,
+    Option__ref_Str_TAG_Some
+} Option__ref_Str_tag;
+typedef struct Option__ref_Str Option__ref_Str;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
@@ -729,6 +734,14 @@ typedef struct Vec__Dynamic {
     USize cap;
 } Vec__Dynamic;
 
+
+struct Option__ref_Str {
+    U8 tag;
+    union {
+        Str *Some;
+        void *_til_payload_align;
+    } data;
+};
 
 typedef struct Map__Str_Expr {
     Vec__Str keys;
@@ -1455,7 +1468,7 @@ typedef struct Context {
     void * *return_value;
     Bool interp_ret_is_ref;
     void * *interp_ret_dest;
-    Str *interp_ret_type;
+    Option__ref_Str interp_ret_type;
     OwnType interp_ret_own_type;
     Bool constfold_active;
     Bool constfold_aborted;
@@ -2224,6 +2237,11 @@ void Map__Str_FuncType_delete(Map__Str_FuncType * self, Bool call_free);
 Map__Str_FuncType * Map__Str_FuncType_clone(Map__Str_FuncType * self);
 U64 Map__Str_FuncType_hash(Map__Str_FuncType * self, HashFn hasher);
 USize Map__Str_FuncType_size(void);
+Option__ref_Str * Option__ref_Str_None(void);
+Option__ref_Str * Option__ref_Str_Some(Str * val);
+void Option__ref_Str_delete(Option__ref_Str * self, Bool call_free);
+Option__ref_Str * Option__ref_Str_clone(Option__ref_Str * self);
+USize Option__ref_Str_size(void);
 Map__Str_ImportUnit * Map__Str_ImportUnit_new(void);
 Bool Map__Str_ImportUnit_has(Map__Str_ImportUnit * self, Str * key);
 ImportUnit * Map__Str_ImportUnit_get(Map__Str_ImportUnit * self, Str * key, I64 * _err_kind);
@@ -3748,6 +3766,7 @@ void priv___src_self_interpreter_til__free_dyn_set_buffer(void * data, Context *
 void priv___src_self_interpreter_til__clone_dyn_vec_buffer(void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__clone_dyn_array_buffer(void * src_data, void * dst_data, Context * ctx);
 void priv___src_self_interpreter_til__clone_dyn_set_buffer(void * src_data, void * dst_data, Context * ctx);
+Str * priv___src_self_interpreter_til__interp_ret_type_name(Context * ctx);
 void * scope_get(Scope * s, Str * name, I64 * _err_kind);
 Bool priv___src_self_interpreter_til__scope_return_move_is_local(Scope * s, Str * name);
 void priv___src_self_interpreter_til__scope_pool_put(void * p);
@@ -4126,6 +4145,8 @@ TokenType *TokenType_KwPriv();
 TokenType *TokenType_Error();
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
+Option__ref_Str *Option__ref_Str_None();
+Option__ref_Str *Option__ref_Str_Some(Str *);
 Option__ref_Expr *Option__ref_Expr_None();
 Option__ref_Expr *Option__ref_Expr_Some(Expr *);
 Option__ref_TypeScope *Option__ref_TypeScope_None();

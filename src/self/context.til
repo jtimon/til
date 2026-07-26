@@ -455,8 +455,9 @@ Context := struct {
     interp_ret_is_ref := false
     // Non-owning destination supplied by the current function's caller.
     ref interp_ret_dest : Dynamic = NULL
-    // Non-owning pointer to the current function's declared return type.
-    ref interp_ret_type : Str = NULL
+    // #321: the current function's declared return type, borrowed from
+    // its FuncDef. None outside a call (saved/restored around each one).
+    interp_ret_type := Option(ref Str).None
     interp_ret_own_type := OwnType.Shallow
     constfold_active := false
     constfold_aborted := false

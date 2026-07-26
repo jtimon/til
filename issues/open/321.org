@@ -230,10 +230,24 @@ updates (qualifiers.org / ownership.org / enums.org).
   built?"), so whichever shape wins should drop that second source of
   truth.
 
-Remaining for later batches once ownership is settled: the three
-Scope-typed fields above, Context.interp_ret_type (a genuine borrow),
-FFIEntry.* and return_value / interp_ret_dest (quarantine class),
-interpreter Scope.parent, test fixtures.
+**** Step-1 Option migration, batch 4
+
+- The ownership hole the three Scope-typed fields hit is now filed as
+  issue #324 (a ~ref~ FIELD passed to an ~own~ parameter type-checks,
+  while a ~ref~ local correctly does not). #321 step 1 cannot close
+  for constfolder_known / ns_fields / InterpSession.global until #324
+  settles their ownership.
+- Context.interp_ret_type -> Option(ref Str): a genuine borrow of the
+  callee FuncDef's ~return_type~, saved/restored around each call.
+  Its two readers run while evaluating a ~return~ INSIDE a call, so
+  None there is a broken invariant -- read through an accessor that
+  panics rather than substituting a default.
+
+Remaining for later batches: the three Scope-typed fields (blocked on
+#324), FFIEntry.* and return_value / interp_ret_dest (quarantine
+class -- reclassify as plain Dynamic), interpreter Scope.parent (six
+walk loops whose ~catch~/~continue~ shape wants its own careful
+commit), test fixtures.
 
 *** Decisions (2026-07-21 design discussion)
 

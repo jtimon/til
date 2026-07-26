@@ -1,0 +1,60 @@
+# priority: medium
+# category: bugs
+** OPEN #324 A `ref` FIELD can be passed to an `own` parameter (ownership hole)
+
+Passing a ~ref~ binding to an ~own~ parameter is correctly a type
+error ("cannot pass ref variable to 'own' parameter; use .clone() to
+make an owned copy"), but the same check does NOT fire when the
+argument is a ~ref~ FIELD. So this type-checks today:
+
+: ref ns_fields : Scope = NULL          // ref = borrow: NOT the holder's to free
+: ...
+: ctx.ns_fields = scope_new_boxed(NULL) // allocate a box
+: scope_free(own ctx.ns_fields)         // ...and free it: accepted, should not be
+
+Per [[file:../../doc/ownership.org][doc/ownership.org]] a ~ref~ field
+is precisely the one the holder must NOT free ("NOT freed -- the field
+aliases data the holder doesn't own"), so the declaration and the
+behaviour disagree: these are owned pointers wearing a ~ref~ label,
+and the type system currently lets them.
+
+*** Known sites (all the same shape: scope_new_boxed ... scope_free)
+
+- src/self/context.til ~Context.constfolder_known~
+- src/self/context.til ~Context.ns_fields~
+- src/self/interpreter.til ~InterpSession.global~
+
+Each is allocated with ~scope_new_boxed~ and hand-freed with
+~scope_free(own ...)~ while declared ~ref~.
+
+*** Fix
+
+Apply the existing own-arg rule to ref-field arguments (the
+ref-variable diagnostic already exists; the field path just misses
+it). That will flag the three sites above, which then need a real
+ownership answer rather than a relabel -- the options, and the
+constraint that makes this non-trivial:
+
+1. Make them ~own~ fields and let the holder's generated ~delete~
+   free them. Complication: teardown ORDER matters here -- these are
+   raw-owning tables that must be destroyed before the imported ASTs
+   they point into (see the #299 heap-use-after-free note in
+   context.til), and generated deletes run in declaration order.
+2. Keep the manual free but move the storage to the ~Dynamic~
+   quarantine (the manual-memory island pattern ownership.org already
+   documents), so no field claims an ownership it doesn't have.
+3. An owning optional payload shape, once #320's niche layout work
+   settles what Option's payload representations are.
+
+*** How it surfaced
+
+Found while migrating fields to ~Option(ref T)~ for #321: wrapping
+~ns_fields~ as ~Option(ref Scope)~ made the borrow explicit, and the
+typer then (correctly) rejected ~scope_free(own nsf)~ on the payload
+binding -- ownership cannot be transferred out of a borrow. The
+pre-existing ~ref~ field had been slipping past the same rule. #321's
+step 1 cannot finish for these three fields until this is settled.
+
+Bonus cleanup for whoever takes this: ~ns_fields~ carries a redundant
+~ns_inited~ Bool whose only job is "has it been built?" -- a second
+source of truth that an optional field's own tag would subsume.
