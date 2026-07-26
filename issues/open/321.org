@@ -313,6 +313,24 @@ separate param job.
   ~return NULL~ whose callers never test it is not an Option
   candidate, it is a missing invariant check.
 
+**** Step 2, batch 9: the desugarer's finder family
+
+~find_bang_fcall~, ~find_variadic_fcall~, ~find_kwargs_fcall~ and
+~find_array_vec_fcall~ (src/self/desugarer.til) all share one shape --
+recursive "return the first matching FCall, or nothing" -- so they
+migrate together. "Nothing found" is exactly the state their callers
+branch on. Two things fall out nicely:
+
+- the recursive arms just pass the Option through unchanged, so the
+  bodies get SHORTER, not longer;
+- the three presence-only call sites become ~.is_some()~ instead of
+  ~.is_null().not()~ -- Option answers that question directly.
+
+Next candidate, deliberately left for its own commit:
+~find_namespace_func~ (18 call sites across builder / desugarer /
+typer) -- the first migration big enough that its call sites want
+their own review pass.
+
 Perf note for the hot ones: an enum return is heap-boxed by default
 (~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup
 like ~TypeScope.get_struct~ wants either ~returns shallow Option(...)~

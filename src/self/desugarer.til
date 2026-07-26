@@ -1248,24 +1248,27 @@ priv find_bang_callee_name := func(e: Expr) returns Str {
 
 // Like find_bang_callee_name but returns the bang FCall node itself
 // (or NULL), so callers can resolve its type-qualified throws.
-priv find_bang_fcall := func(e: Expr) returns ref Expr {
+// #321 step 2: "no bang call in this statement" is a real state the
+// caller branches on -- Option, not a null ref. The recursive arms pass
+// the Option straight through.
+priv find_bang_fcall := func(e: Expr) returns Option(ref Expr) {
     switch e.node_type {
     case NodeType.FCall(fcd_f):
-        if fcd_f.is_bang { return e }
-        return NULL
+        if fcd_f.is_bang { return Option(ref Expr).Some(e) }
+        return Option(ref Expr).None
     case NodeType.Decl:
-        if e.children.len() == 0 { return NULL }
+        if e.children.len() == 0 { return Option(ref Expr).None }
         return find_bang_fcall(e.children[0])
     case NodeType.Assign:
-        if e.children.len() == 0 { return NULL }
+        if e.children.len() == 0 { return Option(ref Expr).None }
         return find_bang_fcall(e.children[0])
     case NodeType.FieldAssign:
-        if e.children.len() == 0 { return NULL }
+        if e.children.len() == 0 { return Option(ref Expr).None }
         return find_bang_fcall(e.children[0])
     case NodeType.Return:
-        if e.children.len() == 0 { return NULL }
+        if e.children.len() == 0 { return Option(ref Expr).None }
         return find_bang_fcall(e.children[0])
-    case: return NULL
+    case: return Option(ref Expr).None
     }
 }
 
@@ -2095,9 +2098,9 @@ priv process_throw_catch_in_body := proc(
         // does_throw on the FCall. Bang-call-to-unknown is left in
         // place for step 4 to surface "function does not throw" via
         // validate_one_fcall_consolidated.
-        ref bang_fc : Expr = find_bang_fcall(stmt)
         mut root_bang_throws := Vec(Str).new()
-        if bang_fc.is_null().not() {
+        switch find_bang_fcall(stmt) {
+        case Option(ref Expr).Some(bang_fc):
             found_key_root := find_callee_throws_key(ctx, bang_fc, root_body)
             if found_key_root.len() > 0 {
                 ref tts_root : Vec(Str) = ctx.throws_global[found_key_root]
@@ -2108,6 +2111,7 @@ priv process_throw_catch_in_body := proc(
                 }
                 clear_bang_flag(stmt)
             }
+        case Option(ref Expr).None:
         }
 
         // 4. Validate + inject err args on FCalls in stmt's tree.
@@ -3304,11 +3308,11 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
 // Cross-call propagation (~?~ on calls) is not lowered yet -- a
 // follow-up will extend this pass.
 // ---------------------------------------------------------------
-priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    if e.node_type.is(NodeType.FuncDef) { return NULL }
-    if e.node_type.is(NodeType.StructDef) { return NULL }
-    if e.node_type.is(NodeType.EnumDef) { return NULL }
-    if e.node_type.is(NodeType.Body) { return NULL }
+priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
     switch e.node_type {
     case NodeType.FCall:
         if fcall_callee_has_variadic_via_scope(e, scope) {
@@ -3316,60 +3320,66 @@ priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
             case NodeType.Ident(cn):
                 ref cn_str : Str = cn.ident_name()
                 if cn_str.eq("array").or(cn_str.eq("vec")) {
-                    return NULL
+                    return Option(ref Expr).None
                 }
             case:
             }
-            return e
+            return Option(ref Expr).Some(e)
         }
     case:
     }
     for e_i : Expr in e.children {
-        ref found : Expr = find_variadic_fcall(e_i, scope)
-        if found.is_null().not() { return found }
+        switch find_variadic_fcall(e_i, scope) {
+        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
+        case Option(ref Expr).None:
+        }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
-priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns ref Expr {
-    if e.node_type.is(NodeType.FuncDef) { return NULL }
-    if e.node_type.is(NodeType.StructDef) { return NULL }
-    if e.node_type.is(NodeType.EnumDef) { return NULL }
-    if e.node_type.is(NodeType.Body) { return NULL }
+priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
     switch e.node_type {
     case NodeType.FCall:
-        if fcall_kwargs_index_via_scope(e, scope) >= 0 { return e }
+        if fcall_kwargs_index_via_scope(e, scope) >= 0 { return Option(ref Expr).Some(e) }
     case:
     }
     for e_i : Expr in e.children {
-        ref found : Expr = find_kwargs_fcall(e_i, scope)
-        if found.is_null().not() { return found }
+        switch find_kwargs_fcall(e_i, scope) {
+        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
+        case Option(ref Expr).None:
+        }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
-priv find_array_vec_fcall := func(e: Expr) returns ref Expr {
-    if e.node_type.is(NodeType.FuncDef) { return NULL }
-    if e.node_type.is(NodeType.StructDef) { return NULL }
-    if e.node_type.is(NodeType.EnumDef) { return NULL }
-    if e.node_type.is(NodeType.Body) { return NULL }
+priv find_array_vec_fcall := func(e: Expr) returns Option(ref Expr) {
+    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
+    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
     switch e.node_type {
     case NodeType.FCall:
         if e.children.len() > 0 {
             switch e.children[0].node_type {
             case NodeType.Ident(cn):
                 ref cn_str : Str = cn.ident_name()
-                if cn_str.eq("array").or(cn_str.eq("vec")) { return e }
+                if cn_str.eq("array").or(cn_str.eq("vec")) { return Option(ref Expr).Some(e) }
             case:
             }
         }
     case:
     }
     for e_i : Expr in e.children {
-        ref found : Expr = find_array_vec_fcall(e_i)
-        if found.is_null().not() { return found }
+        switch find_array_vec_fcall(e_i) {
+        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
+        case Option(ref Expr).None:
+        }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
 priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
@@ -4106,13 +4116,13 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
                 if rhs.node_type.is_map_lit() { has_map_lit = true }
             }
             if has_array_vec.not() {
-                if find_array_vec_fcall(stmt).is_null().not() { has_array_vec = true }
+                if find_array_vec_fcall(stmt).is_some() { has_array_vec = true }
             }
             if has_variadic.not() {
-                if find_variadic_fcall(stmt, scope).is_null().not() { has_variadic = true }
+                if find_variadic_fcall(stmt, scope).is_some() { has_variadic = true }
             }
             if has_kwargs.not() {
-                if find_kwargs_fcall(stmt, scope).is_null().not() { has_kwargs = true }
+                if find_kwargs_fcall(stmt, scope).is_some() { has_kwargs = true }
             }
         }
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
