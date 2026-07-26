@@ -879,6 +879,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_map_lit", "test/script_map_lit.til",
         "", 0, format(exp, "script_map_lit.out"), til_bin, asan_flag)
 
+    // A program-scope raw-allocator decl must give the global POINTER
+    // storage like the function-local form; as a value global the
+    // memset/ptr_add writes ran past a one-byte object (ASAN:
+    // global-buffer-overflow).
+    File.writefile(format(exp, "script_raw_alloc.out"), format("65", NL, "66", NL))
+    add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
+        "", 0, format(exp, "script_raw_alloc.out"), til_bin, asan_flag)
+
     // Issue #312: a top-level numeric for-in loop in a `mode script` unit must
     // type-check (both interpreted and compiled) instead of panicking
     // OutOfBounds in infer_body_unit.

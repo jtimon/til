@@ -2016,7 +2016,13 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         } else {
             ctype := resolve_decl_ctype(e.til_type(), rhs.til_type(), dd.explicit_type, ctx)
             is_global := is_value_global(dd.name, ctx).and(ctx.in_func_def.not())
-            if e.til_type().is(Type.Dynamic) {
+            // Raw-alloc global (emit_global_declarations gave it pointer
+            // storage): assign the block address straight through.
+            is_raw_alloc_global := is_ref_global(dd.name, ctx).and(ctx.in_func_def.not()).and(rhs_is_allocator_call(rhs))
+            if is_raw_alloc_global {
+                f.write(dd.name).write(" = ")
+                emit_expr(f, rhs, depth, ctx); f.write(";\n")
+            } else if e.til_type().is(Type.Dynamic) {
                 if is_global { f.write(dd.name).write(" = ") }
                 else { tc := til_type_to_c(e.til_type()); f.fwrite(tc, " ", dd.name, " = ") }
                 emit_deref(f, rhs, depth, ctx); f.write(";\n")
@@ -3351,7 +3357,28 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     // operator inline -- no call, no symbol. The result cast is
                     // the method's declared return type, e.g. ((U32)(a + b)).
                     ref core_op : Str = mname.field_access_name()
-                    core_ret_c := til_type_name_c(e.til_type())
+                    // The cast is the method's DECLARED return type. Reading
+                    // e.til_type() instead let an arg-position USize/UPtr
+                    // coercion (validate_fcall_arg's can_implicit_usize_coerce
+                    // re-stamps the arg node with the PARAM type) dress a
+                    // 32-bit add as ((U64)(a + b)): a cast claiming a width
+                    // the operands never had, which also disagreed with the
+                    // hoisted temp's own declaration -- fcall_return_ctype
+                    // spells that from the callee's return type, so the pair
+                    // emitted `U32 t = ((U64)(n + 1));`. The widening to the
+                    // param width still happens at the call boundary (C
+                    // conversion / the USIZE_REF / UPTR_REF boxing).
+                    mut core_ret_c := til_type_name_c(e.til_type())
+                    ref core_fdef : Expr = find_callee_fdef(flat, ctx)
+                    if core_fdef.is_null().not() {
+                        switch core_fdef.node_type {
+                        case NodeType.FuncDef(core_fd):
+                            if core_fd.return_type.len() > 0 {
+                                core_ret_c = til_type_name_c(type_from_name_init(core_fd.return_type, ctx.scope))
+                            }
+                        case:
+                        }
+                    }
                     if core_op == "bnot" {
                         f.write("((")
                         f.write(core_ret_c)
@@ -7943,7 +7970,13 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
                 ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    if dd.own_type.is(OwnType.Ref) {
+                    // A raw-allocator RHS makes the global a POINTER, exactly
+                    // like the function-local raw_alloc form (#302): the value
+                    // IS the block address. Emitting it as a value global made
+                    // `buf : U8 = malloc(n)` allocate, copy one indeterminate
+                    // byte into the global, free the block, and then let every
+                    // memset/ptr_add on it write past a one-byte object.
+                    if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
                         f.write(ctype).write(" *").write(dd.name).write(";\n")
                         lp.ctx.ref_globals.add(own dd.name.clone())
                     } else {
@@ -7963,7 +7996,8 @@ priv emit_global_declarations := proc(f: File, lp: LoadedProgram) {
             ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                if dd.own_type.is(OwnType.Ref) {
+                // Same raw-allocator pointer rule as the core-unit loop above.
+                if dd.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(stmt.children[0])) {
                     f.write(ctype).write(" *").write(dd.name).write(";\n")
                     lp.ctx.ref_globals.add(own dd.name.clone())
                 } else {

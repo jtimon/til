@@ -1,0 +1,22 @@
+mode script
+
+// Regression: a PROGRAM-SCOPE raw-allocator decl (`buf : U8 = malloc(n)`)
+// must give the global pointer storage, exactly like the same declaration
+// inside a function (#302's raw_alloc form). It used to be emitted as a
+// VALUE global: the initializer allocated the block, copied one
+// indeterminate byte out of it into the global, freed it again, and every
+// later memset / ptr_add then wrote past a one-byte object -- ASAN reports
+// a global-buffer-overflow (WRITE of size n into a global of size 1), and
+// without ASAN it silently corrupts whatever follows in BSS.
+
+n : USize = 4
+buf : U8 = malloc(n)
+memset(buf, 0, n)
+memcpy(buf, 65, 1)
+off : UPtr = 1
+memcpy(ptr_add(buf, off), 66, 1)
+ref a : U8 = ptr_add(buf, 0)
+ref b : U8 = ptr_add(buf, off)
+println(a.to_i64().to_str())
+println(b.to_i64().to_str())
+free(own buf)
