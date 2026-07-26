@@ -2935,6 +2935,12 @@ priv is_shallow_struct := func(type_name: Str, scope: TypeScope, ctx: Context) r
     ref sdef : Expr = scope.get_struct(type_name)
     if sdef.is_null() { return false }
     switch sdef.node_type {
+    case NodeType.EnumDef:
+        // #320: a NICHE enum is exactly one pointer with no owned payload
+        // -- the same "small, trivially copyable, nothing to free" shape
+        // step 3 accepts for structs, so it passes and returns by value.
+        // Tagged enums stay pointer-passed (issue #223's open item).
+        return enum_is_niche(sdef)
     case NodeType.StructDef(sdd):
         if ctx_total_size(type_name, ctx) > PTR_SIZE_BYTES { return false }
         if sdd.fields.len() == 0 { return false }

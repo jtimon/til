@@ -362,11 +362,14 @@ without doubling the value they return, and the C-boundary story in
 "Open questions" above is now real rather than planned -- an
 Option(ref T) IS a nullable C pointer.
 
-Perf note for the hot ones: an enum return is heap-boxed by default
-(~returns E~ is Own), so migrating a 2.6M-calls-per-translate lookup
-like ~TypeScope.get_struct~ wants either ~returns shallow Option(...)~
-or the niche layout first; that is why the mass migration is
-sequenced after #320's last item.
+Perf note RESOLVED: an enum return used to be heap-boxed (~returns E~
+is Own), which is why the mass migration waited. With the #320 niche
+plus auto-shallow for niche enums, an ~Option(ref T)~ return is now a
+single pointer passed in a register -- the emitted C went from
+~Option__ref_Mode *mode_resolve(...)~ to
+~Option__ref_Mode mode_resolve(...)~, no malloc per lookup. The hot
+lookups (TypeScope.get_struct / get_binding and friends) are free to
+migrate now.
 
 *** What is left before the forbid can land
 

@@ -5523,11 +5523,36 @@ priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Boo
     return false
 }
 
+// REM: this prototype duplicates the signature the definition emits from
+// the FuncDef, so both must derive every part from the same facts -- the
+// return form AND the param form. Hard-coding `E *, E *` here was fine
+// while every enum was pointer-passed; a #320 niche enum is auto-shallow
+// (one pointer, nothing to free), so its params come through by VALUE and
+// the two disagreed ("conflicting types for E_eq").
+// True when the named ns method takes its first param by VALUE (Shallow),
+// the param-side twin of builder_ns_func_returns_shallow.
+priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool {
+    if def.is_null() { return false }
+    ref nsd : Declaration = def_ns_get(def, method)
+    if nsd.is_null() { return false }
+    if nsd.default_value.is_null() { return false }
+    switch nsd.default_value.node_type {
+    case NodeType.FuncDef(fd):
+        if fd.params.len() == 0 { return false }
+        ref p0 : Declaration = fd.params[0]
+        return p0.own_type.is(OwnType.Shallow)
+    case:
+    }
+    return false
+}
+
 priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
     if builder_ns_has_func(enum_def, "eq").not() { return }
     mut eq_ret := "Bool *"
     if builder_ns_func_returns_shallow(enum_def, "eq") { eq_ret = "Bool" }
-    f.fwrite(eq_ret, " ", enum_name, "_eq(", enum_name, " *, ", enum_name, " *);\n")
+    mut eq_param := format(enum_name, " *")
+    if builder_ns_func_param_shallow(enum_def, "eq") { eq_param = enum_name.clone() }
+    f.fwrite(eq_ret, " ", enum_name, "_eq(", eq_param, ", ", eq_param, ");\n")
 }
 
 priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {

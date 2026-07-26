@@ -80,6 +80,17 @@
   (enum_data_tag_key), write_enum_flat, get_payload offset and
   dispatch_enum_size. Verified with make test_two_pass, since the
   compiler's own Option fields are re-laid-out when it self-applies.
+- [X] Auto-shallow for niche enums (issue #223's "enums are not
+  auto-shallow yet" item, for this shape): a niche enum is one pointer
+  with no owned payload -- the same "small, trivially copyable,
+  nothing to free" test step 3 applies to structs -- so it passes and
+  returns BY VALUE. That is what removes the malloc-per-lookup that
+  had #321's hot migrations blocked. Tagged enums still pointer-pass.
+  Fixed on the way: emit_enum_eq_ext_decl hard-coded `E *, E *` for
+  the eq prototype while the definition derived its params from the
+  FuncDef -- a duplicated signature that only disagreed once params
+  became by-value ("conflicting types for E_eq"). It now derives the
+  param form too.
 
 Prerequisite for #321 (Forbid NULL). To express ~Option(ref T)~ ala
 Rust's ~Option<&T>~, two currently-missing capabilities are needed;
