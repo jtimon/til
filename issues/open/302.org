@@ -929,6 +929,23 @@ let the ownership pass insert temps itself; start with the check.
     a semantic one (own_transfer is the statement index read right
     below; -1 indexes out of bounds -- dropping it broke pass 2, now
     documented in place).
+  - [X] 2026-07-16 Stage 3: the sink's grafted branches now cover their
+    OWN exit edges. Probing whether the positional pre-transfer rule
+    (own_transfer <= stmt_idx) still hides leaks found one -- not in
+    that rule but in the graft placement: add_delete_to_branch appends
+    the delete at the END of a non-transferring branch body, so an exit
+    INSIDE that body escapes it. `if k == 1 { return sink(own s) }
+    else { if k == 2 { return 7 } }` leaked 26 bytes (wrapper +
+    payload) on the k==2 path, ASAN-verified. The graft now runs
+    insert_exit_deletes over the branch first (which already skips
+    exits whose operand uses the local, so `return <local>` inside the
+    branch is untouched) and then appends. Six flatter shapes probed
+    alongside it (conditional transfer + later early exit, in-loop
+    switch with break, continue after a conditional transfer) were
+    already clean, so the positional rule itself remains sound where
+    the sink covers the paths. Regression:
+    test_bug302_branch_nested_exit. Pass-1 C == pass-2 C byte-exact;
+    make clean && make test 181/181.
   - [ ] Stage 3 (rest): move the remaining insertion sites
     (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
     onto the same verdict; then delete the index-model special cases

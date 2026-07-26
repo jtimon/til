@@ -2101,30 +2101,41 @@ priv stmt_is_conditional_container := func(stmt: Expr) returns Bool {
         .or(stmt.node_type.is(NodeType.Body))
 }
 
-priv add_delete_to_branch := func(mut branch: Expr, local: LocalInfo, src: Expr) returns Bool {
+priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr, scope: TypeScope, ctx: Context) returns Bool {
     del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, src)
     if del.is_null() { return false }
+    // #302 stage 3: the graft lands at the END of the branch body, so any
+    // exit INSIDE that body escapes it -- an early `return` nested in a
+    // sibling branch of the transferring one left the local owned and
+    // unfreed (ASAN: 26 bytes for `if k == 1 { return sink(own s) } else
+    // { if k == 2 { return 7 } }`). The exit edges of this branch need
+    // the same delete, which is exactly what insert_exit_deletes does
+    // for a live local (and it already skips exits whose operand uses
+    // the local, so a `return <local>` inside the branch is untouched).
+    mut branch_live := Vec(LocalInfo).new()
+    branch_live.push(own local.clone())
+    insert_exit_deletes(branch, branch_live, false, scope, ctx)
     branch.add_child(own del)
     return true
 }
 
-priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
+priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
     if node.is_null() { return false }
     if node.node_type.is(NodeType.If) {
         if node.children.len() < 2 { return false }
 
         ref mut then_body : Expr = node.children[1]
         mut then_done := sink_nontransfer_paths(then_body, local, scope, ctx)
-        if then_done.not() { then_done = add_delete_to_branch(then_body, local, node) }
+        if then_done.not() { then_done = add_delete_to_branch(then_body, local, node, scope, ctx) }
 
         mut else_done := false
         if node.children.len() > 2 {
             ref mut else_body : Expr = node.children[2]
             else_done = sink_nontransfer_paths(else_body, local, scope, ctx)
-            if else_done.not() { else_done = add_delete_to_branch(else_body, local, node) }
+            if else_done.not() { else_done = add_delete_to_branch(else_body, local, node, scope, ctx) }
         } else {
             mut else_body_new := Expr.new(NodeType.Body, node.line, node.col)
-            else_done = add_delete_to_branch(else_body_new, local, node)
+            else_done = add_delete_to_branch(else_body_new, local, node, scope, ctx)
             if else_done { node.add_child(own else_body_new) }
         }
 
@@ -2148,12 +2159,12 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
             cbi := case_node.children.len() - 1
             ref mut case_body : Expr = case_node.children[cbi]
             mut case_done := sink_nontransfer_paths(case_body, local, scope, ctx)
-            if case_done.not() { case_done = add_delete_to_branch(case_body, local, node) }
+            if case_done.not() { case_done = add_delete_to_branch(case_body, local, node, scope, ctx) }
             all_done = all_done.and(case_done)
         }
         if has_default.not() {
             mut default_body := Expr.new(NodeType.Body, node.line, node.col)
-            if add_delete_to_branch(default_body, local, node) {
+            if add_delete_to_branch(default_body, local, node, scope, ctx) {
                 mut default_case := Expr.new(NodeType.Case, node.line, node.col)
                 default_case.add_child(own default_body)
                 node.add_child(own default_case)
@@ -2195,7 +2206,7 @@ priv sink_nontransfer_paths := func(mut node: Expr, local: LocalInfo, scope: Typ
 // Str is handled like any other owned local here: Str.delete knows whether its
 // buffer is owned, literal, or a view. The sink must be path-sensitive instead
 // of type-sensitive.
-priv sink_conditional_transfer_deletes := func(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
+priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0).and(local.dtor_transfer) { continue }

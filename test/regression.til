@@ -425,3 +425,37 @@ test_bug302_shallow_return_named := test() {
     assert(b.s == "hoisted-payload")
     Bug302ShRet.delete(own b, true)
 }
+
+// --- #302: early exit nested in a sibling of the transferring branch ---
+//
+// The conditional-transfer sink grafts the local's delete at the END of
+// each non-transferring branch body. An exit INSIDE such a body leaves
+// before reaching it, so `if k == 1 { return sink(own s) } else { if
+// k == 2 { return 7 } }` leaked the local on the k==2 path (26 bytes:
+// wrapper + payload, ASAN-verified). The graft now also covers that
+// body's exit edges (insert_exit_deletes over the grafted branch),
+// which skips exits whose operand uses the local, so a `return <local>`
+// inside the branch is untouched. Proc + print_flush so the constfolder
+// cannot fold the calls away.
+
+bug302_branch_exit_sink := func(own s: Str) returns I64 {
+    return s.len().to_i64()
+}
+
+bug302_branch_exit := proc(k: I64) returns I64 {
+    print_flush()
+    lit := "branch-exit-payload"
+    s := Str.clone(lit)
+    if k == 1 {
+        return bug302_branch_exit_sink(own s)
+    } else {
+        if k == 2 { return 7 }
+    }
+    return 8
+}
+
+test_bug302_branch_nested_exit := test() {
+    assert(bug302_branch_exit(1) == 19)
+    assert(bug302_branch_exit(2) == 7)
+    assert(bug302_branch_exit(3) == 8)
+}
