@@ -2984,13 +2984,15 @@ priv init_macro_inst_text_name := func(prefix: Str, text: Str) returns Str {
 }
 
 priv init_type_arg_name := func(scope: TypeScope, name: Str) returns Str {
+    // Width aliases (USize/UPtr) stay unresolved in instance names and in
+    // the T-substituted member types: see resolve_type_alias_for_name.
+    // Resolving here read the USize alias binding and baked its width into
+    // the monomorphization name, so `Map(Str, USize)` instantiated as
+    // Map__Str_U32 while the parser's annotation mangling (and the typer's
+    // param types) spelled Map__Str_USize -- two names for one type, and
+    // which one a call site saw depended on declaration order.
     if scope.is_null().not() {
-        ref b : TypeBinding = scope.get_binding(name)
-        if b.is_null().not() {
-            if b.is_type_alias.and(b.alias_target.is_empty().not()) {
-                return b.alias_target.clone()
-            }
-        }
+        return resolve_type_alias_for_name(scope, name).clone()
     }
     return name.clone()
 }
@@ -3282,13 +3284,12 @@ priv init_literal_child_type := func(e: Expr) returns Str {
     return ""
 }
 
-// Element/key/val type names are resolved through the alias here (width
-// aliases USize/UPtr -> their per-build primitive) so the synthesized
-// monomorphization name matches the one the type-gen macro produces (which
-// resolves too, via init_type_arg_name). Otherwise a `..USize` param
-// synthesizes Array__USize while the rest of the compiler speaks Array__U32.
-// resolve_type_alias returns a borrow, so .clone() the owned name we hand to
-// the synth decls. No-op for non-alias names.
+// Element/key/val type names go through resolve_type_alias_for_name so the
+// synthesized monomorphization name matches the one the type-gen macro
+// produces (via init_type_arg_name): user aliases resolve, width aliases
+// (USize/UPtr) keep their spelling -- `..USize` synthesizes Array__USize,
+// the same instance every other position names. It returns a borrow, so
+// .clone() the owned name we hand to the synth decls.
 priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthesized: Vec(Expr), mut seen: Map(Str, Str), synth_array: Bool, synth_vec: Bool, synth_set: Bool, synth_map: Bool) {
     switch e.node_type {
     case NodeType.FCall:
@@ -3299,7 +3300,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
                     should_synth := cn.ident_name().eq("array").and(synth_array)
                         .or(cn.ident_name().eq("vec").and(synth_vec))
                     if should_synth {
-                        elem_type := resolve_type_alias(scope, array_vec_elem_type_name(e)).clone()
+                        elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(e)).clone()
                         if elem_type.len() > 0 {
                             mut genname := format("Array__", elem_type)
                             if cn.ident_name() == "vec" { genname = format("Vec__", elem_type) }
@@ -3319,7 +3320,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
         }
     case NodeType.Literal(Literal.SetLit):
         if synth_set {
-            elem_type := resolve_type_alias(scope, init_set_literal_elem_type(e)).clone()
+            elem_type := resolve_type_alias_for_name(scope, init_set_literal_elem_type(e)).clone()
             if elem_type.len() > 0 {
                 genname := format("Set__", elem_type)
                 if seen.has(genname).not() {
@@ -3330,8 +3331,8 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
         }
     case NodeType.Literal(Literal.MapLit):
         if synth_map.and(e.children.len().gte(2)) {
-            key_type := resolve_type_alias(scope, init_literal_child_type(e.children[0])).clone()
-            val_type := resolve_type_alias(scope, init_literal_child_type(e.children[1])).clone()
+            key_type := resolve_type_alias_for_name(scope, init_literal_child_type(e.children[0])).clone()
+            val_type := resolve_type_alias_for_name(scope, init_literal_child_type(e.children[1])).clone()
             if key_type.len().gt(0).and(val_type.len().gt(0)) {
                 genname := format("Map__", key_type, "_", val_type)
                 if seen.has(genname).not() {
@@ -3343,7 +3344,7 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
     case NodeType.FuncDef(fd):
         if fd.variadic_index >= 0 {
             ref p : Declaration = fd.params[fd.variadic_index.to_usize()]
-            elem_type := resolve_type_alias(scope, p.explicit_type).clone()
+            elem_type := resolve_type_alias_for_name(scope, p.explicit_type).clone()
             genname := format("Array__", elem_type)
             if seen.has(genname).not() {
                 synthesized.push(own init_synth_array_inst_decl(elem_type, e.line, e.col))

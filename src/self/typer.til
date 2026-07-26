@@ -5928,6 +5928,22 @@ resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
     return name
 }
 
+// NAME-forming twin of resolve_type_alias. USize/UPtr are the INTERFACE:
+// their width is a property of the target (--usize) resolved by ext.h's
+// typedef and USize.size(), and it is not always U32 or U64 (a future
+// target may make it U16 or U128) -- so a width alias is NEVER resolved
+// into a type/instance NAME. The parser already mangles annotation
+// spellings raw (Map(Str, USize) -> Map__Str_USize); this keeps every
+// other name-forming site (monomorphization instance names, synthesized
+// collection decls, variadic array keys) on the same spelling, instead
+// of baking one width in and making two names for one type circulate
+// (Map__Str_USize vs Map__Str_U32) depending on declaration order.
+// User-written aliases still resolve, exactly like resolve_type_alias.
+resolve_type_alias_for_name := func(scope: TypeScope, name: Str) returns ref Str {
+    if name.eq("USize").or(name.eq("UPtr")) { return name }
+    return resolve_type_alias(scope, name)
+}
+
 priv usize_name := func(scope: TypeScope) returns Str {
     if scope.get_binding("USize").is_null().not() { return "USize" }
     return "U64"
@@ -6244,26 +6260,26 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: Type, src: Expr)
     return call
 }
 
-// The monomorphized container is keyed on the element's CONCRETE type (the
-// type-gen macro resolves the element via its alias_target), so a width alias
-// (USize/UPtr) must resolve here too -- otherwise a `..USize` param types as
-// Array__USize while the generated methods are Array__U32, and the two never
-// match. resolve_type_alias is a no-op for non-alias names.
+// The monomorphized container is keyed the way every other position names
+// it (resolve_type_alias_for_name, same rule as the type-gen macro's
+// init_type_arg_name): user aliases resolve to their target, width aliases
+// (USize/UPtr) keep their spelling -- a `..USize` param types as
+// Array__USize, and that IS the generated instance's name.
 variadic_array_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Array").is_null().not() { return "Array" }
-    // Bind to a local rather than format(resolve_type_alias(...)) directly:
-    // this function is on the compiler's own self-host path, and the
-    // committed til_boot that first rebuilds bin/til predates the
+    // Bind to a local rather than format(resolve_type_alias_for_name(...))
+    // directly: this function is on the compiler's own self-host path, and
+    // the committed til_boot that first rebuilds bin/til predates the
     // ref-returning-variadic-arg clone fix (build_variadic_array_set), so a
     // direct ref-call arg here would miscompile the bootstrap compiler. The
     // owned local sidesteps that; the clone fix covers every other site.
-    resolved := resolve_type_alias(scope, elem_type).clone()
+    resolved := resolve_type_alias_for_name(scope, elem_type).clone()
     return format("Array__", resolved)
 }
 
 priv variadic_vec_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
     if scope.get_struct("Vec").is_null().not() { return "Vec" }
-    resolved := resolve_type_alias(scope, elem_type).clone()
+    resolved := resolve_type_alias_for_name(scope, elem_type).clone()
     return format("Vec__", resolved)
 }
 

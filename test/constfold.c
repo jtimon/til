@@ -131,11 +131,11 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef struct Map__Str_U32 Map__Str_U32;
+typedef struct Map__Str_USize Map__Str_USize;
 typedef struct Vec__VariantDef Vec__VariantDef;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
-typedef struct Vec__U32 Vec__U32;
+typedef struct Vec__USize Vec__USize;
 typedef struct Range Range;
 typedef struct CfVec2 CfVec2;
 typedef struct CfRect CfRect;
@@ -276,8 +276,8 @@ typedef struct FieldAccessData {
 typedef struct StructDef {
     Vec__Declaration *fields;
     Vec__Declaration *ns_decls;
-    Map__Str_U32 *fields_index;
-    Map__Str_U32 *ns_index;
+    Map__Str_USize *fields_index;
+    Map__Str_USize *ns_index;
     Str c_tag;
     Bool is_interface;
     Bool interface_ns_marker;
@@ -358,11 +358,11 @@ typedef struct Vec__Expr {
 } Vec__Expr;
 
 
-typedef struct Vec__U32 {
+typedef struct Vec__USize {
     U8 *data;
     USize count;
     USize cap;
-} Vec__U32;
+} Vec__USize;
 
 
 typedef struct Range {
@@ -422,7 +422,7 @@ typedef struct FunctionDef {
 
 typedef struct EnumDef {
     Vec__Declaration *ns_decls;
-    Map__Str_U32 *ns_index;
+    Map__Str_USize *ns_index;
     Vec__VariantDef variants;
     Str implements_name;
     Str tag_type;
@@ -465,10 +465,10 @@ typedef struct Expr {
 } Expr;
 
 
-typedef struct Map__Str_U32 {
+typedef struct Map__Str_USize {
     Vec__Str keys;
-    Vec__U32 values;
-} Map__Str_U32;
+    Vec__USize values;
+} Map__Str_USize;
 
 
 Str * format(Array__Str * parts);
@@ -617,11 +617,11 @@ Expr * Expr_new(NodeType * data, U32 line, U32 col);
 Expr * Expr_clone(Expr * self);
 U64 Expr_hash(Expr * self, HashFn hasher);
 USize Expr_size(void);
-Map__Str_U32 * Map__Str_U32_new(void);
-void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
-Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
-U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher);
-USize Map__Str_U32_size(void);
+Map__Str_USize * Map__Str_USize_new(void);
+void Map__Str_USize_delete(Map__Str_USize * self, Bool call_free);
+Map__Str_USize * Map__Str_USize_clone(Map__Str_USize * self);
+U64 Map__Str_USize_hash(Map__Str_USize * self, HashFn hasher);
+USize Map__Str_USize_size(void);
 Vec__VariantDef * Vec__VariantDef_new(void);
 void Vec__VariantDef_clear(Vec__VariantDef * self);
 void Vec__VariantDef_delete(Vec__VariantDef * self, Bool call_free);
@@ -637,11 +637,11 @@ void Vec__Expr_clear(Vec__Expr * self);
 void Vec__Expr_delete(Vec__Expr * self, Bool call_free);
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self);
 USize Vec__Expr_size(void);
-Vec__U32 * Vec__U32_new(void);
-void Vec__U32_clear(Vec__U32 * self);
-void Vec__U32_delete(Vec__U32 * self, Bool call_free);
-Vec__U32 * Vec__U32_clone(Vec__U32 * self);
-USize Vec__U32_size(void);
+Vec__USize * Vec__USize_new(void);
+void Vec__USize_clear(Vec__USize * self);
+void Vec__USize_delete(Vec__USize * self, Bool call_free);
+Vec__USize * Vec__USize_clone(Vec__USize * self);
+USize Vec__USize_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Str * loc);
 void assert(Bool cond, Str * loc);
@@ -848,11 +848,11 @@ Expr * Expr_new(NodeType * data, U32 line, U32 col);
 Expr * Expr_clone(Expr * self);
 U64 Expr_hash(Expr * self, HashFn hasher);
 USize Expr_size(void);
-Map__Str_U32 * Map__Str_U32_new(void);
-void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free);
-Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self);
-U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher);
-USize Map__Str_U32_size(void);
+Map__Str_USize * Map__Str_USize_new(void);
+void Map__Str_USize_delete(Map__Str_USize * self, Bool call_free);
+Map__Str_USize * Map__Str_USize_clone(Map__Str_USize * self);
+U64 Map__Str_USize_hash(Map__Str_USize * self, HashFn hasher);
+USize Map__Str_USize_size(void);
 Vec__VariantDef * Vec__VariantDef_new(void);
 void Vec__VariantDef_clear(Vec__VariantDef * self);
 void Vec__VariantDef_delete(Vec__VariantDef * self, Bool call_free);
@@ -868,11 +868,11 @@ void Vec__Expr_clear(Vec__Expr * self);
 void Vec__Expr_delete(Vec__Expr * self, Bool call_free);
 Vec__Expr * Vec__Expr_clone(Vec__Expr * self);
 USize Vec__Expr_size(void);
-Vec__U32 * Vec__U32_new(void);
-void Vec__U32_clear(Vec__U32 * self);
-void Vec__U32_delete(Vec__U32 * self, Bool call_free);
-Vec__U32 * Vec__U32_clone(Vec__U32 * self);
-USize Vec__U32_size(void);
+Vec__USize * Vec__USize_new(void);
+void Vec__USize_clear(Vec__USize * self);
+void Vec__USize_delete(Vec__USize * self, Bool call_free);
+Vec__USize * Vec__USize_clone(Vec__USize * self);
+USize Vec__USize_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Str * loc);
 void assert(Bool cond, Str * loc);
@@ -1203,7 +1203,7 @@ static Str _til_str_lits[229] = {
     (Str){.c_str = (void *)"col", .count = 3ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"keys", .count = 4ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"values", .count = 6ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"Vec__U32", .count = 8ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"Vec__USize", .count = 10ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"assert failed", .count = 13ULL, .cap = TIL_CAP_LIT},
@@ -3383,15 +3383,15 @@ StructDef * StructDef_clone(StructDef * self) {
     (void)hoisted__Vec__Declaration_2380;
     Vec__Declaration *hoisted__Vec__Declaration_2381 = Vec__Declaration_clone(self->ns_decls);
     (void)hoisted__Vec__Declaration_2381;
-    Map__Str_U32 *hoisted__Map__Str_U32_2382 = Map__Str_U32_clone(self->fields_index);
-    (void)hoisted__Map__Str_U32_2382;
-    Map__Str_U32 *hoisted__Map__Str_U32_2383 = Map__Str_U32_clone(self->ns_index);
-    (void)hoisted__Map__Str_U32_2383;
+    Map__Str_USize *hoisted__Map__Str_USize_2382 = Map__Str_USize_clone(self->fields_index);
+    (void)hoisted__Map__Str_USize_2382;
+    Map__Str_USize *hoisted__Map__Str_USize_2383 = Map__Str_USize_clone(self->ns_index);
+    (void)hoisted__Map__Str_USize_2383;
     StructDef *hoisted__StructDef_2384 = malloc(sizeof(StructDef));
     hoisted__StructDef_2384->fields = hoisted__Vec__Declaration_2380;
     hoisted__StructDef_2384->ns_decls = hoisted__Vec__Declaration_2381;
-    hoisted__StructDef_2384->fields_index = hoisted__Map__Str_U32_2382;
-    hoisted__StructDef_2384->ns_index = hoisted__Map__Str_U32_2383;
+    hoisted__StructDef_2384->fields_index = hoisted__Map__Str_USize_2382;
+    hoisted__StructDef_2384->ns_index = hoisted__Map__Str_USize_2383;
     { Str *_ca = Str_clone(&self->c_tag); hoisted__StructDef_2384->c_tag = *_ca; if (_ca->cap != TIL_CAP_LIT) { free(_ca); } }
     hoisted__StructDef_2384->is_interface = self->is_interface;
     hoisted__StructDef_2384->interface_ns_marker = self->interface_ns_marker;
@@ -3427,7 +3427,7 @@ void StructDef_delete(StructDef * self, Bool call_free) {
     if (hoisted__Bool_2394) {
         Bool hoisted__Bool_2387 = 1;
         (void)hoisted__Bool_2387;
-        Map__Str_U32_delete(self->fields_index, hoisted__Bool_2387);
+        Map__Str_USize_delete(self->fields_index, hoisted__Bool_2387);
     }
     Bool hoisted__Bool_2395 = ((Bool)((UPtr)(self->ns_index) == 0));
     (void)hoisted__Bool_2395;
@@ -3436,7 +3436,7 @@ void StructDef_delete(StructDef * self, Bool call_free) {
     if (hoisted__Bool_2396) {
         Bool hoisted__Bool_2388 = 1;
         (void)hoisted__Bool_2388;
-        Map__Str_U32_delete(self->ns_index, hoisted__Bool_2388);
+        Map__Str_USize_delete(self->ns_index, hoisted__Bool_2388);
     }
     Bool hoisted__Bool_2397 = 0;
     (void)hoisted__Bool_2397;
@@ -3518,11 +3518,11 @@ USize VariantDef_size(void) {
 EnumDef * EnumDef_clone(EnumDef * self) {
     Vec__Declaration *hoisted__Vec__Declaration_2429 = Vec__Declaration_clone(self->ns_decls);
     (void)hoisted__Vec__Declaration_2429;
-    Map__Str_U32 *hoisted__Map__Str_U32_2430 = Map__Str_U32_clone(self->ns_index);
-    (void)hoisted__Map__Str_U32_2430;
+    Map__Str_USize *hoisted__Map__Str_USize_2430 = Map__Str_USize_clone(self->ns_index);
+    (void)hoisted__Map__Str_USize_2430;
     EnumDef *hoisted__EnumDef_2431 = malloc(sizeof(EnumDef));
     hoisted__EnumDef_2431->ns_decls = hoisted__Vec__Declaration_2429;
-    hoisted__EnumDef_2431->ns_index = hoisted__Map__Str_U32_2430;
+    hoisted__EnumDef_2431->ns_index = hoisted__Map__Str_USize_2430;
     { Vec__VariantDef *_ca = Vec__VariantDef_clone(&self->variants); hoisted__EnumDef_2431->variants = *_ca; free(_ca); }
     { Str *_ca = Str_clone(&self->implements_name); hoisted__EnumDef_2431->implements_name = *_ca; if (_ca->cap != TIL_CAP_LIT) { free(_ca); } }
     { Str *_ca = Str_clone(&self->tag_type); hoisted__EnumDef_2431->tag_type = *_ca; if (_ca->cap != TIL_CAP_LIT) { free(_ca); } }
@@ -3548,7 +3548,7 @@ void EnumDef_delete(EnumDef * self, Bool call_free) {
     if (hoisted__Bool_2437) {
         Bool hoisted__Bool_2433 = 1;
         (void)hoisted__Bool_2433;
-        Map__Str_U32_delete(self->ns_index, hoisted__Bool_2433);
+        Map__Str_USize_delete(self->ns_index, hoisted__Bool_2433);
     }
     Bool hoisted__Bool_2438 = 0;
     (void)hoisted__Bool_2438;
@@ -4678,46 +4678,46 @@ USize Expr_size(void) {
     __builtin_unreachable();
 }
 
-Map__Str_U32 * Map__Str_U32_new(void) {
-    Map__Str_U32 *hoisted__Map__Str_U32_3692 = malloc(sizeof(Map__Str_U32));
-    { Vec__Str *_ca = Vec__Str_new(); hoisted__Map__Str_U32_3692->keys = *_ca; free(_ca); }
-    { Vec__U32 *_ca = Vec__U32_new(); hoisted__Map__Str_U32_3692->values = *_ca; free(_ca); }
-    (void)hoisted__Map__Str_U32_3692;
-    return hoisted__Map__Str_U32_3692;
+Map__Str_USize * Map__Str_USize_new(void) {
+    Map__Str_USize *hoisted__Map__Str_USize_3692 = malloc(sizeof(Map__Str_USize));
+    { Vec__Str *_ca = Vec__Str_new(); hoisted__Map__Str_USize_3692->keys = *_ca; free(_ca); }
+    { Vec__USize *_ca = Vec__USize_new(); hoisted__Map__Str_USize_3692->values = *_ca; free(_ca); }
+    (void)hoisted__Map__Str_USize_3692;
+    return hoisted__Map__Str_USize_3692;
     __builtin_unreachable();
 }
 
-void Map__Str_U32_delete(Map__Str_U32 * self, Bool call_free) {
+void Map__Str_USize_delete(Map__Str_USize * self, Bool call_free) {
     Bool hoisted__Bool_3817 = 0;
     (void)hoisted__Bool_3817;
     Vec__Str_delete(&self->keys, hoisted__Bool_3817);
     Bool hoisted__Bool_3818 = 0;
     (void)hoisted__Bool_3818;
-    Vec__U32_delete(&self->values, hoisted__Bool_3818);
+    Vec__USize_delete(&self->values, hoisted__Bool_3818);
     if (call_free) {
         free(self);
     }
 }
 
-Map__Str_U32 * Map__Str_U32_clone(Map__Str_U32 * self) {
-    Map__Str_U32 *hoisted__Map__Str_U32_3819 = malloc(sizeof(Map__Str_U32));
-    { Vec__Str *_ca = Vec__Str_clone(&self->keys); hoisted__Map__Str_U32_3819->keys = *_ca; free(_ca); }
-    { Vec__U32 *_ca = Vec__U32_clone(&self->values); hoisted__Map__Str_U32_3819->values = *_ca; free(_ca); }
-    (void)hoisted__Map__Str_U32_3819;
-    return hoisted__Map__Str_U32_3819;
+Map__Str_USize * Map__Str_USize_clone(Map__Str_USize * self) {
+    Map__Str_USize *hoisted__Map__Str_USize_3819 = malloc(sizeof(Map__Str_USize));
+    { Vec__Str *_ca = Vec__Str_clone(&self->keys); hoisted__Map__Str_USize_3819->keys = *_ca; free(_ca); }
+    { Vec__USize *_ca = Vec__USize_clone(&self->values); hoisted__Map__Str_USize_3819->values = *_ca; free(_ca); }
+    (void)hoisted__Map__Str_USize_3819;
+    return hoisted__Map__Str_USize_3819;
     __builtin_unreachable();
 }
 
-U64 Map__Str_U32_hash(Map__Str_U32 * self, HashFn hasher) {
+U64 Map__Str_USize_hash(Map__Str_USize * self, HashFn hasher) {
     U32 hoisted__U32_3820 = 0;
     (void)hoisted__U32_3820;
-    U64 hoisted__U64_3821 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Map__Str_U32 *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_3820); });
+    U64 hoisted__U64_3821 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Map__Str_USize *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_3820); });
     (void)hoisted__U64_3821;
     return hoisted__U64_3821;
     __builtin_unreachable();
 }
 
-USize Map__Str_U32_size(void) {
+USize Map__Str_USize_size(void) {
     U32 hoisted__U32_3822 = 32;
     (void)hoisted__U32_3822;
     return hoisted__U32_3822;
@@ -5318,7 +5318,7 @@ USize Vec__Expr_size(void) {
     __builtin_unreachable();
 }
 
-Vec__U32 * Vec__U32_new(void) {
+Vec__USize * Vec__USize_new(void) {
     U8 *hoisted__U8_4995 = malloc(sizeof(U8));
     *hoisted__U8_4995 = 0;
     (void)hoisted__U8_4995;
@@ -5326,16 +5326,16 @@ Vec__U32 * Vec__U32_new(void) {
     (void)hoisted__U32_4996;
     I64 hoisted__I64_4997 = 0;
     (void)hoisted__I64_4997;
-    Vec__U32 *hoisted__Vec__U32_4998 = malloc(sizeof(Vec__U32));
-    hoisted__Vec__U32_4998->data = hoisted__U8_4995;
-    hoisted__Vec__U32_4998->count = hoisted__U32_4996;
-    hoisted__Vec__U32_4998->cap = hoisted__I64_4997;
-    (void)hoisted__Vec__U32_4998;
-    return hoisted__Vec__U32_4998;
+    Vec__USize *hoisted__Vec__USize_4998 = malloc(sizeof(Vec__USize));
+    hoisted__Vec__USize_4998->data = hoisted__U8_4995;
+    hoisted__Vec__USize_4998->count = hoisted__U32_4996;
+    hoisted__Vec__USize_4998->cap = hoisted__I64_4997;
+    (void)hoisted__Vec__USize_4998;
+    return hoisted__Vec__USize_4998;
     __builtin_unreachable();
 }
 
-void Vec__U32_clear(Vec__U32 * self) {
+void Vec__USize_clear(Vec__USize * self) {
     {
         U32 _re_U32_5010 = self->count;
         (void)_re_U32_5010;
@@ -5353,7 +5353,7 @@ void Vec__U32_clear(Vec__U32 * self) {
                 }
                 U32 i = (_rc_U32_5010);
                 (++_rc_U32_5010);
-                U32 hoisted__U32_5012 = 4;
+                USize hoisted__U32_5012 = U32_size();
                 (void)hoisted__U32_5012;
                 U32 hoisted__U64_5013 = ((U32)(i * hoisted__U32_5012));
                 (void)hoisted__U64_5013;
@@ -5374,7 +5374,7 @@ void Vec__U32_clear(Vec__U32 * self) {
                 }
                 U32 i = (_rc_U32_5010);
                 (--_rc_U32_5010);
-                U32 hoisted__U32_5017 = 4;
+                USize hoisted__U32_5017 = U32_size();
                 (void)hoisted__U32_5017;
                 U32 hoisted__U64_5018 = ((U32)(i * hoisted__U32_5017));
                 (void)hoisted__U64_5018;
@@ -5392,15 +5392,15 @@ void Vec__U32_clear(Vec__U32 * self) {
     self->count = hoisted__U32_5022;
 }
 
-void Vec__U32_delete(Vec__U32 * self, Bool call_free) {
-    Vec__U32_clear(self);
+void Vec__USize_delete(Vec__USize * self, Bool call_free) {
+    Vec__USize_clear(self);
     free(self->data);
     if (call_free) {
         free(self);
     }
 }
 
-Vec__U32 * Vec__U32_clone(Vec__U32 * self) {
+Vec__USize * Vec__USize_clone(Vec__USize * self) {
     U32 hoisted__U32_5282 = 0;
     (void)hoisted__U32_5282;
     Bool hoisted__Bool_5283 = ((Bool)(self->cap == hoisted__U32_5282));
@@ -5413,14 +5413,14 @@ Vec__U32 * Vec__U32_clone(Vec__U32 * self) {
         (void)hoisted__U32_5259;
         I64 hoisted__I64_5260 = 0;
         (void)hoisted__I64_5260;
-        Vec__U32 *hoisted__Vec__U32_5261 = malloc(sizeof(Vec__U32));
-        hoisted__Vec__U32_5261->data = hoisted__U8_5258;
-        hoisted__Vec__U32_5261->count = hoisted__U32_5259;
-        hoisted__Vec__U32_5261->cap = hoisted__I64_5260;
-        (void)hoisted__Vec__U32_5261;
-        return hoisted__Vec__U32_5261;
+        Vec__USize *hoisted__Vec__USize_5261 = malloc(sizeof(Vec__USize));
+        hoisted__Vec__USize_5261->data = hoisted__U8_5258;
+        hoisted__Vec__USize_5261->count = hoisted__U32_5259;
+        hoisted__Vec__USize_5261->cap = hoisted__I64_5260;
+        (void)hoisted__Vec__USize_5261;
+        return hoisted__Vec__USize_5261;
     }
-    U32 hoisted__U32_5284 = 4;
+    USize hoisted__U32_5284 = U32_size();
     (void)hoisted__U32_5284;
     U32 hoisted__U64_5285 = ((U32)(self->cap * hoisted__U32_5284));
     (void)hoisted__U64_5285;
@@ -5442,25 +5442,25 @@ Vec__U32 * Vec__U32_clone(Vec__U32 * self) {
                 }
                 U32 i = (_rc_U32_5262);
                 (++_rc_U32_5262);
-                U32 hoisted__U32_5264 = 4;
+                USize hoisted__U32_5264 = U32_size();
                 (void)hoisted__U32_5264;
                 U32 hoisted__U64_5265 = ((U32)(i * hoisted__U32_5264));
                 (void)hoisted__U64_5265;
                 U32 *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5265)));
                 U32 cloned = (DEREF(src));
-                U32 hoisted__U32_5266 = 4;
+                USize hoisted__U32_5266 = U32_size();
                 (void)hoisted__U32_5266;
                 U32 hoisted__U64_5267 = ((U32)(i * hoisted__U32_5266));
                 (void)hoisted__U64_5267;
                 void *hoisted__v_5268 = ((void *)((U8 *)(new_data) + (hoisted__U64_5267)));
                 (void)hoisted__v_5268;
                 (void)hoisted__v_5268;
-                U64 hoisted__U64_5269 = 4ULL;
+                USize hoisted__U64_5269 = U32_size();
                 (void)hoisted__U64_5269;
                 memcpy(hoisted__v_5268, &cloned, hoisted__U64_5269);
                 I32 hoisted__I32_5270 = 0;
                 (void)hoisted__I32_5270;
-                U64 hoisted__U64_5271 = 4ULL;
+                USize hoisted__U64_5271 = U32_size();
                 (void)hoisted__U64_5271;
                 memset(&cloned, hoisted__I32_5270, hoisted__U64_5271);
             }
@@ -5474,40 +5474,40 @@ Vec__U32 * Vec__U32_clone(Vec__U32 * self) {
                 }
                 U32 i = (_rc_U32_5262);
                 (--_rc_U32_5262);
-                U32 hoisted__U32_5273 = 4;
+                USize hoisted__U32_5273 = U32_size();
                 (void)hoisted__U32_5273;
                 U32 hoisted__U64_5274 = ((U32)(i * hoisted__U32_5273));
                 (void)hoisted__U64_5274;
                 U32 *src = ((void *)((U8 *)(self->data) + (hoisted__U64_5274)));
                 U32 cloned = (DEREF(src));
-                U32 hoisted__U32_5275 = 4;
+                USize hoisted__U32_5275 = U32_size();
                 (void)hoisted__U32_5275;
                 U32 hoisted__U64_5276 = ((U32)(i * hoisted__U32_5275));
                 (void)hoisted__U64_5276;
                 void *hoisted__v_5277 = ((void *)((U8 *)(new_data) + (hoisted__U64_5276)));
                 (void)hoisted__v_5277;
                 (void)hoisted__v_5277;
-                U64 hoisted__U64_5278 = 4ULL;
+                USize hoisted__U64_5278 = U32_size();
                 (void)hoisted__U64_5278;
                 memcpy(hoisted__v_5277, &cloned, hoisted__U64_5278);
                 I32 hoisted__I32_5279 = 0;
                 (void)hoisted__I32_5279;
-                U64 hoisted__U64_5280 = 4ULL;
+                USize hoisted__U64_5280 = U32_size();
                 (void)hoisted__U64_5280;
                 memset(&cloned, hoisted__I32_5279, hoisted__U64_5280);
             }
         }
     }
-    Vec__U32 *hoisted__Vec__U32_5286 = malloc(sizeof(Vec__U32));
-    hoisted__Vec__U32_5286->data = new_data;
-    hoisted__Vec__U32_5286->count = self->count;
-    hoisted__Vec__U32_5286->cap = self->cap;
-    (void)hoisted__Vec__U32_5286;
-    return hoisted__Vec__U32_5286;
+    Vec__USize *hoisted__Vec__USize_5286 = malloc(sizeof(Vec__USize));
+    hoisted__Vec__USize_5286->data = new_data;
+    hoisted__Vec__USize_5286->count = self->count;
+    hoisted__Vec__USize_5286->cap = self->cap;
+    (void)hoisted__Vec__USize_5286;
+    return hoisted__Vec__USize_5286;
     __builtin_unreachable();
 }
 
-USize Vec__U32_size(void) {
+USize Vec__USize_size(void) {
     U32 hoisted__U32_5287 = 16;
     (void)hoisted__U32_5287;
     return hoisted__U32_5287;
@@ -7335,31 +7335,31 @@ USize Expr_size_dyn(void *til_env) {
     return Expr_size();
 }
 static __attribute__((unused)) TilClosure Expr_size_dyn__til_closure = { (void *)Expr_size_dyn, NULL, NULL };
-void *Map__Str_U32_new_dyn(void *til_env) {
+void *Map__Str_USize_new_dyn(void *til_env) {
     (void)til_env;
-    return (void *)Map__Str_U32_new();
+    return (void *)Map__Str_USize_new();
 }
-static __attribute__((unused)) TilClosure Map__Str_U32_new_dyn__til_closure = { (void *)Map__Str_U32_new_dyn, NULL, NULL };
-void Map__Str_U32_delete_dyn(void *til_env, void *_a0, Bool _a1) {
+static __attribute__((unused)) TilClosure Map__Str_USize_new_dyn__til_closure = { (void *)Map__Str_USize_new_dyn, NULL, NULL };
+void Map__Str_USize_delete_dyn(void *til_env, void *_a0, Bool _a1) {
     (void)til_env;
-    Map__Str_U32_delete(_a0, _a1);
+    Map__Str_USize_delete(_a0, _a1);
 }
-static __attribute__((unused)) TilClosure Map__Str_U32_delete_dyn__til_closure = { (void *)Map__Str_U32_delete_dyn, NULL, NULL };
-void *Map__Str_U32_clone_dyn(void *til_env, void *_a0) {
+static __attribute__((unused)) TilClosure Map__Str_USize_delete_dyn__til_closure = { (void *)Map__Str_USize_delete_dyn, NULL, NULL };
+void *Map__Str_USize_clone_dyn(void *til_env, void *_a0) {
     (void)til_env;
-    return (void *)Map__Str_U32_clone(_a0);
+    return (void *)Map__Str_USize_clone(_a0);
 }
-static __attribute__((unused)) TilClosure Map__Str_U32_clone_dyn__til_closure = { (void *)Map__Str_U32_clone_dyn, NULL, NULL };
-U64 Map__Str_U32_hash_dyn(void *til_env, void *_a0, void *_a1) {
+static __attribute__((unused)) TilClosure Map__Str_USize_clone_dyn__til_closure = { (void *)Map__Str_USize_clone_dyn, NULL, NULL };
+U64 Map__Str_USize_hash_dyn(void *til_env, void *_a0, void *_a1) {
     (void)til_env;
-    return Map__Str_U32_hash(_a0, _a1);
+    return Map__Str_USize_hash(_a0, _a1);
 }
-static __attribute__((unused)) TilClosure Map__Str_U32_hash_dyn__til_closure = { (void *)Map__Str_U32_hash_dyn, NULL, NULL };
-USize Map__Str_U32_size_dyn(void *til_env) {
+static __attribute__((unused)) TilClosure Map__Str_USize_hash_dyn__til_closure = { (void *)Map__Str_USize_hash_dyn, NULL, NULL };
+USize Map__Str_USize_size_dyn(void *til_env) {
     (void)til_env;
-    return Map__Str_U32_size();
+    return Map__Str_USize_size();
 }
-static __attribute__((unused)) TilClosure Map__Str_U32_size_dyn__til_closure = { (void *)Map__Str_U32_size_dyn, NULL, NULL };
+static __attribute__((unused)) TilClosure Map__Str_USize_size_dyn__til_closure = { (void *)Map__Str_USize_size_dyn, NULL, NULL };
 void *Vec__VariantDef_new_dyn(void *til_env) {
     (void)til_env;
     return (void *)Vec__VariantDef_new();
@@ -7435,31 +7435,31 @@ USize Vec__Expr_size_dyn(void *til_env) {
     return Vec__Expr_size();
 }
 static __attribute__((unused)) TilClosure Vec__Expr_size_dyn__til_closure = { (void *)Vec__Expr_size_dyn, NULL, NULL };
-void *Vec__U32_new_dyn(void *til_env) {
+void *Vec__USize_new_dyn(void *til_env) {
     (void)til_env;
-    return (void *)Vec__U32_new();
+    return (void *)Vec__USize_new();
 }
-static __attribute__((unused)) TilClosure Vec__U32_new_dyn__til_closure = { (void *)Vec__U32_new_dyn, NULL, NULL };
-void Vec__U32_clear_dyn(void *til_env, void *_a0) {
+static __attribute__((unused)) TilClosure Vec__USize_new_dyn__til_closure = { (void *)Vec__USize_new_dyn, NULL, NULL };
+void Vec__USize_clear_dyn(void *til_env, void *_a0) {
     (void)til_env;
-    Vec__U32_clear(_a0);
+    Vec__USize_clear(_a0);
 }
-static __attribute__((unused)) TilClosure Vec__U32_clear_dyn__til_closure = { (void *)Vec__U32_clear_dyn, NULL, NULL };
-void Vec__U32_delete_dyn(void *til_env, void *_a0, Bool _a1) {
+static __attribute__((unused)) TilClosure Vec__USize_clear_dyn__til_closure = { (void *)Vec__USize_clear_dyn, NULL, NULL };
+void Vec__USize_delete_dyn(void *til_env, void *_a0, Bool _a1) {
     (void)til_env;
-    Vec__U32_delete(_a0, _a1);
+    Vec__USize_delete(_a0, _a1);
 }
-static __attribute__((unused)) TilClosure Vec__U32_delete_dyn__til_closure = { (void *)Vec__U32_delete_dyn, NULL, NULL };
-void *Vec__U32_clone_dyn(void *til_env, void *_a0) {
+static __attribute__((unused)) TilClosure Vec__USize_delete_dyn__til_closure = { (void *)Vec__USize_delete_dyn, NULL, NULL };
+void *Vec__USize_clone_dyn(void *til_env, void *_a0) {
     (void)til_env;
-    return (void *)Vec__U32_clone(_a0);
+    return (void *)Vec__USize_clone(_a0);
 }
-static __attribute__((unused)) TilClosure Vec__U32_clone_dyn__til_closure = { (void *)Vec__U32_clone_dyn, NULL, NULL };
-USize Vec__U32_size_dyn(void *til_env) {
+static __attribute__((unused)) TilClosure Vec__USize_clone_dyn__til_closure = { (void *)Vec__USize_clone_dyn, NULL, NULL };
+USize Vec__USize_size_dyn(void *til_env) {
     (void)til_env;
-    return Vec__U32_size();
+    return Vec__USize_size();
 }
-static __attribute__((unused)) TilClosure Vec__U32_size_dyn__til_closure = { (void *)Vec__U32_size_dyn, NULL, NULL };
+static __attribute__((unused)) TilClosure Vec__USize_size_dyn__til_closure = { (void *)Vec__USize_size_dyn, NULL, NULL };
 void *Range_clone_dyn(void *til_env, void *_a0) {
     (void)til_env;
     return (void *)Range_clone(_a0);
@@ -7801,11 +7801,11 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Expr_clone_dyn__til_closure;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&Expr_hash_dyn__til_closure;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Expr_size_dyn__til_closure;
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)&Map__Str_U32_new_dyn__til_closure;
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Map__Str_U32_delete_dyn__til_closure;
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Map__Str_U32_clone_dyn__til_closure;
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&Map__Str_U32_hash_dyn__til_closure;
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Map__Str_U32_size_dyn__til_closure;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)&Map__Str_USize_new_dyn__til_closure;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Map__Str_USize_delete_dyn__til_closure;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Map__Str_USize_clone_dyn__til_closure;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&Map__Str_USize_hash_dyn__til_closure;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Map__Str_USize_size_dyn__til_closure;
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)&Vec__VariantDef_new_dyn__til_closure;
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clear", 5ULL) == 0) return (void*)&Vec__VariantDef_clear_dyn__til_closure;
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Vec__VariantDef_delete_dyn__til_closure;
@@ -7821,11 +7821,11 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Vec__Expr_delete_dyn__til_closure;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Vec__Expr_clone_dyn__til_closure;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Vec__Expr_size_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)&Vec__U32_new_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clear", 5ULL) == 0) return (void*)&Vec__U32_clear_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Vec__U32_delete_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Vec__U32_clone_dyn__til_closure;
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Vec__U32_size_dyn__til_closure;
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)&Vec__USize_new_dyn__til_closure;
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clear", 5ULL) == 0) return (void*)&Vec__USize_clear_dyn__til_closure;
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Vec__USize_delete_dyn__til_closure;
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Vec__USize_clone_dyn__til_closure;
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)&Vec__USize_size_dyn__til_closure;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)&Range_clone_dyn__til_closure;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)&Range_delete_dyn__til_closure;
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "hash", 4ULL) == 0) return (void*)&Range_hash_dyn__til_closure;
@@ -7895,11 +7895,11 @@ U32 dyn_size_of(Str *type_name) {
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "CaptureBlockData", 16ULL) == 0) return sizeof(CaptureBlockData);
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) return sizeof(NodeType);
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) return sizeof(Expr);
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) return sizeof(Map__Str_U32);
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0) return sizeof(Map__Str_USize);
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0) return sizeof(Vec__VariantDef);
     if (type_name->count == 16ULL && memcmp(type_name->c_str, "Vec__Declaration", 16ULL) == 0) return sizeof(Vec__Declaration);
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) return sizeof(Vec__Expr);
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) return sizeof(Vec__U32);
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0) return sizeof(Vec__USize);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) return sizeof(Range);
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfVec2", 6ULL) == 0) return sizeof(CfVec2);
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "CfRect", 6ULL) == 0) return sizeof(CfRect);
@@ -7999,7 +7999,7 @@ I64 struct_field_count(Str *type_name) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) {
         return 4LL;
     }
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0) {
         return 2LL;
     }
     if (type_name->count == 15ULL && memcmp(type_name->c_str, "Vec__VariantDef", 15ULL) == 0) {
@@ -8011,7 +8011,7 @@ I64 struct_field_count(Str *type_name) {
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "Vec__Expr", 9ULL) == 0) {
         return 3LL;
     }
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0) {
         return 3LL;
     }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) {
@@ -8179,7 +8179,7 @@ Str *struct_field_name(Str *type_name, I64 *index) {
         if (*index == 2LL) return &_til_str_lits[157];
         if (*index == 3LL) return &_til_str_lits[158];
     }
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0) {
         if (*index == 0LL) return &_til_str_lits[159];
         if (*index == 1LL) return &_til_str_lits[160];
     }
@@ -8198,7 +8198,7 @@ Str *struct_field_name(Str *type_name, I64 *index) {
         if (*index == 1LL) return &_til_str_lits[2];
         if (*index == 2LL) return &_til_str_lits[4];
     }
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0) {
         if (*index == 0LL) return &_til_str_lits[5];
         if (*index == 1LL) return &_til_str_lits[2];
         if (*index == 2LL) return &_til_str_lits[4];
@@ -8373,7 +8373,7 @@ I64 struct_field_is_mut(Str *type_name, I64 *index) {
         if (*index == 2LL) return 1;
         if (*index == 3LL) return 1;
     }
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0) {
         if (*index == 0LL) return 1;
         if (*index == 1LL) return 1;
     }
@@ -8392,7 +8392,7 @@ I64 struct_field_is_mut(Str *type_name, I64 *index) {
         if (*index == 1LL) return 1;
         if (*index == 2LL) return 1;
     }
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0) {
         if (*index == 0LL) return 1;
         if (*index == 1LL) return 1;
         if (*index == 2LL) return 1;
@@ -8567,7 +8567,7 @@ Str *struct_field_type(Str *type_name, I64 *index) {
         if (*index == 2LL) return &_til_str_lits[11];
         if (*index == 3LL) return &_til_str_lits[11];
     }
-    if (type_name->count == 12ULL && memcmp(type_name->c_str, "Map__Str_U32", 12ULL) == 0) {
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "Map__Str_USize", 14ULL) == 0) {
         if (*index == 0LL) return &_til_str_lits[69];
         if (*index == 1LL) return &_til_str_lits[161];
     }
@@ -8586,7 +8586,7 @@ Str *struct_field_type(Str *type_name, I64 *index) {
         if (*index == 1LL) return &_til_str_lits[3];
         if (*index == 2LL) return &_til_str_lits[3];
     }
-    if (type_name->count == 8ULL && memcmp(type_name->c_str, "Vec__U32", 8ULL) == 0) {
+    if (type_name->count == 10ULL && memcmp(type_name->c_str, "Vec__USize", 10ULL) == 0) {
         if (*index == 0LL) return &_til_str_lits[6];
         if (*index == 1LL) return &_til_str_lits[3];
         if (*index == 2LL) return &_til_str_lits[3];

@@ -1076,10 +1076,10 @@ priv builder_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
 }
 
 priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    // Resolve width aliases (USize/UPtr) so the C type name matches the
-    // monomorphized struct the type-gen macro emitted (Array__U32), not the
-    // alias-spelled Array__USize.
-    resolved := resolve_type_alias(ctx.scope, elem_type).clone()
+    // Same naming rule as the type-gen macro (resolve_type_alias_for_name):
+    // user aliases resolve, width aliases (USize/UPtr) keep their spelling,
+    // so the C type name matches the monomorphized struct (Array__USize).
+    resolved := resolve_type_alias_for_name(ctx.scope, elem_type).clone()
     concrete := format("Array__", resolved)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref array_func : Expr = ctx.scope.lookup_func("Array")
@@ -1089,7 +1089,7 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
-    resolved := resolve_type_alias(ctx.scope, elem_type).clone()
+    resolved := resolve_type_alias_for_name(ctx.scope, elem_type).clone()
     concrete := format("Vec__", resolved)
     if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
     ref vec_func : Expr = ctx.scope.lookup_func("Vec")
@@ -4526,13 +4526,14 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                 ref p : Declaration = fd.params[i]
                 ii := i.to_i32()
                 if ii == vi {
-                    // Variadic array. Resolve width aliases (USize/UPtr) to
-                    // the concrete primitive for every ELEMENT operation
-                    // below -- the element field, stride, parse and the
-                    // `<T>_delete` helper name -- so they match the
-                    // monomorphized Array__U32 struct (which the type-gen
-                    // macro emits resolved). Emitting the alias produced a
-                    // nonexistent `USize_delete` / `Array__USize` type.
+                    // Variadic array. The ELEMENT operations below -- the
+                    // stride sizeof, the CLI parse dispatch and the
+                    // `<T>_delete` helper name -- are WIDTH semantics, so
+                    // they resolve the alias to the concrete primitive
+                    // (there is no USize_delete; U32_delete operates on the
+                    // same C type via the ext.h typedef). The INSTANCE name
+                    // (arr_type below) keeps the alias spelling like every
+                    // other name-forming site (resolve_type_alias_for_name).
                     elem_c := resolve_type_alias(lp.ctx.scope, p.explicit_type).clone()
                     arr_type := builder_variadic_array_type_name(lp.ctx, p.explicit_type)
                     arr_ctype := type_name_to_c(arr_type, lp.ctx)

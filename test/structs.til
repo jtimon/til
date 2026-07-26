@@ -482,3 +482,43 @@ test_ns_const_forward_refs := test() {
     assert_eq(I64, FwdConst.d, 6)
     assert_eq(I64, FwdConst.e, 6)
 }
+
+// USize is the interface: a width alias is never resolved into a
+// monomorphization name, so `Map(Str, USize)` / `Vec(USize)` spell the
+// SAME instance (Map__Str_USize / Vec__USize) from every position --
+// struct-field annotation, free-function param, value ctor -- regardless
+// of declaration order or of what width the target resolves USize to.
+// Before the fix, a namespace method typed against a LATER-declared free
+// function saw the alias-spelled param while its own field had the
+// resolved spelling baked in ("expected Map__Str_USize, got
+// Map__Str_U32"). The callee is declared AFTER the struct on purpose.
+UsizeHolder := struct {
+    own m : Map(Str, USize) = Map(Str, USize).new()
+    own v : Vec(USize) = Vec(USize).new()
+namespace:
+    get_via_free := func(self: UsizeHolder, name: Str) returns USize {
+        return usize_holder_idx_get(self.m, name)
+    }
+    first_via_free := func(self: UsizeHolder) returns USize {
+        return usize_holder_vec_first(self.v)
+    }
+}
+
+usize_holder_idx_get := func(idx: Map(Str, USize), name: Str) returns USize {
+    ref p : USize = idx.get(name)?
+    catch (e: KeyNotFound) { return 999 }
+    return p.clone()
+}
+
+usize_holder_vec_first := func(v: Vec(USize)) returns USize {
+    return v.unsafe_get(0).clone()
+}
+
+test_usize_alias_instance_names := test() {
+    h := UsizeHolder()
+    h.m.set("a", own 7)
+    h.v.push(own 41)
+    assert_eq(USize, h.get_via_free("a"), 7)
+    assert_eq(USize, h.get_via_free("missing"), 999)
+    assert_eq(USize, h.first_via_free(), 41)
+}
