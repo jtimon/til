@@ -1940,6 +1940,7 @@ U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
 Str * File_readfile(Str * path);
 void File_writefile(Str * path, Str * content);
+void File_remove(Str * path);
 File * File_new(Str * path, Bool is_write);
 File * File_write(File * self, Str * s);
 Str * File_read_all(File * self);

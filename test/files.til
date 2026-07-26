@@ -111,3 +111,20 @@ test_file_update_in_place := test() {
     content := File.readfile(path)
     assert_eq(Str, content, "hello there")
 }
+
+test_file_remove := test() {
+    path := "tmp/_test_file_remove.txt"
+    File.writefile(path, "gone soon")
+    assert_eq(Str, File.readfile(path), "gone soon")
+
+    File.remove(path)
+
+    // The entry is gone: writing recreates it from scratch rather than
+    // appending to what was there.
+    File.writefile(path, "fresh")
+    assert_eq(Str, File.readfile(path), "fresh")
+
+    File.remove(path)
+    // Removing a path that is already gone is not an error.
+    File.remove(path)
+}

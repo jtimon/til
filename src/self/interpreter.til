@@ -12,8 +12,6 @@ import("../../vendor/bindings/libffi")
 // hardcoded Linux path made resolve_link_path fall back to a bogus
 // src/self/-relative candidate on mac hosts (issue #25).
 
-system_cmd := ext_proc(cmd: Str) returns shallow I32 {}
-
 priv interp_error_path := func(ctx: Context) returns Str {
     return ctx.path.clone()
 }
@@ -5287,7 +5285,6 @@ ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_last_error := ext_proc() returns Str {}
 stderr_print := ext_proc(msg: Str) returns shallow I32 {}
-unlink_path := ext_proc(path: Str) {}
 process_id := ext_proc() returns shallow I32 {}
 // ext_proc, NOT ext_func: this reads a build-time property of the RUNNING
 // binary, so it must be evaluated at runtime. As an ext_func the constfolder
@@ -7671,7 +7668,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     ffi_init_struct_defs(program, ctx)
     ffi_init_scan_program(program, ctx)
     ctx.ffi_loaded = true
-    if so_path.len() > 0 { unlink_path(so_path) }
+    if so_path.len() > 0 { File.remove(so_path) }
     return 0
 }
 ffi_cleanup := proc(ctx: Context) {

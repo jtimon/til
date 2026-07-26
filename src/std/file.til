@@ -28,6 +28,11 @@ cfile_seek := ext_proc(handle: Dynamic, shallow pos: I64) {}
 cfile_seek_cur := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_seek_end := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_read_n := ext_proc(handle: Dynamic, shallow count: I64) returns Str {}
+// Removing a directory entry: a file-system write like any other, and
+// the only removal primitive there is. It used to be declared inside
+// src/self/interpreter.til (where the FFI .so cleanup calls it), which
+// left every other program without a way to delete a file.
+unlink_path := ext_proc(path: Str) {}
 
 /// File handle for reading or writing on disk.
 File := struct {
@@ -52,6 +57,13 @@ namespace:
     writefile := proc(path: Str, content: Str) {
         f := File.new(path, true)
         f.write(content)
+    }
+
+    /// Delete the directory entry at `path`. Removing a file the process
+    /// still has open is allowed on POSIX (the handle keeps working until
+    /// it is closed); a missing path is not an error.
+    remove := proc(path: Str) {
+        unlink_path(path)
     }
 
     /// Open a file at `path` for reading or writing.
