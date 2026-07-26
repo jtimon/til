@@ -2300,6 +2300,11 @@ priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_
         e.set_til_type(Type.Unknown)
         return
     }
+    // `vec(MyInt, ...)` names a type, so resolve it for its side effects
+    // (#154 import credit, #187 used-marking) exactly like any other type
+    // annotation. The instance name below resolves the alias away, so this
+    // is the only point that sees the spelling the user wrote.
+    _ : Type = type_from_name(elem_type, scope, ctx)
     if name == "array" {
         e.set_til_type(Type.Struct(variadic_array_type_name(scope, elem_type)))
     } else {

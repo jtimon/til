@@ -3713,7 +3713,12 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             // Empty -> child(1) was not a bare type token; the typer already
             // reported a user-located error (infer_array_vec_fcall). Leave the
             // call raw rather than panic from inside the desugar.
-            elem_type := array_vec_elem_type_name(fcall)
+            // Resolve through the alias: the instance this lowering names
+            // (Vec__<elem>) must be the one the initer synthesized and the
+            // typer types, and both of those resolve user aliases. Width
+            // aliases keep their spelling on every path (see
+            // resolve_type_alias_for_name).
+            elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(fcall)).clone()
             if elem_type.len() == 0 { return false }
             count : USize = fcall.children.len() - 2
             if cn_str == "vec" {
@@ -3771,7 +3776,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     case NodeType.Ident(cn):
         if cn.ident_name() == "vec" {
             if rhs.children.len() < 2 { return false }
-            elem_type := array_vec_elem_type_name(rhs)
+            elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(rhs)).clone()
             if elem_type.len() == 0 { return false }
             count : USize = rhs.children.len() - 2
             mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
@@ -3792,7 +3797,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
         }
         if cn.ident_name() == "array" {
             if rhs.children.len() < 2 { return false }
-            elem_type := array_vec_elem_type_name(rhs)
+            elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(rhs)).clone()
             if elem_type.len() == 0 { return false }
             count : USize = rhs.children.len() - 2
             array_type := variadic_array_type_name(scope, elem_type)

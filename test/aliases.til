@@ -352,3 +352,41 @@ test_dyn_alias_struct_field := test() {
     assert(is_null(h.a))
     assert(is_null(h.b))
 }
+
+# === Type aliases as collection element types ===
+# A user type alias names the SAME monomorphization as its target: the
+# initer's synthesized instance, the desugarer's lowering and the typer's
+# expression type must all spell it one way (Vec__I64), or the instance is
+# registered under one name and looked up under another -- "no method 'len'
+# for type 'Vec__I64'" / "unknown type name 'Vec__MyInt'". The alias is
+# declared in this same file on purpose: it used to be invisible to the
+# instance-naming passes, which run before the registration walk.
+
+ElemAlias := I64
+
+test_alias_vec_literal_elem := test() {
+    v := vec(ElemAlias, 7, 8, 9)
+    assert_eq(USize, v.len(), 3)
+    assert_eq(I64, v.unsafe_get(0), 7)
+}
+
+test_alias_array_literal_elem := test() {
+    a := array(ElemAlias, 4, 5)
+    assert_eq(USize, a.len(), 2)
+    assert_eq(I64, a.unsafe_get(1), 5)
+}
+
+alias_variadic_count := func(xs: ..ElemAlias) returns USize {
+    return xs.len()
+}
+
+test_alias_variadic_param_elem := test() {
+    assert_eq(USize, alias_variadic_count(1, 2, 3), 3)
+}
+
+# The alias and its target name one instance, so values flow between them.
+test_alias_and_target_same_instance := test() {
+    v := vec(ElemAlias, 1)
+    w := vec(I64, 2)
+    assert_eq(USize, v.len(), w.len())
+}

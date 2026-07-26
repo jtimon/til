@@ -4013,6 +4013,23 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         note_template_body_uses(program, scope, ctx)
     }
 
+    // Type aliases FIRST: the expansions below name every monomorphized
+    // instance through the alias (`vec(MyInt, ...)` -> Vec__I64), and the
+    // typer resolves the same names later. Registering aliases only in the
+    // walk below left a same-file `MyInt := I64` invisible here, so the
+    // instance was synthesized as Vec__MyInt while every later reader
+    // resolved to Vec__I64 -- one type, two names, "no method 'len' for
+    // type 'Vec__I64'". Imports are fully initialized by now, so the
+    // registration is the real one; the walk below finds these Found and
+    // skips them, and anything not resolvable yet (an alias to a name the
+    // expansion has yet to create) still falls to that later pass.
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        if stmt.children[0].node_type.is(NodeType.Ident).not() { continue }
+        register_type_alias_for_stmt(ctx, stmt, scope)
+    }
+
     // Issue #57: expand `X := macroname(args)` where macroname is a
     // top-level macro returning StructDef/EnumDef -- inline the macro
     // body's return literal with type-params substituted, so X becomes a
