@@ -272,8 +272,9 @@ priv is_primitive_type := func(name: Str) returns Bool {
 // emission path recognises the wrap and emits the value directly.
 priv is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
     if enum_name.len() == 0 { return false }
-    ref ed : Expr = find_struct_def(enum_name, ctx)
-    if ed.is_null() { return false }
+    ed_o := find_struct_def(enum_name, ctx)
+    if ed_o.is_none() { return false }
+    ref ed : Expr = ed_o.unwrap()
     if ed.node_type.is(NodeType.EnumDef).not() { return false }
     if enum_has_payloads(ed) { return false }
     return true
@@ -342,9 +343,10 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
         case NodeType.FieldAccess(pe_vn):
             pe_sname := til_type_name(pe_arg.children[0].til_type())
             // #320 niche: no tag field -- a payload-less variant is null.
-            ref pe_def : Expr = find_struct_def(pe_sname, ctx)
+            pe_def_o := find_struct_def(pe_sname, ctx)
             mut pe_niche := false
-            if pe_def.is_null().not() {
+            if pe_def_o.is_some() {
+                ref pe_def : Expr = pe_def_o.unwrap()
                 if pe_def.node_type.is(NodeType.EnumDef) { pe_niche = enum_is_niche(pe_def) }
             }
             if pe_niche {
@@ -372,8 +374,9 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
 priv is_pod_struct := func(struct_name: Str, ctx: Context) returns Bool {
     if struct_name.len() == 0 { return false }
     if is_primitive_type(struct_name) { return false }
-    ref sdef : Expr = find_struct_def(struct_name, ctx)
-    if sdef.is_null() { return false }
+    sdef_o := find_struct_def(struct_name, ctx)
+    if sdef_o.is_none() { return false }
+    ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
         if sdd.fields.len() == 0 { return false }
@@ -430,7 +433,7 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     }
 }
 
-priv find_struct_def := func(name: Str, ctx: Context) returns ref Expr {
+priv find_struct_def := func(name: Str, ctx: Context) returns Option(ref Expr) {
     return ctx.scope.get_struct(name)
 }
 
@@ -696,8 +699,9 @@ priv fa_struct_name := func(e: Expr) returns Str {
 }
 
 priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) returns Bool {
-    ref fap_def : Expr = find_struct_def(sname, ctx)
-    if fap_def.is_null() { return false }
+    fap_def_o := find_struct_def(sname, ctx)
+    if fap_def_o.is_none() { return false }
+    ref fap_def : Expr = fap_def_o.unwrap()
     switch fap_def.node_type {
     case NodeType.StructDef(fap_sdd):
         ref fap_fd : Declaration = member_get(fap_sdd.fields_index, fap_sdd.fields, fname)
@@ -724,8 +728,9 @@ priv builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
 }
 
 priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: Context) returns Bool {
-    ref bfn_def : Expr = find_struct_def(sname, ctx)
-    if bfn_def.is_null() { return false }
+    bfn_def_o := find_struct_def(sname, ctx)
+    if bfn_def_o.is_none() { return false }
+    ref bfn_def : Expr = bfn_def_o.unwrap()
     mut has_inst := false
     has_ns := def_ns_has(bfn_def, fname)
     switch bfn_def.node_type {
@@ -1115,23 +1120,23 @@ priv builder_variadic_array_type_name := func(ctx: Context, elem_type: Str) retu
     // user aliases resolve, width aliases (USize/UPtr) keep their spelling,
     // so the C type name matches the monomorphized struct (Array__USize).
     concrete := format("Array__", resolve_type_alias_for_name(ctx.scope, elem_type))
-    if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
+    if ctx.scope.get_struct(concrete).is_some() { return concrete }
     array_func_o := ctx.scope.lookup_func("Array")
     if array_func_o.is_some() {
         if builder_is_type_gen_macro_def(array_func_o.unwrap()) { return concrete }
     }
-    if ctx.scope.get_struct("Array").is_null().not() { return "Array" }
+    if ctx.scope.get_struct("Array").is_some() { return "Array" }
     return concrete
 }
 
 priv builder_variadic_vec_type_name := func(ctx: Context, elem_type: Str) returns Str {
     concrete := format("Vec__", resolve_type_alias_for_name(ctx.scope, elem_type))
-    if ctx.scope.get_struct(concrete).is_null().not() { return concrete }
+    if ctx.scope.get_struct(concrete).is_some() { return concrete }
     vec_func_o := ctx.scope.lookup_func("Vec")
     if vec_func_o.is_some() {
         if builder_is_type_gen_macro_def(vec_func_o.unwrap()) { return concrete }
     }
-    if ctx.scope.get_struct("Vec").is_null().not() { return "Vec" }
+    if ctx.scope.get_struct("Vec").is_some() { return "Vec" }
     return concrete
 }
 
@@ -1149,8 +1154,9 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
     if ename.len() == 0 { return false }
     prefix := format(ename, "_")
     if callee_name.starts_with(prefix).not() { return false }
-    ref def : Expr = ctx.scope.get_struct(ename)
-    if def.is_null() { return false }
+    def_o := ctx.scope.get_struct(ename)
+    if def_o.is_none() { return false }
+    ref def : Expr = def_o.unwrap()
     if def.node_type.is(NodeType.EnumDef).not() { return false }
     vname := callee_name.substr(prefix.len(), callee_name.len() - prefix.len())
     switch def.node_type {
@@ -1920,8 +1926,9 @@ priv emit_pod_compound_literal := proc(f: File, ctor: Expr, depth: I32, ctx: Con
     ctor_sname := til_type_name(ctor.til_type())
     ctype := c_type_name(ctor.til_type(), ctor_sname, ctx)
     f.write("(").write(ctype).write("){")
-    ref pod_def : Expr = find_struct_def(ctor_sname, ctx)
-    if pod_def.is_null().not() {
+    pod_def_o := find_struct_def(ctor_sname, ctx)
+    if pod_def_o.is_some() {
+        ref pod_def : Expr = pod_def_o.unwrap()
         switch pod_def.node_type {
         case NodeType.StructDef(pod_sdd):
             mut pod_fi : USize = 0
@@ -2390,9 +2397,10 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             sn := til_type_name(rv.children[0].til_type())
             switch rv.node_type {
             case NodeType.FieldAccess(vname):
-                ref nsv_def : Expr = find_struct_def(sn, ctx)
+                nsv_def_o := find_struct_def(sn, ctx)
                 mut nsv_niche := false
-                if nsv_def.is_null().not() {
+                if nsv_def_o.is_some() {
+                    ref nsv_def : Expr = nsv_def_o.unwrap()
                     if nsv_def.node_type.is(NodeType.EnumDef) { nsv_niche = enum_is_niche(nsv_def) }
                 }
                 if nsv_niche {
@@ -2459,8 +2467,9 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     f.write("switch (")
     mut sw_is_niche := false
     if is_enum {
-        ref sw_def : Expr = find_struct_def(enum_name, ctx)
-        if sw_def.is_null().not() {
+        sw_def_o := find_struct_def(enum_name, ctx)
+        if sw_def_o.is_some() {
+            ref sw_def : Expr = sw_def_o.unwrap()
             if sw_def.node_type.is(NodeType.EnumDef) { sw_is_niche = enum_is_niche(sw_def) }
         }
     }
@@ -2505,7 +2514,8 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 }
                 if sw_is_niche {
                     // 1 = the payload (non-null) variant, 0 = the other.
-                    ref lbl_def : Expr = find_struct_def(enum_name, ctx)
+                    // sw_is_niche was decided from this same def.
+                    ref lbl_def : Expr = find_struct_def(enum_name, ctx).unwrap()
                     if enum_variant_type(lbl_def, enum_variant_index(lbl_def, vn)).len() > 0 { f.write("1") }
                     else { f.write("0") }
                 } else {
@@ -3802,8 +3812,9 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // or both non-null", the null-pointer optimization's whole
                 // discriminant.
                 mut isn_niche := false
-                ref isn_def : Expr = find_struct_def(enum_c, ctx)
-                if isn_def.is_null().not() {
+                isn_def_o := find_struct_def(enum_c, ctx)
+                if isn_def_o.is_some() {
+                    ref isn_def : Expr = isn_def_o.unwrap()
                     if isn_def.node_type.is(NodeType.EnumDef) { isn_niche = enum_is_niche(isn_def) }
                 }
                 f.write("((").write(isn_ret_c).write(")(")
@@ -3949,9 +3960,10 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         if builder_fa_is_ns(e, ctx) {
             obj_sname := til_type_name(obj.til_type())
             if e.til_type().is(Type.Enum) {
-                ref nv_def : Expr = find_struct_def(obj_sname, ctx)
+                nv_def_o := find_struct_def(obj_sname, ctx)
                 mut nv_niche := false
-                if nv_def.is_null().not() {
+                if nv_def_o.is_some() {
+                    ref nv_def : Expr = nv_def_o.unwrap()
                     if nv_def.node_type.is(NodeType.EnumDef) { nv_niche = enum_is_niche(nv_def) }
                 }
                 if nv_niche {
@@ -4041,14 +4053,14 @@ priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
     }
 }
 priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {
-    ref ecf_def : Expr = find_struct_def(til_type_name(ctor.til_type()), ctx)
+    ecf_def_o := find_struct_def(til_type_name(ctor.til_type()), ctx)
     mut fi : USize = 0
     for i in 1..ctor.children.len() {
         mut fld_own := OwnType.Shallow
         mut field_type := Type.Unknown
         mut fname := ""
-        if ecf_def.is_null().not() {
-            switch ecf_def.node_type {
+        if ecf_def_o.is_some() {
+            switch ecf_def_o.unwrap().node_type {
             case NodeType.StructDef(ecf_sdd):
                 if fi < ecf_sdd.fields.len() {
                     ref dd : Declaration = ecf_sdd.field_at(fi)
@@ -4455,9 +4467,10 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                 f.write(obj_sname)
                 f.write(")); *_oa = (")
                 f.write(obj_sname)
-                ref nv2_def : Expr = find_struct_def(obj_sname, ctx)
+                nv2_def_o := find_struct_def(obj_sname, ctx)
                 mut nv2_niche := false
-                if nv2_def.is_null().not() {
+                if nv2_def_o.is_some() {
+                    ref nv2_def : Expr = nv2_def_o.unwrap()
                     if nv2_def.node_type.is(NodeType.EnumDef) { nv2_niche = enum_is_niche(nv2_def) }
                 }
                 if nv2_niche {
@@ -5047,7 +5060,8 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
         case:
         }
         if vname.len() > 0 {
-            ref vdef : Expr = find_struct_def(enum_c, ctx)
+            // The niche branch above already resolved this enum's def.
+            ref vdef : Expr = find_struct_def(enum_c, ctx).unwrap()
             if enum_variant_type(vdef, enum_variant_index(vdef, vname)).len() > 0 { f.write("1") }
             else { f.write("0") }
             return

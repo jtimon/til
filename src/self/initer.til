@@ -28,7 +28,7 @@ priv primitive_type_info := func(name: Str, scope: TypeScope, mut prim: Primitiv
 priv register_body_type_token := func(ctx: Context, scope: TypeScope) {
     if scope.find("Body").is(ScopeFind.Found) { return }
     scope.set("Body", Type.Body, false, ctx.path, 0, 0, false, OwnType.Shallow)
-    ref mut b : TypeBinding = scope.get_binding("Body")
+    ref mut b : TypeBinding = scope.get_binding("Body").unwrap()
     b.is_builtin = true
 }
 
@@ -75,7 +75,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
 
         scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         scope.set_struct_def(sname, stmt.children[0])
-        ref mut b : TypeBinding = scope.get_binding(sname)
+        ref mut b : TypeBinding = scope.get_binding(sname).unwrap()
         b.is_builtin = is_builtin
         b.is_priv = sdecl.is_priv
         b.orig_name = sdecl.orig_name.clone()
@@ -544,7 +544,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
 
         scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         scope.set_struct_def(ename, stmt.children[0])
-        ref mut b : TypeBinding = scope.get_binding(ename)
+        ref mut b : TypeBinding = scope.get_binding(ename).unwrap()
         b.is_priv = edecl.is_priv
         b.orig_name = edecl.orig_name.clone()
         // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
@@ -976,8 +976,9 @@ priv init_type_supports_generated_method := func(type_name: Str, method: Str, sc
     if type_name.eq("Str").and(method.eq("to_str")) { return true }
     if type_name == "Dynamic" { return false }
 
-    ref def : Expr = scope.get_struct(type_name)
-    if def.is_null() { return false }
+    def_o := scope.get_struct(type_name)
+    if def_o.is_none() { return false }
+    ref def : Expr = def_o.unwrap()
     if init_ns_has_func(def, method) { return true }
     if method.eq("eq").and(init_ns_has_func(def, "cmp")) { return true }
 
@@ -1226,7 +1227,7 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
     case NodeType.Decl(sdecl):
         scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         scope.set_func_def(sdecl.name, stmt.children[0])
-        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
         fb.is_func_decl = true
     case:
         UNREACHABLE()
@@ -1266,7 +1267,7 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
             }
             scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             if tgt_fd_o.is_some() { scope.set_func_def(sdecl.name, tgt_fd_o.unwrap()) }
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
             tgt_sd_o := scope.struct_def_of(target.name)
             if tgt_sd_o.is_some() { scope.set_struct_def(sdecl.name, tgt_sd_o.unwrap()) }
             ab.is_func_decl = target.is_func_decl
@@ -1290,7 +1291,7 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
             if til_type.is(Type.Unknown) { return }
             if til_type.is(Type.Custom) { return }
             scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
+            ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
             ab.is_type_alias = true
             ab.alias_target = target_name
         }
@@ -1328,7 +1329,7 @@ priv register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: 
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
         scope.set(sdecl.name, t, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name)
+        ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name).unwrap()
         tlv_b.is_priv = sdecl.is_priv
         tlv_b.orig_name = sdecl.orig_name.clone()
     case:
@@ -1357,7 +1358,7 @@ priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: Typ
         if def.children.len() == 0 {
             scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             scope.set_func_def(sdecl.name, stmt.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -1419,7 +1420,7 @@ priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: Typ
             }
             scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
             scope.set_func_def(sdecl.name, stmt.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
             fb.orig_name = sdecl.orig_name.clone()
@@ -1891,8 +1892,9 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     if ftype_resolved.is_funcptr().or(ftype_resolved.is(Type.Body)) {
                         field_is_funcptr = true
                     } else if o_is_prim.not().and(ftype.eq("Dynamic").not()) {
-                        ref o_nested : Expr = scope.get_struct(ftype)
-                        if o_nested.is_null().not() {
+                        o_nested_o := scope.get_struct(ftype)
+                        if o_nested_o.is_some() {
+                            ref o_nested : Expr = o_nested_o.unwrap()
                             // Store the CANONICAL type name, not the source
                             // spelling: a generic instance written with a
                             // width alias ("Vec(USize)") registers its layout
@@ -1978,8 +1980,9 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     ftype = "U64"
                     if USize.size().eq(4) { ftype = "U32" }
                 } else {
-                    ref ab : TypeBinding = scope.get_binding(ftype)
-                    if ab.is_null().not() {
+                    ab_o := scope.get_binding(ftype)
+                    if ab_o.is_some() {
+                        ref ab : TypeBinding = ab_o.unwrap()
                         if ab.is_type_alias {
                             if ab.alias_target.is_empty().not() {
                                 ftype = ab.alias_target
@@ -2005,8 +2008,9 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         fsz = UPtr.size()
                         falign = UPtr.size()
                     } else {
-                        ref nested_def : Expr = scope.get_struct(ftype)
-                        if nested_def.is_null().not() {
+                        nested_def_o := scope.get_struct(ftype)
+                        if nested_def_o.is_some() {
+                            ref nested_def : Expr = nested_def_o.unwrap()
                             if nested_def.node_type.is(NodeType.EnumDef) {
                                 fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
                                 if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
@@ -2069,8 +2073,9 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
     }
     tsa_resolved := type_from_name_init(ftype, scope)
     if tsa_resolved.is_funcptr().or(tsa_resolved.is(Type.Body)) { sz = UPtr.size(); al = UPtr.size(); return }
-    ref nested : Expr = scope.get_struct(ftype)
-    if nested.is_null() { sz = UPtr.size(); al = UPtr.size(); return }
+    nested_o := scope.get_struct(ftype)
+    if nested_o.is_none() { sz = UPtr.size(); al = UPtr.size(); return }
+    ref nested : Expr = nested_o.unwrap()
     switch nested.node_type {
     case NodeType.StructDef:
         compute_struct_layout(ftype, nested, scope, ctx)
@@ -2217,8 +2222,9 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         out_type = Type.Dynamic
         return true
     case NodeType.Ident(id):
-        ref b : TypeBinding = scope.get_binding(id.ident_name())
-        if b.is_null() { return false }
+        b_o := scope.get_binding(id.ident_name())
+        if b_o.is_none() { return false }
+        ref b : TypeBinding = b_o.unwrap()
         out_type = b.type
         return out_type.is(Type.Unknown).not()
     case NodeType.FieldAccess:
@@ -2248,8 +2254,9 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
                 out_type = Type.Struct(til_type_name(rhs.til_type()))
                 return true
             }
-            ref fb : TypeBinding = scope.get_binding(cn.ident_name())
-            if fb.is_null() { return false }
+            fb_o := scope.get_binding(cn.ident_name())
+            if fb_o.is_none() { return false }
+            ref fb : TypeBinding = fb_o.unwrap()
             out_type = fb.type
             return out_type.is(Type.Unknown).not()
         case NodeType.FieldAccess:
@@ -3377,10 +3384,10 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
 priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     mut synthesized := Vec(Expr).new()
     mut seen := Map(Str, Str).new()
-    synth_array := ctx.scope.get_struct("Array").is_null()
-    synth_vec := ctx.scope.get_struct("Vec").is_null()
-    synth_set := ctx.scope.get_struct("Set").is_null()
-    synth_map := ctx.scope.get_struct("Map").is_null()
+    synth_array := ctx.scope.get_struct("Array").is_none()
+    synth_vec := ctx.scope.get_struct("Vec").is_none()
+    synth_set := ctx.scope.get_struct("Set").is_none()
+    synth_map := ctx.scope.get_struct("Map").is_none()
     if synth_array.not().and(synth_vec.not()).and(synth_set.not()).and(synth_map.not()) { return }
     for c : Expr in program.children {
         init_collect_variadic_arrays(ctx.scope, c, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
@@ -4395,8 +4402,9 @@ priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
         return
     }
     if iface_name.len() == 0 { return }
-    ref iface_def : Expr = scope.get_struct(iface_name)
-    if iface_def.is_null() { return }
+    iface_def_o := scope.get_struct(iface_name)
+    if iface_def_o.is_none() { return }
+    ref iface_def : Expr = iface_def_o.unwrap()
     // Only copy from an actual interface; the typer reports the non-interface
     // / unknown-name cases as conformance errors.
     mut is_iface := false
@@ -4656,8 +4664,9 @@ clone_call_type_name := func(e: Expr) returns Str {
 // AST-only half of is_pod_enum_clone_call / is_pod_enum_clone_wrap.
 // Caller resolves the enum def their own way (builder via Context,
 // garbager via TypeScope) and passes it here.
-is_pod_enum_clone_of := func(e: Expr, edef: Expr) returns Bool {
-    if edef.is_null() { return false }
+is_pod_enum_clone_of := func(e: Expr, edef_o: Option(ref Expr)) returns Bool {
+    if edef_o.is_none() { return false }
+    ref edef : Expr = edef_o.unwrap()
     if edef.node_type.is(NodeType.EnumDef).not() { return false }
     if enum_has_payloads(edef).not() { return true }
     ref arg : Expr = e.children[1]

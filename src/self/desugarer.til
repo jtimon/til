@@ -268,7 +268,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
         case NodeType.FuncDef:
             scope.set(sdecl.name, Type.None, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow)
             scope.set_func_def(sdecl.name, lifted.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
         case:
@@ -312,8 +312,9 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, scope: TypeSco
     case NodeType.Ident(idn):
         ref nm : Str = idn.ident_name()
         if nm.len().gt(0).and(ctx.lowering_param_types.has(nm).not()) {
-            ref b : TypeBinding = scope.get_binding(nm)
-            if b.is_null().not() {
+            b_o := scope.get_binding(nm)
+            if b_o.is_some() {
+                ref b : TypeBinding = b_o.unwrap()
                 tn := til_type_name(b.type)
                 if tn.len() > 0 { ctx.lowering_param_types.set(nm, own tn) }
             }
@@ -494,8 +495,9 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                             if rhs.children[0].children.len() > 0 {
                                 owner := resolve_value_type(ctx, rhs.children[0].children[0], stmt)
                                 if owner.len() > 0 {
-                                    ref sdef : Expr = ctx.scope.get_struct(owner)
-                                    if sdef.is_null().not() {
+                                    sdef_o := ctx.scope.get_struct(owner)
+                                    if sdef_o.is_some() {
+                                        ref sdef : Expr = sdef_o.unwrap()
                                         mdefo := find_namespace_func(sdef, fa.field_access_name(), ctx.scope)
                                         if mdefo.is_some() {
                                             ref mdef : Expr = mdefo.unwrap()
@@ -624,7 +626,7 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
         if e.children.len() == 0 { return "" }
         switch e.children[0].node_type {
         case NodeType.Ident(name):
-            if ctx.scope.get_struct(name.name).is_null().not() {
+            if ctx.scope.get_struct(name.name).is_some() {
                 return name.name.clone()
             }
             fdef_expr_o := ctx.scope.lookup_func(name.name)
@@ -847,8 +849,9 @@ priv err_slot_name := func(t: Str) returns Str {
 // non-struct and unresolved types payload-bearing: only a resolved empty
 // StructDef may use the tag-only ABI.
 throw_type_has_payload := func(ctx: Context, type_name: Str) returns Bool {
-    ref type_def : Expr = ctx.scope.get_struct(type_name)
-    if type_def.is_null() { return true }
+    type_def_o := ctx.scope.get_struct(type_name)
+    if type_def_o.is_none() { return true }
+    ref type_def : Expr = type_def_o.unwrap()
     switch type_def.node_type {
     case NodeType.StructDef(sdd): return sdd.fields.len() > 0
     case: return true
@@ -1325,8 +1328,9 @@ priv normalize_ctor_type := func(tn: Str) returns Str {
 
 // Type name of a struct field, "" if unknown.
 priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) returns Str {
-    ref sdef : Expr = ctx.scope.get_struct(type_name)
-    if sdef.is_null() { return "" }
+    sdef_o := ctx.scope.get_struct(type_name)
+    if sdef_o.is_none() { return "" }
+    ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sd):
         ref fd : Declaration = member_get(sd.fields_index, sd.fields, field_name)
@@ -1383,12 +1387,13 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             // (eg. `files := uc.split(" ")` -> "uc"), which isn't a real
             // type. Only commit to ng if it names a known struct; let the
             // caller fall back to the suffix-match path otherwise.
-            if ctx.scope.get_struct(ng).is_null().not() { return ng }
+            if ctx.scope.get_struct(ng).is_some() { return ng }
             // FCall form `mut x := some_func(...)` lands here with
             // ng == "some_func". If the name resolves to a function in
             // scope, return its declared return_type instead.
-            ref fb : TypeBinding = ctx.scope.get_binding(ng)
-            if fb.is_null().not() {
+            fb_o := ctx.scope.get_binding(ng)
+            if fb_o.is_some() {
+                ref fb : TypeBinding = fb_o.unwrap()
                 fb_fd_o := ctx.scope.lookup_func(fb.name)
                 if fb_fd_o.is_some() {
                     switch fb_fd_o.unwrap().node_type {
@@ -1430,7 +1435,7 @@ priv callee_owning_type := func(ctx: Context, fcall: Expr, body: Expr) returns S
         ref recv : Expr = callee.children[0]
         switch recv.node_type {
         case NodeType.Ident(rn):
-            if ctx.scope.get_struct(rn.ident_name()).is_null().not() { return Str.clone(rn.ident_name()) }
+            if ctx.scope.get_struct(rn.ident_name()).is_some() { return Str.clone(rn.ident_name()) }
         case:
         }
         return resolve_value_type(ctx, recv, body)
@@ -1447,8 +1452,9 @@ priv registry_exact_key := func(ctx: Context, key: Str) returns Str {
 priv register_method_throws_from_scope := func(mut ctx: Context, owner: Str, method: Str) returns Str {
     key := owner.concat3(".", method)
     if ctx.throws_global.has(key) { return key }
-    ref sdef : Expr = ctx.scope.get_struct(owner)
-    if sdef.is_null() { return "" }
+    sdef_o := ctx.scope.get_struct(owner)
+    if sdef_o.is_none() { return "" }
+    ref sdef : Expr = sdef_o.unwrap()
     mdefo := find_namespace_func(sdef, method, ctx.scope)
     if mdefo.is_none() { return "" }
     ref mdef : Expr = mdefo.unwrap()
@@ -2576,8 +2582,9 @@ splice_stmts_before := func(mut body: Expr, idx: USize, mut pre: Vec(Expr)) {
 // into the type that binding `x` will carry once the case-body
 // payload Decl is emitted.
 priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, variant_name: Str) returns Str {
-    ref edef : Expr = scope.get_struct(enum_name)
-    if edef.is_null() { return "" }
+    edef_o := scope.get_struct(enum_name)
+    if edef_o.is_none() { return "" }
+    ref edef : Expr = edef_o.unwrap()
     switch edef.node_type {
     case NodeType.EnumDef(edd):
         for vd : VariantDef in edd.variants {
@@ -2717,12 +2724,13 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                     binding_name = Str.clone(bn.ident_name())
                                 case:
                                 }
-                                ref enum_def : Expr = scope.get_struct(type_name)
+                                enum_def_o := scope.get_struct(type_name)
                                 // Nested if rather than `.and(...)`: til's
                                 // `.and` is strict, so a single combined check
-                                // would still deref `enum_def.node_type` when
-                                // `enum_def` is NULL (e.g. cross-file priv).
-                                if enum_def.is_null().not() {
+                                // would still unwrap a None def (e.g.
+                                // cross-file priv).
+                                if enum_def_o.is_some() {
+                                ref enum_def : Expr = enum_def_o.unwrap()
                                 if enum_def.node_type.is(NodeType.EnumDef) {
                                     vt_idx := enum_variant_index(enum_def, variant_name)
                                     mut payload_type := ""
@@ -2752,8 +2760,11 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         mut source_mut := false
                                         switch sw_ref.node_type {
                                         case NodeType.Ident(sw_idn):
-                                            ref sw_b : TypeBinding = scope.get_binding(sw_idn.ident_name())
-                                            if sw_b.is_null().not() { source_mut = sw_b.is_mut }
+                                            sw_b_o := scope.get_binding(sw_idn.ident_name())
+                                            if sw_b_o.is_some() {
+                                                ref sw_b : TypeBinding = sw_b_o.unwrap()
+                                                source_mut = sw_b.is_mut
+                                            }
                                         case:
                                         }
                                         payload_const := enum_variant_payload_const(enum_def, vt_idx)
@@ -2764,8 +2775,11 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         if bind_is_mut {
                                             switch sw_ref.node_type {
                                             case NodeType.Ident(sw_idn2):
-                                                ref mut sw_b2 : TypeBinding = scope.get_binding(sw_idn2.ident_name())
-                                                if sw_b2.is_null().not() { sw_b2.written = true }
+                                                sw_b2_o := scope.get_binding(sw_idn2.ident_name())
+                                                if sw_b2_o.is_some() {
+                                                    ref mut sw_b2 : TypeBinding = sw_b2_o.unwrap()
+                                                    sw_b2.written = true
+                                                }
                                             case:
                                             }
                                         }
@@ -2825,11 +2839,12 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                 case NodeType.FieldAccess(vn3): variant_name3 = Str.clone(vn3.field_access_name())
                                 case:
                                 }
-                                ref enum_def3 : Expr = scope.get_struct(type_name3)
+                                enum_def3_o := scope.get_struct(type_name3)
                                 // Nested if rather than `.and(...)`: see the
                                 // matching note in the eager-pattern branch
                                 // above. til's `.and` is strict.
-                                if enum_def3.is_null().not() {
+                                if enum_def3_o.is_some() {
+                                ref enum_def3 : Expr = enum_def3_o.unwrap()
                                 if enum_def3.node_type.is(NodeType.EnumDef) {
                                     vt_idx3 := enum_variant_index(enum_def3, variant_name3)
                                     mut payload_type3 := ""
@@ -2891,10 +2906,11 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         variant_name = Str.clone(vn.field_access_name())
                     case:
                     }
-                    ref enum_def : Expr = scope.get_struct(type_name)
+                    enum_def_o := scope.get_struct(type_name)
                     // Nested if rather than `.and(...)`: see matching notes
                     // above. til's `.and` is strict.
-                    if enum_def.is_null().not() {
+                    if enum_def_o.is_some() {
+                    ref enum_def : Expr = enum_def_o.unwrap()
                     if enum_def.node_type.is(NodeType.EnumDef) {
                         vt_idx2 := enum_variant_index(enum_def, variant_name)
                         if vt_idx2 >= 0 {
@@ -2952,8 +2968,9 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                     }
                     mut is_struct := false
                     if all_named {
-                        ref sp_def : Expr = scope.get_struct(sp_type_name)
-                        if sp_def.is_null().not() {
+                        sp_def_o := scope.get_struct(sp_type_name)
+                        if sp_def_o.is_some() {
+                            ref sp_def : Expr = sp_def_o.unwrap()
                             if sp_def.node_type.is(NodeType.StructDef) {
                                 is_struct = true
                             }
@@ -3092,8 +3109,9 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
         // value whose `.tag` the C switch can read; a constructor call etc.
         // emits as a pointer, so leave those to the desugar.
         if is_simple_lvalue_expr(sw_expr).not() { return false }
-        ref edef0 : Expr = scope.get_struct(sw_sname)
-        if edef0.is_null() { return false }
+        edef0_o := scope.get_struct(sw_sname)
+        if edef0_o.is_none() { return false }
+        ref edef0 : Expr = edef0_o.unwrap()
         if edef0.node_type.is(NodeType.EnumDef).not() { return false }
         is_enum = true
     } else if type_is_primitive(sw_type, Primitive.Bool) {
@@ -3156,7 +3174,9 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
             case: return false
             }
             if base_ok.not() { return false }
-            ref edef1 : Expr = scope.get_struct(sw_sname)
+            // base_ok above proved the pattern names this very enum, so
+            // its def is registered; enum_variant_index derefs it anyway.
+            ref edef1 : Expr = scope.get_struct(sw_sname).unwrap()
             vidx := enum_variant_index(edef1, vname)
             if vidx < 0 { return false }
             if needs_payload.and(enum_variant_type(edef1, vidx).len().eq(0)) { return false }
@@ -3225,8 +3245,9 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     case NodeType.Ident(bn): binding_name = Str.clone(bn.ident_name())
     case: return
     }
-    ref enum_def : Expr = scope.get_struct(sw_sname)
-    if enum_def.is_null() { return }
+    enum_def_o := scope.get_struct(sw_sname)
+    if enum_def_o.is_none() { return }
+    ref enum_def : Expr = enum_def_o.unwrap()
     vt_idx := enum_variant_index(enum_def, variant_name)
     if vt_idx < 0 { return }
     payload_type := enum_variant_type(enum_def, vt_idx)
@@ -3234,8 +3255,11 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     mut source_mut := false
     switch sw_expr.node_type {
     case NodeType.Ident(sw_idn):
-        ref sw_b : TypeBinding = scope.get_binding(sw_idn.ident_name())
-        if sw_b.is_null().not() { source_mut = sw_b.is_mut }
+        sw_b_o := scope.get_binding(sw_idn.ident_name())
+        if sw_b_o.is_some() {
+            ref sw_b : TypeBinding = sw_b_o.unwrap()
+            source_mut = sw_b.is_mut
+        }
     case:
     }
     payload_const := enum_variant_payload_const(enum_def, vt_idx)
@@ -3248,8 +3272,9 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     // marked -- an immutable root can't be written and keeps its own checks.
     root_name := lvalue_root_name(sw_expr)
     if root_name.len() > 0 {
-        ref mut rb : TypeBinding = scope.get_binding(root_name)
-        if rb.is_null().not() {
+        rb_o := scope.get_binding(root_name)
+        if rb_o.is_some() {
+            ref mut rb : TypeBinding = rb_o.unwrap()
             if rb.is_mut { rb.written = true }
         }
     }
@@ -3385,7 +3410,7 @@ priv find_array_vec_fcall := func(e: Expr) returns Option(ref Expr) {
 }
 
 priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
-    if scope.get_struct("Set").is_null().not() { return "Set" }
+    if scope.get_struct("Set").is_some() { return "Set" }
     return format("Set__", elem_type)
 }
 
@@ -3429,8 +3454,9 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
     case:
         return
     }
-    ref sdef : Expr = scope.get_struct(type_name)
-    if sdef.is_null() { return }
+    sdef_o := scope.get_struct(type_name)
+    if sdef_o.is_none() { return }
+    ref sdef : Expr = sdef_o.unwrap()
     nfo := find_namespace_func(sdef, method, scope)
     if nfo.is_none() { return }
     ref ns_func : Expr = nfo.unwrap()
@@ -3626,7 +3652,9 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     // the err out-args; fill anything past that from the callee's defaults,
     // with the variadic call as the caller. No-op until set carries such a
     // default. Same generic approach as the for-in get lowering.
-    set_defo := find_namespace_func(scope.get_struct(array_type), "set", scope)
+    array_def_o := scope.get_struct(array_type)
+    mut set_defo := Option(ref Expr).None
+    if array_def_o.is_some() { set_defo = find_namespace_func(array_def_o.unwrap(), "set", scope) }
     if set_defo.is_some() {
         ref set_def : Expr = set_defo.unwrap()
         switch set_def.node_type {
@@ -4330,8 +4358,9 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScop
     case NodeType.Ident(idd): tn = Str.clone(idd.ident_name())
     case: return false
     }
-    ref sdef : Expr = scope.get_struct(tn)
-    if sdef.is_null() { return false }
+    sdef_o := scope.get_struct(tn)
+    if sdef_o.is_none() { return false }
+    ref sdef : Expr = sdef_o.unwrap()
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
     ref fd : Declaration = def_ns_get(sdef, method)
     if fd.is_null() { return false }
@@ -4416,7 +4445,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         case:
         }
     }
-    ref hoist_sdef : Expr = scope.get_struct(expr_sname)
+    hoist_sdef_o := scope.get_struct(expr_sname)
 
     mut fi : USize = 0
     for i in 1..expr.children.len() {
@@ -4429,8 +4458,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
 
         ref arg : Expr = expr.children[i]
         mut hoist_fi := fi
-        if is_ctor_call.and(hoist_sdef.is_null().not()) {
-        if hoist_sdef.node_type.is(NodeType.StructDef) {
+        if is_ctor_call.and(hoist_sdef_o.is_some()) {
+        if hoist_sdef_o.unwrap().node_type.is(NodeType.StructDef) {
             fi++
         }
         }
@@ -4443,8 +4472,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         if needs_hoist.not() { continue }
 
         mut slot_is_own := false
-        if is_ctor_call.and(hoist_sdef.is_null().not()) {
-        switch hoist_sdef.node_type {
+        if is_ctor_call.and(hoist_sdef_o.is_some()) {
+        switch hoist_sdef_o.unwrap().node_type {
         case NodeType.StructDef(h_sdd):
             mut fld_own := OwnType.Shallow
             mut field_type := Type.None
@@ -4689,8 +4718,9 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
-        ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
-        if cb.is_null().not() {
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
             cb_fd_o := scope.lookup_func(cb.name)
             if cb_fd_o.is_some() {
                 switch cb_fd_o.unwrap().node_type {
@@ -4705,8 +4735,9 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
             ref type_node : Expr = callee.children[0]
             switch type_node.node_type {
             case NodeType.Ident(type_name):
-                ref sdef : Expr = scope.get_struct(type_name.ident_name())
-                if sdef.is_null().not() {
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
                     ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
                     if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
@@ -4736,8 +4767,9 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
-        ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
-        if cb.is_null().not() {
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
             cb_fd_o := scope.lookup_func(cb.name)
             if cb_fd_o.is_some() {
                 switch cb_fd_o.unwrap().node_type {
@@ -4752,8 +4784,9 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
             ref type_node : Expr = callee.children[0]
             switch type_node.node_type {
             case NodeType.Ident(type_name):
-                ref sdef : Expr = scope.get_struct(type_name.ident_name())
-                if sdef.is_null().not() {
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
                     ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
                     if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
@@ -4785,8 +4818,9 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
-        ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
-        if cb.is_null().not() {
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
             cb_fd_o := scope.lookup_func(cb.name)
             if cb_fd_o.is_some() {
                 switch cb_fd_o.unwrap().node_type {
@@ -4803,8 +4837,9 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
             ref type_node : Expr = callee.children[0]
             switch type_node.node_type {
             case NodeType.Ident(type_name):
-                ref sdef : Expr = scope.get_struct(type_name.ident_name())
-                if sdef.is_null().not() {
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
                     ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
                     if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
@@ -4842,8 +4877,9 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
-        ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
-        if cb.is_null().not() {
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
             cb_fd_o := scope.lookup_func(cb.name)
             if cb_fd_o.is_some() {
                 switch cb_fd_o.unwrap().node_type {
@@ -4858,8 +4894,9 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
             ref type_node : Expr = callee.children[0]
             switch type_node.node_type {
             case NodeType.Ident(type_name):
-                ref sdef : Expr = scope.get_struct(type_name.ident_name())
-                if sdef.is_null().not() {
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
                     ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
                     if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
@@ -4895,8 +4932,9 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
-        ref cb : TypeBinding = scope.get_binding(callee_name.ident_name())
-        if cb.is_null().not() {
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
             cb_fd_o := scope.lookup_func(cb.name)
             if cb_fd_o.is_some() {
                 switch cb_fd_o.unwrap().node_type {
@@ -4915,8 +4953,9 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
             ref type_node : Expr = callee.children[0]
             switch type_node.node_type {
             case NodeType.Ident(type_name):
-                ref sdef : Expr = scope.get_struct(type_name.ident_name())
-                if sdef.is_null().not() {
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    ref sdef : Expr = sdef_o.unwrap()
                     ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
                     if nd.is_null().not().and(nd.default_value.is_null().not()) {
                         switch nd.default_value.node_type {
@@ -5071,14 +5110,14 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     mut ident := Expr.new(ident_node(tname), val.line, val.col)
     ident.set_til_type(val.til_type())
     scope.set(tname, val.til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
-    ref mut tb : TypeBinding = scope.get_binding(tname)
+    ref mut tb : TypeBinding = scope.get_binding(tname).unwrap()
     switch decl.node_type {
     case NodeType.Decl(dd):
         dd.name = tname.clone()
         dd.is_mut = false
         if val_is_ref {
             dd.own_type = OwnType.Ref
-            if tb.is_null().not() { tb.own_type = OwnType.Ref }
+            tb.own_type = OwnType.Ref
         } else if is_literal_str {
             // leave as Shallow -- builder emits a stack value
         } else if is_own.or(is_compound) {

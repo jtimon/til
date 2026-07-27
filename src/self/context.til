@@ -112,33 +112,34 @@ namespace:
     // one call frame per lookup, one binary search per level -- the
     // recursive has()+[] version paid a call and up to two searches per
     // level (417K lookups per self-host translate).
-    get_binding := func(self: TypeScope, name: Str) returns ref TypeBinding {
+    get_binding := func(self: TypeScope, name: Str) returns Option(ref TypeBinding) {
         ref b : TypeBinding = self.bindings.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
             case Option(ref TypeScope).Some(p):
-                ref pb : TypeBinding = p.get_binding(name)
-                return pb
+                return p.get_binding(name)
             case Option(ref TypeScope).None:
-                return NULL
+                return Option(ref TypeBinding).None
             }
         }
-        return b
+        return Option(ref TypeBinding).Some(b)
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
-        ref b : TypeBinding = self.get_binding(name)
-        if b.is_null().not() {
-            return ScopeFind.Found(b.clone())
+        bo := self.get_binding(name)
+        if bo.is_some() {
+            return ScopeFind.Found(bo.unwrap().clone())
         }
         return ScopeFind.NotFound
     }
     get_type := func(self: TypeScope, name: Str) returns Type {
-        ref b : TypeBinding = self.get_binding(name)
-        if b.is_null().not() { return b.type.clone() }
+        bo := self.get_binding(name)
+        if bo.is_some() { return bo.unwrap().type.clone() }
         return Type.Unknown
     }
     get_func_type := func(self: TypeScope, name: Str) returns shallow FuncType {
-        return binding_func_type(self.get_binding(name))
+        bo := self.get_binding(name)
+        if bo.is_none() { return FuncType.Func }
+        return binding_func_type(bo.unwrap())
     }
     // Issue #147: TYPE-NAME resolution. Fall-through walk: a scope that
     // binds `name` as a non-type (no struct_defs entry) does NOT block
@@ -152,15 +153,16 @@ namespace:
     // lookup in the compiler -- 2.6M calls per self-host translate, and
     // the recursive has()+lookup version paid a call frame and up to two
     // binary searches per scope level.
-    get_struct := func(self: TypeScope, name: Str) returns ref Expr {
+    get_struct := func(self: TypeScope, name: Str) returns Option(ref Expr) {
         ref slot : Dynamic = self.struct_defs.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
             case Option(ref TypeScope).Some(p): return p.get_struct(name)
-            case Option(ref TypeScope).None: return NULL
+            case Option(ref TypeScope).None: return Option(ref Expr).None
             }
         }
-        return deref(slot)
+        ref sd : Expr = deref(slot)
+        return Option(ref Expr).Some(sd)
     }
     // Issue #147: EXACT-BINDING struct def. Replaces direct
     // `binding.struct_def` field reads where the caller already holds a
@@ -258,8 +260,8 @@ namespace:
         self.struct_defs.set(name, own cell)
     }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
-        ref b : TypeBinding = self.get_binding(name)
-        if b.is_null().not() { return b.is_mut }
+        bo := self.get_binding(name)
+        if bo.is_some() { return bo.unwrap().is_mut }
         return false
     }
     set := func(mut self: TypeScope, name: Str, type: Type,
@@ -295,7 +297,6 @@ namespace:
 // Proc/ExtProc/Test/Macro, none of which a non-function answers yes to,
 // and FuncPtr-typed callees skip those checks entirely).
 binding_func_type := func(b: TypeBinding) returns shallow FuncType {
-    if b.is_null() { return FuncType.Func }
     return b.func_type
 }
 
@@ -720,8 +721,9 @@ note_cross_file_use := func(ctx: Context, decl_path: Str) {
 note_cross_file_type_use := func(scope: TypeScope, ctx: Context, type_name: Str) {
     if ctx.check_unused_imports.not() { return }
     if type_name.len() == 0 { return }
-    ref b : TypeBinding = scope.get_binding(type_name)
-    if b.is_null() { return }
+    b_o := scope.get_binding(type_name)
+    if b_o.is_none() { return }
+    ref b : TypeBinding = b_o.unwrap()
     note_cross_file_use(ctx, b.path)
 }
 
@@ -1029,8 +1031,9 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     if name == "USize" { return type_from_name_init(scope_target_usize_pname(scope), scope) }
     if name == "UPtr" { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
     if scope.is_null().not() {
-        ref b : TypeBinding = scope.get_binding(name)
-        if b.is_null().not() {
+        b_o := scope.get_binding(name)
+        if b_o.is_some() {
+            ref b : TypeBinding = b_o.unwrap()
             if b.is_type_alias {
                 if b.alias_target.is_empty().not() {
                     return type_from_name_init(b.alias_target, scope)
@@ -1047,8 +1050,9 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
                 return Type.FuncPtr
             }
         }
-        ref sdef : Expr = scope.get_struct(name)
-        if sdef.is_null().not() {
+        sdef_o := scope.get_struct(name)
+        if sdef_o.is_some() {
+            ref sdef : Expr = sdef_o.unwrap()
             if sdef.node_type.is(NodeType.EnumDef) {
                 return Type.Enum(name.clone())
             }
@@ -1060,8 +1064,9 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
 
 init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     mut resolved := name.clone()
-    ref b : TypeBinding = scope.get_binding(name)
-    if b.is_null().not() {
+    b_o := scope.get_binding(name)
+    if b_o.is_some() {
+        ref b : TypeBinding = b_o.unwrap()
         if b.is_type_alias {
             if b.alias_target.is_empty().not() {
                 resolved = b.alias_target.clone()
@@ -1116,8 +1121,9 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
     if t.is_funcptr().or(t.is(Type.Body)) { return true }
-    ref sdef : Expr = scope.get_struct(type_name)
-    if sdef.is_null() { return false }
+    sdef_o := scope.get_struct(type_name)
+    if sdef_o.is_none() { return false }
+    ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
         if sdd.fields.len() == 0 { return false }

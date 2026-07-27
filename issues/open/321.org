@@ -401,6 +401,73 @@ Two notes worth keeping:
   alias-rebroadcast loops in typer.til lost their
   ~NULL.ptr_eq(x)~-is-false trick for an explicit ~is_none~ skip.
 
+**** Step 2, batch 12: get_struct and get_binding (the last two hot lookups)
+
+~TypeScope.get_struct~ (115 sites) and ~TypeScope.get_binding~ (89
+sites) both return ~Option(ref T)~ now, which finishes the scope-lookup
+family. Cascades they dragged with them:
+
+- ~find_struct_def~ (builder, a one-line forwarder over get_struct).
+- get_binding's four in-namespace consumers -- ~find~, ~get_type~,
+  ~get_func_type~, ~is_mut~ -- which all read better as
+  ~if bo.is_some() { ... bo.unwrap() ... }~.
+- ~is_pod_enum_clone_of~ takes ~Option(ref Expr)~: its doc comment
+  already said "caller resolves the enum def their own way", and both
+  callers hand it a lookup result, so the miss belongs in the type.
+- The FCall trio ~infer_and_validate_fcall_args~ /
+  ~validate_fcall_own_args~ / ~resolve_fcall_return_type~ take
+  ~Option(ref TypeBinding)~: each already opened with
+  ~if callee_bind.is_null() { return }~, so "this callee has no
+  binding" was always a state, never a guard.
+
+Five more null guards died as a consequence (each had exactly one
+nullable caller, which now unwraps): ~check_priv_access~,
+~type_binding_is_type_token~, ~binding_func_type~,
+~collect_missing_paths~ and ~infer_func_ptr_field_call~. And the sites
+that write a freshly-registered binding (~scope.set(name, ...)~ then
+~scope.get_binding(name)~ on the next line -- 18 of them across typer /
+desugarer / loader / initer) now say ~.unwrap()~: a miss there is a
+broken invariant, and unwrap fails loudly at the source instead of
+null-dereferencing one line later.
+
+**** FOUND while testing batch 12: auto-shallow can dangle an
+Option(ref T) return
+
+A function that ~returns Option(ref T)~ and borrows from one of its own
+PARAMS hands back a dangling pointer when that param is auto-shallow
+(#223) eligible:
+
+: Cell := struct { n := 0 }
+: pick := func(c: Cell) returns Option(ref Cell) {
+:     return Option(ref Cell).Some(c)
+: }
+
+emits ~Option__ref_Cell pick(Cell c)~ -- the param is a by-VALUE copy --
+and then ~Option__ref_Cell_Some(&c)~ takes the address of that dead
+stack copy. Writes through the returned borrow are lost and reads are a
+use-after-return. The equivalent ~returns ref Cell~ function is correct:
+it emits ~Cell *pick(Cell *c)~.
+
+Root cause: the param-demotion gate in infer_func_def_expr
+(src/self/typer.til, three sites) is spelled
+~fdef.return_own_type.is(OwnType.Ref).not()~, and its own comment
+states the rule -- "A ref-returning function may hand a param back by
+reference ... so its params must stay borrowed pointers". A function
+returning an ENUM WITH A REF PAYLOAD hands a param back by reference in
+exactly the same way, and ~return_own_type~ is Own/Shallow there, so the
+gate misses it. Same question applies to ~returns_ref_val~ (which drives
+the borrow-escape checks over the body).
+
+Latent, not active, in the compiler itself: every Option-returning
+function in src/self takes pointer params (Expr/Context/TypeScope are
+all too big for auto-shallow), which is why the suite is green. It bites
+user code the moment a small POD type is the borrow source.
+
+Fix sketch: a ~fdef_return_carries_borrow(fdef, scope)~ predicate =
+~return_own_type.is(OwnType.Ref)~ OR "return type resolves to an enum
+def with any ref payload" (enum_variant_payload_ref already exists), used
+at the three demotion gates and at the returns_ref_val stamp.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
@@ -409,11 +476,15 @@ Two notes worth keeping:
    whose type is not Dynamic (the quarantine exemption above), and
    convert the test fixtures in the same commit.
 3. Steps 2-4 of this issue (ref locals/returns, is_null, the keyword).
-   Next up in step 2: ~TypeScope.get_binding~ (89 sites) and
-   ~TypeScope.get_struct~ (100 sites) -- the last two hot lookups, and
-   the widest. ~get_binding~ drags its four in-namespace consumers
-   (~find~, ~get_type~, ~get_func_type~, ~is_mut~) and ~get_struct~
-   drags ~find_struct_def~ (builder).
+   The scope-lookup family is done (batches 11-12). What is left in
+   step 2: the container accessors doc/ownership.org calls out
+   (~Vec.get~, ~Map.val_ptr~ and friends), the interpreter's own
+   ~scope_get~ family, the ~ref mut acc : T = NULL~ late-init locals
+   from #147's list, and the nullable ref PARAMS the batches kept
+   flagging (~find_namespace_func~'s ~sdef~ is gone now, but
+   ~clone_call_type_name~-style callers still exist).
+4. The auto-shallow dangling-borrow hole above, which must land before
+   ~Option(ref T)~ can be recommended for user code.
 
 *** Decisions (2026-07-21 design discussion)
 

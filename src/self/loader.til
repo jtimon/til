@@ -353,10 +353,12 @@ repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
 }
 
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str) {
-    ref mut alias_binding : TypeBinding = scope.get_binding(alias_name)
-    if alias_binding.is_null() { return }
-    ref target_binding : TypeBinding = scope.get_binding(target_name)
-    if target_binding.is_null() { return }
+    alias_binding_o := scope.get_binding(alias_name)
+    if alias_binding_o.is_none() { return }
+    ref alias_binding : TypeBinding = alias_binding_o.unwrap()
+    target_binding_o := scope.get_binding(target_name)
+    if target_binding_o.is_none() { return }
+    ref target_binding : TypeBinding = target_binding_o.unwrap()
     alias_binding.type = target_binding.type.clone()
     target_sd_o := scope.struct_def_of(target_name)
     if target_sd_o.is_some() { scope.set_struct_def(alias_name, target_sd_o.unwrap()) }
@@ -3348,8 +3350,7 @@ priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram,
     if seen.has(name) { return }
     seen.add(own name.clone())
     // Reuse a hand-written `func() returns T` alias if one already exists.
-    ref existing : TypeBinding = lp.ctx.scope.get_binding(name)
-    if existing.is_null().not() { return }
+    if lp.ctx.scope.get_binding(name).is_some() { return }
 
     mut fd := FunctionDef()
     fd.func_type = FuncType.Func
@@ -3521,7 +3522,7 @@ priv lazy_register_force_once := func(mut lp: LoadedProgram,
     name := format("_force_once_", ret_type)
     if seen_fo.has(name) { return }
     seen_fo.add(own name.clone())
-    if lp.ctx.scope.get_binding(name).is_null().not() { return }
+    if lp.ctx.scope.get_binding(name).is_some() { return }
     pending.push(own lazy_build_force_once_def(ret_type, line, col))
 }
 
@@ -3552,7 +3553,7 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, mut
             rt := til_type_from_explicit_type(ret_type)
             lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow)
             lp.ctx.scope.set_func_def(name, pushed.children[0])
-            ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name)
+            ref mut fb : TypeBinding = lp.ctx.scope.get_binding(name).unwrap()
             fb.is_func_decl = true
             fb.is_priv = true
         } else {
@@ -3716,12 +3717,12 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
     case:
     }
     if name.len() == 0 { return "" }
-    if scope.get_struct(name).is_null().not() { return name.clone() }
+    if scope.get_struct(name).is_some() { return name.clone() }
     cfd_o := scope.lookup_func(name)
     if cfd_o.is_none() { return "" }
     switch cfd_o.unwrap().node_type {
     case NodeType.FuncDef(fd):
-        if scope.get_struct(fd.return_type).is_null().not() { return fd.return_type.clone() }
+        if scope.get_struct(fd.return_type).is_some() { return fd.return_type.clone() }
     case:
     }
     return ""
@@ -3735,8 +3736,7 @@ priv lazy_call_struct_type := func(call: Expr, scope: TypeScope) returns Str {
 priv lazy_thunk_classify_capture := func(name: Str, scope: TypeScope,
         bound: Set(Str), mut caps: Vec(Declaration)) {
     if bound.has(name) { return }                  // bound inside the thunk body
-    ref b : TypeBinding = scope.get_binding(name)
-    if b.is_null().not() { return }                // global / top-level func / builtin
+    if scope.get_binding(name).is_some() { return } // global / top-level func / builtin
     for existing : Declaration in caps {
         if existing.name == name { return }
     }
@@ -3948,8 +3948,9 @@ priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: Ty
     if struct_of.has(recv_name).not() { return "" }
     ref sname : Str = struct_of.get(recv_name)!
     if sname.len() == 0 { return "" }
-    ref sdef : Expr = scope.get_struct(sname)
-    if sdef.is_null() { return "" }
+    sdef_o := scope.get_struct(sname)
+    if sdef_o.is_none() { return "" }
+    ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
         ref fld : Declaration = member_get(sdd.fields_index, sdd.fields, field_name)
@@ -3995,7 +3996,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
             if p.explicit_type.len() == 0 { continue }
             if lazy_sigs.has(p.explicit_type) {
                 aliases.set(p.name, own p.explicit_type.clone())
-            } else if scope.get_struct(p.explicit_type).is_null().not() {
+            } else if scope.get_struct(p.explicit_type).is_some() {
                 struct_of.set(p.name, own p.explicit_type.clone())
             }
         }
@@ -4099,7 +4100,7 @@ priv lazy_wrap_thunk_calls := func(mut e: Expr, scope: TypeScope, lowered: Set(S
             if dd.name.len() > 0 {
                 if dd.explicit_type.len().gt(0).and(lazy_sigs.has(dd.explicit_type)) {
                     aliases.set(dd.name, own dd.explicit_type.clone())
-                } else if dd.explicit_type.len().gt(0).and(scope.get_struct(dd.explicit_type).is_null().not()) {
+                } else if dd.explicit_type.len().gt(0).and(scope.get_struct(dd.explicit_type).is_some()) {
                     struct_of.set(dd.name, own dd.explicit_type.clone())
                 } else if cc.children.len() > 0 {
                     switch cc.children[0].node_type {

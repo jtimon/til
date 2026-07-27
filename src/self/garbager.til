@@ -1160,8 +1160,9 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     case:
     }
     if vname.len() == 0 { return "" }
-    ref def : Expr = scope.get_struct(ename)
-    if def.is_null() { return "" }
+    def_o := scope.get_struct(ename)
+    if def_o.is_none() { return "" }
+    ref def : Expr = def_o.unwrap()
     if def.node_type.is(NodeType.EnumDef).not() { return "" }
     idx := enum_variant_index(def, vname)
     if idx < 0 { return "" }

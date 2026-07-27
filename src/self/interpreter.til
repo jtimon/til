@@ -2299,8 +2299,9 @@ priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, 
     if is_variadic { return source_type_w }
     switch param.til_type {
     case Type.Custom(name):
-        ref binding : TypeBinding = ctx.scope.get_binding(name)
-        if binding.is_null() { panic("interpreter parameter type is not registered: ", name) }
+        binding_o := ctx.scope.get_binding(name)
+        if binding_o.is_none() { panic("interpreter parameter type is not registered: ", name) }
+        ref binding : TypeBinding = binding_o.unwrap()
         return interp_intern_type(binding.type, ctx)
     case:
         return interp_intern_type(param.til_type, ctx)
@@ -4318,8 +4319,9 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
         EvalHeap.heap_free(own raw)
     }
     array_name := format("Array__", elem_type)
-    ref array_binding : TypeBinding = ctx.scope.get_binding(array_name)
-    if array_binding.is_null() { panic("missing Array type '", array_name, "'") }
+    array_binding_o := ctx.scope.get_binding(array_name)
+    if array_binding_o.is_none() { panic("missing Array type '", array_name, "'") }
+    ref array_binding : TypeBinding = array_binding_o.unwrap()
     ref array_canon_name : Str = array_binding.name
     sz := ctx_total_size(array_canon_name, ctx)
     inst_data : Dynamic = EvalHeap.heap_alloc(sz)
@@ -5146,8 +5148,9 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             // both handle USize/UPtr).
                             va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].explicit_type).clone()
                             arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
-                            ref va_array_binding : TypeBinding = lp.ctx.scope.get_binding(format("Array__", va_elem))
-                            if va_array_binding.is_null() { panic("missing variadic Array type for ", va_elem) }
+                            va_array_binding_o := lp.ctx.scope.get_binding(format("Array__", va_elem))
+                            if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
+                            ref va_array_binding : TypeBinding = va_array_binding_o.unwrap()
                             scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
                             argi = argi + va_count.to_i32()
                         } else {
