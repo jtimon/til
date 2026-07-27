@@ -385,7 +385,7 @@ priv guess_expr_type_name := func(e: Expr) returns Str {
 // syntactically. Returns "" if not found. Best-effort pre-typer
 // lookup so `throw my_var` can find the type of my_var from its
 // declaration. Read-only; safe to call before destructive lowering.
-priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
+priv guess_local_type := func(scope: TypeScope, e: Expr, var_name: Str) returns Str {
     if e.node_type.is(NodeType.Decl) {
         switch e.node_type {
         case NodeType.Decl(dn):
@@ -398,12 +398,18 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                         if rhs.children.len() > 0 {
                             switch rhs.children[0].node_type {
                             case NodeType.Ident(rhsn):
+                                // Instance names resolve the element alias,
+                                // like every other name-forming site: this
+                                // guess seeds a local's type for method
+                                // lookup, and `vec(MyInt, ...)` IS a
+                                // Vec__I64. Width aliases keep their
+                                // spelling (resolve_type_alias_for_name).
                                 if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
-                                    et := array_vec_elem_type_name(rhs)
+                                    et := resolve_type_alias_for_name(scope, array_vec_elem_type_name(rhs)).clone()
                                     if et.len() > 0 { return format("Array__", et) }
                                 }
                                 if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
-                                    et := array_vec_elem_type_name(rhs)
+                                    et := resolve_type_alias_for_name(scope, array_vec_elem_type_name(rhs)).clone()
                                     if et.len() > 0 { return format("Vec__", et) }
                                 }
                                 return rhsn.name.clone()
@@ -421,8 +427,8 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
                     case NodeType.Literal(Literal.Num): return "I64"
                     case NodeType.Literal(Literal.MapLit):
                         if rhs.children.len() >= 2 {
-                            key_type := guess_expr_type_name(rhs.children[0])
-                            val_type := guess_expr_type_name(rhs.children[1])
+                            key_type := resolve_type_alias_for_name(scope, guess_expr_type_name(rhs.children[0])).clone()
+                            val_type := resolve_type_alias_for_name(scope, guess_expr_type_name(rhs.children[1])).clone()
                             if key_type.len().gt(0).and(val_type.len().gt(0)) {
                                 return format("Map__", key_type, "_", val_type)
                             }
@@ -435,13 +441,13 @@ priv guess_local_type := func(e: Expr, var_name: Str) returns Str {
         }
     }
     for c : Expr in e.children {
-        guess := guess_local_type(c, var_name)
+        guess := guess_local_type(scope, c, var_name)
         if guess.len() > 0 { return guess }
     }
     return ""
 }
 
-priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_name: Str) returns Str {
+priv guess_prior_local_type_in_vec := func(scope: TypeScope, stmts: Vec(Expr), upto: USize, var_name: Str) returns Str {
     if stmts.len() == 0 { return "" }
     mut limit := upto
     if limit >= stmts.len() {
@@ -450,7 +456,7 @@ priv guess_prior_local_type_in_vec := func(stmts: Vec(Expr), upto: USize, var_na
     mut i : USize = 0
     while i <= limit {
         ref stmt : Expr = stmts[i]
-        guess := guess_local_type(stmt, var_name)
+        guess := guess_local_type(scope, stmt, var_name)
         if guess.len() > 0 { return guess }
         i++
     }
@@ -477,10 +483,10 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                         switch rhs.children[0].node_type {
                         case NodeType.Ident(rhsn):
                             if rhsn.name.eq("array").and(rhs.children.len().gte(2)) {
-                                et := array_vec_elem_type_name(rhs)
+                                et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
                                 if et.len() > 0 { tn = format("Array__", et) }
                             } else if rhsn.name.eq("vec").and(rhs.children.len().gte(2)) {
-                                et := array_vec_elem_type_name(rhs)
+                                et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs)).clone()
                                 if et.len() > 0 { tn = format("Vec__", et) }
                             } else {
                                 fdef_expr_o := ctx.scope.lookup_func(rhsn.name)
@@ -516,8 +522,8 @@ priv seed_prior_local_types := func(mut ctx: Context, stmts: Vec(Expr), upto: US
                 case NodeType.Literal(Literal.Num): tn = "I64"
                 case NodeType.Literal(Literal.MapLit):
                     if rhs.children.len() >= 2 {
-                        key_type := guess_expr_type_name(rhs.children[0])
-                        val_type := guess_expr_type_name(rhs.children[1])
+                        key_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[0])).clone()
+                        val_type := resolve_type_alias_for_name(ctx.scope, guess_expr_type_name(rhs.children[1])).clone()
                         if key_type.len().gt(0).and(val_type.len().gt(0)) {
                             tn = format("Map__", key_type, "_", val_type)
                         }
@@ -549,11 +555,11 @@ priv collect_throw_ident_names := proc(e: Expr, mut names: Set(Str)) {
     }
 }
 
-priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
+priv annotate_throw_ident_expr_types := proc(scope: TypeScope, mut e: Expr, root_body: Expr) {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         switch e.children[0].node_type {
         case NodeType.Ident(idn):
-            tn := guess_local_type(root_body, idn.name)
+            tn := guess_local_type(scope, root_body, idn.name)
             if tn.len() > 0 {
                 e.children[0].set_til_type(Type.Custom(tn.clone()))
             }
@@ -561,17 +567,17 @@ priv annotate_throw_ident_expr_types := proc(mut e: Expr, root_body: Expr) {
         }
     }
     for c : Expr in e.children {
-        annotate_throw_ident_expr_types(c, root_body)
+        annotate_throw_ident_expr_types(scope, c, root_body)
     }
 }
 
-priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, before_line: U32) returns Bool {
+priv has_prior_throw_type := proc(scope: TypeScope, e: Expr, root_body: Expr, type_name: Str, before_line: U32) returns Bool {
     if e.line.lt(before_line).and(e.node_type.is(NodeType.Throw)).and(e.children.len().eq(1)) {
         mut thrown_name := type_to_name(e.til_type())
         if thrown_name.len() == 0 {
             switch e.children[0].node_type {
             case NodeType.Ident(idn):
-                thrown_name = guess_local_type(root_body, idn.name)
+                thrown_name = guess_local_type(scope, root_body, idn.name)
             case NodeType.FCall:
                 if e.children[0].children.len() > 0 {
                     switch e.children[0].children[0].node_type {
@@ -589,7 +595,7 @@ priv has_prior_throw_type := proc(e: Expr, root_body: Expr, type_name: Str, befo
         if thrown_name == type_name { return true }
     }
     for c : Expr in e.children {
-        if has_prior_throw_type(c, root_body, type_name, before_line) { return true }
+        if has_prior_throw_type(scope, c, root_body, type_name, before_line) { return true }
     }
     return false
 }
@@ -645,7 +651,7 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
             }
         case: return ""
         }
-    case NodeType.Ident(idn): return guess_local_type(body, idn.name)
+    case NodeType.Ident(idn): return guess_local_type(ctx.scope, body, idn.name)
     case: return ""
     }
 }
@@ -1412,7 +1418,7 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             ref pt : Str = ctx.lowering_param_types[nm]
             return normalize_ctor_type(pt)
         }
-        g := guess_local_type(body, nm)
+        g := guess_local_type(ctx.scope, body, nm)
         if g.len() > 0 {
             ng := normalize_ctor_type(g)
             // guess_local_type can return the base receiver of an FCall
@@ -2359,14 +2365,14 @@ priv process_throw_catch_in_body := proc(
                         }
                     }
                     if tn.len() == 0 {
-                        tn = guess_local_type(root_body, idn.name)
+                        tn = guess_local_type(ctx.scope, root_body, idn.name)
                     }
                 case:
                 }
                 if tn.len() == 0 {
                     switch stmt.children[0].node_type {
                     case NodeType.Ident(idn):
-                        tn = guess_prior_local_type_in_vec(old_snapshot, j, idn.name)
+                        tn = guess_prior_local_type_in_vec(ctx.scope, old_snapshot, j, idn.name)
                     case:
                     }
                 }
@@ -2508,7 +2514,7 @@ process_throw_catch_in_func_body := proc(
     // body walk can read stmt.til_type() directly during rewriting.
     if has_body_throw_catch {
         annotate_throw_types_in(ctx, body, body)
-        annotate_throw_ident_expr_types(body, body)
+        annotate_throw_ident_expr_types(ctx.scope, body, body)
     }
 
     mut pending := Vec(Str).new()

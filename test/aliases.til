@@ -390,3 +390,26 @@ test_alias_and_target_same_instance := test() {
     w := vec(I64, 2)
     assert_eq(USize, v.len(), w.len())
 }
+
+# The desugarer's local-type GUESS must name the instance the same way:
+# it is what the throw/catch lowering consults to find a receiver's
+# throws, and a subscript is a throwing get(...)!. Guessing Vec__ElemAlias
+# for a local the typer calls Vec__I64 lost the throws key, so the bang
+# was never lowered -- "missing argument for parameter '_err_kind'" on
+# code that compiles fine when the element type is spelled I64 directly.
+alias_elem_first := func() returns I64 {
+    v := vec(ElemAlias, 7, 8)
+    ref x : I64 = v[0]
+    return x.clone()
+}
+
+alias_elem_array_first := func() returns I64 {
+    a := array(ElemAlias, 4, 5)
+    ref x : I64 = a[1]
+    return x.clone()
+}
+
+test_alias_elem_local_throwing_call := test() {
+    assert_eq(I64, alias_elem_first(), 7)
+    assert_eq(I64, alias_elem_array_first(), 5)
+}

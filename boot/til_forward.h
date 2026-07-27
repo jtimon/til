@@ -2906,11 +2906,11 @@ void priv___src_self_desugarer_til__seed_guard_receiver_types(Context * ctx, Exp
 void lower_guard_bang_calls(TypeScope * scope, Expr * guard_if, Vec__Expr * dest, Expr * resolve_body, Context * ctx);
 Bool subtree_references_name(Expr * e, Str * name);
 Str * priv___src_self_desugarer_til__guess_expr_type_name(Expr * e);
-Str * priv___src_self_desugarer_til__guess_local_type(Expr * e, Str * var_name);
-Str * priv___src_self_desugarer_til__guess_prior_local_type_in_vec(Vec__Expr * stmts, USize upto, Str * var_name);
+Str * priv___src_self_desugarer_til__guess_local_type(TypeScope * scope, Expr * e, Str * var_name);
+Str * priv___src_self_desugarer_til__guess_prior_local_type_in_vec(TypeScope * scope, Vec__Expr * stmts, USize upto, Str * var_name);
 void priv___src_self_desugarer_til__seed_prior_local_types(Context * ctx, Vec__Expr * stmts, USize upto);
 void priv___src_self_desugarer_til__collect_throw_ident_names(Expr * e, Set__Str * names);
-void priv___src_self_desugarer_til__annotate_throw_ident_expr_types(Expr * e, Expr * root_body);
+void priv___src_self_desugarer_til__annotate_throw_ident_expr_types(TypeScope * scope, Expr * e, Expr * root_body);
 Bool priv___src_self_desugarer_til__subtree_has_throw_type(Context * ctx, Expr * e, Expr * root_body, Str * type_name);
 Bool priv___src_self_desugarer_til__has_prior_throw_type_in_vec(Context * ctx, Vec__Expr * stmts, Expr * root_body, USize upto, Str * type_name);
 Str * priv___src_self_desugarer_til__throw_type_name_for_with_body(Context * ctx, Expr * e, Expr * body);
