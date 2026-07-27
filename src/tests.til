@@ -502,11 +502,20 @@ main := proc(args: ..Str) {
     // compile; and the one cast that remains is on `_b`, the deliberately-
     // unused param spelling issue #86 defines. Each translates to its own
     // -c path so the three (and the `both` compile) never race on one file.
-    add_count(tests, "dead_temps_no_temp_casts", "self", "(void)hoisted__", 0,
+    //
+    // Category "build", NOT "self": self_ms/self_mem are the self-translate
+    // BENCHMARK, and they are plain SUMS over the category (self_mem adds
+    // each test's whole peak RSS). Any extra test filed under "self" lands
+    // in doc/totals.csv and img/totals.svg as a benchmark regression that
+    // did not happen -- these three cost ~3 x 2s and ~3 x 1.1GB of peak RSS,
+    // which is what made self_mem jump 11.8GB -> 15.1GB when they were first
+    // registered here. Measured on identical input, the compiler's own
+    // self-translate was 29.07s/262.8MB before #326 and 29.40s/261.7MB after.
+    add_count(tests, "dead_temps_no_temp_casts", "build", "(void)hoisted__", 0,
         format(til_bin, " translate -c gen/c/dead_temps_casts.c test/dead_temps.til '&&' cat gen/c/dead_temps_casts.c"))
-    add_count(tests, "dead_temps_no_unused_attrs", "self", "__attribute__((unused))", 0,
+    add_count(tests, "dead_temps_no_unused_attrs", "build", "__attribute__((unused))", 0,
         format(til_bin, " translate -c gen/c/dead_temps_attrs.c test/dead_temps.til '&&' cat gen/c/dead_temps_attrs.c"))
-    add_count(tests, "dead_temps_underscore_cast", "self", "(void)_b;", 1,
+    add_count(tests, "dead_temps_underscore_cast", "build", "(void)_b;", 1,
         format(til_bin, " translate -c gen/c/dead_temps_uscore.c test/dead_temps.til '&&' cat gen/c/dead_temps_uscore.c"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
