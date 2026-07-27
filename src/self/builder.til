@@ -2188,6 +2188,13 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                         ctx.builder_func.stack_locals.add(own dd.name.clone())
                         ctx.builder_func.stack_local_types.set(dd.name, own ctype.clone())
                     } else if can_hoist.and(rhs.node_type.is(NodeType.FCall)) {
+                        // #302 stage 1: this `_hp` value-copy path used to
+                        // be knowingly divergent -- the pass recorded
+                        // HeapBox while this emits a stack value, papered
+                        // over by the delete shims. The pass now records
+                        // Stack for it, so the transition assert covers it
+                        // like the other stack shapes.
+                        assert_gc_stack(dd, "hp-value-copy")
                         mut htype := fcall_return_ctype(rhs, ctx)
                         if htype.len() == 0 { htype = ctype.clone() }
                         f.write(htype).write(" ").write(dd.name).write("; { ").write(htype).write(" *_hp = (").write(htype).write(" *)")

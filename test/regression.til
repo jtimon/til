@@ -459,3 +459,68 @@ test_bug302_branch_nested_exit := test() {
     assert(bug302_branch_exit(2) == 7)
     assert(bug302_branch_exit(3) == 8)
 }
+// --- #302 stage 3: the path-shape corpus the plan asks for -----------
+//
+// doc/issue #302's Verification section lists the path cases the index
+// model could not express; with the dataflow deciding both the sink and
+// the exit deletes, these pin the shapes rather than the mechanism.
+// Each was probed under ASAN while migrating those sites: transfer in
+// one switch case with an early exit in another, a transfer inside a
+// loop-nested if with a return from a deeper branch, and two
+// conditional transfers of the SAME local on disjoint branches (the
+// shape a single own_transfer index cannot represent). Procs +
+// print_flush so the constfolder cannot fold them away.
+
+bug302_paths_sink := func(own s: Str) returns I64 { return s.len().to_i64() }
+
+bug302_paths_switch_exit := proc(k: I64) returns I64 {
+    print_flush()
+    lit := "paths-switch"
+    s := Str.clone(lit)
+    switch k {
+    case 1: return bug302_paths_sink(own s)
+    case 2: return 9
+    case: print_flush()
+    }
+    return 10
+}
+
+bug302_paths_loop_branch := proc(k: I64) returns I64 {
+    print_flush()
+    mut i : I64 = 0
+    while i < 2 {
+        lit := "paths-loop"
+        s := Str.clone(lit)
+        if k == 1 {
+            return bug302_paths_sink(own s)
+        } else {
+            if k == 2 { return 11 }
+        }
+        i++
+    }
+    return 12
+}
+
+bug302_paths_two_transfers := proc(k: I64) returns I64 {
+    print_flush()
+    lit := "paths-two"
+    s := Str.clone(lit)
+    if k == 1 {
+        return bug302_paths_sink(own s)
+    } else {
+        if k == 2 { return bug302_paths_sink(own s) }
+    }
+    return 13
+}
+
+test_bug302_path_shapes := test() {
+    assert(bug302_paths_switch_exit(1) == 12)
+    assert(bug302_paths_switch_exit(2) == 9)
+    assert(bug302_paths_switch_exit(3) == 10)
+    assert(bug302_paths_loop_branch(1) == 10)
+    assert(bug302_paths_loop_branch(2) == 11)
+    assert(bug302_paths_loop_branch(3) == 12)
+    assert(bug302_paths_two_transfers(1) == 9)
+    assert(bug302_paths_two_transfers(2) == 9)
+    assert(bug302_paths_two_transfers(3) == 13)
+}

@@ -1102,6 +1102,23 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                     case:
                     }
                 }
+                // #302 stage 1: the `_hp` value-copy path. For a
+                // non-global, non-Own aggregate local bound to an
+                // ordinary FCall, the builder emits a STACK value
+                // (`T name; { T *_hp = call(); name = *_hp; free(_hp); }`)
+                // while this pass recorded HeapBox -- a knowingly
+                // divergent path, compensated by the delete shims. The
+                // predicate is computable here (post-promotion own_type,
+                // the binding type and program-scope are all settled),
+                // so the record can simply tell the truth. (The
+                // builder's extra returns-Dynamic guard is subsumed:
+                // is_aggregate excludes Dynamic bindings.)
+                if is_program_scope.not().and(b.own_type.is(OwnType.Own).not())
+                    .and(b.type.is_funcptr().not()).and(b.type.is(Type.Dynamic).not())
+                    .and(is_aggregate(b.type))
+                    .and(li_rhs.node_type.is(NodeType.FCall)) {
+                    li.is_heap = false
+                }
                 if is_pod_enum_clone_wrap(li_rhs, scope) {
                     // POD-enum clone wrap (`c := Color.clone(Color.Red)`):
                     // builder emits a stack value (Color c = (Color){...};)
