@@ -155,6 +155,46 @@ test_option_ref_unwrap := test() {
     assert_eq(I64, src.n, 8)
 }
 
+// #321: a borrowed STR payload. Every other case here uses a struct
+// payload, and that gap hid a real interpreter bug: call_copies_ref_str
+// classified any ext-callee ref-Str result as an owned COPY, so the
+// interpreter freed the BORROWED Str a case binding yields (the binding
+// is `deref(get_payload(..))`, and deref is an ext_func the caller stamps
+// with the payload type). Compiled mode was always fine; interpreted mode
+// corrupted the heap. Str is the payload that matters because the
+// interpreter manages its buffer, so it must be exercised on its own.
+OptStrHolder := struct {
+    keys := Vec(Str).new()
+}
+
+priv opt_str_pick := func(h: OptStrHolder) returns Option(ref Str) {
+    for i in 0..h.keys.len() {
+        return Option(ref Str).Some(h.keys.unsafe_get(i))
+    }
+    return Option(ref Str).None
+}
+
+test_option_ref_str_payload := test() {
+    mut h := OptStrHolder()
+    h.keys.push(own Str.clone("alpha"))
+    h.keys.push(own Str.clone("beta"))
+
+    // unwrap yields the borrow, and the source keeps owning it.
+    ref got : Str = opt_str_pick(h).unwrap()
+    assert_eq(Str, got, "alpha")
+    assert_eq(Str, h.keys.unsafe_get(0), "alpha")
+
+    // the switch form must borrow too, not copy-and-free
+    switch opt_str_pick(h) {
+    case Option(ref Str).Some(v): assert_eq(Str, v, "alpha")
+    case Option(ref Str).None: expect(false, "expected Some")
+    }
+
+    empty := OptStrHolder()
+    expect(opt_str_pick(empty).is_none(), "empty holder yields None")
+    assert_eq(USize, h.keys.len(), 2)
+}
+
 test_option_niche_layout := test() {
     // #320 niche: Option(ref T) is ONE pointer wide -- None IS the null
     // bit pattern, so there is no tag. The owned instantiation cannot use

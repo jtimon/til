@@ -592,6 +592,14 @@ priv call_result_is_ref := func(e: Expr, ctx: Context) returns Bool {
     return fcall_returns_ref(e, ctx.scope).neq(0)
 }
 
+// #321: an ext function's ref-Str result is a COPY only when the callee
+// actually DECLARES a Str return -- that is the C-buffer case this rule
+// exists for. A callee declaring `returns ref Dynamic` (deref, to_ptr) is
+// laundering a pointer into memory the program already owns, and the
+// stamped Str comes from the CALLER (make_payload_ref_decl pre-types the
+// deref wrapper with the payload type). Treating those as copies made the
+// interpreter free a BORROWED Str payload: `Option(ref Str)` corrupted the
+// heap in interpreted mode while compiling and running fine.
 priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     if call_result_is_ref(e, ctx).not() { return false }
     switch e.til_type() {
@@ -607,7 +615,7 @@ priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bo
         ref raw : Dynamic = slot
         ref fn_def : Expr = callable_raw_func_def(raw)
         switch fn_def.node_type {
-        case NodeType.FuncDef(fd): return fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))
+        case NodeType.FuncDef(fd): return ext_fdef_copies_str(fd)
         case: return false
         }
     case NodeType.FieldAccess(fa):
@@ -618,12 +626,19 @@ priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bo
         if fn_raw_o.is_none() { return false }
         ref fn_def : Expr = callable_raw_func_def(fn_raw_o.unwrap())
         switch fn_def.node_type {
-        case NodeType.FuncDef(fd): return fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc))
+        case NodeType.FuncDef(fd): return ext_fdef_copies_str(fd)
         case: return false
         }
     case:
     }
     return false
+}
+
+// See call_copies_ref_str: an ext callee hands back a C-owned Str buffer
+// only when it declares one. `returns ref Dynamic` is pointer laundering.
+priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
+    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).not() { return false }
+    return fd.return_type == "Str"
 }
 
 priv call_raw_result_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {

@@ -585,6 +585,49 @@ mode only). Restored as an Option return. That is the third time this
 issue that the "which of the two nulls is this?" question decided the
 answer.
 
+**** Step 2 CLOSED (batch 14): member_name_of, and the bug it uncovered
+
+member_name_of -> Option(ref Str) lands as the USE half of the pair
+whose preparation was seed_noreturn_chain. That was the last
+ref-returning NULL in the tree: src/ now has ZERO
+~returns ref T~ functions containing ~return NULL~.
+
+It did not land clean. With the seed fixed the migration COMPILED, but
+test/first_class.til then corrupted the heap in INTERPRETED mode
+(test_struct_def_of, which calls def.field_name_at). Isolated to 20
+lines:
+
+: pick := func(h: Holder) returns Option(ref Str) {
+:     for i in 0..h.keys.len() {
+:         return Option(ref Str).Some(h.keys.unsafe_get(i))
+:     }
+:     return Option(ref Str).None
+: }
+: name_at := func(h: Holder) returns ref Str { return pick(h).unwrap() }
+
+Compiled: prints the key. Interpreted: heap corruption. With a STRUCT
+payload instead of Str, both modes are fine -- so it is Str-specific,
+reproduces with an explicit ~switch~ as well as ~unwrap~, and is a #320
+defect that predates this migration. member_name_of is simply the first
+~Option(ref Str)~ that interpreted code calls.
+
+Root cause: ~call_copies_ref_str~ (interpreter.til) classified ANY
+ext-callee call whose result is a ref Str as an owned COPY -- the rule
+exists for a C-owned buffer crossing the boundary. But it keys on the
+call node's STAMPED type, and a ref-payload case binding is
+~deref(get_payload(..))~ with the deref call pre-typed to the payload
+type by make_payload_ref_decl. ~deref~ is an ext_func, so the borrowed
+Str payload was treated as owned and freed. Fixed by keying on what the
+callee DECLARES: an ext function hands back a C buffer only when it
+declares ~returns Str~; one declaring ~returns ref Dynamic~ (deref,
+to_ptr) is laundering a pointer into memory the program already owns.
+
+Test gap that hid it: every case in test/option.til used a struct
+payload, and Str is the payload that matters because the interpreter
+manages its buffer. test_option_ref_str_payload covers unwrap, the
+switch form and None, and was verified to FAIL against the unfixed
+interpreter ("expected '', found 'alpha'" -- the borrow had been freed).
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the

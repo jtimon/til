@@ -3,6 +3,7 @@ mode lib
 import("bool")
 import("map")
 import("numbers")
+import("option")
 import("str")
 import("vec")
 
@@ -382,10 +383,10 @@ namespace:
         self.ns_decls.push(own nd)
     }
     /// Field name at declaration position i: reverse lookup over the
-    /// index (O(members), tiny and emit-time only). NULL for a position
-    /// shadowed by a later duplicate name.
+    /// index (O(members), tiny and emit-time only). Panics if the index
+    /// has no entry for that position (see member_name_of).
     field_name_at := func(self: StructDef, i: USize) returns ref Str {
-        return member_name_of(self.fields_index, i)
+        return member_name_of(self.fields_index, i).unwrap()
     }
     /// Field Declaration at declaration position i (name == "").
     field_at := func(self: StructDef, i: USize) returns ref Declaration {
@@ -393,7 +394,7 @@ namespace:
     }
     /// Namespace member name at declaration position i.
     member_name_at := func(self: StructDef, i: USize) returns ref Str {
-        return member_name_of(self.ns_index, i)
+        return member_name_of(self.ns_index, i).unwrap()
     }
     /// Namespace member Declaration at declaration position i.
     member_at := func(self: StructDef, i: USize) returns ref Declaration {
@@ -402,21 +403,22 @@ namespace:
 }
 
 /// Reverse index lookup shared by every *_name_at accessor: the name whose
-/// stored position is `pos`, NULL when no entry points at it (a position
-/// shadowed by a later duplicate name).
+/// stored position is `pos`, None for a position no entry points at (one
+/// shadowed by a later duplicate name). The three *_name_at wrappers
+/// unwrap it: their call sites all walk positions the def itself reports
+/// and use the name unchecked, so a miss means the index and the decl Vec
+/// disagree, and unwrap says so loudly instead of handing back a null Str.
 ///
-/// #321: this is the one lookup that CANNOT become Option(ref Str) yet.
-/// Instantiating Option here pulls in Option.unwrap, whose `case: panic`
-/// arm only counts as diverging once panic is known noreturn -- and
-/// core.til imports ast before exit, so at the time this unit is typed
-/// panic carries no noreturn stamp and the instantiated unwrap fails
-/// check_all_paths_return. Making the #303 seed order-independent is a
-/// prerequisite for the NULL keyword removal (step 4).
-member_name_of := func(idx: Map(Str, USize), pos: USize) returns ref Str {
+/// Instantiating Option in this unit needed two prerequisites: the #303
+/// noreturn seed made order-independent (seed_noreturn_chain, loader.til),
+/// since Option.unwrap ends in `case: panic` and core.til imports ast
+/// before exit; and the borrowed-Str fix in call_copies_ref_str, since
+/// this is the first Option(ref Str) interpreted code calls.
+member_name_of := func(idx: Map(Str, USize), pos: USize) returns Option(ref Str) {
     for mi in 0..idx.len() {
-        if idx.values.unsafe_get(mi) == pos { return idx.keys.unsafe_get(mi) }
+        if idx.values.unsafe_get(mi) == pos { return Option(ref Str).Some(idx.keys.unsafe_get(mi)) }
     }
-    return NULL
+    return Option(ref Str).None
 }
 
 /// Issue #307: one record per variant instead of the five position-parallel
@@ -483,7 +485,7 @@ namespace:
     }
     /// Namespace member name at declaration position i.
     member_name_at := func(self: EnumDef, i: USize) returns ref Str {
-        return member_name_of(self.ns_index, i)
+        return member_name_of(self.ns_index, i).unwrap()
     }
     /// Namespace member Declaration at declaration position i.
     member_at := func(self: EnumDef, i: USize) returns ref Declaration {

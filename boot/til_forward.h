@@ -132,6 +132,11 @@ typedef enum {
 } NodeType_tag;
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
+typedef enum {
+    Option__ref_Str_TAG_None,
+    Option__ref_Str_TAG_Some
+} Option__ref_Str_tag;
+typedef struct Option__ref_Str Option__ref_Str;
 typedef struct Map__Str_USize Map__Str_USize;
 typedef struct Vec__VariantDef Vec__VariantDef;
 typedef struct Vec__FieldLayout Vec__FieldLayout;
@@ -248,11 +253,6 @@ typedef enum {
     Option__ref_EnumDef_TAG_Some
 } Option__ref_EnumDef_tag;
 typedef struct Option__ref_EnumDef Option__ref_EnumDef;
-typedef enum {
-    Option__ref_Str_TAG_None,
-    Option__ref_Str_TAG_Some
-} Option__ref_Str_tag;
-typedef struct Option__ref_Str Option__ref_Str;
 typedef struct EvalHeap EvalHeap;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
@@ -626,6 +626,10 @@ typedef struct MatchData {
 } MatchData;
 
 
+struct Option__ref_Str {
+    Str *data;
+};
+
 typedef struct Vec__VariantDef {
     U8 *data;
     USize count;
@@ -743,10 +747,6 @@ struct Option__ref_StructDef {
 
 struct Option__ref_EnumDef {
     EnumDef *data;
-};
-
-struct Option__ref_Str {
-    Str *data;
 };
 
 typedef struct EvalHeap {
@@ -1844,7 +1844,7 @@ Str * StructDef_member_name_at(StructDef * self, USize * i);
 StructDef * StructDef_clone(StructDef * self);
 void StructDef_delete(StructDef * self, Bool call_free);
 USize StructDef_size(void);
-Str * member_name_of(Map__Str_USize * idx, USize * pos);
+Option__ref_Str member_name_of(Map__Str_USize * idx, USize pos);
 VariantDef * VariantDef_clone(VariantDef * self);
 void VariantDef_delete(VariantDef * self, Bool call_free);
 U64 VariantDef_hash(VariantDef * self, HashFn hasher);
@@ -1909,6 +1909,12 @@ Str * Expr_to_str(Expr * self);
 Expr * Expr_clone(Expr * self);
 U64 Expr_hash(Expr * self, HashFn hasher);
 USize Expr_size(void);
+Bool Option__ref_Str_is_some(Option__ref_Str self);
+Bool Option__ref_Str_is_none(Option__ref_Str self);
+Str * Option__ref_Str_unwrap(Option__ref_Str * self);
+void Option__ref_Str_delete(Option__ref_Str * self, Bool call_free);
+Option__ref_Str Option__ref_Str_clone(Option__ref_Str self);
+USize Option__ref_Str_size(void);
 Map__Str_USize * Map__Str_USize_new(void);
 USize Map__Str_USize_len(Map__Str_USize * self);
 Bool Map__Str_USize_has(Map__Str_USize * self, Str * key);
@@ -2178,14 +2184,6 @@ Option__ref_EnumDef Option__ref_EnumDef_Some(EnumDef * val);
 void Option__ref_EnumDef_delete(Option__ref_EnumDef * self, Bool call_free);
 Option__ref_EnumDef Option__ref_EnumDef_clone(Option__ref_EnumDef self);
 USize Option__ref_EnumDef_size(void);
-Bool Option__ref_Str_is_some(Option__ref_Str self);
-Bool Option__ref_Str_is_none(Option__ref_Str self);
-Str * Option__ref_Str_unwrap(Option__ref_Str * self);
-Option__ref_Str Option__ref_Str_None(void);
-Option__ref_Str Option__ref_Str_Some(Str * val);
-void Option__ref_Str_delete(Option__ref_Str * self, Bool call_free);
-Option__ref_Str Option__ref_Str_clone(Option__ref_Str self);
-USize Option__ref_Str_size(void);
 EvalHeap EvalHeap_new(void);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);
@@ -3849,6 +3847,7 @@ USize priv___src_self_interpreter_til__elem_size_for_type(Str * type_name, Conte
 void * priv___src_self_interpreter_til__parse_cli_arg(Str * s, Str * type_name, Context * ctx);
 Bool priv___src_self_interpreter_til__call_result_is_ref(Expr * e, Context * ctx);
 Bool priv___src_self_interpreter_til__call_copies_ref_str(Scope * scope, Expr * e, Context * ctx);
+Bool priv___src_self_interpreter_til__ext_fdef_copies_str(FunctionDef * fd);
 Bool priv___src_self_interpreter_til__call_raw_result_is_ref(Scope * scope, Expr * e, Context * ctx);
 Bool raw_type_is_prim(Type t, Context * ctx);
 void * priv___src_self_interpreter_til__scalar_word_encode(Type t, U64 bits, Context * ctx);
@@ -4337,8 +4336,6 @@ Option__ref_StructDef Option__ref_StructDef_None();
 Option__ref_StructDef Option__ref_StructDef_Some(StructDef *);
 Option__ref_EnumDef Option__ref_EnumDef_None();
 Option__ref_EnumDef Option__ref_EnumDef_Some(EnumDef *);
-Option__ref_Str Option__ref_Str_None();
-Option__ref_Str Option__ref_Str_Some(Str *);
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
 Option__ref_TypeBinding Option__ref_TypeBinding_None();
