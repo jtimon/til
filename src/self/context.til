@@ -692,8 +692,7 @@ Context := struct {
 context_register_target_int_alias_types := func(mut ctx: Context, usize_name: Str, uptr_name: Str) {
     ctx.target_usize_pname = usize_name.clone()
     ctx.target_uptr_pname = uptr_name.clone()
-    ctx.target_usize_bytes = 8
-    if usize_name == "U32" { ctx.target_usize_bytes = 4 }
+    ctx.target_usize_bytes = unsigned_prim_width_for_name(usize_name)
     ctx.scope.target_usize_pname = usize_name.clone()
     ctx.scope.target_uptr_pname = uptr_name.clone()
 }
@@ -773,6 +772,37 @@ align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }
 
+// Single authorities for unsigned primitive width <-> name. USize and UPtr
+// are INTERFACES whose concrete width is per-build (target pointer width,
+// the --usize flag, and whatever future architectures bring -- U16? U128?).
+// Nothing outside these two functions may enumerate their possible widths;
+// callers derive the width from USize.size()/UPtr.size() or the resolved
+// alias name and map through here. Extend HERE when a new width exists;
+// unknown widths panic -- never a silent default.
+unsigned_prim_name_for_width := func(w: USize) returns Str {
+    if w == U8.size()  { return "U8" }
+    if w == U16.size() { return "U16" }
+    if w == U32.size() { return "U32" }
+    if w == U64.size() { return "U64" }
+    panic("unsigned_prim_name_for_width: no unsigned primitive is ", w.to_str(), " bytes wide")
+    return ""
+}
+
+unsigned_prim_width_for_name := func(name: Str) returns USize {
+    if name == "U8"  { return U8.size() }
+    if name == "U16" { return U16.size() }
+    if name == "U32" { return U32.size() }
+    if name == "U64" { return U64.size() }
+    panic("unsigned_prim_width_for_name: '", name, "' is not an unsigned integer primitive")
+    return 0
+}
+
+// The RUNNING compiler's own USize/UPtr primitive names: USize.size() /
+// UPtr.size() resolve when the compiler itself is built, so these are the
+// host widths -- what the interpreter's layouts of host memory must use.
+host_usize_pname := func() returns Str { return unsigned_prim_name_for_width(USize.size()) }
+host_uptr_pname := func() returns Str { return unsigned_prim_name_for_width(UPtr.size()) }
+
 // The interpreter's flat enum format: tag at offset 0 (its real 1/2/4/8-byte
 // width), payload at this fixed offset. Single source of truth for the
 // interpreter/constfolder payload accesses AND compute_enum_layout's enum
@@ -801,10 +831,8 @@ ENUM_PAYLOAD_OFFSET : USize = 8
 // `dyn_size_of()` return C `sizeof(...)` (target width). Native builds
 // (host == target) return false and keep folding, so codegen is unchanged.
 size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
-    mut host_usize := "U64"
-    if USize.size().eq(4) { host_usize = "U32" }
-    mut host_uptr := "U64"
-    if UPtr.size().eq(4) { host_uptr = "U32" }
+    host_usize := host_usize_pname()
+    host_uptr := host_uptr_pname()
     return ctx.target_usize_pname.eq(host_usize).not().or(ctx.target_uptr_pname.eq(host_uptr).not())
 }
 
@@ -1356,11 +1384,7 @@ enum_tag_type := func(enum_def: Expr) returns Str {
 
 // #264: size in bytes of the enum's discriminant.
 enum_tag_size := func(enum_def: Expr) returns USize {
-    tt := enum_tag_type(enum_def)
-    if tt == "U8" { return 1 }
-    if tt == "U16" { return 2 }
-    if tt == "U64" { return 8 }
-    return 4
+    return unsigned_prim_width_for_name(enum_tag_type(enum_def))
 }
 
 // The discriminant VALUE of a variant. With explicit `= N` tags this is the

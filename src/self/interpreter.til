@@ -5402,16 +5402,25 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
     }
 }
 
-priv uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
-    ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
-    if uptr_name == "U32" { return ffi_type_ref("ffi_type_uint32") }
+// Width-driven libffi type for an unsigned primitive name: the single
+// mapping through unsigned_prim_width_for_name, so USize/UPtr at any
+// per-build width (and future ones) pick the matching ffi type or fail
+// loudly instead of silently defaulting to uint64.
+priv unsigned_ffi_type_for_name := func(name: Str) returns ref ffi_type {
+    w := unsigned_prim_width_for_name(name)
+    if w == U16.size() { return ffi_type_ref("ffi_type_uint16") }
+    if w == U32.size() { return ffi_type_ref("ffi_type_uint32") }
+    if w == U64.size() { return ffi_type_ref("ffi_type_uint64") }
+    panic("unsigned_ffi_type_for_name: no ffi type for ", w.to_str(), "-byte '", name, "'")
     return ffi_type_ref("ffi_type_uint64")
 }
 
+priv uptr_ffi_type := func(ctx: Context) returns ref ffi_type {
+    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "UPtr"))
+}
+
 priv usize_ffi_type := func(ctx: Context) returns ref ffi_type {
-    ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
-    if usize_name == "U32" { return ffi_type_ref("ffi_type_uint32") }
-    return ffi_type_ref("ffi_type_uint64")
+    return unsigned_ffi_type_for_name(resolve_type_alias(ctx.scope, "USize"))
 }
 
 priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
@@ -6891,14 +6900,12 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, result: Dynamic, ctx: Con
     else if rtype == "U64"   { memcpy(result, p, U64.size()); return true }
     else if rtype == "USize" {
         ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
-        if usize_name == "U32" { memcpy(result, p, U32.size()); return true }
-        memcpy(result, p, U64.size())
+        memcpy(result, p, unsigned_prim_width_for_name(usize_name))
         return true
     }
     else if rtype == "UPtr" {
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
-        if uptr_name == "U32" { memcpy(result, p, U32.size()); return true }
-        memcpy(result, p, U64.size())
+        memcpy(result, p, unsigned_prim_width_for_name(uptr_name))
         return true
     }
     else if rtype == "F32"   { memcpy(result, p, F32.size()); return true }

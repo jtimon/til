@@ -1515,12 +1515,17 @@ constfolder_register_core_constants := func(global: Scope, usize_name: Str, mut 
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U64.size())
         write_u64(cap_lit_raw, lit64)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U64), ctx), OwnType.Shallow, NULL)
-    } else {
+    } else if usize_name == "U32" {
         cap_view_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_view_raw, 4294967294)
         scope_set_raw_owned(global, "CAP_VIEW", cap_view_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, NULL)
         cap_lit_raw : Dynamic = EvalHeap.heap_alloc(U32.size())
         write_u32(cap_lit_raw, 4294967295)
         scope_set_raw_owned(global, "CAP_LIT", cap_lit_raw, interp_intern_type(Type.Primitive(Primitive.U32), ctx), OwnType.Shallow, NULL)
+    } else {
+        // USize is an interface: its width is per-build, and each width
+        // needs its own sentinel encoding here. Unknown widths must fail
+        // loudly, not silently get the U32 sentinels.
+        panic("constfolder_register_core_constants: unhandled USize '", usize_name, "'")
     }
 }

@@ -1975,10 +1975,13 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 // one (#232) -- matching the running binary's ext.h typedef.
                 if ftype.eq("USize").or(ftype.eq("UPtr")) {
                     mut resolved := scope_target_usize_pname(scope).clone()
-                    if ftype.eq("UPtr") { resolved = scope_target_uptr_pname(scope).clone() }
+                    mut host_prim := host_usize_pname()
+                    if ftype.eq("UPtr") {
+                        resolved = scope_target_uptr_pname(scope).clone()
+                        host_prim = host_uptr_pname()
+                    }
                     fd.til_type = til_type_from_explicit_type(resolved)
-                    ftype = "U64"
-                    if USize.size().eq(4) { ftype = "U32" }
+                    ftype = host_prim
                 } else {
                     ab_o := scope.get_binding(ftype)
                     if ab_o.is_some() {
@@ -2058,10 +2061,8 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
     // cross-compiling (garbage payload size read -> ASAN
     // allocation-size-too-big).
     mut sized_type := ftype.clone()
-    if ftype.eq("USize").or(ftype.eq("UPtr")) {
-        sized_type = "U64"
-        if USize.size().eq(4) { sized_type = "U32" }
-    }
+    if ftype.eq("USize") { sized_type = host_usize_pname() }
+    if ftype.eq("UPtr") { sized_type = host_uptr_pname() }
     mut prim : Primitive = Primitive.I64
     mut psz : USize = 0
     mut pal : USize = 0
