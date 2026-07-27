@@ -40,11 +40,14 @@
 
 static int stdio_capture_stdout_fd = -1;
 static int stdio_capture_stderr_fd = -1;
+static char *stdio_capture_path = NULL;
+static int stdio_capture_atexit_armed = 0;
 
 static void stdio_capture_fail(const char *op) {
     perror(op);
     exit(1);
 }
+
 
 #ifdef _WIN32
 // winnt.h declares 'TokenType' as an enum constant inside
@@ -1206,6 +1209,31 @@ Str *doc_blob_lookup(const Str *blob, const Str *name) {
     return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
 }
 
+// A capture redirects BOTH stdout and stderr into a file, so anything that
+// dies while it is active (a panic, an exit(1) out of the typer or the
+// interpreter) writes its diagnostic into that file and takes the process
+// down before the REPL ever reads it back -- the user just sees the prompt
+// vanish with no message. That is how an ordinary interpreter panic on
+// `"hi".c_str` presented: `til repl` silently exiting.
+//
+// Restore the real stderr on the way out and replay whatever the capture
+// swallowed. On the normal path stdio_capture_end has already reset the fds,
+// so this is a no-op; it only fires when a capture was still open at exit.
+static void stdio_capture_atexit(void) {
+    if (stdio_capture_stderr_fd == -1) return;
+    fflush(stdout);
+    fflush(stderr);
+    if (TIL_DUP2(stdio_capture_stderr_fd, TIL_FILENO(stderr)) < 0) return;
+    if (!stdio_capture_path) return;
+    FILE *cap = fopen(stdio_capture_path, "rb");
+    if (!cap) return;
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof buf, cap)) > 0) fwrite(buf, 1, n, stderr);
+    fclose(cap);
+    fflush(stderr);
+}
+
 void stdio_capture_begin(const Str *path) {
     if (stdio_capture_stdout_fd != -1 || stdio_capture_stderr_fd != -1) {
         fprintf(stderr, "stdio_capture_begin: capture already active\n");
@@ -1216,8 +1244,14 @@ void stdio_capture_begin(const Str *path) {
 
     char *p = dup_n((const char *)path->c_str, path->count);
     int fd = TIL_OPEN(p, TIL_O_WRONLY | TIL_O_CREAT | TIL_O_TRUNC | TIL_O_BINARY, 0666);
-    free(p);
-    if (fd < 0) stdio_capture_fail("stdio_capture_begin: open");
+    if (fd < 0) { free(p); stdio_capture_fail("stdio_capture_begin: open"); }
+    // Kept so stdio_capture_atexit can replay the file if we die mid-capture.
+    free(stdio_capture_path);
+    stdio_capture_path = p;
+    if (!stdio_capture_atexit_armed) {
+        stdio_capture_atexit_armed = 1;
+        atexit(stdio_capture_atexit);
+    }
 
     stdio_capture_stdout_fd = TIL_DUP(TIL_FILENO(stdout));
     if (stdio_capture_stdout_fd < 0) stdio_capture_fail("stdio_capture_begin: dup stdout");

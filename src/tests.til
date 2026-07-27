@@ -531,6 +531,16 @@ main := proc(args: ..Str) {
         // name per host so GUI tests run on a mac, not just Linux (#25).
         mut timeout_cmd := "timeout"
         if host_os() == "macos" { timeout_cmd = "gtimeout" }
+        // Interpreted gui smoke test (issue: raylib unreachable from the
+        // interpreter). Every entry above BUILDS first, so the interpreted
+        // FFI path had no coverage at all -- `til repl` in mode gui opened
+        // no window while the suite stayed green. Runs under the suite's
+        // outer xvfb-run like the rest of this block, and is skipped by
+        // --no-gui with them.
+        // Windowless on purpose (see the file header), so it needs no GL
+        // context and keeps leak detection on, unlike an InitWindow test.
+        add_single(tests, "interp_gui_ffi", "build", 0, "",
+            format(til_bin, " test/gui_interp.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""
@@ -607,6 +617,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug315.til", flags)
     add_both(tests, "test/mut_arg_str_lit.til", flags)
     add_both(tests, "test/mut_capture_str_lit.til", flags)
+    add_both(tests, "test/literal_field_access.til", flags)
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)

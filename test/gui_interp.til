@@ -1,0 +1,49 @@
+mode gui
+
+// Regression: raylib was unreachable from the INTERPRETER, so `til repl` in
+// mode gui ran `InitWindow(800, 600, "hi".c_str)` and opened nothing.
+//
+// `link("vendor/raylib/src/libraylib.a")` puts a PATH in link_flags, and a
+// static archive cannot be dlopen'd. The archive contributed nothing to
+// bin/til either -- a linker only pulls in the members the compiler itself
+// references, and the compiler never calls raylib -- so dlsym(RTLD_DEFAULT)
+// found none of it. Registration then silently skipped every raylib function
+// and the calls fell through to the body-less-function path, which returns
+// zero: InitWindow "succeeded" with no window, GetRandomValue(5, 5) gave 0.
+//
+// The interpreter now relinks archives into one shared object with
+// --whole-archive and dlopens it (ffi_init_archive_shim). This test is
+// INTERPRETED on purpose -- every other gui test builds first, which is
+// exactly why the interpreted path stayed broken with a green suite.
+//
+// It deliberately opens NO window. What regressed is symbol reachability and
+// libffi dispatch, not rendering, and every raylib entry point used here is
+// pure CPU. The first version called InitWindow and asserted IsWindowReady,
+// which made it the only test in the suite that required a working GL
+// context -- the compiled gui tests just run for a second and expect
+// `timeout` to kill them, so they pass even when no window ever appears.
+// That version failed wherever GLFW could not initialize (an X server
+// without GLX, or no display at all) for reasons unrelated to the bug it
+// guards. Keeping it windowless also keeps leak detection ON: the GLFW
+// driver leaks that forced ASAN_OPTIONS=detect_leaks=0 only happen once a
+// window is created.
+
+main := proc() {
+    // Plain scalar args and return. Before the fix this silently answered 0,
+    // because an unresolved ext symbol fell through to a body-less function.
+    SetRandomSeed(12345)
+    fixed := GetRandomValue(7, 7)
+    if fixed != 7 {
+        panic("raylib GetRandomValue did not dispatch through libffi, got: ", fixed.to_str())
+    }
+
+    // A struct passed BY VALUE across the bridge, still without a window:
+    // ColorToInt packs the four components into 0xRRGGBBAA. Keep the red
+    // component under 0x80 so the packed value stays inside I32, which is
+    // what the binding returns.
+    packed := ColorToInt(Color(r = 17, g = 34, b = 51, a = 68))
+    expected : I32 = 0x11223344
+    if packed != expected {
+        panic("raylib ColorToInt did not receive the Color by value, got: ", packed.to_str())
+    }
+}

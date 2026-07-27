@@ -49,6 +49,34 @@ RAYLIB_FLAGS := -Lvendor/raylib/src -lraylib -lm -lpthread $(RAYLIB_SYS_FLAGS)
 TINYFD_LIB := vendor/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Lvendor/tinyfiledialogs -ltinyfd
 
+# Loadable twins of the vendored archives, for the INTERPRETER only.
+#
+# The two backends need different artifacts from the same library. A COMPILED
+# program links the .a and stays self-contained -- that must not change.
+# INTERPRETED code instead calls through libffi, which needs the function's
+# ADDRESS at runtime, and a static archive can never provide one: it cannot be
+# dlopen'd, and it contributes nothing to bin/til either, since a linker keeps
+# only the members the compiler itself references and the compiler never calls
+# raylib. So `link(".../libraylib.a")` left every raylib symbol unresolvable
+# from interpreted code.
+#
+# Each .a therefore gets a .so beside it, force-linked with --whole-archive so
+# every member is kept. src/self/interpreter.til dlopens the sibling .so of any
+# archive a program links. Built here, ONCE, rather than by the interpreter at
+# run time: same link either way, but this keeps `cc` out of interpretation and
+# off the REPL's per-turn path. Relinking an archive into a shared object needs
+# its members to be PIC, which is why tinyfd is compiled -fPIC below (raylib's
+# own Makefile already does it).
+RAYLIB_SO := vendor/raylib/src/libraylib.so
+TINYFD_SO := vendor/tinyfiledialogs/libtinyfd.so
+FFI_SOS := $(RAYLIB_SO) $(TINYFD_SO)
+
+$(RAYLIB_SO): $(RAYLIB_LIB)
+	cc -shared -fPIC -o $@ -Wl,--whole-archive $(RAYLIB_LIB) -Wl,--no-whole-archive -lm -lpthread $(RAYLIB_SYS_FLAGS)
+
+$(TINYFD_SO): $(TINYFD_LIB)
+	cc -shared -fPIC -o $@ -Wl,--whole-archive $(TINYFD_LIB) -Wl,--no-whole-archive
+
 EMSDK_DIR := vendor/emscripten
 EMCC ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emcc
 EMAR ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emar
@@ -66,8 +94,20 @@ $(RAYLIB_LIB):
 	$(MAKE) -C vendor/raylib/src PLATFORM=PLATFORM_DESKTOP \
 	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/vendor/x11/include"
 
-$(TINYFD_LIB):
-	cc -Wall -Wextra -c -o vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/tinyfiledialogs.c
+# -fPIC so this archive can also be relinked into $(TINYFD_SO) above; its
+# non-PIC relocations fail a shared link otherwise.
+#
+# The Makefile prerequisite is what makes that flag actually reach an existing
+# tree. `make clean` does not touch vendor/, and make cannot see that a RECIPE
+# changed, so an archive compiled before -fPIC was added would sit there
+# forever and fail the shared link with "recompile with -fPIC" -- which is
+# exactly what happened. Depending on this file rebuilds the archive whenever
+# the recipe that produces it changes. raylib needs no equivalent: its own
+# Makefile adds -fPIC unconditionally for Linux, so its archive's linkability
+# does not depend on flags we pass (and rebuilding it on every Makefile edit
+# would cost minutes).
+$(TINYFD_LIB): vendor/tinyfiledialogs/tinyfiledialogs.c Makefile
+	cc -Wall -Wextra -fPIC -c -o vendor/tinyfiledialogs/tinyfiledialogs.o vendor/tinyfiledialogs/tinyfiledialogs.c
 	ar rcs $@ vendor/tinyfiledialogs/tinyfiledialogs.o
 
 # nng (nanomsg-next-gen) static lib, built from vendored source via cmake.
@@ -146,7 +186,7 @@ update_c_libs: bin/til | tmp
 
 # --- Boot compiler (from last commit, always safe) ---
 
-bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) vendor/libffi/.built
+bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) $(FFI_SOS) vendor/libffi/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \

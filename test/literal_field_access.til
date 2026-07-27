@@ -1,0 +1,24 @@
+mode test
+
+// Regression: field access on a LITERAL base. `"hi".c_str` -- the idiom every
+// mode gui example uses for raylib strings -- panicked in the interpreter with
+// "field access base is not a place", while the same source compiled fine, so
+// the suite and the examples never caught it. It surfaced as `til repl`
+// exiting silently on `InitWindow(800, 600, "hi".c_str)`: a literal base is a
+// value, not a place, so field_access_base had nothing to point into.
+//
+// The read is served from a temporary now. That is safe because the
+// interpreter INTERNS literal bytes in ctx.builder_str_lit_values and hands
+// back a CAP_LIT view of the pooled buffer, so the field word is a pointer
+// into the pool, never into the temporary's own three words.
+//
+// The round trip through from_c_str is the point: it walks to the NUL, which
+// caught that the interner malloc'd count+1 bytes for a terminator and never
+// wrote it. Compiled literals are C string constants and always terminated,
+// so only the interpreter read past the end -- silently, until a literal's
+// c_str could actually be reached.
+
+test_literal_c_str_round_trip := test() {
+    assert_eq(Str, Str.from_c_str("hello".c_str), "hello")
+    assert_eq(Str, Str.from_c_str("".c_str), "")
+}

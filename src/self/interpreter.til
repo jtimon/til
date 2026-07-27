@@ -1406,6 +1406,34 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destinatio
             return read_field(base, fdecl, fl.offset, fl.size, ctx)
         }
 
+        // A literal base is a VALUE, not a place: `"hi".c_str` has no storage
+        // for field_access_base to point into, so it returned NULL and every
+        // interpreted literal field access died here -- while the SAME source
+        // compiled fine, which is why the gui examples and the suite never
+        // caught it. It surfaced as `til repl` exiting silently on
+        // `InitWindow(800, 600, "hi".c_str)`, the idiom every gui example uses.
+        //
+        // Materialize the literal into a temporary and read the field out of
+        // that. The read stays valid after the temporary goes away for exactly
+        // the reason the compiled form does: the Literal.Str arm INTERNS the
+        // bytes in ctx.builder_str_lit_values and hands back a CAP_LIT view of
+        // the pooled buffer, so the field word is either an inline scalar
+        // (count/cap) or a pointer into the pool (c_str) -- never into the
+        // temporary's own three words, which is all this frees. A Shallow
+        // field WOULD hand back a pointer into those words, so it keeps the
+        // panic below; Str has no shallow field, so no literal reaches it.
+        if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow).not()) {
+            tmp_base : Dynamic = eval_expr_raw(scope, e.children[0], ctx)
+            mut field_word : Dynamic = 0
+            if field_access_returns_ref(scope, e, ctx) {
+                field_word = deref(ptr_add(tmp_base, fl.offset))
+            } else {
+                field_word = read_field(tmp_base, fdecl, fl.offset, fl.size, ctx)
+            }
+            raw_block_free(tmp_base)
+            return field_word
+        }
+
         panic("field access base is not a place")
         return NULL
     case:
@@ -1486,6 +1514,14 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
             j++
             i++
         }
+        // NUL-terminate: the buffer is malloc'd with the +1 for it, and every
+        // other Str producer (with_capacity, clone, substr's callers) writes
+        // it. Without it `.c_str` hands C code a buffer with no terminator --
+        // the compiled backend's literals are C string constants, so only the
+        // interpreter was affected, and only once a literal's c_str could
+        // actually be reached (`InitWindow(800, 600, "hi".c_str)` read past
+        // the end for its window title).
+        memset(ptr_add(buf, j), 0, 1)
         mut pooled_i : USize = 0
         mut found_literal := false
         for lit_i in 0..ctx.builder_str_lit_values.len() {
@@ -2876,9 +2912,17 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         // outside constfold, reaching an unregistered ext_func is invalid.
         switch fn_def.node_type {
             case NodeType.FuncDef(ext_fd):
-                if ext_fd.func_type.is(FuncType.ExtFunc) {
+                // ExtProc gets the same treatment as ExtFunc. It used to fall
+                // through and run as an ordinary body-less function, which
+                // silently produced a zero result -- so an unresolved
+                // `InitWindow(...)` "succeeded" and simply opened no window,
+                // and `GetRandomValue(5, 5)` returned 0 instead of 5. A
+                // missing symbol has to say so.
+                if ext_fd.func_type.is(FuncType.ExtFunc).or(ext_fd.func_type.is(FuncType.ExtProc)) {
                     callable_raw_free(fn_raw, ctx)
-                    if ctx.constfold_active.not() { panic("ext_func is not registered: ", name.ident_name()) }
+                    if ctx.constfold_active.not() {
+                        panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
+                    }
                     ctx.constfold_aborted = true
                     if destination.is_null().not() { return destination }
                     return raw_unit_result(e.til_type(), ctx)
@@ -5303,32 +5347,56 @@ priv ffi_dlsym := func(name: Str) returns ref U8 {
     return ffi_global_symbol(name)
 }
 
+// `link("vendor/raylib/src/libraylib.a")` puts a PATH in link_flags. A
+// COMPILED program links that archive and stays self-contained, but an
+// INTERPRETED one calls through libffi, which needs the function's ADDRESS at
+// runtime -- and a static archive can never give one. It cannot be dlopen'd,
+// and it contributes nothing to bin/til either, since a linker keeps only the
+// members the compiler itself references and the compiler never calls raylib.
+// So every raylib call from the interpreter resolved to nothing: `InitWindow`
+// opened no window, `GetRandomValue(5, 5)` returned 0.
+//
+// The Makefile builds a loadable twin beside each archive (libraylib.a ->
+// libraylib.so, force-linked with --whole-archive so every member is kept);
+// dlopen that. Its symbols then resolve globally, exactly like the -lfoo case
+// below. Failing to load one is fatal: the program asked to link it, so
+// carrying on would put us back to silently answering 0 for every call.
+priv ffi_load_archive_twin := proc(archive_path: Str) {
+    if archive_path.len() == 0 { return }
+    so_path := archive_path.strip_suffix(".a").format(".so")
+    if ffi_load_global_lib(so_path).not() {
+        panic("cannot load '", so_path, "' for interpreted calls into '", archive_path,
+              "' (built by the Makefile beside the archive): ", ffi_last_error())
+    }
+}
+
 priv ffi_init_link_libs := proc(link_flags: Str) {
     if link_flags.is_null() {
         return
     }
+    // Two kinds of entry: `-lfoo` sonames dlopen'd by name, and archive PATHS
+    // whose loadable twin sits beside them (see ffi_load_archive_twin).
     // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
     // host-dependent (this runs in the compiler, on the build host).
     mut so_ext := ".so"
     if host_os() == "macos" { so_ext = ".dylib" }
     mut i : USize = 0
-    while i + 1 < link_flags.len() {
-        if link_flags.unsafe_get(i).eq(45).and(link_flags.unsafe_get(i + 1).eq(108)) {
-            i = i + 2
-            start := i
-            while i < link_flags.len() {
-                if link_flags.unsafe_get(i) == 32 {
-                    break
-                }
-                i++
-            }
-            if i > start {
-                lib := link_flags.substr(start, i - start)
+    while i < link_flags.len() {
+        if link_flags.unsafe_get(i) == 32 { i++; continue }
+        start := i
+        while i < link_flags.len() {
+            if link_flags.unsafe_get(i) == 32 { break }
+            i++
+        }
+        tok := link_flags.substr(start, i - start)
+        if tok.starts_with("-l") {
+            lib := tok.substr(2, tok.len() - 2)
+            if lib.len() > 0 {
                 soname := format("lib", lib, so_ext)
                 ffi_load_global_lib(soname)
             }
-        } else {
-            i++
+        } else if tok.ends_with(".a") {
+            ffi_load_archive_twin(tok)
         }
     }
 }
@@ -7539,9 +7607,25 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         }
         prep_status := ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
         if prep_status.eq(FFI_OK).not() {
-            // A failed prep leaves the cif garbage; calling through it
-            // later corrupts memory far from the cause. Fail here.
-            panic("ffi_prep_cif failed (status ", prep_status.cast(I64).to_str(), ") registering ext fn: ", name)
+            // A failed prep leaves the cif garbage, so this entry must never
+            // reach ffi_call -- but it must NOT take the program down either.
+            // Registration walks EVERY ext decl a program imports, and libffi
+            // rejects any signature passing a struct by value (no ffi_type
+            // descriptor is built for those yet), which is 266 of raylib's 588
+            // bindings. Panicking here meant merely importing the bindings --
+            // what `mode gui` does -- killed the process on whichever
+            // unsupported function came first, regardless of what the program
+            // actually called.
+            //
+            // Drop the entry instead and leave the name unregistered. Calling
+            // it then fails loudly at the call site (see ext_dispatch_ffi's
+            // caller), naming the function the program actually used.
+            // Same four allocations ffi_cleanup reclaims for a live entry.
+            free(own pshallows)
+            free(own pdynamics)
+            free(own atypes)
+            free(own cif)
+            return
         }
 
         // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it

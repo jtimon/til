@@ -25,7 +25,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\n")
+    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
@@ -40,11 +40,32 @@ main := proc() {
     seven := count_matches(output, "til[script]> 7\n")
     user_info := count_matches(output, "y is a I64")
     member_doc := count_matches(output, "Unchecked element access: ref to the element at index `i`")
-    if n.eq(2).and(bad.eq(0)).and(missing.eq(1)).and(bad_y.eq(0)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)).and(user_info.eq(1)).and(member_doc.eq(1)) {
+    // A struct DECLARED in one turn, then instantiated with named arguments
+    // in a later one. The delta path used to re-run the typer over the AST
+    // body_pre_passes had already desugared, and the typer is not idempotent
+    // over its own output: the ctor's NamedArg children were gone by then, so
+    // this reported "struct instantiation requires named arguments" for code
+    // that had just typed cleanly, and the struct itself went unregistered
+    // ("undefined function 'P'"). Only REPL turns that skip the full load
+    // reach that path, so a file compiled the same source fine.
+    ctor := count_matches(output, "ctor=1,2")
+    defaults := count_matches(output, "defaults=5,7")
+    named_err := count_matches(output, "requires named arguments")
+    undef_p := count_matches(output, "undefined function 'P'")
+    // A bare field access is an EXPRESSION to echo, but til has no
+    // bare-expression statement, so the REPL used to parse `q.px` unwrapped,
+    // the parser demanded the `=` of a field assignment, and the panic took
+    // the whole session down. `q.py = 31` must still parse as the assignment
+    // it is -- echoing 5 then 31 proves both halves.
+    field_echo := count_matches(output, "til[script]> 5\n")
+    field_after_assign := count_matches(output, "til[script]> 31\n")
+    if n.eq(2).and(bad.eq(0)).and(missing.eq(1)).and(bad_y.eq(0)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)).and(user_info.eq(1)).and(member_doc.eq(1))
+        .and(ctor.eq(1)).and(defaults.eq(1)).and(named_err.eq(0)).and(undef_p.eq(0))
+        .and(field_echo.eq(1)).and(field_after_assign.eq(1)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)

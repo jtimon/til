@@ -163,14 +163,42 @@ repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I6
     return parse(tokens, source, path, mode_out, anon_type_counter)
 }
 
+// Is there an assignment `=` at bracket depth 0? `==` is its own token
+// (EqEq), and a `=` inside brackets is a named call argument
+// (`P(x = 1)`) or similar, so only a depth-0 Eq makes the line a
+// statement rather than an expression.
+priv repl_tokens_assign_at_top := func(tokens: Vec(Token)) returns Bool {
+    mut depth : I64 = 0
+    for t : Token in tokens {
+        if t.type.is(TokenType.LParen).or(t.type.is(TokenType.LBracket)).or(t.type.is(TokenType.LBrace)) {
+            depth = depth + 1
+        } else if t.type.is(TokenType.RParen).or(t.type.is(TokenType.RBracket)).or(t.type.is(TokenType.RBrace)) {
+            depth = depth - 1
+        } else if depth == 0 {
+            if t.type.is(TokenType.Eq) { return true }
+        }
+    }
+    return false
+}
+
 repl_peek_needs_expr_wrap := func(block: Str, tokens: Vec(Token)) returns Bool {
     if block.trim().starts_with("mode ") { return false }
     if tokens.len() < 2 { return false }
     if tokens[0].type.is(TokenType.Ident).not() { return false }
     ref nt : Token = tokens[1]
     if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon)).or(nt.type.is(TokenType.Eq)) { return false }
-    if nt.type.is(TokenType.Dot).or(nt.type.is(TokenType.LParen)).or(nt.type.is(TokenType.LBracket)) { return false }
     if nt.type.is(TokenType.PlusPlus).or(nt.type.is(TokenType.MinusMinus)) { return false }
+    // `p.x` and `p.items[0]` are EXPRESSIONS the user wants echoed, but til
+    // has no bare-expression statement, so parsing them unwrapped made the
+    // parser demand the `=` of a field assignment and PANIC -- taking the
+    // whole REPL session down on `p.x`. Wrap them unless the line really is
+    // an assignment (`p.x = 5`), which must stay a statement. A method call
+    // that returns nothing still lands here; the wrapped attempt fails to
+    // type and the caller retries it unwrapped, exactly as before.
+    if nt.type.is(TokenType.Dot).or(nt.type.is(TokenType.LBracket)) {
+        return repl_tokens_assign_at_top(tokens).not()
+    }
+    if nt.type.is(TokenType.LParen) { return false }
     return true
 }
 

@@ -4601,9 +4601,17 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
 
     type_errors := type_repl_delta(root.path, delta, lp.ctx)
     if type_errors > 0 { return type_errors }
+    // Same follow-up infer_body does after the pre-passes: RE-REGISTER the
+    // scope defs, do not re-type. body_pre_passes desugars and hoists the
+    // body it just walked, and the typer is not idempotent over its own
+    // output -- a struct ctor's `NamedArg(f) -> value` children are rewritten
+    // into hoisted temps, so a second pass sees bare positional args and
+    // reports "struct instantiation requires named arguments" for code that
+    // typed cleanly the first time. That is why `c := Color(r = 255, g = 0,
+    // b = 0, a = 255)` failed at the REPL but worked in a file: only this
+    // delta path re-typed, and only turns that skip the full load reach it.
     if body_pre_passes(lp.ctx, delta, lp.ctx.scope, 1) {
-        type_errors2 := type_repl_delta(root.path, delta, lp.ctx)
-        if type_errors2 > 0 { return type_errors2 }
+        reregister_repl_scope_defs(delta, lp.ctx.scope)
     }
     garbager_destroy_body(lp.ctx, delta, lp.ctx.scope)
     return 0

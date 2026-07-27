@@ -12,6 +12,7 @@ vendor/libffi/doc/libffi.info
 vendor/libffi/autom4te.cache/
 vendor/tinyfiledialogs/tinyfiledialogs.o
 vendor/tinyfiledialogs/libtinyfd.a
+vendor/tinyfiledialogs/libtinyfd.so
 vendor/tinyfiledialogs/libtinyfd-win64.a
 vendor/tinyfiledialogs/libtinyfd-win32.a
 vendor/tinyfiledialogs/libtinyfd-x86.a
