@@ -3255,6 +3255,8 @@ void priv___src_self_loader_til__DeclRef_delete(priv___src_self_loader_til__Decl
 U64 priv___src_self_loader_til__DeclRef_hash(priv___src_self_loader_til__DeclRef * self, HashFn hasher);
 USize priv___src_self_loader_til__DeclRef_size(void);
 Option__ref_Expr priv___src_self_loader_til__find_ns_decl_fdef_imported(Context * ctx, Map__Str_DeclRef * top, Str * name);
+void priv___src_self_loader_til__seed_noreturn_chain(Expr * ast);
+void priv___src_self_loader_til__stamp_noreturn_calls(Expr * e, Set__Str * noreturn_names);
 Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);

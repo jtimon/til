@@ -613,6 +613,110 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     return Option(ref Expr).None
 }
 
+// #303 / #321: seed the noreturn chain BEFORE any body is type-checked.
+//
+// noreturn is inferred bottom-up at the END of typing each Func/Proc body
+// (infer_func_def_expr), so a call only counts as diverging once its
+// CALLEE has already been typed. That is an ORDER dependency, and it is
+// wrong for any unit typed before core/exit.til: there `panic` carries no
+// stamp yet, so a `case: panic(...)` arm does not count as diverging and
+// check_all_paths_return rejects the function. core.til imports ast before
+// exit, which is exactly why src/core/ast.til could not instantiate
+// Option -- Option.unwrap ends in that arm.
+//
+// The whole chain lives in one file (exit is the ext_func seed; panic,
+// TODO, UNREACHABLE, assert, expect and assert_eq are defined there and
+// call each other), so the fixpoint below runs over that file alone and
+// resolves callees against its OWN top-level decls -- no scope lookup, so
+// a local shadowing a noreturn global cannot fool it. Same shape as the
+// extend_throwing_func_sigs sweep below, and idempotent for the same
+// reason: the typer redoes the stamping later and reaches the same answer.
+priv seed_noreturn_chain := proc(ast: Expr) {
+    mut noreturn_names := Set(Str).new()
+    // The one primitive that cannot be inferred: an ext_func with no til
+    // body, bound to libc exit.
+    for stmt : Expr in ast.children {
+        if stmt.children.len() == 0 { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            ref rhs : Expr = stmt.children[0]
+            switch rhs.node_type {
+            case NodeType.FuncDef(fd):
+                if fd.func_type.is(FuncType.ExtFunc) {
+                    fd.noreturn = true
+                    noreturn_names.add(own dd.name.clone())
+                }
+            case:
+            }
+        case:
+        }
+    }
+    // Fixpoint: each round stamps the calls whose callee is already known
+    // noreturn, then re-asks fn_never_returns. A chain of length N settles
+    // in N rounds; the guard is the round that adds nothing.
+    mut changed := true
+    while changed {
+        changed = false
+        for stmt : Expr in ast.children {
+            if stmt.children.len() == 0 { continue }
+            switch stmt.node_type {
+            case NodeType.Decl(dd):
+                ref rhs : Expr = stmt.children[0]
+                switch rhs.node_type {
+                case NodeType.FuncDef(fd):
+                    if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)).not() { continue }
+                    if noreturn_names.has(dd.name) { continue }
+                    if rhs.children.len() == 0 { continue }
+                    ref body : Expr = rhs.children[0]
+                    stamp_noreturn_calls(body, noreturn_names)
+                    if fn_never_returns(body) {
+                        fd.noreturn = true
+                        noreturn_names.add(own dd.name.clone())
+                        changed = true
+                    }
+                case:
+                }
+            case:
+            }
+        }
+    }
+    // One last stamping pass so calls inside the functions that settled
+    // early also carry the bit the typer would set later.
+    for stmt : Expr in ast.children {
+        if stmt.children.len() == 0 { continue }
+        switch stmt.node_type {
+        case NodeType.Decl:
+            ref rhs : Expr = stmt.children[0]
+            switch rhs.node_type {
+            case NodeType.FuncDef:
+                if rhs.children.len() > 0 { stamp_noreturn_calls(rhs.children[0], noreturn_names) }
+            case:
+            }
+        case:
+        }
+    }
+}
+
+// Mark every FCall in `e` whose callee names one of `noreturn_names`.
+// The typer stamps the same bit from the callee's FunctionDef later; this
+// only makes it available earlier.
+priv stamp_noreturn_calls := proc(mut e: Expr, noreturn_names: Set(Str)) {
+    switch e.node_type {
+    case NodeType.FCall(fcd):
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(cn):
+                if noreturn_names.has(cn.ident_name()) { fcd.noreturn_call = true }
+            case:
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        stamp_noreturn_calls(c, noreturn_names)
+    }
+}
+
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     if lp.cur_mode.is_null().not() {
@@ -4502,6 +4606,17 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     }
     for u : ProgramUnit in lp.units {
         extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[u.path].ast)
+    }
+
+    // #303 / #321: settle core/exit.til's noreturn chain first (see
+    // seed_noreturn_chain) so units typed before it still see panic as
+    // diverging.
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            if u.path.ends_with("core/exit.til") {
+                seed_noreturn_chain(lp.ctx.imported[u.path].ast)
+            }
+        }
     }
 
     // Type checking (rstil-style): recursive imports per file.
