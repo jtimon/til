@@ -1192,7 +1192,7 @@ typedef struct priv___src_self_interpreter_til__ExtStr {
 
 typedef struct FFIEntry {
     U8 *fn;
-    Str *return_type;
+    Option__ref_Str return_type;
     USize nparam;
     U8 *param_shallows;
     U8 *param_dynamics;

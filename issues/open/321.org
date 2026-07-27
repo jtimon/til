@@ -628,6 +628,37 @@ manages its buffer. test_option_ref_str_payload covers unwrap, the
 switch form and None, and was verified to FAIL against the unfixed
 interpreter ("expected '', found 'alpha'" -- the borrow had been freed).
 
+**** Step 1, batch 15: FFIEntry, and #324's real reach
+
+FFIEntry.fn / .cif / .arg_types: the NULL defaults were DEAD -- the one
+construction site assigns all three immediately after building, so they
+move into the ctor call and #242 makes them mandatory.
+FFIEntry.return_type -> Option(ref Str): a void ext function genuinely
+has none, and it is read-only (never freed), so it migrates cleanly.
+
+Surveying the rest turned up that #324 reaches further than the three
+Scope-typed fields this issue already blocked on it. Two more classes,
+each PROVEN by the compiler rather than assumed:
+
+- FFIEntry.param_shallows / .param_dynamics are only malloc'd when the
+  signature has a shallow / dynamic param, so absence is real -- but
+  ffi_cleanup releases them with ~free(own fe.param_shallows)~, a ref
+  FIELD passed to an ~own~ parameter, which is exactly the hole #324
+  tracks. Ownership cannot be transferred out of a borrowed payload, so
+  the Option form cannot free them.
+- Context.return_value: context_return_take MOVES the pointer out to a
+  caller that owns it. With the field as Option(ref Dynamic) the typer
+  rejects the take with "cannot return ref variable from non-ref
+  function" -- the same transfer-out-of-a-borrow wall.
+
+So the step-1 remainder is now uniformly one question, not several:
+constfolder_known, ns_fields, InterpSession.global, FFIEntry's two
+buffers and Context.return_value are all "a ref field the code owns by
+hand". #324 is the gate for every one of them. Context.interp_ret_dest
+is separate: it threads through the interpreter's ~destination~
+parameter chain, so it is a nullable-ref-PARAM job (step 2's leftover),
+not an ownership one.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the

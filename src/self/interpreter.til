@@ -5347,15 +5347,25 @@ priv ExtStr := struct {
 }
 
 FFIEntry := struct {
-    ref fn : U8 = NULL
-    ref return_type : Str = NULL
+    // #321: fn / cif / arg_types are assigned by the one constructor site
+    // immediately after building, so their NULL defaults were dead -- the
+    // ctor passes them now and #242 makes them mandatory.
+    ref fn : U8
+    // A void ext function has no return type: a real absent state.
+    return_type := Option(ref Str).None
     nparam : USize = 0
+    // #321/#324: param_shallows and param_dynamics are only malloc'd when
+    // the signature has a shallow / dynamic param, so absence is real --
+    // but ffi_cleanup releases them with `free(own fe.param_shallows)`,
+    // a ref FIELD passed to an `own` parameter, which is the hole #324
+    // tracks. Ownership has to settle before these can become Options;
+    // a borrowed payload cannot be transferred out to free().
     ref param_shallows : U8 = NULL
     ref param_dynamics : U8 = NULL
     return_is_shallow := false
     return_is_ref := false
-    ref cif : ffi_cif = NULL
-    ref arg_types : Dynamic = NULL
+    ref cif : ffi_cif
+    ref arg_types : Dynamic
 }
 
 ExprPtrBox := struct {
@@ -7112,8 +7122,10 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, result: Dynamic, ctx: Con
 priv ffi_call_ret_struct_def := func(fe: FFIEntry, ctx: Context) returns Option(ref Expr) {
     if fe.return_is_shallow.not() { return Option(ref Expr).None }
     if ffi_cif_rtype_is_struct(fe.cif).not() { return Option(ref Expr).None }
-    if ctx.ffi_struct_defs.has(fe.return_type).not() { return Option(ref Expr).None }
-    ref box : ExprPtrBox = ctx.ffi_struct_defs[fe.return_type]
+    if fe.return_type.is_none() { return Option(ref Expr).None }
+    ref fe_rt : Str = fe.return_type.unwrap()
+    if ctx.ffi_struct_defs.has(fe_rt).not() { return Option(ref Expr).None }
+    ref box : ExprPtrBox = ctx.ffi_struct_defs[fe_rt]
     return Option(ref Expr).Some(box.ptr)
 }
 
@@ -7285,14 +7297,14 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
     }
 
     // Decode return value
-    if fe.return_type.is_null() {
+    if fe.return_type.is_none() {
     } else if ret_sdef_o.is_some() {
     } else if fe.return_is_shallow {
-        if ffi_decode_scalar(fe.return_type, to_ptr(raw), result, ctx).not() {
-            panic("unsupported shallow FFI return type: ", fe.return_type)
+        if ffi_decode_scalar(fe.return_type.unwrap(), to_ptr(raw), result, ctx).not() {
+            panic("unsupported shallow FFI return type: ", fe.return_type.unwrap())
         }
     } else {
-        ref rtype : Str = fe.return_type
+        ref rtype : Str = fe.return_type.unwrap()
         ref raw_ptr : Dynamic = deref(raw)
         if rtype == "Str" {
             ref sp : ExtStr = raw_ptr
@@ -7331,7 +7343,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
                 mut owned_ret : Dynamic = raw_ptr
                 free(own owned_ret)
             }
-        } else if ctx.ffi_struct_defs.has(fe.return_type) {
+        } else if ctx.ffi_struct_defs.has(fe.return_type.unwrap()) {
             // `returns ref T` hands back a borrowed pointer into foreign / C
             // memory; flag the wrapper borrowed so the garbager's deep delete
             // does not free a buffer the runtime never malloc'd (ext_libc:
@@ -7339,12 +7351,12 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
             if fe.return_is_ref {
                 write_ptr(result, raw_ptr)
             } else {
-                memcpy(result, raw_ptr, ctx_total_size(fe.return_type, ctx))
+                memcpy(result, raw_ptr, ctx_total_size(fe.return_type.unwrap(), ctx))
                 mut owned_struct_wrapper : Dynamic = raw_ptr
                 EvalHeap.heap_free(own owned_struct_wrapper)
             }
         } else {
-            panic("unsupported FFI return type: ", fe.return_type)
+            panic("unsupported FFI return type: ", fe.return_type.unwrap())
         }
     }
     for i in 0..nargs {
@@ -7716,22 +7728,19 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         cif : Dynamic = ffi_alloc_cif()
 
         // Build FFIEntry
-        mut entry := FFIEntry()
-        entry.fn = fn
-        if fd.return_type.len() > 0 { entry.return_type = fd.return_type }
+        mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes)
+        if fd.return_type.len() > 0 { entry.return_type = Option(ref Str).Some(fd.return_type) }
         entry.nparam = np
         entry.param_shallows = pshallows
         entry.param_dynamics = pdynamics
         entry.return_is_shallow = ret_shallow
         entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
-        entry.cif = cif
-        entry.arg_types = atypes
 
         // Resolve return ffi_type
         ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
-        if entry.return_type.is_null().not() {
+        if entry.return_type.is_some() {
             if ret_shallow {
-                rtype = to_ptr(shallow_ffi_type(entry.return_type, ctx))
+                rtype = to_ptr(shallow_ffi_type(entry.return_type.unwrap(), ctx))
             } else {
                 rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
             }

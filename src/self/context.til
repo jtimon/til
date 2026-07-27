@@ -451,6 +451,11 @@ Context := struct {
     has_continue := false
     // Non-owning pointer to the interpreter's current raw return allocation.
     // eval_user_func_call takes and clears it before Context teardown.
+    // #321/#324: NOT an Option yet. context_return_take MOVES the pointer
+    // out to a caller that owns it, and ownership cannot be transferred
+    // out of a BORROWED payload -- `return result` off an unwrap is
+    // rejected with "cannot return ref variable from non-ref function".
+    // Same ownership question as the Scope-typed fields; #324 first.
     ref return_value : Dynamic = NULL
     // True while the interpreter runs the body of a `returns ref`
     // function (saved/restored per call in eval_user_func_call).
