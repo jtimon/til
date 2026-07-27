@@ -3012,6 +3012,8 @@ priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInf
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 USize priv___src_self_garbager_til__LocalInfo_size(void);
 Bool priv___src_self_garbager_til__heap_local_is_callable(priv___src_self_garbager_til__LocalInfo * local);
+Bool priv___src_self_garbager_til__gc_delete_is_noop(priv___src_self_garbager_til__LocalInfo * local);
+Expr * priv___src_self_garbager_til__gc_make_delete(priv___src_self_garbager_til__LocalInfo * local, Expr * src);
 Bool priv___src_self_garbager_til__transfer_is_destructor_call(Expr * stmt, Str * name);
 Str * priv___src_self_garbager_til__gc_audit_flag(Bool b);
 Str * priv___src_self_garbager_til__gc_audit_strip_counter(Str * name);

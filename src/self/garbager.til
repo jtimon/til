@@ -71,6 +71,32 @@ priv heap_local_is_callable := func(local: LocalInfo) returns Bool {
     return local.type.is_funcptr().or(local.type.is(Type.Body))
 }
 
+// #302 stage 6: a delete the backends would execute as a NO-OP is not
+// inserted at all. The generated destructor of a scalar is exactly
+// `if (call_free) free(self);`, so a stack-stored primitive's
+// `T.delete(x, false)` does nothing -- it exists only because the
+// insertion loop below is type-blind. The C backend already elided it
+// (is_noop_delete_stmt), which is the stage-6 compensation this
+// retires for the scalar class: the pass now makes the decision and
+// both backends just execute it.
+//
+// Scalars ONLY, deliberately. Str / Vec / struct / payload-carrying
+// enum destructors free their inner data regardless of call_free, and
+// a Custom / Dynamic type's destructor is not knowable here.
+priv gc_delete_is_noop := func(local: LocalInfo) returns Bool {
+    if local.is_heap { return false }
+    if local.raw_alloc { return false }
+    return local.type.is(Type.Primitive)
+}
+
+// The one delete factory this pass inserts through: no-op deletes come
+// back NULL, which every call site already handles (make_delete_call
+// itself returns NULL for an unnameable type).
+priv gc_make_delete := func(local: LocalInfo, src: Expr) returns Expr {
+    if gc_delete_is_noop(local) { return NULL }
+    return make_delete_call(local.name, local.type, local.is_heap, local.is_heap, src)
+}
+
 // rhs_is_allocator_call moved to context.til (#303): the builder's
 // raw-alloc value-local emit needs the same predicate this pass uses.
 
@@ -1648,7 +1674,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // precondition) that the builder emits without the per-shape
                 // `{ T _ret = <expr>; <deletes>; return _ret; }` wrapper.
                 if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                    del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
+                    del := gc_make_delete(local, stmt)
                     if del.is_null().not() { new_ch.push(own del) }
                 } else if local.is_heap {
                     del := make_free_call(local.name, local.type, stmt)
@@ -1756,7 +1782,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         if local.decl_index < stmt_idx.to_i32() {
             if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
                 if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                    del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
+                    del := gc_make_delete(local, stmt)
                     if del.is_null().not() { new_ch.push(own del) }
                 } else if local.is_heap {
                     del := make_free_call(local.name, local.type, stmt)
@@ -1947,7 +1973,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
                 }
             }
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
+                del := gc_make_delete(local, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
                 del := make_free_call(local.name, local.type, stmt)
@@ -1956,7 +1982,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
         }
         if local.last_use.eq(-1).and(local.decl_index.eq(stmt_idx.to_i32())) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
+                del := gc_make_delete(local, stmt)
                 if del.is_null().not() { new_ch.push(own del) }
             } else if local.is_heap {
                 del := make_free_call(local.name, local.type, stmt)
@@ -2020,7 +2046,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                     stmt.set_til_type(local.type.clone())
                 } else {
                     if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                        del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, stmt)
+                        del := gc_make_delete(local, stmt)
                         if del.is_null().not() { new_ch.push(own del) }
                     } else if local.is_heap {
                         del := make_free_call(local.name, local.type, stmt)
@@ -2131,7 +2157,7 @@ priv stmt_is_conditional_container := func(stmt: Expr) returns Bool {
 }
 
 priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr, scope: TypeScope, ctx: Context) returns Bool {
-    del := make_delete_call(local.name, local.type, local.is_heap, local.is_heap, src)
+    del := gc_make_delete(local, src)
     if del.is_null() { return false }
     // #302 stage 3: the graft lands at the END of the branch body, so any
     // exit INSIDE that body escapes it -- an early `return` nested in a

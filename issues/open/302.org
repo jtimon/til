@@ -1092,8 +1092,9 @@ let the ownership pass insert temps itself; start with the check.
     the consumer. StructDef/EnumDef/nested-Body/FuncDef are boundary
     nodes (initer machinery / separate views). Corpus is hit-free; the
     ICE is armed. make clean && make test 176/176 (ASAN).
-  - [ ] Stage 6: builder compensation removal. The is_noop_delete_stmt
-    item ("no-op deletes are simply NOT INSERTED") was probed
+  - [X] Stage 6 DONE (2026-07-27): builder compensation removal. The
+    is_noop_delete_stmt item ("no-op deletes are simply NOT INSERTED")
+    was probed
     2026-07-16 and found GATED on #286: the BOXED interpreter consumed
     the garbager's delete statements as its reclamation signal, and
     suppressing even the scalar class corrupted constfold evaluation
@@ -1114,11 +1115,39 @@ let the ownership pass insert temps itself; start with the check.
     runtime that the deletes' presence papers over by shifting
     allocation patterns. A same-name rebind ptr_eq fix in
     scope_set_heap_owned was tried and did NOT fix it (reverted --
-    unverified edits do not ship). NEXT: root-cause the known-table
-    adoption vs scope teardown ownership (suggest filing as its own
-    interpreter bug); the no-op item lands after that fix, with the
-    same recipe (gc_delete_is_noop + gc_make_delete over the six
-    factory sites) and referees (pass-diff classes + ASAN suite).
+    unverified edits do not ship).
+    RESOLVED and LANDED 2026-07-27: the blocking bug is GONE on
+    current master (fixed in passing by the raw-storage / #286
+    follow-up work that landed since), re-probed by rebuilding with
+    the gate and translating both `x := 1` and test/strings.til
+    cleanly. Landed with exactly the recipe this entry predicted:
+    gc_delete_is_noop (is_heap=false, raw_alloc=false,
+    Type.Primitive -- scalars ONLY, since Str / Vec / struct /
+    payload-carrying enum destructors free inner data regardless of
+    call_free, and a Custom / Dynamic destructor is not knowable in
+    the pass) plus a gc_make_delete factory that returns NULL for a
+    no-op, routed over all six make_delete_call sites
+    (insert_exit_deletes, insert_exit_deletes_into_stmt, both
+    insert_post_stmt_deletes sites, insert_assign_delete,
+    add_delete_to_branch). Every site already handled a NULL from
+    make_delete_call, so no call-site logic changed. Referees: emitted
+    C is BYTE-IDENTICAL for every test/*.til, examples/*.til and
+    src/til.til (old compiler vs new, so pass 1 == pass 2 by
+    construction) -- the proof that this only retires statements the C
+    backend was already eliding; make clean && make test 188/188 with
+    the ASAN suite; the gc_audit golden diff is exactly the 678
+    `call_free=0` scalar delete sites removed (U32/Bool/I64/I32/U8/
+    U64) plus the CFG span shifts they cause, with the one heap
+    `I64.delete(...) own=1` site correctly kept. Bonus, and the reason
+    to do it in the pass rather than the backend: not building those
+    AST nodes at all makes self-translate ~16% faster (bin/til 47.8s
+    vs master's bin/til_boot 56.9s on `translate src/til.til`) -- the
+    opposite of the stage-3 exit-flow experiment's cost.
+    is_noop_delete_stmt STAYS in the builder: its remaining job is the
+    POD-enum / POD-struct / literal-Str stack shapes whose Decl paths
+    knowingly record HeapBox while emitting a stack value (the
+    unasserted set in assert_gc_stack's comment), not the scalar
+    class, which no longer reaches it.
     swap_freed 2026-07-16: FULLY RETIRED (field, producers and both
     consumer guards deleted) in two steps. (1) The swap_replace producer
     (hoist_param_swap_assign's Str move lowering) became a visible
@@ -1178,10 +1207,11 @@ let the ownership pass insert temps itself; start with the check.
     callee-storage knowledge, so treat them as ONE item -- and the
     honest reading is that both are the sanctioned runtime fallback
     unless a callee-storage fact is added to the model (a real design
-    step, not a cleanup). Remaining stage-6 item: the "Asap fix" inline
-    free stays as a mechanism (above), so what is left of this stage is
-    the no-op-delete item, blocked on the latent constfolder/scope
-    ownership bug.
+    step, not a cleanup). Stage 6 is therefore CLOSED with: swap_freed
+    fully retired, the "Asap fix" inline free kept as a mechanism with
+    a structural gate, the CAP-laundering / FieldAssign-cap-test pair
+    ruled the sanctioned runtime fallback (not a removable
+    compensation), and the no-op-delete item landed 2026-07-27.
   - [X] Stage 7 DONE (2026-07-16): interpreter compensation removal --
     largely delivered by #286 itself, and the remaining per-call audit
     completed. All 36 surviving free/delete calls classify into the
