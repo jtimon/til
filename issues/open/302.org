@@ -1044,22 +1044,44 @@ let the ownership pass insert temps itself; start with the check.
     in NO statement of the view has the identity transfer everywhere,
     so its row is just the view's REACHABILITY -- name-independent,
     computed once. Solving those locals anyway cost 45%.
-    NEGATIVE RESULT, same day: the twin migration of
-    insert_nested_exit_deletes' two index gates (`own_transfer <=
-    stmt_idx` -> Moved, `decl_index < stmt_idx` -> Uninit) WORKS and is
-    likewise byte-identical for the whole corpus, but is NOT landed: it
-    needs a table over the ROOT body of essentially every body (gating
-    on "has a compound statement" barely helped), and there the per-
-    local kill sweep is 3 Set(Str) probes per statement per local --
-    +21% on a self-translate. Collecting the names once per statement
-    into fact sets and probing those did not fix it; the probes ARE the
-    cost (Set(Str).has is a binary search over Str_cmp, already 13% of
-    the profile through Map/Set lookups). The fix is to stop asking per
-    local and SCATTER: walk each statement's collected names once and
-    mark the locals they name, which is proportional to actual mentions
-    rather than locals x statements. That needs to enumerate a
-    Set(Str), and Set has no get/iterator -- a core-container API
-    question to settle before this lands.
+    The twin migration of insert_nested_exit_deletes' two index gates
+    landed the next commit; see below for why the first attempt at it
+    was 21% slower and what the actual answer turned out to be.
+  - [X] 2026-07-27 Stage 3: insert_nested_exit_deletes' two INDEX GATES
+    are dataflow verdicts too. `own_transfer <= stmt_idx` (stand down
+    once the transfer is at or before this statement) is Moved, and
+    `decl_index < stmt_idx` (nothing to free before the Decl) is
+    Uninit -- both computed per path by a gc_flow_stmt_table over the
+    ROOT body, built before the insertion loop's move_from. Only the
+    dtor_transfer exclusion stays outside the flow, correctly: it is a
+    fact about WHAT the transfer is (a delete method's own
+    `free(own self)`), not about where it sits. Byte-identical C for
+    the whole corpus, golden unchanged, 189/189 with ASAN, and no
+    measurable cost (34.53s against master's 34.84s on
+    `translate src/til.til`, i.e. inside the noise).
+    Getting there took three tries, and the lesson is worth keeping.
+    Unlike the per-view table, the root table is needed for nearly
+    every body, so its per-local cost is paid everywhere. Asking the
+    three predicates per (local, statement) was +71%. Collecting each
+    statement's names into fact sets and probing those was still +21%
+    -- the probes ARE the cost, since Set(Str).has is a binary search
+    over Str_cmp and Map/Set lookups already account for 13% of a
+    self-translate profile. The shortcut that had worked for the
+    per-view table (skip locals the view never mentions) did nothing
+    here because it keyed on decls + reassigns + transfers, and every
+    local of a body is in its own decls set.
+    The answer was to narrow the shortcut to what actually matters:
+    only a TRANSFER can move a binding down the lattice, so a binding
+    the body never transfers has its whole row in closed form --
+    Uninit up to its Decl statement, Owned after -- with no fixpoint
+    at all, and a body that transfers NOTHING needs no CFG either.
+    That fact was already being computed and thrown away:
+    collect_scope_locals derives own_transfer from the statement facts
+    it already has, so recording it as LocalInfo.has_transfer (never
+    cleared, unlike own_transfer, which check_use_after_own_transfer
+    resets for diverged transfers) costs one assignment. No extra
+    sweep, no Set enumeration, and the core-container API question
+    raised for the scatter approach is moot.
   - [ ] Stage 3 (rest): move the remaining insertion sites
     (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
     onto the same verdict; then delete the index-model special cases

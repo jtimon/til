@@ -929,6 +929,7 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
     I32 decl_index;
     I32 last_use;
     I32 own_transfer;
+    Bool has_transfer;
     Bool skip_scope_delete;
     Bool is_heap;
     Bool dtor_transfer;
@@ -3051,8 +3052,6 @@ U8 priv___src_self_garbager_til__gc_flow_block_kill(Vec__GcCfgBlock * blocks, US
 void priv___src_self_garbager_til__gc_flow_preds(Vec__GcCfgBlock * blocks, Array__USize * pred_off, Vec__USize * preds);
 void priv___src_self_garbager_til__gc_flow_fixpoint(USize n, Array__USize * pred_off, Vec__USize * preds, Array__U8 * kill, U8 entry_state, Array__U8 * ins, Array__U8 * outs);
 void priv___src_self_garbager_til__gc_flow_solve(Vec__GcCfgBlock * blocks, U8 entry_state, Str * name, TypeScope * scope, Context * ctx, Array__U8 * ins, Array__U8 * outs);
-void priv___src_self_garbager_til__expr_collect_reassigns(Expr * e, Set__Str * out);
-void priv___src_self_garbager_til__gc_flow_view_names(Vec__GcCfgBlock * blocks, TypeScope * scope, Set__Str * out);
 Array__U8 * priv___src_self_garbager_til__gc_flow_stmt_table(Expr * body, Vec__LocalInfo * locals, U8 entry_state, Bool has_exit, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__gc_flow_exit_is_mixed(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__gc_flow_owned_at_stmt(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx, I32 stmt_idx);
@@ -3094,7 +3093,7 @@ Bool priv___src_self_garbager_til__transfer_lex_inside_while(Expr * e, Str * nam
 Bool priv___src_self_garbager_til__expr_reassigns_var(Expr * e, Str * name);
 void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only, TypeScope * scope, Context * ctx);
-void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, TypeScope * scope, Context * ctx);
+void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Array__U8 * root_flow, USize root_stmts, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch);
 void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
 void priv___src_self_garbager_til__flag_outer_assign_rebinds(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
