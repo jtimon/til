@@ -1986,7 +1986,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // Moved.
                 mut st : U8 = FLOW_UNREACHED
                 st = flow_table[li.mul(old.len()).add(i)]
-                if st.eq(FLOW_MOVED).or(st.eq(FLOW_UNREACHED)) { continue }
+                if st.eq(FLOW_OWNED).not() { continue }
                 // #302 stage 2: exit deletes are always PRECEDING statements,
                 // never Return children. The garbager already excludes any
                 // local used (or aliased) by the return operand above, so

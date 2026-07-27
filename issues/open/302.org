@@ -1166,6 +1166,27 @@ let the ownership pass insert temps itself; start with the check.
     no longer produces; kept, since the hazard it names -- a transfer
     belonging to a different ITERATION than the grafted path -- is real
     and outside what a single per-body flow view can express).
+  - [X] 2026-07-27 follow-up to the correction, in two parts.
+    (1) RE-VERIFIED, properly this time, the other three commits whose
+    "byte-identical" claim rested on the broken referee: e8545a7 (the
+    exit-delete pre-transfer rule), 6cc11a2 (stage 6, no-op scalar
+    deletes) and ac7f3f9 (hoisting the loop-invariant work out of the
+    flow fixpoint) are each byte-identical against their own parent.
+    d2f1ae0 was the only one that differed.
+    (2) The THIRD exit gate now shares the rule. insert_exit_deletes
+    was still inserting under a Mixed verdict -- faithfully, since the
+    positional scan it replaced did too (it only stood down on an
+    unconditional straight-line transfer, and skipped compound
+    siblings wholesale) -- so it carried the same latent double-free as
+    the migrated gate did, just inherited rather than introduced. It
+    survives in practice because the SINK normalizes Mixed to Moved
+    before the insertion loop runs, grafting a delete into the
+    non-transfer branch; what it cannot normalize is the class the sink
+    skips (not is_heap, not an aggregate), which is exactly where the
+    constfolder's Dynamic arg_raw sat. All three exit sites now test
+    FLOW_OWNED: free only what EVERY path still owns. Byte-identical C
+    for the whole corpus under the corrected referee, so this closes
+    the hazard without changing a line of output.
   - [ ] Stage 3 (rest): delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
