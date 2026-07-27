@@ -22,15 +22,11 @@ out := {"x": 100}
 result := {1, 2, 3}
 node := {"k": "v"}
 
-// Map get (ref) + has + key iteration. The .get call is wrapped in
-// a function so the throw/catch pass runs on the bang (top-level
-// statements in script mode aren't processed by it today).
-get_a_from_m := func() returns I64 {
-    ref mm : Map(Str, I64) = m
-    ref v : I64 = mm["a"]
-    return v.clone()
-}
-println(get_a_from_m().to_str())
+// Map get (ref) + has + key iteration. The subscript parses to a
+// throwing `get(...)!`, and top-level statements get the same
+// throw/catch lowering as a function body, so it needs no wrapper.
+ref a_from_m : I64 = m["a"]
+println(a_from_m.to_str())
 println(m.has("b").to_str())
 for k : Str in m.keys {
     println(k)
@@ -43,15 +39,10 @@ println(s.has(20).to_str())
 // local `m` in HashMap.new.
 h := HashMap(Str, I64).new()
 h.set("one", own 1)
-// Wrapped for the same reason as get_a_from_m above: HashMap.get
-// throws KeyNotFound (#323 step 1), and the throw/catch pass does not
-// run on top-level script statements, so the bang needs a function.
-get_one_from_h := func() returns I64 {
-    ref hh : HashMap(Str, I64) = h
-    ref v : I64 = hh.get("one")!
-    return v.clone()
-}
-println(get_one_from_h().to_str())
+// HashMap.get throws KeyNotFound (#323 step 1); the bang is lowered at
+// top level too, so this needs no wrapper either.
+ref one_from_h : I64 = h.get("one")!
+println(one_from_h.to_str())
 
 // format() iterates a Str* parts array (the `s` loop-var symptom).
 println(format("len=", m.len().to_str(), " set=", s.len().to_str()))

@@ -5400,6 +5400,22 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
     // any body type-checking so call-site rewrites in
     // inject_throw_args_in_body see the post-extension param list.
     extend_throwing_func_sigs(ctx, program)
+    // The unit's top-level body is a function body too -- the builder
+    // emits it as main -- so lower its throw/catch/bang calls exactly
+    // like infer_func_def_expr does for a FuncDef, and before typing it
+    // for the same reason. Only FuncDef bodies used to get this pass, so
+    // a top-level `v[0]` (which parses to `v.get(0)!`) or `f()?` kept its
+    // pre-lowering argument list while extend_throwing_func_sigs had
+    // already appended the callee's err out-params: "missing argument for
+    // parameter '_err_kind'". A body with no bang/throw/catch returns
+    // immediately, so lib units and plain scripts pay nothing.
+    // The top level declares no throws (there is no signature to declare
+    // them on), so an uncaught `?` reports the usual "declare it or catch
+    // it" error instead of miscompiling.
+    unit_no_throws := Vec(Str).new()
+    ctx.lowering_param_types = Map(Str, Str).new()
+    collect_switch_case_bindings(ctx, program)
+    process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via

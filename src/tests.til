@@ -887,6 +887,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
         "", 0, format(exp, "script_raw_alloc.out"), til_bin, asan_flag)
 
+    // Top-level statements get the same throw/catch/bang lowering as a
+    // function body: a subscript (`v[0]` -> `get(...)!`), an explicit bang
+    // and a `?`/catch all work at the root of a `mode script` unit.
+    File.writefile(format(exp, "script_toplevel_throws.out"),
+        format("7", NL, "8", NL, "caught", NL, "42", NL, "8", NL))
+    add_cli_pair(tests, "script_toplevel_throws", "test/script_toplevel_throws.til",
+        "", 0, format(exp, "script_toplevel_throws.out"), til_bin, asan_flag)
+
     // Issue #312: a top-level numeric for-in loop in a `mode script` unit must
     // type-check (both interpreted and compiled) instead of panicking
     // OutOfBounds in infer_body_unit.

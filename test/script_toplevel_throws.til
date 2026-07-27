@@ -1,0 +1,39 @@
+mode script
+
+// Top-level statements are a function body too -- the builder emits them
+// as main -- so `?`/`catch` and the bang (`!`, which a subscript parses
+// to) must be lowered there exactly as inside a func. They were not: only
+// FuncDef bodies got process_throw_catch_in_func_body, so a top-level
+// `v[0]` kept its pre-lowering argument list while the callee signature
+// had already grown the err out-params ("missing argument for parameter
+// '_err_kind'"). Every form below therefore had to be wrapped in a
+// throwaway function to work.
+
+mut v := Vec(I64).new()
+v.push(own 7)
+v.push(own 8)
+
+// Subscript -> get(...)! on the success path.
+ref first : I64 = v[0]
+println(first.to_str())
+
+// Explicit bang, same lowering.
+ref second : I64 = v.get(1)!
+println(second.to_str())
+
+// ?/catch at top level: the catch arm runs and execution continues.
+ref missing : I64 = v.get(9)?
+catch (e: OutOfBounds) {
+    println("caught")
+}
+
+// A collection literal's element access goes down the same path.
+lit := vec(I64, 41, 42)
+ref from_lit : I64 = lit[1]
+println(from_lit.to_str())
+
+// Lowering inside a top-level nested body (if) as well as at the root.
+if v.len() > 1 {
+    ref nested : I64 = v[1]
+    println(nested.to_str())
+}
