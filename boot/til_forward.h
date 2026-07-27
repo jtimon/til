@@ -2036,7 +2036,7 @@ Bool priv___src_self_parser_til__parser_has_active_type_param(priv___src_self_pa
 Str * priv___src_self_parser_til__parse_type_ref(priv___src_self_parser_til__Parser * p);
 Str * priv___src_self_parser_til__parse_fn_signature(priv___src_self_parser_til__Parser * p, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_block(priv___src_self_parser_til__Parser * p);
-Vec__Declaration * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p, Bool allow_modes);
+Vec__Declaration * priv___src_self_parser_til__parse_capture_list(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_body_value(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_expr_for_decl_type(priv___src_self_parser_til__Parser * p, Str * type_name);
 Vec__Declaration * priv___src_self_parser_til__parse_generic_params(priv___src_self_parser_til__Parser * p);
@@ -2703,6 +2703,7 @@ void priv___src_self_typer_til__capture_block_check_refs(Expr * e, TypeScope * e
 void priv___src_self_typer_til__body_value_check_no_return(Expr * e, Context * ctx);
 void priv___src_self_typer_til__infer_body_value_expr(TypeScope * scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec__Declaration * captures, Expr * errnode, Context * ctx);
+void priv___src_self_typer_til__capture_block_rename(Expr * e, Str * from, Str * to);
 void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void infer_body_stmt(TypeScope * scope, Expr * body, USize * i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void priv___src_self_typer_til__reregister_scope_defs(Expr * body, TypeScope * scope);

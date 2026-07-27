@@ -62,7 +62,39 @@
        test_closure_stored_in_dyn_vec.
        Remaining: broader stored-closure escape paths not covered by return,
        struct fields, DynVec(Fn), or own-arg checks.
-   - [ ] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
+   - [X] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
+     Functions already had them; blocks rejected `own`/`shallow` at parse
+     time and now accept the full modifier set, so every capture site
+     (func defs, FuncSig forms, body values, bare blocks) shares one
+     `parse_capture_list`. Block semantics, all inline (no closure value):
+       - `[x]` / `[mut x]`: borrow -- a `mut` write reaches the OUTER binding
+         (unchanged behaviour).
+       - `[shallow x]`: the block gets a PRIVATE value copy. Lowered by
+         declaring the copy under a fresh name and renaming the body's uses
+         to it (capture_block_rename, src/self/typer.til) -- a same-name
+         shadowing decl would emit `T x = x` in C, a self-reference.
+         `mut` on a shallow capture describes the COPY, so the source need
+         not itself be mut (validate_captures only requires that for
+         borrows).
+       - `[own x]`: the block CONSUMES x. expr_transfers_own /
+         expr_collect_transfers report the CaptureBlock (in lockstep, beside
+         the existing FuncDef and BodyValue capture cases), so the enclosing
+         scope stands down its delete and a later use is the standard
+         "use of 'x' after ownership transfer" error; the binding is then
+         registered in the block scope so the garbager gives it ordinary
+         block-end cleanup (without that it leaked -- neither scope freed it,
+         caught by ASAN).
+     Tests: test/closures.til (test_block_capture_shallow_private /
+     _shallow_read / _mut_writes_through / _own / _own_struct, both backends
+     + ASAN) and test/capture_block_own_error.til (use-after-move negative).
+
+     Found while implementing and filed as [[./325.org][#325]] (PRE-EXISTING,
+     not block-capture specific): a `mut` heap local declared inside a nested
+     block, reassigned to a literal and then moved out, emits a `free` of the
+     literal -- `{ mut t := s; t = "zz"; out = t }` fails to compile with
+     "'free' called on unallocated object '_til_str_lits'". The same code at
+     function top level is fine. The shallow-capture tests here avoid that
+     shape.
 
 :DEPENDENCIES: [[./61.org][#61]]
   :DEPENDENCIES_OF: [[./12.org][#12]] [[./13.org][#13]]

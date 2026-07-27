@@ -737,6 +737,10 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_func_error", "typer",
         "cannot capture immutable", 1,
         format(til_bin, " interpret test/capture_func_error.til"))
+    // #54: an `[own x]` block capture consumes x; a later use is rejected.
+    add_count(tests, "capture_block_own_error", "typer",
+        "after ownership transfer", 1,
+        format(til_bin, " interpret test/capture_block_own_error.til"))
     // #288: a core_func / core_proc is an inline-only primitive intrinsic and
     // cannot be indirected -- dyn_fn on one is a typer error (2 cases). Count
     // the enforcement substring, not "error:", since dyn_fn's Dynamic result

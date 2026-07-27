@@ -1,0 +1,16 @@
+mode script
+
+// Negative test (issue #54): an `[own x]` block capture CONSUMES x -- the
+// block takes ownership, so the enclosing scope stands down its cleanup and
+// any later use of the binding is a use-after-move error, exactly like
+// passing `own x` to a function parameter.
+main := proc() {
+    s := "hello"
+    mut n : USize = 0
+    [own s, mut n] {
+        n = s.len()
+    }
+    // s was moved into the block above: this use must be rejected.
+    m := s.len()
+    println(n.add(m).to_str())
+}

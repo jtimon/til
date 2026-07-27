@@ -87,6 +87,63 @@ test_block_capture_isolation := test() {
     assert_eq(I64, untouched, 99)
 }
 
+// #54: block capture MODES. `[x]` / `[mut x]` borrow (writes reach the outer
+// binding); `[shallow x]` gives the block a PRIVATE value copy (writes stay
+// inside); `[own x]` transfers the binding to the block (the enclosing scope
+// stands down its cleanup and a later use is a use-after-move error, checked
+// in test/capture_block_error.til).
+
+// shallow + mut: the block writes its own copy, the outer binding is untouched.
+// `mut` here describes the COPY, so the source need not be mut.
+test_block_capture_shallow_private := test() {
+    total := 10
+    [shallow mut total] {
+        total = 99
+    }
+    assert_eq(I64, total, 10)
+}
+
+// A shallow capture still READS the value it copied at block entry.
+test_block_capture_shallow_read := test() {
+    n := 7
+    mut seen := 0
+    [shallow n, mut seen] {
+        seen = n
+    }
+    assert_eq(I64, seen, 7)
+}
+
+// Contrast: a `mut` BORROW capture writes through to the outer binding.
+test_block_capture_mut_writes_through := test() {
+    mut total := 1
+    [mut total] {
+        total = 42
+    }
+    assert_eq(I64, total, 42)
+}
+
+// own: the block consumes the binding (owned Str; ASAN proves no leak/double
+// free -- the enclosing scope must not also delete it).
+test_block_capture_own := test() {
+    s := "hello"
+    mut n : USize = 0
+    [own s, mut n] {
+        n = s.len()
+    }
+    assert_eq(USize, n, 5)
+}
+
+// own of a struct with an owned field.
+OwnBox54 := struct { name := "" }
+test_block_capture_own_struct := test() {
+    h := OwnBox54(name = "boxed")
+    mut ln : USize = 0
+    [own h, mut ln] {
+        ln = h.name.len()
+    }
+    assert_eq(USize, ln, 5)
+}
+
 // #295: a capturing closure is first-class -- callable by its own local name,
 // not only when passed through a parameter. (Previously the by-name call
 // typed as 'unknown' because the initer mis-registered it as a named func.)

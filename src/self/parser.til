@@ -449,19 +449,16 @@ priv parse_block := proc(mut p: Parser) returns Expr {
 }
 
 // parse_capture_list: parse `[ [own|shallow] [mut] name, ... ]` into a
-// Vec<Declaration>. The current token must be '['. `allow_modes` enables
-// the own/shallow ownership modifiers (function captures); block captures
-// pass false and reject them. Issue #54.
-priv parse_capture_list := func(mut p: Parser, allow_modes: Bool) returns Vec(Declaration) {
+// Vec<Declaration>. The current token must be '['. Every capture site --
+// function defs, FuncSig forms, body values and bare blocks -- accepts the
+// full modifier set (issue #54): bare (const ref), `mut`, `shallow`
+// (value copy) and `own` (ownership transfer).
+priv parse_capture_list := func(mut p: Parser) returns Vec(Declaration) {
     expect_token(p, TokenType.LBracket)
     mut caps := Vec(Declaration).new()
     while check(p, TokenType.RBracket).not().and(check(p, TokenType.Eof).not()) {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow).or(check(p, TokenType.KwOwn)) {
-            if allow_modes.not() {
-                panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": 'own'/'shallow' capture modes on a block are not yet supported (issue #54)")
-            }
             if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
             else { advance(p); own_type = OwnType.Own }
         }
@@ -480,7 +477,7 @@ priv parse_body_value := proc(mut p: Parser) returns Expr {
     col := peek_col(p)
     mut bd := CaptureBlockData()
     if check(p, TokenType.LBracket) {
-        bd.captures = parse_capture_list(p, true)
+        bd.captures = parse_capture_list(p)
     }
     expect_token(p, TokenType.LBrace)
     mut body := parse_block(p)
@@ -724,7 +721,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // and before the body: `func(a: I64) returns I64 [scale] { ... }`. The
     // FuncSig form (`= (names) [caps] { ... }`) parses its captures below.
     if check(p, TokenType.LBracket) {
-        fd.captures = parse_capture_list(p, true)
+        fd.captures = parse_capture_list(p)
     }
 
     mut def := Expr.new(NodeType.FuncDef(fd), kw_line, kw_col)
@@ -765,7 +762,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             // Issue #54: optional capture list (FuncSig form), after the
             // param names and before the body: `= (a) [scale] { ... }`.
             if check(p, TokenType.LBracket) {
-                sfd.captures = parse_capture_list(p, true)
+                sfd.captures = parse_capture_list(p)
             }
         case:
             UNREACHABLE()
@@ -2019,7 +2016,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 expect_token(p, TokenType.RParen)
                 mut captures := Vec(Declaration).new()
                 if check(p, TokenType.LBracket) {
-                    captures = parse_capture_list(p, true)
+                    captures = parse_capture_list(p)
                 }
                 // Parse { body }
                 expect_token(p, TokenType.LBrace)
@@ -2431,11 +2428,11 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     // Issue #54: bare capture block `[a, mut b] { ... }`. The bracket list
     // restricts which outer-scope locals the block body may reference. `[`
     // is otherwise only a postfix index token, so a leading `[` is an
-    // unambiguous capture block. Modifiers: bare (const ref) and `mut`;
-    // `own`/`shallow` capture modes on a block are not yet supported.
+    // unambiguous capture block. Modifiers: bare (const ref), `mut`,
+    // `shallow` (private value copy) and `own` (the block consumes it).
     if t.type.is(TokenType.LBracket) {
         mut cbd := CaptureBlockData()
-        cbd.captures = parse_capture_list(p, false)
+        cbd.captures = parse_capture_list(p)
         mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
         expect_token(p, TokenType.LBrace)
         cb.add_child(own parse_block(p))

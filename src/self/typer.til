@@ -5076,19 +5076,56 @@ priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), err
             if cap.explicit_type.len() == 0 { cap.explicit_type = til_type_name_c(b.type) }
             b.used = true
             if cap.is_mut {
-                if b.is_mut.not() {
-                    errnode.type_error(format("cannot capture immutable '", cap.name,
-                        "' as 'mut'"), ctx)
+                // `mut` on a BORROW (the default ref capture) writes through to
+                // the source, so the source must itself be mut. On a `shallow`
+                // (private value copy) or `own` (moved in) capture it describes
+                // the capture's OWN storage -- the source is never written, so
+                // its mutability is irrelevant. Issue #54.
+                if cap.own_type.is(OwnType.Ref) {
+                    if b.is_mut.not() {
+                        errnode.type_error(format("cannot capture immutable '", cap.name,
+                            "' as 'mut'"), ctx)
+                    }
+                    b.written = true
                 }
-                b.written = true
             }
         }
+    }
+}
+
+// Issue #54: rewrite every reference to `from` into `to` inside a capture
+// block body. Used to give a `shallow` block capture a PRIVATE copy: the copy
+// is declared under a fresh name and the body's uses are renamed to it, so the
+// outer binding is never shadowed (a same-name shadowing decl would emit
+// `T x = x` in C -- a self-reference). Stops at nested capture blocks / body
+// values / func defs, which carry their own capture lists.
+priv capture_block_rename := proc(mut e: Expr, from: Str, to: Str) {
+    switch e.node_type {
+    case NodeType.CaptureBlock: return
+    case NodeType.BodyValue: return
+    case NodeType.FuncDef: return
+    case NodeType.Ident(idd):
+        if idd.ident_name() == from { e.node_type = ident_node(to) }
+    case NodeType.Assign(ad):
+        if ad.name == from { ad.name = to.clone() }
+    case NodeType.Decl(dd):
+        // A block-local of the same name shadows the capture from here on;
+        // leave it (and the rest of this body) alone.
+        if dd.name == from { return }
+    case:
+    }
+    for i in 0..e.children.len() {
+        capture_block_rename(e.children[i], from, to)
     }
 }
 
 // Issue #54: type-check a bare capture block `[a, mut b] { ... }`. The
 // body is typed in a normal inline child scope, then a read-only
 // restriction pass enforces that only captured outer locals are touched.
+// `shallow` captures are given a private renamed copy first (see
+// capture_block_rename); `own` captures transfer the binding to the block
+// (expr_transfers_own reports the CaptureBlock, so the enclosing scope stands
+// down its delete and a later use is a use-after-move error).
 priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
         in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) {
     mut captures := Vec(Declaration).new()
@@ -5105,11 +5142,45 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
         stmt.set_til_type(Type.None)
         return
     }
+    // `shallow`: prepend `_cap_<name>_<n> := <outer name>` and rename the
+    // body's uses to it, so writes stay private to the block and the outer
+    // binding is untouched.
+    for cap : Declaration in captures {
+        if cap.own_type.is(OwnType.Shallow).not() { continue }
+        if scope.get_binding(cap.name).is_none() { continue }
+        fresh := format("_cap_", cap.name, "_", ctx.hoist_counter.to_str())
+        ctx.hoist_counter++
+        ref mut cbody : Expr = stmt.children[0]
+        capture_block_rename(cbody, cap.name, fresh)
+        mut cdecl := Expr.new(NodeType.Decl(Declaration(name = fresh.clone(), is_mut = cap.is_mut)), stmt.line, stmt.col)
+        cdecl.add_child(own Expr.new(ident_node(cap.name), stmt.line, stmt.col))
+        mut new_ch := Vec(Expr).new()
+        new_ch.push(own cdecl)
+        for bi in 0..cbody.children.len() { new_ch.push_take(cbody.children, bi) }
+        cbody.children.move_from(new_ch)
+    }
     ref mut body : Expr = stmt.children[0]
     block_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
+    // `own`: the block took ownership, so the ENCLOSING scope stands down its
+    // delete (expr_transfers_own reports the CaptureBlock). Register the
+    // binding in the block scope so the garbager gives it ordinary block-end
+    // cleanup here -- without this the value would leak, since neither scope
+    // would free it. Done after the body is typed so it does not disturb
+    // inference, and before garbager_destroy_body so the pass sees it.
+    for ocap : Declaration in captures {
+        if ocap.own_type.is(OwnType.Own).not() { continue }
+        osrc_o := scope.get_binding(ocap.name)
+        if osrc_o.is_none() { continue }
+        if block_scope.bindings.has(ocap.name) { continue }
+        ref osrc : TypeBinding = osrc_o.unwrap()
+        block_scope.set(ocap.name, osrc.type, osrc.is_mut, ctx.path,
+            stmt.line, stmt.col, false, OwnType.Own)
+        ref mut ob : TypeBinding = block_scope.get_binding(ocap.name).unwrap()
+        ob.used = true
+    }
     garbager_destroy_body(ctx, body, block_scope)
     check_unused_locals(block_scope, ctx.path, ctx)
     check_unused_mut_locals(block_scope, ctx.path, ctx)
@@ -6548,6 +6619,20 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
             if cap.name.eq(var_name).and(cap.own_type.is(OwnType.Own)) { return true }
         }
         return false
+    case NodeType.CaptureBlock(cbd):
+        // Issue #54: an `[own x]` block capture consumes x -- the block owns
+        // it from here, so the enclosing scope stands down its delete and a
+        // later use is a use-after-move error. Unlike a FuncDef the block is
+        // INLINE code, so keep recursing into its body below for any further
+        // transfers it performs.
+        for cap : Declaration in cbd.captures {
+            if cap.name.eq(var_name).and(cap.own_type.is(OwnType.Own)) { return true }
+        }
+    case NodeType.BodyValue(bvd):
+        for cap : Declaration in bvd.captures {
+            if cap.name.eq(var_name).and(cap.own_type.is(OwnType.Own)) { return true }
+        }
+        return false
     case NodeType.FCall(fcd):
         if fcd.swap_replace.and(e.children.len().gte(3)) {
             switch e.children[2].node_type {
@@ -6754,6 +6839,17 @@ expr_collect_transfers := func(e: Expr, scope: TypeScope, mut out: Set(Str)) {
     switch e.node_type {
     case NodeType.FuncDef(fd):
         for cap : Declaration in fd.captures {
+            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
+        }
+        return
+    case NodeType.CaptureBlock(cbd):
+        // Lockstep with expr_transfers_own: an `[own x]` block capture is a
+        // transfer, and the inline body keeps being walked below.
+        for cap : Declaration in cbd.captures {
+            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
+        }
+    case NodeType.BodyValue(bvd):
+        for cap : Declaration in bvd.captures {
             if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
         }
         return

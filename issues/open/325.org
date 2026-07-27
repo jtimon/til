@@ -1,0 +1,100 @@
+# priority: medium
+# category: bugs
+** OPEN #325 A `mut` heap local in a NESTED block frees a string literal when moved out
+
+A `mut` heap-typed local (e.g. `Str`) declared inside a nested block --
+a bare `{ ... }`, an `if` body, and presumably any sub-body scope --
+that is REASSIGNED to a literal and then moved into an outer binding
+emits a `free` of the literal's static storage. The generated C fails
+to compile:
+
+: gen/til/lit3.c: error: 'free' called on unallocated object '_til_str_lits'
+:                        [-Werror=free-nonheap-object]
+
+so it is caught at build time rather than crashing at runtime -- but it
+blocks a legitimate program. The interpreter runs the same code fine, so
+this is compile-mode only.
+
+*** Repro (fails)
+
+: test_lit3 := test() {
+:     s := "abc"
+:     mut out := ""
+:     {
+:         mut t := s
+:         t = "zz"
+:         out = t
+:     }
+:     assert_eq(Str, out, "zz")
+: }
+
+The `if` form fails identically:
+
+:     if true {
+:         mut t := s
+:         t = "zz"
+:         out = t
+:     }
+
+*** The SAME code at function top level compiles and runs
+
+: test_lit2 := test() {
+:     s := "abc"
+:     mut t := s
+:     mut out := ""
+:     t = "zz"
+:     out = t                 // fine
+:     assert_eq(Str, out, "zz")
+: }
+
+*** Generated C -- the difference
+
+Nested (broken): the assignment MOVES `t` without cloning, then frees it,
+but `t` no longer points at heap memory -- the reassignment repointed it
+at the literal pool:
+
+:     {
+:         Str *t = Str_clone(&s);
+:         Str_delete(t, 1);
+:         t = &_til_str_lits[167];        // now a LITERAL address
+:         { Str *_new = (Str *)t; Str_delete(&out, (Bool){0}); out = *_new; free(_new); }
+:     }
+
+Top level (correct): the same assignment CLONES first, so the `free` is
+of the clone:
+
+:     Str_delete(&out, (Bool){0});
+:     { Str *_hp = (Str *)Str_clone(t); out = *_hp; free(_hp); }
+
+So the clone-elision / move decision treats the nested-block local as an
+owned heap value at its last use, which stops holding the moment a `mut`
+heap local is reassigned to a literal. At function top level the same
+local is (correctly) not move-eligible.
+
+*** Scope
+
+- Only heap-typed locals: the `I64` version of the repro compiles and
+  runs (`mut t := n; t = 9; out = t` inside a block is fine).
+- Both a bare block and an `if` body reproduce it.
+- Compile mode only; the interpreter is correct.
+- Part of the shared-literal write-through family (cf. the "Two-pass: fix
+  the shared-literal write-through family (captures, refs, pooled
+  literals)" work and the builder's `unsafe_to_hoist` mechanism, which
+  protects mut captures and top-level decls but does not reach locals
+  declared in nested block bodies -- `collect_unsafe_to_hoist` walks only
+  `body.children`).
+
+*** Found via
+
+Implementing #54's block capture modes: `[shallow mut s] { s = "zz"; out = s }`
+lowers to exactly this shape (a renamed private copy inside the block), so
+the shallow-capture tests had to avoid it. It is NOT capture-specific --
+the plain repro above has no capture list.
+
+*** Suggested fix direction
+
+Either make the nested-block clone-elision agree with the top-level rule
+(do not treat a `mut` heap local as move-eligible once it may hold a
+literal), or extend the `unsafe_to_hoist` protection into nested block
+bodies. A regression test belongs in test/strings.til or test/flow.til
+covering both the bare-block and `if`-body forms, in both backends.
