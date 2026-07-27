@@ -637,6 +637,15 @@ Context := struct {
     current_top_func_name := ""
     auto_gen_depth : I32 = 0
     throw_used_local_names := Set(Str).new()
+    // #187: "the function <key> references these priv names". A reference
+    // made from inside a function proves nothing on its own -- the
+    // referrer may itself be dead -- so those references are recorded
+    // here instead of setting `used`, and check_unused_priv_top_level
+    // propagates usedness from the real roots along these edges. Without
+    // it a dead cycle (ping calls pong, pong calls ping, nobody calls
+    // either) marked both used and survived forever. Typer-transient,
+    // like the fields above.
+    priv_ref_edges := Map(Str, Vec(Str)).new()
 
     // #178 builder per-function transients. The builder resets this on
     // entering each function body and reads it throughout that body's

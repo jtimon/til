@@ -1596,6 +1596,7 @@ typedef struct Context {
     Str current_top_func_name;
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
+    Map__Str_call_Vec_Str priv_ref_edges;
     BuilderFuncScratch builder_func;
     Map__Str_Str builder_str_lit_symbols;
     Vec__Str builder_str_lit_values;
@@ -2752,6 +2753,8 @@ void priv___src_self_typer_til__check_unused_params(TypeScope * func_scope, Expr
 void priv___src_self_typer_til__check_unused_mut_params(TypeScope * func_scope, Expr * expr, Str * path, Context * ctx);
 void check_unused_locals(TypeScope * scope, Str * path, Context * ctx);
 void check_unused_mut_locals(TypeScope * scope, Str * path, Context * ctx);
+void mark_binding_referenced(Context * ctx, TypeBinding * b);
+void priv___src_self_typer_til__propagate_priv_refs(TypeScope * scope, Context * ctx);
 I32 check_unused_priv_top_level(TypeScope * scope, Context * ctx);
 I32 check_unused_priv_members_in_program(Expr * program, Str * path, Context * ctx);
 void priv___src_self_typer_til__narrow_return_literal(TypeScope * scope, Expr * rv, Context * ctx);

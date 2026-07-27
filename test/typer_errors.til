@@ -865,3 +865,31 @@ priv unused_rec_live := func(n: I64) returns I64 {
 }
 
 rec_live_result := unused_rec_live(2)
+
+// #187: a dead CYCLE is dead code too. Each of these references the
+// other, which the per-site `used` flag accepted as proof of life, so
+// mutually-recursive helpers survived even with no caller at all.
+// Usedness now propagates from the real roots along recorded reference
+// edges, so a cycle nothing reaches stays unreached. cyc_live_a/b below
+// form the same shape but are rooted by the call at the bottom.
+priv cyc_dead_a := func(n: I64) returns I64 {
+    if n <= 0 { return 0 }
+    return cyc_dead_b(n - 1)
+}
+
+priv cyc_dead_b := func(n: I64) returns I64 {
+    if n <= 0 { return 1 }
+    return cyc_dead_a(n - 1)
+}
+
+priv cyc_live_a := func(n: I64) returns I64 {
+    if n <= 0 { return 0 }
+    return cyc_live_b(n - 1)
+}
+
+priv cyc_live_b := func(n: I64) returns I64 {
+    if n <= 0 { return 1 }
+    return cyc_live_a(n - 1)
+}
+
+cyc_live_result := cyc_live_a(3)

@@ -2447,15 +2447,9 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     callee_bind_o := scope.get_binding(name)
     if callee_bind_o.is_some() {
         ref mut callee_bind : TypeBinding = callee_bind_o.unwrap()
-        // #187: a function calling ITSELF is not a use, exactly as a
-        // type's own namespace referencing the type is not (the
-        // current_type_name gate in infer_ident_expr). Counting the
-        // recursive call kept every unreachable recursive priv func
-        // looking alive -- desugarer.til's has_prior_throw_type sat
-        // there with its own recursion as its only caller.
-        if ctx.current_top_func_name.eq(name).not() {
-            callee_bind.used = true
-        }
+        // #187: a call from inside a function is only evidence once that
+        // function is itself reachable -- see mark_binding_referenced.
+        mark_binding_referenced(ctx, callee_bind)
         note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, ctx)
         if scope.lookup_func(callee_bind.name).is_some() {
@@ -2580,11 +2574,10 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             // variant-constructor bodies reference the parent type by
             // name; counting those would mask a genuinely unused priv
             // type. External Ident references still mark it used.
-            // Same for a function naming itself (a recursive reference
-            // passed as a value, e.g. `f` inside f's own body).
-            if ctx.current_type_name.eq(id_name.ident_name()).not()
-                .and(ctx.current_top_func_name.eq(id_name.ident_name()).not()) {
-                ib.used = true
+            // Same reachability rule for a name used as a value (a
+            // function passed as a func-pointer, a global read).
+            if ctx.current_type_name.eq(id_name.ident_name()).not() {
+                mark_binding_referenced(ctx, ib)
             }
             check_priv_access(expr, id_name.ident_name(), ib, ctx)
             if scope.lookup_func(ib.name).is_some() {
@@ -3687,8 +3680,66 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, ctx: Context) {
 // possibly reach it. Flag and suggest removing 'priv' to expose it.
 // Returns the number of errors emitted so the loader can fold the
 // count into its overall type_errors total.
+// #187: mark a referenced binding used, or -- when the reference comes
+// from inside a function -- record the edge so usedness can be decided
+// by reachability later. A reference from a function body only counts
+// once that function is itself known to be reachable; the old flag said
+// "someone mentioned it", which a dead recursive cycle satisfies by
+// mentioning itself. Non-priv referees skip the bookkeeping entirely:
+// only priv items are ever flagged, so their edges would never be read.
+mark_binding_referenced := func(mut ctx: Context, mut b: TypeBinding) {
+    if b.is_priv.not() {
+        b.used = true
+        return
+    }
+    if ctx.current_top_func_name.len() == 0 {
+        // Referenced outside any function body -- a top-level statement,
+        // a field default, a namespace method: a root reference.
+        b.used = true
+        return
+    }
+    if ctx.current_top_func_name.eq(b.name) { return }
+    if ctx.priv_ref_edges.has(ctx.current_top_func_name).not() {
+        ctx.priv_ref_edges.set(ctx.current_top_func_name, own Vec(Str).new())
+    }
+    ref mut referees : Vec(Str) = ctx.priv_ref_edges[ctx.current_top_func_name]
+    // Distinct referees per function is a handful, so the linear dedup
+    // keeps the vec tiny and costs less than re-walking duplicates later.
+    for existing : Str in referees {
+        if existing == b.name { return }
+    }
+    referees.push(own b.name.clone())
+}
+
+// Propagate usedness from the roots along the recorded reference edges.
+// Roots: every non-priv binding (an importer can reach it) and every
+// priv binding already marked used from a root context. A priv binding
+// reached from a root is used, and so are the things IT references.
+priv propagate_priv_refs := func(scope: TypeScope, ctx: Context) {
+    mut worklist := Vec(Str).new()
+    for rb in scope.bindings.values {
+        if rb.is_priv.not().or(rb.used) { worklist.push(own rb.name.clone()) }
+    }
+    mut wi : USize = 0
+    while wi < worklist.len() {
+        ref referrer : Str = worklist[wi]
+        wi = wi + 1
+        if ctx.priv_ref_edges.has(referrer).not() { continue }
+        ref referees : Vec(Str) = ctx.priv_ref_edges[referrer]
+        for referee : Str in referees {
+            rbo := scope.get_binding(referee)
+            if rbo.is_none() { continue }
+            ref mut rb2 : TypeBinding = rbo.unwrap()
+            if rb2.used { continue }
+            rb2.used = true
+            worklist.push(own referee.clone())
+        }
+    }
+}
+
 check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 {
     mut found : I32 = 0
+    propagate_priv_refs(scope, ctx)
     for b in scope.bindings.values {
         if b.is_priv.not() { continue }
         if b.is_builtin { continue }
