@@ -1,0 +1,233 @@
+# priority: high
+# category: cleanups
+** OPEN #326 Make unused diagnostics honest and scavenge all unreachable code
+
+The generated C still hides dead-code and liveness mistakes behind broad
+warning suppressors.  The visible example in ~test/constfold.c~ is:
+
+#+begin_src c
+USize Str_size(void) {
+    U32 hoisted__U32_503 = 16;
+    (void)hoisted__U32_503;
+    return hoisted__U32_503;
+}
+#+end_src
+
+The temp is used by the return, so the cast is not suppressing an unused
+binding at all.  It is emitted solely because the name starts with
+~hoisted__~.  This defeats the reason hoisted temps deliberately do NOT
+start with ~_~: a compiler temp that goes dead should expose a missed DCE
+case through C's ~-Werror=unused-*~, not be silently accepted.
+
+Til's source contract is already clear from #86: an unused parameter or
+local is an error unless its name starts with ~_~.  Generated C should
+preserve that contract.  Emit ~(void)name;~ only when the binding is truly
+unread AND its name starts with ~_~ (including compiler-generated ABI slots
+that are deliberately unused).  Every unread non-underscore binding must
+remain a hard error that forces either the user or the compiler pass that
+created it to be fixed.
+
+*** Scale and concrete evidence
+
+The current committed ~test/constfold.c~ is 9,390 lines and contains:
+
+- 961 ~(void)hoisted__...~ statements.  Most sit next to real uses, so
+  they are pure noise; any genuinely dead temps among them are hidden.
+- 260 ~__attribute__((unused))~ declarations and 260 ~(void)til_env;~
+  statements, largely from wrappers emitted without proving they are
+  needed.
+- All 13 core ~TYPE_*~ globals from ~src/core/ast.til~.  Each appears only
+  as one declaration and one initialization in this output; none is read.
+  In particular, dead ~TYPE_STRUCTDEF~ and ~TYPE_ENUMDEF~ initializers make
+  the scavenger retain compiler-only ~StructDef~, ~EnumDef~, ~Expr~ and
+  their ~Map__Str_USize~ / Vec dependency graph in a runtime constfold test.
+- ~KeyNotFound~ appears only in its type/method definitions, dyn wrappers,
+  dyn dispatch table, size/reflection branches and forward declarations.
+  There is no runtime use outside that self-supporting generated island.
+
+This is not only cosmetic C churn.  The suppressors remove the compiler's
+best backstop for post-typer liveness bugs, while the retained declarations
+increase compile time, binary size and the number of codegen paths every
+change must keep valid.
+
+*** Current root causes
+
+1. ~emit_stmt_decl~ in ~src/self/builder.til~ emits a cast for every local
+   whose name starts with either ~_~ OR ~hoisted__~ (both the Ref and
+   non-Ref paths).  This directly contradicts ~hoist_to_temp~ in
+   ~desugarer.til~, whose comment and non-underscore spelling exist so dead
+   compiler temps are NOT exempted.
+
+2. The pooled immutable-string path emits
+   ~(void)_til_str_lits[n];~ as a placeholder for a declaration that it did
+   not emit.  A used pooled literal needs no placeholder; an unused one
+   should have disappeared before emission.
+
+3. Function parameter emission scans the final body and casts every unread
+   parameter, without also requiring the ~_~ prefix.  The typer checked the
+   pre-constfolder body, so a transform can erase the final read and the
+   builder will silently hide the stale signature.  Generated adapter slots
+   such as ~til_env~ and no-argument-main's ~argv~ are also unconditionally
+   cast despite not using the deliberate-unused naming convention.
+
+4. The stack-local delete override casts away its now-ignored hoisted
+   ~call_free~ temp.  That temp exists because the AST still says one thing
+   and the builder emits another; #209 tracks moving this storage/delete
+   decision into the AST.  The cast is a symptom, not a valid permanent
+   fix.
+
+5. ~scavenge_filter~ only sweeps declarations for which ~is_def~ is true
+   (func/struct/enum).  Top-level value declarations are never candidates.
+   ~scavenge_visited_imported~ then explicitly roots the initializer refs of
+   EVERY core top-level value because all those values survive.  That is why
+   dead ~TYPE_STRUCTDEF = Type.Struct("StructDef")~ keeps the compiler AST
+   data model alive in ordinary user/test output.
+
+6. Visiting any type unconditionally queues its ~delete~, ~clone~, ~size~,
+   ~cmp~ and ~hash~ methods.  This turns "the layout is needed" into "the
+   standard lifecycle/dynamic surface is needed" and lets those method
+   bodies retain further declarations.  Actual AST calls, generated
+   ownership operations and dynamic/reflection uses should root the exact
+   methods they need instead.
+
+7. Body DCE runs after the top-level reachability mark/sweep and recognizes
+   only a narrow set of immutable literal or primitive-FCall temps.  A body
+   reference that DCE later removes can therefore pin a top-level function
+   or type during the earlier mark.  The broad builder casts hide any
+   candidate shape the body pass does not understand.
+
+8. The builder unconditionally emits dyn call bodies, dyn wrappers/closure
+   values, dyn_has helpers, dyn_size_of and all reflection families after
+   ordinary function emission.  Closure values and several static helper
+   functions carry blanket ~__attribute__((unused))~.  These generated
+   symbols are outside the scavenger's AST declaration sweep, so they can
+   form dead self-referential islands even when their source declarations
+   were pruned correctly.
+
+*** Required invariant
+
+- A surviving unread source parameter/local is legal only when its name
+  starts with ~_~.  Emit exactly one cast for it if C needs one.
+- A compiler-generated ABI parameter that must exist but is intentionally
+  unread must also use a leading-underscore name (for example
+  ~_til_env~ / ~_argv~), and gets a cast only when it is actually unread.
+- ~hoisted__*~ and other non-underscore compiler temps never receive an
+  unused cast.  They are either read, removed, or cause the C build to fail.
+- Do not use ~__attribute__((unused))~ to make a dead generated function,
+  closure value or helper compile.  Reachable static objects have a real C
+  reference; unreachable ones are not emitted.
+- Application/script/test output contains only declarations reachable from
+  its mode roots.  Library output keeps its exported ABI as roots even when
+  there is no internal caller.  Runtime-name dynamic/reflection dispatch is
+  conservatively rooted according to the names or wildcards that can reach
+  it.
+
+*** Detailed implementation plan
+
+1. Add focused output checks before removing suppressors.
+   - Keep the existing #86 typer cases proving non-underscore unused
+     params/locals fail and ~_~-prefixed ones pass.
+   - Add a small compiled fixture with a used hoisted temp, a constfold-dead
+     temp, an effectful call whose result is dead, and deliberate
+     ~_~-prefixed params/locals.
+   - Assert in its generated C that the used temp has no cast, the pure dead
+     temp is absent, the effectful call remains without a dead result
+     binding, and only the truly unread underscore declarations are cast.
+
+2. Make local/parameter suppression obey the invariant.
+   - Remove ~starts_with("hoisted__")~ from both ~emit_stmt_decl~ cast
+     conditions.
+   - Make the final-body parameter check require BOTH no reference and a
+     leading underscore.  A non-underscore miss is intentionally left to
+     GCC's ~-Werror=unused-parameter~.
+   - Emit no statement for a pooled string-literal declaration that has
+     been replaced by the literal-pool symbol; its real later references
+     already name that symbol.
+   - Rename generated, contract-forced unread C parameters to
+     leading-underscore local names and cast them conditionally.  Remove
+     redundant casts from parameters that are read by dispatch branches or
+     error messages.
+   - Resolve the stack-delete ~call_free~ mismatch in the AST as described by
+     #209, then let DCE remove the ignored temp.  Do not replace its current
+     cast with another guard.
+
+3. Generalize body liveness before global reachability.
+   - Compute reads/writes per declaration after constfolder and garbager
+     rewrites, respecting nested scopes/shadowing rather than treating an
+     equal name as proof of use.
+   - For an unread pure binding, remove the declaration and its proven
+     trivial cleanup.  For an unread binding with an effectful RHS, preserve
+     the effect as a bare expression statement.  For an owning result,
+     preserve the AST-recorded delete; never drop or invent ownership in the
+     builder.
+   - Handle compiler temps by their typed storage/effect/ownership facts,
+     not by granting the ~hoisted__~ prefix a warning exemption.  Prefixes
+     may classify origin, but they are not liveness.
+   - Run body cleanup before top-level marking, then repeat body cleanup and
+     declaration reachability to a fixed point if sweeping a function/member
+     releases more references.  The final AST must contain no stale edge that
+     keeps an otherwise unreachable declaration alive.
+
+4. Extend the scavenger's declaration graph and root policy.
+   - Put top-level values/globals in the same mark/sweep graph as functions,
+     structs and enums.  Walk an initializer only after that declaration is
+     reached; delete the current "all core value initializers are roots"
+     rule.
+   - Define roots centrally per mode: CLI ~main~ plus exact generated argv
+     parsing helpers; all selected tests for test mode; executable top-level
+     statements for script mode; and exported declarations/required init for
+     library mode.  Preserve ext/FFI/link and mode-specific entrypoints as
+     explicit roots, not accidental blanket retention.
+   - A reached type roots its field/payload layout dependencies, but not five
+     lifecycle methods automatically.  Concrete AST calls and garbager-
+     inserted operations root ~clone/delete/size/cmp/hash~ individually.
+   - Keep the existing literal dynamic target and ~*.method~ wildcard
+     semantics, but expand them only across otherwise reachable runtime
+     types.  Reflection-by-string must similarly record the exact type set or
+     a deliberate wildcard root.
+   - Sweep namespace values as well as namespace funcs, maintaining the
+     member index exactly as the current in-place member sweep does.
+
+5. Make generated C helpers consume the same reachability result.
+   - Record which raw-C facilities are requested by the surviving AST:
+     dyn_call/dyn_fn/dyn_has, dyn_size_of, struct/enum/FuncSig reflection,
+     collection helpers, closure wrappers/values and print helpers.
+   - Gate each ~emit_*~ family on that inventory.  Within dyn dispatch, emit
+     wrappers and closure values only for marked ~Type.method~ targets; do
+     not emit one for every surviving namespace function.
+   - Emit a function's static closure wrapper/value only if the function is
+     used as a first-class value.  A function reached only by direct call
+     needs only its ordinary definition.
+   - Remove blanket ~__attribute__((unused))~ after the inventory is exact.
+     The C compiler then verifies every emitted static helper has a real
+     consumer.
+
+6. Add reachability regressions and a size/noise baseline.
+   - A minimal app/test that mentions no compiler AST/reflection must not
+     emit dead ~TYPE_*~ globals, ~StructDef~, ~EnumDef~, ~Expr~ or their
+     container graph.
+   - A dead public app-level func/struct/enum/global and dead namespace
+     member must disappear; the same public declarations in library mode
+     must remain exported.
+   - Literal dynamic dispatch retains only its target; runtime-type wildcard
+     dispatch retains the named method on every reachable candidate type;
+     reflection fixtures retain the metadata they query.
+   - Keep an effectful-unused-result test so DCE cannot turn liveness cleanup
+     into silent side-effect removal or an owned-result leak.
+   - Track ~test/constfold.c~ as the broad proof: zero
+     ~(void)hoisted__...~, no unread ~TYPE_*~ init island, and a substantial
+     reduction from the current 9,390 lines / 260 unused attributes.
+   - Run the full suite with C warnings as errors.  Because this changes how
+     the compiler emits its own C, use ~make test_two_pass~ and a
+     ~Two-pass:~ commit (or a documented preparation/use sequence) for the
+     implementation.
+
+*** Related issues
+
+- #86 defines the user-visible underscore escape hatch.
+- #209 owns the AST-vs-builder stack-delete mismatch whose ignored
+  ~call_free~ temp is currently cast away.
+- #158 covers pass organization; this issue is about the reachability and
+  warning invariants, not reducing the irreducible mark/sweep walks.
+- #302 is the ownership authority needed when replacing an unread owning
+  declaration with an effect-only statement plus cleanup.
