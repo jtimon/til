@@ -1,0 +1,174 @@
+# priority: medium
+# category: features
+** OPEN #329 Add borrowed Slice(T) views and slicing
+
+   Add a typed, non-owning view over a contiguous run of elements. A slice
+   owns neither its backing allocation nor its elements; it carries a data
+   pointer and a length, supports checked indexing/iteration, and can view an
+   ~Array(T)~, ~Vec(T)~, or another ~Slice(T)~ without copying.
+
+*** Verified language precedents
+
+   Checked 2026-07-27. Jai has no public official specification, so its
+   entries below come from current beta-community documentation and are
+   labelled accordingly; Odin, Go, and Zig references are official.
+
+   - Odin: [[https://odin-lang.org/docs/overview/#slices][official overview]].
+     ~[]T~ is a slice; ~a[low:high]~ creates a half-open view. Fixed arrays use
+     ~[N]T~ and dynamic arrays use ~[dynamic]T~.
+   - Go: [[https://go.dev/ref/spec#Slice_types][official specification]].
+     ~[]T~ is a slice descriptor sharing an underlying array;
+     ~a[low:high]~ is half-open. Arrays use ~[N]T~.
+   - Zig: [[https://ziglang.org/documentation/master/#Slices][official language
+     reference]]. ~[]T~ is a slice and ~a[low..high]~ is half-open; arrays use
+     ~[N]T~.
+   - Jai: [[https://raw.githubusercontent.com/wiki/Jai-Community/Jai-Community-Library/Getting-Started.md][beta-community wiki]].
+     ~[]T~ is an "array view", while ~[..]T~ is the resizable/dynamic array.
+     Static and dynamic arrays convert to views when passed to a view
+     parameter. A current beta-user [[https://sjoerdev.github.io/posts/jai-guide/#arrays--lists][guide]]
+     reports the same three type spellings, but public material is not an
+     authoritative Jai language specification.
+
+   Thus ~[..]Str~ is not the slice spelling in either Jai or Odin. In Jai it
+   is the growable array (the analogue of til's ~Vec(Str)~); Odin spells that
+   type ~[dynamic]Str~. Both reserve ~[]Str~ for the borrowed view.
+
+*** Approved type syntax
+
+   Use ~[]T~ in type positions. Both Jai and Odin use this spelling for
+   borrowed views. Keep ~Slice(T)~ as the canonical semantic type name:
+
+   #+begin_src til
+   consume := func(items: []Str) {
+       for item : Str in items { println(item) }
+   }
+
+   Holder := struct {
+       // A field declaration specifies the type only. Its backing view is
+       // supplied by Holder(...) rather than forced into a field default.
+       names : []Str
+   }
+
+   names := array(Str, "a", "b", "c")
+   holder := Holder(names = names[0..2])
+   #+end_src
+
+   Two range spellings are plausible. Do not choose silently; confirm the
+   examples before implementation.
+
+   *Candidate A -- til-native / Zig-style range (recommended for discussion):*
+
+   #+begin_src til
+   middle : []Str = names[1..3]  // indices 1 and 2; high bound excluded
+   prefix : []Str = names[..3]
+   suffix : []Str = names[1..]
+   all    : []Str = names[..]
+   #+end_src
+
+   Til already uses half-open ~lo..hi~ ranges, and today's subscript parser
+   already parses ~names[lo..hi]~ as ~names.get(Range.new(lo, hi))!~. Slice
+   syntax could recognize that Range-shaped index and lower it to a checked
+   slice operation. Open bounds would be new parser cases.
+
+   *Candidate B -- Odin / Go colon range:*
+
+   #+begin_src til
+   middle : []Str = names[1:3]
+   prefix : []Str = names[:3]
+   suffix : []Str = names[1:]
+   all    : []Str = names[:]
+   #+end_src
+
+   This copies Odin/Go directly and visually separates indexing from til's
+   value-level ~Range~, but colon is not currently an expression operator and
+   needs dedicated parsing inside brackets.
+
+   Public Jai sources reliably confirm the ~[]T~ type but not one official
+   slicing-operator spelling. One current beta-user guide shows
+   ~value[low..high]~; treat that as supporting evidence only, not authority.
+
+*** Semantics
+
+   A first cut should define the following contract before adding sugar:
+
+   - ~Slice(T)~ stores a non-owning pointer plus ~count: USize~. It has no
+     capacity and never reallocates.
+   - ~len~, ~unsafe_get~, checked ~get~, and checked ~set~ mirror ~Array(T)~ /
+     ~Vec(T)~. Iteration therefore works through the existing ~len~ /
+     ~unsafe_get~ lowering.
+   - ~slice(low, high)~ uses half-open bounds and throws ~OutOfBounds~ unless
+     ~low <= high <= len~. The subscript sugar uses ~!~, matching today's
+     checked ~a[i]~ behavior; callers that want propagation can call
+     ~a.slice(low, high)?~ explicitly.
+   - Slicing a slice composes offsets without allocating.
+   - Copy/clone copies only the descriptor. Delete never destroys elements or
+     backing storage; it only releases a heap wrapper when the representation
+     actually allocated one.
+   - Mutability must be explicit. Decide whether all slices permit element
+     writes (matching current Array/Vec refs), or whether the type system needs
+     separate read-only and mutable views before accepting ~view[i] = value~.
+   - An empty slice is a real expected state. Its representation must be
+     reconciled with #321's no-NULL direction rather than hidden behind a
+     defensive fallback.
+
+*** Borrow and lifetime rules
+
+   The backing owner must outlive every slice. At minimum diagnose these
+   cases at the source:
+
+   #+begin_src til
+   bad := func() returns []Str {
+       local := array(Str, "a", "b")
+       return local[..]             // must not return a view of dead storage
+   }
+
+   mut values := vec(Str, "a", "b")
+   view := values[..]
+   values.push(own "c")             // may realloc and invalidate view
+   println(view[0])                  // must not silently use a dangling view
+   #+end_src
+
+   Prefer a loud compile-time lifetime error. If the current ownership model
+   cannot prove the needed lifetime yet, restrict the first implementation to
+   scopes/calls it can prove; do not silently copy into an owning Array/Vec or
+   continue with a potentially dangling pointer.
+
+   Expected valid sources include globals, a caller-owned parameter whose
+   view does not escape it, and a local Array/Vec used while that owner remains
+   live and un-reallocated. The issue must specify how the garbager extends an
+   owner's last use through every live slice, analogous to existing ref-local
+   lifetime extension.
+
+*** Implementation outline
+
+   1. Add canonical ~Slice(T)~ storage and methods in core, using the same
+      generic type-generation path as Array/Vec.
+   2. Add explicit ~slice(low, high)~ constructors on Array, Vec, and Slice;
+      prove checked indexing, mutation policy, clone/delete, and for-in before
+      parser sugar.
+   3. Teach ownership/liveness analysis that a Slice borrows its source and
+      that Vec capacity-changing operations invalidate outstanding views.
+   4. Extend ~parse_type_ref~ for the approved ~[]T~ spelling. Once one range
+      candidate is approved, extend the postfix subscript parser for those
+      forms.
+   5. Lower all sugar to the explicit Slice methods before interpreter/builder
+      stages; neither backend should need syntax-specific handling.
+   6. Document FFI layout only after deciding whether Slice is guaranteed to
+      be exactly ~(data, count)~ and how empty slices are represented.
+
+*** Acceptance
+
+   - Explicit ~Slice(T)~ construction and ~[]T~ annotations work for locals,
+     parameters, returns, and fields without requiring field defaults.
+   - Array, Vec, and Slice sources produce zero-copy subviews with checked
+     half-open bounds.
+   - Indexing, assignment under the approved mutability rule, nested slicing,
+     and for-in work in interpret and compile modes.
+   - Slice clone/delete never clone or destroy backing elements.
+   - Escaping a dead owner and using a view across a Vec reallocation are
+     rejected, with regression tests naming the violated lifetime.
+   - Tests cover empty/full/prefix/middle/suffix views, low > high, high > len,
+     aggregates with owned elements, and source destruction ordering.
+
+   The ~[]T~ type spelling is settled. The slicing-range spelling remains a
+   decision in this OPEN issue until one example above is explicitly accepted.

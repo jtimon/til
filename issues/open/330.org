@@ -1,0 +1,169 @@
+# priority: medium
+# category: features
+** OPEN #330 Parse Jai/Odin-style Array, Slice, and Vec type sugar
+
+  :DEPENDENCIES: [[./329.org][#329]]
+
+   Add concise bracket spellings in type positions while preserving the
+   canonical ~Array(...)~, ~Slice(...)~, and ~Vec(...)~ names. The Slice type
+   and its ownership/lifetime semantics land first in #329 so ~[]T~ cannot be
+   ambiguously assigned to Vec.
+
+*** Corrected language comparison
+
+   Web sources checked 2026-07-27:
+
+   | Meaning             | Jai (community docs) | Odin (official) | Go (official) | Zig (official) |
+   |---------------------+----------------------+-----------------+---------------+----------------|
+   | Fixed array         | ~[N]T~               | ~[N]T~          | ~[N]T~        | ~[N]T~         |
+   | Borrowed slice/view | ~[]T~                | ~[]T~           | ~[]T~         | ~[]T~          |
+   | Growable array      | ~[..]T~              | ~[dynamic]T~    | library/API   | library/API    |
+
+   Sources: Jai [[https://raw.githubusercontent.com/wiki/Jai-Community/Jai-Community-Library/Getting-Started.md][beta-community wiki]] (there is no public official spec), Odin
+   [[https://odin-lang.org/docs/overview/#advanced-types][official overview]], Go
+   [[https://go.dev/ref/spec#Array_types][official specification]], and Zig
+   [[https://ziglang.org/documentation/master/#Arrays][official language reference]].
+
+   Therefore the original guess ~[]Str = Vec(Str)~ does not match Jai or Odin:
+   both use ~[]Str~ for a borrowed slice. Jai's ~[..]Str~ is the closest direct
+   spelling for til's growable ~Vec(Str)~; Odin's alternative is
+   ~[dynamic]Str~.
+
+*** Approved type spellings
+
+   Use the coherent Jai-family trio: ~[N]T~ for fixed arrays, ~[]T~ for
+   borrowed slices, and ~[..]T~ for growable ~Vec(T)~ values. The Slice and Vec
+   spellings are approved; the representation behind ~[N]T~ remains to be
+   decided below. The spellings are shown separately for field declarations
+   and initialized locals/constructor arguments:
+
+   These spellings are parser sugar, in the same family as ~+~ lowering to
+   ~add~, ~aa[index]~ lowering to ~aa.get(index)~, and UFCS method syntax
+   lowering to an ordinary function call. Parsing ~[]T~ and ~[..]T~ must
+   immediately produce canonical ~Slice(T)~ and ~Vec(T)~ forms. Likewise,
+   ~[N]T~ must lower to the canonical fixed-array form chosen below rather than
+   create parallel parser-only types or backend behavior.
+
+   #+begin_src til
+   Thing := struct {
+       fixed_field : [3]Str
+       slice_field : []Str
+       vec_field   : [..]Str
+   }
+
+   fixed_local : [3]Str = array(Str, "a", "b", "c")
+   slice_local : []Str = fixed_local[0..2]
+   vec_local   : [..]Str = vec(Str, "a", "b", "c")
+
+   thing := Thing(
+       fixed_field = array(Str, "a", "b", "c"),
+       slice_field = fixed_local[0..2],
+       vec_field = vec(Str, "a", "b", "c"),
+   )
+   #+end_src
+
+   A field annotation has no implied initialization requirement. A field with
+   no default remains required at struct construction under #242, exactly as
+   in the example; the bracket sugar changes only its type spelling.
+
+   #329 separately asks whether slicing is spelled ~a[low..high]~ or
+   ~a[low:high]~; that operation syntax does not change these approved type
+   spellings.
+
+*** The fixed-array semantic decision
+
+   Til's current ~Array(T)~ is not the array represented by ~[N]T~ in those
+   languages. It owns a heap allocation and stores runtime ~cap~; the length
+   is not part of its type. Consequently ~Array(Str)~ values of lengths 3 and
+   4 have the same type.
+
+   A parser-only rewrite ~[3]Str -> Array(Str)~ would be misleading:
+
+   #+begin_src til
+   takes_three := func(items: [3]Str) { ... }
+   three : [3]Str = array(Str, "a", "b", "c")
+   four  : [4]Str = array(Str, "a", "b", "c", "d")
+   takes_three(four) // Other languages reject this; a syntax-only alias would not.
+   #+end_src
+
+   Decide explicitly between these shapes:
+
+   - *Faithful fixed array (recommended for discussion):* ~N~ is part of the
+     type, so ~[3]Str~ and ~[4]Str~ differ and function/field assignments
+     enforce it. Also decide whether storage is inline (so, for example,
+     ~size_of([3]U64) == 24~) or remains a heap-backed descriptor. Jai/Odin/Go/
+     Zig fixed arrays are inline values; copying them copies all elements.
+   - *Runtime-cap annotation:* ~[3]Str~ aliases ~Array(Str)~ and inserts a
+     runtime/constructor length check. This is smaller but does not make 3 part
+     of the type and should not be presented as equivalent to the researched
+     syntax.
+   - *Defer fixed syntax:* land only ~[]T~ (Slice, #329) and the approved Vec
+     spelling, retaining ~Array(T)~ until a true fixed-array representation is
+     designed.
+
+   This choice is public type/layout behavior, not parser trivia, and requires
+   explicit approval before code changes.
+
+*** Literal/constructor spellings
+
+   The examples above deliberately retain today's working value constructors
+   ~array(T, ...)~, ~vec(T, ...)~, and ~Vec(T).new()~. Type sugar can land
+   without inventing a second literal grammar.
+
+   If literal sugar is wanted too, the researched choices are:
+
+   #+begin_src til
+   // Jai family: a typed array literal is T.[...]
+   fixed : [3]Str = Str.["a", "b", "c"]
+
+   // Odin/Go family: the complete aggregate type prefixes {...}
+   fixed : [3]Str = [3]Str{"a", "b", "c"}
+
+   // Odin can infer a fixed literal's count with [?]T{...}
+   fixed : [?]Str = [?]Str{"a", "b", "c"}
+   #+end_src
+
+   These are syntax examples only, not accepted til syntax. Leading bare
+   ~[...]~ already starts capture/body-value syntax in expression position,
+   while ~T.[...]~ would add a new postfix form. Choose with explicit examples
+   before extending the literal parser. Do not silently make a slice literal
+   own storage: every ~[]T~ value needs a real backing owner defined by #329.
+
+*** Parser plan
+
+   1. Extend ~parse_type_ref~, which currently accepts only an Ident or inline
+      struct/enum, to recognize bracket type prefixes only in type positions.
+   2. Parse ~[]T~ directly to the same generated name as ~Slice(T)~.
+   3. Parse ~[..]T~ to the same generated name as ~Vec(T)~. Reject
+      ~[dynamic]T~ rather than accepting a second spelling.
+   4. Implement the approved fixed-array semantics before accepting ~[N]T~.
+      Supporting a value ~N~ requires extending type-position template args,
+      whose current parser accepts Ident type args only, and making the
+      variadic ~array(T, ...)~ synthesis select/check the same fixed type.
+   5. Preserve canonical type names in AST/scope after parsing so builder,
+      interpreter, docs, reflection, and monomorphization do not each learn
+      bracket syntax.
+   6. Add parser diagnostics for malformed ~[]~, non-comptime/negative fixed
+      lengths, missing element types, and disallowed bracket forms in value
+      position.
+
+*** Acceptance
+
+   - Approved field annotations parse without defaults and constructor-supplied
+     values type-check.
+   - ~[]T~ and ~[..]T~ are exact aliases for ~Slice(T)~ and
+     ~Vec(T)~ throughout params, returns, fields, locals, aliases, nested
+     generics, reflection, docs, interpret mode, and compile mode.
+   - ~[N]T~ is accepted only with the explicitly approved length/layout
+     semantics; different fixed lengths behave accordingly.
+   - Existing ~Array(T)~, ~Slice(T)~, ~Vec(T)~, ~array(T, ...)~, and
+     ~vec(T, ...)~ spellings remain valid.
+   - Multidimensional/nested examples are pinned after the fixed-array choice,
+     e.g. ~[2][3]I64~, ~[][3]I64~, and ~[..][]Str~ if that composition is
+     accepted.
+   - Parser tests cover every approved example and reject the unapproved
+     competing spellings, so syntax does not drift between the issue text and
+     implementation.
+
+   The ~[]T~ and ~[..]T~ spellings are settled. This issue remains open on the
+   fixed-array representation and semantics described above.

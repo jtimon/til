@@ -1,0 +1,314 @@
+# priority: medium
+# category: features
+** OPEN #328 Infer omitted generic type arguments from value arguments
+
+   Core's ~assert_eq~ is a direct generic:
+
+   #+begin_src til
+   assert_eq := func(T: Type, a: T, b: T, loc: Str = __LOC__) { ... }
+   #+end_src
+
+   Every call therefore repeats a type already present in ~a~ and ~b~:
+
+   #+begin_src til
+   assert_eq(I64, got, 42)
+   assert_eq(Str, got_name, "til")
+   #+end_src
+
+   The common form should infer the generic argument:
+
+   #+begin_src til
+   assert_eq(got, 42)
+   assert_eq(got_name, "til")
+   assert_eq(got, 42, loc = caller_loc)
+   #+end_src
+
+   Keep explicit type application for ambiguous or intentionally constrained
+   calls. This is not just ~assert_eq~ sugar: it is the generic-argument
+   inference deliberately left as a future issue by [[../fixed/58.org][#58]]. For example,
+   ~gid := func(T: Type, v: T) returns T~ should be callable as ~gid(7)~ as
+   well as ~gid(I64, 7)~.
+
+*** Existing language pieces
+
+   ~test/first_class.til~ exercises both current generic forms:
+
+   - Direct generics put every type argument inline: ~gid(I64, 42)~.
+   - Angle generics are macro-backed and curried: ~gid_angle(I64)(7)~.
+   - Macros still declare explicit parameter types and have no operation that
+     returns the static type of an arbitrary argument expression.
+
+   The collection implementations provide useful boundaries:
+
+   - ~Vec(T)~ and ~Map(K, V)~ carry their static type arguments in the
+     instantiated receiver. Calls such as ~v.push(own x)~ and ~m.set(k,
+     own v)~ consequently do not repeat them.
+   - ~DynVec.new(T)~ and ~DynMap.new(K, V)~ take runtime ~Type~ values, turn
+     them into names/sizes/method pointers, and store that metadata. Their
+     ~Dynamic~ operations erase the source value's static type, so they are
+     not a precedent for compile-time deduction.
+   - The variadic ~vec(T, elements: ..Dynamic)~ also requires an explicit
+     type today; inferring homogeneous collection literals could build on the
+     same facility later, but is not required to fix ~assert_eq~.
+
+   Ordinary optional arguments do not provide inference. A default is a
+   concrete expression filled after call matching; ~loc = __LOC__~ works
+   because it has a fixed ~Str~ value. There is no meaningful expression for
+   ~T: Type = ...~ that denotes "the static type inferred from a later
+   argument".
+
+*** Findings from the compiler
+
+   The phase boundary is the real problem, not syntax:
+
+   1. ~init_expand_generic_funcs~ runs in ~init_declarations_unit~. It sees an
+      explicit type token, builds ~name__T~, clones/substitutes the body, drops
+      the type-token arguments from the call, and finally removes the generic
+      source declaration because its body cannot type-check while ~T~ is
+      unresolved.
+   2. Operand types are not authoritative until ~infer_fcall_expr~. Locals,
+      chained calls, field accesses, narrowed numeric literals, FuncSig values,
+      and inferred declarations all need the live function/body ~TypeScope~.
+      Reimplementing enough of the typer in init would produce a second,
+      inevitably divergent expression typer.
+   3. Named/default argument alignment is also typer-driven.
+      ~desugar_fcall_args_for_fdef~ fills ~loc = __LOC__~ only after it has the
+      callee's concrete value-parameter list. The generic expander therefore
+      cannot treat ~T~ as an ordinary default: it needs ~T~ before that fill.
+   4. Between init and body typing, the loader expands lazy calls and extends
+      every throwing signature. At the start of a unit's body sweep, the typer
+      also lifts lambdas. A monomorphization created late must receive those
+      same preparations; cloning the original seed-time FuncDef directly in
+      the middle of ~infer_fcall_expr~ would miss them.
+   5. Scope FuncDef entries are raw pointers into AST storage. Appending a
+      synthesized top-level declaration while inference still holds refs into
+      the current AST can invalidate them. Existing lambda/lazy synthesis
+      queues work and flushes it only at a safe boundary, then calls
+      ~init_refresh_seeded_scope_defs~.
+
+   This rules out a small default-argument tweak. The implementation needs a
+   type-directed generic-call path integrated with the existing typer and a
+   safe way to add the resulting concrete declaration.
+
+*** Recommended design
+
+**** Keep generic sources until calls are typed
+
+   Split today's init operation into "expand explicit calls" and "retire
+   generic sources":
+
+   - Continue expanding calls whose ~Type~-parameter slots contain known type
+     tokens. This keeps all current explicit calls on the proven init path.
+   - Do not mistake a value Ident for a type token. An explicit candidate is
+     valid only when its argument layout matches the full generic signature
+     and every ~Type~ slot is a type binding (or carries explicit ~ref~).
+     Otherwise leave the call for inference.
+   - Keep each source generic declaration in its unit AST through lazy-call
+     expansion, global throw-signature extension, and the body sweep. Teach the
+     normal FuncDef body walk and the initial lambda-lift walk to skip these
+     unresolved template bodies, just as they already skip template macros.
+   - Record generic source identity separately from a normal concrete FuncDef
+     binding, including the declaring path, so local/private and imported
+     generics cannot be confused by name alone.
+   - Remove the generic source declarations only after all body typing and
+     unused-private checks have completed. Before removal, verify that no call
+     to a generic source remains. Remove or repoint their scope FuncDef entries
+     and refresh all surviving AST-backed definition pointers.
+
+   Keeping the source alive is important: an inferred monomorphization then
+   clones the already lazy-expanded and throw-extended body, not the stale
+   seed-time copy currently stored in ~ctx.generic_funcs~.
+
+**** Resolve a generic call in the typer
+
+   Add a generic-call check in ~infer_fcall_expr~ after the callee Ident is
+   resolved but before normal FuncDef argument desugaring and before the
+   blanket rejection of leftover ~ref~ argument bits. It handles two shapes:
+
+   - A late explicit call, needed when an inferred monomorphization's body
+     itself contains ~other_generic(I64, value)~.
+   - An omitted-type call such as ~assert_eq(got, 42)~ or ~gid(7)~.
+
+   For an omitted-type candidate, clone the generic FunctionDef metadata and
+   remove its ~Type~-typed parameters, adjusting ~variadic_index~ and
+   ~kwargs_index~. Use that value-only signature with the existing
+   ~desugar_fcall_args_for_fdef~ so positional/named/default handling stays in
+   one implementation. In particular, ~loc = __LOC__~ is materialized here
+   from the original call's path/line/column.
+
+   Infer every value argument through ordinary ~infer_expr~, then collect
+   constraints from formal parameter types. The first implementation should
+   infer a type parameter from direct occurrences (~a: T~, ~own a: T~,
+   ~xs: ..T~). A parameter seen only inside a generated name such as
+   ~Vec__T~ / ~Map__K_V~ does not guess: report that it cannot yet infer the
+   nested type argument and ask for the existing explicit spelling. Structural
+   decomposition of template instance names can be added later without
+   blocking ~assert_eq~ or ~gid~.
+
+**** Unification rules
+
+   Keep inference deterministic and no more permissive than existing calls:
+
+   - ~Dynamic~, ~Unknown~, and ~null~ do not establish a type argument. They
+     may be checked after another operand establishes it.
+   - A typed non-literal operand is hard evidence. Multiple hard evidence
+     sites for one type parameter must denote the same concrete type. Use the
+     same exact primitive, aggregate-name, and FuncPtrSig comparisons as
+     ~validate_fcall_arg~; do not introduce implicit integer widening (issue
+     #224 already forbids it).
+   - Numeric literals are soft evidence. If another operand fixes ~T~, validate
+     and narrow the literal against that type with ~validate_fcall_arg~. With
+     literals only, infer ~F32~ if any literal is fractional/exponent form,
+     otherwise the normal ~I64~ default.
+   - ~Str~ and ~Bool~ literals are fixed evidence.
+   - If no evidence fixes a parameter, emit
+     ~cannot infer type argument 'T' for 'name'; pass it explicitly~. A type
+     parameter used only by the return type (~gdefault(T) returns T~) therefore
+     remains explicit; expected-result-type inference is a separate feature.
+   - Inference does not invent a ~ref~-qualified type argument. Calls that need
+     the #320 ownership-changing form continue to say ~ref Type~ explicitly.
+     Ordinary ~own~/~mut~/~ref~ value-parameter behavior is preserved by
+     validating the rewritten call against the concrete FunctionDef.
+
+   Build both a concrete ~Type~ (for equality and validation) and its
+   name-forming spelling (for substitution and the ~name__T~ key). Add one
+   helper that obtains the best declared type name from an expression:
+
+   - Named aggregate/enum/FuncSig types come from the Expr's Type payload.
+   - Function calls and fields can recover the declared return/field type from
+     their resolved FunctionDef/Declaration.
+   - Ident bindings need declared-type provenance for width aliases. Add a
+     small name field to ~TypeBinding~ if necessary and populate it when
+     parameters and typed/inferred declarations are bound.
+   - Fall back to ~type_to_name~ for literals and expressions with no retained
+     alias spelling, then pass the result through
+     ~resolve_type_alias_for_name~. This preserves the existing rule that user
+     aliases canonicalize while ~USize~/~UPtr~ remain target-independent names.
+
+   Type equality, not spelling, decides whether evidence conflicts. If two
+   equal-width aliases provide different valid spellings, choose the first
+   non-literal declared spelling deterministically; a literal never overrides
+   it.
+
+**** Reuse monomorphization, do not reimplement it
+
+   Extract the substitution/name/clone portion of
+   ~init_generic_expand_call~ into shared helpers that accept an ordered map of
+   type-parameter names to concrete type-token Exprs plus the existing
+   ~ref_params~ set. Both init-time explicit expansion and typer-time inferred
+   expansion must call the same code for:
+
+   - alias-normalized monomorphization names;
+   - dropping ~Type~ parameters from the concrete FunctionDef;
+   - ~init_substitute_type_params~ over signatures, defaults, throws, and body;
+   - ownership/ref substitutions;
+   - ~ctx.generic_func_synths~ cross-unit deduplication.
+
+   This guarantees that ~assert_eq(I32, a, b)~ and ~assert_eq(a, b)~ select the
+   same concrete declaration whenever they infer the same name-forming type.
+
+**** Queue and type concrete declarations safely
+
+   Give ~Context~ a per-unit pending holder of synthesized generic Decl Exprs.
+   A Decl wrapper owns its FuncDef child, so the scope can register the child
+   immediately against stable pending AST storage. After rewriting the call's
+   callee to ~name__T~, let the existing user-call path run unchanged:
+   argument/default validation, ownership checks, return-type resolution,
+   proc restrictions, import-use tracking, and backend-visible type stamps all
+   come from the registered concrete FunctionDef.
+
+   Flush pending declarations only after ~infer_body_stmt~ returns to the
+   top-level unit loop, where no refs into the current statement remain:
+
+   1. Run lambda lifting on the concrete pending bodies, using a unit/context
+      counter rather than restarting at ~_lambda_0~.
+   2. Move the pending Decl nodes onto the current unit AST.
+   3. Re-register/refresh scope FuncDef pointers after the append.
+   4. Let ~infer_body_unit~'s existing dynamic-length loop type the appended
+      functions. Any inferred generic calls in those bodies queue another
+      batch, giving a natural fixpoint for generic composition.
+
+   The cloned source has already passed global lazy expansion and throw
+   signature extension. Register the concrete throw metadata under the
+   monomorphized name before its body is typed. A generic whose declared throw
+   type itself depends on ~T~ needs a focused test; if the current pre-typing
+   throw lowering cannot substitute it correctly, require explicit type args
+   for that case in the first slice rather than silently lowering the wrong
+   error payload.
+
+   No builder/interpreter special case is needed. Both backends continue to
+   receive only ordinary concrete calls and concrete FuncDefs.
+
+*** Alternatives considered
+
+   - *Make ~T~ an ordinary default*: not expressive. Defaults are concrete
+     Exprs filled after init monomorphization; there is no value equivalent to
+     "the static type of a later argument".
+   - *Macro wrapper plus ~type_of(expr)~*: ordinary macros require comptime
+     arguments, while ~assert_eq~ operands are runtime values. Supporting this
+     would require a new hygienic expression-macro/static-reflection system
+     and would still need typer integration. It is a useful future language
+     feature, not the smallest root fix here.
+   - *Special-case ~assert_eq~ in the typer*: small initially, but it duplicates
+     generic substitution and leaves ~gid(7)~, generic helpers, and future
+     assertion APIs unchanged. Reject unless the general path proves
+     impossible.
+   - *Runtime Dynamic assertion*: ~Dynamic~ carries an address, not a runtime
+     type tag. Recovering ~neq~/~to_str~ would require passing exactly the type
+     metadata this issue is trying not to spell, and would weaken static
+     checking.
+   - *Move every explicit generic expansion from init to the typer*: conceptually
+     uniform, but unnecessarily moves the already-working path past lazy/throw
+     preparation and makes every generic call pay the late-synthesis machinery.
+     Keep explicit init expansion and share only the concrete-instantiation
+     helper.
+
+*** Implementation sequence
+
+   1. Refactor the current generic source lookup, explicit-call matching, type
+      substitution, monomorphization naming, and concrete FuncDef construction
+      into reusable helpers with no behavior change.
+   2. Retain source generic declarations through pre-type preparation; skip
+      their unresolved bodies in the ordinary typer/lambda walk; add the final
+      no-unresolved-calls check and source-retirement pass.
+   3. Add value-only argument matching plus direct type-parameter constraint
+      collection/unification in ~infer_fcall_expr~.
+   4. Add the pending declaration holder, immediate concrete registration,
+      safe unit-loop flush, lambda-counter continuation, and recursive
+      composition handling.
+   5. Add type-name provenance/canonicalization tests, especially ~USize~ /
+      ~UPtr~, aliases, structs/enums, and FuncSig values.
+   6. Once the language tests pass, change representative core/test calls to
+      the inferred form. A later mechanical migration may remove redundant
+      explicit arguments repository-wide; retain explicit arguments where
+      they document a real ambiguity or select ~ref Type~.
+
+*** Acceptance
+
+   - ~assert_eq(a, b)~ infers ~T~ for primitives, ~Str~, structs, enums, and
+     function signatures supported by the current ~T.neq~/~T.to_str~ contract.
+   - A typed operand constrains numeric literals on the other side, including
+     range checks; incompatible concrete operand types produce a diagnostic
+     naming the type parameter and both evidence sites.
+   - Literal-only integer and float calls select the documented ~I64~/~F32~
+     defaults.
+   - The trailing optional location still resolves at the caller, and
+     ~loc = explicit_loc~ works with an omitted type argument.
+   - Existing explicit calls, including ~ref Type~ type arguments, remain
+     valid and select the same concrete implementation.
+   - ~gid(7)~ proves this is a direct-generic language feature rather than an
+     ~assert_eq~ builtin-name special case. Multiple type parameters and
+     composed generic calls also have positive coverage.
+   - A return-only type parameter, no-evidence ~Dynamic~/~null~ call, nested
+     ~Vec(T)~-only constraint, and conflicting operands each fail with focused
+     diagnostics that tell the caller to pass the type explicitly where
+     appropriate.
+   - Cross-unit inferred calls deduplicate with explicit calls and emit the
+     concrete FuncDef in exactly one unit.
+   - ~own~ and ~mut~ generic value parameters retain their existing transfer
+     and write-through checks after inferred rewriting.
+   - Interpret and compile modes have regression coverage in
+     ~test/first_class.til~, ~test/typer_errors.til~, and core assertion tests.
+   - Angle-bracket/type-generator macro inference remains out of scope: this
+     issue covers direct ~func(T: Type, ...)~ generics. Existing explicit
+     ~gid_angle(I64)(7)~ behavior is unchanged.
