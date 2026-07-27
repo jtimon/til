@@ -29,6 +29,19 @@ mode gui
 // driver leaks that forced ASAN_OPTIONS=detect_leaks=0 only happen once a
 // window is created.
 
+// raylib matrices come back as 16 separate floats, so a layout that shifted
+// by one field would still land near the right magnitudes; compare each slot
+// against what it must hold.
+priv near := func(got: F32, want: F32, slot: Str) {
+    d := got - want
+    if d < -0.001 {
+        panic("matrix slot ", slot, " is ", got.to_str(), ", expected ", want.to_str())
+    }
+    if d > 0.001 {
+        panic("matrix slot ", slot, " is ", got.to_str(), ", expected ", want.to_str())
+    }
+}
+
 main := proc() {
     // Plain scalar args and return. Before the fix this silently answered 0,
     // because an unresolved ext symbol fell through to a body-less function.
@@ -84,4 +97,43 @@ main := proc() {
         panic("raylib GenImageColor did not receive the Color by value, got: ",
               outside.r.to_str(), ",", outside.g.to_str(), ",", outside.b.to_str())
     }
+
+    // A 64-byte struct BOTH ways, still windowless: GetCameraMatrix takes a
+    // Camera3D by value and returns a Matrix by value.
+    //
+    // Matrix used to be `ext_struct("Matrix") {}` -- fieldless, because the
+    // bindgen refused `float m0, m4, m8, m12;` (several declarators on one C
+    // line) and downgraded the whole struct to opaque. Compiled code never
+    // noticed, since it includes raylib.h and gets the real type, but the
+    // interpreter built a size-0 ffi_type from those zero fields, libffi
+    // rejected it at prep, and every `shallow Matrix` signature went
+    // unregistered -- so this call panicked with "ext function is not
+    // registered" rather than returning anything.
+    //
+    // A camera at the origin looking down -Z with +Y up has the identity as
+    // its view matrix, which pins all 16 slots to exact values.
+    cam := Camera3D(
+        position = Vector3(x = 0.0, y = 0.0, z = 0.0),
+        target = Vector3(x = 0.0, y = 0.0, z = -1.0),
+        up = Vector3(x = 0.0, y = 1.0, z = 0.0),
+        fovy = 45.0,
+        projection = 0,
+    )
+    view := GetCameraMatrix(cam)
+    near(view.m0, 1.0, "m0")
+    near(view.m4, 0.0, "m4")
+    near(view.m8, 0.0, "m8")
+    near(view.m12, 0.0, "m12")
+    near(view.m1, 0.0, "m1")
+    near(view.m5, 1.0, "m5")
+    near(view.m9, 0.0, "m9")
+    near(view.m13, 0.0, "m13")
+    near(view.m2, 0.0, "m2")
+    near(view.m6, 0.0, "m6")
+    near(view.m10, 1.0, "m10")
+    near(view.m14, 0.0, "m14")
+    near(view.m3, 0.0, "m3")
+    near(view.m7, 0.0, "m7")
+    near(view.m11, 0.0, "m11")
+    near(view.m15, 1.0, "m15")
 }

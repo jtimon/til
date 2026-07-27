@@ -734,6 +734,17 @@ main := proc(args: ..Str) {
             " run", asan_flag, " -o bin/c/svg2ttf_too_many_colors -c gen/c/svg2ttf_too_many_colors.c ",
             "examples/svg2ttf.til ",
             "img/logo.svg tmp/svg2ttf_fail.ttf"))
+    // The bindgen's output has to be til the compiler still accepts. Nothing
+    // checked that, because `make update_c_libs` is a manual step and the
+    // committed vendor/bindings/*.til carry hand-audited edits -- so as the
+    // language tightened, the emitter kept writing forms the typer had come
+    // to reject (`mut` on a struct field, `7.to_i32()` under an explicit
+    // `: I32`, `ext_struct("")` for an untagged struct) and a regen produced
+    // 305 type errors. raylib.h is the header that exercises structs, enums
+    // and function decls together; translating the result typechecks it.
+    add_single(tests, "bindgen_typechecks", "build", 0, "",
+        format(til_bin, " bindings -o tmp/bindgen_raylib.til vendor/raylib/src/raylib.h",
+            " '&&' ", til_bin, " translate tmp/bindgen_raylib.til"))
     // issues.til is fast enough to keep in the regular suite; it refreshes
     // issues/summary.org from the current issue files.
     add_single(tests, "issues_summary", "build", 0, "",

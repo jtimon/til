@@ -4225,6 +4225,7 @@ void priv___src_self_binder_til__register_dynamic_alias(priv___src_self_binder_t
 Bool priv___src_self_binder_til__is_alias_to_primitive(priv___src_self_binder_til__BinderState * bs, Str * name);
 Bool priv___src_self_binder_til__is_alias_to_dynamic(priv___src_self_binder_til__BinderState * bs, Str * name);
 void priv___src_self_binder_til__push_til_default(priv___src_self_binder_til__BinderState * bs, Str * out, Str * c);
+void priv___src_self_binder_til__bind_push_field(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line, USize base_off, USize base_end, USize name_start, USize name_end, I32 ptrs, Str * comment);
 Bool priv___src_self_binder_til__bind_emit_field(priv___src_self_binder_til__BinderState * bs, Str * out, Str * line, Str * comment);
 void priv___src_self_binder_til__emit_comment_line(Str * out, Str * line);
 Bool priv___src_self_binder_til__emit_struct_body(priv___src_self_binder_til__BinderState * bs, Str * out, Vec__Str * lines, USize open, USize close);

@@ -245,17 +245,87 @@ priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
 
 // --- field declaration -------------------------------------------------
 
+// One til field line for ONE declarator: `ptrs` stars, the name in
+// [name_start, name_end), and the base type span [base_off, base_end) --
+// which is shared by every declarator on the same C line, since
+// `float m0, m4;` states the type once and `int *a, b;` gives each
+// declarator its own star count off that one base.
+priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
+    base_off: USize, base_end: USize, name_start: USize, name_end: USize,
+    ptrs: I32, comment: Str) {
+    base_view := line.substr(base_off, base_end - base_off)
+    word_len := name_end - name_start
+    // No `mut` on any of these: struct fields are mutable by default, and the
+    // typer REJECTS a redundant one ("drop the 'mut'", infer_type_def_expr).
+    // The emitter still wrote `mut x` / `ref mut p`, so `make update_c_libs`
+    // produced bindings that no longer typecheck -- which is why the committed
+    // vendor/bindings/*.til have the `mut`s stripped by hand.
+    out.push_str("    ")
+    if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
+        // Field is typed as a previously-emitted Dynamic alias (typedef'd
+        // pointer or function pointer). Treat it like a pointer field.
+        out.push_str("ref ")
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : ")
+        push_til_base(out, base_view)
+        out.push_str(" = NULL")
+    } else if ptrs == 0 {
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : ")
+        push_til_base(out, base_view)
+        out.push_str(" = ")
+        push_til_default(bs, out, base_view)
+    } else if ptrs.eq(1).and(range_eq_lit(line, base_off, base_end, "void")) {
+        out.push_str("ref ")
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : Dynamic = NULL")
+    } else if ptrs == 1 {
+        out.push_str("ref ")
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : ")
+        push_til_base(out, base_view)
+        out.push_str(" = NULL")
+    } else {
+        out.push_str("ref ")
+        out.push_str(line.substr(name_start, word_len))
+        out.push_str(" : Dynamic = NULL")
+    }
+    if comment.is_empty().not() {
+        out.push_str("  // ")
+        out.push_str(comment)
+    }
+    out.push_str("\n")
+}
+
 priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: Str) returns Bool {
     n := line.len()
     if n == 0 { return true }
     // Pre-filter unsupported shapes (arrays, function pointers, bitfields,
-    // multi-var, nested struct/union/enum bodies).
+    // nested struct/union/enum bodies).
+    //
+    // `,` is NOT one of them. Several declarators sharing one type
+    // (`float m0, m4, m8, m12;`) is an ordinary C field shape, and refusing
+    // it took the WHOLE struct down to `ext_struct("X") {}` -- which compiled
+    // code never noticed, since it includes the C header and gets the real
+    // type, while the interpreter got a fieldless struct that
+    // build_struct_ffi_type turned into a size-0 ffi_type. libffi rejects
+    // that at prep, so raylib's Matrix -- 16 plain floats written four to a
+    // line -- made every `shallow Matrix` signature unregistrable, and
+    // GetCameraMatrix and friends panicked when called (issue #308).
     mut p : USize = 0
     while p < n {
         ref b : I8 = line.unsafe_get(p)
-        if b.eq('[').or(b.eq('(')).or(b.eq(':')).or(b.eq(','))
+        if b.eq('[').or(b.eq('(')).or(b.eq(':'))
         .or(b.eq('{')).or(b.eq('}')) { return false }
         p++
+    }
+    // The base type is stated once, before the first declarator, so parse
+    // [0, first_comma) for it and take the later declarators as names.
+    mut first_comma := n
+    mut c : USize = 0
+    while c < n {
+        if line.unsafe_get(c) == ',' { first_comma = c; break }
+        c++
     }
     // Token-walk with USize indices. We rotate `name candidates` so the
     // last one is the field name and `[base_first, prev_end)` is the base
@@ -268,7 +338,7 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     mut base_first : USize = 0
     mut base_set := false
     p = skip_ws(line, 0)
-    while p < n {
+    while p < first_comma {
         if line.unsafe_get(p) == '*' {
             ptrs++
             p++
@@ -308,7 +378,6 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         out.push_str("\n")
         return true
     }
-    word_len := name_end - name_start
     // Strip a leading `struct ` / `enum ` from the base view -- those
     // reference the named tag rather than a separate type.
     mut base_off := base_first
@@ -317,44 +386,37 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     } else if base_first.add(5).lte(prev_end).and(range_eq_lit(line, base_first, base_first + 5, "enum ")) {
         base_off = base_first + 5
     }
-    base_view := line.substr(base_off, prev_end - base_off)
+    // The line's trailing comment describes the whole group ("Matrix first
+    // row (4 components)"), so it rides on the first field of the group
+    // rather than being repeated on each.
+    bind_push_field(bs, out, line, base_off, prev_end, name_start, name_end, ptrs, comment)
 
-    out.push_str("    ")
-    if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
-        // Field is typed as a previously-emitted Dynamic alias (typedef'd
-        // pointer or function pointer). Treat it like a pointer field.
-        out.push_str("ref mut ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : ")
-        push_til_base(out, base_view)
-        out.push_str(" = NULL")
-    } else if ptrs == 0 {
-        out.push_str("mut ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : ")
-        push_til_base(out, base_view)
-        out.push_str(" = ")
-        push_til_default(bs, out, base_view)
-    } else if ptrs.eq(1).and(range_eq_lit(line, base_first, prev_end, "void")) {
-        out.push_str("ref mut ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = NULL")
-    } else if ptrs == 1 {
-        out.push_str("ref mut ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : ")
-        push_til_base(out, base_view)
-        out.push_str(" = NULL")
-    } else {
-        out.push_str("ref mut ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = NULL")
+    // Remaining declarators: `, m4, m8, m12`. Each contributes its own stars
+    // and name to the base type parsed above.
+    mut q := first_comma
+    while q < n {
+        q++
+        q = skip_ws(line, q)
+        mut dptrs : I32 = 0
+        while q < n {
+            if line.unsafe_get(q) != '*' { break }
+            dptrs++
+            q++
+            q = skip_ws(line, q)
+        }
+        // A declarator with no name is not a shape this emitter understands
+        // (a stray trailing comma, or something the pre-filter let through);
+        // fail so the struct downgrades to opaque rather than emitting a
+        // field list that does not match the C layout.
+        if q >= n { return false }
+        dws := skip_word(line, q)
+        if dws == q { return false }
+        bind_push_field(bs, out, line, base_off, prev_end, q, dws, dptrs, "")
+        q = skip_ws(line, dws)
+        if q < n {
+            if line.unsafe_get(q) != ',' { return false }
+        }
     }
-    if comment.is_empty().not() {
-        out.push_str("  // ")
-        out.push_str(comment)
-    }
-    out.push_str("\n")
     return true
 }
 
@@ -535,12 +597,17 @@ priv emit_typedef_struct := func(bs: BinderState, mut out: Str, lines: Vec(Str),
 
     out.push_str(close_line.substr(name_start, name_len))
     if have_tag.not() {
+        // An untagged `typedef struct { ... } X;` is spelled `ext_struct {`,
+        // not `ext_struct("")` -- the typer rejects the empty tag by name
+        // ("write 'ext_struct {' instead"). Third stale-syntax emission in
+        // this file, and the one that stopped a regenerated
+        // vendor/bindings/libffi.til from typechecking.
         if body_ok {
-            out.push_str(" := ext_struct(\"\") {\n")
+            out.push_str(" := ext_struct {\n")
             out.push_str(body_buf)
             out.push_str("}\n\n")
         } else {
-            out.push_str(" := ext_struct(\"\") {}  // opaque: unsupported field shape\n\n")
+            out.push_str(" := ext_struct {}  // opaque: unsupported field shape\n\n")
         }
         return close + 1
     }
@@ -680,9 +747,14 @@ priv emit_typedef_enum := func(mut bs: BinderState, mut out: Str, lines: Vec(Str
             }
         }
         out.push_str(line.substr(member_start, member_end - member_start))
+        // `: I32 = 7`, not `7.to_i32()`: the declaration's explicit type
+        // already narrows the literal, and the typer REJECTS the conversion
+        // as redundant. Same stale-syntax trap as the `mut` on struct fields
+        // above -- 305 of these were the rest of what stopped a regenerated
+        // vendor/bindings/raylib.til from typechecking.
         out.push_str(" : I32 = ")
         out.push_str(val.to_str())
-        out.push_str(".to_i32()\n")
+        out.push_str("\n")
         prev_line.push(own i.clone())
         prev_start.push(own member_start.clone())
         prev_end.push(own member_end.clone())

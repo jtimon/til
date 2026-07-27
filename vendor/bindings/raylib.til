@@ -143,7 +143,24 @@ Vector4 := struct {
 Quaternion := Vector4
 
 // Matrix, 4x4 components, column major, OpenGL style, right-handed
-Matrix := ext_struct("Matrix") {}  // opaque: unsupported field shape
+Matrix := struct {
+    m0 : F32 = 0  // Matrix first row (4 components)
+    m4 : F32 = 0
+    m8 : F32 = 0
+    m12 : F32 = 0
+    m1 : F32 = 0  // Matrix second row (4 components)
+    m5 : F32 = 0
+    m9 : F32 = 0
+    m13 : F32 = 0
+    m2 : F32 = 0  // Matrix third row (4 components)
+    m6 : F32 = 0
+    m10 : F32 = 0
+    m14 : F32 = 0
+    m3 : F32 = 0  // Matrix fourth row (4 components)
+    m7 : F32 = 0
+    m11 : F32 = 0
+    m15 : F32 = 0
+}
 
 // Color, 4 components, R8G8B8A8 (32bit)
 Color := struct {
