@@ -236,6 +236,8 @@ void eprint_single(const Str *s);
 // itself is of course mutated by the call).
 void *cfile_open(const Str *path, Bool is_write);
 void *cfile_open_update(const Str *path);
+void *cfile_open_append(const Str *path);
+Bool cfile_exists(const Str *path);
 void cfile_close(const void *handle);
 void cfile_write_str(const void *handle, const Str *s);
 Str *cfile_read_all(const void *handle);

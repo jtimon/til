@@ -1319,6 +1319,31 @@ void *cfile_open_update(const Str *path) {
     return (void *)f;
 }
 
+// Open a file for appending ("ab"): every write goes to the end of the
+// file and existing contents are kept, unlike cfile_open's "wb" which
+// truncates. The file is created when it does not exist.
+void *cfile_open_append(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    FILE *f = fopen(p, "ab");
+    if (!f) {
+        fprintf(stderr, "cfile_open_append: could not open '%s'\n", p);
+        free(p);
+        exit(1);
+    }
+    free(p);
+    return (void *)f;
+}
+
+// True when `path` names an existing directory entry. stat, not fopen:
+// a directory or a file the process cannot read still exists.
+Bool cfile_exists(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    struct stat st;
+    int rc = stat(p, &st);
+    free(p);
+    return rc == 0;
+}
+
 // Current cursor position as a byte offset from the start of the file.
 I64 cfile_tell(const void *handle) {
     if (!handle) {
@@ -2009,12 +2034,27 @@ void til_emscripten_set_main_loop(TilClosure *frame, I32 fps, Bool simulate_infi
 #endif
 }
 
-void unlink_path(const Str *path) {
+// dup_n, not a raw path->c_str cast: a til Str is a {ptr, count, cap}
+// with no NUL terminator, so handing c_str straight to unlink() passes
+// whatever bytes follow the string in memory as part of the path.
+// Compiled code got away with it because emitted literals happen to be
+// NUL-terminated; a Str built at runtime (the interpreter's path) did
+// not, and the removal silently did nothing -- silently because the
+// return code was dropped too. ENOENT stays non-fatal (removing an
+// already-missing path is a no-op); any other failure is real and loud.
+void cfile_remove(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
 #ifdef _WIN32
-    _unlink((const char *)path->c_str);
+    int rc = _unlink(p);
 #else
-    unlink((const char *)path->c_str);
+    int rc = unlink(p);
 #endif
+    if (rc != 0 && errno != ENOENT) {
+        fprintf(stderr, "cfile_remove: could not remove '%s'\n", p);
+        free(p);
+        exit(1);
+    }
+    free(p);
 }
 
 I32 process_id(void) {

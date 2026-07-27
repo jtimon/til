@@ -15,6 +15,8 @@ mode lib
 // be evaluated by the constfolder and its result baked into the binary.
 cfile_open := ext_proc(path: Str, shallow is_write: Bool) returns ref Dynamic {}
 cfile_open_update := ext_proc(path: Str) returns ref Dynamic {}
+cfile_open_append := ext_proc(path: Str) returns ref Dynamic {}
+cfile_exists := ext_proc(path: Str) returns shallow Bool {}
 // The one exception: declared ext_func (not ext_proc) so File.delete --
 // which the garbager inserts into arbitrary func bodies -- can release
 // the handle. Same rationale as `free` being an ext_func despite
@@ -28,11 +30,12 @@ cfile_seek := ext_proc(handle: Dynamic, shallow pos: I64) {}
 cfile_seek_cur := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_seek_end := ext_proc(handle: Dynamic, shallow delta: I64) {}
 cfile_read_n := ext_proc(handle: Dynamic, shallow count: I64) returns Str {}
-// Removing a directory entry: a file-system write like any other, and
-// the only removal primitive there is. It used to be declared inside
-// src/self/interpreter.til (where the FFI .so cleanup calls it), which
-// left every other program without a way to delete a file.
-unlink_path := ext_proc(path: Str) {}
+// Removing a directory entry: a file-system write like any other. Named
+// for the cfile_* family rather than for the unlink(2) syscall it calls
+// (rm removes a file the same way; "unlink" is just what the syscall has
+// been called since early Unix). Files only -- unlink refuses
+// directories, unlike C's remove(3).
+cfile_remove := ext_proc(path: Str) {}
 
 /// File handle for reading or writing on disk.
 File := struct {
@@ -59,11 +62,25 @@ namespace:
         f.write(content)
     }
 
-    /// Delete the directory entry at `path`. Removing a file the process
+    /// Append `content` to the file at `path`, keeping what is already
+    /// there. The file is created when it does not exist.
+    appendfile := proc(path: Str, content: Str) {
+        f := File.append(path)
+        f.write(content)
+    }
+
+    /// Delete the file at `path`, like `rm`. Removing a file the process
     /// still has open is allowed on POSIX (the handle keeps working until
-    /// it is closed); a missing path is not an error.
+    /// it is closed); a missing path is not an error. Directories are
+    /// not removed -- pointing this at one is an error.
     remove := proc(path: Str) {
-        unlink_path(path)
+        cfile_remove(path)
+    }
+
+    /// True when `path` names an existing directory entry. A directory,
+    /// or a file the process has no permission to read, still exists.
+    exists := proc(path: Str) returns Bool {
+        return cfile_exists(path)
     }
 
     /// Open a file at `path` for reading or writing.
@@ -79,6 +96,16 @@ namespace:
     update := proc(path: Str) returns File {
         ref h : Dynamic = cfile_open_update(path)
         return File(handle = h, is_update = true)
+    }
+
+    /// Open a file at `path` for appending: writes always land at the end
+    /// and existing contents are kept, where `File.new(path, true)`
+    /// truncates. The file is created when it does not exist. Reads are
+    /// rejected, and `seek` does not move where a write lands -- "ab"
+    /// appends regardless of the cursor.
+    append := proc(path: Str) returns File {
+        ref h : Dynamic = cfile_open_append(path)
+        return File(handle = h, is_write = true)
     }
 
     /// Write a string to the file and return `self` so writes chain via

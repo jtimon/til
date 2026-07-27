@@ -118,13 +118,53 @@ test_file_remove := test() {
     assert_eq(Str, File.readfile(path), "gone soon")
 
     File.remove(path)
+    // Assert the entry is actually gone. Re-reading after a rewrite is
+    // not enough: writefile truncates, so it passes either way -- which
+    // is how a silently no-op cfile_remove went unnoticed.
+    assert(File.exists(path).not())
 
-    // The entry is gone: writing recreates it from scratch rather than
-    // appending to what was there.
     File.writefile(path, "fresh")
     assert_eq(Str, File.readfile(path), "fresh")
 
     File.remove(path)
     // Removing a path that is already gone is not an error.
     File.remove(path)
+}
+
+test_file_exists := test() {
+    path := "tmp/_test_file_exists.txt"
+    File.remove(path)
+    assert(File.exists(path).not())
+
+    File.writefile(path, "here")
+    assert(File.exists(path))
+
+    File.remove(path)
+    assert(File.exists(path).not())
+
+    // A directory is an existing entry too.
+    assert(File.exists("tmp"))
+}
+
+test_file_append := test() {
+    path := "tmp/_test_file_append.txt"
+    File.remove(path)
+
+    // Appending to a missing path creates it.
+    File.appendfile(path, "one")
+    assert_eq(Str, File.readfile(path), "one")
+
+    // Every later append keeps what is already there, where writefile
+    // would truncate.
+    File.appendfile(path, " two")
+    File.appendfile(path, " three")
+    assert_eq(Str, File.readfile(path), "one two three")
+
+    File.writefile(path, "reset")
+    assert_eq(Str, File.readfile(path), "reset")
+
+    // The handle form appends the same way.
+    f := File.append(path)
+    f.write(" tail")
+    assert_eq(Str, File.readfile(path), "reset tail")
 }

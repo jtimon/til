@@ -6662,6 +6662,19 @@ priv h_cfile_open_update := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     return true
 }
 
+priv h_cfile_open_append := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    path := eval_str_owned(s, e.children[1], ctx)
+    // FILE* is closed via cfile_close (fclose), never free()'d here.
+    write_ptr(r, cfile_open_append(path))
+    return true
+}
+
+priv h_cfile_exists := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    path := eval_str_owned(s, e.children[1], ctx)
+    write_bool(r, cfile_exists(path))
+    return true
+}
+
 priv h_cfile_tell := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
     handle_raw : Dynamic = eval_expr_raw(s, handle_expr, ctx)
@@ -6772,6 +6785,8 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("get_thread_count", h_get_thread_count, ctx)
     reg_dispatch("cfile_open", h_cfile_open, ctx)
     reg_dispatch("cfile_open_update", h_cfile_open_update, ctx)
+    reg_dispatch("cfile_open_append", h_cfile_open_append, ctx)
+    reg_dispatch("cfile_exists", h_cfile_exists, ctx)
     reg_dispatch("cfile_close", h_cfile_close, ctx)
     reg_dispatch("cfile_write_str", h_cfile_write_str, ctx)
     reg_dispatch("cfile_read_all", h_cfile_read_all, ctx)

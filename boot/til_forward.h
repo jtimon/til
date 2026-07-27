@@ -4019,6 +4019,8 @@ void * priv___src_self_interpreter_til__get_payload_field_addr(Scope * s, Expr *
 Bool priv___src_self_interpreter_til__h_get_payload(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_read_all(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_open_update(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_open_append(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_cfile_exists(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_tell(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_seek(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_seek_cur(Scope * s, Expr * e, void * _r, Context * ctx);
