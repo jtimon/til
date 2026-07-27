@@ -2138,7 +2138,7 @@ Expr * priv___src_self_parser_til__parse_statement(priv___src_self_parser_til__P
 Expr * priv___src_self_parser_til__parse_case_head(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_statement_body(priv___src_self_parser_til__Parser * p);
-Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out, I64 * anon_type_counter, I32 * parse_errors);
+Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out, I64 * anon_type_counter, I32 * parse_errors, Bool quiet);
 Option__ref_Str expr_type_name_ref(Expr * e);
 Str * til_type_name_c(Type * t);
 NodeType * ident_node(Str * name);
@@ -4248,7 +4248,7 @@ Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
 Str * priv__src_til_til__repl_read_line(Str * mode_name, Bool continuation, Bool * eof);
 I64 priv__src_til_til__repl_tokens_open_depth(Vec__Token * tokens);
-Str * repl_read_block(Str * mode_name);
+Str * repl_read_block(Str * mode_name, Bool * eof);
 I32 repl_typecheck(LoadedProgram * lp);
 Str * repl_capture_eval_current(InterpSession * session, LoadedProgram * lp, Str * out_path, U32 block_start_line, Bool eval_doc_line, U32 doc_init_line, Bool * aborted);
 Str * repl_capture_eval_tail(InterpSession * session, LoadedProgram * lp, Str * out_path, USize start_idx, USize count, Bool * aborted);

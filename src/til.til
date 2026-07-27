@@ -74,10 +74,13 @@ priv repl_tokens_open_depth := func(tokens: Vec(Token)) returns I64 {
 // EOF mid-block hands back what was typed so the parser reports the
 // unterminated construct; an empty line inside an open block is just a blank
 // line, not the end of input.
-repl_read_block := proc(mode_name: Str) returns Str {
-    mut eof := false
+//
+// `eof` tells the caller which of the two empty results it got: in_read_line
+// returns "" for both an empty line and end of input, so pressing Enter at the
+// prompt used to end the session.
+repl_read_block := proc(mode_name: Str, mut eof: Bool) returns Str {
     mut block := repl_read_line(mode_name, false, eof)
-    if eof.or(block.len() == 0) { return "" }
+    if eof { return "" }
     while repl_tokens_open_depth(tokenize(block, "<repl>")) > 0 {
         next := repl_read_line(mode_name, true, eof)
         if eof { return block }
@@ -265,6 +268,13 @@ repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
     case NodeType.Break:       return false
     case NodeType.Continue:    return false
     case NodeType.Body:        return false
+    // A `catch` block (and a bare `throw`) is a statement, and it is the LAST
+    // one on the only line shape that can express a catch at the prompt:
+    // `ref r : I64 = a.get(5)? catch (err: T) { ... }`. Missing from this list,
+    // it fell through to "wrap it as an expression" and the turn died on
+    // "unexpected token 'ref'" inside the generated `(...).to_str()`.
+    case NodeType.Catch:       return false
+    case NodeType.Throw:       return false
     case:
     }
     return true
@@ -390,24 +400,41 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     mut repl_echo_counter : I64 = 0
 
     while true {
-        block := repl_read_block(mode_str)
-        if block.len() == 0 {
+        mut at_eof := false
+        block := repl_read_block(mode_str, at_eof)
+        if at_eof {
             println("")
             break
         }
+        // A blank line is a blank line. It used to be indistinguishable from
+        // EOF, so pressing Enter ended the session.
+        if block.trim().len() == 0 { continue }
 
         // Peek at the line to detect a `mode X` directive. If the user
         // entered one, return so the outer driver can restart the session
         // in the new mode (discarding prior declarations).
         mut peek_source := block.clone()
         mut peek_tokens := tokenize(peek_source, "<repl>")
-        if repl_peek_needs_expr_wrap(block, peek_tokens) {
+        wrapped := repl_peek_needs_expr_wrap(block, peek_tokens)
+        if wrapped {
             peek_source = format("(", block, ")")
             peek_tokens = tokenize(peek_source, "<repl>")
         }
         mut peek_mode_out := ""
         mut peek_parse_errors : I32 = 0
-        peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors)
+        mut peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors, wrapped)
+        // The wrap only makes sense for a line that IS a single expression.
+        // Several statements on one line -- `v.get(5)? catch (err: T) { ... }`,
+        // the only way to type a catch at the prompt -- become a syntax error
+        // inside the parens, and the turn was dropped without the raw form ever
+        // being tried. The wrapped attempt is parsed quietly for exactly this
+        // reason: its failure is speculative, not the user's error.
+        if peek_parse_errors.gt(0).and(wrapped) {
+            peek_source = block.clone()
+            peek_tokens = tokenize(peek_source, "<repl>")
+            peek_parse_errors = 0
+            peek_ast = parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors)
+        }
         // A syntax error used to end the PROCESS here, so one typo threw away
         // the whole session. parse has already printed it; drop the turn and
         // prompt again.

@@ -2569,7 +2569,10 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 // continue without a well-formed AST (every file compile) exit on a non-zero
 // count; the REPL prints and keeps the session. The messages themselves are
 // already on stdout by then, emitted by parse_fail.
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0) returns Expr {
+// `quiet` suppresses that report for a TRIAL parse whose failure is not the
+// user's error -- the REPL's speculative expression wrap, which retries the
+// raw line and reports only if that fails too.
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0, quiet: Bool = false) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter)
 
     // Parse optional mode declaration
@@ -2608,7 +2611,7 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
     }
     anon_type_counter = p.anon_type_counter
     parse_errors = p.error_count
-    if p.error_count > 0 { println(p.error_msg) }
+    if p.error_count.gt(0).and(quiet.not()) { println(p.error_msg) }
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
     // used to be lifted here too, but they now move to top level in the
     // typer (src/self/typer.til:typer_lift_lambdas, called from
