@@ -636,16 +636,8 @@ priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, 
 // per-block transfer function is likewise computed once (see
 // gc_flow_block_kill), which turns the sweep body into pure state
 // arithmetic.
-priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
+priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), mut preds: Vec(USize)) {
     n := blocks.len()
-    mut kill := Array(U8).new(n)
-    for i in 0..n {
-        ins[i] = FLOW_UNREACHED
-        outs[i] = FLOW_UNREACHED
-        kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx)
-    }
-    mut pred_off := Array(USize).new(n.add(1))
-    mut preds := Vec(USize).new()
     for bi in 0..n {
         pred_off[bi] = preds.len()
         for p in 0..n {
@@ -656,6 +648,16 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, 
         }
     }
     pred_off[n] = preds.len()
+}
+
+// The sweep itself, over precomputed predecessors and per-block
+// transfer functions. Split out so a caller solving MANY locals over
+// one body pays for the graph once (gc_flow_stmt_table).
+priv gc_flow_fixpoint := func(n: USize, pred_off: Array(USize), preds: Vec(USize), kill: Array(U8), entry_state: U8, mut ins: Array(U8), mut outs: Array(U8)) {
+    for i in 0..n {
+        ins[i] = FLOW_UNREACHED
+        outs[i] = FLOW_UNREACHED
+    }
     mut changed := true
     mut guard := 0
     while changed {
@@ -683,6 +685,162 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, 
         guard++
         if guard > 1000 { panic(__LOC__, ": garbager flow: no fixpoint after 1000 sweeps") }
     }
+}
+
+priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
+    n := blocks.len()
+    mut kill := Array(U8).new(n)
+    for i in 0..n { kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx) }
+    mut pred_off := Array(USize).new(n.add(1))
+    mut preds := Vec(USize).new()
+    gc_flow_preds(blocks, pred_off, preds)
+    gc_flow_fixpoint(n, pred_off, preds, kill, entry_state, ins, outs)
+}
+
+// Set mirror of expr_reassigns_var. Unlike the collectors in typer.til
+// it does NOT stop at a FuncDef, because neither does the predicate.
+priv expr_collect_reassigns := func(e: Expr, mut out: Set(Str)) {
+    switch e.node_type {
+    case NodeType.Assign(ad):
+        if out.has(ad.name).not() { out.add(own ad.name.clone()) }
+    case:
+    }
+    for rc : Expr in e.children { expr_collect_reassigns(rc, out) }
+}
+
+// Every name for which some statement of the view has a non-identity
+// transfer function -- the union of the three predicates
+// gc_flow_stmt_const asks, over the same subtrees it would ask them on
+// (a compound at a block's tail contributes only its condition, a
+// compile directive contributes nothing).
+priv gc_flow_view_names := func(blocks: Vec(GcCfgBlock), scope: TypeScope, mut out: Set(Str)) {
+    for bi in 0..blocks.len() {
+        ref b : GcCfgBlock = blocks[bi]
+        switch b.body {
+        case Option(ref Expr).Some(bbody):
+            mut j := b.start
+            while j < b.end {
+                ref stmt : Expr = bbody.children[j.to_usize()]
+                if is_compile_directive(stmt) { j = j.add(1); continue }
+                mut tail_compound := false
+                if j.add(1).eq(b.end) {
+                    tail_compound = stmt.node_type.is(NodeType.If)
+                        .or(stmt.node_type.is(NodeType.While))
+                        .or(stmt.node_type.is(NodeType.Switch))
+                        .or(stmt.node_type.is(NodeType.Body))
+                }
+                if tail_compound {
+                    if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
+                        ref cond : Expr = stmt.children[0]
+                        expr_collect_decls(cond, out)
+                        expr_collect_reassigns(cond, out)
+                        expr_collect_transfers(cond, scope, out)
+                    }
+                } else {
+                    expr_collect_decls(stmt, out)
+                    expr_collect_reassigns(stmt, out)
+                    expr_collect_transfers(stmt, scope, out)
+                }
+                j = j.add(1)
+            }
+        case Option(ref Expr).None:
+        }
+    }
+}
+
+// #302 stage 3: the per-statement ownership state of every live local
+// in one table, so the insertion loop can ASK the dataflow instead of
+// approximating it by statement order.
+//
+// table[l * body.children.len() + i] is local l's state on ENTRY to
+// top-level statement i: the containing root block's IN, advanced
+// through that block's earlier statements. Statements the CFG never
+// reaches (code after a terminator) stay FLOW_UNREACHED.
+//
+// Built BEFORE the caller's move_from empties body.children -- the
+// blocks index into it -- and shared across locals: the graph, its
+// predecessor lists and the fixpoint scaffolding are per-body, only
+// the per-block transfer functions are per-name.
+priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context) returns Array(U8) {
+    // Nothing in this view can query the table: its exits, if any, live
+    // inside nested views, and each of those builds its own. Bodies
+    // with nested compounds but no exit of their own are the common
+    // case, so building unconditionally would pay for a CFG, a
+    // predecessor map and a name sweep per recursion level.
+    if has_exit.not() { return Array(U8).new(0) }
+    stmts := body.children.len()
+    mut table := Array(U8).new(locals.len().mul(stmts))
+    for t in 0..locals.len().mul(stmts) { table[t] = FLOW_UNREACHED }
+    mut blocks := Vec(GcCfgBlock).new()
+    cfg_build(blocks, body)
+    n := blocks.len()
+    mut pred_off := Array(USize).new(n.add(1))
+    mut preds := Vec(USize).new()
+    gc_flow_preds(blocks, pred_off, preds)
+    mut kill := Array(U8).new(n)
+    mut ins := Array(U8).new(n)
+    mut outs := Array(U8).new(n)
+    // Every name this view can say anything about. A local absent from
+    // it has the identity transfer in every block, so its states are
+    // exactly the REACHABILITY of each statement -- its entry state
+    // where control arrives, Unreached where it does not -- which is
+    // name-independent and computed once below. Most live locals of a
+    // nested view are in that case, and solving each of them anyway
+    // cost a self-translate 45%.
+    mut touched := Set(Str).new()
+    gc_flow_view_names(blocks, scope, touched)
+    mut reachable := Array(Bool).new(stmts)
+    for s in 0..stmts { reachable[s] = false }
+    for bi in 0..n { kill[bi] = FLOW_ID }
+    gc_flow_fixpoint(n, pred_off, preds, kill, FLOW_OWNED, ins, outs)
+    for bi in 0..n {
+        ref b : GcCfgBlock = blocks[bi]
+        if b.is_root.not() { continue }
+        if ins[bi].eq(FLOW_UNREACHED) { continue }
+        mut j := b.start
+        while j < b.end {
+            reachable[j.to_usize()] = true
+            j = j.add(1)
+        }
+    }
+    for li in 0..locals.len() {
+        ref local : LocalInfo = locals[li]
+        // A binding with no Decl in this view (a param, or a local of
+        // an enclosing body) is already owned when control arrives.
+        mut entry := entry_state
+        if local.decl_index < 0 { entry = FLOW_OWNED }
+        if touched.has(local.name).not() {
+            for s in 0..stmts {
+                if reachable[s] { table[li.mul(stmts).add(s)] = entry }
+            }
+            continue
+        }
+        for bi in 0..n { kill[bi] = gc_flow_block_kill(blocks, bi, local.name, scope, ctx) }
+        gc_flow_fixpoint(n, pred_off, preds, kill, entry, ins, outs)
+        for bi in 0..n {
+            ref b : GcCfgBlock = blocks[bi]
+            if b.is_root.not() { continue }
+            if ins[bi].eq(FLOW_UNREACHED) { continue }
+            switch b.body {
+            case Option(ref Expr).Some(bbody):
+                mut st : U8 = FLOW_UNREACHED
+                st = ins[bi]
+                mut j := b.start
+                while j < b.end {
+                    table[li.mul(stmts).add(j.to_usize())] = st
+                    ref stmt : Expr = bbody.children[j.to_usize()]
+                    if is_compile_directive(stmt).not() {
+                        st = gc_flow_stmt_effect(stmt, local.name, st, scope, ctx)
+                    }
+                    j = j.add(1)
+                }
+            case Option(ref Expr).None:
+                // Root blocks always carry a body (cfg_new_block).
+                UNREACHABLE()
+            }
+        }
+    }
+    return table
 }
 
 // True when the binding leaves this body view still OWNED on at least
@@ -1680,18 +1838,31 @@ priv check_use_after_own_transfer := proc(body: Expr, mut locals: Vec(LocalInfo)
 
 priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), return_only: Bool, scope: TypeScope, ctx: Context) {
     // Quick check: any returns/breaks/continues or nested if/while/body?
+    // has_exit tracks the narrower question the flow table needs: does
+    // an exit occur at THIS view's top level (deeper ones are handled
+    // by the recursive calls, each with its own table).
     mut needs_scan := false
+    mut has_exit := false
     for s : Expr in body.children {
-        if s.node_type.is(NodeType.Return).or(s.node_type.is(NodeType.If)).or(s.node_type.is(NodeType.While)).or(s.node_type.is(NodeType.Body)).or(s.node_type.is(NodeType.Switch)) {
+        if s.node_type.is(NodeType.Return).or(return_only.not().and(s.node_type.is(NodeType.Break).or(s.node_type.is(NodeType.Continue)))) {
             needs_scan = true
+            has_exit = true
             break
         }
-        if return_only.not().and(s.node_type.is(NodeType.Break).or(s.node_type.is(NodeType.Continue))) {
+        if s.node_type.is(NodeType.If).or(s.node_type.is(NodeType.While)).or(s.node_type.is(NodeType.Body)).or(s.node_type.is(NodeType.Switch)) {
             needs_scan = true
-            break
         }
     }
     if needs_scan.not() { return }
+
+    // Built here, while body.children is still populated: the CFG
+    // indexes into it and the move_from below empties it. Every caller
+    // of this proc passes a NESTED view whose live locals are all
+    // declared in an enclosing body (insert_nested_exit_deletes filters
+    // on decl_index < stmt_idx), so they enter the view Owned -- the
+    // same assumption the positional scan this replaces made implicitly
+    // by only looking at preceding siblings within the view.
+    flow_table := gc_flow_stmt_table(body, live, FLOW_OWNED, has_exit, scope, ctx)
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -1720,42 +1891,40 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
             }
         }
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
-            for local : LocalInfo in live {
+            for li in 0..live.len() {
+                ref local : LocalInfo = live[li]
                 if stmt.children.len() > 0 {
                     ref retval : Expr = stmt.children[0]
                     if expr_uses_var(retval, local.name).or(alias_used_in_stmts(old, local.name, retval)) {
                         continue
                     }
                 }
-                // #302 stage 3: an UNCONDITIONAL transfer in a preceding
-                // sibling of this body means the local is Moved on every
-                // path reaching this exit -- the shape the return-operand
-                // exclusion above misses once the typer has hoisted the
-                // transferring call into its own decl (`hoisted := f(own
-                // s); return hoisted`). Load-bearing for diverged
-                // transfers (own_transfer cleared by the path-sensitive
-                // use check): without it the nested return right after the
-                // hoisted transfer re-deleted the consumed local (ASAN
-                // heap-use-after-free, probed). Two subtleties, both
-                // probed: (1) the scan walks new_ch, NOT old[0..i) --
-                // push_take has already zeroed the consumed old slots (a
-                // zeroed Expr reads as an empty Body, tag 0, so a scan
-                // over old sees nothing); (2) compound siblings
-                // (If/While/Switch/Body) are skipped -- a transfer inside
-                // one branch of an earlier if is CONDITIONAL, the
-                // fall-to-this-exit path may still own the local, and
-                // suppressing its delete leaked in compiler bodies
-                // (caught by the pass-1 vs pass-2 C diff).
-                mut moved_before := false
-                for pi in 0..new_ch.len() {
-                    if stmt_is_conditional_container(new_ch[pi]).not() {
-                        if expr_transfers_own(new_ch[pi], local.name, scope, ctx) {
-                            moved_before = true
-                            break
-                        }
-                    }
-                }
-                if moved_before { continue }
+                // #302 stage 3: the DATAFLOW says whether this exit still
+                // owns the local. Moved on every path reaching it means
+                // the value is already consumed -- the shape the
+                // return-operand exclusion above misses once the typer
+                // has hoisted the transferring call into its own decl
+                // (`hoisted := f(own s); return hoisted`), and
+                // load-bearing for diverged transfers (own_transfer
+                // cleared by the path-sensitive use check): without it
+                // the nested return right after the hoisted transfer
+                // re-deleted the consumed local (ASAN heap-use-after-
+                // free, probed). Unreached means no path gets here at
+                // all (statements after a terminator), so there is
+                // nothing to free either.
+                //
+                // This replaces a positional scan of the preceding
+                // siblings for an unconditional transfer, which
+                // approximated the same question by statement order and
+                // had to skip compound siblings wholesale to stay sound
+                // (a transfer inside one branch of an earlier if is
+                // CONDITIONAL, and suppressing the delete on the
+                // fall-through leaked). The lattice draws that
+                // distinction itself: such a branch meets to Mixed, not
+                // Moved.
+                mut st : U8 = FLOW_UNREACHED
+                st = flow_table[li.mul(old.len()).add(i)]
+                if st.eq(FLOW_MOVED).or(st.eq(FLOW_UNREACHED)) { continue }
                 // #302 stage 2: exit deletes are always PRECEDING statements,
                 // never Return children. The garbager already excludes any
                 // local used (or aliased) by the return operand above, so
@@ -1802,6 +1971,21 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         // the same pre-transfer rule as locals; the old blanket param
         // stand-down leaked them on every exit edge before the transfer
         // (#302).
+        //
+        // #302 stage 3: these two index gates are the flow states
+        // Moved and Uninit, and a gc_flow_stmt_table over the ROOT body
+        // answers them exactly -- proven, byte-identical C for the whole
+        // corpus. NOT landed: unlike the per-view table in
+        // insert_exit_deletes (built only for views that actually have an
+        // exit, over an already-filtered live set), the root table is
+        // needed for essentially every body, and its per-local kill sweep
+        // is 3 Set(Str) probes per statement per local -- +21% on a
+        // self-translate, gating on "body has a compound" included. The
+        // fix is to stop asking per local and SCATTER instead: walk each
+        // statement's collected names once and mark the locals they name.
+        // That needs to enumerate a Set(Str), which Set does not offer
+        // (no get/iterator) -- a core-container API question to settle
+        // before this lands.
         if local.own_transfer >= 0 {
             if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
             if local.own_transfer <= stmt_idx.to_i32() { continue }

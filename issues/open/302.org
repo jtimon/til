@@ -1022,6 +1022,44 @@ let the ownership pass insert temps itself; start with the check.
     views, after the sink has grafted) and empties body.children via
     move_from, so a per-body solve cannot simply be hoisted the way
     this one was -- the "keep the body alive past move_from" wrinkle.
+  - [X] 2026-07-27 Stage 3: insert_exit_deletes' PRE-TRANSFER EXIT RULE
+    is now a dataflow verdict. The old rule scanned the already-emitted
+    preceding siblings for an unconditional transfer and had to skip
+    compound siblings wholesale to stay sound -- a transfer inside one
+    branch of an earlier if is CONDITIONAL, and suppressing the delete
+    on the fall-through leaked (that carve-out was itself found by the
+    pass-1 vs pass-2 diff). The lattice draws the distinction on its
+    own: such a branch meets to Mixed, not Moved. Each view now gets a
+    gc_flow_stmt_table -- state per (live local, statement) -- and the
+    exit site skips on Moved (already consumed) or Unreached (no path
+    arrives). Byte-identical C for the whole corpus, gc_audit golden
+    unchanged, make clean && make test 189/189 with ASAN, and +2% on a
+    self-translate measured back-to-back against master's compiler
+    (33.15s -> 33.79s).
+    Two things made it affordable, both worth keeping in mind for the
+    remaining sites. (1) The table is built ONLY for views that have an
+    exit of their own; bodies with nested compounds but no exit are the
+    common case and each recursion level would otherwise pay for a CFG,
+    a predecessor map and a name sweep. (2) A local whose name appears
+    in NO statement of the view has the identity transfer everywhere,
+    so its row is just the view's REACHABILITY -- name-independent,
+    computed once. Solving those locals anyway cost 45%.
+    NEGATIVE RESULT, same day: the twin migration of
+    insert_nested_exit_deletes' two index gates (`own_transfer <=
+    stmt_idx` -> Moved, `decl_index < stmt_idx` -> Uninit) WORKS and is
+    likewise byte-identical for the whole corpus, but is NOT landed: it
+    needs a table over the ROOT body of essentially every body (gating
+    on "has a compound statement" barely helped), and there the per-
+    local kill sweep is 3 Set(Str) probes per statement per local --
+    +21% on a self-translate. Collecting the names once per statement
+    into fact sets and probing those did not fix it; the probes ARE the
+    cost (Set(Str).has is a binary search over Str_cmp, already 13% of
+    the profile through Map/Set lookups). The fix is to stop asking per
+    local and SCATTER: walk each statement's collected names once and
+    mark the locals they name, which is proportional to actual mentions
+    rather than locals x statements. That needs to enumerate a
+    Set(Str), and Set has no get/iterator -- a core-container API
+    question to settle before this lands.
   - [ ] Stage 3 (rest): move the remaining insertion sites
     (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
     onto the same verdict; then delete the index-model special cases
