@@ -1391,6 +1391,12 @@ priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) retur
     if fdecl_o.is_none() { return false }
     ref fdecl : Declaration = fdecl_o.unwrap()
     if decl_is_funcsig(fdecl, ctx) { return false }
+    // A literal base is a VALUE with no storage: eval_expr_field_raw has to
+    // materialize it into a temporary it then frees, so a Shallow field --
+    // whose ref form is a pointer INTO those bytes -- can only be handed back
+    // by value. Own/Ref fields are unaffected: their ref form is the STORED
+    // pointer, which outlives the temporary.
+    if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { return false }
     return true
 }
 
@@ -1463,11 +1469,11 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destinatio
         // the reason the compiled form does: the Literal.Str arm INTERNS the
         // bytes in ctx.builder_str_lit_values and hands back a CAP_LIT view of
         // the pooled buffer, so the field word is either an inline scalar
-        // (count/cap) or a pointer into the pool (c_str) -- never into the
-        // temporary's own three words, which is all this frees. A Shallow
-        // field WOULD hand back a pointer into those words, so it keeps the
-        // panic below; Str has no shallow field, so no literal reaches it.
-        if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow).not()) {
+        // (count/cap, loaded by read_field) or a pointer into the pool
+        // (c_str) -- never into the temporary's own three words, which is all
+        // this frees. field_access_returns_ref reports false for the Shallow
+        // fields precisely so they take the read_field branch here.
+        if e.children[0].node_type.is_literal_str() {
             tmp_base : Dynamic = eval_expr_raw(scope, e.children[0], ctx)
             mut field_word : Dynamic = 0
             if field_access_returns_ref(scope, e, ctx) {

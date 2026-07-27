@@ -22,3 +22,14 @@ test_literal_c_str_round_trip := test() {
     assert_eq(Str, Str.from_c_str("hello".c_str), "hello")
     assert_eq(Str, Str.from_c_str("".c_str), "")
 }
+
+// The Shallow fields (count, cap) were left panicking by the c_str fix: their
+// ref form is a pointer INTO the temporary, which dangles the moment it is
+// freed. field_access_returns_ref now reports false for them on a literal
+// base, so the read goes through read_field and lands in an inline word.
+test_literal_shallow_fields := test() {
+    assert_eq(USize, "hello".count, 5)
+    assert_eq(USize, "".count, 0)
+    assert_eq(USize, "hello".cap, CAP_LIT)
+    assert_eq(USize, "hello".len(), 5)
+}
