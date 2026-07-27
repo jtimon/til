@@ -2291,6 +2291,7 @@ Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
 Bool enum_is_niche(Expr * enum_def);
 I32 enum_niche_some_index(Expr * enum_def);
 Bool enum_variant_payload_ref(Expr * enum_def, I32 idx);
+Bool enum_has_ref_payload(Expr * enum_def);
 Bool rhs_is_allocator_call(Expr * e);
 Bool priv___src_self_context_til__contains_return(Expr * e);
 Bool fn_never_returns(Expr * body);
@@ -2737,6 +2738,7 @@ void priv___src_self_typer_til__infer_type_def_expr(TypeScope * scope, Expr * ex
 Bool priv___src_self_typer_til__is_shallow_struct(Str * type_name, TypeScope * scope, Context * ctx);
 Bool priv___src_self_typer_til__is_auto_shallow_type(Type * t, Str * type_name, TypeScope * scope, Context * ctx);
 void priv___src_self_typer_til__infer_func_sig_expr(TypeScope * scope, Expr * expr);
+Bool priv___src_self_typer_til__fdef_return_carries_borrow(FunctionDef * fdef, TypeScope * scope);
 void priv___src_self_typer_til__check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
 Str * priv___src_self_typer_til__first_borrowed_capture_name(Expr * e);
 Str * priv___src_self_typer_til__closure_borrowed_capture_name(Expr * e, TypeScope * scope);

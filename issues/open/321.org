@@ -674,8 +674,27 @@ not an ownership one.
      typed before core/exit.til can instantiate Option (see batch 13);
    - the Dynamic quarantine has to be spelled out in the language, not
      just in this issue, since ~ref Dynamic~ keeps NULL by design.
-4. The auto-shallow dangling-borrow hole above, which must land before
-   ~Option(ref T)~ can be recommended for user code.
+4. FIXED: the auto-shallow dangling-borrow hole. A function returning an
+   enum with a borrowed payload hands a borrow back exactly like
+   ~returns ref~ does, so the four param-demotion gates in
+   infer_func_def_expr now ask ~fdef_return_carries_borrow~ instead of
+   ~return_own_type.is(OwnType.Ref)~. Regression test:
+   test_option_ref_return_param_not_shallowed (test/option.til), which
+   pins the ~returns ref~ twin as the control and fails on the unfixed
+   compiler with "expected '1', found '42'".
+
+   STILL OPEN, and worse than its ~returns ref~ equivalent: returning a
+   borrow of a LOCAL through the Option. ~returns ref~ is caught by gcc
+   (-Werror=return-local-addr); through an enum the address is stored in
+   a struct, so gcc cannot see it and the program silently reads garbage.
+   Reusing check_ref_function_returns does NOT work -- tried and backed
+   out: its rule is "the returned EXPRESSION must be a borrow source",
+   which is right for ~returns ref T~ and wrong for an enum VALUE whose
+   payload is the borrow, so it rejects the legitimate
+   ~return Option(ref T).Some(param)~. What this needs is a payload-aware
+   check: validate the borrow SOURCE of a ref-payload ctor arg against
+   the function's own scope, the same question #147 tracks for ref
+   returns generally.
 
 *** Decisions (2026-07-21 design discussion)
 

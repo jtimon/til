@@ -1549,6 +1549,21 @@ enum_variant_payload_ref := func(enum_def: Expr, idx: I32) returns Bool {
     return false
 }
 
+// #321: does any variant of this enum carry a BORROWED payload? Such an
+// enum hands a borrow out with the value, so a function returning one is
+// as much a borrow source as a `returns ref` function is.
+enum_has_ref_payload := func(enum_def: Expr) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        for vi in 0..edd.variants.len() {
+            ref vd : VariantDef = edd.variants[vi]
+            if vd.payload_ref { return true }
+        }
+    case:
+    }
+    return false
+}
+
 // --- Control-flow divergence analysis (shared by typer + builder) ---
 //
 // stmt_always_diverges(e) is true iff executing `e` can never fall through to

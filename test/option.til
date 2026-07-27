@@ -203,3 +203,34 @@ test_option_niche_layout := test() {
     assert_eq(USize, Option(ref OptSrc).size(), UPtr.size())
     expect(Option(OptSrc).size().gt(UPtr.size()), "owned Option stays tagged")
 }
+
+// #321: a function returning Option(ref T) hands a BORROW back, exactly
+// like `returns ref` does, so auto-shallow (#223) must not demote its
+// aggregate params to by-value copies. It used to: the emitted C took
+// `Option__ref_OptCell pick(OptCell c)` and stored `&c`, so the returned
+// borrow pointed at the callee's dead stack frame and every write through
+// it was silently lost. The `returns ref` twin below is the control --
+// both must write through to the caller's value.
+OptCell := struct {
+    n := 0
+}
+
+opt_cell_pick := func(c: OptCell) returns Option(ref OptCell) {
+    return Option(ref OptCell).Some(c)
+}
+
+opt_cell_pick_ref := func(c: OptCell) returns ref OptCell {
+    return c
+}
+
+test_option_ref_return_param_not_shallowed := test() {
+    via_ref := OptCell(n = 1)
+    ref mut r : OptCell = opt_cell_pick_ref(via_ref)
+    r.n = 7
+    assert_eq(I64, via_ref.n, 7)
+
+    via_opt := OptCell(n = 1)
+    ref mut o : OptCell = opt_cell_pick(via_opt).unwrap()
+    o.n = 42
+    assert_eq(I64, via_opt.n, 42)
+}
