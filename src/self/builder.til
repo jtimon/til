@@ -7277,7 +7277,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         f.write("void *dyn_fn(Str *type_name, Str *method);\n")
     }
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
-        f.write("U32 dyn_size_of(Str *type_name);\n")
+        f.write("USize dyn_size_of(Str *type_name);\n")
     }
     if builder_needs_reflect("struct_field_", lp.ctx) {
         f.write("I64 struct_field_count(Str *type_name);\n")
@@ -7623,9 +7623,33 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
+// One `if (name == "X") return sizeof(X);` arm. The C `sizeof` is what
+// makes the width right for the TARGET (#309): USize/UPtr expand through
+// ext.h's typedefs, so a --usize=64 build reports 8 for USize without this
+// emitter knowing any width.
+priv emit_dyn_size_of_arm := proc(f: File, tname: Str) {
+    tlen := tname.len()
+    f.write("    if (type_name->count == "); emit_usize(f, tlen)
+    f.write("ULL && memcmp(type_name->c_str, \"").write(tname).write("\", "); emit_usize(f, tlen)
+    f.write("ULL) == 0) return sizeof(").write(tname).write(");\n")
+}
+
 priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
-    f.write("U32 dyn_size_of(Str *type_name) {\n    (void)type_name;\n")
+    // Returns USize, not a hardwired U32: the til binding is
+    // `returns shallow USize`, so a --usize=64 build would otherwise
+    // disagree with its own declaration.
+    f.write("USize dyn_size_of(Str *type_name) {\n    (void)type_name;\n")
     f.write("    if (type_name->count == 7ULL && memcmp(type_name->c_str, \"Dynamic\", 7ULL) == 0) return sizeof(Dynamic);\n")
+    // Primitives and the width aliases. Only struct/enum decls were emitted
+    // below, so a primitive name reached the "unknown type" exit whenever the
+    // call could not be constant-folded -- which is exactly what happens on a
+    // width-mismatched target, where size intrinsics stay unfolded on purpose
+    // (size_intrinsics_use_sizeof). `dyn_size_of("USize")` under --usize=64
+    // died there.
+    for prim : Str in array(Str, "I8", "U8", "I16", "U16", "I32", "U32",
+                            "I64", "U64", "F32", "Bool", "USize", "UPtr") {
+        emit_dyn_size_of_arm(f, prim)
+    }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -7633,8 +7657,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
                 if is_struct_or_enum(stmt).not() { continue }
                 switch stmt.node_type {
                 case NodeType.Decl(dd):
-                    tlen := dd.name.len()
-                    f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return sizeof(").write(dd.name).write(");\n")
+                    emit_dyn_size_of_arm(f, dd.name)
                 case:
                     UNREACHABLE()
                 }
@@ -7647,8 +7670,7 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
             if is_struct_or_enum(stmt).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-                tlen := dd.name.len()
-                f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return sizeof(").write(dd.name).write(");\n")
+                emit_dyn_size_of_arm(f, dd.name)
             case:
                 UNREACHABLE()
             }

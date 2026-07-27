@@ -3648,6 +3648,7 @@ Bool priv___src_self_builder_til__def_is_interface(Expr * def);
 Bool priv___src_self_builder_til__func_type_is_core(FuncType * ft);
 void emit_dyn_fn_closure_value(File * f, Str * type_name, Str * method_name, Str * suffix);
 void priv___src_self_builder_til__emit_dyn_fn_wrappers(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_dyn_size_of_arm(File * f, Str * tname);
 void priv___src_self_builder_til__emit_dyn_size_of_body(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_field_branch_for_stmt(File * f, Expr * stmt, I32 kind, Context * ctx);
 void priv___src_self_builder_til__emit_struct_field_branches(File * f, I32 kind, LoadedProgram * lp);
