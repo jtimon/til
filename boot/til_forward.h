@@ -3545,8 +3545,10 @@ void priv___src_self_builder_til__emit_body_scoped(File * f, Expr * body, I32 de
 File * priv___src_self_builder_til__emit_deref(File * f, Expr * e, I32 depth, Context * ctx);
 File * priv___src_self_builder_til__emit_as_ptr(File * f, Expr * e, I32 depth, Bool is_own, Context * ctx);
 Str * priv___src_self_builder_til__cli_view_box(Str * ctype, Str * conv, Str * arg);
-Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg);
-void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg);
+Str * priv___src_self_builder_til__cli_view_value(Str * ctype, Str * conv, Str * arg);
+Str * priv___src_self_builder_til__cli_view_scalar(Bool by_value, Str * ctype, Str * conv, Str * arg);
+Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg, Bool by_value);
+void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg, Bool by_value);
 void priv___src_self_builder_til__emit_diverge_terminator(File * f, Str * ret, Expr * body);
 void priv___src_self_builder_til__emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static, LoadedProgram * lp);
 void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitted, LoadedProgram * lp);

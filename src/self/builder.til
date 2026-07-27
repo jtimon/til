@@ -4537,34 +4537,50 @@ priv cli_view_box := func(ctype: Str, conv: Str, arg: Str) returns Str {
         ")); *_p = _v; _p; })")
 }
 
+// Value-yielding twin of cli_view_box: same parse, but evaluates to the
+// scalar itself instead of a fresh heap box. Used for main()'s SHALLOW
+// params, whose C convention is by-value (param_ctype), so the body's
+// emitters see the same shape they see for any other shallow param.
+priv cli_view_value := func(ctype: Str, conv: Str, arg: Str) returns Str {
+    return "({ Str *_cv = Str_from_c_str(".format(arg, "); ", ctype, " _v = ", conv,
+        "; Str_delete(_cv, (Bool){1}); _v; })")
+}
+
 // C expression evaluating to a freshly heap-allocated `<ttype> *` parsed from
 // the argv c-string `arg`, for every CLI arg type. Returns "" for unsupported
 // types. Str is the one outlier: it owns a deep copy of the bytes (Str_clone)
 // rather than parsing a borrowed view, so it can't share the from_c_str
 // pipeline. Bool's conversion is an inline ternary that bails via exit(1) on a
 // non-true/false value (consistent with the other CLI validation in main()).
-priv cli_box_expr := func(ttype: Str, arg: Str) returns Str {
+// Pick the boxed or by-value CLI parse form for a scalar.
+priv cli_view_scalar := func(by_value: Bool, ctype: Str, conv: Str, arg: Str) returns Str {
+    if by_value { return cli_view_value(ctype, conv, arg) }
+    return cli_view_box(ctype, conv, arg)
+}
+
+priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     if ttype == "Str" {
+        // Str is a struct: its C convention is by-pointer either way.
         return "Str_clone(&(Str){.c_str = (void *)".format(arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
     }
-    if ttype == "I64" { return cli_view_box("I64", "Str_to_i64(_cv)", arg) }
-    if ttype == "U8" { return cli_view_box("U8", "Str_to_u8(_cv)", arg) }
-    if ttype == "I8" { return cli_view_box("I8", "I64_to_i8(Str_to_i64(_cv))", arg) }
-    if ttype == "I16" { return cli_view_box("I16", "I64_to_i16(Str_to_i64(_cv))", arg) }
-    if ttype == "U16" { return cli_view_box("U16", "I64_to_u16(Str_to_i64(_cv))", arg) }
-    if ttype == "I32" { return cli_view_box("I32", "Str_to_i32(_cv)", arg) }
-    if ttype == "U32" { return cli_view_box("U32", "Str_to_u32(_cv)", arg) }
-    if ttype == "U64" { return cli_view_box("U64", "Str_to_u64(_cv)", arg) }
-    if ttype == "USize" { return cli_view_box("USize", "Str_to_u64(_cv)", arg) }
-    if ttype == "UPtr" { return cli_view_box("UPtr", "Str_to_u64(_cv)", arg) }
-    if ttype == "F32" { return cli_view_box("F32", "Str_to_f32(_cv)", arg) }
+    if ttype == "I64" { return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg) }
+    if ttype == "U8" { return cli_view_scalar(by_value, "U8", "Str_to_u8(_cv)", arg) }
+    if ttype == "I8" { return cli_view_scalar(by_value, "I8", "I64_to_i8(Str_to_i64(_cv))", arg) }
+    if ttype == "I16" { return cli_view_scalar(by_value, "I16", "I64_to_i16(Str_to_i64(_cv))", arg) }
+    if ttype == "U16" { return cli_view_scalar(by_value, "U16", "I64_to_u16(Str_to_i64(_cv))", arg) }
+    if ttype == "I32" { return cli_view_scalar(by_value, "I32", "Str_to_i32(_cv)", arg) }
+    if ttype == "U32" { return cli_view_scalar(by_value, "U32", "Str_to_u32(_cv)", arg) }
+    if ttype == "U64" { return cli_view_scalar(by_value, "U64", "Str_to_u64(_cv)", arg) }
+    if ttype == "USize" { return cli_view_scalar(by_value, "USize", "Str_to_u64(_cv)", arg) }
+    if ttype == "UPtr" { return cli_view_scalar(by_value, "UPtr", "Str_to_u64(_cv)", arg) }
+    if ttype == "F32" { return cli_view_scalar(by_value, "F32", "Str_to_f32(_cv)", arg) }
     if ttype == "Bool" {
         true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
         false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"
         conv := "Str_cmp(_cv, ".format(true_lit, ") == 0 ? 1 : (Str_cmp(_cv, ", false_lit,
             ") == 0 ? 0 : (fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", ",
             arg, "), exit(1), 0))")
-        return cli_view_box("Bool", conv, arg)
+        return cli_view_scalar(by_value, "Bool", conv, arg)
     }
     return ""
 }
@@ -4572,11 +4588,17 @@ priv cli_box_expr := func(ttype: Str, arg: Str) returns Str {
 // Emit the indented C declaration that binds CLI argument `var` of til type
 // `ttype`, parsed from the argv c-string expression `arg`. Used by both the
 // fixed-arg and variadic-arg paths in main()'s generated entry wrapper.
-priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str) {
-    expr := cli_box_expr(ttype, arg)
+priv emit_cli_parse_value := proc(f: File, ind: Str, ttype: Str, var: Str, arg: Str, by_value: Bool) {
+    expr := cli_box_expr(ttype, arg, by_value)
     if expr == "" {
         f.write(ind).write("// unsupported CLI arg type: ").write(ttype).write("\n")
         f.write(ind).write("fprintf(stderr, \"error: unsupported CLI argument type '").write(ttype).write("'\\n\"); return 1;\n")
+        return
+    }
+    // Shallow scalars bind by value (matching param_ctype's convention for a
+    // shallow param); Str and the variadic element temp stay boxed pointers.
+    if by_value.and(ttype != "Str") {
+        f.write(ind).write(ttype).write(" ").write(var).write(" = ").write(expr).write(";\n")
         return
     }
     f.write(ind).write(ttype).write(" *").write(var).write(" = ").write(expr).write(";\n")
@@ -4684,7 +4706,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    for (int _i = 0; _i < _va_argc; _i++) {\n")
                     f.write("        USize _idx = _i;\n")
                     varg := "argv[".format(argi.to_str(), " + _i]")
-                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg)
+                    emit_cli_parse_value(f, "        ", elem_c, "_val", varg, false)
                     // Issue #225: write the element directly instead of via
                     // Array.set. Array.set is about to start throwing
                     // OutOfBounds (so `arr[i] = v` can desugar to
@@ -4698,7 +4720,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
                     f.write("    }\n")
                 } else {
                     arg := "argv[".format(argi.to_str(), "]")
-                    emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg)
+                    emit_cli_parse_value(f, "    ", p.explicit_type, p.name, arg, p.own_type.is(OwnType.Shallow))
                     argi++
                 }
             }
@@ -4706,7 +4728,18 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
         lp.ctx.in_main_func = true
+        // Every other body emission sets current_fdef (plain funcs and
+        // closures below); the main entry wrapper did not, so name-keyed
+        // per-function queries -- is_shallow_param above all -- answered
+        // from whatever function happened to be emitted last. A main local
+        // whose name collided with that stale function's shallow param was
+        // then emitted without its DEREF: `main(w: I64) { id(w) }` passed
+        // the pointer when `id`'s param was also named `w` (and compiled
+        // fine when it was named anything else).
+        saved_main_fdef := lp.ctx.current_fdef
+        lp.ctx.current_fdef = Option(ref Expr).Some(func_def)
         emit_body(f, body, 1, lp.ctx)
+        lp.ctx.current_fdef = saved_main_fdef
         lp.ctx.in_main_func = false
         f.write("    return 0;\n")
         f.write("}\n")
