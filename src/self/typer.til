@@ -469,7 +469,6 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
 // #321 step 2: every miss path in this resolver was a null ref; they
 // are all "no funcsig for this callee", a real state -> Option.
 resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
-    if fcall.is_null() { return Option(ref Expr).None }
     if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]

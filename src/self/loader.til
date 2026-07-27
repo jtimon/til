@@ -299,7 +299,6 @@ namespace:
 // can never happen in one commit (a one-build lag), because the C ABI in
 // ext.h has no such lag and the two would disagree at pass 1.
 priv find_alias_rhs_in_ast := func(ast: Expr, name: Str) returns Str {
-    if ast.is_null() { return "" }
     for i in 0..ast.children.len() {
         ref stmt : Expr = ast.children[i]
         mut is_match := false
@@ -3200,7 +3199,6 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Contex
 }
 
 priv lazy_stmt_inline_walk := func(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context) {
-    if e.is_null() { return }
     if depth > 256 { return }
     if e.node_type.is(NodeType.Body) { lazy_stmt_inline_body(e, scope, ctx) }
     for i in 0..e.children.len() {

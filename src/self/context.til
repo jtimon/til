@@ -1362,6 +1362,8 @@ priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state:
 // Walk a constant initializer for `<tname>.<member>` sibling-constant
 // references and visit each first.
 priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64)) {
+    // REM: control flow, not a guard -- the caller above walks
+    // `d.default_value`, and a member with no initializer has none.
     if e.is_null() { return }
     switch e.node_type {
     case NodeType.FieldAccess(fa):

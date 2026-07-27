@@ -2434,7 +2434,6 @@ priv add_delete_to_branch := proc(mut branch: Expr, local: LocalInfo, src: Expr,
 }
 
 priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: TypeScope, ctx: Context) returns Bool {
-    if node.is_null() { return false }
     if node.node_type.is(NodeType.If) {
         if node.children.len() < 2 { return false }
 

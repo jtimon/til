@@ -678,16 +678,50 @@ caller unwrap, which is why they survived this long.
 
 - 6 x ~Dynamic~ (heap_drop_enum, heap_drop_struct, heap_drop_by_type,
   scope_set_heap_owned, callable_box_is, raw_result_finish's
-  ~destination~) -- the raw layer. These are the same class as the
-  ~ref Dynamic~ FIELDS: a null bit pattern in untyped pointer plumbing,
-  not an absent ref. raw_result_finish's is the one Context field
-  (interp_ret_dest) that is NOT #324-blocked, so the two move together.
+  ~destination~) -- the raw layer, same class as the ~ref Dynamic~
+  FIELDS.
 - 8 x ~Expr~ + 2 x ~Scope~ + Str/Mode/LoadedProgram -- genuine
   Option(ref T) candidates, each needing its callers checked the same
   way (real absent state vs missing invariant check).
 
 The two ~delete(self)~ guards are their own thing: an auto-generated
 delete may run on a null self, so they are not user-facing at all.
+
+**** Batch 17: five more dead guards, and interp_ret_dest is blocked after all
+
+Five more of the 20 were dead, again settled by the suite rather than by
+reading (193/193): fcall_fn_sig, resolve_fn_sig, sink_nontransfer_paths,
+lazy_stmt_inline_walk, find_alias_rhs_in_ast. Their callers all pass a
+live node -- the recursive walkers pass ~e.children[i]~, the entry points
+pass a unit's ast.
+
+Kept, with a REM saying why: ns_const_order_deps' ~e~. Its caller walks
+~d.default_value~, and a namespace member with no initializer has none --
+the "optional AST field" case CLAUDE.md names as real control flow.
+
+Noted while surveying: emit_funcsig_typedefs has NO callers at all. Dead
+code, left alone here rather than deleted on a whim.
+
+CORRECTION to batch 16: it claimed Context.interp_ret_dest was the one
+step-1 field NOT blocked on #324. That is wrong, and attempting it proved
+so. Making the ~destination~ parameter chain
+(eval_call / eval_expr_raw / eval_expr_field_raw / eval_user_func_call /
+eval_callable_call / raw_result_finish) take ~Option(ref Dynamic)~
+compiles until raw_result_finish has to hand the destination back:
+
+: error: cannot return ref variable from non-ref function
+
+It returns an owned ~Dynamic~, and the destination is now a BORROWED
+payload. There is no laundering route -- ~to_ptr~ is itself
+~returns ref Dynamic~ -- and returning ~Option(ref Dynamic)~ only moves
+the same wall one frame up, since the callers' own returns are owned
+~Dynamic~ too. Identical to the Context.return_value and FFIEntry-buffer
+walls: the raw layer passes pointers around by hand and the type system
+cannot express "a borrowed pointer value I am only forwarding".
+
+So step 1 is now uniformly blocked on #324, with no exceptions:
+constfolder_known, ns_fields, InterpSession.global, FFIEntry's two
+buffers, Context.return_value AND Context.interp_ret_dest.
 
 *** What is left before the forbid can land
 
