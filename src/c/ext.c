@@ -1875,38 +1875,20 @@ U64 current_rss_bytes(I64 pid) {
 #endif
 }
 
-// --- Utility functions (for til.til ext_func calls) ---
-
-Str *til_bin_dir(void) {
-    return get_bin_dir();
-}
-
-Str *til_realpath(const Str *path) {
-    return realpath_str(path);
-}
-
-I32 til_system(const Str *cmd) {
-#ifdef __EMSCRIPTEN__
-    (void)cmd;
-    return 1;
-#else
-    int status = system((const char *)cmd->c_str);
 #ifdef _WIN32
-    return (I32)status;
-#else
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    return 1;
-#endif
-#endif
-}
-
-#ifdef _WIN32
+// dup_n on every Str reaching a C string API here: only owned til Strs
+// carry a NUL past count, views (substr/trim/from_c_str) do not.
 Bool ffi_load_global_lib(const Str *soname) {
-    return LoadLibraryA((const char *)soname->c_str) != NULL;
+    char *s = dup_n((const char *)soname->c_str, soname->count);
+    Bool ok = LoadLibraryA(s) != NULL;
+    free(s);
+    return ok;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    ffi_handle = LoadLibraryA((const char *)path->c_str);
+    char *p = dup_n((const char *)path->c_str, path->count);
+    ffi_handle = LoadLibraryA(p);
+    free(p);
     return ffi_handle != NULL;
 }
 
@@ -1919,7 +1901,10 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
-    return (U8 *)GetProcAddress(ffi_handle, (const char *)name->c_str);
+    char *n = dup_n((const char *)name->c_str, name->count);
+    U8 *sym = (U8 *)GetProcAddress(ffi_handle, n);
+    free(n);
+    return sym;
 }
 
 U8 *ffi_global_symbol(const Str *name) {
@@ -1930,10 +1915,15 @@ U8 *ffi_global_symbol(const Str *name) {
     if (!EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &needed)) return NULL;
     DWORD count = needed / sizeof(HMODULE);
     if (count > 256) count = 256;
+    char *n = dup_n((const char *)name->c_str, name->count);
     for (DWORD i = 0; i < count; i++) {
-        FARPROC p = GetProcAddress(mods[i], name->c_str);
-        if (p) return (U8 *)p;
+        FARPROC p = GetProcAddress(mods[i], n);
+        if (p) {
+            free(n);
+            return (U8 *)p;
+        }
     }
+    free(n);
     return NULL;
 }
 
@@ -1980,12 +1970,19 @@ Str *ffi_last_error(void) {
     return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
 }
 #else
+// dup_n on every Str reaching a C string API here: only owned til Strs
+// carry a NUL past count, views (substr/trim/from_c_str) do not.
 Bool ffi_load_global_lib(const Str *soname) {
-    return dlopen((const char *)soname->c_str, RTLD_NOW | RTLD_GLOBAL) != NULL;
+    char *s = dup_n((const char *)soname->c_str, soname->count);
+    Bool ok = dlopen(s, RTLD_NOW | RTLD_GLOBAL) != NULL;
+    free(s);
+    return ok;
 }
 
 Bool ffi_open_user_so(const Str *path) {
-    ffi_handle = dlopen((const char *)path->c_str, RTLD_NOW);
+    char *p = dup_n((const char *)path->c_str, path->count);
+    ffi_handle = dlopen(p, RTLD_NOW);
+    free(p);
     return ffi_handle != NULL;
 }
 
@@ -1998,11 +1995,17 @@ void ffi_close_user_so(void) {
 
 U8 *ffi_user_symbol(const Str *name) {
     if (!ffi_handle) return NULL;
-    return dlsym(ffi_handle, (const char *)name->c_str);
+    char *n = dup_n((const char *)name->c_str, name->count);
+    U8 *sym = dlsym(ffi_handle, n);
+    free(n);
+    return sym;
 }
 
 U8 *ffi_global_symbol(const Str *name) {
-    return dlsym(RTLD_DEFAULT, (const char *)name->c_str);
+    char *n = dup_n((const char *)name->c_str, name->count);
+    U8 *sym = dlsym(RTLD_DEFAULT, n);
+    free(n);
+    return sym;
 }
 
 Str *ffi_last_error(void) {
