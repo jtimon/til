@@ -601,6 +601,16 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
                 func_decl.params.push(own param)
             }
             func_decl.return_type = ename.clone()
+            // #321 perf: a NICHE enum IS one pointer, and auto-shallow
+            // already passes and returns it by value everywhere else, so
+            // its constructor must hand back the VALUE too. Returning a
+            // heap box made every construction a malloc the caller
+            // immediately DEREFed and freed -- 13M
+            // Option__ref_Expr_Some allocations per self-translate once
+            // #321's lookups started returning Option(ref T). The
+            // constructor is the ONLY remaining shape that allocated,
+            // which is why the niche saved space but not time.
+            if enum_is_niche(enum_def) { func_decl.return_own_type = OwnType.Shallow }
             func_decl.variadic_index = -1
             func_decl.kwargs_index = -1
 

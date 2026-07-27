@@ -4986,12 +4986,12 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
                 ref vd : VariantDef = edd.variants[i]
                 ref vn : Str = vd.name
                 vt := enum_variant_type(enum_def, i.to_i32())
-                f.write(name).write(" *").write(name).write("_").write(vn).write("(")
+                f.write(name).write(" ").write(name).write("_").write(vn).write("(")
                 if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
                 f.write(") {\n")
-                f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
-                if vt.len() > 0 { f.write("    r->data = val;\n") }
-                else { f.write("    r->data = NULL;\n") }
+                f.write("    ").write(name).write(" r;\n")
+                if vt.len() > 0 { f.write("    r.data = val;\n") }
+                else { f.write("    r.data = NULL;\n") }
                 f.write("    return r;\n").write("}\n")
             }
         } else {
@@ -5572,6 +5572,15 @@ priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool 
     return false
 }
 
+// #321 perf: the constructors of a NICHE enum return the VALUE (one
+// pointer), not a heap box -- see generate_enum_variant_constructors in
+// initer.til. Every prototype emitter has to agree with the definition
+// emit_enum_def writes, so they all spell the return type through here.
+priv enum_ctor_ret_c := func(ename: Str, enum_def: Expr) returns Str {
+    if enum_is_niche(enum_def) { return format(ename, " ") }
+    return format(ename, " *")
+}
+
 priv emit_enum_eq_ext_decl := proc(f: File, enum_name: Str, enum_def: Expr) {
     if builder_ns_has_func(enum_def, "eq").not() { return }
     mut eq_ret := "Bool *"
@@ -5673,12 +5682,13 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                 switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
+                    ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
+                            f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
                         } else {
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("();\n")
+                            f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("();\n")
                         }
                     }
                 case:
@@ -6816,12 +6826,13 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                 switch stmt.children[0].node_type {
                 case NodeType.EnumDef(hdr_edd):
+                    ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
+                            f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
                         } else {
-                            f.write(dd.name).write(" *").write(dd.name).write("_").write(hdr_vd.name).write("();\n")
+                            f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("();\n")
                         }
                     }
                 case:
@@ -6939,12 +6950,13 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
                     switch stmt.children[0].node_type {
                     case NodeType.EnumDef(shdr_edd):
+                        ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                         for shdr_vd : VariantDef in shdr_edd.variants {
                             if shdr_vd.payload_type.len() > 0 {
                                 tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
-                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
+                                f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                             } else {
-                                f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("();\n")
+                                f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                             }
                         }
                     case:
@@ -6967,12 +6979,13 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
             switch stmt.children[0].node_type {
             case NodeType.EnumDef(shdr_edd):
+                ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                 for shdr_vd : VariantDef in shdr_edd.variants {
                     if shdr_vd.payload_type.len() > 0 {
                         tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
-                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
+                        f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
                     } else {
-                        f.write(dd.name).write(" *").write(dd.name).write("_").write(shdr_vd.name).write("();\n")
+                        f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("();\n")
                     }
                 }
             case:

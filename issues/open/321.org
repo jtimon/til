@@ -468,6 +468,42 @@ Fix sketch: a ~fdef_return_carries_borrow(fdef, scope)~ predicate =
 def with any ref payload" (enum_variant_payload_ref already exists), used
 at the three demotion gates and at the returns_ref_val stamp.
 
+**** PERF: a niche enum's constructor was still allocating
+
+Measured after batch 11 landed: self_ms went 166084 (f7ad2ea, the
+auto-shallow commit) -> 180184 (d8b82e6, first totals row containing
+batch 11), +8.5%. ~--prof~ on the self-translate found the cause was
+NOT the ~is_some~ / ~unwrap~ calls (they do not appear in the CPU top
+20 at all) but the allocation profile:
+
+: Option__ref_Expr_Some   13,069,816 allocs   102 MB   13,069,816 calls
+
+The niche layout made the VALUE one pointer and auto-shallow made
+params and returns pass it by value, but the auto-generated variant
+CONSTRUCTOR still followed the tagged-enum convention: malloc a box,
+fill it, return the pointer -- and every caller then DEREFed the box
+and freed it. So each Option construction was a malloc + free.
+
+Fixed by giving niche ctors ~return_own_type = OwnType.Shallow~ in
+generate_enum_variant_constructors, which is all the generic machinery
+needs (func_return_ctype, fcall_is_shallow_return and the call-site
+hoist all key off it); the hand-written ctor BODY in emit_enum_def and
+the four hand-written prototype emitters now spell the value return
+through enum_ctor_ret_c. Emitted C went from
+
+: Option__ref_Expr *h = Option__ref_Expr_Some(fd);
+: { Option__ref_Expr _ret = DEREF(h); free(h); return _ret; }
+
+to a plain ~Option__ref_Expr h = Option__ref_Expr_Some(fd);~.
+
+Measured: self-translate 50.7s -> 49.1s (~3%). That recovers only part
+of the 8.5%; the rest is NOT the accessor calls either. The remaining
+suspect from the same profile is the garbager --
+~gc_flow_solve~ 16.6s self over 8374 calls, ~expr_collect_uses~ 101s
+total -- since every migrated site added one extra local (the ~_o~
+Option temporary) to its function's dataflow. That needs its own
+before/after profile rather than a guess.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
