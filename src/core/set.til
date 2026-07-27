@@ -13,9 +13,13 @@ Set := struct<T: Type> {
     cap : USize = 0
 
 namespace:
-    /// Create an empty Set. T must implement `cmp`.
+    /// Create an empty Set. T must implement `cmp`. Allocates nothing:
+    /// like Vec.new, an empty Set is lazy (cap 0) and `add` seeds the
+    /// first slot. Short-lived empty Sets are common -- the garbager
+    /// builds four per statement for its per-statement name facts, most
+    /// of them never added to.
     new := func() returns Set(T) {
-        return Set(T)(data = malloc(T.size()), cap = 1)
+        return Set(T)(cap = 0)
     }
 
     len := func(self: Set(T)) returns USize { return self.count }
@@ -67,7 +71,10 @@ namespace:
             free(own val)
         } else {
             if self.count == self.cap {
-                new_cap := self.cap * 2
+                // cap 0 (lazy-empty) doubles to 0, so seed the first grow
+                // to 1. realloc(NULL, n) behaves as malloc(n).
+                mut new_cap := self.cap * 2
+                if self.cap == 0 { new_cap = 1 }
                 self.data = realloc(own self.data, new_cap.mul(T.size()))
                 self.cap = new_cap
             }
@@ -119,6 +126,9 @@ namespace:
     }
 
     clone := func(self: Set(T)) returns Set(T) {
+        // A lazy-empty source clones to another lazy-empty Set (no
+        // malloc(0)), mirroring Vec.clone.
+        if self.cap == 0 { return Set(T)(cap = 0) }
         new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.mul(T.size()))

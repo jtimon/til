@@ -19,7 +19,9 @@ namespace:
             panic("DynSet.new: type ", elem_type, " must implement cmp")
         }
         sz : USize = dyn_size_of(elem_type)
-        return DynSet(data = malloc(sz), cap = 1,
+        // Lazy-empty (cap 0) like Set.new / Vec.new: `add` seeds the
+        // first slot, so an unused DynSet allocates nothing.
+        return DynSet(cap = 0,
                    elem_size = sz,
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"),
@@ -76,7 +78,9 @@ namespace:
             free(own val)
         } else {
             if self.count == self.cap {
-                new_cap := self.cap * 2
+                // cap 0 (lazy-empty) doubles to 0; seed the first grow to 1.
+                mut new_cap := self.cap * 2
+                if self.cap == 0 { new_cap = 1 }
                 self.data = realloc(own self.data, new_cap.mul(self.elem_size))
                 self.cap = new_cap
             }
@@ -127,6 +131,12 @@ namespace:
     }
 
     clone := func(self: DynSet) returns DynSet {
+        // A lazy-empty source clones to another lazy-empty DynSet.
+        if self.cap == 0 {
+            return DynSet(cap = 0, elem_size = self.elem_size,
+                       elem_clone = self.elem_clone, elem_delete = self.elem_delete,
+                       elem_cmp = self.elem_cmp)
+        }
         new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
