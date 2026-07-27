@@ -62,9 +62,9 @@ known_priority := func(p: Str) returns Bool {
 
 // Keep in sync with the category sections emitted by main().
 known_category := func(c: Str) returns Bool {
-    return c.eq("bugs").or(c.eq("cleanups")).or(c.eq("features"))
-        .or(c.eq("optimizations")).or(c.eq("experiments")).or(c.eq("examples"))
-        .or(c.eq("deferred")).or(c.eq("unknown"))
+    return vor(c.eq("bugs"), c.eq("cleanups"), c.eq("features"),
+               c.eq("optimizations"), c.eq("experiments"),
+               c.eq("examples"), c.eq("deferred"), c.eq("unknown"))
 }
 
 // Build the summary link for a single issue from its `** OPEN/WIP #NNN
@@ -79,9 +79,9 @@ make_link := func(fname: Str, title: Str) returns Str {
     mut num_end := hp.add(1)
     while num_end.lt(title.len()) {
         ref ch : I8 = title.get(num_end)
-        if ch.eq('0').or(ch.eq('1')).or(ch.eq('2')).or(ch.eq('3'))
-            .or(ch.eq('4')).or(ch.eq('5')).or(ch.eq('6')).or(ch.eq('7'))
-            .or(ch.eq('8')).or(ch.eq('9'))
+        if vor(ch.eq('0'), ch.eq('1'), ch.eq('2'), ch.eq('3'), ch.eq('4'),
+               ch.eq('5'), ch.eq('6'), ch.eq('7'), ch.eq('8'),
+               ch.eq('9'))
         {
             num_end++
         } else {

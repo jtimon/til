@@ -1837,8 +1837,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
 priv binop_prec := func(tt: TokenType) returns I64 {
     if tt.is(TokenType.Star).or(tt.is(TokenType.Slash)).or(tt.is(TokenType.Percent)) { return 8 }
     if tt.is(TokenType.Plus).or(tt.is(TokenType.Minus)) { return 7 }
-    if tt.is(TokenType.EqEq).or(tt.is(TokenType.Neq)).or(tt.is(TokenType.Lt))
-        .or(tt.is(TokenType.LtEq)).or(tt.is(TokenType.Gt)).or(tt.is(TokenType.GtEq)) { return 6 }
+    if vor(tt.is(TokenType.EqEq), tt.is(TokenType.Neq), tt.is(TokenType.Lt),
+           tt.is(TokenType.LtEq), tt.is(TokenType.Gt),
+           tt.is(TokenType.GtEq)) { return 6 }
     if tt.is(TokenType.Ampersand) { return 5 }
     if tt.is(TokenType.Caret) { return 4 }
     if tt.is(TokenType.Pipe) { return 3 }
@@ -2418,11 +2419,11 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         return node
     }
-    if t.type.is(TokenType.StringTok).or(t.type.is(TokenType.Number))
-    .or(t.type.is(TokenType.KwTrue)).or(t.type.is(TokenType.KwFalse))
-    .or(t.type.is(TokenType.KwNull)).or(t.type.is(TokenType.LParen))
-    .or(t.type.is(TokenType.Minus)).or(t.type.is(TokenType.KwMacro))
-    .or(t.type.is(TokenType.KwMatch)) {
+    if vor(t.type.is(TokenType.StringTok), t.type.is(TokenType.Number),
+           t.type.is(TokenType.KwTrue), t.type.is(TokenType.KwFalse),
+           t.type.is(TokenType.KwNull), t.type.is(TokenType.LParen),
+           t.type.is(TokenType.Minus), t.type.is(TokenType.KwMacro),
+           t.type.is(TokenType.KwMatch)) {
         // Issue #244: a statement that starts with `match` parses as an
         // expression statement; the typer then reports its unused value and
         // points at `switch`.

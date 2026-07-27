@@ -1009,10 +1009,19 @@ priv validate_cli_main := func(lp: LoadedProgram) {
             switch stmt.children[0].node_type {
             case NodeType.FuncDef(fdef):
                 for p : Declaration in fdef.params {
-                    if p.explicit_type.eq("Str").or(p.explicit_type.eq("I64")).or(p.explicit_type.eq("U8")).or(p.explicit_type.eq("I8"))
-                        .or(p.explicit_type.eq("I16")).or(p.explicit_type.eq("U16")).or(p.explicit_type.eq("I32")).or(p.explicit_type.eq("U32"))
-                        .or(p.explicit_type.eq("U64")).or(p.explicit_type.eq("USize")).or(p.explicit_type.eq("UPtr")).or(p.explicit_type.eq("Bool"))
-                        .or(p.explicit_type.eq("F32")).not() {
+                    if vor(p.explicit_type.eq("Str"),
+                           p.explicit_type.eq("I64"),
+                           p.explicit_type.eq("U8"),
+                           p.explicit_type.eq("I8"),
+                           p.explicit_type.eq("I16"),
+                           p.explicit_type.eq("U16"),
+                           p.explicit_type.eq("I32"),
+                           p.explicit_type.eq("U32"),
+                           p.explicit_type.eq("U64"),
+                           p.explicit_type.eq("USize"),
+                           p.explicit_type.eq("UPtr"),
+                           p.explicit_type.eq("Bool"),
+                           p.explicit_type.eq("F32")).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
                         panic("main parameter '", p.name, "': type '", p.explicit_type,
                             "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)", loc = loc)

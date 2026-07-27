@@ -416,13 +416,13 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
                         // though the sig's own FuncDef is a Func.
                         top_ft := binding_func_type(top)
                         is_free_func := top.is_func_decl.and(
-                            top_ft.is(FuncType.Func)
-                            .or(top_ft.is(FuncType.ExtFunc))
-                            .or(top_ft.is(FuncType.Proc))
-                            .or(top_ft.is(FuncType.ExtProc))
-                            .or(top_ft.is(FuncType.CoreFunc))
-                            .or(top_ft.is(FuncType.CoreProc))
-                            .or(top_ft.is(FuncType.CoreLazyFunc)))
+                            vor(top_ft.is(FuncType.Func),
+                                top_ft.is(FuncType.ExtFunc),
+                                top_ft.is(FuncType.Proc),
+                                top_ft.is(FuncType.ExtProc),
+                                top_ft.is(FuncType.CoreFunc),
+                                top_ft.is(FuncType.CoreProc),
+                                top_ft.is(FuncType.CoreLazyFunc)))
                         if type_name.len() > 0 {
                             if first_param == type_name {
                                 ufcs_match = 1
@@ -3555,9 +3555,13 @@ priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
         // functions are the compiler's own concern, not user-facing.
         if fdef.return_type.len() == 0 { return }
         if fdef.auto_generated { return }
-        if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc))
-            .or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
-            .or(fdef.func_type.is(FuncType.Macro)).or(fdef.func_type.is(FuncType.Test)) { return }
+        if vor(fdef.func_type.is(FuncType.ExtFunc),
+               fdef.func_type.is(FuncType.ExtProc),
+               fdef.func_type.is(FuncType.CoreFunc),
+               fdef.func_type.is(FuncType.CoreProc),
+               fdef.func_type.is(FuncType.CoreLazyFunc),
+               fdef.func_type.is(FuncType.Macro),
+               fdef.func_type.is(FuncType.Test)) { return }
         if stmt_always_diverges(expr.children[0]).not() {
             expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.return_type, "')"), ctx)
         }
@@ -7654,6 +7658,40 @@ priv lower_matches_in_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: U
     return inserted
 }
 
+priv literal_bool_is := func(e: Expr, want: Bool) returns Bool {
+    switch e.node_type {
+    case NodeType.Literal(Literal.Bool(b)): return b == want
+    case: return false
+    }
+}
+
+// `match X { case true: true case: false }` yields exactly X: one subject
+// evaluation, one Bool out, no arm doing anything else. Recognising it lets
+// the caller drop the whole node down to its subject instead of spending a
+// result temp, a block and a branch on the identity. Purely structural, so it
+// fires wherever the shape appears -- the tail level of an unrolled recursive
+// variadic lazy body reaches it (the last operand wrapping the base literal),
+// and so does a hand-written match.
+priv match_is_bool_identity := func(m: Expr) returns Bool {
+    if m.node_type.is(NodeType.Match).not() { return false }
+    if m.children.len() != 3 { return false }
+    // Only a genuinely Bool subject. A Dynamic one reaching `case true:` is a
+    // type error the switch desugar reports (it builds `subject.eq(true)`);
+    // folding it away would swallow that diagnostic.
+    if type_is_primitive(m.children[0].til_type(), Primitive.Bool).not() { return false }
+    ref case_true : Expr = m.children[1]
+    ref case_def : Expr = m.children[2]
+    if case_true.children.len() != 2 { return false }
+    if case_def.children.len() != 1 { return false }
+    if literal_bool_is(case_true.children[0], true).not() { return false }
+    ref body_true : Expr = case_true.children[1]
+    ref body_def : Expr = case_def.children[0]
+    if body_true.children.len() != 1 { return false }
+    if body_def.children.len() != 1 { return false }
+    if literal_bool_is(body_true.children[0], true).not() { return false }
+    return literal_bool_is(body_def.children[0], false)
+}
+
 // Walk `node`, replacing each top-level Match child with an Ident to its
 // lowered result temp and collecting the temp's setup statements into `pre`.
 // Does not descend into a Match (its arms are lowered by lower_one_match's own
@@ -7674,6 +7712,14 @@ priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32,
     while ci < node.children.len() {
         if node.children[ci].node_type.is(NodeType.Match) {
             infer_match_expr(scope, node.children[ci], in_func, ctx)
+            // Typed first, so a bad subject still gets its diagnostic; only
+            // then collapse the identity away instead of hoisting it.
+            // Re-examine the subject in place rather than advancing: it can be
+            // another identity, or a match that still needs its own hoist.
+            if match_is_bool_identity(node.children[ci]) {
+                node.children[ci] = node.children[ci].children[0].clone()
+                continue
+            }
             mname := lower_one_match(scope, node.children[ci], in_func, in_loop, returns_ref, ctx, pre)
             mut id := Expr.new(ident_node(mname), node.children[ci].line, node.children[ci].col)
             id.set_til_type(node.children[ci].til_type())
@@ -7900,9 +7946,24 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
             else if tcase.children.len() == 3 { tbody_idx = 2 }
             ref tvbody : Expr = tcase.children[tbody_idx]
             mut tvalue : Expr = tvbody.children.pop()
-            mut tassign := Expr.new(NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
-            tassign.add_child(own tvalue)
-            tvbody.add_child(own tassign)
+            while match_is_bool_identity(tvalue) { tvalue = tvalue.children[0].clone() }
+            // An arm value that is itself a match sits in tail position: hand
+            // it THIS match's result temp so its own arms assign straight to
+            // it (infer_body_stmt desugars a temp-tagged Match like a switch).
+            // Otherwise every level of a right-nested chain -- what unrolling a
+            // recursive variadic lazy body produces -- would hoist a fresh
+            // temp, a block and a copy back into the level above it.
+            if tvalue.node_type.is(NodeType.Match) {
+                switch tvalue.node_type {
+                case NodeType.Match(imd): imd.result_temp = result_temp.clone()
+                case:
+                }
+                tvbody.add_child(own tvalue)
+            } else {
+                mut tassign := Expr.new(NodeType.Assign(AssignData(name = result_temp.clone())), tvbody.line, tvbody.col)
+                tassign.add_child(own tvalue)
+                tvbody.add_child(own tassign)
+            }
         }
     }
     infer_expr(scope, sw_expr, in_func, ctx)

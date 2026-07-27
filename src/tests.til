@@ -210,13 +210,15 @@ BothData := struct {
     output_match := 1
 namespace:
     eq := func(a: BothData, b: BothData) returns Bool {
-        return a.interp_ms.eq(b.interp_ms).and(a.interp_ok.eq(b.interp_ok))
-            .and(a.interp_mem.eq(b.interp_mem))
-            .and(a.compile_ms.eq(b.compile_ms)).and(a.compile_ok.eq(b.compile_ok))
-            .and(a.compile_mem.eq(b.compile_mem))
-            .and(a.run_ms.eq(b.run_ms)).and(a.run_ok.eq(b.run_ok))
-            .and(a.run_mem.eq(b.run_mem))
-            .and(a.output_match.eq(b.output_match))
+        return vand(a.interp_ms.eq(b.interp_ms), a.interp_ok.eq(b.interp_ok),
+                    a.interp_mem.eq(b.interp_mem),
+                    a.compile_ms.eq(b.compile_ms),
+                    a.compile_ok.eq(b.compile_ok),
+                    a.compile_mem.eq(b.compile_mem),
+                    a.run_ms.eq(b.run_ms),
+                    a.run_ok.eq(b.run_ok),
+                    a.run_mem.eq(b.run_mem),
+                    a.output_match.eq(b.output_match))
     }
     to_str := func(_self: BothData) returns Str { return "BothData" }
 }

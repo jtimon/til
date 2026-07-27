@@ -2870,6 +2870,8 @@ void priv___src_self_typer_til__collect_missing_paths(TypeScope * scope, priv___
 void priv___src_self_typer_til__infer_match_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 Type * priv___src_self_typer_til__match_arm_value_type(TypeScope * scope, Expr * case_node, Expr * subj, I32 in_func, Context * ctx);
 USize priv___src_self_typer_til__lower_matches_in_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
+Bool priv___src_self_typer_til__literal_bool_is(Expr * e, Bool want);
+Bool priv___src_self_typer_til__match_is_bool_identity(Expr * m);
 void priv___src_self_typer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
 Str * priv___src_self_typer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
 void priv___src_self_typer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
