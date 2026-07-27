@@ -779,15 +779,26 @@ align_up := func(offset: USize, align: USize) returns USize {
 // callers derive the width from USize.size()/UPtr.size() or the resolved
 // alias name and map through here. Extend HERE when a new width exists;
 // unknown widths panic -- never a silent default.
+// Literal case labels, not U8.size()/U16.size()/...: only literal labels
+// keep the switch a real C switch (#254 -- a folded call as a label falls
+// back to an if-else chain). Spelling the byte counts out is not the kind of
+// hardcoding USize/UPtr forbid: U8/U16/U32/U64 are FIXED-width by name on
+// every target, so 1/2/4/8 are definitional. What must never be assumed is
+// which of them USize or UPtr resolves to.
 unsigned_prim_name_for_width := func(w: USize) returns Str {
-    if w == U8.size()  { return "U8" }
-    if w == U16.size() { return "U16" }
-    if w == U32.size() { return "U32" }
-    if w == U64.size() { return "U64" }
+    switch w {
+    case 1: return "U8"
+    case 2: return "U16"
+    case 4: return "U32"
+    case 8: return "U64"
+    }
     panic("unsigned_prim_name_for_width: no unsigned primitive is ", w.to_str(), " bytes wide")
     return ""
 }
 
+// The reverse direction stays an if-chain on purpose: a switch on Str is
+// not a C switch either (#278 -- it lowers to the same Str_eq chain), so it
+// would buy nothing.
 unsigned_prim_width_for_name := func(name: Str) returns USize {
     if name == "U8"  { return U8.size() }
     if name == "U16" { return U16.size() }

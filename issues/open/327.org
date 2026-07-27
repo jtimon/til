@@ -1,0 +1,47 @@
+# priority: medium
+# category: bugs
+** OPEN #327 Builder ident queries match by NAME, so a local can be mistaken for a same-named param
+
+  ~is_shallow_param~, ~is_stack_local~ and ~is_value_global~ (src/self/
+  builder.til) answer "what shape is this ident?" by comparing the ident's
+  NAME against the parameter list of ~ctx.current_fdef~. Nothing ties the
+  answer to the binding the ident actually resolves to, so any two
+  same-named bindings with different shapes can be confused.
+
+  The builder already documents the hazard, in ~emit_deref~:
+
+    // Issue #223 step 3: a ref local is unambiguously a borrowed
+    // pointer and must be DEREF'd, even if its name happens to
+    // collide with a shallow parameter of another function (the
+    // is_shallow_param check below matches by name and can false-
+    // positive across funcs).
+
+  ...and works around it for exactly one shape (ref locals), leaving the
+  general case open.
+
+  One instance of this HAS already bitten and is fixed: the main entry
+  wrapper never set ~ctx.current_fdef~, so the queries answered from
+  whichever function was emitted last, and
+
+      id := func(w: I64) returns I64 { return w }
+      main := proc(w: I64) { println(id(w).to_str()) }
+
+  emitted ~id(w)~ instead of ~id(DEREF(w))~ -- a C compile error that
+  disappeared if either parameter was renamed. That fix (set current_fdef
+  + bind shallow CLI params by value) closed the cross-function leak and
+  is covered by examples/cli_scalars.til.
+
+  What remains is the by-name matching itself. With ~current_fdef~ now
+  always correct the lookup is at least scoped to the right function, but
+  within one function a LOCAL whose name matches a shallow PARAMETER of
+  that same function still gets the parameter's shape. The pattern is the
+  same class of bug and would surface the same way (a missing or spurious
+  DEREF, i.e. a C type error or silent pointer/value confusion).
+
+  Suggested fix: give the builder a per-function shape table for
+  parameters AND locals, populated as the body is emitted, and have the
+  three queries consult the binding rather than the name. That is roughly
+  the direction #246 / #247 already want (layout/binding facts kept off
+  name-keyed side tables).
+
+  Found while fixing the main-entry-wrapper codegen bug.

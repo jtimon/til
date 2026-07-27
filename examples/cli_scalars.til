@@ -2,7 +2,29 @@ mode cli
 
 // Exercises every scalar CLI argument type the builder inlines (see
 // cli_box_expr in src/self/builder.til) and the interpreter's parse_cli_arg.
+//
+// Each value is also passed to a helper whose PARAMETER NAME deliberately
+// collides with main's, which is the regression guard for the main-entry
+// wrapper codegen fix: the wrapper must set ctx.current_fdef (or name-keyed
+// queries like is_shallow_param answer from whatever function happened to be
+// emitted last) AND bind shallow params by value (or a correct
+// is_shallow_param skips the DEREF a boxed pointer needs). Either half
+// regressing makes this file fail to C-compile with "makes integer from
+// pointer without a cast". The helpers return Str so the round trip leaves
+// the output unchanged.
+show_a := func(a: I8) returns Str { return a.to_str() }
+show_b := func(b: U8) returns Str { return b.to_str() }
+show_c := func(c: I16) returns Str { return c.to_str() }
+show_d := func(d: U16) returns Str { return d.to_str() }
+show_e := func(e: I32) returns Str { return e.to_str() }
+show_f := func(f: U32) returns Str { return f.to_str() }
+show_g := func(g: U64) returns Str { return g.to_str() }
+show_h := func(h: USize) returns Str { return h.to_str() }
+show_k := func(k: UPtr) returns Str { return k.to_str() }
+show_m := func(m: F32) returns Str { return m.to_str() }
+
 main := proc(a: I8, b: U8, c: I16, d: U16, e: I32, f: U32, g: U64, h: USize, k: UPtr, m: F32) {
-    println(a.to_str(), " ", b.to_str(), " ", c.to_str(), " ", d.to_str(), " ",
-            e.to_str(), " ", f.to_str(), " ", g.to_str(), " ", h.to_str(), " ", k.to_str(), " ", m.to_str())
+    println(show_a(a), " ", show_b(b), " ", show_c(c), " ", show_d(d), " ",
+            show_e(e), " ", show_f(f), " ", show_g(g), " ", show_h(h), " ",
+            show_k(k), " ", show_m(m))
 }
