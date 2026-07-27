@@ -131,6 +131,36 @@ test_file_remove := test() {
     File.remove(path)
 }
 
+// A path that is a VIEW, not an owned Str or a literal. substr returns
+// Str(c_str = ptr_add(...), cap = CAP_VIEW) pointing into the middle of
+// another buffer, so there is NO NUL at count -- here the next byte is
+// 'Z'. Every C function taking a path must therefore copy through dup_n
+// rather than cast c_str; without that, unlink/fopen/stat see
+// "tmp/_test_view_path.txtZZZ" and quietly operate on the wrong path (or
+// none). Compiled code is what this pins down: the interpreter
+// materialises substr as an owned copy, so only the compiled backend
+// hands a genuinely unterminated buffer to C.
+test_file_c_boundary_takes_views := test() {
+    backed := "tmp/_test_view_path.txtZZZ"
+    path := backed.substr(0, 23)
+    assert_eq(Str, path, "tmp/_test_view_path.txt")
+
+    File.remove(path)
+    assert(File.exists(path).not())
+
+    File.writefile(path, "view-written")
+    assert(File.exists(path))
+    assert_eq(Str, File.readfile(path), "view-written")
+
+    File.appendfile(path, "-more")
+    assert_eq(Str, File.readfile(path), "view-written-more")
+
+    File.remove(path)
+    assert(File.exists(path).not())
+    // The backing buffer is untouched: nothing wrote through the view.
+    assert_eq(Str, backed, "tmp/_test_view_path.txtZZZ")
+}
+
 test_file_exists := test() {
     path := "tmp/_test_file_exists.txt"
     File.remove(path)
