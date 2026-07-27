@@ -1,0 +1,112 @@
+# priority: high
+# category: bugs
+** OPEN #333 C `double` is bound as F32, so every double-typed call returns garbage
+
+The bindings generator maps C's ~double~ onto til's ~F32~
+(src/self/binder.til):
+
+: // til has no 64-bit float type; map `double` / `long double` onto F32
+: // (precision-truncation) so bindings still type-check. Functions that
+: // genuinely need 64-bit precision must be hand-edited.
+: if c.eq("double").or(c.eq("long double")) { out.push_str("F32"); return true }
+
+That is an arm of ~push_til_base~, which [[./331.org][#331]] lists for
+if-chain-to-switch conversion, so the arm may read as a ~case~ by the
+time you get here. The mapping is the defect, not the shape it is
+written in.
+
+The comment is wrong on both counts. This is not precision truncation
+-- nothing converts -- it is an ABI mismatch: 4 bytes are read where C
+wrote 8. And the escape hatch does not exist: src/core/numbers.til's
+own header lists the scalar set as "(U8/U16/U32/U64, I8/I16/I32/I64),
+the 32-bit float (F32)", so there is no F64 to hand-edit a binding TO.
+
+Both backends are affected, by different routes, and both are silent.
+
+*** Interpreted: libffi is told ffi_type_float for a double
+
+: mode gui
+: sqrt := ext_func(shallow x : F32) returns shallow F32 {}   // C: double sqrt(double)
+:
+: main := proc() {
+:     print("sqrt(16.0) = ", sqrt(16.0).to_str(), "\n")
+:     print("sqrt(2.0)  = ", sqrt(2.0).to_str(), "\n")
+: }
+
+Two runs, on master ~7f3e2c3~:
+
+: sqrt(16.0) = 2.84496e-27      sqrt(16.0) = -5.71135e+28
+: sqrt(2.0)  = -2.5139e-22      sqrt(2.0)  = -2.09069e+08
+
+The values are NOT stable -- they are whatever the unread half of the
+register held -- so do not treat any number in this issue as expected
+output. The reproducible part is that the answer is never 4 and never 2
+significant digits away from it either.
+
+~shallow_ffi_type("F32")~ resolves to ~ffi_type_float~ (via
+~known_ffi_type~, src/self/interpreter.til), so libffi builds a call
+frame for a float argument and reads a float result out of a register
+the callee filled as a double.
+
+*** Compiled: the emitted C declares its own, wrong, prototype
+
+The generated C does not include the vendor header -- ~raylib.h~ appears
+zero times in it -- so the C compiler never sees the real signature and
+cannot convert. It compiles against til's declaration:
+
+: F32 GetFrameTime(void);       // gen/til/<prog>.c
+: F32 GetTime(void);
+
+raylib's are ~RLAPI float GetFrameTime(void);~ and ~RLAPI double
+GetTime(void);~. Running the same ~mode gui~ program (InitWindow, 30
+empty frames, print) both ways on master ~7f3e2c3~:
+
+: interpreted:  GetTime=5.69573e-31    GetFrameTime=0.000190468
+: compiled:     GetTime=-1.42301e+16   GetFrameTime=6.8116e-05
+
+~GetFrameTime~ is the control: a genuine C ~float~, correct in both
+backends (about 1e-4 s per empty frame). Only the ~double~ is garbage,
+and nothing flags it. A compiled gui program reading elapsed time has
+been getting this all along -- this is not an interpreter-only defect
+like [[../fixed/308.org][#308]] was.
+
+*** Reach
+
+Across all five bound headers (raylib.h, rcamera.h, tinyfiledialogs.h,
+nng.h, ffi.h) exactly two declarations take or return a ~double~:
+~RLAPI double GetTime(void)~ and ~RLAPI void WaitTime(double)~. The
+only other ~double~ in any of them is a pair of function-body locals in
+rcamera.h, which the binder never looks at. Everything else is
+~float~ -- which is why this went unnoticed. Any future header with a
+~double~ parameter or return lands in the same place, silently.
+~long double~ is mapped the same way and is worse (16 bytes on
+x86-64).
+
+*** Fix
+
+The real fix is an F64 type: a 64-bit float primitive, its scalar ops,
+~ffi_type_double~ in ~known_ffi_type~ (src/self/interpreter.til), and
+~double~ -> ~F64~ in ~push_til_base~. That is a language feature, not a
+binder patch.
+
+Until then the generator must not narrow silently. Emitting the
+declaration as unsupported -- the same downgrade already used for field
+shapes it cannot express -- turns a wrong value into a loud "not
+registered" at the call site, which is the behaviour the rest of the
+FFI bridge already has. A binding that cannot be expressed should
+refuse to exist rather than lie about its width.
+
+*** Sibling, same class, not this issue
+
+~size_t~ maps to ~USize~, whose width is a build knob (U32 by default
+since [[../fixed/309.org][#309]]) while C's is 8 bytes on every supported
+host. vendor/bindings/libffi.til already carries a hand-edit for
+exactly this ("a USize field here made ffi_type.size() compute 16 for
+C's 24"); nng.h has 70 ~size_t~ occurrences, and none of the four nng
+hand-edits doc/ffi.org records concerns them. Worth its own issue.
+
+*** How it surfaced
+
+Auditing the FFI type mappings after the [[../fixed/308.org][#308]]
+bindgen work, looking for other cases where the emitter produces
+something the FFI layer cannot honour.
