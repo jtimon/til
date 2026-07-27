@@ -1011,8 +1011,8 @@ priv aliased_by_returned_ref := func(body: Expr, name: Str) returns Bool {
         switch d.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                ref src : Str = arg_addressed_ident(d.children[0])
-                if src.is_null().not().and(src == name) {
+                src_o := arg_addressed_ident(d.children[0])
+                if src_o.is_some().and(src_o.unwrap() == name) {
                     if body_returns_var(body, dd.name) { return true }
                 }
             }
@@ -1027,8 +1027,8 @@ priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) return
         switch d.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                ref src : Str = arg_addressed_ident(d.children[0])
-                if src.is_null().not().and(src == name) {
+                src_o := arg_addressed_ident(d.children[0])
+                if src_o.is_some().and(src_o.unwrap() == name) {
                     if expr_uses_var(expr, dd.name) { return true }
                 }
             }

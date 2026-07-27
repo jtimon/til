@@ -234,3 +234,58 @@ test_option_ref_return_param_not_shallowed := test() {
     o.n = 42
     assert_eq(I64, via_opt.n, 42)
 }
+
+// #321: moving an OWNED payload out of an Option. `case Some(v): return v`
+// used to emit `T_clone(v)` followed by a deep delete of the enum -- a full
+// deep copy of a value nobody else could observe, which is what blocked the
+// `return NULL`-to-`Option(T)` migration for the compiler's own AST helpers
+// (an Expr clone is a whole subtree, and the passes compare nodes by
+// identity). When the switch subject is an `own` PARAM the function owns the
+// enum outright, so the payload's bytes now move into a fresh box and only
+// the enum SHELL is freed.
+//
+// What this pins: the payload survives the move intact in BOTH modes, and the
+// suite's ASAN run proves the disarm is exact -- freeing the shell with the
+// payload's destructor still armed is a double free, and skipping the shell
+// free is a leak. It does NOT pin move-vs-clone, because it cannot: the clone
+// path is behaviourally identical and differs only in cost. That distinction
+// lives in the emitted C (no `TakeBox_clone`, no `Option__TakeBox_delete`),
+// recorded in issue #321.
+TakeBox := struct {
+    name := ""
+    n := 0
+}
+
+take_box := func(own self: Option(TakeBox)) returns TakeBox {
+    switch self {
+    case Option(TakeBox).Some(v): return v
+    case: panic(__LOC__, "take_box of a None Option")
+    }
+}
+
+test_option_take_owned_payload_moves := test() {
+    o := Option(TakeBox).Some(TakeBox(name = "payload", n = 7))
+    taken := take_box(own o)
+    assert_eq(I64, taken.n, 7)
+    assert_eq(Str, taken.name, "payload")
+}
+
+// The control for the gate: a BORROWED subject must still copy. Calling it
+// twice on the same Option is the proof -- a steal would consume the enum on
+// the first call, so the second would read freed memory (and ASAN would say
+// so). Only an `own` param subject is safe to steal from.
+peek_box := func(self: Option(TakeBox)) returns TakeBox {
+    switch self {
+    case Option(TakeBox).Some(v): return v
+    case: panic(__LOC__, "peek_box of a None Option")
+    }
+}
+
+test_option_peek_borrowed_subject_still_copies := test() {
+    o := Option(TakeBox).Some(TakeBox(name = "kept", n = 5))
+    first := peek_box(o)
+    second := peek_box(o)
+    assert_eq(Str, first.name, "kept")
+    assert_eq(Str, second.name, "kept")
+    assert_eq(I64, second.n, 5)
+}

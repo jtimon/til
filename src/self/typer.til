@@ -6624,25 +6624,25 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
 // `Str(c_str = buf, ...)` does. Matching only a bare Ident missed that,
 // so the pass kept ownership of buf and scheduled a free while the
 // constructed value still pointed at the block.
-arg_addressed_ident := func(arg: Expr) returns ref Str {
+arg_addressed_ident := func(arg: Expr) returns Option(ref Str) {
     switch arg.node_type {
-    case NodeType.Ident(ai): return ai.ident_name()
+    case NodeType.Ident(ai): return Option(ref Str).Some(ai.ident_name())
     case NodeType.FCall:
         if arg.children.len() == 2 {
             switch arg.children[0].node_type {
             case NodeType.Ident(cn):
                 if cn.ident_name() == "to_ptr" {
                     switch arg.children[1].node_type {
-                    case NodeType.Ident(inner): return inner.ident_name()
-                    case: return NULL
+                    case NodeType.Ident(inner): return Option(ref Str).Some(inner.ident_name())
+                    case: return Option(ref Str).None
                     }
                 }
-                return NULL
-            case: return NULL
+                return Option(ref Str).None
+            case: return Option(ref Str).None
             }
         }
-        return NULL
-    case: return NULL
+        return Option(ref Str).None
+    case: return Option(ref Str).None
     }
 }
 
@@ -6655,8 +6655,8 @@ priv check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns Bool
             ref p : Declaration = fd.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
-                ref an : Str = arg_addressed_ident(arg)
-                if an.is_null().not().and(an == var_name) { return true }
+                an_o := arg_addressed_ident(arg)
+                if an_o.is_some().and(an_o.unwrap() == var_name) { return true }
             }
         }
         return false
@@ -6686,8 +6686,8 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
                             fi = fi + 1
                             if arg_idx < fcall.children.len() {
                                 ref arg : Expr = fcall.children[arg_idx]
-                                ref an : Str = arg_addressed_ident(arg)
-                                if an.is_null().not().and(an.eq(var_name)).and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                an_o := arg_addressed_ident(arg)
+                                if an_o.is_some().and(an_o.unwrap().eq(var_name)).and(fld_decl.own_type.is(OwnType.Ref).not()) {
                                     if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
                                         return true
                                     }
@@ -6870,8 +6870,11 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
             ref p : Declaration = fd.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
-                ref an : Str = arg_addressed_ident(arg)
-                if an.is_null().not().and(out.has(an).not()) { out.add(own an.clone()) }
+                an_o := arg_addressed_ident(arg)
+                if an_o.is_some() {
+                    ref an : Str = an_o.unwrap()
+                    if out.has(an).not() { out.add(own an.clone()) }
+                }
             }
         }
     case:
@@ -6901,8 +6904,9 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                             fi = fi + 1
                             if arg_idx < fcall.children.len() {
                                 ref arg : Expr = fcall.children[arg_idx]
-                                ref an : Str = arg_addressed_ident(arg)
-                                if an.is_null().not().and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                an_o := arg_addressed_ident(arg)
+                                if an_o.is_some().and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                    ref an : Str = an_o.unwrap()
                                     if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
                                         if out.has(an).not() { out.add(own an.clone()) }
                                     }
@@ -7816,6 +7820,150 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
     }
 }
 
+// #321: `T.size()` as a call node, the same FieldAccess-on-a-type-Ident shape
+// make_delete_call builds for `T.delete(...)`.
+priv make_type_size_call := func(tname: Str, src: Expr) returns Expr {
+    mut type_id := Expr.new(ident_node(tname), src.line, src.col)
+    type_id.set_til_type(Type.Custom(tname.clone()))
+    mut fa := Expr.new(field_access_node("size"), src.line, src.col)
+    fa.add_child(own type_id)
+    mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    call.add_child(own fa)
+    return call
+}
+
+// #321: the block that MOVES a switch payload out of an enum the function
+// owns, replacing a `return <payload binding>`:
+//
+//   { <tmp> : T = malloc(T.size())
+//     memcpy(<tmp>, <binding>, T.size())
+//     free(own <param>)
+//     return <tmp> }
+//
+// All ordinary til, so neither backend learns a new node. Two things make it
+// sound. `free` is the ext_func wrapping C's free, so it releases the enum
+// SHELL without running the payload's destructor -- the payload's heap
+// children transfer with the copied bytes instead of being freed under the
+// caller. And `free(own <param>)` is an own-transfer the garbager already
+// understands, so it stands the param's exit delete down on this path exactly
+// as it does for a hand-written one.
+priv make_payload_steal_block := func(bind_name: Str, param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
+    mut blk := Expr.new(NodeType.Body, src.line, src.col)
+
+    // <tmp> : T = malloc(T.size())
+    mut malloc_id := Expr.new(ident_node("malloc"), src.line, src.col)
+    mut malloc_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    malloc_call.add_child(own malloc_id)
+    mut msize := make_type_size_call(tname, src)
+    malloc_call.add_child(own msize)
+    mut decl := Expr.new(NodeType.Decl(decl_typed(name = tmp, explicit_type = tname)), src.line, src.col)
+    decl.add_child(own malloc_call)
+    blk.add_child(own decl)
+
+    // memcpy(<tmp>, <binding>, T.size())
+    mut memcpy_id := Expr.new(ident_node("memcpy"), src.line, src.col)
+    mut copy_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    copy_call.add_child(own memcpy_id)
+    mut dest_id := Expr.new(ident_node(tmp), src.line, src.col)
+    copy_call.add_child(own dest_id)
+    mut src_id := Expr.new(ident_node(bind_name), src.line, src.col)
+    copy_call.add_child(own src_id)
+    mut csize := make_type_size_call(tname, src)
+    copy_call.add_child(own csize)
+    blk.add_child(own copy_call)
+
+    // free(own <param>)
+    mut free_id := Expr.new(ident_node("free"), src.line, src.col)
+    mut free_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    free_call.add_child(own free_id)
+    set_own_arg(free_call, free_call.children.len())
+    mut param_id := Expr.new(ident_node(param_name), src.line, src.col)
+    free_call.add_child(own param_id)
+    blk.add_child(own free_call)
+
+    // return <tmp>
+    mut ret := Expr.new(NodeType.Return, src.line, src.col)
+    mut ret_id := Expr.new(ident_node(tmp), src.line, src.col)
+    ret.add_child(own ret_id)
+    blk.add_child(own ret)
+
+    return blk
+}
+
+// Replace every `return <bind_name>` in this case body with the steal block.
+// Nested FuncDefs are skipped: a closure's `return` belongs to the closure,
+// not to the function that owns the enum.
+priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: Str, tname: Str) {
+    for i in 0..body.children.len() {
+        ref mut st : Expr = body.children[i]
+        if st.node_type.is(NodeType.FuncDef) { continue }
+        if st.node_type.is(NodeType.Return).and(st.children.len() == 1) {
+            mut is_bind := false
+            switch st.children[0].node_type {
+            case NodeType.Ident(rn): is_bind = rn.ident_name() == bind_name
+            case:
+            }
+            if is_bind {
+                tmp := format("_steal_", bind_name, "_", st.line.to_str(), "_", st.col.to_str())
+                body.children[i] = make_payload_steal_block(bind_name, param_name, tname, tmp, st)
+                continue
+            }
+        }
+        steal_payload_returns(st, bind_name, param_name, tname)
+    }
+}
+
+// #321: `case V(v): return v` hands the caller a payload the enum is about to
+// destroy, so infer_return_stmt's alias rule CLONES it -- a deep copy of a
+// value nobody else can observe, followed by a deep delete of the original.
+// That is what blocks moving an owned payload out of an Option: an `Expr`
+// clone is a whole AST subtree, both a large cost and a semantic change (the
+// passes compare and mutate nodes by identity).
+//
+// When the switch subject is an `own` PARAM the copy is never needed: the
+// function owns the enum, nothing else can observe it, and the payload's bytes
+// can simply be moved into a fresh box. Gated on exactly that -- an own param
+// subject, an owned (non-ref) payload, and a return type that IS the payload
+// type -- so a borrowed subject or a ref payload keeps the clone.
+priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, ctx: Context) {
+    if ctx.typer_return_type_name.len() == 0 { return }
+    mut param_name := ""
+    switch sw_expr.node_type {
+    case NodeType.Ident(sw_idn): param_name = Str.clone(sw_idn.ident_name())
+    case: return
+    }
+    sw_b_o := scope.get_binding(param_name)
+    if sw_b_o.is_none() { return }
+    ref sw_b : TypeBinding = sw_b_o.unwrap()
+    if sw_b.is_param.and(sw_b.own_type.is(OwnType.Own)).not() { return }
+
+    ref pat : Expr = case_node.children[0]
+    if pat.node_type.is(NodeType.FCall).not() { return }
+    if pat.children.len() != 2 { return }
+    mut variant_name := ""
+    switch pat.children[0].node_type {
+    case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
+    case: return
+    }
+    mut bind_name := ""
+    switch pat.children[1].node_type {
+    case NodeType.Ident(bn): bind_name = Str.clone(bn.ident_name())
+    case: return
+    }
+    enum_def_o := scope.get_struct(sw_sname)
+    if enum_def_o.is_none() { return }
+    ref enum_def : Expr = enum_def_o.unwrap()
+    vt_idx := enum_variant_index(enum_def, variant_name)
+    if vt_idx < 0 { return }
+    // A ref payload is a BORROW the enum never owned, so there is nothing to
+    // move and the by-value return must keep copying.
+    if enum_variant_payload_ref(enum_def, vt_idx) { return }
+    payload_type := enum_variant_type(enum_def, vt_idx)
+    if payload_type.len() == 0 { return }
+    if payload_type != ctx.typer_return_type_name { return }
+    steal_payload_returns(case_node.children[1], bind_name, param_name, payload_type)
+}
+
 // #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
 // the backends instead of desugaring to if/elif. Each case body is inferred in
 // its own child scope, mirroring infer_if_stmt's branch handling. For an enum
@@ -7855,6 +8003,7 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         } else {
             if is_enum {
                 mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0])
+                steal_own_param_payload_returns(scope, sw_expr, cn, sw_sname, ctx)
                 prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname)
             }
             if is_bool { bool_labels = bool_labels + 1 }

@@ -723,8 +723,117 @@ So step 1 is now uniformly blocked on #324, with no exceptions:
 constfolder_known, ns_fields, InterpSession.global, FFIEntry's two
 buffers, Context.return_value AND Context.interp_ret_dest.
 
+**** Batch 18: the last null ref return, and why the owned ones cannot follow
+
+arg_addressed_ident (typer.til) was the final ~returns ref T~ in the
+compiler still handing back NULL; it is now ~Option(ref Str)~. Verified
+after the migration: NO ~returns ref~ function in src/ returns NULL any
+more. The 56 surviving ~return NULL~ split cleanly by return type --
+37 ~returns Expr~ (constfolder 24, loader 10, typer 2, garbager 1) and
+19 ~returns Dynamic~ (interpreter 16, constfolder 3). The Dynamic ones
+are exactly the quarantined raw layer the Decisions section rules out
+of scope, so step 2 has nothing left to migrate.
+
+The owned-Expr 37 are a DIFFERENT blocker, and it is a codegen one, not
+a design one. Measured on a probe (tmp, not committed): an owned
+~Option(T)~ can be moved INTO cheaply but never OUT of. Construction is
+already a shallow steal --
+
+: Option__Box *Option__Box_Some(Box * val) {
+:     Option__Box *r = malloc(sizeof(Option__Box));
+:     r->tag = Option__Box_TAG_Some;
+:     r->data.Some = *val;
+:     free(val);
+:     return r;
+: }
+
+-- but every extraction path deep-clones. ~unwrap~ emits
+~Box_clone(v)~, and so does a hand-written ~own self~ variant:
+
+: Box * take(Option__Box * self) {
+:     case Option__Box_TAG_Some: {
+:         Box *v = ((void *)((U8 *)(self) + offsetof(Option__Box, data)));
+:         Box *hoisted__Box_5676 = Box_clone(v);
+:         Option__Box_delete(self, 1);
+:         return hoisted__Box_5676;
+
+Correct, but a deep copy. The cause is the general rule "returning a
+ref binding from a by-value function clones it", which is right
+everywhere else: a switch case payload binding IS a borrow into the
+enum's data. For ~own self~ it is needlessly conservative -- self is
+about to be deleted, so the payload can be stolen instead, the exact
+mirror of the ~Some~ constructor above (malloc the payload shell,
+shallow-copy the union member into it, free the enum without running
+the payload's destructor).
+
+Until that lands, migrating the 37 is not an option: an ~Expr~ clone is
+a whole AST subtree, so it would be both a large slowdown and a
+semantic change (the passes compare and mutate nodes by identity). So
+the ~NULL~ keyword removal in step 4 now has a concrete, named
+prerequisite: move-out-of-owned-Option in the codegen.
+
+**** Batch 19: move-out of an owned Option, and a correction to batch 18
+
+CORRECTION to batch 18: it concluded the codegen could not move an owned
+payload out of an Option. That is wrong, and testing it properly proved
+so. The codegen could already do it; only the IMPLICIT spelling clones.
+Written out by hand, the move compiles to exactly the right C today:
+
+: take := func(own self: Option(Box)) returns Box {
+:     switch self {
+:     case Option(Box).Some(v):
+:         out : Box = malloc(Box.size())
+:         memcpy(out, v, Box.size())
+:         free(own self)
+:         return out
+:     case: panic(__LOC__, "none")
+:     }
+: }
+
+-> ~Box *out = malloc(24); memcpy(out, v, 24); free(self); return out;~
+-- no ~Box_clone~, no ~Option__Box_delete~, ASAN clean. So the pieces
+were all there: ~free~ is the ext_func wrapping C's free, which releases
+the enum SHELL without running the payload's destructor, and
+~free(own self)~ is an own-transfer the garbager already reads, so it
+stands the param's exit delete down on that path by itself.
+
+What was actually missing was the natural spelling. ~case Some(v):
+return v~ hit infer_return_stmt's alias rule and cloned, and there is no
+~return own v~ (the parser rejects ~own~ outside a call argument). Fixed
+by making the typer rewrite the return when -- and only when -- the
+switch subject is an ~own~ PARAM, the payload is owned (not a ref
+payload), and the return type IS the payload type:
+
+: { <tmp> : T = malloc(T.size())
+:   memcpy(<tmp>, <binding>, T.size())
+:   free(own <param>)
+:   return <tmp> }
+
+steal_own_param_payload_returns + make_payload_steal_block in typer.til,
+run from infer_clike_switch just before prepend_clike_payload_binding.
+The rewrite emits ordinary til, so neither backend learns a new node and
+the garbager needs no change. A borrowed subject keeps cloning (it does
+not own the enum), and a ref payload keeps copying (a borrow the enum
+never owned -- there is nothing to move).
+
+Verified: interpreted and compiled agree, ASAN clean, 194/194, and pass
+1 == pass 2 (no compiler source matches the gate, so this is not a
+two-pass commit). Regression tests in test/option.til:
+test_option_take_owned_payload_moves and, as the gate's control,
+test_option_peek_borrowed_subject_still_copies -- which calls a
+borrowed-subject peek TWICE on the same Option, so a steal there would
+read freed memory on the second call.
+
+Note what the tests can and cannot pin: the clone path is behaviourally
+identical to the steal and differs only in cost, so no til-level test
+distinguishes them. The evidence for the move is the emitted C above.
+
 *** What is left before the forbid can land
 
+0. DONE (batch 19): move-out of an owned ~Option(T)~. The 37
+   ~returns Expr~ ~return NULL~ sites can now become ~Option(Expr)~
+   with an ~own self~ take, which step 4 needs before the keyword can
+   go. Doing that migration is the next step.
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
    three Scope-typed owning fields get a real ownership answer.
 2. Flip check_ref_field_owned_default: reject ~= NULL~ on a ref field
