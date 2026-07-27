@@ -305,7 +305,6 @@ binding_func_type := func(b: TypeBinding) returns shallow FuncType {
 // stored at func-pointer locations -- callers don't distinguish those
 // from regular funcs at the binding level.
 func_def_type := func(fdef: Expr) returns shallow FuncType {
-    if fdef.is_null() { return FuncType.Func }
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         return fd.func_type

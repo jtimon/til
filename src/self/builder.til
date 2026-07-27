@@ -5740,7 +5740,6 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
 }
 
 priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
-    if def.is_null() { return false }
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
@@ -5749,7 +5748,6 @@ priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
 }
 
 priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Bool {
-    if def.is_null() { return false }
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
@@ -5771,7 +5769,6 @@ priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Boo
 // True when the named ns method takes its first param by VALUE (Shallow),
 // the param-side twin of builder_ns_func_returns_shallow.
 priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool {
-    if def.is_null() { return false }
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()

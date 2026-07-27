@@ -250,7 +250,6 @@ type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, ctx: Context) {
 // state every caller branches on -- Option, not a null ref. (The sdef
 // ARGUMENT stays nullable: a null def simply has no members.)
 find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns Option(ref Expr) {
-    if sdef.is_null() { return Option(ref Expr).None }
     fd_o := def_ns_get(sdef, method)
     if fd_o.is_none() { return Option(ref Expr).None }
     ref fd : Declaration = fd_o.unwrap()
@@ -378,7 +377,6 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
 // -- an Option, not a null ref. (The sdef ARGUMENT is still a nullable
 // ref param, a separate step-2 item; a null def simply has no members.)
 find_ns_decl := func(sdef: Expr, method: Str) returns Option(ref Declaration) {
-    if sdef.is_null() { return Option(ref Declaration).None }
     d_o := def_ns_get(sdef, method)
     if d_o.is_none() { return Option(ref Declaration).None }
     ref d : Declaration = d_o.unwrap()
@@ -7238,7 +7236,6 @@ priv CoverageNode := struct {
 
 // Seed a node with empty per-variant sub-coverage for an enum_def.
 priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
-    if enum_def.is_null() { return }
     switch enum_def.node_type {
     case NodeType.EnumDef(cn_edd):
         for vd : VariantDef in cn_edd.variants {

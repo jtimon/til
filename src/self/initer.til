@@ -971,7 +971,6 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
 }
 
 priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
-    if def.is_null() { return false }
     d_o := def_ns_get(def, method)
     if d_o.is_none() { return false }
     ref d : Declaration = d_o.unwrap()
@@ -2511,7 +2510,6 @@ priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level
 }
 
 priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
-    if def.is_null() { return }
     switch def.node_type {
     case NodeType.StructDef(ld_sdd):
         for mut nd : Declaration in ld_sdd.ns_decls {

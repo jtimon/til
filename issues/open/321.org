@@ -659,6 +659,36 @@ is separate: it threads through the interpreter's ~destination~
 parameter chain, so it is a nullable-ref-PARAM job (step 2's leftover),
 not an ownership one.
 
+**** Step 2 leftover, batch 16: the nullable ref PARAMS
+
+The batches kept flagging "is this a nullable ref PARAM?" as a separate
+job from the returns. Surveyed every function whose first statements
+guard one of its own parameters with ~is_null()~: 29 of them.
+
+Nine were DEAD -- every caller already hands them a node it has
+dereferenced or unwrapped -- and the test corpus confirmed it (the rule
+from CLAUDE.md: remove the guard and run the suite; 189/189):
+func_def_type, builder_ns_has_func, builder_ns_func_returns_shallow,
+builder_ns_func_param_shallow, init_ns_has_func, init_lift_in_ns_decls,
+init_coverage_for_enum, and find_namespace_func / find_ns_decl's ~sdef~
+-- the last two only became dead once batch 12 made every get_struct
+caller unwrap, which is why they survived this long.
+
+20 remain, and they split cleanly by param type:
+
+- 6 x ~Dynamic~ (heap_drop_enum, heap_drop_struct, heap_drop_by_type,
+  scope_set_heap_owned, callable_box_is, raw_result_finish's
+  ~destination~) -- the raw layer. These are the same class as the
+  ~ref Dynamic~ FIELDS: a null bit pattern in untyped pointer plumbing,
+  not an absent ref. raw_result_finish's is the one Context field
+  (interp_ret_dest) that is NOT #324-blocked, so the two move together.
+- 8 x ~Expr~ + 2 x ~Scope~ + Str/Mode/LoadedProgram -- genuine
+  Option(ref T) candidates, each needing its callers checked the same
+  way (real absent state vs missing invariant check).
+
+The two ~delete(self)~ guards are their own thing: an auto-generated
+delete may run on a null self, so they are not user-facing at all.
+
 *** What is left before the forbid can land
 
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
