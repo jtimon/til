@@ -2450,7 +2450,15 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     callee_bind_o := scope.get_binding(name)
     if callee_bind_o.is_some() {
         ref mut callee_bind : TypeBinding = callee_bind_o.unwrap()
-        callee_bind.used = true
+        // #187: a function calling ITSELF is not a use, exactly as a
+        // type's own namespace referencing the type is not (the
+        // current_type_name gate in infer_ident_expr). Counting the
+        // recursive call kept every unreachable recursive priv func
+        // looking alive -- desugarer.til's has_prior_throw_type sat
+        // there with its own recursion as its only caller.
+        if ctx.current_top_func_name.eq(name).not() {
+            callee_bind.used = true
+        }
         note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, ctx)
         if scope.lookup_func(callee_bind.name).is_some() {
@@ -2575,7 +2583,10 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             // variant-constructor bodies reference the parent type by
             // name; counting those would mask a genuinely unused priv
             // type. External Ident references still mark it used.
-            if ctx.current_type_name.eq(id_name.ident_name()).not() {
+            // Same for a function naming itself (a recursive reference
+            // passed as a value, e.g. `f` inside f's own body).
+            if ctx.current_type_name.eq(id_name.ident_name()).not()
+                .and(ctx.current_top_func_name.eq(id_name.ident_name()).not()) {
                 ib.used = true
             }
             check_priv_access(expr, id_name.ident_name(), ib, ctx)

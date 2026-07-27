@@ -848,3 +848,20 @@ rp_bad := RefPayErr.SomeRef(RefPayErrSrc(n = 1))
 // type templates; a surviving ref bit on an ordinary call is rejected
 ref_arg_misuse := func(x: I64) returns I64 { return x }
 rp_bad2 := ref_arg_misuse(ref 5)
+
+// #187: a priv function whose ONLY reference is its own recursive call
+// is unused -- the recursion kept it looking alive, so unreachable
+// recursive helpers accumulated silently (desugarer.til's
+// has_prior_throw_type was one). A recursive priv that IS called from
+// elsewhere stays fine: unused_rec_live below is called at the bottom.
+priv unused_rec_dead := func(n: I64) returns I64 {
+    if n <= 0 { return 0 }
+    return unused_rec_dead(n - 1)
+}
+
+priv unused_rec_live := func(n: I64) returns I64 {
+    if n <= 0 { return 0 }
+    return unused_rec_live(n - 1).add(1)
+}
+
+rec_live_result := unused_rec_live(2)

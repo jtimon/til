@@ -571,35 +571,6 @@ priv annotate_throw_ident_expr_types := proc(scope: TypeScope, mut e: Expr, root
     }
 }
 
-priv has_prior_throw_type := proc(scope: TypeScope, e: Expr, root_body: Expr, type_name: Str, before_line: U32) returns Bool {
-    if e.line.lt(before_line).and(e.node_type.is(NodeType.Throw)).and(e.children.len().eq(1)) {
-        mut thrown_name := type_to_name(e.til_type())
-        if thrown_name.len() == 0 {
-            switch e.children[0].node_type {
-            case NodeType.Ident(idn):
-                thrown_name = guess_local_type(scope, root_body, idn.name)
-            case NodeType.FCall:
-                if e.children[0].children.len() > 0 {
-                    switch e.children[0].children[0].node_type {
-                    case NodeType.Ident(name): thrown_name = name.name.clone()
-                    case:
-                    }
-                }
-            case NodeType.Literal(Literal.Str):
-                thrown_name = "Str"
-            case NodeType.Literal(Literal.Num):
-                thrown_name = "I64"
-            case:
-            }
-        }
-        if thrown_name == type_name { return true }
-    }
-    for c : Expr in e.children {
-        if has_prior_throw_type(scope, c, root_body, type_name, before_line) { return true }
-    }
-    return false
-}
-
 priv subtree_has_throw_type := proc(ctx: Context, e: Expr, root_body: Expr, type_name: Str) returns Bool {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
         thrown_name := throw_type_name_for_with_body(ctx, e.children[0], root_body)
@@ -847,36 +818,6 @@ priv annotate_throw_types_in := proc(ctx: Context, mut e: Expr, root_body: Expr)
         annotate_throw_types_in(ctx, sub, root_body)
     }
 }
-
-priv collect_throw_types_in := proc(e: Expr, mut out: Vec(Str)) {
-    if e.node_type.is(NodeType.Throw) {
-        tn := til_type_name(e.til_type())
-        if tn.len() > 0 {
-            mut already := false
-            for existing : Str in out {
-                if existing == tn { already = true }
-            }
-            if already.not() { out.push(own tn.clone()) }
-        }
-    }
-    if e.node_type.is(NodeType.Catch) {
-        if e.children.len() == 3 {
-            switch e.children[1].node_type {
-            case NodeType.Ident(ctn):
-                mut already_c := false
-                for existing : Str in out {
-                    if existing == ctn.ident_name() { already_c = true }
-                }
-                if already_c.not() { out.push(own Str.clone(ctn.ident_name())) }
-            case:
-            }
-        }
-    }
-    for c : Expr in e.children {
-        collect_throw_types_in(c, out)
-    }
-}
-
 
 priv err_slot_name := func(t: Str) returns Str {
     return format("_err_", t)
