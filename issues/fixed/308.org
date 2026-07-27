@@ -1,0 +1,111 @@
+# priority: medium
+# category: bugs
+** FIXED #308 Interpreted gui programs panic instead of running
+
+Post-mortem
+-----------
+ROOT CAUSE: exactly layer 2 as filed. `mode gui` puts ARCHIVE PATHS in
+link_flags (`link("vendor/raylib/src/libraylib.a")`), and the interpreter's
+ffi_init_link_libs only dlopen'd `-lfoo` sonames. A static archive cannot be
+dlopen'd, and it contributed nothing to bin/til either -- a linker keeps only
+the members the compiler itself references, and the compiler never calls
+raylib -- so dlsym(RTLD_DEFAULT) found no raylib symbol, ffi_register
+registered nothing, and every raylib call fell through to the
+body-less-function path, which returns zero.
+
+That is where layer 1's Value.None came from: `while !WindowShouldClose()`
+asked `not` to narrow a result no call had produced, so the panic named the
+OPERATOR (narrow_bool_arg) instead of the raylib call that came back empty.
+
+FIXED BY b3fc287 ("Make mode gui work in the REPL"), which took the issue's
+second suggestion -- dlopen a shared build -- over --whole-archive'ing the
+vendor libs into bin/til, since that grows the shipped compiler ~2MB for
+something only the interpreter needs. The Makefile builds a loadable twin
+beside each archive (libraylib.a -> libraylib.so, force-linked so every member
+is kept), ffi_load_archive_twin dlopens the twin of any archive a program
+links, and failing to load one is fatal rather than skipped. Layer 1's "make
+the FAILING call loud" landed in the same commit: an ext call with no FFI
+entry now panics naming the function, instead of running as a body-less
+function and answering zero. A COMPILED program still links the .a and stays
+self-contained.
+
+That commit was about the REPL, so it left this issue open and its regression
+test (test/gui_interp.til) covering only what the REPL had exercised: symbol
+reachability (GetRandomValue) and a struct by value into an ext_func
+(ColorToInt). The filed success criteria were verified here (below), and the
+remaining coverage gap closed -- the two idioms hello_gui opens with were
+still untested:
+
+  - a Bool crossing the bridge into `!` (FileExists), the literal shape that
+    produced the reported panic, with a string literal's `.c_str` as the
+    argument (InitWindow's title idiom);
+  - a Color passed by value into an ext_PROC (ImageDrawRectangle) with the
+    pixel read back (GetImageColor), which is what ClearBackground and
+    DrawRectangle do -- ColorToInt covered only the ext_func form.
+
+Both stay windowless and pure CPU, for the reasons in that test's own header:
+requiring a GL context would make it the one test in the suite that fails
+wherever GLFW cannot initialize, and creating a window is also what brings the
+GLFW driver leaks that would force leak detection off.
+
+Both success criteria verified by hand on this branch, under
+`xvfb-run --auto-servernum`:
+
+  - `bin/til interpret examples/hello_gui.til` opens the 800x450 window and
+    runs the frame loop until killed. Rendering was checked, not just
+    startup: the same program with a LoadImageFromScreen + GetImageColor
+    readback reports (230, 41, 55) at a pixel inside the rectangle, so the
+    interpreted DrawRectangle really drew RED. A one-window-one-frame program
+    completes in 1.4s including xvfb startup, so "reasonably fast" holds.
+  - `til repl gui`: InitWindow, `(!WindowShouldClose())` -> true, a draw loop
+    with ClearBackground/DrawRectangle over struct ctors, and CloseWindow all
+    work in one session.
+  - Every other `mode gui` example (snake, chess, checkers, go, minesweeper,
+    game_of_life, popcorn, guitar, piano, music_modes, font_test, shootil,
+    tilminal) also runs interpreted; the only complaints are the sandbox's
+    missing sound card and system fonts.
+
+Without a display, hello_gui segfaults after raylib logs "Failed to
+initialize platform" -- but the COMPILED binary does exactly the same, so that
+is raylib carrying on past a failed InitWindow, not an interpreter bug and not
+part of this issue.
+
+REGRESSION TEST: test/gui_interp.til (interpreted, windowless), extended as
+described above.
+
+Original report
+---------------
+
+  Interpreted gui mode is meant to work (REPL included), but today it
+  dies before drawing anything:
+
+  #+begin_src sh
+  bin/til interpret examples/hello_gui.til
+  # ./src/self/interpreter.til: panic: expected Bool argument
+  # to and/or/not, got Value.None   (narrow_bool_arg)
+  #+end_src
+
+  Two layers to this:
+
+  1. The immediate crash: an and/or/not arg evaluates to Value.None.
+     Likely an ext call whose FFI dispatch failed and quietly yielded
+     None instead of erroring at the failed call -- find it and make
+     the FAILING call loud, then fix the failure itself.
+  2. The structural problem underneath: the interpreter resolves ext
+     symbols by dlsym on the running binary (ffi_global_symbol) plus
+     dlopen'd "-l" libs (ffi_init_link_libs), but bin/til does not
+     contain the raylib/tinyfd symbols at all -- the vendor libs are
+     static archives and nothing in the compiler references their
+     symbols, so the linker extracts no members (verified via nm: zero
+     raylib symbols in bin/til, both before and after the vendor
+     binding imports were dropped from til.til as inert). For
+     interpreted gui FFI to resolve, the symbols must become reachable
+     -- e.g. link the vendor archives into bin/til with
+     --whole-archive (or generated references), or dlopen shared
+     builds of them at interpret time.
+
+  Not covered by the suite because gui interpret is slow, but simple
+  programs like examples/hello_gui.til should work and be reasonably
+  fast. Success criteria: `bin/til interpret examples/hello_gui.til`
+  opens the window and runs, and the same works from a `til repl gui`
+  session.

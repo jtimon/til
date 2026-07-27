@@ -11,10 +11,11 @@ mode gui
 // and the calls fell through to the body-less-function path, which returns
 // zero: InitWindow "succeeded" with no window, GetRandomValue(5, 5) gave 0.
 //
-// The interpreter now relinks archives into one shared object with
-// --whole-archive and dlopens it (ffi_init_archive_shim). This test is
-// INTERPRETED on purpose -- every other gui test builds first, which is
-// exactly why the interpreted path stayed broken with a green suite.
+// The Makefile now relinks each archive into a shared twin beside it with
+// --whole-archive, and the interpreter dlopens that twin
+// (ffi_load_archive_twin). This test is INTERPRETED on purpose -- every other
+// gui test builds first, which is exactly why the interpreted path stayed
+// broken with a green suite.
 //
 // It deliberately opens NO window. What regressed is symbol reachability and
 // libffi dispatch, not rendering, and every raylib entry point used here is
@@ -45,5 +46,42 @@ main := proc() {
     expected : I32 = 0x11223344
     if packed != expected {
         panic("raylib ColorToInt did not receive the Color by value, got: ", packed.to_str())
+    }
+
+    // #308: a Bool coming back across the bridge, feeding `!`. That is what
+    // `while !WindowShouldClose()` does in examples/hello_gui.til, and it was
+    // the first thing the interpreter hit there: an ext call that produced no
+    // value at all left `not` with a Value.None argument, and the panic named
+    // narrow_bool_arg -- the operator, not the raylib call that came back
+    // empty. FileExists is the windowless stand-in: same `returns shallow
+    // Bool` ext_proc, and the argument is a string literal's `.c_str`, the
+    // other idiom every gui example opens with (InitWindow's title).
+    if !FileExists("test/gui_interp.til".c_str) {
+        panic("raylib FileExists did not find this very file")
+    }
+    if FileExists("test/no_such_file.til".c_str) {
+        panic("raylib FileExists invented a file that does not exist")
+    }
+
+    // The drawing idiom, on the CPU. ColorToInt above is an ext_FUNC;
+    // ClearBackground and DrawRectangle are ext_PROCs taking a Color by
+    // value, and both need a GL context. ImageDrawRectangle is their
+    // in-memory twin -- same struct-by-value argument, no window -- and
+    // GetImageColor reads the result back, so a Color that arrived garbled
+    // shows up as the wrong pixel instead of passing unnoticed.
+    black := Color(r = 0, g = 0, b = 0, a = 255)
+    red := Color(r = 230, g = 41, b = 55, a = 255)
+    mut canvas := GenImageColor(8, 8, black)
+    ImageDrawRectangle(canvas, 2, 2, 4, 4, red)
+    inside := GetImageColor(canvas, 3, 3)
+    outside := GetImageColor(canvas, 0, 0)
+    UnloadImage(canvas)
+    if ColorToInt(inside) != ColorToInt(red) {
+        panic("raylib ImageDrawRectangle did not receive the Color by value, got: ",
+              inside.r.to_str(), ",", inside.g.to_str(), ",", inside.b.to_str())
+    }
+    if ColorToInt(outside) != ColorToInt(black) {
+        panic("raylib GenImageColor did not receive the Color by value, got: ",
+              outside.r.to_str(), ",", outside.g.to_str(), ",", outside.b.to_str())
     }
 }

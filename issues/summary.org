@@ -1,6 +1,5 @@
 * Bugs
 ** Medium
-*** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
 *** [[./open/324.org][#324]] A `ref` FIELD can be passed to an `own` parameter (ownership hole)
 *** [[./open/327.org][#327]] Builder ident queries match by NAME, so a local can be mistaken for a same-named param
 * Cleanups
