@@ -1099,11 +1099,74 @@ let the ownership pass insert temps itself; start with the check.
     back to back), with emitted C byte-identical for the whole corpus,
     the gc_audit golden unchanged and make clean && make test 193/193
     with ASAN.
-  - [ ] Stage 3 (rest): audit insert_post_stmt_deletes' own_transfer
-    uses (transfer-SITE specific -- "the transfer happens at THIS
-    statement" -- rather than the positional liveness the three exit
-    sites used, so it is not the same mechanical migration);
-    then delete the index-model special cases
+  - [X] 2026-07-27 CORRECTION, and the process failure behind it. The
+    "emitted C byte-identical for the whole corpus" referee quoted in
+    the three stage-3 verdict commits WAS NOT MEASURING THAT. `til
+    translate` writes the C to gen/til/<name>.c and prints only a
+    "Generated: ..." banner on stdout; the comparison loop diffed the
+    banners, so it reported ALLSAME for every run no matter what the
+    compilers emitted. The correct form copies gen/til/<name>.c aside
+    between the two runs:
+        for f in test/*.til examples/*.til src/til.til; do
+          base=$(basename "$f" .til)
+          old translate "$f" >/dev/null 2>&1; cp gen/til/$base.c A.c
+          new translate "$f" >/dev/null 2>&1; cmp -s A.c gen/til/$base.c \
+            || echo "DIFF $f"
+        done
+    and to isolate ONE commit it must run between compilers built from
+    that commit and its parent (git show <sha>:boot/... + src/c/...,
+    compiled like the Makefile's til_boot rule) -- master's own commits
+    in between change emitted C on purpose, so a comparison across a
+    range proves nothing.
+    Re-run properly, the three commits split: a8bef0a (the last exit
+    site) IS byte-identical against its parent, but d2f1ae0 (the
+    nested-exit gates) added two `free(arg_raw)` calls to the
+    constfolder in the compiler's own C -- a REAL DEFECT, fixed here.
+    ROOT CAUSE: the migrated gate stood down on Moved, Uninit and
+    Unreached but let MIXED through as "live". Mixed means some path
+    still owns the binding and another already moved it, and an exit
+    delete is UNCONDITIONAL code on whatever path reaches it, so
+    emitting one there double-frees the moved paths. The positional
+    rule it replaced (`own_transfer <= stmt_idx`) stood down on ANY
+    transfer at or before the statement, conditional included, so it
+    leaked instead -- the safe direction. Only "owned on EVERY path"
+    licenses an exit free; the partial-transfer case is the sink's job,
+    which grafts per-path deletes. Both migrated gates now test
+    FLOW_OWNED exactly, which removes precisely those two lines and
+    nothing else.
+    NO MINIMAL REGRESSION TEST: the shape needs a binding that is
+    conditionally transferred and still LIVE at a later exit, and a
+    textual use there is rejected outright ("use of 'x' after ownership
+    transfer") unless every transferring path diverges. The
+    constfolder's arg_raw reaches it only because the lifetime
+    machinery extends last_use past the exit without a textual use, and
+    a raw-alloc imitation gets filtered by the liveness gate instead.
+    The standing guard is therefore the corrected referee above run on
+    src/til.til, which is what caught this.
+  - [X] 2026-07-27 Stage 3 audit DONE: insert_post_stmt_deletes'
+    own_transfer uses are NOT a mechanical migration, and should stay.
+    Two distinct uses. (1) `own_transfer >= 0 -> continue` stands the
+    ordinary last-use delete down for any transferred binding; its
+    correctness is established UPSTREAM, by check_use_after_own_transfer
+    (which clears own_transfer when every transferring path diverged, so
+    the binding falls through to the normal delete) plus the sink (which
+    grafts per-path deletes for the Mixed case). Swapping it for a state
+    lookup would need the state at the statement's EXIT, not its entry,
+    and would emit a post-statement delete where the sink currently
+    grafts -- different C, both correct, no reason to churn. (2) The two
+    `own_transfer == stmt_idx` tests ask "is THIS statement the
+    transfer", which is transfer-SITE IDENTITY, not an ownership state:
+    the lattice records what is true at a point, not which statement
+    made it true, so there is nothing to migrate to.
+    Also probed while auditing: every local the dataflow calls Mixed at
+    scope exit IS grafted by the sink -- a probe over src/til.til, all
+    tests and all examples reported zero locals that reach a Mixed
+    verdict and get no graft, including zero hits on the
+    transfer_lex_inside_while exemption (a guard for a shape the corpus
+    no longer produces; kept, since the hazard it names -- a transfer
+    belonging to a different ITERATION than the grafted path -- is real
+    and outside what a single per-body flow view can express).
+  - [ ] Stage 3 (rest): delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).

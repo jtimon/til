@@ -1385,7 +1385,16 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // main()'s non-Own params: the builder heap-allocates their
         // wrappers from argv[] and there is no caller to free them, so
         // they need a scope-end delete despite the Ref default.
+        //
+        // SHALLOW params are excluded, because the builder does NOT
+        // heap-allocate those: a scalar CLI param is parsed straight
+        // into a C value (`I8 a = ...` in the main prologue). Calling
+        // them heap boxes made the pass emit a call_free=1 destructor
+        // for a stack value, which emit_as_ptr could only satisfy by
+        // boxing it first -- a malloc, a copy and a free per scalar
+        // param, to run `if (call_free) free(self);` on the copy.
         main_cli_param := ctx.typer_in_main_func.and(b.is_param)
+            .and(b.own_type.is(OwnType.Shallow).not())
         if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
         if skip_scope_delete.not() {
             if aliased_by_returned_ref(body, b.name) { skip_scope_delete = true }
@@ -2028,9 +2037,23 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
         // final statement, leaked by earlier `return mcall` paths).
         // `decl_index < stmt_idx` is Uninit. Unreached means no path
         // arrives here at all.
+        //
+        // MIXED stands down too, and that is not conservatism -- it is
+        // the only sound answer. An exit delete is UNCONDITIONAL code on
+        // whatever path reaches it, so emitting one where some paths
+        // still own the binding and others already moved it double-frees
+        // the moved ones. Only "owned on EVERY path" licenses the free;
+        // the partial-transfer case is the sink's job, which grafts
+        // per-path deletes instead. (Landed without this in d2f1ae0: the
+        // constfolder's `arg_raw`, conditionally consumed by
+        // `EvalHeap.heap_free(own arg_raw)` and then read past an early
+        // `return NULL`, got a `free(arg_raw)` on that exit -- a double
+        // free on the prim path. Latent, since nothing in the suite
+        // reaches that return, and invisible because the pass-diff
+        // referee used to compare the wrong files.)
         mut st : U8 = FLOW_UNREACHED
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
-        if st.eq(FLOW_MOVED).or(st.eq(FLOW_UNINIT)).or(st.eq(FLOW_UNREACHED)) { continue }
+        if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
             live_vec.push(own local.clone())
         }
@@ -2096,10 +2119,12 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         // before the transfer still OWNS the local, which is why the
         // positional form had to compare rather than just test), Uninit
         // for `decl_index < stmt_idx`, and Unreached for a statement no
-        // path arrives at.
+        // path arrives at. Mixed stands down for the same reason as
+        // there: an unconditional free where only some paths still own
+        // the binding double-frees the others.
         mut st : U8 = FLOW_UNREACHED
         st = root_flow[li.mul(root_stmts).add(stmt_idx)]
-        if st.eq(FLOW_MOVED).or(st.eq(FLOW_UNINIT)).or(st.eq(FLOW_UNREACHED)) { continue }
+        if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
             if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
                 del := gc_make_delete(local, stmt)
