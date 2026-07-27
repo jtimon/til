@@ -346,6 +346,7 @@ typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager
 typedef struct priv___src_self_garbager_til__StmtFacts priv___src_self_garbager_til__StmtFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__I32 Vec__I32;
+typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__StmtFacts Vec__StmtFacts;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
@@ -956,6 +957,12 @@ typedef struct Vec__I32 {
     USize count;
     USize cap;
 } Vec__I32;
+
+
+typedef struct Array__USize {
+    U8 *data;
+    USize cap;
+} Array__USize;
 
 
 typedef struct Array__U8 {
@@ -3034,8 +3041,9 @@ void priv___src_self_garbager_til__cfg_build(Vec__GcCfgBlock * blocks, Expr * bo
 void priv___src_self_garbager_til__gc_cfg_dump(Context * ctx, Expr * body, Vec__GcCfgBlock * blocks);
 U8 priv___src_self_garbager_til__gc_flow_meet(U8 a, U8 b);
 Str * priv___src_self_garbager_til__gc_flow_letter(U8 s);
+U8 priv___src_self_garbager_til__gc_flow_stmt_const(Expr * stmt, Str * name, TypeScope * scope, Context * ctx);
 U8 priv___src_self_garbager_til__gc_flow_stmt_effect(Expr * stmt, Str * name, U8 state, TypeScope * scope, Context * ctx);
-U8 priv___src_self_garbager_til__gc_flow_block_out(Vec__GcCfgBlock * blocks, USize bid, Str * name, U8 state_in, TypeScope * scope, Context * ctx);
+U8 priv___src_self_garbager_til__gc_flow_block_kill(Vec__GcCfgBlock * blocks, USize bid, Str * name, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__gc_flow_solve(Vec__GcCfgBlock * blocks, U8 entry_state, Str * name, TypeScope * scope, Context * ctx, Array__U8 * ins, Array__U8 * outs);
 Bool priv___src_self_garbager_til__gc_flow_exit_is_mixed(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__gc_flow_owned_at_stmt(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx, I32 stmt_idx);
@@ -3103,6 +3111,14 @@ I32 * Vec__I32_get(Vec__I32 * self, USize * i, I64 * _err_kind);
 void Vec__I32_delete(Vec__I32 * self, Bool call_free);
 Vec__I32 * Vec__I32_clone(Vec__I32 * self);
 USize Vec__I32_size(void);
+Array__USize * Array__USize_new(USize cap);
+USize * Array__USize_unsafe_get(Array__USize * self, USize * i);
+USize * Array__USize_get(Array__USize * self, USize * i, I64 * _err_kind);
+void Array__USize_unsafe_set(Array__USize * self, USize i, USize * val);
+void Array__USize_set(Array__USize * self, USize i, USize * val, I64 * _err_kind);
+void Array__USize_delete(Array__USize * self, Bool call_free);
+Array__USize * Array__USize_clone(Array__USize * self);
+USize Array__USize_size(void);
 Array__U8 * Array__U8_new(USize cap);
 U8 * Array__U8_unsafe_get(Array__U8 * self, USize * i);
 U8 * Array__U8_get(Array__U8 * self, USize * i, I64 * _err_kind);
@@ -4395,6 +4411,7 @@ extern U8 priv___src_self_garbager_til__FLOW_UNINIT;
 extern U8 priv___src_self_garbager_til__FLOW_OWNED;
 extern U8 priv___src_self_garbager_til__FLOW_MOVED;
 extern U8 priv___src_self_garbager_til__FLOW_MIXED;
+extern U8 priv___src_self_garbager_til__FLOW_ID;
 extern U8 priv___src_self_scavenger_til__MARK_DELETE;
 extern U8 priv___src_self_scavenger_til__MARK_REPLACE_RHS;
 extern Str REPL_DOC_INDEX;

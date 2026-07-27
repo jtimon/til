@@ -560,23 +560,42 @@ priv gc_flow_letter := func(s: U8) returns Str {
     return "U"
 }
 
-priv gc_flow_stmt_effect := func(stmt: Expr, name: Str, state: U8, scope: TypeScope, ctx: Context) returns U8 {
+// A statement's transfer function is either the identity or a CONSTANT
+// (it sets the state outright), so it is fully described by one value:
+// FLOW_ID for identity, otherwise the state it installs. That property
+// is what makes the per-block precomputation below exact -- composing
+// identity-or-constant functions yields identity-or-constant, namely
+// the last constant in the block, or identity when there is none.
+priv FLOW_ID : U8 = 0
+
+priv gc_flow_stmt_const := func(stmt: Expr, name: Str, scope: TypeScope, ctx: Context) returns U8 {
     // Decl-or-reassign checked first: `s = consume(own s)` transfers in
     // the RHS and re-owns in the same statement, net Owned.
     if expr_contains_decl(stmt, name) { return FLOW_OWNED }
     if expr_reassigns_var(stmt, name) { return FLOW_OWNED }
     if expr_transfers_own(stmt, name, scope, ctx) { return FLOW_MOVED }
-    return state
+    return FLOW_ID
 }
 
-priv gc_flow_block_out := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, state_in: U8, scope: TypeScope, ctx: Context) returns U8 {
+priv gc_flow_stmt_effect := func(stmt: Expr, name: Str, state: U8, scope: TypeScope, ctx: Context) returns U8 {
+    c := gc_flow_stmt_const(stmt, name, scope, ctx)
+    if c == FLOW_ID { return state }
+    return c
+}
+
+// The block's composed transfer function for `name` (see FLOW_ID). The
+// solver evaluates this ONCE per block instead of re-walking the
+// block's statements on every sweep -- the walk asks
+// expr_contains_decl / expr_reassigns_var / expr_transfers_own, three
+// subtree scans per statement, which dominated the fixpoint.
+priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, scope: TypeScope, ctx: Context) returns U8 {
     ref b : GcCfgBlock = blocks[bid]
     switch b.body {
     case Option(ref Expr).None:
         // Synthetic exit block: no statements, state passes through.
-        return state_in
+        return FLOW_ID
     case Option(ref Expr).Some(bbody):
-        mut st := state_in
+        mut k := FLOW_ID
         mut j := b.start
         while j < b.end {
             ref stmt : Expr = bbody.children[j.to_usize()]
@@ -592,26 +611,51 @@ priv gc_flow_block_out := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, s
                 // Only the condition/subject evaluates here; a bare Body
                 // contributes nothing at the tail.
                 if stmt.node_type.is(NodeType.Body).not().and(stmt.children.len().gt(0)) {
-                    st = gc_flow_stmt_effect(stmt.children[0], name, st, scope, ctx)
+                    c := gc_flow_stmt_const(stmt.children[0], name, scope, ctx)
+                    if c.neq(FLOW_ID) { k = c }
                 }
             } else {
-                st = gc_flow_stmt_effect(stmt, name, st, scope, ctx)
+                c := gc_flow_stmt_const(stmt, name, scope, ctx)
+                if c.neq(FLOW_ID) { k = c }
             }
             j = j.add(1)
         }
-        return st
+        return k
     }
 }
 
 // Naive fixpoint: sweep until stable. States only descend the lattice
 // (Unreached -> concrete -> Mixed) and effects are deterministic, so
 // this converges; the guard is a loud backstop, not control flow.
+//
+// Both per-sweep costs are hoisted out of the loop. The predecessor
+// sets used to be rediscovered by rescanning every block's successor
+// list for every block, on every sweep (O(V^2) per sweep, and the
+// single hottest thing in a self-translate profile: 122M Vec(I32)
+// reads); they are now built once into a flat pred_off/preds pair. The
+// per-block transfer function is likewise computed once (see
+// gc_flow_block_kill), which turns the sweep body into pure state
+// arithmetic.
 priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, scope: TypeScope, ctx: Context, mut ins: Array(U8), mut outs: Array(U8)) {
     n := blocks.len()
+    mut kill := Array(U8).new(n)
     for i in 0..n {
         ins[i] = FLOW_UNREACHED
         outs[i] = FLOW_UNREACHED
+        kill[i] = gc_flow_block_kill(blocks, i, name, scope, ctx)
     }
+    mut pred_off := Array(USize).new(n.add(1))
+    mut preds := Vec(USize).new()
+    for bi in 0..n {
+        pred_off[bi] = preds.len()
+        for p in 0..n {
+            ref pb : GcCfgBlock = blocks[p]
+            for k in 0..pb.succs.len() {
+                if pb.succs[k].to_usize() == bi { preds.push(own p) }
+            }
+        }
+    }
+    pred_off[n] = preds.len()
     mut changed := true
     mut guard := 0
     while changed {
@@ -619,15 +663,13 @@ priv gc_flow_solve := func(blocks: Vec(GcCfgBlock), entry_state: U8, name: Str, 
         for bi in 0..n {
             mut inm := FLOW_UNREACHED
             if bi == 1 { inm = entry_state }
-            for p in 0..n {
-                ref pb : GcCfgBlock = blocks[p]
-                for k in 0..pb.succs.len() {
-                    if pb.succs[k].to_usize() == bi { inm = gc_flow_meet(inm, outs[p]) }
-                }
+            for pi in pred_off[bi]..pred_off[bi.add(1)] {
+                inm = gc_flow_meet(inm, outs[preds[pi]])
             }
             mut newout := FLOW_UNREACHED
             if inm.neq(FLOW_UNREACHED) {
-                newout = gc_flow_block_out(blocks, bi, name, inm, scope, ctx)
+                newout = inm
+                if kill[bi].neq(FLOW_ID) { newout = kill[bi] }
             }
             if inm.neq(ins[bi]) {
                 ins[bi] = inm

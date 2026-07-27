@@ -988,6 +988,40 @@ let the ownership pass insert temps itself; start with the check.
     from a deeper branch, and two conditional transfers of the same
     local on disjoint branches -- all ASAN-clean, pinning the shapes the
     index model cannot represent but the current insertion still handles
+  - [X] 2026-07-27 Stage 3: the flow engine is CHEAP now, which is the
+    precondition the negative result above named. gprof on a
+    self-translate put gc_flow_solve's subtree at 15.8% of total
+    runtime from only 8344 calls (all but 12 from the sink's
+    gc_flow_exit_is_mixed), spent on two things the fixpoint repeated
+    every sweep: rediscovering predecessors by rescanning every
+    block's successor list for every block (O(V^2) per sweep -- 122M
+    Vec(I32) reads, the single hottest garbager line), and re-walking
+    each block's statements to recompute its transfer function (three
+    subtree scans per statement per sweep, via expr_contains_decl /
+    expr_reassigns_var / expr_transfers_own). Both are loop-invariant
+    and now hoisted. The block precomputation is exact rather than
+    approximate because of a property worth writing down: a
+    statement's transfer function is either the IDENTITY or a
+    CONSTANT (it installs Owned or Moved outright), and that class is
+    closed under composition -- a block's composed function is just
+    its last constant, or identity if it has none. So one value per
+    block (gc_flow_block_kill, FLOW_ID for identity) replaces the
+    per-sweep walk, and the sweep body becomes pure state arithmetic
+    over a flat pred_off/preds pair built once.
+    Result: self-translate 47.6s -> 32.4s, a 32% cut, with emitted C
+    BYTE-IDENTICAL for every test/*.til, examples/*.til and
+    src/til.til (old compiler vs new) and the gc_audit golden
+    unchanged -- the dataflow's answers are the same, it just stops
+    recomputing them. make clean && make test 189/189 with ASAN. A
+    re-profile shows gc_flow_solve gone from the top of the flat
+    profile entirely; what remains there (Str_cmp under Map gets,
+    NodeType_delete, Expr_til_type) is general runtime, not garbager
+    machinery. This removes the cost objection to the exit-site
+    migration: what still blocks it is that insert_exit_deletes runs
+    INSIDE the mutation loop (per top-level statement, on nested body
+    views, after the sink has grafted) and empties body.children via
+    move_from, so a per-body solve cannot simply be hoisted the way
+    this one was -- the "keep the body alive past move_from" wrinkle.
   - [ ] Stage 3 (rest): move the remaining insertion sites
     (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
     onto the same verdict; then delete the index-model special cases
