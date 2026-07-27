@@ -50,7 +50,6 @@ priv require_mode := func(ctx: Context, path: Str, mode_name: Str) returns ref M
     case Option(ref Mode).Some(resolved): return resolved
     case Option(ref Mode).None:
         panic(": unknown mode '", mode_name, "'", loc = path)
-        return NULL
     }
 }
 
@@ -592,25 +591,26 @@ priv DeclRef := struct {
     idx : USize = 0
 }
 
-priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns ref Expr {
+priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns Option(ref Expr) {
     dot := name.find(".")
-    if dot < 0 { return NULL }
+    if dot < 0 { return Option(ref Expr).None }
     type_part := name.substr(0, dot.to_usize())
-    if top.has(type_part).not() { return NULL }
+    if top.has(type_part).not() { return Option(ref Expr).None }
     ref dr : DeclRef = top[type_part]
     ref iu : ImportUnit = ctx.imported[dr.path]
     ref tdecl : Expr = iu.ast.children[dr.idx]
-    if tdecl.node_type.is(NodeType.Decl).not() { return NULL }
-    if is_struct_or_enum(tdecl).not() { return NULL }
+    if tdecl.node_type.is(NodeType.Decl).not() { return Option(ref Expr).None }
+    if is_struct_or_enum(tdecl).not() { return Option(ref Expr).None }
     dot_u := dot.to_usize()
     method_part := name.substr(dot_u + 1, name.len().sub(dot_u) - 1)
-    ref nsd : Declaration = def_ns_get(tdecl.children[0], method_part)
-    if nsd.is_null().not() {
+    nsd_o := def_ns_get(tdecl.children[0], method_part)
+    if nsd_o.is_some() {
+        ref nsd : Declaration = nsd_o.unwrap()
         if nsd.default_value.is_null().not() {
-            return nsd.default_value
+            return Option(ref Expr).Some(nsd.default_value)
         }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
@@ -865,13 +865,13 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // identifiers it references stay reachable -- otherwise
         // `fnv1a` gets pruned and the init `HashMap_hasher = (void
         // *)fnv1a` in main() references an undeclared symbol.
-        ref ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, top, name)
-        if ns_fdef.is_null().not() {
-            collect_refs(ns_fdef, worklist)
+        ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
+        if ns_fdef_o.is_some() {
+            collect_refs(ns_fdef_o.unwrap(), worklist)
         }
-        ref core_ns_fdef : Expr = find_ns_decl_fdef_imported(lp.ctx, core_top, name)
-        if core_ns_fdef.is_null().not() {
-            collect_refs(core_ns_fdef, worklist)
+        core_ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, core_top, name)
+        if core_ns_fdef_o.is_some() {
+            collect_refs(core_ns_fdef_o.unwrap(), worklist)
         }
     }
     return visited
@@ -2567,20 +2567,20 @@ priv lazy_count_tail_splat_calls := func(e: Expr, tail_name: Str) returns USize 
 
 // The Match node of a recursive variadic lazy body `{ return match <vname>
 // { ... } }`, or NULL when the body does not have that outer shape.
-priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns ref Expr {
-    if body.node_type.is(NodeType.Body).not() { return NULL }
-    if body.children.len() != 1 { return NULL }
+priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns Option(ref Expr) {
+    if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
+    if body.children.len() != 1 { return Option(ref Expr).None }
     ref ret : Expr = body.children[0]
-    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return NULL }
+    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return Option(ref Expr).None }
     ref m : Expr = ret.children[0]
-    if m.node_type.is(NodeType.Match).not() { return NULL }
-    if m.children.len() != 3 { return NULL }   // scrutinee + exactly 2 cases
+    if m.node_type.is(NodeType.Match).not() { return Option(ref Expr).None }
+    if m.children.len() != 3 { return Option(ref Expr).None }   // scrutinee + exactly 2 cases
     switch m.children[0].node_type {
     case NodeType.Ident(scrn):
-        if scrn.ident_name().eq(vname).not() { return NULL }
-    case: return NULL
+        if scrn.ident_name().eq(vname).not() { return Option(ref Expr).None }
+    case: return Option(ref Expr).None
     }
-    return m
+    return Option(ref Expr).Some(m)
 }
 
 // The Case child of `m` whose pattern is a ListPattern with `arity` children
@@ -2588,7 +2588,7 @@ priv lazy_recursive_body_match := func(body: Expr, vname: Str) returns ref Expr 
 // (3-child Case) disqualifies the arm, as does an arm body that is not the
 // parser's single-value Body wrapper (match arms parse as [pattern,
 // Body(value)] -- see parse_case_head's caller in parse_primary).
-priv lazy_recursive_arm := func(m: Expr, arity: USize) returns ref Expr {
+priv lazy_recursive_arm := func(m: Expr, arity: USize) returns Option(ref Expr) {
     for i in 1..m.children.len() {
         ref cs : Expr = m.children[i]
         if cs.node_type.is(NodeType.Case).not() { continue }
@@ -2597,11 +2597,11 @@ priv lazy_recursive_arm := func(m: Expr, arity: USize) returns ref Expr {
         if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
             ref ab : Expr = cs.children[1]
             if ab.node_type.is(NodeType.Body).and(ab.children.len().eq(1)) {
-                return cs
+                return Option(ref Expr).Some(cs)
             }
         }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
 // The value expression of a recursive arm: unwrap the parser's single-value
@@ -2621,44 +2621,45 @@ priv lazy_recursive_arm_value := func(arm: Expr) returns ref Expr {
 //       if x.not() { return false }
 //       return vand(..tl)
 //   }
-priv lazy_recursive_body_switch := func(body: Expr, vname: Str) returns ref Expr {
-    if body.node_type.is(NodeType.Body).not() { return NULL }
-    if body.children.len() != 1 { return NULL }
+priv lazy_recursive_body_switch := func(body: Expr, vname: Str) returns Option(ref Expr) {
+    if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
+    if body.children.len() != 1 { return Option(ref Expr).None }
     ref sw : Expr = body.children[0]
-    if sw.node_type.is(NodeType.Switch).not() { return NULL }
-    if sw.children.len() != 3 { return NULL }   // scrutinee + exactly 2 cases
+    if sw.node_type.is(NodeType.Switch).not() { return Option(ref Expr).None }
+    if sw.children.len() != 3 { return Option(ref Expr).None }   // scrutinee + exactly 2 cases
     switch sw.children[0].node_type {
     case NodeType.Ident(scrn):
-        if scrn.ident_name().eq(vname).not() { return NULL }
-    case: return NULL
+        if scrn.ident_name().eq(vname).not() { return Option(ref Expr).None }
+    case: return Option(ref Expr).None
     }
-    return sw
+    return Option(ref Expr).Some(sw)
 }
 
 // The Case child of switch `sw` whose pattern is a ListPattern with `arity`
 // children. Unlike the match form, the arm body is a statement list: the base
 // arm must be a single `return <expr>` and the cons arm an inlinable guard
 // chain -- both enforced by the callers.
-priv lazy_recursive_switch_arm := func(sw: Expr, arity: USize) returns ref Expr {
+priv lazy_recursive_switch_arm := func(sw: Expr, arity: USize) returns Option(ref Expr) {
     for i in 1..sw.children.len() {
         ref cs : Expr = sw.children[i]
         if cs.node_type.is(NodeType.Case).not() { continue }
         if cs.children.len() != 2 { continue }
         ref pat : Expr = cs.children[0]
         if pat.node_type.is(NodeType.ListPattern).and(pat.children.len().eq(arity)) {
-            if cs.children[1].node_type.is(NodeType.Body) { return cs }
+            if cs.children[1].node_type.is(NodeType.Body) { return Option(ref Expr).Some(cs) }
         }
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
 // The single `return <expr>` value of a switch-form base arm, else NULL.
-priv lazy_recursive_switch_base_value := func(arm: Expr) returns ref Expr {
+priv lazy_recursive_switch_base_value := func(arm: Expr) returns Option(ref Expr) {
     ref b : Expr = arm.children[1]
-    if b.children.len() != 1 { return NULL }
+    if b.children.len() != 1 { return Option(ref Expr).None }
     ref ret : Expr = b.children[0]
-    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return NULL }
-    return ret.children[0]
+    if ret.node_type.is(NodeType.Return).not().or(ret.children.len() != 1) { return Option(ref Expr).None }
+    ref bv : Expr = ret.children[0]
+    return Option(ref Expr).Some(bv)
 }
 
 // Shared head/tail + hygiene rules for both recursive forms: distinct
@@ -2714,24 +2715,30 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
         for j in 0..fd.params.len() - 1 { fixed_names.push(own fd.params[j].name.clone()) }
     case: return false
     }
-    ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
-    if m.is_null().not() {
-        ref base_arm : Expr = lazy_recursive_arm(m, 0)
-        ref cons_arm : Expr = lazy_recursive_arm(m, 2)
-        if base_arm.is_null().or(cons_arm.is_null()) { return false }
+    m_o := lazy_recursive_body_match(fdef.children[0], vname)
+    if m_o.is_some() {
+        ref m : Expr = m_o.unwrap()
+        base_arm_o := lazy_recursive_arm(m, 0)
+        cons_arm_o := lazy_recursive_arm(m, 2)
+        if base_arm_o.is_none().or(cons_arm_o.is_none()) { return false }
+        ref base_arm : Expr = base_arm_o.unwrap()
+        ref cons_arm : Expr = cons_arm_o.unwrap()
         return lazy_recursive_hygiene_ok(cons_arm.children[0], vname, fixed_names,
             lazy_recursive_arm_value(base_arm), lazy_recursive_arm_value(cons_arm))
     }
     // The statement (if/else) form: `switch xs { case []: ... case [h, ..t]:
     // ... }` with a single-return base arm and an inlinable-guard-chain cons
     // arm (the guards splice as nested short-circuit matches at unroll time).
-    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname)
-    if sw.is_null() { return false }
-    ref sbase : Expr = lazy_recursive_switch_arm(sw, 0)
-    ref scons : Expr = lazy_recursive_switch_arm(sw, 2)
-    if sbase.is_null().or(scons.is_null()) { return false }
-    ref sbase_val : Expr = lazy_recursive_switch_base_value(sbase)
-    if sbase_val.is_null() { return false }
+    sw_o := lazy_recursive_body_switch(fdef.children[0], vname)
+    if sw_o.is_none() { return false }
+    ref sw : Expr = sw_o.unwrap()
+    sbase_o := lazy_recursive_switch_arm(sw, 0)
+    scons_o := lazy_recursive_switch_arm(sw, 2)
+    if sbase_o.is_none().or(scons_o.is_none()) { return false }
+    ref scons : Expr = scons_o.unwrap()
+    sbase_val_o := lazy_recursive_switch_base_value(sbase_o.unwrap())
+    if sbase_val_o.is_none() { return false }
+    ref sbase_val : Expr = sbase_val_o.unwrap()
     if lazy_body_inlinable(scons.children[1]).not() { return false }
     return lazy_recursive_hygiene_ok(scons.children[0], vname, fixed_names,
         sbase_val, scons.children[1])
@@ -2847,20 +2854,23 @@ priv inline_recursive_variadic_lazy_call := func(mut parent: Expr, call_idx: USi
 
     // Both forms share the expansion; they differ only in where the base
     // value and cons region live (match arm values vs switch arm bodies).
-    ref m : Expr = lazy_recursive_body_match(fdef.children[0], vname)
-    if m.is_null().not() {
-        ref base_arm : Expr = lazy_recursive_arm(m, 0)
-        ref cons_arm : Expr = lazy_recursive_arm(m, 2)
+    // lazy_recursive_variadic_def already matched one of the two shapes
+    // and checked both arms, so every lookup below hits.
+    m_o := lazy_recursive_body_match(fdef.children[0], vname)
+    if m_o.is_some() {
+        ref m : Expr = m_o.unwrap()
+        ref base_arm : Expr = lazy_recursive_arm(m, 0).unwrap()
+        ref cons_arm : Expr = lazy_recursive_arm(m, 2).unwrap()
         lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
             eff_count, nfixed, lazy_recursive_arm_value(base_arm),
             lazy_recursive_arm_value(cons_arm), false, cons_arm.children[0])
         return true
     }
-    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname)
-    ref sbase : Expr = lazy_recursive_switch_arm(sw, 0)
-    ref scons : Expr = lazy_recursive_switch_arm(sw, 2)
+    ref sw : Expr = lazy_recursive_body_switch(fdef.children[0], vname).unwrap()
+    ref sbase : Expr = lazy_recursive_switch_arm(sw, 0).unwrap()
+    ref scons : Expr = lazy_recursive_switch_arm(sw, 2).unwrap()
     lazy_finish_recursive_inline(parent, call_idx, fdef, self_name, is_method,
-        eff_count, nfixed, lazy_recursive_switch_base_value(sbase),
+        eff_count, nfixed, lazy_recursive_switch_base_value(sbase).unwrap(),
         scons.children[1], true, scons.children[0])
     return true
 }
@@ -2976,34 +2986,34 @@ priv lazy_make_assign := func(name: Str, own rhs: Expr, line: U32, col: U32) ret
 // The fdef of a statement-inlinable lazy call at `call`, else NULL: a call to
 // a lazy callable whose body is NOT expression-inlinable but IS statement-
 // inlinable, with matching arity.
-priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context) returns ref Expr {
-    if call.node_type.is(NodeType.FCall).not() { return NULL }
-    if call.children.len() == 0 { return NULL }
+priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context) returns Option(ref Expr) {
+    if call.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
+    if call.children.len() == 0 { return Option(ref Expr).None }
     mut lname := ""
     switch call.children[0].node_type {
     case NodeType.Ident(idn): lname = Str.clone(idn.ident_name())
     case NodeType.FieldAccess(fa): lname = Str.clone(fa.field_access_name())
     case:
     }
-    if lname.len() == 0 { return NULL }
+    if lname.len() == 0 { return Option(ref Expr).None }
     // A name in ctx.generic_funcs is a monomorphized-and-DROPPED top-level
     // generic: init_expand_generic_funcs freed its FuncDef, so
     // scope.lookup_func(name) hands back a dangling pointer -- the same
     // documented guard init_lookup_type_gen_macro carries. Reached here via
     // a METHOD call sharing a generic's name (p.swap() vs core swap, #302:
     // heap-use-after-free in func_def_type).
-    if ctx.generic_funcs.has(lname) { return NULL }
+    if ctx.generic_funcs.has(lname) { return Option(ref Expr).None }
     fdef_o := scope.lookup_func(lname)
-    if fdef_o.is_none() { return NULL }
+    if fdef_o.is_none() { return Option(ref Expr).None }
     ref fdef : Expr = fdef_o.unwrap()
     ft := func_def_type(fdef)
-    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { return NULL }
-    if fdef.children.len() == 0 { return NULL }
+    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { return Option(ref Expr).None }
+    if fdef.children.len() == 0 { return Option(ref Expr).None }
     ref body : Expr = fdef.children[0]
-    if lazy_body_inlinable(body) { return NULL }
-    if lazy_body_stmt_inlinable(body).not() { return NULL }
-    if lazy_call_arity_ok(call, fdef).not() { return NULL }
-    return fdef
+    if lazy_body_inlinable(body) { return Option(ref Expr).None }
+    if lazy_body_stmt_inlinable(body).not() { return Option(ref Expr).None }
+    if lazy_call_arity_ok(call, fdef).not() { return Option(ref Expr).None }
+    return fdef_o
 }
 
 // Build `mut _lzr_N : R = default` + `{ <prelude>; _lzr_N = <tail> }`, push
@@ -3049,13 +3059,13 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) retu
 
 // The value-position child of a statement that could hold a lazy call (a
 // Decl RHS or a Return operand), else NULL.
-priv lazy_stmt_value_slot := func(s: Expr) returns ref Expr {
+priv lazy_stmt_value_slot := func(s: Expr) returns Option(ref Expr) {
     switch s.node_type {
-    case NodeType.Decl:   if s.children.len() > 0 { return s.children[0] }
-    case NodeType.Return: if s.children.len() > 0 { return s.children[0] }
+    case NodeType.Decl:   if s.children.len() > 0 { ref d0 : Expr = s.children[0] return Option(ref Expr).Some(d0) }
+    case NodeType.Return: if s.children.len() > 0 { ref r0 : Expr = s.children[0] return Option(ref Expr).Some(r0) }
     case:
     }
-    return NULL
+    return Option(ref Expr).None
 }
 
 priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Context) {
@@ -3064,12 +3074,13 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Contex
     mut new := Vec(Expr).new()
     for idx in 0..old.len() {
         ref s : Expr = old[idx]
-        ref slot_call : Expr = lazy_stmt_value_slot(s)
+        slot_call_o := lazy_stmt_value_slot(s)
         mut handled := false
-        if slot_call.is_null().not() {
-            ref fdef : Expr = lazy_stmt_inlinable_call(slot_call, scope, ctx)
-            if fdef.is_null().not() {
-                result := lazy_build_prelude(slot_call, fdef, new)
+        if slot_call_o.is_some() {
+            ref slot_call : Expr = slot_call_o.unwrap()
+            fdef_o := lazy_stmt_inlinable_call(slot_call, scope, ctx)
+            if fdef_o.is_some() {
+                result := lazy_build_prelude(slot_call, fdef_o.unwrap(), new)
                 if result.is_null().not() {
                     s.children[0] = result
                     new.push_take(old, idx)
@@ -3983,8 +3994,9 @@ priv lazy_field_call_sig := func(call: Expr, struct_of: Map(Str, Str), scope: Ty
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sdd):
-        ref fld : Declaration = member_get(sdd.fields_index, sdd.fields, field_name)
-        if fld.is_null().not() {
+        fld_o := member_get(sdd.fields_index, sdd.fields, field_name)
+        if fld_o.is_some() {
+            ref fld : Declaration = fld_o.unwrap()
             if lazy_sigs.has(fld.explicit_type) { return fld.explicit_type.clone() }
             return ""
         }

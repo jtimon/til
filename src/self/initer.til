@@ -972,8 +972,9 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
 
 priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
     if def.is_null() { return false }
-    ref d : Declaration = def_ns_get(def, method)
-    if d.is_null() { return false }
+    d_o := def_ns_get(def, method)
+    if d_o.is_none() { return false }
+    ref d : Declaration = d_o.unwrap()
     if d.default_value.is_null() { return false }
     return d.default_value.node_type.is(NodeType.FuncDef)
 }
@@ -2188,8 +2189,9 @@ ctx_field_layout := func(sname: Str, field_name: Str, ctx: Context) returns ref 
     if sname.len().eq(0).or(field_name.len().eq(0)) { return EMPTY_FIELD_LAYOUT }
     if ctx.struct_layouts.has(sname).not() { return EMPTY_FIELD_LAYOUT }
     ref sl : StructLayout = ctx.struct_layouts[sname]
-    ref tdef : Expr = lookup_interp_type_def(sname, ctx)
-    if tdef.is_null() { return EMPTY_FIELD_LAYOUT }
+    tdef_o := lookup_interp_type_def(sname, ctx)
+    if tdef_o.is_none() { return EMPTY_FIELD_LAYOUT }
+    ref tdef : Expr = tdef_o.unwrap()
     switch tdef.node_type {
     case NodeType.StructDef(sdd):
         // sl.fields is parallel to DECLARATION order and fields_index maps
@@ -2872,16 +2874,17 @@ priv init_macro_cond_eval := func(cond: Expr) returns I32 {
 // must be a NodeType.Body. Returns NULL when the shape isn't a single
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return; the caller falls back to leaving the macro un-expanded.
-priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns ref Expr {
-    if body.node_type.is(NodeType.Body).not() { return NULL }
-    if body.children.len() != 1 { return NULL }
+priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns Option(ref Expr) {
+    if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
+    if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
     if s.node_type.is(NodeType.Return) {
-        if s.children.len() == 0 { return NULL }
-        return s.children[0]
+        if s.children.len() == 0 { return Option(ref Expr).None }
+        ref rv : Expr = s.children[0]
+        return Option(ref Expr).Some(rv)
     }
-    if s.node_type.is(NodeType.If).not() { return NULL }
-    if s.children.len() < 2 { return NULL }
+    if s.node_type.is(NodeType.If).not() { return Option(ref Expr).None }
+    if s.children.len() < 2 { return Option(ref Expr).None }
     // Clone + substitute the condition before evaluating: subs maps the
     // type-param Ident (`T`) onto the call's arg Ident (`Bool`), turning
     // `T.is(Type.Primitive(Primitive.Bool))` into `Bool.is(Type.Primitive(Primitive.Bool))`.
@@ -2902,11 +2905,11 @@ priv init_macro_pick_return := func(body: Expr, subs: Map(Str, Expr)) returns re
         init_substitute_idents(cond_clone, subs, Set(Str).new())
     }
     res := init_macro_cond_eval(cond_clone)
-    if res < 0 { return NULL }
+    if res < 0 { return Option(ref Expr).None }
     if res == 1 {
         return init_macro_pick_return(s.children[1], subs)
     }
-    if s.children.len() < 3 { return NULL }
+    if s.children.len() < 3 { return Option(ref Expr).None }
     return init_macro_pick_return(s.children[2], subs)
 }
 
@@ -2923,9 +2926,10 @@ priv init_is_type_gen_macro_def := func(fdef: Expr) returns Bool {
     return false
 }
 
-priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns ref Expr {
+priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) returns Option(ref Expr) {
     if macros.has(name) {
-        return macros[name]
+        ref m : Expr = macros[name]
+        return Option(ref Expr).Some(m)
     }
     // A direct generic func (`func(T: Type, ...)`, e.g. core `assert_eq`) is
     // NOT a type-gen macro, and init_expand_generic_funcs DROPS (frees) its
@@ -2934,16 +2938,16 @@ priv init_lookup_type_gen_macro := func(name: Str, macros: Map(Str, Expr), scope
     // registry so the hoist never dereferences that freed FuncDef
     // (heap-use-after-free, issue #58 cross-unit). The non-null check below
     // would otherwise pass on the freed-but-non-null pointer.
-    if ctx.generic_funcs.has(name) { return NULL }
+    if ctx.generic_funcs.has(name) { return Option(ref Expr).None }
     imported_macro_o := scope.lookup_func(name)
-    if imported_macro_o.is_none() { return NULL }
+    if imported_macro_o.is_none() { return Option(ref Expr).None }
     ref imported_macro : Expr = imported_macro_o.unwrap()
-    if init_is_type_gen_macro_def(imported_macro).not() { return NULL }
+    if init_is_type_gen_macro_def(imported_macro).not() { return Option(ref Expr).None }
     // #154: instantiating a template defined in another file counts as a
     // use of that import (the expansion clones the def into this unit, so
     // the typer never sees a cross-file read for it).
     note_cross_file_type_use(scope, ctx, name)
-    return imported_macro
+    return imported_macro_o
 }
 
 // Issue #267 (caveat 2): inline instantiation of a type-gen macro. `e` is a
@@ -2959,7 +2963,7 @@ priv init_is_macro_inst_call := func(e: Expr, macros: Map(Str, Expr), scope: Typ
     case NodeType.Ident(cn): nm = Str.clone(cn.ident_name())
     case:
     }
-    return init_lookup_type_gen_macro(nm, macros, scope, ctx).is_null().not()
+    return init_lookup_type_gen_macro(nm, macros, scope, ctx).is_some()
 }
 
 // A top-level `Name := MACRO(args)` decl whose RHS is directly a macro
@@ -3112,9 +3116,9 @@ priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scop
     if e.children.len() == 0 { return init_macro_inst_name(e) }
     switch e.children[0].node_type {
     case NodeType.Ident(cn):
-        ref macro_fdef : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
-        if macro_fdef.is_null().not() {
-            return init_macro_inst_name_for_macro(e, macro_fdef, scope)
+        macro_fdef_o := init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
+        if macro_fdef_o.is_some() {
+            return init_macro_inst_name_for_macro(e, macro_fdef_o.unwrap(), scope)
         }
     case:
     }
@@ -3207,8 +3211,7 @@ priv init_normalize_direct_type_gen_aliases := func(mut program: Expr, macros: M
             if dd.name == genname { continue }
             switch rhs.children[0].node_type {
             case NodeType.Ident(cn):
-                ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
-                if mf.is_null() { continue }
+                if init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx).is_none() { continue }
                 if ctx.type_gen_synths.has(genname).not() {
                     mut decl := Expr.new(NodeType.Decl(Declaration(name = genname.clone())), stmt.line, stmt.col)
                     decl.add_child(own rhs.clone())
@@ -3447,8 +3450,8 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
                     mut drop_placeholder := false
                     switch rhs.children[0].node_type {
                     case NodeType.Ident(cn):
-                        ref mf : Expr = init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
-                        if mf.is_null().not().and(init_macro_inst_uses_own_type_param(rhs, mf)) {
+                        mf_o := init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
+                        if mf_o.is_some().and(init_macro_inst_uses_own_type_param(rhs, mf_o.unwrap())) {
                             drop_placeholder = true
                         }
                     case:
@@ -3670,10 +3673,11 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
 // monomorphization. `generics` maps name -> generic funcdef Expr.
 // Leaf single-probe lookup for the borrowed generic-def cells (the
 // func_defs_lookup_one shape; that one is priv to context.til).
-priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns ref Expr {
+priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
     ref slot : Dynamic = m.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return deref(slot)
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    ref g : Expr = deref(slot)
+    return Option(ref Expr).Some(g)
 }
 
 priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut seen: Map(Str, Str), mut synthesized: Expr, ctx: Context) {
@@ -3706,8 +3710,9 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut see
             switch c.children[0].node_type {
             case NodeType.Ident(cn):
                 ref gnm : Str = cn.ident_name()
-                ref gfd_expr : Expr = generics_lookup_one(generics, gnm)
-                if gfd_expr.is_null().not() {
+                gfd_expr_o := generics_lookup_one(generics, gnm)
+                if gfd_expr_o.is_some() {
+                    ref gfd_expr : Expr = gfd_expr_o.unwrap()
                     // #154: calling a generic defined in another file counts
                     // as a use of that import (the call is rewritten to a
                     // local monomorphization, so the typer never sees a
@@ -3856,8 +3861,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             case NodeType.Ident(cn): callee_name = Str.clone(cn.ident_name())
             case:
             }
-            ref macro_fdef : Expr = init_lookup_type_gen_macro(callee_name, macros, scope, ctx)
-            if macro_fdef.is_null() { continue }
+            macro_fdef_o := init_lookup_type_gen_macro(callee_name, macros, scope, ctx)
+            if macro_fdef_o.is_none() { continue }
+            ref macro_fdef : Expr = macro_fdef_o.unwrap()
             if macro_fdef.children.len() == 0 { continue }
             ref body : Expr = macro_fdef.children[0]
             if body.node_type.is(NodeType.Body).not() { continue }
@@ -3900,8 +3906,9 @@ priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ct
             // Pick the return literal -- a direct `return <literal>` or an
             // if-chain whose recognised condition evaluates to a definite
             // arm under `subs` (issue #58).
-            ref ret_val : Expr = init_macro_pick_return(body, subs)
-            if ret_val.is_null() { continue }
+            ret_val_o := init_macro_pick_return(body, subs)
+            if ret_val_o.is_none() { continue }
+            ref ret_val : Expr = ret_val_o.unwrap()
             ret_val_ok := ret_val.node_type.is(NodeType.StructDef)
                 .or(ret_val.node_type.is(NodeType.EnumDef))
                 .or(ret_val.node_type.is(NodeType.FuncDef))

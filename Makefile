@@ -14,7 +14,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc summary help install tmp two_pass check_usize64
+.PHONY: all update_c_libs clean clean_vendor test test_fast test_asan test_asan_full test_nogui test_repl_help test_two_pass build_win win_server build_win_host build_mac build_wasm doc summary help install tmp two_pass check_usize64 check_clang
 
 all: bin/til
 
@@ -259,7 +259,7 @@ bin/tests: bin/til $(CORE) $(STD) $(SELF) src/tests.til
 
 # --- Test suite ---
 
-test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize64
+test: bin/til bin/til_asan bin/test_runner bin/plot bin/tests check_usize64 check_clang
 	$(XVFB_RUN) bin/tests --til-bin bin/til_asan --asan $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
@@ -285,12 +285,32 @@ check_usize64: bin/til bin/til_asan tmp
 	bin/til_asan build --usize=64 -o tmp/usize64_comptime test/usize64_comptime.til
 	tmp/usize64_comptime
 
+# Issue #321 follow-up: enforce the invariant the header comment above
+# already states -- the generated C must compile clean under
+# -Wall -Wextra -Werror on gcc AND clang. Nothing enforced it, and the
+# local loop is gcc-only, so a diagnostic clang implements and gcc does
+# not is invisible here: -Wswitch-bool on the niche enum's switch subject
+# (`switch (x.data != NULL)`) passed every linux job and broke every macOS
+# job for several commits, including the cross-build job that only runs
+# `make`. macOS CI runs on master, so the class was structurally
+# undetectable before merge. A syntax-only pass over the freshly emitted
+# compiler is ~2.6s -- a third of gcc's -- and covers the whole class.
+# boot/til.c is the exact artifact the mac jobs compile to build til_boot.
+check_clang: bin/til
+	@if command -v clang > /dev/null 2>&1; then \
+		clang -fsyntax-only -Wall -Wextra -Werror -fsigned-char \
+			-Isrc -Isrc/c -Iboot boot/til.c \
+		&& echo "check_clang: generated C is clang-clean"; \
+	else \
+		echo "check_clang: clang not installed on this host, skipping"; \
+	fi
+
 # test_fast: like `test` but without ASAN. It uses the regular compiler and
 # compiled test/example binaries run without sanitizer instrumentation, so the
 # suite is faster at the cost of not catching compiler or program leaks / heap
 # errors. Use for quick iteration; `make test` remains the default before
 # committing.
-test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64
+test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64 check_clang
 	$(XVFB_RUN) bin/tests $(if $(J),-j$(J))
 	cp gen/til/constfold.c test/constfold.c
 
@@ -317,7 +337,7 @@ test_fast: bin/til bin/test_runner bin/plot bin/tests check_usize64
 test_two_pass:
 	$(MAKE) two_pass
 	bin/til build --asan -o bin/til_asan src/til.til
-	$(MAKE) -o bin/til_boot -o bin/til check_usize64
+	$(MAKE) -o bin/til_boot -o bin/til check_usize64 check_clang
 	bin/til build src/test_runner.til
 	bin/til build examples/plot.til
 	bin/til build src/tests.til

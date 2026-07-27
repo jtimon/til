@@ -9,15 +9,19 @@ fa_is_ns := func(e: Expr, scope: TypeScope) returns Bool {
     // Borrowed names only: this runs on every field access the typer
     // sees, and the owning til_type_name/Str.clone forms paid three
     // clone+delete pairs per call.
-    ref mut sn : Str = expr_type_name_ref(obj)
-    if sn.is_null() {
-        switch obj.node_type {
-        case NodeType.Ident(id):
-            sn = id.ident_name()
-        case:
-            return false
-        }
+    sn_o := expr_type_name_ref(obj)
+    if sn_o.is_some() { return fa_is_ns_named(e, scope, sn_o.unwrap()) }
+    switch obj.node_type {
+    case NodeType.Ident(id):
+        return fa_is_ns_named(e, scope, id.ident_name())
+    case:
+        return false
     }
+}
+
+// The tail of fa_is_ns once the receiver's type name is known: does the
+// named def carry this member in its namespace?
+priv fa_is_ns_named := func(e: Expr, scope: TypeScope, sn: Str) returns Bool {
     sdef_o := scope.get_struct(sn)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
@@ -166,8 +170,8 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     }
     switch sdef.node_type {
     case NodeType.StructDef(ot_sdd):
-        ref ot_fld : Declaration = member_get(ot_sdd.fields_index, ot_sdd.fields, fname)
-        if ot_fld.is_null().not() { return ot_fld.own_type }
+        ot_fld_o := member_get(ot_sdd.fields_index, ot_sdd.fields, fname)
+        if ot_fld_o.is_some() { return ot_fld_o.unwrap().own_type }
     case:
     }
     return OwnType.Shallow
@@ -247,8 +251,9 @@ type_error_at := proc(path: Str, line: U32, col: U32, msg: Str, ctx: Context) {
 // ARGUMENT stays nullable: a null def simply has no members.)
 find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns Option(ref Expr) {
     if sdef.is_null() { return Option(ref Expr).None }
-    ref fd : Declaration = def_ns_get(sdef, method)
-    if fd.is_null() { return Option(ref Expr).None }
+    fd_o := def_ns_get(sdef, method)
+    if fd_o.is_none() { return Option(ref Expr).None }
+    ref fd : Declaration = fd_o.unwrap()
     ref e : Expr = fd.default_value
     if scope.is_null().not() {
         if e.node_type.is(NodeType.Ident) {
@@ -374,8 +379,9 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
 // ref param, a separate step-2 item; a null def simply has no members.)
 find_ns_decl := func(sdef: Expr, method: Str) returns Option(ref Declaration) {
     if sdef.is_null() { return Option(ref Declaration).None }
-    ref d : Declaration = def_ns_get(sdef, method)
-    if d.is_null() { return Option(ref Declaration).None }
+    d_o := def_ns_get(sdef, method)
+    if d_o.is_none() { return Option(ref Declaration).None }
+    ref d : Declaration = d_o.unwrap()
     return Option(ref Declaration).Some(d)
 }
 
@@ -505,8 +511,9 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
         ref sdef : Expr = sdef_o.unwrap()
         switch sdef.node_type {
         case NodeType.StructDef(sdd):
-            ref fd : Declaration = member_get(sdd.fields_index, sdd.fields, method.field_access_name())
-            if fd.is_null().not() {
+            fd_o := member_get(sdd.fields_index, sdd.fields, method.field_access_name())
+            if fd_o.is_some() {
+                ref fd : Declaration = fd_o.unwrap()
                 // Issue #58 / #147 step 5: read the FuncSig alias name
                 // from fd.til_type's FuncPtrSig payload (set by
                 // type_from_name at field-typing time) instead of
@@ -685,8 +692,9 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
     if obj.til_type().is(Type.Struct).not().and(obj.til_type().is(Type.Enum).not()) { return false }
     switch sdef.node_type {
     case NodeType.StructDef(fpf_sdd):
-        ref fd : Declaration = member_get(fpf_sdd.fields_index, fpf_sdd.fields, method)
-        if fd.is_null().not() {
+        fd_o := member_get(fpf_sdd.fields_index, fpf_sdd.fields, method)
+        if fd_o.is_some() {
+            ref fd : Declaration = fd_o.unwrap()
             if fd.til_type.is(Type.Body) {
                 fa.set_til_type(Type.Body)
                 nargs := e.children.len() - 1
@@ -2651,8 +2659,9 @@ priv expr_uses_self_field := proc(e: Expr, field_name: Str) returns Bool {
 priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ctx: Context) {
     switch sdef.node_type {
     case NodeType.StructDef(cdsdd):
-        ref cdnd : Declaration = def_ns_get(sdef, "delete")
-        if cdnd.is_null() { return }
+        cdnd_o := def_ns_get(sdef, "delete")
+        if cdnd_o.is_none() { return }
+        ref cdnd : Declaration = cdnd_o.unwrap()
         if cdnd.default_value.is_null() { return }
         switch cdnd.default_value.node_type {
         case NodeType.FuncDef(cdfd):
@@ -4022,8 +4031,9 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             // Search struct fields from payload
             switch sdef.node_type {
             case NodeType.StructDef(fa_sdd):
-                ref fld : Declaration = member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
-                if fld.is_null().not() {
+                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                if fld_o.is_some() {
+                    ref fld : Declaration = fld_o.unwrap()
                     mut field_type := fld.til_type.clone()
                     if fld.explicit_type.len() > 0 {
                         resolved_field_type := type_from_name(fld.explicit_type, scope, ctx)
@@ -4040,8 +4050,9 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref nsd : Declaration = def_ns_get(sdef, fname)
-                if nsd.is_null().not() {
+                nsd_o := def_ns_get(sdef, fname)
+                if nsd_o.is_some() {
+                    ref nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(nsd.til_type.clone())
                     if sdef.node_type.is(NodeType.EnumDef).and(nsd.default_value.is_null().not()) {
                         switch nsd.default_value.node_type {
@@ -4116,8 +4127,9 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
             mut found := false
             switch sdef.node_type {
             case NodeType.StructDef(fa_sdd):
-                ref fld : Declaration = member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
-                if fld.is_null().not() {
+                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                if fld_o.is_some() {
+                    ref fld : Declaration = fld_o.unwrap()
                     found = true
                     check_member_priv(stmt, obj_sname, fname, fld.is_priv, ctx)
                     if ctx.auto_gen_depth == 0 { fld.used = true }
@@ -4168,8 +4180,9 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
             }
             // Search namespace declarations from payload ns_decls
             if found.not() {
-                ref nsd : Declaration = def_ns_get(sdef, fname)
-                if nsd.is_null().not() {
+                nsd_o := def_ns_get(sdef, fname)
+                if nsd_o.is_some() {
+                    ref nsd : Declaration = nsd_o.unwrap()
                     found = true
                     if nsd.is_mut.not() {
                         stmt.type_error(format("cannot assign to immutable field '", fname, "'"), ctx)
@@ -6507,8 +6520,9 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref fd : Declaration = def_ns_get(sdef, variant)
-    if fd.is_null() { return false }
+    fd_o := def_ns_get(sdef, variant)
+    if fd_o.is_none() { return false }
+    ref fd : Declaration = fd_o.unwrap()
     if fd.default_value.is_null() { return false }
     switch fd.default_value.node_type {
     case NodeType.FuncDef(vfd):
@@ -6544,8 +6558,9 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len() < 2 { return false }
     // Struct constructor
-    ref fcall_sname : Str = expr_type_name_ref(fcall)
-    if fcall_sname.is_null().not() {
+    fcall_sname_o := expr_type_name_ref(fcall)
+    if fcall_sname_o.is_some() {
+        ref fcall_sname : Str = fcall_sname_o.unwrap()
         switch fcall.children[0].node_type {
         case NodeType.Ident(c0s):
             if c0s.ident_name() == fcall_sname {
@@ -6598,8 +6613,9 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
                 sdef_o := scope.get_struct(tn.ident_name())
                 if sdef_o.is_none() { return false }
                 ref sdef : Expr = sdef_o.unwrap()
-                ref fd : Declaration = def_ns_get(sdef, method.field_access_name())
-                if fd.is_null().not() {
+                fd_o := def_ns_get(sdef, method.field_access_name())
+                if fd_o.is_some() {
+                    ref fd : Declaration = fd_o.unwrap()
                     if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
                         return check_own_args(fd.default_value, fcall, var_name)
                     }
@@ -6766,8 +6782,9 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
     if fcall.node_type.is(NodeType.FCall).not() { return }
     if fcall.children.len() < 2 { return }
     // Struct constructor
-    ref fcall_sname : Str = expr_type_name_ref(fcall)
-    if fcall_sname.is_null().not() {
+    fcall_sname_o := expr_type_name_ref(fcall)
+    if fcall_sname_o.is_some() {
+        ref fcall_sname : Str = fcall_sname_o.unwrap()
         switch fcall.children[0].node_type {
         case NodeType.Ident(c0s):
             if c0s.ident_name() == fcall_sname {
@@ -6820,8 +6837,9 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                 ns_sdef_o := scope.get_struct(tn.ident_name())
                 if ns_sdef_o.is_none() { return }
                 ref ns_sdef : Expr = ns_sdef_o.unwrap()
-                ref fd : Declaration = def_ns_get(ns_sdef, method.field_access_name())
-                if fd.is_null().not() {
+                fd_o := def_ns_get(ns_sdef, method.field_access_name())
+                if fd_o.is_some() {
+                    ref fd : Declaration = fd_o.unwrap()
                     if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
                         collect_own_arg_names(fd.default_value, fcall, out)
                     }
@@ -7000,8 +7018,9 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
                 sdef_o := scope.get_struct(cti.ident_name())
                 if sdef_o.is_none() { return 0 }
                 ref sdef : Expr = sdef_o.unwrap()
-                ref fd : Declaration = def_ns_get(sdef, cfa.field_access_name())
-                if fd.is_null().not() {
+                fd_o := def_ns_get(sdef, cfa.field_access_name())
+                if fd_o.is_some() {
+                    ref fd : Declaration = fd_o.unwrap()
                     if fd.default_value.is_null().not() {
                         switch fd.default_value.node_type {
                         case NodeType.FuncDef(ffd):
@@ -7088,8 +7107,9 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope, ctx: Context) retur
                 sdef_o := scope.get_struct(cti.ident_name())
                 if sdef_o.is_none() { return 0 }
                 ref sdef : Expr = sdef_o.unwrap()
-                ref fd : Declaration = def_ns_get(sdef, cfa.field_access_name())
-                if fd.is_null().not() {
+                fd_o := def_ns_get(sdef, cfa.field_access_name())
+                if fd_o.is_some() {
+                    ref fd : Declaration = fd_o.unwrap()
                     if fd.default_value.is_null().not() {
                         switch fd.default_value.node_type {
                         case NodeType.FuncDef(ffd):

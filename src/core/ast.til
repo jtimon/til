@@ -391,6 +391,14 @@ namespace:
 /// Reverse index lookup shared by every *_name_at accessor: the name whose
 /// stored position is `pos`, NULL when no entry points at it (a position
 /// shadowed by a later duplicate name).
+///
+/// #321: this is the one lookup that CANNOT become Option(ref Str) yet.
+/// Instantiating Option here pulls in Option.unwrap, whose `case: panic`
+/// arm only counts as diverging once panic is known noreturn -- and
+/// core.til imports ast before exit, so at the time this unit is typed
+/// panic carries no noreturn stamp and the instantiated unwrap fails
+/// check_all_paths_return. Making the #303 seed order-independent is a
+/// prerequisite for the NULL keyword removal (step 4).
 member_name_of := func(idx: Map(Str, USize), pos: USize) returns ref Str {
     for mi in 0..idx.len() {
         if idx.values.unsafe_get(mi) == pos { return idx.keys.unsafe_get(mi) }

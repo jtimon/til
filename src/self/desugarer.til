@@ -1333,8 +1333,9 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
     case NodeType.StructDef(sd):
-        ref fd : Declaration = member_get(sd.fields_index, sd.fields, field_name)
-        if fd.is_null().not() {
+        fd_o := member_get(sd.fields_index, sd.fields, field_name)
+        if fd_o.is_some() {
+            ref fd : Declaration = fd_o.unwrap()
             if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
             tn := til_type_name(fd.til_type)
             if tn.len() > 0 { return tn }
@@ -4072,10 +4073,11 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     // and the array-wrapping rewrite so neither needs to re-resolve.
     vi := fcall_variadic_index_via_scope(e, scope)
     vc := fcall_variadic_count_via_scope(e, scope)
-    ref elem_type : Str = resolve_variadic_elem_type(e, scope)
-    // elem_type-null here means the typer already reported an error upstream;
+    elem_type_o := resolve_variadic_elem_type(e, scope)
+    // A None here means the typer already reported an error upstream;
     // just leave the fcall raw rather than emit a half-formed wrap.
-    if elem_type.is_null() { return }
+    if elem_type_o.is_none() { return }
+    ref elem_type : Str = elem_type_o.unwrap()
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
     va_name := format("_va_Array_", ctx.va_counter.to_str())
@@ -4380,8 +4382,9 @@ priv fcall_variant_ctor_arg_is_own := func(expr: Expr, i: USize, scope: TypeScop
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     if sdef.node_type.is(NodeType.EnumDef).not() { return false }
-    ref fd : Declaration = def_ns_get(sdef, method)
-    if fd.is_null() { return false }
+    fd_o := def_ns_get(sdef, method)
+    if fd_o.is_none() { return false }
+    ref fd : Declaration = fd_o.unwrap()
     if fd.default_value.is_null() { return false }
     if fd.default_value.node_type.is(NodeType.FuncDef).not() { return false }
     switch fd.default_value.node_type {
@@ -4756,9 +4759,9 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
                 sdef_o := scope.get_struct(type_name.ident_name())
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
-                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
-                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
-                        switch nd.default_value.node_type {
+                    nd_o := def_ns_get(sdef, method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        switch nd_o.unwrap().default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index >= 0)
                         case:
@@ -4805,9 +4808,9 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
                 sdef_o := scope.get_struct(type_name.ident_name())
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
-                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
-                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
-                        switch nd.default_value.node_type {
+                    nd_o := def_ns_get(sdef, method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        switch nd_o.unwrap().default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return ffd.variadic_index >= 0
                         case:
@@ -4858,9 +4861,9 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
                 sdef_o := scope.get_struct(type_name.ident_name())
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
-                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
-                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
-                        switch nd.default_value.node_type {
+                    nd_o := def_ns_get(sdef, method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        switch nd_o.unwrap().default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
                             if fvi < 0 { return -1 }
@@ -4915,9 +4918,9 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
                 sdef_o := scope.get_struct(type_name.ident_name())
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
-                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
-                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
-                        switch nd.default_value.node_type {
+                    nd_o := def_ns_get(sdef, method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        switch nd_o.unwrap().default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             return derive_fcall_kwargs_index(fcall, ffd)
                         case:
@@ -4946,7 +4949,7 @@ priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) ret
     return fdef_data.params.len().to_i32()
 }
 
-priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
+priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns Option(ref Str) {
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
     case NodeType.Ident(callee_name):
@@ -4960,7 +4963,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
                     fvi := cb_fdef.variadic_index
                     if fvi >= 0 {
                         ref param : Declaration = cb_fdef.params[fvi.to_usize()]
-                        return param.explicit_type
+                        return Option(ref Str).Some(param.explicit_type)
                     }
                 case:
                 }
@@ -4974,14 +4977,14 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
                 sdef_o := scope.get_struct(type_name.ident_name())
                 if sdef_o.is_some() {
                     ref sdef : Expr = sdef_o.unwrap()
-                    ref nd : Declaration = def_ns_get(sdef, method_name.field_access_name())
-                    if nd.is_null().not().and(nd.default_value.is_null().not()) {
-                        switch nd.default_value.node_type {
+                    nd_o := def_ns_get(sdef, method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        switch nd_o.unwrap().default_value.node_type {
                         case NodeType.FuncDef(ffd):
                             fvi := ffd.variadic_index
                             if fvi >= 0 {
                                 ref param : Declaration = ffd.params[fvi.to_usize()]
-                                return param.explicit_type
+                                return Option(ref Str).Some(param.explicit_type)
                             }
                         case:
                         }
@@ -4992,7 +4995,7 @@ priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns r
         }
     case:
     }
-    return NULL
+    return Option(ref Str).None
 }
 
 // Returns true if it rewrote fcall in place. Caller is responsible for

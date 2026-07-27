@@ -852,23 +852,21 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
 // and ns_decls through one binding instead of repeating
 // `switch def.node_type { case ...(d): ... case: UNREACHABLE }` at every
 // mutation site.
-priv structdef_of := func(def: Expr) returns ref StructDef {
+priv structdef_of := func(def: Expr) returns Option(ref StructDef) {
     switch def.node_type {
     case NodeType.StructDef(sdd):
-        return sdd
+        return Option(ref StructDef).Some(sdd)
     case:
-        UNREACHABLE()
-        return NULL
+        return Option(ref StructDef).None
     }
 }
 
-priv enumdef_of := func(def: Expr) returns ref EnumDef {
+priv enumdef_of := func(def: Expr) returns Option(ref EnumDef) {
     switch def.node_type {
     case NodeType.EnumDef(edd):
-        return edd
+        return Option(ref EnumDef).Some(edd)
     case:
-        UNREACHABLE()
-        return NULL
+        return Option(ref EnumDef).None
     }
 }
 
@@ -929,7 +927,8 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
     if is_ext.not() { advance(p) }
 
     def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
-    ref sdd : StructDef = structdef_of(def)
+    // The caller just built this node as a StructDef.
+    ref sdd : StructDef = structdef_of(def).unwrap()
     if is_ext {
         sdd.c_tag = c_tag.clone()
     }
@@ -1131,7 +1130,8 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
     advance(p)
 
     def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
-    ref edd : EnumDef = enumdef_of(def)
+    // The caller just built this node as an EnumDef.
+    ref edd : EnumDef = enumdef_of(def).unwrap()
 
     // #264: optional discriminant type, `enum(Type) { ... }`. Only the
     // paren form is accepted (symmetry with ext_struct("tag") and an
@@ -2633,14 +2633,14 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 // keeps the returned payload ref pointing into the stamp's stable
 // storage (a Type passed as a call argument can ride a stack temp that
 // dies at the call boundary, dangling the payload ref).
-expr_type_name_ref := func(e: Expr) returns ref Str {
+expr_type_name_ref := func(e: Expr) returns Option(ref Str) {
     ref t : Type = e.til_type()
     switch t {
-    case Type.Struct(s):     return s
-    case Type.Enum(s):       return s
-    case Type.Custom(s):     return s
-    case Type.FuncPtrSig(s): return s
-    case: return NULL
+    case Type.Struct(s):     return Option(ref Str).Some(s)
+    case Type.Enum(s):       return Option(ref Str).Some(s)
+    case Type.Custom(s):     return Option(ref Str).Some(s)
+    case Type.FuncPtrSig(s): return Option(ref Str).Some(s)
+    case: return Option(ref Str).None
     }
 }
 

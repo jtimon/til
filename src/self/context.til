@@ -1200,15 +1200,16 @@ is_def := func(stmt: Expr) returns Bool {
     .or(def.node_type.is(NodeType.EnumDef))
 }
 
-// #307: single-probe member lookup -- one binary search, NULL on miss.
+// #307: single-probe member lookup -- one binary search, None on miss.
 // The get()?/catch shape avoids both the has()+[] double probe and the
 // checked subscript's __LOC__ Str allocation (KeyNotFound is fieldless,
 // so the throw itself is free per #316). Same leaf shape as
 // func_defs_lookup_one above.
-member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns ref Declaration {
+member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns Option(ref Declaration) {
     ref p : USize = idx.get(name)?
-    catch (e: KeyNotFound) { return NULL }
-    return v.unsafe_get(p)
+    catch (e: KeyNotFound) { return Option(ref Declaration).None }
+    ref d : Declaration = v.unsafe_get(p)
+    return Option(ref Declaration).Some(d)
 }
 
 // #307: members are declaration-ordered Vecs with a name -> position
@@ -1223,8 +1224,7 @@ def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
     case NodeType.EnumDef(ed):
         return ed.ns_decls
     case:
-        UNREACHABLE()
-        return NULL
+        panic(__LOC__, "def_ns_decls: node is neither a StructDef nor an EnumDef")
     }
 }
 
@@ -1236,8 +1236,7 @@ def_ns_name_at := func(sdef: Expr, i: USize) returns ref Str {
     case NodeType.EnumDef(ed):
         return ed.member_name_at(i)
     case:
-        UNREACHABLE()
-        return NULL
+        panic(__LOC__, "def_ns_name_at: node is neither a StructDef nor an EnumDef")
     }
 }
 
@@ -1253,9 +1252,9 @@ def_ns_has := func(sdef: Expr, name: Str) returns Bool {
     }
 }
 
-// Member Declaration by name; NULL when the def has no such member.
+// Member Declaration by name; None when the def has no such member.
 // Single probe via member_get.
-def_ns_get := func(sdef: Expr, name: Str) returns ref Declaration {
+def_ns_get := func(sdef: Expr, name: Str) returns Option(ref Declaration) {
     switch sdef.node_type {
     case NodeType.StructDef(sd):
         return member_get(sd.ns_index, sd.ns_decls, name)
@@ -1263,7 +1262,7 @@ def_ns_get := func(sdef: Expr, name: Str) returns ref Declaration {
         return member_get(ed.ns_index, ed.ns_decls, name)
     case:
         UNREACHABLE()
-        return NULL
+        return Option(ref Declaration).None
     }
 }
 
