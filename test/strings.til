@@ -322,3 +322,35 @@ test_self_replace := test() {
     assert_eq(Str, "ab".replace("abcdef", "x"), "ab")
     assert_eq(Str, "".replace("abc", "x"), "")
 }
+
+// #325: a `mut` heap Str local declared inside a NESTED block, reassigned to
+// a literal and then moved into an outer binding, used to emit a `free` of
+// the literal's static storage -- the generated C failed to compile with
+// "'free' called on unallocated object '_til_str_lits'". The literal assign
+// repoints the local's WRAPPER at static storage, so the clone-elision move
+// path (whose `free(local)` assumes a heap wrapper) must not fire for it. A
+// literal DECL stays safe: such a local is static/stack from the start. The
+// same code at function top level always worked; both nesting forms below
+// (bare block and `if` body) reproduced it.
+test_nested_block_literal_reassign_move := test() {
+    s := "abc"
+    mut out := ""
+    {
+        mut t := s
+        t = "zz"
+        out = t
+    }
+    assert_eq(Str, out, "zz")
+    assert_eq(Str, s, "abc")
+}
+
+test_if_body_literal_reassign_move := test() {
+    s := "abc"
+    mut out := ""
+    if true {
+        mut t := s
+        t = "zz"
+        out = t
+    }
+    assert_eq(Str, out, "zz")
+}

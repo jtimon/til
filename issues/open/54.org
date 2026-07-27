@@ -88,13 +88,14 @@
      _shallow_read / _mut_writes_through / _own / _own_struct, both backends
      + ASAN) and test/capture_block_own_error.til (use-after-move negative).
 
-     Found while implementing and filed as [[./325.org][#325]] (PRE-EXISTING,
-     not block-capture specific): a `mut` heap local declared inside a nested
-     block, reassigned to a literal and then moved out, emits a `free` of the
-     literal -- `{ mut t := s; t = "zz"; out = t }` fails to compile with
-     "'free' called on unallocated object '_til_str_lits'". The same code at
-     function top level is fine. The shallow-capture tests here avoid that
-     shape.
+     Found while implementing and filed as [[../fixed/325.org][#325]]
+     (PRE-EXISTING, not block-capture specific), since FIXED: a `mut` heap
+     local declared inside a nested block, reassigned to a literal and then
+     moved out, emitted a `free` of the literal, so
+     `{ mut t := s; t = "zz"; out = t }` failed to compile. The clone-elision
+     move path no longer fires for a literal ASSIGN (which repoints the
+     local's wrapper at static storage); a `[shallow mut x]` capture lowers
+     to exactly that shape, so it works now too.
 
 :DEPENDENCIES: [[./61.org][#61]]
   :DEPENDENCIES_OF: [[./12.org][#12]] [[./13.org][#13]]

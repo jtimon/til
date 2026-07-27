@@ -905,6 +905,17 @@ priv expr_has_unproven_str_def := func(e: Expr, name: Str) returns Bool {
     case NodeType.Assign(ad):
         if ad.name == name {
             if e.children.len() == 0 { return true }
+            // Issue #325: a literal ASSIGN is NOT move-safe, even though a
+            // literal DECL is. `t = "zz"` repoints the local's WRAPPER at
+            // static literal storage (`t = &_til_str_lits[N]`), so the move
+            // path's `free(local)` would free a non-heap object -- the C
+            // compiler rejects it outright ("'free' called on unallocated
+            // object '_til_str_lits'"). A literal DECL is fine: the local is
+            // a static/stack value from the start (is_heap false), so it
+            // never reaches the heap move path. Same hazard the comment on
+            // str_rhs_provably_owning records for constructor RHSs that fold
+            // into a stack literal.
+            if e.children[0].node_type.is_literal_str() { return true }
             return str_rhs_provably_owning(e.children[0]).not()
         }
     case:

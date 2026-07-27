@@ -122,6 +122,20 @@ test_block_capture_mut_writes_through := test() {
     assert_eq(I64, total, 42)
 }
 
+// A shallow capture of a heap type (Str), written inside the block: this is
+// the shape #325 blocked (the private copy is reassigned to a literal and
+// then moved out), fixed alongside.
+test_block_capture_shallow_str := test() {
+    s := "abc"
+    mut out := ""
+    [shallow mut s, mut out] {
+        s = "zz"
+        out = s
+    }
+    assert_eq(Str, out, "zz")
+    assert_eq(Str, s, "abc")
+}
+
 // own: the block consumes the binding (owned Str; ASAN proves no leak/double
 // free -- the enclosing scope must not also delete it).
 test_block_capture_own := test() {

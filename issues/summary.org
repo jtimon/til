@@ -2,7 +2,6 @@
 ** Medium
 *** [[./open/308.org][#308]] Interpreted gui programs panic instead of running
 *** [[./open/324.org][#324]] A `ref` FIELD can be passed to an `own` parameter (ownership hole)
-*** [[./open/325.org][#325]] A `mut` heap local in a NESTED block frees a string literal when moved out
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

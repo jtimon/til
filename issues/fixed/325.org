@@ -1,6 +1,37 @@
 # priority: medium
 # category: bugs
-** OPEN #325 A `mut` heap local in a NESTED block frees a string literal when moved out
+** FIXED #325 A `mut` heap local in a NESTED block frees a string literal when moved out
+
+Post-mortem
+-----------
+ROOT CAUSE: the #258 clone-elision guard `str_rhs_provably_owning`
+(src/self/garbager.til) whitelists a Str LITERAL as a provably-owning def,
+on the reasoning that "moving installs a view of static storage, which never
+dangles". That reasoning is about the Str's CONTENTS and is correct for a
+literal DECL. It does not hold for a literal ASSIGN: `t = "zz"` repoints the
+local's WRAPPER at static storage (`t = &_til_str_lits[N]` in C), so the
+local no longer owns a heap wrapper -- and the clone-elision move path ends
+with `free(local)`, i.e. a free of `_til_str_lits`. gcc rejects it outright
+(-Werror=free-nonheap-object), so the failure was a build error rather than
+a runtime corruption.
+
+Why nesting mattered: nothing in the analysis is block-specific. At function
+top level the same statements happened to take a different assign emit path
+(the `_hp` hoisted-deref shape, which keeps the clone), so the elision never
+fired and the bug stayed masked. The nested-block form took the generic
+`_new` assign path and exposed it. This is the same hazard already recorded
+in str_rhs_provably_owning's comment for constructor RHSs that later fold
+into a stack literal -- the literal ASSIGN case was simply not covered.
+
+THE FIX: expr_has_unproven_str_def now reports a Str-literal ASSIGN as an
+unproven def, so str_clone_to_move_provably_safe refuses the move and the
+clone is kept. A literal DECL keeps its whitelist (such a local is
+static/stack from the start, is_heap false, and never reaches the heap move
+path), so the #258 optimisation is otherwise untouched.
+
+REGRESSION TESTS: test/strings.til
+test_nested_block_literal_reassign_move (bare block) and
+test_if_body_literal_reassign_move (`if` body), both backends, ASAN-clean.
 
 A `mut` heap-typed local (e.g. `Str`) declared inside a nested block --
 a bare `{ ... }`, an `if` body, and presumably any sub-body scope --
