@@ -647,6 +647,12 @@ Context := struct {
     builder_str_lit_symbols := Map(Str, Str).new()
     builder_str_lit_values := Vec(Str).new()
     builder_str_lit_ident_symbols := Map(Str, Str).new()
+    // #326: which dyn/reflection builtins the SURVIVING AST actually names.
+    // Filled once per emission (builder_collect_reflect_inventory) and read
+    // by the gates on the generated dyn dispatch table, its per-method
+    // wrappers/closure values, and the struct/enum/FuncSig reflection
+    // families -- all of which used to be emitted unconditionally.
+    builder_reflect_inventory := Set(Str).new()
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 

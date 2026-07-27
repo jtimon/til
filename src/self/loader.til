@@ -854,17 +854,19 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         }
     }
 
-    // Core top-level consts survive the filter (only defs are pruned) and
-    // their initializers are emitted as globals in every mode, so whatever
-    // those initializers reference must stay reachable too -- e.g. a core
-    // `X : Type = Type.None` const needs the Type enum def kept, or the
-    // builder's ns lookup walks a freed def.
+    // #326: core top-level VALUE decls used to be blanket roots -- every one
+    // of their initializers was walked whether or not anything read the
+    // value. That is why a dead `TYPE_STRUCTDEF = Type.Struct("StructDef")`
+    // kept the compiler's StructDef/EnumDef/Expr data model (and its
+    // Map/Vec dependency graph) alive in ordinary user output. They are
+    // ordinary graph nodes now: scavenge_filter sweeps the unreached ones,
+    // and the BFS below walks a core value's initializer only once the
+    // value itself is reached. Non-Decl core top-level statements are still
+    // executable program text, so they stay roots.
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
-                if stmt.node_type.is(NodeType.Decl) {
-                    if is_def(stmt) { continue }
-                }
+                if stmt.node_type.is(NodeType.Decl) { continue }
                 collect_refs(stmt, worklist)
             }
         }
@@ -1029,11 +1031,11 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
 
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            scavenge_filter(lp.ctx.imported[u.path].ast, visited)
+            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true)
         }
     }
     for u : ProgramUnit in lp.units {
-        scavenge_filter(lp.ctx.imported[u.path].ast, visited)
+        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false)
     }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by

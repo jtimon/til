@@ -1,0 +1,57 @@
+mode test
+
+// Issue #326 fixture: the generated C must be honest about liveness.
+//
+// The suite pins this file's OUTPUT, not just its behaviour (see the
+// `dead_temps_*` entries in src/tests.til): a compiler temp that goes dead
+// must be REMOVED, not silenced with `(void)name;`, and only a binding
+// spelled with til's deliberately-unused `_` prefix may carry a cast.
+// Every shape below is one case of that contract.
+
+// A hoisted arg temp that IS read: `pure_add(2, 3)` hoists both literals,
+// and the call consumes them.
+pure_add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+mut effect_count : I64 = 0
+
+// An effectful call whose result is discarded at statement level. DCE may
+// drop the dead result BINDING, never the call.
+bump := func() returns I64 {
+    effect_count = effect_count.add(1)
+    return effect_count
+}
+
+// Issue #86's escape hatch: a deliberately-unused param, spelled `_b`.
+// This is the ONLY shape that may reach the C compiler as a `(void)` cast.
+ignores_second := func(a: I64, _b: I64) returns I64 {
+    return a
+}
+
+// A constfold-dead temp: `pure_add(20, 22)` folds to 42 at compile time and
+// its two hoisted arg temps are orphaned. They must disappear entirely.
+FOLDED : I64 = pure_add(20, 22)
+
+test_used_hoisted_temp := test() {
+    assert_eq(I64, pure_add(2, 3), 5)
+}
+
+test_constfolded_temp := test() {
+    assert_eq(I64, FOLDED, 42)
+}
+
+test_effectful_dead_result := test() {
+    before := effect_count
+    bump()
+    assert_eq(I64, effect_count, before.add(1))
+}
+
+test_underscore_param := test() {
+    // A mutable global keeps this call out of the constfolder's reach, so
+    // `ignores_second` is really emitted -- with `_b` as its one unread
+    // parameter, and exactly one `(void)_b;` to prove the escape hatch is
+    // the ONLY thing that still gets a cast.
+    n := effect_count.add(4)
+    assert_eq(I64, ignores_second(n, 9), n)
+}

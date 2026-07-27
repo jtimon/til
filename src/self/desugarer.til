@@ -4313,17 +4313,25 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
         call.add_child(own stmt.children[0].clone())
         tname := type_to_name(ab.type)
         sz_call := make_ns_call(tname, "size", usize_type(scope, ctx), stmt)
-        sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
-        call.add_child(own sz)
         // Issue #210: only use swap_replace for Str so the builder can
         // emit the explicit delete-copy-free pattern (unblocking
         // CAP_LIT-safe wrapper-free skipping in Str.delete).
         if tname == "Str" {
+            // #326: the swap_replace lowering never reads the size operand
+            // -- the builder emits delete/value-copy/free on the Str wrapper
+            // and the interpreter's eval_fcall returns before evaluating any
+            // arg. Keep the operand (the generic swap_bytes fall-through
+            // still needs it) but leave it as the call expression: hoisting
+            // it created a temp binding no emitted statement read.
+            call.add_child(own sz_call)
             switch call.node_type {
             case NodeType.FCall(fcd):
                 fcd.swap_replace = true
             case:
             }
+        } else {
+            sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
+            call.add_child(own sz)
         }
         stmt = call
     case:
@@ -4425,6 +4433,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     mut is_dyn_call := false
     mut is_array_vec := false
     mut is_ctor_call := false
+    mut is_tag_check := false
+    mut is_raw_alloc := false
     if expr.children.len() > 0 {
         ref callee : Expr = expr.children[0]
         switch callee.node_type {
@@ -4439,6 +4449,8 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             if cn_str == "dyn_fn" { is_dyn_call = true }
             if cn_str == "array" { is_array_vec = true }
             if cn_str == "vec" { is_array_vec = true }
+            if cn_str == "is_n" { is_tag_check = true }
+            if cn_str.eq("malloc").or(cn_str.eq("calloc")) { is_raw_alloc = true }
         case:
         }
     }
@@ -4452,6 +4464,23 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         if is_array_vec {
             if i == 1 { continue }
         }
+        // #326: is_n's tag-width operand is read BY VALUE by both backends
+        // -- the C builder does not read it at all (it inlines a
+        // width-correct `((E*)a)->tag == ((E*)b)->tag`, see builder.til)
+        // and the interpreter's h_is_n evaluates the literal directly.
+        // Hoisting it produced a `hoisted__U32_N := <width>` temp that no
+        // emitted C statement ever read -- 946 dead bindings in til's own
+        // output, previously papered over by the `(void)hoisted__` cast.
+        if is_tag_check {
+            if i == 3 { continue }
+        }
+        // #326: malloc/calloc take pure by-value byte counts -- no
+        // ownership, no address taken -- so a temp buys nothing, and the
+        // builder's raw-alloc value-local emit (#303) drops the whole call
+        // for a scalarized local (`out : T = malloc(T.size())` in Vec.pop
+        // becomes a bare `I64 out;`). Hoisting left the size binding with
+        // no reader in the emitted C.
+        if is_raw_alloc { continue }
 
         ref arg : Expr = expr.children[i]
         mut hoist_fi := fi

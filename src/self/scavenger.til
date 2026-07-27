@@ -293,12 +293,68 @@ priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map
     idx.values.move_from(nv)
 }
 
-scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
+// #326: a top-level VALUE declaration -- not a func/struct/enum def, and
+// not a type alias (`USize := U32`, which emits nothing but stays a name
+// the builder resolves through the scope).
+priv scav_is_value_decl := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() == 0 { return false }
+    ref rhs : Expr = stmt.children[0]
+    if rhs.node_type.is(NodeType.FuncDef) { return false }
+    if rhs.node_type.is(NodeType.StructDef) { return false }
+    if rhs.node_type.is(NodeType.EnumDef) { return false }
+    if stmt.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { return false }
+    return true
+}
+
+// The name a top-level cleanup statement reclaims: `T.delete(<Ident>, ...)`
+// or `free(<Ident>)`, the two shapes the garbager inserts for an owned
+// global. Returns "" for anything else. Sweeping a global's declaration
+// without its cleanup would leave the C referencing an undeclared symbol.
+priv scav_cleanup_target := func(stmt: Expr) returns Str {
+    if stmt.node_type.is(NodeType.FCall).not() { return "" }
+    if stmt.children.len() < 2 { return "" }
+    ref callee : Expr = stmt.children[0]
+    mut is_cleanup := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(fam):
+        is_cleanup = fam.field_access_name().eq("delete")
+    case NodeType.Ident(fin):
+        is_cleanup = fin.ident_name().eq("free")
+    case:
+    }
+    if is_cleanup.not() { return "" }
+    switch stmt.children[1].node_type {
+    case NodeType.Ident(n): return Str.clone(n.ident_name())
+    case:
+    }
+    return ""
+}
+
+// `sweep_values` puts top-level value declarations in the same mark/sweep
+// graph as the defs (#326). It is on for core units, whose top-level decls
+// are compiler-provided constants: a user unit's top-level statements are
+// the program itself in script mode (and its global initializers in
+// cli/test mode), so dropping one there would drop an observable effect,
+// not just an unread binding.
+scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
     memset(pm, 0, pn)
+    mut swept := Set(Str).new()
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
+        if sweep_values.and(is_def(stmt).not()).and(scav_is_value_decl(stmt)) {
+            switch stmt.node_type {
+            case NodeType.Decl(vd):
+                if visited.has(vd.name).not() {
+                    memset(ptr_add(pm, i), 1, 1)
+                    swept.add(own vd.name.clone())
+                }
+            case:
+                UNREACHABLE()
+            }
+        }
         if is_def(stmt) {
             switch stmt.node_type {
             case NodeType.Decl(d):
@@ -318,6 +374,12 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str)) {
                 UNREACHABLE()
             }
         }
+    }
+    for i in 0..pn {
+        target := scav_cleanup_target(program.children[i])
+        if target.len() == 0 { continue }
+        if swept.has(target).not() { continue }
+        memset(ptr_add(pm, i), 1, 1)
     }
     program.children.delete_marked(pm)
 
