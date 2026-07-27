@@ -1,0 +1,57 @@
+# priority: medium
+# category: features
+** OPEN #332 REPL line editing and history, without an external dependency
+
+  ~til repl~ has no line editing and no history. ~in_read_line~
+  (~src/c/ext.c~) reads bytes with ~fgetc~ in the terminal's canonical
+  mode, so the tty driver gives backspace and nothing else:
+
+  - no history at all -- Up/Down do not recall previous input, and
+    nothing is persisted between sessions, so every REPL session is
+    retyped from scratch
+  - no incremental search (Ctrl-R)
+  - arrow keys and Home/End inject their raw escape bytes (~ESC [ A~ and
+    friends) straight into the line, which then fails to parse
+
+  That is the single biggest reason the REPL is unpleasant to exercise
+  by hand, and it is why REPL bugs keep being found by piping a
+  heredoc instead of by using it.
+
+*** How rstil handled it
+
+  rstil declared ~rlwrap~ an OPTIONAL dependency (README.org:
+  "rlwrap (Optional, for the repl)") and its ~make.til~ ~run_repl~ ran
+
+  : rlwrap ./bin/rstil repl
+
+  rlwrap is a separate binary that wraps a child process's stdin with
+  GNU readline. That shape is wrong for til twice over:
+
+  - it is something the USER has to install before the REPL is usable,
+    and til's rule is that nothing beyond til itself is needed to use
+    the language
+  - it is a wrapper PROCESS, not a library the REPL can call, so `til
+    repl` invoked directly (the normal way) still has no editing
+
+  Licensing is not the blocker here: rlwrap is GPL-2.0 and readline is
+  GPL-3.0, both free software. The blocker is the dependency itself.
+
+*** Directions (not decided)
+
+  1. Implement the line editor in til: raw mode via termios in
+     ~src/c/ext.c~, ANSI escapes for cursor movement and redraw, an
+     in-memory history Vec plus a history file. No new vendored code,
+     but it is the most work, and it has to cope with a non-tty stdin
+     (the suite pipes into the REPL) by falling back to the current
+     ~fgetc~ path.
+  2. Vendor a small permissively-licensed C line editor next to
+     raylib / nng / tinyfiledialogs / libffi. linenoise (BSD-2-clause,
+     one ~.c~ + one ~.h~) is the usual choice and fits the existing
+     vendoring pattern exactly.
+
+  Either way it must survive the non-interactive path: ~test/repl_help.til~
+  drives the REPL by piping a file into it, and ~bin/til < file~ must keep
+  behaving exactly as it does today.
+
+  Windows is a live consideration for direction 2 -- linenoise is
+  POSIX-only upstream, and til builds a windows-x64 target.
