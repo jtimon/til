@@ -2479,9 +2479,16 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         // #320 niche: there is no tag -- the discriminant IS "is the
         // pointer non-null", so the subject becomes that test and the
         // labels below become 0 / 1.
-        f.write("(")
+        // The niche test is a C comparison, whose value clang treats as a
+        // boolean: switching on it directly trips -Wswitch-bool, which the
+        // mac/clang builds compile under -Werror (gcc does not warn, so
+        // linux stayed green and only the mac jobs went red). The explicit
+        // (int) cast makes the condition an ordinary integer for both
+        // compilers, keeping the 0/1 case labels below valid.
+        if sw_is_niche { f.write("(int)((") }
+        else { f.write("(") }
         emit_deref(f, scrut, depth, ctx)
-        if sw_is_niche { f.write(").data != NULL") }
+        if sw_is_niche { f.write(").data != NULL)") }
         else { f.write(").tag") }
     } else {
         emit_deref(f, scrut, depth, ctx)
