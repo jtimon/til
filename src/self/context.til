@@ -801,14 +801,18 @@ unsigned_prim_name_for_width := func(w: USize) returns Str {
     return ""
 }
 
-// The reverse direction stays an if-chain on purpose: a switch on Str is
-// not a C switch either (#278 -- it lowers to the same Str_eq chain), so it
-// would buy nothing.
+// The reverse direction reads as a table too. A Str switch is not a C
+// switch (#278 -- it lowers to the same Str_eq chain the ifs did), so this
+// is for symmetry with the width->name switch above, not for speed; #278
+// is what would make it faster. Case labels here are the type NAMES, so
+// the widths stay derived from .size() rather than spelled out.
 unsigned_prim_width_for_name := func(name: Str) returns USize {
-    if name == "U8"  { return U8.size() }
-    if name == "U16" { return U16.size() }
-    if name == "U32" { return U32.size() }
-    if name == "U64" { return U64.size() }
+    switch name {
+    case "U8":  return U8.size()
+    case "U16": return U16.size()
+    case "U32": return U32.size()
+    case "U64": return U64.size()
+    }
     panic("unsigned_prim_width_for_name: '", name, "' is not an unsigned integer primitive")
     return 0
 }
