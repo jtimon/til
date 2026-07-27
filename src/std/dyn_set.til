@@ -28,6 +28,18 @@ namespace:
                    elem_cmp = dyn_fn(elem_type, "cmp"))
     }
 
+    /// Create an empty DynSet pre-sized for `n` elements, so adding up
+    /// to `n` reallocs zero times (Set.with_capacity's counterpart; the
+    /// element type is a runtime argument here, as for `new`).
+    with_capacity := func(T: Type, n: USize) returns DynSet {
+        mut s := DynSet.new(T)
+        if n > s.cap {
+            s.data = realloc(own s.data, n.mul(s.elem_size))
+            s.cap = n
+        }
+        return s
+    }
+
     len := func(self: DynSet) returns USize { return self.count }
 
     /// Drop all live elements via elem_delete but keep the allocated

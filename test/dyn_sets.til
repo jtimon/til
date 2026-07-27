@@ -78,3 +78,16 @@ test_dyn_set_remove_str_frees_elem := test() {
     assert(s.has("alpha").not())
     assert(s.has("beta"))
 }
+
+// DynSet.with_capacity mirrors Set.with_capacity (element type is a
+// runtime argument, as for new).
+test_dyn_set_with_capacity := test() {
+    mut s := DynSet.with_capacity(I64, 8)
+    assert_eq(USize, s.len(), 0)
+    assert(s.cap.gte(8))
+    for i in 0..8 { s.add(own i) }
+    assert_eq(USize, s.len(), 8)
+    assert(s.has(0))
+    assert(s.has(7))
+    assert(s.has(8).not())
+}

@@ -17,6 +17,14 @@ namespace:
         return Map(K, V)(keys = Vec(K).new(), values = Vec(V).new())
     }
 
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    with_capacity := func(n: USize) returns Map(K, V) {
+        return Map(K, V)(keys = Vec(K).with_capacity(n),
+                         values = Vec(V).with_capacity(n))
+    }
+
     len := func(self: Map(K, V)) returns USize { return self.keys.count }
 
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.

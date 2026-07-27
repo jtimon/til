@@ -81,3 +81,26 @@ test_set_remove_str_frees_elem := test() {
     assert(s.has("alpha").not())
     assert(s.has("beta"))
 }
+
+// Set.with_capacity mirrors Vec.with_capacity: pre-sized, so adding up
+// to n reallocs zero times. n=0 stays lazy-empty.
+test_set_with_capacity := test() {
+    mut s := Set(I64).with_capacity(8)
+    assert_eq(USize, s.len(), 0)
+    assert(s.cap.gte(8))
+    for i in 0..8 { s.add(own i) }
+    assert_eq(USize, s.len(), 8)
+    assert(s.has(0))
+    assert(s.has(7))
+    assert(s.has(8).not())
+}
+
+test_set_with_capacity_zero_is_lazy := test() {
+    mut s := Set(Str).with_capacity(0)
+    assert_eq(USize, s.len(), 0)
+    assert_eq(USize, s.cap, 0)
+    // Still usable: add seeds the first grow.
+    s.add(own "x")
+    assert(s.has("x"))
+    assert_eq(USize, s.len(), 1)
+}

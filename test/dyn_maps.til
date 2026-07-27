@@ -63,3 +63,16 @@ test_dyn_map_remove := test() {
     assert(m.remove("c"))
     assert_eq(USize, m.len(), 0)
 }
+
+// DynMap.with_capacity mirrors Map.with_capacity (key/value types are
+// runtime arguments, as for new).
+test_dyn_map_with_capacity := test() {
+    mut m := DynMap.with_capacity(Str, I64, 8)
+    assert_eq(USize, m.len(), 0)
+    assert(m.keys.cap.gte(8))
+    assert(m.values.cap.gte(8))
+    for i in 0..8 { m.set(format("k", i.to_str()), own i) }
+    assert_eq(USize, m.len(), 8)
+    ref v : I64 = m.get("k3")!
+    assert_eq(I64, v, 3)
+}

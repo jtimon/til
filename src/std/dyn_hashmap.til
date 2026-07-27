@@ -47,6 +47,29 @@ namespace:
         return DynHashMap.new_type_names(key_type, val_type)
     }
 
+    /// Create an empty DynHashMap pre-sized for `n` entries
+    /// (HashMap.with_capacity's counterpart; the key/value types are
+    /// runtime arguments here, as for `new`). Sizes the dense
+    /// keys/values/nexts arrays and grows the bucket array by doubling
+    /// until `n` fits under the 0.75 load factor, so inserting up to `n`
+    /// never rehashes.
+    with_capacity := func(K: Type, V: Type, n: USize) returns DynHashMap {
+        mut m := DynHashMap.new(K, V)
+        if n == 0 { return m }
+        mut nb : USize = HASHMAP_INIT_BUCKETS
+        while n * 4 > nb * 3 { nb = nb * 2 }
+        m.keys.data = realloc(own m.keys.data, n.mul(m.keys.elem_size))
+        m.keys.cap = n
+        m.values.data = realloc(own m.values.data, n.mul(m.values.elem_size))
+        m.values.cap = n
+        m.nexts.data = realloc(own m.nexts.data, n.mul(m.nexts.elem_size))
+        m.nexts.cap = n
+        for _ in 0..nb {
+            m.buckets.push(own -1)
+        }
+        return m
+    }
+
     len := func(self: DynHashMap) returns USize { return self.keys.count }
 
     /// Drop all live keys and values but keep the allocated storage and

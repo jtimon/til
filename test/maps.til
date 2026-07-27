@@ -177,3 +177,25 @@ test_map_for_in_kv_ignore_both := test() {
     }
     assert_eq(I64, n, 3)
 }
+
+// Map.with_capacity mirrors Vec.with_capacity: both backing Vecs are
+// pre-sized, so inserting up to n reallocs neither.
+test_map_with_capacity := test() {
+    mut m := Map(Str, I64).with_capacity(8)
+    assert_eq(USize, m.len(), 0)
+    assert(m.keys.cap.gte(8))
+    assert(m.values.cap.gte(8))
+    for i in 0..8 { m.set(format("k", i.to_str()), own i) }
+    assert_eq(USize, m.len(), 8)
+    ref v : I64 = m["k3"]
+    assert_eq(I64, v, 3)
+}
+
+test_map_with_capacity_zero_is_lazy := test() {
+    mut m := Map(Str, I64).with_capacity(0)
+    assert_eq(USize, m.len(), 0)
+    assert_eq(USize, m.keys.cap, 0)
+    m.set("a", own 1)
+    ref v : I64 = m["a"]
+    assert_eq(I64, v, 1)
+}

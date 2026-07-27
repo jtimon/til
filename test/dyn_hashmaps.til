@@ -214,3 +214,29 @@ test_dyn_hashmap_clone := test() {
     assert(m.has("k1"))
     assert_eq(USize, m.len(), 40)
 }
+
+// DynHashMap.with_capacity mirrors HashMap's: dense arrays and buckets
+// both pre-sized, so inserting up to n never rehashes.
+test_dyn_hashmap_with_capacity := test() {
+    mut m := DynHashMap.with_capacity(Str, I64, 100)
+    assert_eq(USize, m.len(), 0)
+    assert(m.keys.cap.gte(100))
+    nb0 := m.buckets.count
+    assert(nb0.gte(134))
+    for i in 0..100 { m.set(format("k", i.to_str()), own i) }
+    assert_eq(USize, m.len(), 100)
+    assert_eq(USize, m.buckets.count, nb0)
+    for i in 0..100 {
+        ref v : I64 = m.get(format("k", i.to_str()))!
+        assert_eq(I64, v, i)
+    }
+}
+
+test_dyn_hashmap_with_capacity_zero_is_lazy := test() {
+    mut m := DynHashMap.with_capacity(Str, I64, 0)
+    assert_eq(USize, m.len(), 0)
+    assert_eq(USize, m.buckets.count, 0)
+    m.set("a", own 1)
+    ref v : I64 = m.get("a")!
+    assert_eq(I64, v, 1)
+}

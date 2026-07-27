@@ -32,6 +32,21 @@ namespace:
         return DynMap.new_type_names(key_type, val_type)
     }
 
+    /// Create an empty DynMap pre-sized for `n` entries, so inserting up
+    /// to `n` reallocs neither backing DynVec (Map.with_capacity's
+    /// counterpart; the key/value types are runtime arguments here, as
+    /// for `new`).
+    with_capacity := func(K: Type, V: Type, n: USize) returns DynMap {
+        mut m := DynMap.new(K, V)
+        if n > m.keys.cap {
+            m.keys.data = realloc(own m.keys.data, n.mul(m.keys.elem_size))
+            m.keys.cap = n
+            m.values.data = realloc(own m.values.data, n.mul(m.values.elem_size))
+            m.values.cap = n
+        }
+        return m
+    }
+
     len := func(self: DynMap) returns USize { return self.keys.count }
 
     /// Drop all live keys and values but keep the allocated storage and

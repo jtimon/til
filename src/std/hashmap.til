@@ -43,6 +43,28 @@ namespace:
             nexts = Vec(I64).new())
     }
 
+    /// Create an empty HashMap pre-sized for `n` entries
+    /// (Map.with_capacity's counterpart). Unlike the ordered containers
+    /// this has two things to size: the dense keys/values/nexts arrays,
+    /// and the bucket array. Buckets are grown by doubling from
+    /// HASHMAP_INIT_BUCKETS until `n` entries fit under the 0.75 load
+    /// factor `set` enforces, so inserting up to `n` never rehashes.
+    /// n=0 behaves like new(): lazy-empty, no allocation at all.
+    with_capacity := func(n: USize) returns HashMap(K, V) {
+        if n == 0 { return HashMap(K, V).new() }
+        mut nb : USize = HASHMAP_INIT_BUCKETS
+        while n * 4 > nb * 3 { nb = nb * 2 }
+        mut m := HashMap(K, V)(
+            keys = Vec(K).with_capacity(n),
+            values = Vec(V).with_capacity(n),
+            buckets = Vec(I64).with_capacity(nb),
+            nexts = Vec(I64).with_capacity(n))
+        for _ in 0..nb {
+            m.buckets.push(own -1)
+        }
+        return m
+    }
+
     len := func(self: HashMap(K, V)) returns USize { return self.keys.count }
 
     /// Drop all live keys and values but keep the allocated storage so

@@ -22,6 +22,16 @@ namespace:
         return Set(T)(cap = 0)
     }
 
+    /// Create an empty Set pre-sized for `n` elements, so adding up to
+    /// `n` reallocs zero times (Vec.with_capacity's counterpart). Use it
+    /// where the final size is known or well predicted; `new()` grows
+    /// 0->1->2->4, which is the right default but costs a realloc per
+    /// doubling. n=0 behaves like new(): lazy-empty, no allocation.
+    with_capacity := func(n: USize) returns Set(T) {
+        if n == 0 { return Set(T)(cap = 0) }
+        return Set(T)(data = malloc(n.mul(T.size())), cap = n)
+    }
+
     len := func(self: Set(T)) returns USize { return self.count }
 
     /// Drop all live elements but keep the allocated storage so the Set can be reused.
