@@ -71,11 +71,23 @@ RAYLIB_SO := vendor/raylib/src/libraylib.so
 TINYFD_SO := vendor/tinyfiledialogs/libtinyfd.so
 FFI_SOS := $(RAYLIB_SO) $(TINYFD_SO)
 
+# "Keep every member of this archive" is spelled differently by the two
+# linkers: GNU ld brackets the archive with --whole-archive/--no-whole-archive,
+# Apple's ld64 takes -force_load,<archive> (it rejects the GNU flags outright:
+# "ld: unknown options: --whole-archive"). The twin keeps the .so name on both
+# hosts -- dlopen loads a Mach-O dylib whatever the file is called, and the
+# interpreter derives the twin's path from the archive's.
+ifeq ($(UNAME_S),Darwin)
+FORCE_LOAD = -Wl,-force_load,$(1)
+else
+FORCE_LOAD = -Wl,--whole-archive $(1) -Wl,--no-whole-archive
+endif
+
 $(RAYLIB_SO): $(RAYLIB_LIB)
-	cc -shared -fPIC -o $@ -Wl,--whole-archive $(RAYLIB_LIB) -Wl,--no-whole-archive -lm -lpthread $(RAYLIB_SYS_FLAGS)
+	cc -shared -fPIC -o $@ $(call FORCE_LOAD,$(RAYLIB_LIB)) -lm -lpthread $(RAYLIB_SYS_FLAGS)
 
 $(TINYFD_SO): $(TINYFD_LIB)
-	cc -shared -fPIC -o $@ -Wl,--whole-archive $(TINYFD_LIB) -Wl,--no-whole-archive
+	cc -shared -fPIC -o $@ $(call FORCE_LOAD,$(TINYFD_LIB))
 
 EMSDK_DIR := vendor/emscripten
 EMCC ?= $(CURDIR)/$(EMSDK_DIR)/upstream/emscripten/emcc
