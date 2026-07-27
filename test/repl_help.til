@@ -25,7 +25,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n1 +\nfoo(\nprintln(\"survived syntax errors\")\nq.py\n")
+    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n1 +\n(1))\nprintln(\"survived syntax errors\")\nq.py\nv := Vec(I64).new()\nv.push(own 3)\nv.push(own 4)\nprintln(format(\"veclen=\", v.len().to_str()))\nprintln(format(\"vec0=\", v[0].to_str()))\ns := Str.clone(\"abc\")\nprintln(format(\"str=\", s))\nprintln(v[9].to_str())\npanic(\"boom\")\nprintln(\"survived panic\")\nprintln(format(\"veclen2=\", v.len().to_str(), \",str2=\", s))\nK := struct {\n    n : I64 = 0\nnamespace:\n    bump := func(mut self: K) {\n        self.n = self.n + 1\n    }\n}\nmut k := K()\nk.bump()\nk.bump()\nprintln(format(\"bump=\", k.n.to_str()))\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
@@ -65,17 +65,45 @@ main := proc() {
     // reported, the session must reach the turn after them, and the binding
     // made before them must still be there.
     syntax_err := count_matches(output, "error: unexpected token")
-    unclosed_err := count_matches(output, "error: expected ')'")
+    stray_close := count_matches(output, "error: expected statement, found ')'")
     survived := count_matches(output, "survived syntax errors")
     state_kept := count_matches(output, "til[script]> 31\n")
+    // A binding holding heap data, mutated across turns. The asap pass ran
+    // over each delta with the PERSISTENT program scope, so every accumulated
+    // binding got a scope-end delete in a body that had not declared it: `v`
+    // was destroyed at the end of every later turn (count reset, buffer
+    // freed), the next push memcpy'd into freed memory, and the session died
+    // on "corrupted size vs. prev_size in fastbins".
+    veclen := count_matches(output, "veclen=2")
+    vec0 := count_matches(output, "vec0=3")
+    strval := count_matches(output, "str=abc")
+    // The throw lowering PREPENDS `_err_kind` at the head of the body, with
+    // the body's line, so the REPL's line-based slice skipped it and the
+    // lowered `get` call was evaluated with an argument that was never
+    // declared: "argument binding not found: _err_kind".
+    oob := count_matches(output, "uncaught throw 'OutOfBounds'")
+    err_kind_bug := count_matches(output, "argument binding not found")
+    // panic/TODO/UNREACHABLE/assert all end in exit(1), which used to take the
+    // whole process down: one bad turn threw away every binding the user had.
+    panicked := count_matches(output, ": panic: boom")
+    survived_panic := count_matches(output, "survived panic")
+    state_after_panic := count_matches(output, "veclen2=2,str2=abc")
+    // Multi-line input: a struct with a namespace block, typed the way it is
+    // written in a file. Every line used to be submitted on its own, so the
+    // first one was a syntax error and the rest landed as garbage statements.
+    multiline := count_matches(output, "bump=2")
     if n.eq(2).and(bad.eq(0)).and(missing.eq(1)).and(bad_y.eq(0)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)).and(user_info.eq(1)).and(member_doc.eq(1))
         .and(ctor.eq(1)).and(defaults.eq(1)).and(named_err.eq(0)).and(undef_p.eq(0))
-        .and(field_echo.eq(1)).and(syntax_err.eq(1)).and(unclosed_err.eq(1))
-        .and(survived.eq(1)).and(state_kept.eq(2)) {
+        .and(field_echo.eq(1)).and(syntax_err.eq(1)).and(stray_close.eq(1))
+        .and(survived.eq(1)).and(state_kept.eq(2))
+        .and(veclen.eq(1)).and(vec0.eq(1)).and(strval.eq(1))
+        .and(oob.eq(1)).and(err_kind_bug.eq(0))
+        .and(panicked.eq(1)).and(survived_panic.eq(1)).and(state_after_panic.eq(1))
+        .and(multiline.eq(1)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str(), ", syntax errs=", syntax_err.to_str(), ", unclosed=", unclosed_err.to_str(), ", survived=", survived.to_str(), ", state kept=", state_kept.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str(), ", syntax errs=", syntax_err.to_str(), ", stray close=", stray_close.to_str(), ", survived=", survived.to_str(), ", state kept=", state_kept.to_str(), ", veclen=", veclen.to_str(), ", vec0=", vec0.to_str(), ", str=", strval.to_str(), ", oob=", oob.to_str(), ", err_kind bug=", err_kind_bug.to_str(), ", panicked=", panicked.to_str(), ", survived panic=", survived_panic.to_str(), ", state after panic=", state_after_panic.to_str(), ", multiline=", multiline.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)

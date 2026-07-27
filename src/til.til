@@ -35,16 +35,55 @@ get_cwd_str := ext_proc() returns Str {}
 
 // --- CLI ---
 
-// Read one line of REPL input. Returns the line (without trailing newline) on
-// success, or empty string on EOF.
-repl_read_line := proc(mode_name: Str) returns Str {
+// Read one line of REPL input. Returns the line (without trailing newline);
+// sets `eof` when stdin is exhausted, which an empty line alone does not
+// distinguish (both come back as "").
+priv repl_read_line := proc(mode_name: Str, continuation: Bool, mut eof: Bool) returns Str {
     print_single("til[")
     print_single(mode_name)
-    print_single("]> ")
+    if continuation { print_single("]... ") } else { print_single("]> ") }
     mut line := ""
     ok := in_read_line(line)
-    if ok.not() { return "" }
+    eof = ok.not()
+    if eof { return "" }
     return line
+}
+
+// Net bracket depth of a token stream; positive means the block is still open.
+// Counted over TOKENS, so a brace inside a string literal or a comment does
+// not open a block.
+priv repl_tokens_open_depth := func(tokens: Vec(Token)) returns I64 {
+    mut depth : I64 = 0
+    for t : Token in tokens {
+        if t.type.is(TokenType.LParen).or(t.type.is(TokenType.LBracket)).or(t.type.is(TokenType.LBrace)) {
+            depth = depth + 1
+        } else if t.type.is(TokenType.RParen).or(t.type.is(TokenType.RBracket)).or(t.type.is(TokenType.RBrace)) {
+            depth = depth - 1
+        }
+    }
+    return depth
+}
+
+// Read one REPL submission: a line, plus continuation lines for as long as
+// brackets stay open. Every line used to be submitted on its own, so anything
+// spanning lines was impossible at the prompt -- `C := struct {` alone is a
+// syntax error, and the rest of the definition then landed as garbage
+// statements ("undefined symbol 'c'"). Squeezing a struct with a `namespace:`
+// block onto one line was the only way to declare one.
+//
+// EOF mid-block hands back what was typed so the parser reports the
+// unterminated construct; an empty line inside an open block is just a blank
+// line, not the end of input.
+repl_read_block := proc(mode_name: Str) returns Str {
+    mut eof := false
+    mut block := repl_read_line(mode_name, false, eof)
+    if eof.or(block.len() == 0) { return "" }
+    while repl_tokens_open_depth(tokenize(block, "<repl>")) > 0 {
+        next := repl_read_line(mode_name, true, eof)
+        if eof { return block }
+        block = format(block, "\n", next)
+    }
+    return block
 }
 
 // Run init+typecheck on a REPL-loaded program. Returns the type-error
@@ -53,7 +92,7 @@ repl_typecheck := proc(mut lp: LoadedProgram) returns I32 {
     return type_program_errors(lp, false)
 }
 
-repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Str {
+repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32, mut aborted: Bool) returns Str {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     stdio_capture_begin(out_path)
@@ -66,14 +105,14 @@ repl_capture_eval_current := proc(mut session: InterpSession, mut lp: LoadedProg
     if result == 0 {
         interp_session_eval_core_once(session, lp)
         interp_session_eval_imported_once(session, lp)
-        interp_session_eval_current_root(session, lp, block_start_line, eval_doc_line, doc_init_line)
+        aborted = interp_session_eval_current_root(session, lp, block_start_line, eval_doc_line, doc_init_line)
         interp_session_finish_context(lp)
     }
     stdio_capture_end()
     return File.readfile(out_path)
 }
 
-repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: USize, count: USize) returns Str {
+repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: USize, count: USize, mut aborted: Bool) returns Str {
     mut interpret_fwd_path := ""
     mut result : I32 = 0
     stdio_capture_begin(out_path)
@@ -86,7 +125,7 @@ repl_capture_eval_tail := proc(mut session: InterpSession, mut lp: LoadedProgram
     if result == 0 {
         interp_session_eval_core_once(session, lp)
         interp_session_eval_imported_once(session, lp)
-        interp_session_eval_current_tail(session, lp, start_idx, count)
+        aborted = interp_session_eval_current_tail(session, lp, start_idx, count)
         interp_session_finish_context(lp)
     }
     stdio_capture_end()
@@ -333,6 +372,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     user_argv := Vec(Str).new()
     mut session := InterpSession()
     interp_session_start(session, user_argv)
+    session.is_repl = true
 
     system_cmd("mkdir -p tmp")
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
@@ -350,7 +390,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     mut repl_echo_counter : I64 = 0
 
     while true {
-        block := repl_read_line(mode_str)
+        block := repl_read_block(mode_str)
         if block.len() == 0 {
             println("")
             break
@@ -382,6 +422,13 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut block_eff := block.clone()
         mut turn_out := ""
         mut ran_ok := false
+        // The turn ran but its code panicked (h_exit unwound instead of
+        // terminating the session). Its output still goes to the user, but the
+        // line must not join `accum` or the committed program: a full load
+        // replays accum from scratch, so a panicking line would fire again on
+        // every later turn, and the statement's own bindings never finished
+        // being declared.
+        mut turn_aborted := false
         current_has_help := repl_ast_has_help_call(peek_ast)
         current_has_loader_directive := repl_ast_has_loader_directive(peek_ast)
         current_has_lazy_def := repl_ast_has_lazy_def(peek_ast)
@@ -452,14 +499,14 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if run_errs == 0 {
                 if use_full_load {
                     finish_prepare_program(run_heap)
-                    turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line)
+                    turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line, turn_aborted)
                 } else {
                     mut eval_start := run_tail_start
                     if doc_line.len() > 0 { if init_docs_this_turn.not() { eval_start++ } }
-                    turn_out = repl_capture_eval_tail(session, run_heap, out_path, eval_start, run_tail_start.add(run_tail_count).sub(eval_start))
+                    turn_out = repl_capture_eval_tail(session, run_heap, out_path, eval_start, run_tail_start.add(run_tail_count).sub(eval_start), turn_aborted)
                 }
                 interp_session_retain_program(session, run_raw)
-                if commit_compiler_state { committed_raw = run_raw }
+                if commit_compiler_state.and(turn_aborted.not()) { committed_raw = run_raw }
                 ran_ok = true
                 repl_anon_type_counter = trial_counter
             } else {
@@ -514,14 +561,14 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 if use_full_load {
                     finish_init_and_type_program(typed_heap)
                     finish_prepare_program(typed_heap)
-                    turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line)
+                    turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line, turn_aborted)
                 } else {
                     mut eval_start2 := typed_tail_start
                     if doc_line.len() > 0 { if init_docs_this_turn.not() { eval_start2++ } }
-                    turn_out = repl_capture_eval_tail(session, typed_heap, out_path, eval_start2, typed_tail_start.add(typed_tail_count).sub(eval_start2))
+                    turn_out = repl_capture_eval_tail(session, typed_heap, out_path, eval_start2, typed_tail_start.add(typed_tail_count).sub(eval_start2), turn_aborted)
                 }
                 interp_session_retain_program(session, typed_raw)
-                if commit_compiler_state { committed_raw = typed_raw }
+                if commit_compiler_state.and(turn_aborted.not()) { committed_raw = typed_raw }
                 ran_ok = true
                 repl_anon_type_counter = trial_counter2
             } else {
@@ -537,12 +584,16 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 
             // Only commit good lines to accumulated source. If typecheck
             // failed, drop the line so it doesn't pollute future turns
-            // (the typer would replay the same error on every input).
-            if accum.len() > 0 { accum = accum.format("\n") }
-            accum = accum.format(block_eff)
-            repl_has_loader_directives = repl_has_loader_directives.or(current_has_loader_directive)
-            repl_has_lazy_defs = repl_has_lazy_defs.or(current_has_lazy_def)
-            repl_has_full_state = repl_has_full_state.or(current_has_known_variadic_call.and(repl_ast_updates_doc_cache(peek_ast)))
+            // (the typer would replay the same error on every input). A line
+            // that panicked is dropped for the same reason: a full load
+            // replays accum from the top and would panic again every turn.
+            if turn_aborted.not() {
+                if accum.len() > 0 { accum = accum.format("\n") }
+                accum = accum.format(block_eff)
+                repl_has_loader_directives = repl_has_loader_directives.or(current_has_loader_directive)
+                repl_has_lazy_defs = repl_has_lazy_defs.or(current_has_lazy_def)
+                repl_has_full_state = repl_has_full_state.or(current_has_known_variadic_call.and(repl_ast_updates_doc_cache(peek_ast)))
+            }
         }
     }
     interp_session_free(session)

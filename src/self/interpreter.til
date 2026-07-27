@@ -299,6 +299,10 @@ InterpSession := struct {
     // width mismatch a hard type error on 64-bit.
     user_argc : USize = 0
     retained_programs := Vec(DynPtrBox).new()
+    // Set by the REPL driver. Copied onto each turn's Context by
+    // interp_session_prepare_context so h_exit can unwind a failing turn
+    // instead of terminating the session.
+    is_repl := false
     // Display paths of imported (non-entry) units whose top-level globals
     // have already been evaluated into `global`. The REPL evaluates the
     // entry root incrementally but must run an imported unit's global
@@ -2088,7 +2092,7 @@ priv eval_while := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
         if c.has_return { break }
         // A const-folder abort inside the loop body stops iteration (the
         // body's eval_body already bailed); don't re-evaluate the condition.
-        if c.constfold_aborted { break }
+        if c.eval_aborted { break }
         cv := eval_bool_arg(scope, stmt.children[0], ctx)
         if cv.not() { break }
         while_scope := scope_new(Option(ref Scope).Some(scope))
@@ -2107,7 +2111,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         if c.has_continue { return }
         // A const-folder abort unwinds every enclosing body like an early
         // return until try_eval_call observes it.
-        if c.constfold_aborted { return }
+        if c.eval_aborted { return }
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
         case NodeType.Decl(dd):
@@ -3009,7 +3013,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     if ctx.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
                     }
-                    ctx.constfold_aborted = true
+                    ctx.eval_aborted = true
                     if destination.is_null().not() { return destination }
                     return raw_unit_result(e.til_type(), ctx)
                 }
@@ -4956,10 +4960,13 @@ priv interp_reset_control_flow := func(mut ctx: Context) {
     ctx.has_return = false
     ctx.has_break = false
     ctx.has_continue = false
-    ctx.constfold_aborted = false
+    ctx.eval_aborted = false
 }
 
 interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
+    // Every REPL turn interprets a freshly loaded/cloned program, so the flag
+    // has to be restamped on each turn's Context.
+    lp.ctx.repl_session = session.is_repl
     // Ensure builtin dispatch table is initialized deterministically.
     if lp.ctx.dispatch_inited.not() { dispatch_init(lp.ctx) }
 
@@ -5123,25 +5130,58 @@ priv interp_eval_exact_line := proc(session: InterpSession, mut lp: LoadedProgra
     interp_eval_program_slice(session, lp, program, start, count)
 }
 
+// The throw lowering PREPENDS a body's error-slot decls -- `_err_kind` plus
+// one `_err_<T>` per payload-bearing throw type -- at the head of the body it
+// lowers, carrying the body's own line. They are body preamble, not user
+// statements, so the line-based slice below leaves them behind: a REPL turn
+// whose new statement throws (`println(v[0].to_str())`, which lowers to a
+// `get` call taking `_err_kind` as an out-arg) died with "argument binding not
+// found: _err_kind". Count the leading run so the caller can evaluate it. The
+// full load re-lowers the whole accumulated program every turn, so the
+// preamble always belongs to the statements about to run.
+priv interp_lowering_preamble_count := func(program: Expr, limit: USize) returns USize {
+    mut n : USize = 0
+    while n < limit {
+        mut is_slot := false
+        switch program.children[n].node_type {
+        case NodeType.Decl(dd): is_slot = dd.name.starts_with("_err_")
+        case:
+        }
+        if is_slot.not() { return n }
+        n++
+    }
+    return n
+}
+
 // doc_init_line is the source line of the REPL's injected doc-init call
 // (doc_init_cache_files, which populates the help() blobs). It sits above
 // block_start_line so the normal slice skips it; when eval_doc_line is set
 // it is evaluated by exact line. The caller owns the preamble layout and
 // passes the line, so this stays correct if that layout changes.
-interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) {
+// Both return true when the turn was ABANDONED mid-way: h_exit saw a failing
+// exit (panic and friends) in a REPL session and unwound instead of killing
+// the process. The caller must not commit such a line to the accumulated
+// source -- replaying it would panic again on every later full load.
+// interp_reset_control_flow clears the flag, so read it before that.
+interp_session_eval_current_root := proc(session: InterpSession, mut lp: LoadedProgram, block_start_line: U32, eval_doc_line: Bool, doc_init_line: U32) returns Bool {
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]
-    if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, doc_init_line) }
     start_idx := interp_first_stmt_at_line(iu.ast, block_start_line)
+    interp_eval_program_slice(session, lp, iu.ast, 0, interp_lowering_preamble_count(iu.ast, start_idx))
+    if eval_doc_line { interp_eval_exact_line(session, lp, iu.ast, doc_init_line) }
     interp_eval_program_slice(session, lp, iu.ast, start_idx, iu.ast.children.len().sub(start_idx))
+    aborted := lp.ctx.eval_aborted
     interp_reset_control_flow(lp.ctx)
+    return aborted
 }
 
-interp_session_eval_current_tail := proc(session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) {
+interp_session_eval_current_tail := proc(session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) returns Bool {
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]
     interp_eval_program_slice(session, lp, iu.ast, start_idx, count)
+    aborted := lp.ctx.eval_aborted
     interp_reset_control_flow(lp.ctx)
+    return aborted
 }
 
 // Per-file interpreter entrypoint (rstil-style): uses the canonical per-file
@@ -5813,14 +5853,25 @@ priv h_exit := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     // exit is the single primitive that terminates the process, so it is the
     // single interception point for the const-folder. When a fold eval reaches
     // it (panic/TODO/UNREACHABLE all route here, as does a bare exit), don't
-    // kill the build: set constfold_aborted and unwind like an early return
+    // kill the build: set eval_aborted and unwind like an early return
     // (propagated through eval_body/eval_while). try_eval_call then leaves the
     // call for runtime, or reports it for a macro. No name list required.
     if ctx.constfold_active {
-        ctx.constfold_aborted = true
+        ctx.eval_aborted = true
         return true
     }
     code := eval_i64_arg(s, e.children[1], ctx)
+    // A REPL session takes the same road for a FAILING exit. panic / TODO /
+    // UNREACHABLE / assert all end in exit(1) after printing their message, so
+    // before this one typo -- or an uncaught throw, or an out-of-bounds index
+    // -- terminated the whole process and threw away every binding the user
+    // had built up. The message is already on the captured stream; unwinding
+    // drops the turn and prompts again. exit(0) still terminates: that is a
+    // deliberate quit, not a failure.
+    if ctx.repl_session.and(code.neq(0)) {
+        ctx.eval_aborted = true
+        return true
+    }
     exit(code)
     return true
 }

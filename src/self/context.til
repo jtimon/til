@@ -470,7 +470,17 @@ Context := struct {
     interp_ret_type := Option(ref Str).None
     interp_ret_own_type := OwnType.Shallow
     constfold_active := false
-    constfold_aborted := false
+    // "Abandon this evaluation and unwind like an early return", checked by
+    // eval_body / eval_while. Two producers, one meaning: a const-fold eval
+    // that reached exit() (the fold is abandoned, the call is left for
+    // runtime), and a REPL turn whose code panicked (the turn is abandoned,
+    // the session survives). Set by h_exit, cleared by
+    // interp_reset_control_flow and the constfolder's own consumers.
+    eval_aborted := false
+    // True while a REPL session interprets. Makes a failing exit() unwind
+    // instead of terminating the process, so one panic does not end the
+    // session. See h_exit.
+    repl_session := false
     ref ns_fields : Scope = NULL
     ns_inited := false
 

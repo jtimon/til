@@ -301,10 +301,16 @@ priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), m
 // the whole global namespace this way (every imported core/std name plus
 // re-registered per-body temps); printing those would tie the golden to
 // the global name population, so the table filters them.
+// A binding this body neither declares nor mentions: there is no decision to
+// record, whichever way skip_scope_delete came out. The filter used to also
+// require skip=0, which held only because a cross-body program-scope global
+// (another file's top level, or an earlier REPL turn) wrongly fell through to
+// skip=0; now that those are correctly skipped, keying on it would dump every
+// core global into every file's table.
 priv gc_audit_local_is_noise := func(local: LocalInfo) returns Bool {
     return local.decl_index.eq(-1).and(local.last_use.eq(-1))
         .and(local.own_transfer.eq(-1))
-        .and(local.is_heap.not()).and(local.skip_scope_delete.not())
+        .and(local.is_heap.not())
 }
 
 // One body's full audit record: the settled LocalInfo table (the pass's
@@ -1350,7 +1356,18 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // program scope. Without this carveout, top-level `mut X := Foo()`
         // initializers leak every hoisted temp the typer emits to build
         // the constructor args (Type_Struct, Type_Enum, ...).
-        mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0)).and(b.name.starts_with("hoisted__").not())
+        //
+        // A program-scope binding whose Decl is NOT in this body was declared
+        // by some other body sharing the same global scope -- another imported
+        // file, or (in the REPL) an earlier turn's delta -- and belongs to
+        // whoever declared it. Scheduling a scope-end delete here destroys a
+        // live global at its last use in a body that never owned it: the REPL
+        // ran `Vec(I64).delete(v, false)` at the end of every turn after the
+        // one declaring `v`, so the next `v.push` memcpy'd into a freed buffer
+        // and the session died on "corrupted size vs. prev_size in fastbins".
+        // Only hoist temps are program-scope locals this pass owns, and the
+        // hoist pass always declares them in the body it serves.
+        mut skip_scope_delete := is_program_scope.and(decl_idx.lt(0).or(b.name.starts_with("hoisted__").not()))
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
                 if is_compile_directive(body.children[j]) { continue }
