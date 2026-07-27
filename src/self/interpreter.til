@@ -5289,7 +5289,6 @@ ffi_close_user_so := ext_proc() {}
 ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_last_error := ext_proc() returns Str {}
-process_id := ext_proc() returns shallow I32 {}
 // ext_proc, NOT ext_func: this reads a build-time property of the RUNNING
 // binary, so it must be evaluated at runtime. As an ext_func the constfolder
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold

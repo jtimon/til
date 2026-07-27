@@ -20,6 +20,9 @@ clock_ms := ext_proc() returns shallow I64 {}
 get_thread_count := ext_proc() returns shallow I64 {}
 peak_rss_bytes := ext_proc() returns shallow U64 {}
 current_rss_bytes := ext_proc(shallow pid: I64) returns shallow U64 {}
+// getpid(). Callers use it to make per-process temp paths unique
+// (the REPL's tmp/repl_<pid>.til, the interpreter's tmp/ffi_<pid>.so).
+process_id := ext_proc() returns shallow I32 {}
 host_os := ext_proc() returns Str {}
 host_arch := ext_proc() returns Str {}
 mkdir_p := ext_proc(path: Str) returns shallow I32 {}
