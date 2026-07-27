@@ -2104,10 +2104,16 @@ priv type_size_align := proc(ftype: Str, scope: TypeScope, ctx: Context, mut sz:
         al = sl.align
     case NodeType.EnumDef:
         sz = compute_enum_layout(ftype, nested, scope, ctx)
-        al = 8
+        // Read the alignment compute_enum_layout just stored instead of
+        // assuming 8: it is the payload's alignment, which is only 8 for a
+        // pointer-aligned payload.
+        al = ctx.struct_layouts[ftype].align
     case:
-        sz = 8
-        al = 8
+        // Not a struct or enum: whatever it is reaches the interpreter as a
+        // pointer, so it is pointer-sized -- UPtr.size(), the running
+        // compiler's own width, not a hardcoded 8 (#257).
+        sz = UPtr.size()
+        al = UPtr.size()
     }
 }
 
