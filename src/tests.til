@@ -518,6 +518,15 @@ main := proc(args: ..Str) {
     add_count(tests, "dead_temps_underscore_cast", "build", "(void)_b;", 1,
         format(til_bin, " translate -c gen/c/dead_temps_uscore.c test/dead_temps.til '&&' cat gen/c/dead_temps_uscore.c"))
 
+    // Issue #326: a program that names no compiler AST type and no
+    // reflection must not carry the compiler's data model into its output.
+    // NodeType is the hub -- StructDef's fields reach Declaration, whose
+    // field default reaches Expr, whose node_type reaches NodeType -- so one
+    // needle guards the whole cluster. See test/minimal_reach.til; the
+    // `both` entry below proves what survives still links and runs.
+    add_count(tests, "minimal_reach_no_ast_model", "build", "NodeType", 0,
+        format(til_bin, " translate -c gen/c/minimal_reach.c test/minimal_reach.til '&&' cat gen/c/minimal_reach.c"))
+
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the
     // long-running jobs (GUI builds, then the slow both tests) keeps the
@@ -640,6 +649,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug258.til", flags)
     add_both(tests, "test/bug315.til", flags)
     add_both(tests, "test/dead_temps.til", flags)
+    add_both(tests, "test/minimal_reach.til", flags)
     add_both(tests, "test/mut_arg_str_lit.til", flags)
     add_both(tests, "test/mut_capture_str_lit.til", flags)
     add_both(tests, "test/literal_field_access.til", flags)

@@ -162,8 +162,15 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             }
         }
     case NodeType.FuncDef(fdef):
+        // #326: a macro's SIGNATURE is comptime. It is fully expanded before
+        // codegen, so neither its parameters nor its result ever exist at
+        // runtime -- see the return-type note below for what rooting them
+        // cost. `macro(T: Type)` is the generic-type-constructor shape, so
+        // this is also what stops every generic container from rooting the
+        // Type enum and its Primitive payload.
+        cr_is_macro := fdef.func_type.is(FuncType.Macro)
         for p : Declaration in fdef.params {
-            if p.explicit_type.len() > 0 {
+            if p.explicit_type.len().gt(0).and(cr_is_macro.not()) {
                 vec_push_str(refs, p.explicit_type)
             }
         }
@@ -173,7 +180,21 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             push_qn(refs, "Array", "set")
             push_qn(refs, "Array", "delete")
         }
-        if fdef.return_type.len() > 0 {
+        // #326: a macro's return type is a COMPTIME type. Macros are fully
+        // expanded before codegen, so nothing in the emitted C ever
+        // materializes one -- and a generic type constructor
+        // (`Array := struct<T: Type>` lowers to `macro(T: Type) returns
+        // StructDef`, `Option` to one returning EnumDef) is exactly that
+        // shape. Rooting the return type made EVERY program that touches a
+        // generic container -- `println("hi")` does, through the variadic
+        // Array -- retain the compiler's own StructDef, and through its
+        // `fields : Vec(Declaration)` the whole Declaration -> Expr ->
+        // NodeType data model, since Declaration's field default is
+        // `Expr.new(NodeType.NoDefaultArg, 0, 0)` and NodeType's payloads
+        // close the cycle over every ast.til type. Reflection that really
+        // does build a StructDef at runtime roots it honestly, through
+        // struct_def_of's return type.
+        if fdef.return_type.len().gt(0).and(cr_is_macro.not()) {
             vec_push_str(refs, fdef.return_type)
         }
     case NodeType.FieldAccess(field_name):

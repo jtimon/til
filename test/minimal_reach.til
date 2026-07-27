@@ -1,0 +1,18 @@
+mode script
+
+// Issue #326 reachability regression fixture.
+//
+// A program that mentions no compiler AST type and no reflection must not
+// carry the compiler's own data model into its output. `println` alone used
+// to drag in StructDef -> Declaration -> Expr -> NodeType and, through
+// NodeType's payloads, every type in src/core/ast.til: a generic container
+// lowers to `macro(T: Type) returns StructDef`, and the scavenger rooted
+// that comptime signature as if it were a runtime dependency. `println`
+// takes `..Dynamic`, so every program paid for it -- 4,149 lines of C for
+// this file, against 681 once macro signatures stopped being roots.
+//
+// The suite asserts on the generated C (minimal_reach_no_ast_model in
+// src/tests.til) and runs the program interpreted and compiled (the `both`
+// entry), so the fixture proves both that the model is gone and that what
+// survives still links and runs.
+println("minimal")

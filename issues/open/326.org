@@ -270,19 +270,29 @@ Landed (suite green, `make test_two_pass`):
   lines, 961 -> 0 ~(void)hoisted__~, 260 -> 0 ~__attribute__((unused))~,
   260 -> 0 ~(void)til_env;~, 112 -> 0 ~(void)_til_str_lits~.
 
+- [X] Step 6's minimal-output rule: a macro's SIGNATURE is not a root.
+  The in-edge into the compiler's own data model was
+  ~collect_refs~ pushing a macro's parameter and return types.  A generic
+  container lowers to a type-constructor macro -- ~Array~ is
+  ~macro(T: Type) returns StructDef~, ~Option~ returns ~EnumDef~ -- and
+  ~println~ takes ~..Dynamic~, so EVERY program rooted ~StructDef~, and
+  through its ~fields : Vec(Declaration)~ the whole
+  ~Declaration -> Expr -> NodeType~ cluster (~Declaration~'s field default
+  is ~Expr.new(NodeType.NoDefaultArg, 0, 0)~, and NodeType's payloads close
+  the cycle over every ast.til type), plus ~Type~ and ~Primitive~ from the
+  ~T: Type~ parameter.  A macro is fully expanded before codegen, so
+  neither its parameters nor its result exist at runtime; its expansions
+  are separate monomorphized declarations that are reached on their own
+  merits.  ~println("minimal")~ went 4,149 -> 681 lines of C (200 -> 50
+  emitted functions) and ~test/constfold.c~ 4,941 -> 2,075.
+  ~test/minimal_reach.til~ plus the ~minimal_reach_no_ast_model~ count
+  entry are the regression; the ~both~ entry proves what survives runs.
+
 Still open:
 
 - [ ] Root cause 6.  Reaching a type still queues all five of
   ~delete/clone/size/cmp/hash~.  Concrete AST calls and garbager-inserted
   operations should root them individually.
-- [ ] The compiler's own AST data model still survives into minimal
-  output.  ~println("hi")~ emits 4,149 lines including ~Expr~,
-  ~NodeType~, ~StructDef~, ~EnumDef~, ~Declaration~ and their
-  ~Map__Str_USize~ / Vec graph.  ~Declaration~'s field default
-  (~default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)~) makes
-  the cluster self-sustaining once ANY member is reached; the remaining
-  work is finding and cutting the in-edge, which belongs with the
-  centralized per-mode root policy of step 4.
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
   top-level values are still blanket roots (sweeping them needs the
   effect-preserving rewrite of step 3 so a dropped binding cannot drop an
