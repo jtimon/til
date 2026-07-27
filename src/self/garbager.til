@@ -784,17 +784,54 @@ priv gc_flow_dump := proc(ctx: Context, blocks: Vec(GcCfgBlock), locals: Vec(Loc
     }
 }
 
+// A `ref x := <binding>` alias of `name` that `expr` (typically a return
+// value) uses -- the binding is reached through x, so it must outlive the
+// exit. arg_addressed_ident sees through to_ptr(): `ref s : Scope =
+// to_ptr(raw)` aliases raw exactly as `ref s := raw` would, and matching
+// only a bare Ident missed it -- so a `return s` did not protect raw and
+// the pass scheduled its free before the caller ever saw the block.
+// Does any Return in this subtree hand back `name`?
+priv body_returns_var := func(e: Expr, name: Str) returns Bool {
+    if e.node_type.is(NodeType.Return).and(e.children.len().gt(0)) {
+        if expr_uses_var(e.children[0], name) { return true }
+    }
+    for c : Expr in e.children {
+        if body_returns_var(c, name) { return true }
+    }
+    return false
+}
+
+// `name` is aliased by a `ref` binding that the body RETURNS: the caller
+// gets a pointer into name's block, so the block outlives this body and
+// its cleanup must stand down. The per-return guard in
+// insert_exit_deletes_into_stmt only skips the delete it is inserting at
+// that return; the scope-end path has no such guard, which is how
+// `ref s : Scope = to_ptr(raw) ... return s` still emitted `free(raw);
+// return s;` -- a dangling pointer handed to the caller.
+priv aliased_by_returned_ref := func(body: Expr, name: Str) returns Bool {
+    for d : Expr in body.children {
+        switch d.node_type {
+        case NodeType.Decl(dd):
+            if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
+                ref src : Str = arg_addressed_ident(d.children[0])
+                if src.is_null().not().and(src == name) {
+                    if body_returns_var(body, dd.name) { return true }
+                }
+            }
+        case:
+        }
+    }
+    return false
+}
+
 priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) returns Bool {
     for d : Expr in stmts {
         switch d.node_type {
         case NodeType.Decl(dd):
             if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                switch d.children[0].node_type {
-                case NodeType.Ident(di):
-                    if di.ident_name() == name {
-                        if expr_uses_var(expr, dd.name) { return true }
-                    }
-                case:
+                ref src : Str = arg_addressed_ident(d.children[0])
+                if src.is_null().not().and(src == name) {
+                    if expr_uses_var(expr, dd.name) { return true }
                 }
             }
         case:
@@ -1040,6 +1077,10 @@ priv StmtFacts := struct {
     decls := Set(Str).new()
     nested := Set(Str).new()
     transfers := Set(Str).new()
+    // Names whose pointer this statement stores into raw memory
+    // (write_ptr): reachable afterwards through storage the pass cannot
+    // see, so their cleanup stands down.
+    escapes := Set(Str).new()
 }
 
 priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool) returns Vec(StmtFacts) {
@@ -1049,6 +1090,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool)
         expr_collect_uses(stmt, f.uses)
         expr_collect_decls(stmt, f.decls)
         expr_collect_nested_uses(stmt, f.nested)
+        expr_collect_ptr_escapes(stmt, f.escapes)
         if with_transfers { expr_collect_transfers(stmt, scope, f.transfers) }
         facts.push(own f)
     }
@@ -1121,7 +1163,11 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             for j in scan_from..body.children.len() {
                 if is_compile_directive(body.children[j]) { continue }
                 ref fjn : StmtFacts = facts.unsafe_get(j)
-                if fjn.nested.has(b.name) {
+                // A closure body use, or a write_ptr that stored this
+                // binding's pointer into raw memory: in both cases it stays
+                // reachable past its last textual mention, so the pass must
+                // not schedule a delete for it.
+                if fjn.nested.has(b.name).or(fjn.escapes.has(b.name)) {
                     skip_scope_delete = true
                     break
                 }
@@ -1133,6 +1179,9 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // they need a scope-end delete despite the Ref default.
         main_cli_param := ctx.typer_in_main_func.and(b.is_param)
         if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
+        if skip_scope_delete.not() {
+            if aliased_by_returned_ref(body, b.name) { skip_scope_delete = true }
+        }
 
         mut li := LocalInfo(name = b.name)
         li.type = b.type

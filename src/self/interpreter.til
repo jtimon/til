@@ -1527,7 +1527,7 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
     case NodeType.Literal(Literal.Str(text)):
         mut result : Dynamic = destination
         if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
-        buf : Dynamic = malloc(text.count.add(1))
+        buf : I8 = malloc(text.count.add(1))
         mut j : USize = 0
         mut i : USize = 0
         while i < text.count {

@@ -131,6 +131,22 @@ raw_alloc_auto := func() returns I64 {
     return 0
 }
 
+// Shape 11b: the same raw_alloc provenance, but the pointer is stored
+// into raw memory with write_ptr. That storage is opaque to the pass, so
+// the block stays reachable past `esc`'s last textual mention and its
+// cleanup must STAND DOWN (skip=1, no free site) -- scheduling the free
+// at the last mention made every later read through the slot a
+// use-after-free (ASAN: heap-use-after-free). Whoever holds the slot
+// owns the block from that point on; the fixture leaks it deliberately,
+// exactly as the hand-written contract does today.
+raw_alloc_escapes := func() returns I64 {
+    slot : U8 = malloc(UPtr.size())
+    esc : U8 = malloc(8)
+    write_u8(esc, 9)
+    write_ptr(slot, esc)
+    return 0
+}
+
 // Shape 12: the KNOWN deferred leak (#302 stage 3) -- a switch inside a
 // loop whose transferring case carries a `break` (targeting the While)
 // is not C-like, so it desugars to a Body-wrapped if/elif chain;
@@ -205,6 +221,7 @@ test_gc_audit_shapes := test() {
     d := lit.clone()
     assert(early_param(own d, true) == 1)
     assert(raw_alloc_auto() == 0)
+    assert(raw_alloc_escapes() == 0)
     assert(switch_break_transfer(0) == 0)
     assert(switch_break_transfer(1) == 1)
     assert(switch_break_transfer(3) == 5)

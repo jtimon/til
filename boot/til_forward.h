@@ -942,6 +942,7 @@ typedef struct priv___src_self_garbager_til__StmtFacts {
     Set__Str decls;
     Set__Str nested;
     Set__Str transfers;
+    Set__Str escapes;
 } priv___src_self_garbager_til__StmtFacts;
 
 
@@ -2831,6 +2832,7 @@ Expr * make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Str * variadic_array_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
 Bool priv___src_self_typer_til__is_enum_variant_ctor_with_payload(Expr * expr, TypeScope * scope);
+Str * arg_addressed_ident(Expr * arg);
 Bool priv___src_self_typer_til__check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool priv___src_self_typer_til__fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope, Context * ctx);
@@ -2838,6 +2840,7 @@ void expr_collect_uses(Expr * e, Set__Str * out);
 void expr_collect_decls(Expr * e, Set__Str * out);
 void priv___src_self_typer_til__nested_uses_add(Str * name, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
 void priv___src_self_typer_til__expr_collect_uses_excluding(Expr * e, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
+void expr_collect_ptr_escapes(Expr * e, Set__Str * out);
 void expr_collect_nested_uses(Expr * e, Set__Str * out);
 void priv___src_self_typer_til__collect_own_arg_names(Expr * fdef, Expr * fcall, Set__Str * out);
 void priv___src_self_typer_til__fcall_collect_own_arg_names(Expr * fcall, TypeScope * scope, Set__Str * out);
@@ -3048,6 +3051,8 @@ void priv___src_self_garbager_til__gc_flow_solve(Vec__GcCfgBlock * blocks, U8 en
 Bool priv___src_self_garbager_til__gc_flow_exit_is_mixed(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__gc_flow_owned_at_stmt(Expr * body, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx, I32 stmt_idx);
 void priv___src_self_garbager_til__gc_flow_dump(Context * ctx, Vec__GcCfgBlock * blocks, Vec__LocalInfo * locals, TypeScope * scope);
+Bool priv___src_self_garbager_til__body_returns_var(Expr * e, Str * name);
+Bool priv___src_self_garbager_til__aliased_by_returned_ref(Expr * body, Str * name);
 Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
 Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
 Vec__Str * priv___src_self_garbager_til__collect_hoist_taint_facts(Str * target, Vec__Expr * preceding, Vec__StmtFacts * facts);

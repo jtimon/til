@@ -6537,6 +6537,34 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     return false
 }
 
+// The binding an argument expression ADDRESSES, or NULL. Sees through
+// to_ptr(x), which re-types an address without changing it: a ctor arg
+// `Str(c_str = to_ptr(buf), ...)` transfers buf exactly as
+// `Str(c_str = buf, ...)` does. Matching only a bare Ident missed that,
+// so the pass kept ownership of buf and scheduled a free while the
+// constructed value still pointed at the block.
+arg_addressed_ident := func(arg: Expr) returns ref Str {
+    switch arg.node_type {
+    case NodeType.Ident(ai): return ai.ident_name()
+    case NodeType.FCall:
+        if arg.children.len() == 2 {
+            switch arg.children[0].node_type {
+            case NodeType.Ident(cn):
+                if cn.ident_name() == "to_ptr" {
+                    switch arg.children[1].node_type {
+                    case NodeType.Ident(inner): return inner.ident_name()
+                    case: return NULL
+                    }
+                }
+                return NULL
+            case: return NULL
+            }
+        }
+        return NULL
+    case: return NULL
+    }
+}
+
 priv check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns Bool {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
@@ -6546,11 +6574,8 @@ priv check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns Bool
             ref p : Declaration = fd.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
-                switch arg.node_type {
-                case NodeType.Ident(ai):
-                    if ai.ident_name() == var_name { return true }
-                case:
-                }
+                ref an : Str = arg_addressed_ident(arg)
+                if an.is_null().not().and(an == var_name) { return true }
             }
         }
         return false
@@ -6580,14 +6605,11 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
                             fi = fi + 1
                             if arg_idx < fcall.children.len() {
                                 ref arg : Expr = fcall.children[arg_idx]
-                                switch arg.node_type {
-                                case NodeType.Ident(an):
-                                    if an.ident_name().eq(var_name).and(fld_decl.own_type.is(OwnType.Ref).not()) {
-                                        if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                            return true
-                                        }
+                                ref an : Str = arg_addressed_ident(arg)
+                                if an.is_null().not().and(an.eq(var_name)).and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                    if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                                        return true
                                     }
-                                case:
                                 }
                             }
                         }
@@ -6748,6 +6770,33 @@ priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps
     for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, caps, out) }
 }
 
+// Names whose POINTER is stored into raw memory by write_ptr, the one
+// primitive that hands a til pointer to storage the ownership passes
+// cannot see. Such a local stays reachable through that storage after
+// its last textual use, so its cleanup must stand down: the asap pass
+// would otherwise free it at the last mention and every later read
+// through the raw slot is a use-after-free (ASAN confirms;
+// test/raw_escape.til pins it). Deferring or skipping a delete is always
+// memory-safe -- the same bias the hoist-view taint rule takes.
+expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
+        mut is_write_ptr := false
+        switch e.children[0].node_type {
+        case NodeType.Ident(cn): is_write_ptr = cn.ident_name() == "write_ptr"
+        case NodeType.FieldAccess(cf): is_write_ptr = cf.field_access_name() == "write_ptr"
+        case:
+        }
+        if is_write_ptr {
+            switch e.children[2].node_type {
+            case NodeType.Ident(vn):
+                if out.has(vn.ident_name()).not() { out.add(own vn.ident_name().clone()) }
+            case:
+            }
+        }
+    }
+    for e_i : Expr in e.children { expr_collect_ptr_escapes(e_i, out) }
+}
+
 expr_collect_nested_uses := func(e: Expr, mut out: Set(Str)) {
     switch e.node_type {
     case NodeType.FuncDef(fdef):
@@ -6770,11 +6819,8 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
             ref p : Declaration = fd.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
-                switch arg.node_type {
-                case NodeType.Ident(ai):
-                    if out.has(ai.ident_name()).not() { out.add(own ai.ident_name().clone()) }
-                case:
-                }
+                ref an : Str = arg_addressed_ident(arg)
+                if an.is_null().not().and(out.has(an).not()) { out.add(own an.clone()) }
             }
         }
     case:
@@ -6804,14 +6850,11 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                             fi = fi + 1
                             if arg_idx < fcall.children.len() {
                                 ref arg : Expr = fcall.children[arg_idx]
-                                switch arg.node_type {
-                                case NodeType.Ident(an):
-                                    if fld_decl.own_type.is(OwnType.Ref).not() {
-                                        if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                            if out.has(an.ident_name()).not() { out.add(own an.ident_name().clone()) }
-                                        }
+                                ref an : Str = arg_addressed_ident(arg)
+                                if an.is_null().not().and(fld_decl.own_type.is(OwnType.Ref).not()) {
+                                    if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
+                                        if out.has(an).not() { out.add(own an.clone()) }
                                     }
-                                case:
                                 }
                             }
                         }
