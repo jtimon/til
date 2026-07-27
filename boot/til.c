@@ -12593,7 +12593,7 @@ static Str _til_str_lits[5144] = {
     (Str){.c_str = (void *)"./src/self/binder.til:1822:27", .count = 29ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"mode lib\n\n", .count = 10ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"0.0.1-", .count = 6ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"0.0.1-baad6c9f6", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"0.0.1-d8b1e077d", .count = 15ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"til[", .count = 4ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"]> ", .count = 3ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"src/til.til:110:17", .count = 18ULL, .cap = TIL_CAP_LIT},
@@ -235469,7 +235469,7 @@ void priv___src_self_interpreter_til__clone_str_storage_into(void * dst, void * 
     USize cap = str_cap_at(src, ctx);
     U32 hoisted__U32_86874 = 1;
     U32 hoisted__U32_86875 = ((U32)(cap + hoisted__U32_86874));
-    void * copy = malloc((U64)(hoisted__U32_86875));
+    I8 *copy = malloc((U64)(hoisted__U32_86875));
     U32 hoisted__U32_86876 = 0;
     Bool hoisted__Bool_86877 = ((Bool)(cnt > hoisted__U32_86876));
     if (hoisted__Bool_86877) {
@@ -246001,7 +246001,7 @@ void * priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Conte
                                                             Str *source_str = to_ptr(source_ptr);
                                                             U32 hoisted__U32_90379 = 1;
                                                             U32 hoisted__U32_90380 = ((U32)(cnt + hoisted__U32_90379));
-                                                            void * copy = malloc((U64)(hoisted__U32_90380));
+                                                            I8 *copy = malloc((U64)(hoisted__U32_90380));
                                                             U64 hoisted__U64_90381 = (U64)(cnt);
                                                             memcpy(copy, source_str->c_str, hoisted__U64_90381);
                                                             U64 hoisted__U64_90382 = (U64)(cnt);
@@ -246853,7 +246853,7 @@ void priv___src_self_interpreter_til__clone_tuple_buffer(void * src_tuple, void 
         U32 hoisted__U32_90679 = 8;
         alloc_cap = hoisted__U32_90679;
     }
-    void * new_buf = malloc(alloc_cap);
+    U8 *new_buf = malloc(alloc_cap);
     U32 off = 0;
     {
         USize _re_U32_90680 = (names->count);
@@ -249291,7 +249291,7 @@ Scope * scope_new_boxed(Option__ref_Scope * parent) {
         Option__ref_Scope_delete(&_old, (Bool){0}); }
         return pooled;
     }
-    void * raw = malloc(80);
+    Scope *raw = malloc(80);
     I32 hoisted__I32_91408 = 0;
     U32 hoisted__U32_91409 = 80;
     memset(raw, hoisted__I32_91408, hoisted__U32_91409);
@@ -255186,7 +255186,7 @@ void str_copy_into(void * result, Str * src, Context * ctx) {
         return;
     }
     U32 hoisted__U32_93307 = 1;
-    void * buf = malloc(((U32)(n + hoisted__U32_93307)));
+    I8 *buf = malloc(((U32)(n + hoisted__U32_93307)));
     memcpy(buf, src->c_str, n);
     U8 *term = ((void *)((U8 *)(buf) + (n)));
     U8 hoisted__U8_93308 = 0;
@@ -257482,7 +257482,7 @@ ffi_type * priv___src_self_interpreter_til__build_struct_ffi_type(Expr * struct_
         I32 hoisted__I32_94120 = 0;
         U32 hoisted__U32_94121 = 8;
         memset(hoisted__v_94119, hoisted__I32_94120, hoisted__U32_94121);
-        void * st = malloc(24);
+        ffi_type *st = malloc(24);
         ffi_type *stp = to_ptr(st);
         U64 hoisted__U64_94122 = 0ULL;
         stp->size = hoisted__U64_94122;
@@ -262819,7 +262819,7 @@ void priv___src_self_interpreter_til__ffi_register(Str * name, void * fn, Expr *
             free(old_fe->arg_types);
             free(old_fe->cif);
         }
-        void * val = malloc(64);
+        FFIEntry *val = malloc(64);
         U32 hoisted__U32_96132 = 64;
         memcpy(val, entry, hoisted__U32_96132);
         I32 hoisted__I32_96133 = 0;
@@ -276547,7 +276547,7 @@ int main(int argc, char **argv) {
     priv___src_self_interpreter_til__word_ring_idx = 0;
     { Vec__DynPtrBox *_hp = (Vec__DynPtrBox *)Vec__DynPtrBox_new(); priv___src_self_interpreter_til__scope_pool = *_hp; free(_hp); }
     BASE_VERSION = (Str){.c_str=(void*)"0.0.1-", .count=6ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str=(void*)"0.0.1-baad6c9f6", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-d8b1e077d", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str * args = malloc(sizeof(Array__Str));

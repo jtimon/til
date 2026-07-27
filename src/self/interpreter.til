@@ -103,7 +103,7 @@ priv clone_str_storage_into := func(dst: Dynamic, src: Dynamic, ctx: Context) {
     if str_has_owned_storage(src, ctx).not() { return }
     cnt := str_count_at(src, ctx)
     cap := str_cap_at(src, ctx)
-    copy : Dynamic = malloc(cap.add(1).cast(U64))
+    copy : I8 = malloc(cap.add(1).cast(U64))
     if cnt.gt(0) { memcpy(copy, s.c_str, cnt.cast(U64)) }
     memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
     write_ptr(dst, copy)
@@ -3099,7 +3099,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                                         str_write_count_cap(arg_raw, 0, CAP_VIEW, ctx)
                                                     } else {
                                                         ref source_str : Str = to_ptr(source_ptr)
-                                                        copy : Dynamic = malloc(cnt.add(1).cast(U64))
+                                                        copy : I8 = malloc(cnt.add(1).cast(U64))
                                                         memcpy(copy, source_str.c_str, cnt.cast(U64))
                                                         memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
                                                         write_ptr(arg_raw, copy)
@@ -3368,7 +3368,7 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, dst_tuple: Dynamic, ctx: Con
     ref sizes : Vec(USize) = ptr_add(src_tuple, sizes_fl.offset)
     mut alloc_cap := cap.clone()
     if alloc_cap == 0 { alloc_cap = 8 }
-    new_buf : Dynamic = malloc(alloc_cap)
+    new_buf : U8 = malloc(alloc_cap)
     mut off : USize = 0
     for i in 0..names.len() {
         ref tn : Str = names[i]
@@ -4159,7 +4159,7 @@ scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
         pooled.parent = parent
         return pooled
     }
-    raw : Dynamic = malloc(Scope.size())
+    raw : Scope = malloc(Scope.size())
     memset(raw, 0, Scope.size())
     ref s : Scope = to_ptr(raw)
     s.heap_bindings = Map(Str, HeapBinding).new()
@@ -5880,7 +5880,7 @@ str_copy_into := func(result: Dynamic, src: Str, ctx: Context) {
         dispatch_write_str(result, src.c_str, 0, ctx)
         return
     }
-    buf : Dynamic = malloc(n.add(1))
+    buf : I8 = malloc(n.add(1))
     memcpy(buf, src.c_str, n)
     ref mut term : U8 = ptr_add(buf, n)
     term = 0
@@ -6489,7 +6489,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
             i = i + 1
         }
         memset(ptr_add(elements, nfields * Dynamic.size()), 0, Dynamic.size())
-        st : Dynamic = malloc(ffi_type.size())
+        st : ffi_type = malloc(ffi_type.size())
         ref mut stp : ffi_type = to_ptr(st)
         stp.size = 0
         stp.alignment = 0
@@ -7799,7 +7799,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
             free(own old_fe.arg_types)
             free(own old_fe.cif)
         }
-        val : Dynamic = malloc(FFIEntry.size())
+        val : FFIEntry = malloc(FFIEntry.size())
         // Manual island byte-move (#286): erased slot, sized copy.
         memcpy(val, entry, FFIEntry.size())
         memset(entry, 0, FFIEntry.size())
