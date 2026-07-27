@@ -6,7 +6,7 @@ mode script
 //
 //   error: dlopen failed for 'tmp/ffi_<pid>.so': ...undefined symbol...
 //
-// Before the fix the const-folder evaluated that stderr_print at build time
+// Before the fix the const-folder evaluated that eprint_single at build time
 // (printing a bogus "dlopen failed" while compiling the compiler) and dropped
 // the call from the runtime, so a genuine load failure printed nothing here.
 link_c("test/ffi_dlopen_fail.c")

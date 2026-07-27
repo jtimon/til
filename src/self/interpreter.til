@@ -5271,14 +5271,16 @@ priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
     return rt.type == FFI_TYPE_STRUCT.to_u16()
 }
 
-// These four are side-effecting (dlopen mutates the loader, dlerror clears
-// pending state, stderr_print writes) so they MUST be ext_proc, not ext_func:
-// the constfolder folds ext_funcs (issue #136) but never procs, and folding a
-// side-effecting call runs the effect at COMPILE time. When ffi_init_user_so's
-// `stderr_print(format("error: dlopen failed: ", ffi_last_error(), "\n"))` was
-// declared with ext_funcs the constfolder evaluated it during a normal build --
-// printing a bogus "error: dlopen failed:" and then baking the empty
-// ffi_last_error() in, dropping the real runtime diagnostic (issue #283).
+// These are side-effecting (dlopen mutates the loader, dlerror clears
+// pending state) so they MUST be ext_proc, not ext_func: the constfolder
+// folds ext_funcs (issue #136) but never procs, and folding a
+// side-effecting call runs the effect at COMPILE time. When
+// ffi_init_user_so's `eprint_single(format("error: dlopen failed: ",
+// ffi_last_error(), "\n"))` was declared with ext_funcs the constfolder
+// evaluated it during a normal build -- printing a bogus
+// "error: dlopen failed:" and then baking the empty ffi_last_error() in,
+// dropping the real runtime diagnostic (issue #283). The same reasoning
+// covers eprint_single itself (src/core/io.til).
 // ffi_user_symbol/ffi_global_symbol stay ext_func: their `ref U8` return is
 // already never folded (try_eval_call bails on ref returns).
 ffi_load_global_lib := ext_proc(soname: Str) returns shallow Bool {}
@@ -5287,7 +5289,6 @@ ffi_close_user_so := ext_proc() {}
 ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_last_error := ext_proc() returns Str {}
-stderr_print := ext_proc(msg: Str) returns shallow I32 {}
 process_id := ext_proc() returns shallow I32 {}
 // ext_proc, NOT ext_func: this reads a build-time property of the RUNNING
 // binary, so it must be evaluated at runtime. As an ext_func the constfolder
@@ -5366,11 +5367,11 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
         " ", user_c_path, lf)
     rc := system_cmd(cmd)
     if rc != 0 {
-        stderr_print(format("error: failed to compile FFI library '", user_c_path, "'\n"))
+        eprint_single(format("error: failed to compile FFI library '", user_c_path, "'\n"))
         return 1
     }
     if ffi_open_user_so(so_path_out).not() {
-        stderr_print(format("error: dlopen failed for '", so_path_out, "': ", ffi_last_error(), "\n"))
+        eprint_single(format("error: dlopen failed for '", so_path_out, "': ", ffi_last_error(), "\n"))
         return 1
     }
     return 0

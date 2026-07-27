@@ -659,7 +659,7 @@ main := proc(args: ..Str) {
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
         format(til_bin, " run", asan_flag, " test/ext_libc.til"))
     // Issue #283: a real dlopen failure must be reported loudly at RUNTIME.
-    // The diagnostic's stderr_print/ffi_last_error are ext_proc so the
+    // The diagnostic's eprint_single/ffi_last_error are ext_proc so the
     // const-folder never executes them at build time (which printed a bogus
     // line and dropped the runtime report). Assert the message appears exactly
     // once when interpreting a file whose FFI .so fails to load.

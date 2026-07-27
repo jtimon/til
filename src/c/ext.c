@@ -1975,11 +1975,6 @@ void til_emscripten_set_main_loop(TilClosure *frame, I32 fps, Bool simulate_infi
 #endif
 }
 
-I32 stderr_print(const Str *msg) {
-    fprintf(stderr, "%.*s", (int)msg->count, msg->c_str ? (char *)msg->c_str : "");
-    return 0;
-}
-
 void unlink_path(const Str *path) {
 #ifdef _WIN32
     _unlink((const char *)path->c_str);
