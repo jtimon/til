@@ -1082,9 +1082,28 @@ let the ownership pass insert temps itself; start with the check.
     resets for diverged transfers) costs one assignment. No extra
     sweep, no Set enumeration, and the core-container API question
     raised for the scatter approach is moot.
-  - [ ] Stage 3 (rest): move the remaining insertion sites
-    (insert_exit_deletes' pre-transfer rules, insert_post_stmt_deletes)
-    onto the same verdict; then delete the index-model special cases
+  - [X] 2026-07-27 Stage 3: insert_exit_deletes_into_stmt's index gates
+    join the other two on the flow verdict -- the LAST pre-transfer
+    exit rule. Same shape as insert_nested_exit_deletes (Moved for
+    `own_transfer <= stmt_idx`, Uninit for `decl_index < stmt_idx`,
+    dtor_transfer stays outside the flow), reading the same root-body
+    table, which is now built when the body has a compound statement OR
+    a top-level exit -- both of its readers' preconditions.
+    That widening made the table fire for nearly every body (most end
+    in a `return`) and cost 2%, so straight-line bodies now skip the
+    graph entirely: with no compound statement there is nothing to
+    branch or join, so the CFG would be one block running to the first
+    terminator with everything after it unreachable, and composing the
+    statement effects directly gives the same answer. Net result is
+    FASTER than master (27.49s vs 27.97s on `translate src/til.til`,
+    back to back), with emitted C byte-identical for the whole corpus,
+    the gc_audit golden unchanged and make clean && make test 193/193
+    with ASAN.
+  - [ ] Stage 3 (rest): audit insert_post_stmt_deletes' own_transfer
+    uses (transfer-SITE specific -- "the transfer happens at THIS
+    statement" -- rather than the positional liveness the three exit
+    sites used, so it is not the same mechanical migration);
+    then delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
     alias_used_in_stmts).

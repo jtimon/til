@@ -750,6 +750,45 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
         }
         return table
     }
+    // Straight-line body: with no compound statement there is nothing to
+    // branch or join, so the graph would be one block running to the
+    // first terminator with everything after it unreachable. Compose the
+    // statement effects directly instead of building it -- most bodies
+    // end in a `return` and so reach the table, and paying a CFG plus a
+    // reachability fixpoint for each cost 2% of a self-translate.
+    mut first_exit : I32 = -1
+    mut any_compound := false
+    for s in 0..stmts {
+        ref sstmt : Expr = body.children[s]
+        if stmt_is_conditional_container(sstmt) { any_compound = true; break }
+        if first_exit.lt(0).and(sstmt.node_type.is(NodeType.Return)
+            .or(sstmt.node_type.is(NodeType.Break)).or(sstmt.node_type.is(NodeType.Continue))) {
+            first_exit = s.to_i32()
+        }
+    }
+    if any_compound.not() {
+        for li in 0..locals.len() {
+            ref local : LocalInfo = locals[li]
+            mut cur := entry_state
+            if local.decl_index < 0 { cur = FLOW_OWNED }
+            for s in 0..stmts {
+                if first_exit.gte(0).and(s.to_i32().gt(first_exit)) { break }
+                table[li.mul(stmts).add(s)] = cur
+                if local.has_transfer.not() {
+                    // Cannot leave Owned: the only question is whether
+                    // its Decl has run.
+                    if cur.eq(FLOW_UNINIT).and(s.to_i32().gte(local.decl_index)) { cur = FLOW_OWNED }
+                    continue
+                }
+                ref sstmt : Expr = body.children[s]
+                if is_compile_directive(sstmt).not() {
+                    c := gc_flow_stmt_const(sstmt, local.name, scope, ctx)
+                    if c.neq(FLOW_ID) { cur = c }
+                }
+            }
+        }
+        return table
+    }
     mut blocks := Vec(GcCfgBlock).new()
     cfg_build(blocks, body)
     n := blocks.len()
@@ -2014,13 +2053,14 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr)) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
         }
     }
-    for local : LocalInfo in locals {
+    for li in 0..locals.len() {
+        ref local : LocalInfo = locals[li]
         if stmt.children.len() > 0 {
             ref retval : Expr = stmt.children[0]
             if expr_uses_var(retval, local.name).or(alias_used_in_stmts(body_stmts, local.name, retval)) {
@@ -2028,25 +2068,29 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
             }
         }
         if local.skip_scope_delete { continue }
-        // Same pre-transfer rule as insert_nested_exit_deletes: an exit at
-        // a stmt strictly before the transfer stmt still owns the local.
-        // Destructor-transferred own params keep the full stand-down (see
-        // the dtor_transfer comment on LocalInfo); ordinary own params are
-        // treated like locals -- the old blanket param stand-down leaked
-        // them on early exits before the transfer (#302).
-        if local.own_transfer >= 0 {
-            if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
-            if local.own_transfer <= stmt_idx.to_i32() { continue }
-        }
-        if local.decl_index < stmt_idx.to_i32() {
-            if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
-                if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
-                    del := gc_make_delete(local, stmt)
-                    if del.is_null().not() { new_ch.push(own del) }
-                } else if local.is_heap {
-                    del := make_free_call(local.name, local.type, stmt)
-                    if del.is_null().not() { new_ch.push(own del) }
-                }
+        // Destructor-transferred own params keep the full stand-down
+        // (see the dtor_transfer comment on LocalInfo): the body's field
+        // deletes already ran, so a second one double-frees. That is a
+        // fact about WHAT the transfer is, not where it sits, so it
+        // stays outside the flow.
+        if local.own_transfer.gte(0).and(local.decl_index.lt(0)).and(local.dtor_transfer) { continue }
+        // #302 stage 3: the same two index gates insert_nested_exit_
+        // deletes retired, on the same root-body table -- Moved for
+        // `own_transfer <= stmt_idx` (an exit at a statement strictly
+        // before the transfer still OWNS the local, which is why the
+        // positional form had to compare rather than just test), Uninit
+        // for `decl_index < stmt_idx`, and Unreached for a statement no
+        // path arrives at.
+        mut st : U8 = FLOW_UNREACHED
+        st = root_flow[li.mul(root_stmts).add(stmt_idx)]
+        if st.eq(FLOW_MOVED).or(st.eq(FLOW_UNINIT)).or(st.eq(FLOW_UNREACHED)) { continue }
+        if local.last_use.gte(stmt_idx.to_i32()).or(local.last_use.eq(-1)) {
+            if local.raw_alloc.not().and(type_to_name(local.type).len().gt(0)) {
+                del := gc_make_delete(local, stmt)
+                if del.is_null().not() { new_ch.push(own del) }
+            } else if local.is_heap {
+                del := make_free_call(local.name, local.type, stmt)
+                if del.is_null().not() { new_ch.push(own del) }
             }
         }
     }
@@ -2831,14 +2875,19 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // runs inside the loop and would otherwise have only statement
     // indexes to reason with. Entry is Uninit: a root local is not
     // live before its Decl (params, decl_index < 0, enter Owned).
-    // ... and only when some statement can actually consume it:
-    // insert_nested_exit_deletes returns immediately unless the
-    // statement is a compound.
-    mut has_compound := false
+    // ... and only when some statement can actually consume it: its two
+    // readers return immediately unless the statement is a compound
+    // (insert_nested_exit_deletes) or an exit
+    // (insert_exit_deletes_into_stmt).
+    mut wants_flow := false
     for s : Expr in body.children {
-        if stmt_is_conditional_container(s) { has_compound = true; break }
+        if stmt_is_conditional_container(s).or(s.node_type.is(NodeType.Return))
+            .or(s.node_type.is(NodeType.Break)).or(s.node_type.is(NodeType.Continue)) {
+            wants_flow = true
+            break
+        }
     }
-    root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, has_compound, scope, ctx)
+    root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, wants_flow, scope, ctx)
     root_stmts := body.children.len()
 
     mut old := Vec(Expr).new()
@@ -2848,7 +2897,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, new_ch)
+        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, root_flow, root_stmts, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
         insert_assign_delete(stmt, locals_vec, new_ch)
         mut post_deletes := Vec(Expr).new()
