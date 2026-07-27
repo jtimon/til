@@ -8356,12 +8356,16 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         eq_call.add_child(own zero_lit)
         mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
 
-        loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
         mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
         panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
-        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
+        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("uncaught throw '")), line, col))
         ref first_throw : Str = get_throw_types[0]
         panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(first_throw.clone())), line, col))
+        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("'")), line, col))
+        // Location via panic's `loc` param, not as a message part (see
+        // make_panic_loc_arg): as a part it printed twice, jammed against
+        // the type name.
+        panic_call.add_child(own make_panic_loc_arg(ctx, line, col))
 
         mut panic_body := Expr.new(NodeType.Body, line, col)
         panic_body.add_child(own panic_call)

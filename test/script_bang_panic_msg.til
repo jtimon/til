@@ -1,0 +1,14 @@
+mode script
+
+// The bang (`!`, which a subscript parses to) panics on an uncaught
+// throw. Its message is compiler-synthesized, and it used to pass the
+// source location as a message PART while panic also prints its own
+// `loc` -- so the location appeared twice and ran straight into the type
+// name: "...:6:10: panic: ...:6:10OutOfBounds". The location now goes in
+// panic's `loc` argument, leaving one location and a readable sentence.
+// Expected exit code is 1 (panic exits non-zero).
+
+mut v := Vec(I64).new()
+v.push(own 7)
+println(v[0].to_str())
+println(v[9].to_str())

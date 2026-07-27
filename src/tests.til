@@ -902,6 +902,16 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
         "", 0, format(exp, "script_raw_alloc.out"), til_bin, asan_flag)
 
+    // The bang's synthesized panic prints the source location ONCE (via
+    // panic's `loc` param) and a readable message; it used to pass the
+    // location as a message part too, printing it twice and jamming it
+    // against the type name. Exit code 1: panic exits non-zero.
+    File.writefile(format(exp, "script_bang_panic_msg.out"),
+        format("7", NL,
+            "test/script_bang_panic_msg.til:14:10: panic: uncaught throw 'OutOfBounds'", NL))
+    add_cli_pair(tests, "script_bang_panic_msg", "test/script_bang_panic_msg.til",
+        "", 1, format(exp, "script_bang_panic_msg.out"), til_bin, asan_flag)
+
     // Top-level statements get the same throw/catch/bang lowering as a
     // function body: a subscript (`v[0]` -> `get(...)!`), an explicit bang
     // and a `?`/catch all work at the root of a `mode script` unit.
