@@ -6,6 +6,15 @@ import("targets")
 import("../std/sys")
 import("../std/file")
 
+// The scalar type names, as C spells them. PRIM_NAMES are the fixed-width
+// primitives (their ext.h typedefs are the same on every target);
+// WIDTH_ALIAS_NAMES are the two per-build aliases, kept separate because
+// only some callers want them -- seed_primitive_names marks emitted C
+// typedefs, which the aliases are not.
+priv PRIM_NAMES := array(Str, "I8", "U8", "I16", "U16", "I32", "U32",
+                         "I64", "U64", "F32", "Bool")
+priv WIDTH_ALIAS_NAMES := array(Str, "USize", "UPtr")
+
 priv CollectionInfo := struct {
     ref type_name : Str
     is_vec : I32 = 0
@@ -999,9 +1008,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
 // keeps adding a primitive a one-place edit instead of an N-place one
 // (#115).
 priv seed_primitive_names := func(mut emitted: Set(Str)) {
-    emitted.add(own "U8"); emitted.add(own "I8"); emitted.add(own "I16"); emitted.add(own "U16"); emitted.add(own "I32")
-    emitted.add(own "U32"); emitted.add(own "U64"); emitted.add(own "I64")
-    emitted.add(own "F32"); emitted.add(own "Bool")
+    for prim : Str in PRIM_NAMES { emitted.add(own prim.clone()) }
 }
 
 // Resolve the C type for an `extern` global decl. Replaces the
@@ -7646,10 +7653,8 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     // width-mismatched target, where size intrinsics stay unfolded on purpose
     // (size_intrinsics_use_sizeof). `dyn_size_of("USize")` under --usize=64
     // died there.
-    for prim : Str in array(Str, "I8", "U8", "I16", "U16", "I32", "U32",
-                            "I64", "U64", "F32", "Bool", "USize", "UPtr") {
-        emit_dyn_size_of_arm(f, prim)
-    }
+    for prim : Str in PRIM_NAMES { emit_dyn_size_of_arm(f, prim) }
+    for alias_name : Str in WIDTH_ALIAS_NAMES { emit_dyn_size_of_arm(f, alias_name) }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
