@@ -1,6 +1,69 @@
 # priority: medium
 # category: optimizations
-** WIP #323 Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
+** FIXED #323 Try HashMap instead of Map for the hot lookup-only tables in src/self, one candidate per commit
+
+*** Post-mortem
+
+Root cause: at the compiler's real table sizes and access patterns,
+HashMap's Str hashing and chain walk cost more than Map's binary-search
+comparisons. Lazy buckets removed the empty-construction blocker, but did
+not make either of the first two runtime candidates faster.
+
+No Map -> HashMap swap was retained. ctx.interp_type_defs regressed the
+canonical self_translate benchmark by 1.84s (+1.1%) and its instrumented
+lookup by 73.6%. TypeScope.struct_defs regressed self_translate by 1.170s
+(+0.71%) and TypeScope_get_struct inclusive time by 42.3%. Per the issue's
+stop rule, two consecutive losses close the experiment without testing the
+lower-ranked and iteration-sensitive candidates.
+
+Regression benchmark: the ~self_translate~ row from ~make clean && make
+test~, recorded in doc/totals.csv and img/totals.svg. Both candidate builds
+also passed the full 181/181 test suite before their swaps were reverted.
+
+*** Follow-up: profile actual per-instance workloads
+
+After closure, a temporary profile ID on each candidate Map measured one
+full ~bin/til translate src/til.til~. It counted constructions, has/get/set,
+hits/misses, binary-search comparisons, query-key bytes, and table-size
+buckets per field. The instrumentation was removed after the run.
+
+  | table                       | builds | lookups | hit % | dominant N       | cmp/lookup | key bytes |
+  |-----------------------------+--------+---------+-------+------------------+------------+-----------|
+  | TypeScope.bindings          | 51,067 |  19.92M |  48.7 | mixed; 45% >256  |       5.60 |      16.4 |
+  | TypeScope.func_defs         | 51,067 |   6.62M |  80.3 | 90% >256         |       9.09 |      25.7 |
+  | TypeScope.struct_defs       | 51,067 |  31.22M |  24.2 | 74% empty        |       1.68 |       5.9 |
+  | Scope.heap_bindings         |     15 |   3.01M |  79.5 | 91% >256         |      10.37 |      10.1 |
+  | Context.interp_type_defs    |      1 |   2.73M |  95.3 | 100% 129..256    |       7.30 |       4.5 |
+  | StructDef.fields_index      |     84 |   1.77M |  78.5 | 80% 1..4         |       1.18 |       4.3 |
+  | StructDef.ns_index          |     84 |   7.30M |  93.4 | 91% 5..64        |       4.38 |       4.9 |
+  | EnumDef.ns_index            |     13 |   0.30M |  99.8 | 92% 5..64        |       4.12 |       4.5 |
+  | lexer.KEYWORDS              |      1 |   0.22M |  35.6 | 100% at 43       |       5.12 |       5.4 |
+  | loader.core_top             |      1 |   0.12M |   1.6 | 100% at 180      |       7.39 |      19.2 |
+  | loader.top                  |      1 |   0.13M |   9.5 | 100% at 1,820    |      10.88 |      20.1 |
+
+This corrected the earlier call-count ranking: struct_defs is hot because
+it repeatedly probes empty scopes, while func_defs and heap_bindings really
+do probe large tables. But large N was still not sufficient. The same
+machine's refreshed small-N bench put the crossover at N ~= 128 (Map won
+through 64), not 32, and real compiler identifiers make hashing pay every
+query byte while Str.cmp often rejects on length or an early byte.
+
+Three newly-safe candidates were measured against a fresh 173.944s
+self_translate baseline on master 855cb9464; every build passed 181/181:
+
+  | candidate           | HashMap self | delta           | result   |
+  |---------------------+--------------+-----------------+----------|
+  | TypeScope.func_defs |     175.599s | +1.655s (+0.95%) | reverted |
+  | loader.top          |     177.114s | +3.170s (+1.82%) | reverted |
+  | lexer.KEYWORDS      |     175.537s | +1.593s (+0.92%) | reverted |
+
+func_defs' targeted profile confirmed the totals result:
+TypeScope.lookup_func moved 455.272ms -> 499.850ms inclusive (+9.8%).
+Scope.heap_bindings was not swapped: three consumers intentionally take the
+first key whose value points at a FuncDef, so changing sorted-key iteration
+to insertion order would change semantics. bindings has pinned iteration;
+the member indexes are below the crossover. No safe Map -> HashMap candidate
+in the measured compiler workload is worth retaining.
 
 til's core Map is two sorted parallel Vecs with a binary-search probe:
 O(log n) Str_cmp calls per lookup, ordered iteration, and a win on
@@ -313,12 +376,21 @@ below -- re-verify with the greps rather than trusting prose.
   guard. Empty construction 147ms -> 27ms per 200K (Map: 14ms), and
   the break-even for a per-scope table falls from ~23 lookups to ~3.
   Numbers above.
-- [ ] Candidate 1: ctx.interp_type_defs  (LOCAL -- timing)
-- [ ] Candidate 2: TypeScope.struct_defs / func_defs  (LOCAL -- timing)
-- [ ] Candidate 3: Scope.heap_bindings  (LOCAL -- timing; read its
-  first-match-wins hazard first)
-- [ ] Candidate 4: TypeScope.bindings  (LOCAL -- last regardless)
-- [ ] Candidate 5: StructDef.fields_index / ns_index  (expected loss)
+- [X] Candidate 1: ctx.interp_type_defs -- REJECTED. On the canonical
+  clean-suite self row, Map took 165.267s and HashMap took 167.10s
+  (+1.84s, +1.1%); suite wall-clock moved 60.83s -> 62.70s. The
+  instrumented lookup_interp_type_def row held 41,288 calls and moved
+  13.691ms -> 23.765ms inclusive (+73.6%). Reverted.
+- [X] Candidate 2: TypeScope.struct_defs -- REJECTED. On the canonical
+  clean-suite self row, Map took 165.267s and HashMap took 166.437s
+  (+1.170s, +0.71%); suite wall-clock moved 60.83s -> 62.75s. The
+  instrumented TypeScope_get_struct row held 1,624,450 calls and moved
+  1527.495ms -> 2172.896ms inclusive (+42.3%). Reverted; func_defs was
+  not attempted after two consecutive losses triggered the stop rule.
+- [X] Candidate 3: Scope.heap_bindings -- NOT RUN after the stop rule.
+- [X] Candidate 4: TypeScope.bindings -- NOT RUN after the stop rule.
+- [X] Candidate 5: StructDef.fields_index / ns_index -- NOT RUN after
+  the stop rule.
 
 Every DONE item above was decidable without a stopwatch. Every
 remaining item is a before/after timing, which is why they are marked
