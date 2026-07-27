@@ -6790,32 +6790,14 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
 // The garbager's per-local loops asked expr_uses_var / expr_contains_decl
 // / expr_used_in_nested_func / expr_transfers_own once per (statement,
 // name): O(locals x stmts x subtree), the single largest cost in a
-// self-translate profile. These collectors walk a statement ONCE and
-// record every name the predicate would answer true for, so those loops
-// become set probes. Each mirror must stay in lockstep with its
-// predicate above; the recursion cuts (FuncDef opacity) are identical.
-
-expr_collect_uses := func(e: Expr, mut out: Set(Str)) {
-    if e.node_type.is(NodeType.FuncDef) { return }
-    switch e.node_type {
-    case NodeType.Ident(id):
-        if out.has(id.ident_name()).not() { out.add(own id.ident_name().clone()) }
-    case NodeType.Assign(asgn):
-        if out.has(asgn.name).not() { out.add(own asgn.name.clone()) }
-    case:
-    }
-    for e_i : Expr in e.children { expr_collect_uses(e_i, out) }
-}
-
-expr_collect_decls := func(e: Expr, mut out: Set(Str)) {
-    if e.node_type.is(NodeType.FuncDef) { return }
-    switch e.node_type {
-    case NodeType.Decl(dd):
-        if out.has(dd.name).not() { out.add(own dd.name.clone()) }
-    case:
-    }
-    for e_i : Expr in e.children { expr_collect_decls(e_i, out) }
-}
+// self-translate profile. The mirrors record, in one walk, every name the
+// predicate would answer true for, so those loops became set probes.
+// expr_collect_stmt_facts below is the single walk that fills all five
+// sets; the helpers here are the pieces it does not inline (the
+// param/capture-shadowing walk for nested uses, the own-arg scan, and the
+// escapes-only descent it hands nested function bodies to). Each must
+// stay in lockstep with its predicate above; the recursion cuts (FuncDef
+// opacity) are identical.
 
 // expr_used_in_nested_func's shadow rule, applied at add time so the
 // FuncDef body's uses never need materializing separately.
@@ -6872,18 +6854,6 @@ expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
         }
     }
     for e_i : Expr in e.children { expr_collect_ptr_escapes(e_i, out) }
-}
-
-expr_collect_nested_uses := func(e: Expr, mut out: Set(Str)) {
-    switch e.node_type {
-    case NodeType.FuncDef(fdef):
-        if e.children.len() > 0 {
-            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, out)
-        }
-        return
-    case:
-    }
-    for e_i : Expr in e.children { expr_collect_nested_uses(e_i, out) }
 }
 
 // Mirrors check_own_args: every arg name in an own param position.
@@ -6976,47 +6946,109 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
     }
 }
 
-// Mirrors expr_transfers_own for all names at once. The predicate's ctx
-// parameter is recursion-only, so the collector does not need one.
-expr_collect_transfers := func(e: Expr, scope: TypeScope, mut out: Set(Str)) {
-    switch e.node_type {
-    case NodeType.FuncDef(fd):
-        for cap : Declaration in fd.captures {
-            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
+// All five per-statement fact sets in ONE traversal. The collectors above
+// each walked the whole statement subtree separately -- five passes over
+// the same nodes, ~1.6M collector invocations per maps.til compile where
+// one walk needs ~430K. Each set's rules are copied verbatim from its
+// own collector above; keep them in lockstep the same way those stay in
+// lockstep with their predicates.
+//
+// The cuts line up better than they look: uses, decls, nested and
+// transfers all stop at a FuncDef (transfers after recording its own
+// captures, nested after collecting the body's uses through the
+// param/capture-shadowing walk), so the fused walk stops there once and
+// hands the body to expr_collect_ptr_escapes -- the one set that does
+// descend into nested function bodies. A BodyValue stops transfers only,
+// which is what transfers_on carries down.
+//
+// want_transfers=false skips the transfer work entirely: it is the only
+// part that consults scope (fcall_collect_own_arg_names, fa_own_type),
+// and most callers do not ask for it.
+expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool,
+        mut uses: Set(Str), mut decls: Set(Str), mut nested: Set(Str),
+        mut escapes: Set(Str), mut transfers: Set(Str)) {
+    // --- ptr escapes: every node, nested function bodies included ---
+    if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
+        mut is_write_ptr := false
+        switch e.children[0].node_type {
+        case NodeType.Ident(cn): is_write_ptr = cn.ident_name() == "write_ptr"
+        case NodeType.FieldAccess(cf): is_write_ptr = cf.field_access_name() == "write_ptr"
+        case:
         }
-        return
-    case NodeType.CaptureBlock(cbd):
-        // Lockstep with expr_transfers_own: an `[own x]` block capture is a
-        // transfer, and the inline body keeps being walked below.
-        for cap : Declaration in cbd.captures {
-            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
-        }
-    case NodeType.BodyValue(bvd):
-        for cap : Declaration in bvd.captures {
-            if cap.own_type.is(OwnType.Own).and(out.has(cap.name).not()) { out.add(own cap.name.clone()) }
-        }
-        return
-    case NodeType.FCall(fcd):
-        if fcd.swap_replace.and(e.children.len().gte(3)) {
+        if is_write_ptr {
             switch e.children[2].node_type {
-            case NodeType.Ident(src):
-                if out.has(src.ident_name()).not() { out.add(own src.ident_name().clone()) }
+            case NodeType.Ident(vn):
+                if escapes.has(vn.ident_name()).not() { escapes.add(own vn.ident_name().clone()) }
             case:
+            }
+        }
+    }
+
+    mut sub_transfers_on := transfers_on
+    switch e.node_type {
+    case NodeType.FuncDef(fdef):
+        // The shared cut. Record what each set takes from the def itself,
+        // then leave the body to the escapes-only walk.
+        if want_transfers.and(transfers_on) {
+            for cap : Declaration in fdef.captures {
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+            }
+        }
+        if e.children.len() > 0 {
+            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, nested)
+        }
+        for fd_c : Expr in e.children { expr_collect_ptr_escapes(fd_c, escapes) }
+        return
+    case NodeType.BodyValue(bvd):
+        if want_transfers.and(transfers_on) {
+            for cap : Declaration in bvd.captures {
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+            }
+        }
+        // expr_collect_transfers returns here; the other sets keep going,
+        // so only the transfer collection stands down below this node.
+        sub_transfers_on = false
+    case NodeType.CaptureBlock(cbd):
+        if want_transfers.and(transfers_on) {
+            for cap : Declaration in cbd.captures {
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+            }
+        }
+    case NodeType.Ident(id):
+        if uses.has(id.ident_name()).not() { uses.add(own id.ident_name().clone()) }
+    case NodeType.Assign(asgn):
+        if uses.has(asgn.name).not() { uses.add(own asgn.name.clone()) }
+    case NodeType.Decl(dd):
+        if decls.has(dd.name).not() { decls.add(own dd.name.clone()) }
+    case NodeType.FCall(fcd):
+        if want_transfers.and(transfers_on) {
+            if fcd.swap_replace.and(e.children.len().gte(3)) {
+                switch e.children[2].node_type {
+                case NodeType.Ident(src):
+                    if transfers.has(src.ident_name()).not() { transfers.add(own src.ident_name().clone()) }
+                case:
+                }
             }
         }
     case:
     }
-    fcall_collect_own_arg_names(e, scope, out)
-    if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
-        if e.children.len() > 1 {
-            switch e.children[1].node_type {
-            case NodeType.Ident(ei):
-                if out.has(ei.ident_name()).not() { out.add(own ei.ident_name().clone()) }
-            case:
+
+    if want_transfers.and(sub_transfers_on) {
+        fcall_collect_own_arg_names(e, scope, transfers)
+        if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
+            if e.children.len() > 1 {
+                switch e.children[1].node_type {
+                case NodeType.Ident(ei):
+                    if transfers.has(ei.ident_name()).not() { transfers.add(own ei.ident_name().clone()) }
+                case:
+                }
             }
         }
     }
-    for e_i : Expr in e.children { expr_collect_transfers(e_i, scope, out) }
+
+    for e_i : Expr in e.children {
+        expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, uses, decls, nested, escapes, transfers)
+    }
 }
 
 priv expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns Bool {
