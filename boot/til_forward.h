@@ -2904,6 +2904,7 @@ Bool priv___src_self_desugarer_til__subtree_has_throw_type(Context * ctx, Expr *
 Bool priv___src_self_desugarer_til__has_prior_throw_type_in_vec(Context * ctx, Vec__Expr * stmts, Expr * root_body, USize upto, Str * type_name);
 Str * priv___src_self_desugarer_til__throw_type_name_for_with_body(Context * ctx, Expr * e, Expr * body);
 Bool priv___src_self_desugarer_til__subtree_has_throw_catch(Expr * e);
+Bool toplevel_needs_throw_lowering(Expr * e);
 Bool priv___src_self_desugarer_til__subtree_has_pending_throw(Expr * e);
 Bool subtree_has_bang(Expr * e);
 void priv___src_self_desugarer_til__annotate_throw_types_in(Context * ctx, Expr * e, Expr * root_body);
@@ -2939,7 +2940,7 @@ void priv___src_self_desugarer_til__vec_str_push_uniq(Vec__Str * v, Str * name);
 void priv___src_self_desugarer_til__validate_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);
 void priv___src_self_desugarer_til__inject_err_args_on_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body);
 void priv___src_self_desugarer_til__validate_and_inject_expr_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);
-Expr * make_panic_loc_arg(Context * ctx, U32 line, U32 col);
+Expr * make_uncaught_throw_panic(Str * error_type, U32 line, U32 col);
 Expr * priv___src_self_desugarer_til__build_bang_lowered(Context * ctx, Str * error_type, U32 line, U32 col);
 void priv___src_self_desugarer_til__hoist_walk_consolidated(Context * ctx, Expr * parent, USize child_idx, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);
 void priv___src_self_desugarer_til__hoist_nested_bangs_consolidated(Context * ctx, Expr * stmt, Expr * body, Vec__Expr * pre_stmts, Vec__Str * types_to_declare, Vec__Str * seen);

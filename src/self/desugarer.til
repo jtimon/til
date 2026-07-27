@@ -672,6 +672,37 @@ priv subtree_has_throw_catch := func(e: Expr) returns Bool {
     return false
 }
 
+// Does the unit's OWN top level need the throw/catch lowering? Same
+// predicate as subtree_has_throw_catch, but it stops at a nested
+// definition: a FuncDef/StructDef/EnumDef body is lowered by
+// infer_func_def_expr, so a bang inside a function says nothing about
+// the unit body. Descends into top-level control flow (an `if` at the
+// root can hold a subscript), which is a Body, not a definition.
+//
+// The gate matters for speed, not just tidiness: it decides whether
+// type_check_unit runs the whole consolidated pass -- which deep-clones
+// the body it is given -- over an entire file AST. Gating on
+// subtree_has_bang instead made every file with a bang ANYWHERE (i.e.
+// every real file) pay that clone plus the full walk, ~15% of a
+// self-host translate, to lower nothing.
+toplevel_needs_throw_lowering := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.FuncDef:   return false
+    case NodeType.StructDef: return false
+    case NodeType.EnumDef:   return false
+    case NodeType.Throw:     return true
+    case NodeType.Catch:     return true
+    case NodeType.FCall(fcd):
+        if fcd.does_throw { return true }
+        if fcd.is_bang { return true }
+    case:
+    }
+    for c : Expr in e.children {
+        if toplevel_needs_throw_lowering(c) { return true }
+    }
+    return false
+}
+
 // Like subtree_has_throw_catch but a bang (`f()!`) does NOT count.
 // Used for the per-stmt "might _err_kind still be set after this
 // stmt?" wrap decision: a bang panics-and-resets on the error path,
@@ -1718,35 +1749,33 @@ priv validate_and_inject_expr_consolidated := proc(
     }
 }
 
-// A `loc = "<path>:<line>:<col>"` named argument for a synthesized panic
-// call. panic's `loc` is a trailing DEFAULT param (__LOC__ at the call
-// site), and a compiler-synthesized call has no user-written site to
-// default from, so the lowering supplies the location the user's source
-// actually sits at.
-make_panic_loc_arg := func(ctx: Context, line: U32, col: U32) returns Expr {
-    loc_str := format(ctx.path, ":", line.to_str(), ":", col.to_str())
-    mut na_loc := Expr.new(NodeType.NamedArg("loc"), line, col)
-    na_loc.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_str)), line, col))
-    return na_loc
+// The panic a lowering emits for an uncaught throw: ONE message part and
+// nothing else. panic prints "<loc>: panic: <parts>" and defaults `loc`
+// to __LOC__, which for a synthesized call resolves to that call node's
+// own coords -- the bang's line/col, i.e. exactly the location this used
+// to pass by hand. Passing it as a message part printed it twice and ran
+// it into the type name ("f.til:5:10: panic: f.til:5:10OutOfBounds");
+// passing it as a `loc =` named argument printed correctly but made every
+// bang site carry a NamedArg plus three variadic parts through the typer
+// -- +555K Str_cmp on a maps.til compile, the bulk of a 12% self-translate
+// regression. Letting the default do the work is both correct and the
+// cheapest of the three: a single part, no named argument.
+make_uncaught_throw_panic := func(error_type: Str, line: U32, col: U32) returns Expr {
+    mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
+    msg := format("uncaught throw '", error_type, "'")
+    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(msg)), line, col))
+    return panic_call
 }
 
 // Build the already-lowered if-block for a bang catch directly --
 // avoids an intermediate NodeType.Catch that would need a separate
 // lowering pass to convert. Emits:
 //   if I64.eq(_err_kind, <tag>) { _err_kind = 0;
-//       panic("uncaught throw '<T>'", loc = "<loc>") }
+//       panic("uncaught throw '<T>'") }
 priv build_bang_lowered := func(ctx: Context, error_type: Str, line: U32, col: U32) returns Expr {
     tag := tag_for_type(ctx, error_type, Vec(Str).new())
-    mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-    panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("uncaught throw '")), line, col))
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(error_type.clone())), line, col))
-    panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("'")), line, col))
-    // The call site's location goes in panic's `loc` param, not into the
-    // message parts: panic already prints "<loc>: panic: <parts>", so a
-    // location passed as a part printed it twice AND ran it into the type
-    // name -- "f.til:5:10: panic: f.til:5:10OutOfBounds".
-    panic_call.add_child(own make_panic_loc_arg(ctx, line, col))
+    mut panic_call := make_uncaught_throw_panic(error_type, line, col)
     mut blk := Expr.new(NodeType.Body, line, col)
     blk.add_child(own make_assign_stmt("_err_kind", make_int_lit(0, line, col), line, col))
     blk.add_child(own panic_call)

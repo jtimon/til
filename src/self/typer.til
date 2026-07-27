@@ -5491,15 +5491,20 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
     // a top-level `v[0]` (which parses to `v.get(0)!`) or `f()?` kept its
     // pre-lowering argument list while extend_throwing_func_sigs had
     // already appended the callee's err out-params: "missing argument for
-    // parameter '_err_kind'". A body with no bang/throw/catch returns
-    // immediately, so lib units and plain scripts pay nothing.
+    // parameter '_err_kind'".
     // The top level declares no throws (there is no signature to declare
     // them on), so an uncaught `?` reports the usual "declare it or catch
     // it" error instead of miscompiling.
-    unit_no_throws := Vec(Str).new()
-    ctx.lowering_param_types = Map(Str, Str).new()
-    collect_switch_case_bindings(ctx, program)
-    process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
+    // Gate on the unit's OWN top level: the pass deep-clones the body it
+    // is given, and its internal gate counts a bang anywhere in the file,
+    // so running it unconditionally cloned and walked every file's entire
+    // AST -- functions included -- to lower nothing.
+    if toplevel_needs_throw_lowering(program) {
+        unit_no_throws := Vec(Str).new()
+        ctx.lowering_param_types = Map(Str, Str).new()
+        collect_switch_case_bindings(ctx, program)
+        process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
+    }
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
     // Program-scope asap runs from prepare_program via
@@ -8376,16 +8381,8 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         eq_call.add_child(own zero_lit)
         mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
 
-        mut panic_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-        panic_call.add_child(own Expr.new(ident_node("panic"), line, col))
-        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("uncaught throw '")), line, col))
         ref first_throw : Str = get_throw_types[0]
-        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str(first_throw.clone())), line, col))
-        panic_call.add_child(own Expr.new(NodeType.Literal(Literal.Str("'")), line, col))
-        // Location via panic's `loc` param, not as a message part (see
-        // make_panic_loc_arg): as a part it printed twice, jammed against
-        // the type name.
-        panic_call.add_child(own make_panic_loc_arg(ctx, line, col))
+        mut panic_call := make_uncaught_throw_panic(first_throw, line, col)
 
         mut panic_body := Expr.new(NodeType.Body, line, col)
         panic_body.add_child(own panic_call)
