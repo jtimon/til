@@ -366,7 +366,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             peek_tokens = tokenize(peek_source, "<repl>")
         }
         mut peek_mode_out := ""
-        peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter)
+        mut peek_parse_errors : I32 = 0
+        peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_parse_errors)
+        // A syntax error used to end the PROCESS here, so one typo threw away
+        // the whole session. parse has already printed it; drop the turn and
+        // prompt again.
+        if peek_parse_errors > 0 { continue }
         if peek_mode_out.len() > 0 {
             next_mode_out = peek_mode_out.clone()
             interp_session_free(session)

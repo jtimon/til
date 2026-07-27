@@ -30,6 +30,12 @@ priv Parser := struct {
     // Accumulates the text of leading /// doc comments. Cleared by
     // parse_statement after attaching to the next NodeType.Decl.
     pending_doc := ""
+    // Set by parse_fail on the FIRST syntax error. The parser used to end the
+    // PROCESS on a malformed token, which is fine for a one-shot file compile
+    // but killed the whole REPL session on any typo. It now reports and
+    // unwinds, exactly as the typer already does with its error count.
+    error_count : I32 = 0
+    error_msg := ""
     // Non-owning view of the caller's lexed source. Tokens store only byte
     // ranges (start/len); tok_text materialises a token's text as a
     // transient sub-view into this buffer. The view is safe because the
@@ -61,11 +67,34 @@ priv check := func(p: Parser, type: TokenType) returns Bool {
     return peek(p).type == type
 }
 
+// Report a syntax error and unwind. Reporting instead of exiting is what lets
+// a REPL turn with a typo print its error and leave the session alive; the
+// typer's errors have always worked this way, the parser just never did.
+//
+// Fast-forwarding to EOF is what makes the unwind work without threading a
+// result through all ~30 parse functions: every parse loop is already guarded
+// on Eof, so they all terminate, and each pending expect_* sees the EOF token,
+// finds the error already recorded, and hands back a benign value. Only the
+// FIRST error is reported -- everything after it is a consequence of stopping.
+priv parse_fail := func(mut p: Parser, line: U32, col: U32, parts: ..Str) {
+    if p.error_count == 0 {
+        // Recorded, not printed: the parse helpers are `func`s and cannot call
+        // a proc. `parse` prints it once on the way out.
+        p.error_msg = format(p.path, ":", line.to_str(), ":", col.to_str(),
+                             ": error: ", format(..parts))
+    }
+    p.error_count = p.error_count + 1
+    // Park ON the Eof token, not past it: tokenize always appends one, every
+    // parse loop is guarded on it, and peek() would go out of bounds one
+    // element further along.
+    p.pos = p.tokens.len().sub(1)
+}
+
 priv expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
-        panic(p.path, ":", t.line.to_str(), ":", t.col.to_str(),
-            ": expected '", tok_name(type), "', found '", tok_text(p, t), "'")
+        parse_fail(p, t.line, t.col, "expected '", tok_name(type), "', found '", tok_text(p, t), "'")
+        return t
     }
     return advance(p)
 }
@@ -74,8 +103,8 @@ priv expect_token := func(mut p: Parser, type: TokenType) returns ref Token {
 priv expect_text := func(mut p: Parser, type: TokenType) returns Str {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
-        panic(p.path, ":", t.line.to_str(), ":", t.col.to_str(),
-            ": expected '", tok_name(type), "', found '", tok_text(p, t), "'")
+        parse_fail(p, t.line, t.col, "expected '", tok_name(type), "', found '", tok_text(p, t), "'")
+        return ""
     }
     text := tok_text(p, t).clone()
     advance(p)
@@ -374,8 +403,7 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
         if check(p, TokenType.KwConst) {
-            panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": redundant 'const' on parameter: parameters are immutable by default; drop it")
+            parse_fail(p, peek_line(p), peek_col(p), "redundant 'const' on parameter: parameters are immutable by default; drop it")
         }
         ptype := parse_type_ref(p)
         ptypes.push(own ptype)
@@ -541,7 +569,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     case TokenType.KwCoreProc: ft = FuncType.CoreProc
     case TokenType.KwLazyFunc: ft = FuncType.LazyFunc
     case TokenType.KwLazyProc: ft = FuncType.LazyProc
-    case: panic("expected function keyword")
+    case: parse_fail(p, peek_line(p), peek_col(p), "expected function keyword")
     }
 
     // Issue #58: optional generic params `<T: Type, ...>` right after the
@@ -584,12 +612,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
         if check(p, TokenType.KwConst) {
-            panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": redundant 'const' on parameter: parameters are immutable by default; drop it")
+            parse_fail(p, peek_line(p), peek_col(p), "redundant 'const' on parameter: parameters are immutable by default; drop it")
         }
         if check(p, TokenType.KwRef) {
-            panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": no need for 'ref' on parameter; parameters are borrowed by default")
+            parse_fail(p, peek_line(p), peek_col(p), "no need for 'ref' on parameter; parameters are borrowed by default")
         }
 
         pname := expect_text(p, TokenType.Ident)
@@ -607,11 +633,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.DotDotDot) {
                 advance(p) // consume '...'
                 if own_type.is(OwnType.Ref).not().or(is_mut) {
-                    panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                        ": kwargs parameter cannot be own/mut/shallow")
+                    parse_fail(p, peek_line(p), peek_col(p), "kwargs parameter cannot be own/mut/shallow")
                 }
                 if fd.kwargs_index != -1 {
-                    panic("only one kwargs parameter is allowed")
+                    parse_fail(p, peek_line(p), peek_col(p), "only one kwargs parameter is allowed")
                 }
                 fd.kwargs_index = fd.params.len().to_i32()
                 is_kwargs = true
@@ -631,10 +656,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 set_decl_type(param_decl, "KwargsMap")
             } else if check(p, TokenType.DotDot) {
                 advance(p)
-                if own_type.is(OwnType.Own) { panic("variadic param cannot be 'own'") }
-                if is_mut { panic("variadic param cannot be 'mut'") }
-                if own_type.is(OwnType.Shallow) { panic("variadic param cannot be 'shallow'") }
-                if fd.variadic_index != -1 { panic("only one variadic param allowed") }
+                if own_type.is(OwnType.Own) { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'own'") }
+                if is_mut { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'mut'") }
+                if own_type.is(OwnType.Shallow) { parse_fail(p, peek_line(p), peek_col(p), "variadic param cannot be 'shallow'") }
+                if fd.variadic_index != -1 { parse_fail(p, peek_line(p), peek_col(p), "only one variadic param allowed") }
                 fd.variadic_index = fd.params.len().to_i32()
                 is_variadic = true
                 // Same as kwargs above: regular til funcs get auto-cleanup
@@ -672,13 +697,13 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             has_default = true
         }
         if fd.variadic_index.neq(-1).and(is_variadic.not()).and(is_kwargs.not()).and(has_default.not()) {
-            panic("positional param not allowed after variadic")
+            parse_fail(p, peek_line(p), peek_col(p), "positional param not allowed after variadic")
         }
         // Variadic and kwargs may coexist (Python-style *args + **kwargs);
         // when both are present, kwargs must come last so positional vs
         // named-arg slots don't get tangled at the call site.
         if fd.kwargs_index.neq(-1).and(is_kwargs.not()) {
-            panic("no parameter allowed after kwargs")
+            parse_fail(p, peek_line(p), peek_col(p), "no parameter allowed after kwargs")
         }
 
         fd.params.push(own param_decl)
@@ -693,8 +718,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             advance(p)
             fd.return_own_type = OwnType.Ref
         } else if check(p, TokenType.KwOwn) {
-            panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                ": no need for 'own' in return type; returns are owned by default")
+            parse_fail(p, peek_line(p), peek_col(p), "no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
             advance(p)
             fd.return_own_type = OwnType.Shallow
@@ -735,8 +759,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // FuncSig-typed params and parses the body, producing a fully
         // formed FuncDef Expr usable anywhere a FuncDef literal is.
         if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not()) {
-            panic(p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-                ": ", func_type_name(ft), " cannot use FuncSig form")
+            parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " cannot use FuncSig form")
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
@@ -746,8 +769,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 pn := expect_text(p, TokenType.Ident)
                 if pi >= sfd.params.len() {
-                    panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                        ": too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
+                    parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
                 }
                 ref pp : Declaration = sfd.params[pi]
                 pp.name = pn.clone()
@@ -756,8 +778,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             }
             expect_token(p, TokenType.RParen)
             if pi < sfd.params.len() {
-                panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
+                parse_fail(p, peek_line(p), peek_col(p), "FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
             }
             // Issue #54: optional capture list (FuncSig form), after the
             // param names and before the body: `= (a) [scale] { ... }`.
@@ -777,8 +798,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // wraps args at calls through a value of that type.
         if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not())
         .and(ft.is(FuncType.LazyFunc).not()).and(ft.is(FuncType.LazyProc).not()) {
-            panic(p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-                ": ", func_type_name(ft), " requires a body")
+            parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " requires a body")
         }
     }
 
@@ -801,8 +821,7 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     mut ns_explicit_type := ""
     mut ns_is_mut := false
     if check(p, TokenType.KwConst) {
-        panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-            ": redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
+        parse_fail(p, peek_line(p), peek_col(p), "redundant 'const' on namespace declaration: namespace decls are immutable by default; drop it")
     }
     if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
     ns_name := expect_text(p, TokenType.Ident)
@@ -1124,8 +1143,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
         tt_col := peek_col(p)
         tt := expect_text(p, TokenType.Ident)
         if tt.eq("U8").or(tt.eq("U16")).or(tt.eq("U32")).or(tt.eq("U64")).not() {
-            panic(__LOC__, p.path, ":", tt_line.to_str(), ":", tt_col.to_str(),
-                ": enum discriminant type must be U8, U16, U32 or U64, found '", tt, "'")
+            parse_fail(p, tt_line, tt_col, "enum discriminant type must be U8, U16, U32 or U64, found '", tt, "'")
         }
         edd.tag_type = tt.clone()
         expect_token(p, TokenType.RParen)
@@ -1190,8 +1208,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             // instead of falling through to the generic
             // "expected 'identifier', found 'mut'" panic from expect_text.
             if check(p, TokenType.KwMut) {
-                panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                    ": redundant 'mut' on variant payload: payloads are mutable by default; drop it (use 'const' to make the payload immutable)")
+                parse_fail(p, peek_line(p), peek_col(p), "redundant 'mut' on variant payload: payloads are mutable by default; drop it (use 'const' to make the payload immutable)")
             }
             vname := expect_text(p, TokenType.Ident)
             mut vtype := ""
@@ -1203,8 +1220,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.Colon) {
                 advance(p)
                 if check(p, TokenType.KwOwn) {
-                    panic(p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
-                        ": redundant 'own' on variant payload: payloads are owned by default; drop it (use 'ref' for a borrowed payload)")
+                    parse_fail(p, peek_line(p), peek_col(p), "redundant 'own' on variant payload: payloads are owned by default; drop it (use 'ref' for a borrowed payload)")
                 }
                 if check(p, TokenType.KwRef) {
                     advance(p)
@@ -1252,13 +1268,11 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
         if vd.tag_value.lt(min_tag) { min_tag = vd.tag_value }
     }
     if min_tag.lt(0) {
-        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-            ": enum(", ttn, ") tag value ", min_tag.to_str(),
+        parse_fail(p, kw_line, kw_col, "enum(", ttn, ") tag value ", min_tag.to_str(),
             " is negative, but the discriminant is unsigned")
     }
     if has_limit.and(max_tag.gt(tag_limit)) {
-        panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
-            ": enum(", ttn, ") tag value ", max_tag.to_str(),
+        parse_fail(p, kw_line, kw_col, "enum(", ttn, ") tag value ", max_tag.to_str(),
             " exceeds the maximum ", tag_limit.to_str(),
             ", use something bigger like enum(", next_bigger, ") instead")
     }
@@ -1634,8 +1648,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // redundant `ext_struct("")` spelling and steer to bare
             // `ext_struct {}` (#263).
             if tag.len() == 0 {
-                panic(p.path, ":", es_line.to_str(), ":", es_col.to_str(),
-                    ": empty ext_struct tag: write 'ext_struct {' instead of 'ext_struct(\"\") {'")
+                parse_fail(p, es_line, es_col, "empty ext_struct tag: write 'ext_struct {' instead of 'ext_struct(\"\") {'")
             }
             expect_token(p, TokenType.RParen)
         }
@@ -1722,8 +1735,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     }
 
     if e_set.not() {
-        panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": unexpected token '", tok_text(p, t), "'")
+        parse_fail(p, t_line, t_col, "unexpected token '", tok_text(p, t), "'")
     }
 
     // Field access chain: e.field or e.method(args). Subscript a[b]
@@ -2176,8 +2188,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 case NodeType.FieldAccess(fan):
                     fa_name = Str.clone(fan.field_access_name())
                 case:
-                    panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-                        ": left side of '=' is not a field access")
+                    parse_fail(p, t_line, t_col, "left side of '=' is not a field access")
                 }
                 advance(p) // consume '='
                 mut fa := Expr.new(NodeType.FieldAssign(FieldAssignData(name = fa_name)), t_line, t_col)
@@ -2211,8 +2222,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         return call
     }
 
-    panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-        ": expected ':=', ':', '=' or '(' after identifier '", name, "'")
+    parse_fail(p, t_line, t_col, "expected ':=', ':', '=' or '(' after identifier '", name, "'")
     return Expr.new(NodeType.Body, 0, 0) // unreachable
 }
 
@@ -2251,8 +2261,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
             // are handled separately inside parse_struct_def.
             dd.is_priv = true
         case:
-            panic(p.path, ":", priv_line.to_str(), ":", priv_col.to_str(),
-                ": error: 'priv' must precede a declaration")
+            parse_fail(p, priv_line, priv_col, "error: 'priv' must precede a declaration")
         }
     }
     if p.pending_doc.is_empty().not() {
@@ -2376,13 +2385,11 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     }
     if t.type.is(TokenType.KwShallow) {
         advance(p)
-        panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": locals cannot use 'shallow'; locals are owned by default")
+        parse_fail(p, t_line, t_col, "locals cannot use 'shallow'; locals are owned by default")
     }
     if t.type.is(TokenType.KwConst) {
         advance(p)
-        panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-            ": redundant 'const' on local: locals are immutable by default; drop it")
+        parse_fail(p, t_line, t_col, "redundant 'const' on local: locals are immutable by default; drop it")
     }
     if t.type.is(TokenType.KwReturn) {
         advance(p)
@@ -2500,8 +2507,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
                 }
             }
             if own_mut {
-                panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-                    ": expected identifier after 'own mut'")
+                parse_fail(p, t_line, t_col, "expected identifier after 'own mut'")
             }
         }
         // own expression (call-site ownership marker)
@@ -2554,13 +2560,16 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         return cn
     }
 
-    panic(p.path, ":", t_line.to_str(), ":", t_col.to_str(),
-        ": expected statement, found '", tok_text(p, t), "'")
+    parse_fail(p, t_line, t_col, "expected statement, found '", tok_text(p, t), "'")
     return Expr.new(NodeType.Body, 0, 0) // unreachable
 }
 
 // parse: entry point
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64) returns Expr {
+// parse_errors reports how many syntax errors were seen. Callers that cannot
+// continue without a well-formed AST (every file compile) exit on a non-zero
+// count; the REPL prints and keeps the session. The messages themselves are
+// already on stdout by then, emitted by parse_fail.
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter)
 
     // Parse optional mode declaration
@@ -2598,6 +2607,8 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
         root.add_child(own ad.clone())
     }
     anon_type_counter = p.anon_type_counter
+    parse_errors = p.error_count
+    if p.error_count > 0 { println(p.error_msg) }
     // Anonymous lambdas (`func(...){...}` literals in expression positions)
     // used to be lifted here too, but they now move to top level in the
     // typer (src/self/typer.til:typer_lift_lambdas, called from

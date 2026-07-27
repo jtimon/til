@@ -1317,6 +1317,8 @@ typedef struct priv___src_self_parser_til__Parser {
     Map__Str_Str anon_cache;
     I64 anon_type_counter;
     Str pending_doc;
+    I32 error_count;
+    Str error_msg;
     Str source;
 } priv___src_self_parser_til__Parser;
 
@@ -2018,6 +2020,7 @@ Token * priv___src_self_parser_til__peek(priv___src_self_parser_til__Parser * p)
 Str * priv___src_self_parser_til__tok_text(priv___src_self_parser_til__Parser * p, Token * t);
 Token * priv___src_self_parser_til__advance(priv___src_self_parser_til__Parser * p);
 Bool priv___src_self_parser_til__check(priv___src_self_parser_til__Parser * p, TokenType * type);
+void priv___src_self_parser_til__parse_fail(priv___src_self_parser_til__Parser * p, U32 line, U32 col, Array__Str * parts);
 Token * priv___src_self_parser_til__expect_token(priv___src_self_parser_til__Parser * p, TokenType * type);
 Str * priv___src_self_parser_til__expect_text(priv___src_self_parser_til__Parser * p, TokenType * type);
 U32 priv___src_self_parser_til__peek_line(priv___src_self_parser_til__Parser * p);
@@ -2070,7 +2073,7 @@ Expr * priv___src_self_parser_til__parse_statement(priv___src_self_parser_til__P
 Expr * priv___src_self_parser_til__parse_case_head(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_switch(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_statement_body(priv___src_self_parser_til__Parser * p);
-Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out, I64 * anon_type_counter);
+Expr * parse(Vec__Token * tokens, Str * source, Str * path, Str * mode_out, I64 * anon_type_counter, I32 * parse_errors);
 Str * expr_type_name_ref(Expr * e);
 Str * til_type_name_c(Type * t);
 NodeType * ident_node(Str * name);

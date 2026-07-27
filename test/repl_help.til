@@ -25,7 +25,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n")
+    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n1 +\nfoo(\nprintln(\"survived syntax errors\")\nq.py\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
@@ -59,13 +59,23 @@ main := proc() {
     // it is -- echoing 5 then 31 proves both halves.
     field_echo := count_matches(output, "til[script]> 5\n")
     field_after_assign := count_matches(output, "til[script]> 31\n")
+    // A syntax error used to END THE PROCESS: the parser reported malformed
+    // input by panicking, so one typo threw away the whole session. It now
+    // reports and unwinds like the typer always has. Both bad turns must be
+    // reported, the session must reach the turn after them, and the binding
+    // made before them must still be there.
+    syntax_err := count_matches(output, "error: unexpected token")
+    unclosed_err := count_matches(output, "error: expected ')'")
+    survived := count_matches(output, "survived syntax errors")
+    state_kept := count_matches(output, "til[script]> 31\n")
     if n.eq(2).and(bad.eq(0)).and(missing.eq(1)).and(bad_y.eq(0)).and(two.eq(2)).and(a.eq(1)).and(seven.eq(1)).and(user_info.eq(1)).and(member_doc.eq(1))
         .and(ctor.eq(1)).and(defaults.eq(1)).and(named_err.eq(0)).and(undef_p.eq(0))
-        .and(field_echo.eq(1)).and(field_after_assign.eq(1)) {
+        .and(field_echo.eq(1)).and(syntax_err.eq(1)).and(unclosed_err.eq(1))
+        .and(survived.eq(1)).and(state_kept.eq(2)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str(), ", syntax errs=", syntax_err.to_str(), ", unclosed=", unclosed_err.to_str(), ", survived=", survived.to_str(), ", state kept=", state_kept.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)
