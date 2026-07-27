@@ -6968,9 +6968,24 @@ priv expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns Bool {
 // variant).
 priv infer_literal_expr := func(mut expr: Expr) {
     switch expr.node_type {
-    case NodeType.Literal(Literal.Num):
+    case NodeType.Literal(Literal.Num(num_data)):
         if is_numeric_type(expr.til_type()).not() {
-            expr.set_til_type(Type.Primitive(Primitive.I64))
+            // No context to narrow from (no declared type, no parameter type).
+            // Integers default to I64, but a literal whose text is fractional
+            // is a float and must not become one: `f := 1.5` used to be typed
+            // I64 and then blew up converting its own text, with
+            // "Str.to_i64: invalid char in '1.5'" pointing into src/core -- no
+            // user file, no line. F32 is the only float til has.
+            //
+            // This cannot change any working program: the default only applies
+            // where no type was inferred, and an I64 literal with fractional
+            // text always panicked, in both backends. Literals that DO have a
+            // context type keep it -- is_numeric_type is already true for them.
+            if num_data.is_float() {
+                expr.set_til_type(Type.Primitive(Primitive.F32))
+            } else {
+                expr.set_til_type(Type.Primitive(Primitive.I64))
+            }
         }
     case NodeType.Literal(Literal.Null):
         expr.set_til_type(Type.Dynamic)

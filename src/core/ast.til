@@ -277,6 +277,19 @@ namespace:
     to_usize := func(self: LiteralNumData) returns USize { return self.text.to_usize() }
     to_f32 := func(self: LiteralNumData) returns F32 { return self.text.to_f32() }
     literal_num_text := func(self: LiteralNumData) returns Str { return self.text.clone() }
+
+    /// Does the literal's TEXT spell a float? The lexer accepts a fractional
+    /// part ('.' then a digit) and an exponent (e/E, optional sign, digits)
+    /// only on the non-prefixed decimal path, so a 0x/0b/0o literal is an
+    /// integer even though hex digits include 'e' and 'E'. Callers that infer
+    /// a type FROM a literal need this; a literal that narrows from context
+    /// (declaration or parameter type) keeps that type instead.
+    is_float := func(self: LiteralNumData) returns Bool {
+        if self.text.starts_with("0x").or(self.text.starts_with("0X")) { return false }
+        if self.text.starts_with("0b").or(self.text.starts_with("0B")) { return false }
+        if self.text.starts_with("0o").or(self.text.starts_with("0O")) { return false }
+        return self.text.contains(".").or(self.text.contains("e")).or(self.text.contains("E"))
+    }
 }
 
 IdentData := struct {
@@ -619,6 +632,7 @@ TYPE_FUNCPTR : Type = Type.FuncPtr
 TYPE_BODY : Type = Type.Body
 TYPE_BOOL : Type = Type.Primitive(Primitive.Bool)
 TYPE_I64 : Type = Type.Primitive(Primitive.I64)
+TYPE_F32 : Type = Type.Primitive(Primitive.F32)
 TYPE_STR : Type = Type.Struct("Str")
 TYPE_STRUCTDEF : Type = Type.Struct("StructDef")
 TYPE_ENUMDEF : Type = Type.Struct("EnumDef")
@@ -868,7 +882,17 @@ namespace:
         case NodeType.Body:        return TYPE_NONE
         case NodeType.Literal(Literal.Str):  return TYPE_STR
         case NodeType.Literal(Literal.Num(nd)):
-            if nd.til_type.is(Type.Unknown) { return TYPE_I64 }
+            // An un-narrowed numeric literal reports its DEFAULT type. That
+            // default follows the text: a fractional or exponent literal is a
+            // float, everything else an integer. Answering I64 for `1.5` made
+            // every consumer treat it as an integer -- the constfolder then
+            // converted the literal's own text and died with
+            // "Str.to_i64: invalid char in '1.5'", pointing into src/core with
+            // no user file or line. F32 is til's only float type.
+            if nd.til_type.is(Type.Unknown) {
+                if nd.is_float() { return TYPE_F32 }
+                return TYPE_I64
+            }
             return nd.til_type
         case NodeType.Literal(Literal.Bool): return TYPE_BOOL
         case NodeType.Literal(Literal.Null): return TYPE_DYNAMIC

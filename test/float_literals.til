@@ -1,0 +1,61 @@
+mode test
+
+// Regression: a numeric literal with no type to narrow from reported itself
+// as I64 regardless of its text, so `f := 1.5` became an I64 binding and then
+// died converting its own text -- "Str.to_i64: invalid char in '1.5'", raised
+// inside src/core with no user file or line.
+//
+// The default lives in Expr.til_type, which answers for an un-narrowed
+// Literal.Num. It follows the text now: fractional or exponent forms are F32
+// (til's only float type), everything else I64. A literal that DOES narrow
+// from a declaration, parameter or field type is unaffected -- its til_type is
+// already set, so the default never applies.
+//
+// This could not change a working program: an I64-typed literal with
+// fractional text panicked in both backends, so nothing could depend on it.
+
+takes_f32 := func(x: F32) returns F32 { return x }
+
+test_bare_float_literal_is_f32 := test() {
+    f := 1.5
+    assert_eq(F32, f, 1.5)
+}
+
+test_float_literal_arithmetic := test() {
+    assert_eq(F32, 1.5 + 2.25, 3.75)
+    assert_eq(F32, 7.5 / 2.0, 3.75)
+}
+
+test_exponent_literal_is_float := test() {
+    e := 3.5e2
+    assert_eq(F32, e, 350.0)
+}
+
+// The text decides, so integers keep defaulting to I64 -- including a hex
+// literal whose digits contain 'E', which must not be read as an exponent.
+test_integer_literals_still_i64 := test() {
+    i := 42
+    assert_eq(I64, i, 42)
+    h := 0xE1
+    assert_eq(I64, h, 225)
+}
+
+// Narrowing from context still wins over the text-based default.
+test_context_narrowing_unaffected := test() {
+    a : F32 = 1.5
+    assert_eq(F32, a, 1.5)
+    assert_eq(F32, takes_f32(2.5), 2.5)
+    b : I64 = 7
+    assert_eq(I64, b, 7)
+}
+
+Point := struct {
+    x := 2.5
+    y := 3
+}
+
+test_struct_field_default_follows_text := test() {
+    p := Point()
+    assert_eq(F32, p.x, 2.5)
+    assert_eq(I64, p.y, 3)
+}

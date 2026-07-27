@@ -1925,7 +1925,16 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 if ftype.len() == 0 {
                     if fd.default_value.is_null().not() {
                         ref def_val : Expr = fd.default_value
-                        if def_val.node_type.is_literal_num() { ftype = "I64" }
+                        if def_val.node_type.is_literal_num() {
+                            // Same rule for a struct field with no explicit
+                            // type: `x := 1.5` is an F32 field, not an I64 one.
+                            ftype = "I64"
+                            switch def_val.node_type {
+                            case NodeType.Literal(Literal.Num(fnum)):
+                                if fnum.is_float() { ftype = "F32" }
+                            case:
+                            }
+                        }
                         else if def_val.node_type.is_literal_str() { ftype = "Str" }
                         else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
                         else if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
@@ -2222,8 +2231,14 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
     }
 
     switch rhs.node_type {
-    case NodeType.Literal(Literal.Num):
-        out_type = Type.Primitive(Primitive.I64)
+    case NodeType.Literal(Literal.Num(num_rhs)):
+        // Inferring the binding's type FROM the literal (no declared type to
+        // narrow from). A fractional literal is a float: typing `f := 1.5` as
+        // I64 made it blow up converting its own text, with
+        // "Str.to_i64: invalid char in '1.5'" pointing into src/core -- no
+        // user file, no line. F32 is til's only float type.
+        if num_rhs.is_float() { out_type = Type.Primitive(Primitive.F32) }
+        else { out_type = Type.Primitive(Primitive.I64) }
         return true
     case NodeType.Literal(Literal.Bool):
         out_type = Type.Primitive(Primitive.Bool)
