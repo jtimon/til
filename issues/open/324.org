@@ -27,6 +27,57 @@ and the type system currently lets them.
 Each is allocated with ~scope_new_boxed~ and hand-freed with
 ~scope_free(own ...)~ while declared ~ref~.
 
+*** Findings from a first implementation attempt (2026-07-27)
+
+The typer half is a 6-line addition and works: in the ~pown~ arm of the
+own-arg check (src/self/typer.til), add a ~NodeType.FieldAccess~ case
+beside the existing ~NodeType.Ident~ one and reject when
+~fa_own_type(arg, scope).is(OwnType.Ref)~. Verified on a synthetic
+repro (a ~ref~ field passed to an ~own~ param used to type-check
+silently; it errors now).
+
+It must stay BROAD -- no type-based narrowing. An attempt to exempt
+"raw pointer" fields (on the theory that ~ref cif : ffi_cif~ is the
+codebase's pointer-word idiom rather than a borrow claim) was WRONG:
+every flagged field is allocated (~scope_new_boxed~,
+~malloc(ffi_cif.size())~, ~malloc(ffi_type.size())~) and hand-freed, so
+they are all genuinely owned pointers wearing a ~ref~ label -- exactly
+this issue's thesis. The truly borrowed ~ref~ fields (~ref fn : U8~
+from dlsym, ~ref til_type_p : U8~) are never freed, so they never reach
+the check. The check discriminates correctly on its own.
+
+The relabel target is settled by the docs, not a design choice:
+qualifiers.org gives ~ref f : T~ and ~own f : T~ the SAME C shape
+(~T *f~), and the #302 ruling names ~own U8~ fields as the form for
+owned raw buffers. So the fix is ~ref~ -> ~own~ on each field, with no
+representation change.
+
+THE REAL BLOCKER, found by doing it: the ~= NULL~ default, not the
+type. Measured, 14 flagged sites:
+
+- ~own env : Scope~ (InterpCallableBox, NO default) -- relabels
+  cleanly, self-compile stays green, and the site drops off the list.
+- Every ~= NULL~-defaulted field (~constfolder_known~, ~ns_fields~,
+  ~global~, and the four ~FFIEntry~ raw buffers) SEGFAULTS once made
+  ~own~: assigning to an ~own~ field deletes the old value first, and
+  the generated ~Scope_delete(NULL)~ dereferences null
+  (~constfolder_reset_state~ -> ~Scope_delete(self=0x0)~ ->
+  ~Map__Str_HeapBinding_delete~ -> ~Vec__Str_clear~).
+
+These fields use NULL as "absent", which an ~own~ field cannot express:
+its assign path always destroys the old value. Adding a null guard to
+generated deletes is not the answer (defensive guard, and it would hide
+real bugs). They need the owning-optional shape -- this issue's option 3
+-- which is [[./321.org][#321]]'s NULL removal / [[./320.org][#320]]'s
+Option payload work. That also subsumes the ~ns_inited~ redundancy noted
+at the bottom of this issue.
+
+So the dependency runs the OTHER way from what this issue assumed: the
+relabel needs #321 to retire the NULL sentinel FIRST; then the ~ref~ ->
+~own~ change and the broad check land together in one commit. Until
+then the check cannot ship, because 13 of the 14 sites would fail to
+compile.
+
 *** Fix
 
 Apply the existing own-arg rule to ref-field arguments (the
