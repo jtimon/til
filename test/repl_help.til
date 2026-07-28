@@ -25,7 +25,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 }
 
 main := proc() {
-    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n1 +\n(1))\nprintln(\"survived syntax errors\")\nq.py\nv := Vec(I64).new()\nv.push(own 3)\nv.push(own 4)\nprintln(format(\"veclen=\", v.len().to_str()))\nprintln(format(\"vec0=\", v[0].to_str()))\ns := Str.clone(\"abc\")\nprintln(format(\"str=\", s))\nprintln(v[9].to_str())\npanic(\"boom\")\nprintln(\"survived panic\")\nprintln(format(\"veclen2=\", v.len().to_str(), \",str2=\", s))\nK := struct {\n    n : I64 = 0\nnamespace:\n    bump := func(mut self: K) {\n        self.n = self.n + 1\n    }\n}\nmut k := K()\nk.bump()\nk.bump()\nprintln(format(\"bump=\", k.n.to_str()))\n\n   \nprintln(format(\"blanks=\", k.n.to_str()))\nref cv : I64 = v.get(9)? catch (err: OutOfBounds) { println(\"caught oob\") }\nref cw : I64 = v.get(0)? catch (err: OutOfBounds) { println(\"unreachable\") }\nprintln(format(\"caught_then=\", cw.to_str()))\n")
+    File.writefile("tmp/repl_help_input", "println(\"a\")\n1 + 1\nx := 7\nprintln(x.to_str())\n1 + missing\nhelp(\"println\")\nhelp(\"println\")\nhelp(\"Array__Dynamic.unsafe_get\")\n1 + 1\ny := 9\nhelp(\"y\")\nP := struct { px := 5 py := 7 }\np := P(px = 1, py = 2)\nprintln(format(\"ctor=\", p.px.to_str(), \",\", p.py.to_str()))\nq := P()\nprintln(format(\"defaults=\", q.px.to_str(), \",\", q.py.to_str()))\nq.px\nq.py = 31\nq.py\n1 +\n(1))\nprintln(\"survived syntax errors\")\nq.py\nv := Vec(I64).new()\nv.push(own 3)\nv.push(own 4)\nprintln(format(\"veclen=\", v.len().to_str()))\nprintln(format(\"vec0=\", v[0].to_str()))\ns := Str.clone(\"abc\")\nprintln(format(\"str=\", s))\nprintln(v[9].to_str())\npanic(\"boom\")\nprintln(\"survived panic\")\nprintln(format(\"veclen2=\", v.len().to_str(), \",str2=\", s))\nK := struct {\n    n : I64 = 0\nnamespace:\n    bump := func(mut self: K) {\n        self.n = self.n + 1\n    }\n}\nmut k := K()\nk.bump()\nk.bump()\nprintln(format(\"bump=\", k.n.to_str()))\n\n   \nprintln(format(\"blanks=\", k.n.to_str()))\nref cv : I64 = v.get(9)? catch (err: OutOfBounds) { println(\"caught oob\") }\nref cw : I64 = v.get(0)? catch (err: OutOfBounds) { println(\"unreachable\") }\nprintln(format(\"caught_then=\", cw.to_str()))\nbadimp := import(\"does/not/exist\")\nprintln(\"survived bad import\")\nsys := import(\"src/std/sys\")\nprintln(format(\"hostos=\", sys.host_os().len().gt(0).to_str()))\n")
     pid := spawn_cmd("bin/til < tmp/repl_help_input > tmp/repl_help_output 2>&1")
     _exit_code := wait_cmd(pid)
 
@@ -102,6 +102,15 @@ main := proc() {
     caught_oob := count_matches(output, "caught oob")
     caught_wrong := count_matches(output, "unreachable")
     caught_then := count_matches(output, "caught_then=3")
+    // An import that cannot be resolved is user error -- a typo is enough --
+    // but load_program panicked on it, so it ended the whole session.
+    bad_import := count_matches(output, "could not find import 'does/not/exist.til'")
+    survived_import := count_matches(output, "survived bad import")
+    // Imports resolve against the importing FILE's directory, and the REPL's
+    // file is its tmp/ scratch pad: `import("src/std/sys")` looked in
+    // tmp/src/std/ and only `../src/std/sys` worked. The prompt resolves
+    // against the user's cwd now, which is where the user thinks he is.
+    cwd_import := count_matches(output, "hostos=true")
     if and(n.eq(2), bad.eq(0), missing.eq(1), bad_y.eq(0), two.eq(2),
            a.eq(1), seven.eq(1), user_info.eq(1), member_doc.eq(1),
            ctor.eq(1), defaults.eq(1), named_err.eq(0), undef_p.eq(0),
@@ -110,11 +119,12 @@ main := proc() {
            strval.eq(1), oob.eq(1), err_kind_bug.eq(0), panicked.eq(1),
            survived_panic.eq(1), state_after_panic.eq(1), multiline.eq(1),
            blanks.eq(1), caught_oob.eq(1), caught_wrong.eq(0),
-           caught_then.eq(1)) {
+           caught_then.eq(1), bad_import.eq(1), survived_import.eq(1),
+           cwd_import.eq(1)) {
         println("repl_help PASS")
         return
     }
-    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str(), ", syntax errs=", syntax_err.to_str(), ", stray close=", stray_close.to_str(), ", survived=", survived.to_str(), ", state kept=", state_kept.to_str(), ", veclen=", veclen.to_str(), ", vec0=", vec0.to_str(), ", str=", strval.to_str(), ", oob=", oob.to_str(), ", err_kind bug=", err_kind_bug.to_str(), ", panicked=", panicked.to_str(), ", survived panic=", survived_panic.to_str(), ", state after panic=", state_after_panic.to_str(), ", multiline=", multiline.to_str(), ", blanks=", blanks.to_str(), ", caught oob=", caught_oob.to_str(), ", caught wrong=", caught_wrong.to_str(), ", caught then=", caught_then.to_str())
+    println("repl_help FAIL: doc matches=", n.to_str(), ", undefined matches=", bad.to_str(), ", missing matches=", missing.to_str(), ", undefined y matches=", bad_y.to_str(), ", expression matches=", two.to_str(), ", a matches=", a.to_str(), ", seven matches=", seven.to_str(), ", user info matches=", user_info.to_str(), ", member doc matches=", member_doc.to_str(), ", ctor matches=", ctor.to_str(), ", defaults matches=", defaults.to_str(), ", named-arg errors=", named_err.to_str(), ", undefined P=", undef_p.to_str(), ", field echo=", field_echo.to_str(), ", field after assign=", field_after_assign.to_str(), ", syntax errs=", syntax_err.to_str(), ", stray close=", stray_close.to_str(), ", survived=", survived.to_str(), ", state kept=", state_kept.to_str(), ", veclen=", veclen.to_str(), ", vec0=", vec0.to_str(), ", str=", strval.to_str(), ", oob=", oob.to_str(), ", err_kind bug=", err_kind_bug.to_str(), ", panicked=", panicked.to_str(), ", survived panic=", survived_panic.to_str(), ", state after panic=", state_after_panic.to_str(), ", multiline=", multiline.to_str(), ", blanks=", blanks.to_str(), ", caught oob=", caught_oob.to_str(), ", caught wrong=", caught_wrong.to_str(), ", caught then=", caught_then.to_str(), ", bad import=", bad_import.to_str(), ", survived import=", survived_import.to_str(), ", cwd import=", cwd_import.to_str())
     println("--- captured output ---")
     print(output)
     exit(1)

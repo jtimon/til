@@ -1634,6 +1634,7 @@ typedef struct LoadedProgram {
     Str include_flags;
     Str link_c_paths;
     Bool run_tests;
+    I32 load_errors;
     I64 usize_override_bits;
 } LoadedProgram;
 
@@ -3126,7 +3127,7 @@ void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__extract_link_info(LoadedProgram * lp);
 void priv___src_self_loader_til__load_mode_file(LoadedProgram * lp, Str * path, Str * cwd);
-LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes);
+LoadedProgram * load_program(Str * path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes, Str * import_base);
 Str * priv___src_self_loader_til__escape_doc_for_literal_str(Str * raw);
 Str * priv___src_self_loader_til__func_kind(FuncType * ft);
 Str * priv___src_self_loader_til__til_type_user(Type * t);

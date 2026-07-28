@@ -339,7 +339,15 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
     combined = combined.format(accum)
     File.writefile(tmp_path, combined)
 
-    mut doc_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+    mut doc_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+    // accum holds only turns that already loaded, so a failure here means an
+    // imported file moved or was edited mid-session. help() loses the user's
+    // own symbols for this turn rather than the session losing everything.
+    if doc_lp.load_errors > 0 {
+        user_info_cache = ""
+        user_docs_cache = ""
+        return
+    }
     type_errors := type_program_errors(doc_lp, false)
     if type_errors > 0 { panic("REPL user doc cache refresh failed") }
 
@@ -390,7 +398,10 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
     out_path := format("tmp/repl_", process_id().to_str(), ".out")
     File.writefile(tmp_path, format("mode ", mode_str, "\n", doc_import_line))
-    mut cached_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+    mut cached_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+    // The base program is `mode X` plus the injected std/doc import, so a
+    // failure here is a broken install, not anything the user typed.
+    if cached_lp.load_errors > 0 { panic("REPL base program failed to load") }
     cached_errors := repl_init_cached_program(cached_lp)
     if cached_errors > 0 { panic("REPL cached base program failed to typecheck") }
     mut committed_raw : Dynamic = interp_program_to_heap(own cached_lp)
@@ -500,7 +511,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut run_lp := LoadedProgram()
             if use_full_load {
                 File.writefile(tmp_path, combined)
-                run_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+                run_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
             } else {
                 ref committed_lp : LoadedProgram = to_ptr(committed_raw)
                 run_lp = repl_clone_loaded_program(committed_lp)
@@ -511,7 +522,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut run_errs : I32 = 0
             mut run_tail_start : USize = 0
             mut run_tail_count : USize = 0
-            if use_full_load {
+            if run_heap.load_errors > 0 {
+                // An import the user typed could not be found or did not
+                // parse. resolve_imports already printed why; count it as a
+                // failed turn so the line is dropped and the session lives.
+                run_errs = run_heap.load_errors
+            } else if use_full_load {
                 run_errs = init_and_type_program_errors(run_heap, false)
             } else {
                 mut delta_source := ""
@@ -563,7 +579,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut typed_lp := LoadedProgram()
             if use_full_load {
                 File.writefile(tmp_path, combined2)
-                typed_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes)
+                typed_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
             } else {
                 ref committed_lp2 : LoadedProgram = to_ptr(committed_raw)
                 typed_lp = repl_clone_loaded_program(committed_lp2)
@@ -573,7 +589,9 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             mut typer_errs : I32 = 0
             mut typed_tail_start : USize = 0
             mut typed_tail_count : USize = 0
-            if use_full_load {
+            if typed_heap.load_errors > 0 {
+                typer_errs = typed_heap.load_errors
+            } else if use_full_load {
                 typer_errs = repl_typecheck(typed_heap)
             } else {
                 mut delta_source2 := ""
@@ -906,6 +924,10 @@ main := proc(args: ..Str) {
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
 
     mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
+    // An unresolvable / unparsable import used to panic inside load_program.
+    // It reports and returns now (so the REPL can drop the turn); a file
+    // compile still stops here, with the message resolve_imports printed.
+    if lp.load_errors > 0 { exit(1) }
     lp.target = target
     // #309: --usize override must be set before prepare_program stamps the
     // USize/UPtr alias widths (retarget_loaded_aliases / the ctx register).

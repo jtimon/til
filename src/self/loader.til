@@ -210,10 +210,12 @@ priv resolve_imports := proc(import_paths: Vec(Str), base_dir: Str,
             mut sub_mode := ""
             mut parse_errors_sub_ast : I32 = 0
             sub_ast := parse(tokens, source, disp, sub_mode, ctx.anon_type_counter, parse_errors_sub_ast)
-            // A syntax error must stop the build here. parse reports it and returns
-            // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
-            // carried on would bury that message under downstream type errors.
-            if parse_errors_sub_ast > 0 { exit(1) }
+            // A syntax error in an imported file must stop the load: parse
+            // reports it and returns a PARTIAL ast, and carrying on would bury
+            // that message under downstream type errors. Reported as a failed
+            // resolution rather than exit(1), so the caller decides -- a file
+            // compile still exits, the REPL drops the turn.
+            if parse_errors_sub_ast > 0 { return 1 }
             sub_mode = normalize_mode_name(sub_mode)
             ref sub_mode_def : Mode = require_mode(ctx, disp, sub_mode)
             context_register_path_mode(ctx, disp, sub_mode_def)
@@ -266,6 +268,11 @@ LoadedProgram := struct {
     include_flags := ""
     link_c_paths := ""
     run_tests := false
+    // Non-zero when load_program gave up on a user import (missing file, or a
+    // syntax error inside one). The program is unusable; the caller decides
+    // whether that ends the process (a file compile) or just the turn (the
+    // REPL).
+    load_errors : I32 = 0
     // --usize override (issue #309): 0 = follow the source alias (default
     // U32), 32 = force the USize alias to U32, 64 = force it back to U64
     // (the opt-out from the U32 default) even on a 64-bit host. UPtr is
@@ -1289,7 +1296,12 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str) {
 
 // Load core.til + user file + imports + mode auto_import. Returns a
 // LoadedProgram with the merged ASTs and link info populated.
-load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str)) returns LoadedProgram {
+// import_base overrides the directory user imports resolve against. Empty
+// (every file compile) means the entrypoint's own directory, as always; the
+// REPL passes the user's cwd so its tmp/ scratch file does not leak into the
+// paths the user types. Check `load_errors` on the result: non-zero means the
+// program is unusable because an import could not be resolved or parsed.
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "") returns LoadedProgram {
     mut lp := LoadedProgram()
     context_init_mode_registry(lp.ctx)
     lp.path = path.clone()
@@ -1430,12 +1442,25 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     // Resolve user imports (using same resolved set -- skips files already loaded by core)
     units := Vec(ProgramUnit).new()
     lib_dir := format(bin_dir, "/lib")
-    user_import_disps := resolve_import_disps(imports, user_dir, lib_dir, cwd)
+    // An import is resolved relative to the importing FILE's directory. The
+    // REPL's entrypoint is a scratch file under tmp/, which is an
+    // implementation detail the user never typed: `import("src/std/sys")` at
+    // the prompt looked for tmp/src/std/sys.til and only `../src/std/sys`
+    // worked. import_base lets the REPL say "resolve as if the prompt were a
+    // file in the user's cwd", which is where the user thinks he is.
+    mut import_dir := user_dir.clone()
+    if import_base.len() > 0 { import_dir = import_base.clone() }
+    user_import_disps := resolve_import_disps(imports, import_dir, lib_dir, cwd)
     if imports.len() > 0 {
-        err := resolve_imports(imports, user_dir, resolved, resolve_stack,
+        err := resolve_imports(imports, import_dir, resolved, resolve_stack,
             units, lib_dir, lp.ctx, "", cwd)
+        // A missing or unparsable import is USER error -- a typo at the REPL
+        // prompt is enough -- so it is recorded, not fatal. cmd_* exits on it;
+        // the REPL drops the turn and keeps the session. (Core and mode-file
+        // resolution still panic above: those failing means a broken install.)
         if err > 0 {
-            panic("failed to resolve imports")
+            lp.load_errors = err
+            return lp
         }
     }
 
