@@ -7499,7 +7499,7 @@ priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Decl
     for c : Declaration in caps {
         if c.name == name { if c.own_type.is(OwnType.Ref) { return } }
     }
-    out.add(own name.clone())
+    if out.has(name).not() { out.add(own name.clone()) }
 }
 
 priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
@@ -7533,7 +7533,7 @@ expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                out.add(own vn.ident_name().clone())
+                if out.has(vn.ident_name()).not() { out.add(own vn.ident_name().clone()) }
             case:
             }
         }
@@ -7554,7 +7554,7 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
                 an_o := arg_addressed_ident(arg)
                 if an_o.is_some() {
                     ref an : Str = an_o.unwrap()
-                    out.add(own an.clone())
+                    if out.has(an).not() { out.add(own an.clone()) }
                 }
             }
         }
@@ -7589,7 +7589,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                                 if an_o.is_some().and(fld_decl.own_type.is(OwnType.Ref).not()) {
                                     ref an : Str = an_o.unwrap()
                                     if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                        out.add(own an.clone())
+                                        if out.has(an).not() { out.add(own an.clone()) }
                                     }
                                 }
                             }
@@ -7653,11 +7653,6 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
 // want_transfers=false skips the transfer work entirely: it is the only
 // part that consults scope (fcall_collect_own_arg_names, fa_own_type),
 // and most callers do not ask for it.
-// Name-fact collection adds unconditionally: Set.add already drops a
-// duplicate, so the `if out.has(x).not()` guard these sites used to carry
-// bought a second binary search to save a clone -- and at -O0 the search
-// costs more than the clone. Set__Str_has was 3.9G of Str_cmp per
-// self-translate on top of add's own search.
 expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool,
         mut uses: Set(Str), mut decls: Set(Str), mut nested: Set(Str),
         mut escapes: Set(Str), mut transfers: Set(Str)) {
@@ -7672,7 +7667,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                escapes.add(own vn.ident_name().clone())
+                if escapes.has(vn.ident_name()).not() { escapes.add(own vn.ident_name().clone()) }
             case:
             }
         }
@@ -7709,17 +7704,17 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
             }
         }
     case NodeType.Ident(id):
-        uses.add(own id.ident_name().clone())
+        if uses.has(id.ident_name()).not() { uses.add(own id.ident_name().clone()) }
     case NodeType.Assign(asgn):
-        uses.add(own asgn.name.clone())
+        if uses.has(asgn.name).not() { uses.add(own asgn.name.clone()) }
     case NodeType.Decl(dd):
-        decls.add(own dd.name.clone())
+        if decls.has(dd.name).not() { decls.add(own dd.name.clone()) }
     case NodeType.FCall(fcd):
         if want_transfers.and(transfers_on) {
             if fcd.swap_replace.and(e.children.len().gte(3)) {
                 switch e.children[2].node_type {
                 case NodeType.Ident(src):
-                    transfers.add(own src.ident_name().clone())
+                    if transfers.has(src.ident_name()).not() { transfers.add(own src.ident_name().clone()) }
                 case:
                 }
             }
@@ -7733,7 +7728,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
             if e.children.len() > 1 {
                 switch e.children[1].node_type {
                 case NodeType.Ident(ei):
-                    transfers.add(own ei.ident_name().clone())
+                    if transfers.has(ei.ident_name()).not() { transfers.add(own ei.ident_name().clone()) }
                 case:
                 }
             }
