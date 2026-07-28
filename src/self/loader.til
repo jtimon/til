@@ -590,6 +590,27 @@ priv DeclRef := struct {
     idx : USize = 0
 }
 
+// #326: the target of a type ALIAS declaration (`UPtr := U64`), or "" when
+// `base` is not one. An alias emits no C of its own, so a qualified name on
+// it -- `UPtr.size()`, which the builder lowers to `U64_size()` -- must be
+// forwarded to the target's namespace or the target's method is never
+// rooted. Same shape the builder and scavenger use to recognize an alias:
+// a value Decl whose RHS is a bare Ident and whose type is None.
+priv alias_target_imported := func(ctx: Context, tbl: Map(Str, DeclRef), base: Str) returns Str {
+    if tbl.has(base).not() { return "" }
+    ref dr : DeclRef = tbl[base]
+    ref iu : ImportUnit = ctx.imported[dr.path]
+    ref decl : Expr = iu.ast.children[dr.idx]
+    if decl.node_type.is(NodeType.Decl).not() { return "" }
+    if decl.children.len() == 0 { return "" }
+    if decl.til_type().is(Type.None).not() { return "" }
+    switch decl.children[0].node_type {
+    case NodeType.Ident(alias_id): return Str.clone(alias_id.ident_name())
+    case:
+    }
+    return ""
+}
+
 priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), name: Str) returns Option(ref Expr) {
     dot := name.find(".")
     if dot < 0 { return Option(ref Expr).None }
@@ -757,6 +778,25 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // 2) Seed worklist from the concatenated user-unit stream
     mut worklist := Vec(Str).new()
     vec_push_str(worklist, "Str")
+    // #326: the INTERPRETER resolves `T.size()` by runtime name --
+    // get_elem_size builds the call from a type name it only learns at
+    // runtime, for element widths of Array/Vec/Tuple/Map/Set and for
+    // dyn_size_of -- so no static walk can see those uses. A program that
+    // will be interpreted roots `size` on every type through the existing
+    // wildcard; one that is only compiled does not, because the emitted C
+    // reads widths from sizeof. `test` does both, so it takes the
+    // conservative side.
+    if lp.ctx.compile_mode.not().or(lp.run_tests) { vec_push_str(worklist, "*.size") }
+    // #326: the hand-written C runtime (src/c/ext.c) is linked into every
+    // program, so whatever IT needs from til is an unconditional root. That
+    // set is exactly three symbols -- `nm -u` on ext.o resolves everything
+    // else to libc or libffi: Str_clone (the cwd, env and blob helpers each
+    // return an owned empty Str that way) and the two capacity sentinels the
+    // Str writers stamp. The blanket lifecycle rooting and the blanket core
+    // value rooting used to supply them by accident.
+    push_qn(worklist, "Str", "clone")
+    vec_push_str(worklist, "CAP_LIT")
+    vec_push_str(worklist, "CAP_VIEW")
     if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper (emit_cli_parse_arg in
@@ -920,11 +960,6 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 case:
                     UNREACHABLE()
                 }
-                push_qn(worklist, name, "delete")
-                push_qn(worklist, name, "clone")
-                push_qn(worklist, name, "size")
-                push_qn(worklist, name, "cmp")
-                push_qn(worklist, name, "hash")
             } else {
                 collect_refs(decl.children[0], worklist)
             }
@@ -953,11 +988,6 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 case:
                     UNREACHABLE()
                 }
-                push_qn(worklist, name, "delete")
-                push_qn(worklist, name, "clone")
-                push_qn(worklist, name, "size")
-                push_qn(worklist, name, "cmp")
-                push_qn(worklist, name, "hash")
             } else {
                 collect_refs(decl.children[0], worklist)
             }
@@ -970,6 +1000,21 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // identifiers it references stay reachable -- otherwise
         // `fnv1a` gets pruned and the init `HashMap_hasher = (void
         // *)fnv1a` in main() references an undeclared symbol.
+        // #326: follow a type alias before the namespace lookups below --
+        // `UPtr.size` has to reach `U64.size`. This replaces what the
+        // blanket lifecycle rooting used to cover, and unlike the
+        // hardcoded USize->U32 / UPtr->U64 pair in collect_refs's assert_eq
+        // branch it stays correct at any built USize width.
+        alias_dot := name.find(".")
+        if alias_dot >= 0 {
+            alias_dot_u := alias_dot.to_usize()
+            alias_base := name.substr(0, alias_dot_u)
+            alias_member := name.substr(alias_dot_u + 1, name.len().sub(alias_dot_u) - 1)
+            mut alias_to := alias_target_imported(lp.ctx, top, alias_base)
+            if alias_to.len() == 0 { alias_to = alias_target_imported(lp.ctx, core_top, alias_base) }
+            if alias_to.len() > 0 { push_qn(worklist, alias_to, alias_member) }
+        }
+
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)
         if ns_fdef_o.is_some() {
             collect_refs(ns_fdef_o.unwrap(), worklist)

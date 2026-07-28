@@ -814,6 +814,24 @@ align_up := func(offset: USize, align: USize) returns USize {
 // hardcoding USize/UPtr forbid: U8/U16/U32/U64 are FIXED-width by name on
 // every target, so 1/2/4/8 are definitional. What must never be assumed is
 // which of them USize or UPtr resolves to.
+// The scalar type names, as C spells them. PRIM_NAMES are the fixed-width
+// primitives (their ext.h typedefs are the same on every target);
+// WIDTH_ALIAS_NAMES are the two per-build aliases, kept separate because
+// only some callers want them -- seed_primitive_names marks emitted C
+// typedefs, which the aliases are not. #326 added a third consumer in the
+// scavenger, so the one enumeration lives here rather than in builder.til.
+PRIM_NAMES := array(Str, "I8", "U8", "I16", "U16", "I32", "U32",
+                    "I64", "U64", "F32", "Bool")
+WIDTH_ALIAS_NAMES := array(Str, "USize", "UPtr")
+
+// True when `n` names a scalar type -- a fixed-width primitive or a width
+// alias.
+is_scalar_type_name := func(n: Str) returns Bool {
+    for prim_n : Str in PRIM_NAMES { if prim_n == n { return true } }
+    for alias_n : Str in WIDTH_ALIAS_NAMES { if alias_n == n { return true } }
+    return false
+}
+
 unsigned_prim_name_for_width := func(w: USize) returns Str {
     switch w {
     case 1: return "U8"

@@ -64,7 +64,6 @@ typedef enum {
 } Token_tag;
 typedef struct Token Token;
 
-typedef TilClosure *HashFn;
 
 typedef struct Str {
     I8 *c_str;
@@ -153,19 +152,14 @@ struct Token {
 
 Str * format(Array__Str * parts);
 USize Str_len(Str * self);
-I64 Str_cmp(Str * a, Str * b);
 Bool Str_eq(Str * a, Str * b);
 Str * Str_with_capacity(USize n);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 Str * Str_to_str(Str * self);
 void Str_delete(Str * self, Bool call_free);
-U64 Str_hash(Str * self, HashFn hasher);
 USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
-OutOfBounds * OutOfBounds_clone(OutOfBounds * _self);
-void OutOfBounds_delete(OutOfBounds * self, Bool call_free);
-U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher);
 USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
 USize Array__Str_len(Array__Str * self);
@@ -176,49 +170,23 @@ void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 USize Array__Str_size(void);
 USize Dynamic_size(void);
-void * Dynamic_clone(void * self);
-void Dynamic_delete(void * self, Bool call_free);
-void U8_delete(U8 * self, Bool call_free);
 USize U8_size(void);
-U64 U8_hash(U8 self, HashFn hasher);
-void U32_delete(U32 * self, Bool call_free);
 USize U32_size(void);
-U64 U32_hash(U32 self, HashFn hasher);
 Str * U64_to_str(U64 val);
-void U64_delete(U64 * self, Bool call_free);
 USize U64_size(void);
-U64 U64_hash(U64 self, HashFn hasher);
-void I8_delete(I8 * self, Bool call_free);
 USize I8_size(void);
-U64 I8_hash(I8 self, HashFn hasher);
-void I32_delete(I32 * self, Bool call_free);
 USize I32_size(void);
-U64 I32_hash(I32 self, HashFn hasher);
 Str * I64_to_str(I64 val);
 void I64_delete(I64 * self, Bool call_free);
 USize I64_size(void);
-U64 I64_hash(I64 self, HashFn hasher);
-void F32_delete(F32 * self, Bool call_free);
 USize F32_size(void);
-U64 F32_hash(F32 self, HashFn hasher);
-I64 Bool_cmp(Bool a, Bool b);
-void Bool_delete(Bool * self, Bool call_free);
 USize Bool_size(void);
-U64 Bool_hash(Bool self, HashFn hasher);
-Bool Primitive_eq(Primitive * self, Primitive * other);
-void Primitive_delete(Primitive * self, Bool call_free);
-Primitive * Primitive_clone(Primitive * self);
 USize Primitive_size(void);
-void Type_delete(Type * self, Bool call_free);
-Type * Type_clone(Type * self);
 USize Type_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Str * loc);
 void assert(Bool cond, Str * loc);
 void println(Array__Str * parts);
-Range * Range_clone(Range * val);
-void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
@@ -230,20 +198,14 @@ void test_lolalalo(void);
 void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
-CfVec2 * CfVec2_clone(CfVec2 * self);
 void CfVec2_delete(CfVec2 * self, Bool call_free);
-U64 CfVec2_hash(CfVec2 * self, HashFn hasher);
 USize CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
-CfRect * CfRect_clone(CfRect * self);
 void CfRect_delete(CfRect * self, Bool call_free);
-U64 CfRect_hash(CfRect * self, HashFn hasher);
 USize CfRect_size(void);
 void test_struct_fold_nested(void);
-CfVec3f * CfVec3f_clone(CfVec3f * self);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
-U64 CfVec3f_hash(CfVec3f * self, HashFn hasher);
 USize CfVec3f_size(void);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
@@ -252,7 +214,6 @@ Color * Color_clone(Color * self);
 USize Color_size(void);
 void test_enum_fold(void);
 void Token_delete(Token * self, Bool call_free);
-Token * Token_clone(Token * self);
 USize Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
@@ -274,19 +235,14 @@ void print_flush();
 
 Str * format(Array__Str * parts);
 USize Str_len(Str * self);
-I64 Str_cmp(Str * a, Str * b);
 Bool Str_eq(Str * a, Str * b);
 Str * Str_with_capacity(USize n);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 Str * Str_to_str(Str * self);
 void Str_delete(Str * self, Bool call_free);
-U64 Str_hash(Str * self, HashFn hasher);
 USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
-OutOfBounds * OutOfBounds_clone(OutOfBounds * _self);
-void OutOfBounds_delete(OutOfBounds * self, Bool call_free);
-U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher);
 USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
 USize Array__Str_len(Array__Str * self);
@@ -297,49 +253,23 @@ void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 USize Array__Str_size(void);
 USize Dynamic_size(void);
-void * Dynamic_clone(void * self);
-void Dynamic_delete(void * self, Bool call_free);
-void U8_delete(U8 * self, Bool call_free);
 USize U8_size(void);
-U64 U8_hash(U8 self, HashFn hasher);
-void U32_delete(U32 * self, Bool call_free);
 USize U32_size(void);
-U64 U32_hash(U32 self, HashFn hasher);
 Str * U64_to_str(U64 val);
-void U64_delete(U64 * self, Bool call_free);
 USize U64_size(void);
-U64 U64_hash(U64 self, HashFn hasher);
-void I8_delete(I8 * self, Bool call_free);
 USize I8_size(void);
-U64 I8_hash(I8 self, HashFn hasher);
-void I32_delete(I32 * self, Bool call_free);
 USize I32_size(void);
-U64 I32_hash(I32 self, HashFn hasher);
 Str * I64_to_str(I64 val);
 void I64_delete(I64 * self, Bool call_free);
 USize I64_size(void);
-U64 I64_hash(I64 self, HashFn hasher);
-void F32_delete(F32 * self, Bool call_free);
 USize F32_size(void);
-U64 F32_hash(F32 self, HashFn hasher);
-I64 Bool_cmp(Bool a, Bool b);
-void Bool_delete(Bool * self, Bool call_free);
 USize Bool_size(void);
-U64 Bool_hash(Bool self, HashFn hasher);
-Bool Primitive_eq(Primitive * self, Primitive * other);
-void Primitive_delete(Primitive * self, Bool call_free);
-Primitive * Primitive_clone(Primitive * self);
 USize Primitive_size(void);
-void Type_delete(Type * self, Bool call_free);
-Type * Type_clone(Type * self);
 USize Type_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Str * loc);
 void assert(Bool cond, Str * loc);
 void println(Array__Str * parts);
-Range * Range_clone(Range * val);
-void Range_delete(Range * self, Bool call_free);
-U64 Range_hash(Range * self, HashFn hasher);
 USize Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
@@ -351,20 +281,14 @@ void test_lolalalo(void);
 void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
-CfVec2 * CfVec2_clone(CfVec2 * self);
 void CfVec2_delete(CfVec2 * self, Bool call_free);
-U64 CfVec2_hash(CfVec2 * self, HashFn hasher);
 USize CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
-CfRect * CfRect_clone(CfRect * self);
 void CfRect_delete(CfRect * self, Bool call_free);
-U64 CfRect_hash(CfRect * self, HashFn hasher);
 USize CfRect_size(void);
 void test_struct_fold_nested(void);
-CfVec3f * CfVec3f_clone(CfVec3f * self);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
-U64 CfVec3f_hash(CfVec3f * self, HashFn hasher);
 USize CfVec3f_size(void);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
@@ -377,14 +301,12 @@ Token * Token_Name(Str * val);
 Token * Token_Eof(void);
 Bool Token_is(Token * self, Token * other);
 void Token_delete(Token * self, Bool call_free);
-Token * Token_clone(Token * self);
 USize Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
 void assert_eq__I64(I64 a, I64 b, Str * loc);
 void assert_eq__Str(Str * a, Str * b, Str * loc);
-Bool Primitive_eq(Primitive *, Primitive *);
 Primitive *Primitive_I16();
 Primitive *Primitive_U16();
 Primitive *Primitive_I8();
@@ -561,30 +483,6 @@ USize Str_len(Str * self) {
     __builtin_unreachable();
 }
 
-I64 Str_cmp(Str * a, Str * b) {
-    U32 min_len = a->count;
-    Bool hoisted__Bool_81 = ((Bool)(b->count < a->count));
-    if (hoisted__Bool_81) {
-        min_len = b->count;
-    }
-    I32 c = memcmp(a->c_str, b->c_str, min_len);
-    I32 hoisted__I32_82 = 0;
-    Bool hoisted__Bool_83 = ((Bool)(c < hoisted__I32_82));
-    if (hoisted__Bool_83) {
-        I64 hoisted__I64_79 = -1;
-        return hoisted__I64_79;
-    }
-    I32 hoisted__I32_84 = 0;
-    Bool hoisted__Bool_85 = ((Bool)(c > hoisted__I32_84));
-    if (hoisted__Bool_85) {
-        I64 hoisted__I64_80 = 1;
-        return hoisted__I64_80;
-    }
-    I64 hoisted__I64_86 = U32_cmp(a->count, b->count);
-    return hoisted__I64_86;
-    __builtin_unreachable();
-}
-
 Bool Str_eq(Str * a, Str * b) {
     Bool hoisted__Bool_89 = ((Bool)(a->count != b->count));
     if (hoisted__Bool_89) {
@@ -710,12 +608,6 @@ void Str_delete(Str * self, Bool call_free) {
     }
 }
 
-U64 Str_hash(Str * self, HashFn hasher) {
-    U64 hoisted__U64_326 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I8 *, U32))til_closure->call)(til_closure->env, self->c_str, self->count); });
-    return hoisted__U64_326;
-    __builtin_unreachable();
-}
-
 USize Str_size(void) {
     U32 hoisted__U32_498 = 16;
     return hoisted__U32_498;
@@ -726,26 +618,6 @@ Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_507 = Str_eq(a, b);
     Bool hoisted__Bool_508 = ((Bool)(!(hoisted__Bool_507)));
     return hoisted__Bool_508;
-    __builtin_unreachable();
-}
-
-OutOfBounds * OutOfBounds_clone(OutOfBounds * _self) {
-    (void)_self;
-    OutOfBounds *hoisted__OutOfBounds_589 = malloc(sizeof(OutOfBounds));
-    return hoisted__OutOfBounds_589;
-    __builtin_unreachable();
-}
-
-void OutOfBounds_delete(OutOfBounds * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
-U64 OutOfBounds_hash(OutOfBounds * self, HashFn hasher) {
-    U32 hoisted__U32_590 = 0;
-    U64 hoisted__U64_591 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, OutOfBounds *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_590); });
-    return hoisted__U64_591;
     __builtin_unreachable();
 }
 
@@ -930,55 +802,15 @@ USize Dynamic_size(void) {
     __builtin_unreachable();
 }
 
-void * Dynamic_clone(void * self) {
-    U8 *out = malloc(8);
-    U32 hoisted__U32_958 = 8;
-    memcpy(out, self, hoisted__U32_958);
-    return out;
-    __builtin_unreachable();
-}
-
-void Dynamic_delete(void * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
-void U8_delete(U8 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize U8_size(void) {
     U32 hoisted__U32_1065 = 1;
     return hoisted__U32_1065;
     __builtin_unreachable();
 }
 
-U64 U8_hash(U8 self, HashFn hasher) {
-    U32 hoisted__U32_1132 = 1;
-    U64 hoisted__U64_1133 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U8 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1132); });
-    return hoisted__U64_1133;
-    __builtin_unreachable();
-}
-
-void U32_delete(U32 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize U32_size(void) {
     U32 hoisted__U32_1219 = 4;
     return hoisted__U32_1219;
-    __builtin_unreachable();
-}
-
-U64 U32_hash(U32 self, HashFn hasher) {
-    U32 hoisted__U32_1286 = 4;
-    U64 hoisted__U64_1287 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U32 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1286); });
-    return hoisted__U64_1287;
     __builtin_unreachable();
 }
 
@@ -989,29 +821,10 @@ Str * U64_to_str(U64 val) {
     __builtin_unreachable();
 }
 
-void U64_delete(U64 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize U64_size(void) {
     U32 hoisted__U32_1293 = 8;
     return hoisted__U32_1293;
     __builtin_unreachable();
-}
-
-U64 U64_hash(U64 self, HashFn hasher) {
-    U32 hoisted__U32_1360 = 8;
-    U64 hoisted__U64_1361 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, U64 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1360); });
-    return hoisted__U64_1361;
-    __builtin_unreachable();
-}
-
-void I8_delete(I8 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
 }
 
 USize I8_size(void) {
@@ -1020,29 +833,9 @@ USize I8_size(void) {
     __builtin_unreachable();
 }
 
-U64 I8_hash(I8 self, HashFn hasher) {
-    U32 hoisted__U32_1379 = 1;
-    U64 hoisted__U64_1380 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I8 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1379); });
-    return hoisted__U64_1380;
-    __builtin_unreachable();
-}
-
-void I32_delete(I32 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize I32_size(void) {
     U32 hoisted__U32_1527 = 4;
     return hoisted__U32_1527;
-    __builtin_unreachable();
-}
-
-U64 I32_hash(I32 self, HashFn hasher) {
-    U32 hoisted__U32_1639 = 4;
-    U64 hoisted__U64_1640 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I32 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1639); });
-    return hoisted__U64_1640;
     __builtin_unreachable();
 }
 
@@ -1085,63 +878,15 @@ USize I64_size(void) {
     __builtin_unreachable();
 }
 
-U64 I64_hash(I64 self, HashFn hasher) {
-    U32 hoisted__U32_1792 = 8;
-    U64 hoisted__U64_1793 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, I64 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1792); });
-    return hoisted__U64_1793;
-    __builtin_unreachable();
-}
-
-void F32_delete(F32 * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize F32_size(void) {
     U32 hoisted__U32_1795 = 4;
     return hoisted__U32_1795;
     __builtin_unreachable();
 }
 
-U64 F32_hash(F32 self, HashFn hasher) {
-    U32 hoisted__U32_1811 = 4;
-    U64 hoisted__U64_1812 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, F32 *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1811); });
-    return hoisted__U64_1812;
-    __builtin_unreachable();
-}
-
-I64 Bool_cmp(Bool a, Bool b) {
-    Bool hoisted__Bool_1855 = ((Bool)(a == b));
-    if (hoisted__Bool_1855) {
-        I64 hoisted__I64_1853 = 0;
-        return hoisted__I64_1853;
-    }
-    if (b) {
-        I64 hoisted__I64_1854 = -1;
-        return hoisted__I64_1854;
-    }
-    I64 hoisted__I64_1856 = 1;
-    return hoisted__I64_1856;
-    __builtin_unreachable();
-}
-
-void Bool_delete(Bool * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
 USize Bool_size(void) {
     U32 hoisted__U32_1857 = 1;
     return hoisted__U32_1857;
-    __builtin_unreachable();
-}
-
-U64 Bool_hash(Bool self, HashFn hasher) {
-    U32 hoisted__U32_1858 = 1;
-    U64 hoisted__U64_1859 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Bool *, U32))til_closure->call)(til_closure->env, &self, hoisted__U32_1858); });
-    return hoisted__U64_1859;
     __builtin_unreachable();
 }
 
@@ -1195,77 +940,6 @@ Primitive *Primitive_Bool() {
     *r = (Primitive){ .tag = Primitive_TAG_Bool };
     return r;
 }
-Bool Primitive_eq(Primitive * self, Primitive * other) {
-    Bool hoisted__Bool_1874 = ((Bool)((((Primitive *)(self))->tag) == (((Primitive *)(other))->tag)));
-    return hoisted__Bool_1874;
-    __builtin_unreachable();
-}
-
-void Primitive_delete(Primitive * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
-Primitive * Primitive_clone(Primitive * self) {
-    Bool hoisted__Bool_1896 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I16});
-    if (hoisted__Bool_1896) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I16;
-        return _r; }
-    }
-    Bool hoisted__Bool_1897 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U16});
-    if (hoisted__Bool_1897) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U16;
-        return _r; }
-    }
-    Bool hoisted__Bool_1898 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I8});
-    if (hoisted__Bool_1898) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I8;
-        return _r; }
-    }
-    Bool hoisted__Bool_1899 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U8});
-    if (hoisted__Bool_1899) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U8;
-        return _r; }
-    }
-    Bool hoisted__Bool_1900 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U32});
-    if (hoisted__Bool_1900) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U32;
-        return _r; }
-    }
-    Bool hoisted__Bool_1901 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I32});
-    if (hoisted__Bool_1901) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I32;
-        return _r; }
-    }
-    Bool hoisted__Bool_1902 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_U64});
-    if (hoisted__Bool_1902) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_U64;
-        return _r; }
-    }
-    Bool hoisted__Bool_1903 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_I64});
-    if (hoisted__Bool_1903) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I64;
-        return _r; }
-    }
-    Bool hoisted__Bool_1904 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_F32});
-    if (hoisted__Bool_1904) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_F32;
-        return _r; }
-    }
-    Bool hoisted__Bool_1905 = Primitive_eq(self, &(Primitive){.tag = Primitive_TAG_Bool});
-    if (hoisted__Bool_1905) {
-        { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_Bool;
-        return _r; }
-    }
-    static Str hoisted__Str_1906 = (Str){.c_str = (void *)"Primitive.clone:16:1", .count = 20ULL, .cap = TIL_CAP_LIT};
-    UNREACHABLE(&hoisted__Str_1906);
-    Str_delete(&hoisted__Str_1906, (Bool){0});
-    { Primitive *_r = malloc(sizeof(Primitive)); _r->tag = Primitive_TAG_I16;
-    return _r; }
-    __builtin_unreachable();
-}
-
 USize Primitive_size(void) {
     U32 hoisted__U32_1907 = 1;
     return hoisted__U32_1907;
@@ -1348,128 +1022,6 @@ Type *Type_Body() {
     r->tag = Type_TAG_Body;
     return r;
 }
-void Type_delete(Type * self, Bool call_free) {
-    Bool hoisted__Bool_1960 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Struct}))->tag)));
-    if (hoisted__Bool_1960) {
-        Str *hoisted__Str_1950 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        Bool hoisted__Bool_1951 = 0;
-        Str_delete(hoisted__Str_1950, hoisted__Bool_1951);
-    }
-    Bool hoisted__Bool_1961 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Enum}))->tag)));
-    if (hoisted__Bool_1961) {
-        Str *hoisted__Str_1952 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        Bool hoisted__Bool_1953 = 0;
-        Str_delete(hoisted__Str_1952, hoisted__Bool_1953);
-    }
-    Bool hoisted__Bool_1962 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Custom}))->tag)));
-    if (hoisted__Bool_1962) {
-        Str *hoisted__Str_1954 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        Bool hoisted__Bool_1955 = 0;
-        Str_delete(hoisted__Str_1954, hoisted__Bool_1955);
-    }
-    Bool hoisted__Bool_1963 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Primitive}))->tag)));
-    if (hoisted__Bool_1963) {
-        Primitive *hoisted__Primitive_1956 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        Bool hoisted__Bool_1957 = 0;
-        Primitive_delete(hoisted__Primitive_1956, hoisted__Bool_1957);
-    }
-    Bool hoisted__Bool_1964 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_FuncPtrSig}))->tag)));
-    if (hoisted__Bool_1964) {
-        Str *hoisted__Str_1958 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        Bool hoisted__Bool_1959 = 0;
-        Str_delete(hoisted__Str_1958, hoisted__Bool_1959);
-    }
-    if (call_free) {
-        free(self);
-    }
-}
-
-Type * Type_clone(Type * self) {
-    Bool hoisted__Bool_2037 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Unknown}))->tag)));
-    if (hoisted__Bool_2037) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Unknown;
-        return _r; }
-    }
-    Bool hoisted__Bool_2038 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_None}))->tag)));
-    if (hoisted__Bool_2038) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_None;
-        return _r; }
-    }
-    Bool hoisted__Bool_2039 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Struct}))->tag)));
-    if (hoisted__Bool_2039) {
-        Str *_clone_payload_Struct_2 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        (void)_clone_payload_Struct_2;
-        (void)_clone_payload_Struct_2;
-        Str *hoisted__Str_2027 = Str_clone(_clone_payload_Struct_2);
-        Type *hoisted__Type_2028 = Type_Struct(hoisted__Str_2027);
-        return hoisted__Type_2028;
-    }
-    Bool hoisted__Bool_2040 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_StructDef}))->tag)));
-    if (hoisted__Bool_2040) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_StructDef;
-        return _r; }
-    }
-    Bool hoisted__Bool_2041 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Enum}))->tag)));
-    if (hoisted__Bool_2041) {
-        Str *_clone_payload_Enum_4 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        (void)_clone_payload_Enum_4;
-        (void)_clone_payload_Enum_4;
-        Str *hoisted__Str_2029 = Str_clone(_clone_payload_Enum_4);
-        Type *hoisted__Type_2030 = Type_Enum(hoisted__Str_2029);
-        return hoisted__Type_2030;
-    }
-    Bool hoisted__Bool_2042 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_EnumDef}))->tag)));
-    if (hoisted__Bool_2042) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_EnumDef;
-        return _r; }
-    }
-    Bool hoisted__Bool_2043 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_FuncDef}))->tag)));
-    if (hoisted__Bool_2043) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncDef;
-        return _r; }
-    }
-    Bool hoisted__Bool_2044 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_FuncPtr}))->tag)));
-    if (hoisted__Bool_2044) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_FuncPtr;
-        return _r; }
-    }
-    Bool hoisted__Bool_2045 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Dynamic}))->tag)));
-    if (hoisted__Bool_2045) {
-        { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Dynamic;
-        return _r; }
-    }
-    Bool hoisted__Bool_2046 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Custom}))->tag)));
-    if (hoisted__Bool_2046) {
-        Str *_clone_payload_Custom_9 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        (void)_clone_payload_Custom_9;
-        (void)_clone_payload_Custom_9;
-        Str *hoisted__Str_2031 = Str_clone(_clone_payload_Custom_9);
-        Type *hoisted__Type_2032 = Type_Custom(hoisted__Str_2031);
-        return hoisted__Type_2032;
-    }
-    Bool hoisted__Bool_2047 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_Primitive}))->tag)));
-    if (hoisted__Bool_2047) {
-        Primitive *_clone_payload_Primitive_10 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        (void)_clone_payload_Primitive_10;
-        (void)_clone_payload_Primitive_10;
-        Primitive hoisted__Primitive_2033 = DEREF(_clone_payload_Primitive_10);
-        Type *hoisted__Type_2034 = Type_Primitive(({ Primitive *_oa = malloc(sizeof(Primitive)); *_oa = hoisted__Primitive_2033; _oa; }));
-        return hoisted__Type_2034;
-    }
-    Bool hoisted__Bool_2048 = ((Bool)((((Type *)(self))->tag) == (((Type *)(&(Type){.tag = Type_TAG_FuncPtrSig}))->tag)));
-    if (hoisted__Bool_2048) {
-        Str *_clone_payload_FuncPtrSig_11 = ((void *)((U8 *)(self) + offsetof(Type, data)));
-        (void)_clone_payload_FuncPtrSig_11;
-        (void)_clone_payload_FuncPtrSig_11;
-        Str *hoisted__Str_2035 = Str_clone(_clone_payload_FuncPtrSig_11);
-        Type *hoisted__Type_2036 = Type_FuncPtrSig(hoisted__Str_2035);
-        return hoisted__Type_2036;
-    }
-    { Type *_r = malloc(sizeof(Type)); _r->tag = Type_TAG_Body;
-    return _r; }
-    __builtin_unreachable();
-}
-
 USize Type_size(void) {
     U32 hoisted__U32_2049 = 24;
     return hoisted__U32_2049;
@@ -1547,26 +1099,6 @@ void println(Array__Str * parts) {
     }
     Array__Str_delete(parts, 1);
     print_flush();
-}
-
-Range * Range_clone(Range * val) {
-    Range hoisted__Range_5574 = (Range){.start = val->start, .end = val->end};
-    { Range *_r = malloc(sizeof(Range)); *_r = hoisted__Range_5574;
-    return _r; }
-    __builtin_unreachable();
-}
-
-void Range_delete(Range * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
-U64 Range_hash(Range * self, HashFn hasher) {
-    U32 hoisted__U32_5575 = 0;
-    U64 hoisted__U64_5576 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, Range *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_5575); });
-    return hoisted__U64_5576;
-    __builtin_unreachable();
 }
 
 USize Range_size(void) {
@@ -1676,24 +1208,10 @@ void test_fold_f32(void) {
     Str_delete(&_til_str_lits[26], (Bool){0});
 }
 
-CfVec2 * CfVec2_clone(CfVec2 * self) {
-    CfVec2 hoisted__CfVec2_6218 = (CfVec2){.x = self->x, .y = self->y};
-    { CfVec2 *_r = malloc(sizeof(CfVec2)); *_r = hoisted__CfVec2_6218;
-    return _r; }
-    __builtin_unreachable();
-}
-
 void CfVec2_delete(CfVec2 * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-U64 CfVec2_hash(CfVec2 * self, HashFn hasher) {
-    U32 hoisted__U32_6219 = 0;
-    U64 hoisted__U64_6220 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec2 *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6219); });
-    return hoisted__U64_6220;
-    __builtin_unreachable();
 }
 
 USize CfVec2_size(void) {
@@ -1724,24 +1242,10 @@ void test_struct_fold_values(void) {
     CfVec2_delete(&p, (Bool){0});
 }
 
-CfRect * CfRect_clone(CfRect * self) {
-    CfRect hoisted__CfRect_6260 = (CfRect){.top_left = self->top_left, .bottom_right = self->bottom_right};
-    { CfRect *_r = malloc(sizeof(CfRect)); *_r = hoisted__CfRect_6260;
-    return _r; }
-    __builtin_unreachable();
-}
-
 void CfRect_delete(CfRect * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-U64 CfRect_hash(CfRect * self, HashFn hasher) {
-    U32 hoisted__U32_6261 = 0;
-    U64 hoisted__U64_6262 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfRect *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6261); });
-    return hoisted__U64_6262;
-    __builtin_unreachable();
 }
 
 USize CfRect_size(void) {
@@ -1767,24 +1271,10 @@ void test_struct_fold_nested(void) {
     CfRect_delete(&r, (Bool){0});
 }
 
-CfVec3f * CfVec3f_clone(CfVec3f * self) {
-    CfVec3f hoisted__CfVec3f_6296 = (CfVec3f){.x = self->x, .y = self->y, .z = self->z};
-    { CfVec3f *_r = malloc(sizeof(CfVec3f)); *_r = hoisted__CfVec3f_6296;
-    return _r; }
-    __builtin_unreachable();
-}
-
 void CfVec3f_delete(CfVec3f * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-U64 CfVec3f_hash(CfVec3f * self, HashFn hasher) {
-    U32 hoisted__U32_6297 = 0;
-    U64 hoisted__U64_6298 = ({ TilClosure *til_closure = (TilClosure *)(hasher); ((U64 (*)(void *, CfVec3f *, U32))til_closure->call)(til_closure->env, self, hoisted__U32_6297); });
-    return hoisted__U64_6298;
-    __builtin_unreachable();
 }
 
 USize CfVec3f_size(void) {
@@ -1916,29 +1406,6 @@ void Token_delete(Token * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-Token * Token_clone(Token * self) {
-    Bool hoisted__Bool_6405 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
-    if (hoisted__Bool_6405) {
-        I64 *_clone_payload_Num_0 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        (void)_clone_payload_Num_0;
-        (void)_clone_payload_Num_0;
-        Token *hoisted__Token_6402 = Token_Num(_clone_payload_Num_0);
-        return hoisted__Token_6402;
-    }
-    Bool hoisted__Bool_6406 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Name}))->tag)));
-    if (hoisted__Bool_6406) {
-        Str *_clone_payload_Name_1 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        (void)_clone_payload_Name_1;
-        (void)_clone_payload_Name_1;
-        Str *hoisted__Str_6403 = Str_clone(_clone_payload_Name_1);
-        Token *hoisted__Token_6404 = Token_Name(hoisted__Str_6403);
-        return hoisted__Token_6404;
-    }
-    { Token *_r = malloc(sizeof(Token)); _r->tag = Token_TAG_Eof;
-    return _r; }
-    __builtin_unreachable();
 }
 
 USize Token_size(void) {

@@ -288,11 +288,31 @@ Landed (suite green, `make test_two_pass`):
   ~test/minimal_reach.til~ plus the ~minimal_reach_no_ast_model~ count
   entry are the regression; the ~both~ entry proves what survives runs.
 
+- [X] Root cause 6: a reached type no longer queues all five of
+  ~delete/clone/size/cmp/hash~.  Removing the blanket exposed three real
+  gaps it had been covering, each fixed at its own level.  (a) The
+  FFI boundary: ~src/c/ext.c~ is linked into every program and needs
+  exactly three til symbols -- ~Str_clone~, ~CAP_LIT~, ~CAP_VIEW~ (~nm -u~
+  on ext.o resolves everything else to libc/libffi), so those are
+  unconditional roots.  (b) Scalar namespace calls: ~til_type_name~
+  returns "" for ~Type.Primitive~, so ~scav_fa_is_ns~ could not see
+  ~U32.size()~ / ~I64.delete(...)~ -- the shape a monomorphized generic
+  body leaves when ~T.size()~ has T substituted to a scalar.  It now
+  matches the receiver NAME against the shared ~PRIM_NAMES~ /
+  ~WIDTH_ALIAS_NAMES~ lists, moved from ~builder.til~ into ~context.til~
+  so one enumeration serves both passes.  (c) Type aliases forward their
+  namespace: ~UPtr := U64~ means ~UPtr.size~ must root ~U64.size~, which
+  also retires the hardcoded USize->U32 / UPtr->U64 pair's job in
+  ~collect_refs~ (that one is only right at the default build width).
+  The interpreter resolves ~T.size()~ by RUNTIME name (~get_elem_size~,
+  for element widths and ~dyn_size_of~), so a program that will be
+  interpreted roots ~size~ on every type through the existing ~*.method~
+  wildcard; a compile-only program does not.
+  ~println("minimal")~ went 681 -> 276 lines of C (50 -> 12 emitted
+  functions) and ~test/constfold.c~ 2,075 -> 1,542.
+
 Still open:
 
-- [ ] Root cause 6.  Reaching a type still queues all five of
-  ~delete/clone/size/cmp/hash~.  Concrete AST calls and garbager-inserted
-  operations should root them individually.
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
   top-level values are still blanket roots (sweeping them needs the
   effect-preserving rewrite of step 3 so a dropped binding cannot drop an

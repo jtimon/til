@@ -6,15 +6,6 @@ import("targets")
 import("../std/sys")
 import("../std/file")
 
-// The scalar type names, as C spells them. PRIM_NAMES are the fixed-width
-// primitives (their ext.h typedefs are the same on every target);
-// WIDTH_ALIAS_NAMES are the two per-build aliases, kept separate because
-// only some callers want them -- seed_primitive_names marks emitted C
-// typedefs, which the aliases are not.
-priv PRIM_NAMES := array(Str, "I8", "U8", "I16", "U16", "I32", "U32",
-                         "I64", "U64", "F32", "Bool")
-priv WIDTH_ALIAS_NAMES := array(Str, "USize", "UPtr")
-
 priv CollectionInfo := struct {
     ref type_name : Str
     is_vec : I32 = 0

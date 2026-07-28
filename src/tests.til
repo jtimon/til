@@ -528,6 +528,12 @@ main := proc(args: ..Str) {
     // `both` entry below proves what survives still links and runs.
     add_count(tests, "minimal_reach_no_ast_model", "build", "NodeType", 0,
         format(til_bin, " translate -c gen/c/minimal_reach.c test/minimal_reach.til '&&' cat gen/c/minimal_reach.c"))
+    // A reached type no longer roots all five of delete/clone/size/cmp/hash:
+    // only the ones a real call site asks for survive. `hash` is the clearest
+    // witness -- nothing in this fixture hashes anything, so every `_hash`
+    // the old blanket rule emitted (ten of them, one per scalar) is gone.
+    add_count(tests, "minimal_reach_no_dead_lifecycle", "build", "_hash", 0,
+        format(til_bin, " translate -c gen/c/minimal_reach_lc.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_lc.c"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the

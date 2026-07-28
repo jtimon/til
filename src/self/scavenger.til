@@ -14,6 +14,16 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
         }
         // Also check: if ident name matches struct_name, it's a type reference
         if obj_type_name.len().gt(0).and(obj_type_name.eq(id.ident_name())) { return true }
+        // #326: a SCALAR type name as receiver -- `U32.size()` /
+        // `I64.delete(...)`, which is what a monomorphized generic body
+        // leaves behind once `T.size()` has T substituted to a primitive.
+        // til_type_name returns "" for Type.Primitive, so the comparison
+        // above cannot see them, and they were reachable only through the
+        // blanket "every reached type roots its five lifecycle methods"
+        // rule this issue removes. Keyed on the NAME, not the receiver's
+        // type: an over-match (a binding actually called `U32`) costs one
+        // unresolvable qualified name, never a missing symbol.
+        if is_scalar_type_name(id.ident_name()) { return true }
     case:
     }
     return false
