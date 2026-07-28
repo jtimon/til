@@ -52,7 +52,16 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
 // cannot bury the rest of the log.
 print_captured_err := proc(path: Str) {
     content := File.readfile(path)
-    if content.len() == 0 { return }
+    // An EMPTY capture is a finding, not a reason to stay quiet: a failing
+    // command that wrote nothing at all did not get far enough to report
+    // anything (killed by the OS, exec failure, a child that died before
+    // flushing), which is a different diagnosis from a capture the harness
+    // never took. Staying silent here left a CI-only `FAIL: <label>
+    // exit=1 expected=124` with no second line to reason from.
+    if content.len() == 0 {
+        println("--- captured output (", path, "): EMPTY (the command produced no stdout/stderr)")
+        return
+    }
     max_len : USize = 8192
     if content.len() > max_len {
         println("--- captured output (last ", max_len.to_str(), " bytes of ", path, "):")

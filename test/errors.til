@@ -886,3 +886,60 @@ test_generic_infer_static_throw := test() {
     also_ok := gchecked328(I64, n, false)!
     assert_eq(I64, also_ok, 5)
 }
+
+// A thrown PARAMETER. Neither body scan can see one -- a parameter is not
+// a Decl anywhere in the body -- so the throw's type came back empty and
+// the declared clause was reported as never thrown. Worse, the scan for a
+// prior declaration started at `len()` instead of the last index, so with
+// no prior statement at all it indexed an empty vector: `throw e` as the
+// FIRST statement of a nested body crashed the compiler outright.
+ParamThrowErr := struct { why := "" }
+
+param_throw_nested := func(e: ParamThrowErr, fail: Bool) returns I64 throws ParamThrowErr {
+    if fail { throw e }
+    return 1
+}
+
+param_throw_tail := func(e: ParamThrowErr, fail: Bool) returns I64 throws ParamThrowErr {
+    if fail.not() { return 2 }
+    throw e
+}
+
+test_throw_param_first_stmt_of_nested_body := test() {
+    err := ParamThrowErr(why = "nested")
+    ok := param_throw_nested(err, false)!
+    assert_eq(I64, ok, 1)
+    mut caught := false
+    param_throw_nested(err, true)?
+    catch (e: ParamThrowErr) { caught = true }
+    assert(caught)
+}
+
+test_throw_param_in_tail_position := test() {
+    err := ParamThrowErr(why = "tail")
+    ok := param_throw_tail(err, false)!
+    assert_eq(I64, ok, 2)
+    mut caught := false
+    param_throw_tail(err, true)?
+    catch (e: ParamThrowErr) { caught = true }
+    assert(caught)
+}
+
+// #328 follow-up: with a thrown parameter resolvable, a generic whose
+// `throws` clause IS its type parameter works under explicit type
+// application. Inferring one stays refused -- the caller's error slots
+// are built before inference could resolve T (see test/typer_errors.til).
+gdep_throw328 := func(T: Type, v: T, fail: Bool) returns I64 throws T {
+    if fail { throw v }
+    return 3
+}
+
+test_generic_dependent_throw_explicit := test() {
+    err := ParamThrowErr(why = "generic")
+    ok := gdep_throw328(ParamThrowErr, err, false)!
+    assert_eq(I64, ok, 3)
+    mut caught := false
+    gdep_throw328(ParamThrowErr, err, true)?
+    catch (e: ParamThrowErr) { caught = true }
+    assert(caught)
+}

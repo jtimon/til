@@ -2335,10 +2335,12 @@ priv process_throw_catch_in_body := proc(
                         }
                     }
                     ctx.throw_used_local_names.add(own idn.name.clone())
-                    mut scan_decl : I32 = new_ch.len().to_i32()
-                    if scan_decl > 0 {
-                        scan_decl--
-                    }
+                    // Last index, so an EMPTY new_ch runs zero iterations.
+                    // The old `len(); if > 0 { -- }` form left 0 behind for
+                    // an empty vec and then indexed it -- a `throw <name>`
+                    // as the first statement of a nested body (`if fail {
+                    // throw v }`) crashed the compiler with OutOfBounds.
+                    mut scan_decl : I32 = new_ch.len().to_i32() - 1
                     while scan_decl >= 0 {
                         ref prior_stmt : Expr = new_ch[scan_decl.to_usize()]
                         switch prior_stmt.node_type {
@@ -2369,7 +2371,6 @@ priv process_throw_catch_in_body := proc(
                             }
                         case:
                         }
-                        if scan_decl == 0 { break }
                         scan_decl--
                     }
                     for nstmt : Expr in new_ch {
@@ -2381,6 +2382,17 @@ priv process_throw_catch_in_body := proc(
                     }
                     if tn.len() == 0 {
                         tn = guess_local_type(ctx.scope, root_body, idn.name)
+                    }
+                    // A thrown PARAMETER is not a Decl anywhere in the
+                    // body, so neither scan above can see it. The map the
+                    // typer seeds before this walk already carries every
+                    // parameter type (and every switch-case payload
+                    // binding), which is exactly what `throws T` on a
+                    // generic needs after substitution makes T concrete.
+                    if tn.len() == 0 {
+                        if ctx.lowering_param_types.has(idn.name) {
+                            tn = normalize_ctor_type(ctx.lowering_param_types[idn.name])
+                        }
                     }
                 case:
                 }
