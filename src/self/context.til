@@ -123,6 +123,14 @@ namespace:
     // recursive has()+[] version paid a call and up to two searches per
     // level (417K lookups per self-host translate).
     get_binding := func(self: TypeScope, name: Str) returns Option(ref TypeBinding) {
+        // Same empty-level skip as get_struct: intermediate block scopes
+        // frequently bind nothing.
+        if self.bindings.len() == 0 {
+            switch self.parent {
+            case Option(ref TypeScope).Some(pe): return pe.get_binding(name)
+            case Option(ref TypeScope).None: return Option(ref TypeBinding).None
+            }
+        }
         ref b : TypeBinding = self.bindings.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
@@ -164,6 +172,18 @@ namespace:
     // the recursive has()+lookup version paid a call frame and up to two
     // binary searches per scope level.
     get_struct := func(self: TypeScope, name: Str) returns Option(ref Expr) {
+        // Type defs live in the outer scopes, so a lookup from inside a
+        // function body walks the whole chain and probes a map that is
+        // EMPTY at nearly every level -- 14.3M probes per self-translate,
+        // the bulk of them on empty maps. A count check is two field
+        // reads; the probe below is a call plus a search plus the
+        // KeyNotFound catch.
+        if self.struct_defs.len() == 0 {
+            switch self.parent {
+            case Option(ref TypeScope).Some(pe): return pe.get_struct(name)
+            case Option(ref TypeScope).None: return Option(ref Expr).None
+            }
+        }
         ref slot : Dynamic = self.struct_defs.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {

@@ -2175,6 +2175,7 @@ Bool is_range_new_call(Expr * e);
 USize fcall_kwargs_count(Expr * fcall);
 USize fcall_variadic_count(Expr * fcall, USize nparam, Bool callee_has_kwargs);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
+USize Map__Str_TypeBinding_len(Map__Str_TypeBinding * self);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
 void Map__Str_TypeBinding_set(Map__Str_TypeBinding * self, Str * key, TypeBinding * val);
