@@ -1187,6 +1187,29 @@ let the ownership pass insert temps itself; start with the check.
     FLOW_OWNED: free only what EVERY path still owns. Byte-identical C
     for the whole corpus under the corrected referee, so this closes
     the hazard without changing a line of output.
+  - [X] 2026-07-27 Stage 3: the view-taint walk has ONE implementation
+    again. collect_hoist_taint existed twice -- an Expr-walking version
+    for the two insertion-loop queries (rhs_depends_on_var,
+    var_aliases_target) and an Expr-free facts-probing twin for the
+    extend pass -- with a comment warning the pair had to stay in
+    lockstep. The reason for the split was that the insertion loop asks
+    its questions AFTER move_from has emptied body.children and
+    push_take has zeroed the statements it consumed, so it could only
+    walk the output list it was building.
+    StmtFacts.def_name (the Decl/Assign target of a statement that has
+    an initializer, recorded during the same single walk master's
+    per-statement-walk merge already does) removes the Expr dependency
+    entirely: the taint fixpoint now reads def_name and uses, nothing
+    else. One relation, built once per body, queried with a prefix
+    limit -- taint is monotone in the prefix, so the limit is what
+    keeps "the statements emitted so far" honest instead of widening to
+    the whole body. The Expr list survives at that call site for one
+    unrelated consumer, str_clone_to_move_provably_safe, which asks
+    about statement SHAPES (owning vs unproven Str defs) rather than
+    name sets.
+    Byte-identical C for the whole corpus under the corrected referee;
+    make clean && make test 196/196 with ASAN; self-translate 29.3s
+    against master's 30.1s.
   - [ ] Stage 3 (rest): delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,

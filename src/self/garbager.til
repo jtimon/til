@@ -1059,73 +1059,41 @@ priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) return
 // between the view Decl and the later `v.clone()` -- a use-after-free.
 // The taint also follows clone results that no longer alias the buffer;
 // that over-eagerness only defers a delete or keeps a clone, both safe.
-priv collect_hoist_taint := func(target: Str, preceding: Vec(Expr)) returns Vec(Str) {
+// Only the first `limit` statements count: the insertion-loop callers
+// ask about the statements ALREADY emitted, and taint is monotone in
+// that prefix, so widening it to the whole body would defer deletes the
+// pass has no reason to defer yet.
+//
+// A statement's uses set differs from its initializer's only by the
+// Decl/Assign target name itself, which both skips below already
+// exclude (def_name == target; already-tainted), so probing stmt-level
+// uses is exact -- and it is why this needs no Expr at all, which is
+// what lets the insertion loop call it after move_from.
+priv collect_hoist_taint := func(target: Str, facts: Vec(StmtFacts), limit: USize) returns Vec(Str) {
     mut tainted := Vec(Str).new()
     mut changed := true
     while changed {
         changed = false
-        for pst : Expr in preceding {
-            if pst.children.len() < 1 { continue }
-            mut hname := ""
-            switch pst.node_type {
-            case NodeType.Decl(dd): hname = dd.name
-            case NodeType.Assign(ad): hname = ad.name
-            case:
-            }
-            if hname.len() == 0 { continue }
-            if hname == target { continue }
-            mut already := false
-            for t : Str in tainted { if t == hname { already = true } }
-            if already { continue }
-            ref init : Expr = pst.children[0]
-            mut dep := expr_uses_var(init, target)
-            if dep.not() {
-                for t : Str in tainted { if expr_uses_var(init, t) { dep = true } }
-            }
-            if dep { tainted.push(own hname.clone()); changed = true }
-        }
-    }
-    return tainted
-}
-
-// Facts-probing twin of collect_hoist_taint for the extend_hoist pass:
-// preceding is index-aligned with facts (the whole body). A statement's
-// uses set differs from its initializer's only by the Decl/Assign target
-// name itself, which both query paths already exclude (hname==target
-// skip; already-tainted skip), so probing stmt-level uses is exact.
-priv collect_hoist_taint_facts := func(target: Str, preceding: Vec(Expr), facts: Vec(StmtFacts)) returns Vec(Str) {
-    mut tainted := Vec(Str).new()
-    mut changed := true
-    while changed {
-        changed = false
-        for pi in 0..preceding.len() {
-            ref pst : Expr = preceding.unsafe_get(pi)
-            if pst.children.len() < 1 { continue }
-            mut hname := ""
-            switch pst.node_type {
-            case NodeType.Decl(dd): hname = dd.name
-            case NodeType.Assign(ad): hname = ad.name
-            case:
-            }
-            if hname.len() == 0 { continue }
-            if hname == target { continue }
-            mut already := false
-            for t : Str in tainted { if t == hname { already = true } }
-            if already { continue }
+        for pi in 0..limit {
             ref fp : StmtFacts = facts.unsafe_get(pi)
+            if fp.def_name.len() == 0 { continue }
+            if fp.def_name == target { continue }
+            mut already := false
+            for t : Str in tainted { if t == fp.def_name { already = true } }
+            if already { continue }
             mut dep := fp.uses.has(target)
             if dep.not() {
                 for t : Str in tainted { if fp.uses.has(t) { dep = true } }
             }
-            if dep { tainted.push(own hname.clone()); changed = true }
+            if dep { tainted.push(own fp.def_name.clone()); changed = true }
         }
     }
     return tainted
 }
 
-priv rhs_depends_on_var := func(rhs: Expr, vname: Str, preceding: Vec(Expr)) returns Bool {
+priv rhs_depends_on_var := func(rhs: Expr, vname: Str, facts: Vec(StmtFacts), limit: USize) returns Bool {
     if expr_uses_var(rhs, vname) { return true }
-    tainted := collect_hoist_taint(vname, preceding)
+    tainted := collect_hoist_taint(vname, facts, limit)
     for t : Str in tainted {
         if expr_uses_var(rhs, t) { return true }
     }
@@ -1244,9 +1212,9 @@ priv str_clone_to_move_provably_safe := func(name: Str, preceding: Vec(Expr)) re
     return has_owning_decl
 }
 
-priv var_aliases_target := func(varname: Str, target: Str, preceding: Vec(Expr)) returns Bool {
+priv var_aliases_target := func(varname: Str, target: Str, facts: Vec(StmtFacts), limit: USize) returns Bool {
     if varname.starts_with("hoisted__").not() { return false }
-    tainted := collect_hoist_taint(target, preceding)
+    tainted := collect_hoist_taint(target, facts, limit)
     for t : Str in tainted {
         if t == varname { return true }
     }
@@ -1279,6 +1247,13 @@ priv StmtFacts := struct {
     // (write_ptr): reachable afterwards through storage the pass cannot
     // see, so their cleanup stands down.
     escapes := Set(Str).new()
+    // The binding this statement DEFINES from an initializer -- a Decl's
+    // or an Assign's target, empty for anything else (and for a Decl
+    // with no initializer, which defines nothing to taint). Recorded so
+    // the taint walk needs no Expr access at all: the insertion loop
+    // queries it after move_from has emptied body.children and
+    // push_take has zeroed the statements it consumed.
+    def_name := ""
 }
 
 priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool) returns Vec(StmtFacts) {
@@ -1289,6 +1264,13 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool)
         // walks over the same subtree -- 1.8M collector calls per
         // maps.til compile where one walk needs 411K.
         expr_collect_stmt_facts(stmt, scope, with_transfers, true, f.uses, f.decls, f.nested, f.escapes, f.transfers)
+        if stmt.children.len() >= 1 {
+            switch stmt.node_type {
+            case NodeType.Decl(dd): f.def_name = dd.name.clone()
+            case NodeType.Assign(ad): f.def_name = ad.name.clone()
+            case:
+            }
+        }
         facts.push(own f)
     }
     return facts
@@ -1761,7 +1743,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     facts := body_stmt_facts(body, NULL, false)
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
-        tainted := collect_hoist_taint_facts(local.name, body.children, facts)
+        tainted := collect_hoist_taint(local.name, facts, facts.len())
         if tainted.len() == 0 { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
@@ -2139,7 +2121,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
     }
 }
 
-priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, preceding: Vec(Expr)) {
+priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, mut new_ch: Vec(Expr), scope: TypeScope, facts: Vec(StmtFacts), preceding: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).or(stmt.node_type.is(NodeType.Break)).or(stmt.node_type.is(NodeType.Continue)) {
         return
     }
@@ -2305,7 +2287,7 @@ priv insert_post_stmt_deletes := func(ctx: Context, stmt: Expr, locals: Vec(Loca
                             // moving the view instead would alias the deleted
                             // old value.
                             if clone_arg_name.ident_name().eq(local.name)
-                                .and(var_aliases_target(local.name, assign_target, preceding).not()) {
+                                .and(var_aliases_target(local.name, assign_target, facts, stmt_idx).not()) {
                                 // Marker only -- see the FieldAssign site.
                                 switch stmt.node_type {
                                 case NodeType.Assign(adata_mv): adata_mv.is_move = true
@@ -2378,7 +2360,7 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr)) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: Vec(StmtFacts), stmt_idx: USize) {
     switch stmt.node_type {
     case NodeType.Assign(ad):
         vname := ad.name
@@ -2387,7 +2369,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             if local.name.eq(vname).not() { continue }
             is_body_local = true
             if is_aggregate(local.type) {
-                if rhs_depends_on_var(stmt.children[0], vname, new_ch) {
+                if rhs_depends_on_var(stmt.children[0], vname, facts, stmt_idx) {
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
@@ -2933,6 +2915,15 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     }
     root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, wants_flow, scope, ctx)
     root_stmts := body.children.len()
+    // #302 stage 3: the view-taint relation, built once here rather
+    // than rescanned per query. The two consumers below used to walk
+    // the already-emitted statement list on every (statement, name)
+    // question -- and needed the Exprs to do it, which is why a second
+    // Expr-free copy of the same walk existed for the extend pass.
+    // StmtFacts.def_name closes that gap: one walk, one implementation,
+    // and it keeps answering after the move_from below empties
+    // body.children.
+    taint_facts := body_stmt_facts(body, scope, false)
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -2943,9 +2934,9 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, root_flow, root_stmts, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, new_ch)
+        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, i)
         mut post_deletes := Vec(Expr).new()
-        insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
+        insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, taint_facts, new_ch)
         new_ch.push_take(old, i)
         new_ch.append(own post_deletes)
     }

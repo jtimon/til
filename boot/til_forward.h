@@ -943,6 +943,7 @@ typedef struct priv___src_self_garbager_til__StmtFacts {
     Set__Str nested;
     Set__Str transfers;
     Set__Str escapes;
+    Str def_name;
 } priv___src_self_garbager_til__StmtFacts;
 
 
@@ -3082,15 +3083,14 @@ void priv___src_self_garbager_til__gc_flow_dump(Context * ctx, Vec__GcCfgBlock *
 Bool priv___src_self_garbager_til__body_returns_var(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__aliased_by_returned_ref(Expr * body, Str * name);
 Bool priv___src_self_garbager_til__alias_used_in_stmts(Vec__Expr * stmts, Str * name, Expr * expr);
-Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__Expr * preceding);
-Vec__Str * priv___src_self_garbager_til__collect_hoist_taint_facts(Str * target, Vec__Expr * preceding, Vec__StmtFacts * facts);
-Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__Expr * preceding);
+Vec__Str * priv___src_self_garbager_til__collect_hoist_taint(Str * target, Vec__StmtFacts * facts, USize limit);
+Bool priv___src_self_garbager_til__rhs_depends_on_var(Expr * rhs, Str * vname, Vec__StmtFacts * facts, USize limit);
 Bool priv___src_self_garbager_til__clone_arg_may_be_view(priv___src_self_garbager_til__LocalInfo * local);
 Bool priv___src_self_garbager_til__str_rhs_provably_owning(Expr * rhs);
 Bool priv___src_self_garbager_til__expr_has_owning_str_decl(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__expr_has_unproven_str_def(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__str_clone_to_move_provably_safe(Str * name, Vec__Expr * preceding);
-Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__Expr * preceding);
+Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__StmtFacts * facts, USize limit);
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 priv___src_self_garbager_til__StmtFacts * priv___src_self_garbager_til__StmtFacts_clone(priv___src_self_garbager_til__StmtFacts * self);
 void priv___src_self_garbager_til__StmtFacts_delete(priv___src_self_garbager_til__StmtFacts * self, Bool call_free);
@@ -3118,9 +3118,9 @@ void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec
 void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Array__U8 * root_flow, USize root_stmts, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__Expr * body_stmts, Vec__LocalInfo * locals, USize stmt_idx, Array__U8 * root_flow, USize root_stmts, Vec__Expr * new_ch);
-void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
+void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__StmtFacts * facts, Vec__Expr * preceding);
 void priv___src_self_garbager_til__flag_outer_assign_rebinds(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
-void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch);
+void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch, Vec__StmtFacts * facts, USize stmt_idx);
 void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec__LocalInfo * locals);
 Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
 Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___src_self_garbager_til__LocalInfo * local, Expr * src, TypeScope * scope, Context * ctx);
@@ -3169,6 +3169,7 @@ void Array__U8_delete(Array__U8 * self, Bool call_free);
 Array__U8 * Array__U8_clone(Array__U8 * self);
 USize Array__U8_size(void);
 Vec__StmtFacts * Vec__StmtFacts_new(void);
+USize Vec__StmtFacts_len(Vec__StmtFacts * self);
 void Vec__StmtFacts_clear(Vec__StmtFacts * self);
 void Vec__StmtFacts_push(Vec__StmtFacts * self, priv___src_self_garbager_til__StmtFacts * val);
 priv___src_self_garbager_til__StmtFacts * Vec__StmtFacts_unsafe_get(Vec__StmtFacts * self, USize * i);
