@@ -2836,7 +2836,6 @@ Bool priv___src_self_garbager_til__str_rhs_provably_owning(Expr * rhs);
 Bool priv___src_self_garbager_til__expr_has_owning_str_decl(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__expr_has_unproven_str_def(Expr * e, Str * name);
 Bool priv___src_self_garbager_til__str_clone_to_move_provably_safe(Str * name, Vec__Expr * preceding);
-Bool priv___src_self_garbager_til__var_aliases_target(Str * varname, Str * target, Vec__StmtFacts * facts, USize limit);
 Bool is_pod_enum_clone_wrap(Expr * e, TypeScope * scope);
 void priv___src_self_garbager_til__StmtFacts_delete(priv___src_self_garbager_til__StmtFacts * self, Bool call_free);
 Vec__StmtFacts * priv___src_self_garbager_til__body_stmt_facts(Expr * body, TypeScope * scope, Bool with_transfers);
@@ -2858,7 +2857,7 @@ void priv___src_self_garbager_til__check_use_after_own_transfer(Expr * body, Vec
 void priv___src_self_garbager_til__insert_exit_deletes(Expr * body, Vec__LocalInfo * live, Bool return_only, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_nested_exit_deletes(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Array__U8 * root_flow, USize root_stmts, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__insert_exit_deletes_into_stmt(Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Array__U8 * root_flow, USize root_stmts, Vec__Expr * new_ch);
-void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__StmtFacts * facts, Vec__Expr * preceding);
+void priv___src_self_garbager_til__insert_post_stmt_deletes(Context * ctx, Expr * stmt, Vec__LocalInfo * locals, USize stmt_idx, Vec__Expr * new_ch, TypeScope * scope, Vec__Expr * preceding);
 void priv___src_self_garbager_til__flag_outer_assign_rebinds(Expr * body, Vec__LocalInfo * locals, TypeScope * scope);
 void priv___src_self_garbager_til__insert_assign_delete(Expr * stmt, Vec__LocalInfo * locals, Vec__Expr * new_ch, Vec__StmtFacts * facts, USize stmt_idx);
 void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx, Expr * body, Vec__LocalInfo * locals);

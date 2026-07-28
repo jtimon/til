@@ -1231,6 +1231,37 @@ let the ownership pass insert temps itself; start with the check.
     rule: emitted C byte-identical everywhere, make clean && make test
     196/196 with ASAN. insert_exit_deletes_into_stmt loses its
     body_stmts parameter with it.
+  - [X] 2026-07-27 Stage 3: var_aliases_target GONE, rhs_depends_on_var
+    STAYS -- and the difference was decided by measurement, twice, the
+    second time correctly.
+    Both are taint queries in the insertion loop, so both looked like
+    the same kind of dead weight. Removing the pair produced a REAL
+    REGRESSION the referee caught: five `{ Str *_old = s; s =
+    Str_clone(view); Str_delete(_old, 1); }` sites (four in
+    test/strings.til, one in src/til.til) collapsed to `Str_delete(s,
+    1); s = Str_clone(view);` -- deleting the buffer the hoisted view
+    still points into, then cloning from freed memory. That is exactly
+    the #238 shape rhs_depends_on_var's taint half exists to catch, by
+    setting save_old_delete so the old value dies AFTER the new one is
+    built. It is load-bearing; it stays.
+    var_aliases_target, the #238 guard on the clone-elision move site,
+    fires nowhere: zero hits across src/til.til, every test and every
+    example, and removing it leaves the emitted C byte-identical with
+    the suite at 196/196 (ASAN). The hazard it names -- moving a
+    hoisted view that aliases the assign target, which would alias the
+    deleted old value -- cannot arise while rhs_depends_on_var is
+    setting save_old_delete for precisely those RHS shapes: the old
+    value is not deleted before the RHS is built, so there is nothing
+    for the move to alias.
+    PROBE METHOD, worth recording next to the referee correction above:
+    the first pass at this used `til translate "$f" 2>&1 >/dev/null |
+    grep`, which redirects stderr to the ORIGINAL stdout and only then
+    sends stdout to /dev/null -- so println output, which goes to
+    stdout, was thrown away and every probe read zero. Capture stdout
+    to a file and grep the file. (The earlier alias_used_in_stmts
+    removal is unaffected: whatever the probe said, its byte-identical
+    corpus diff PROVES the guard never returned true, since one true
+    return would have changed a delete somewhere.)
   - [ ] Stage 3 (rest): delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
