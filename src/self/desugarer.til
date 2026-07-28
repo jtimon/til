@@ -3331,78 +3331,112 @@ make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, fo
 // Cross-call propagation (~?~ on calls) is not lowered yet -- a
 // follow-up will extend this pass.
 // ---------------------------------------------------------------
-priv find_variadic_fcall := func(e: Expr, scope: TypeScope) returns Option(ref Expr) {
-    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
-    switch e.node_type {
-    case NodeType.FCall:
-        if fcall_callee_has_variadic_via_scope(e, scope) {
-            switch e.children[0].node_type {
-            case NodeType.Ident(cn):
-                ref cn_str : Str = cn.ident_name()
-                if cn_str.eq("array").or(cn_str.eq("vec")) {
-                    return Option(ref Expr).None
+// The FuncDef a call resolves to, or None. Both the variadic and the
+// kwargs question used to do this same resolution independently -- two
+// get_binding + lookup_func pairs (or two get_struct + def_ns_get pairs
+// for a namespace method) per FCall, asked back to back by two separate
+// subtree searches. Resolving once and asking both questions of the
+// result is the point of scan_stmt_desugar_needs below.
+priv fcall_callee_fdef := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
+    if fcall.children.len() == 0 { return Option(ref Expr).None }
+    ref callee : Expr = fcall.children[0]
+    switch callee.node_type {
+    case NodeType.Ident(callee_name):
+        cb_o := scope.get_binding(callee_name.ident_name())
+        if cb_o.is_some() {
+            ref cb : TypeBinding = cb_o.unwrap()
+            return scope.lookup_func(cb.name)
+        }
+    case NodeType.FieldAccess(method_name):
+        if fa_is_ns(callee, scope) {
+            ref type_node : Expr = callee.children[0]
+            switch type_node.node_type {
+            case NodeType.Ident(type_name):
+                sdef_o := scope.get_struct(type_name.ident_name())
+                if sdef_o.is_some() {
+                    nd_o := def_ns_get(sdef_o.unwrap(), method_name.field_access_name())
+                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_null().not()) {
+                        ref dv : Expr = nd_o.unwrap().default_value
+                        if dv.node_type.is(NodeType.FuncDef) { return Option(ref Expr).Some(dv) }
+                    }
                 }
             case:
             }
-            return Option(ref Expr).Some(e)
         }
     case:
-    }
-    for e_i : Expr in e.children {
-        switch find_variadic_fcall(e_i, scope) {
-        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
-        case Option(ref Expr).None:
-        }
     }
     return Option(ref Expr).None
 }
 
-priv find_kwargs_fcall := func(e: Expr, scope: TypeScope) returns Option(ref Expr) {
-    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
-    switch e.node_type {
-    case NodeType.FCall:
-        if fcall_kwargs_index_via_scope(e, scope) >= 0 { return Option(ref Expr).Some(e) }
-    case:
+priv fdef_is_variadic := func(fdef: Expr) returns Bool {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd): return fd.variadic_index >= 0
+    case: return false
     }
-    for e_i : Expr in e.children {
-        switch find_kwargs_fcall(e_i, scope) {
-        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
-        case Option(ref Expr).None:
-        }
-    }
-    return Option(ref Expr).None
 }
 
-priv find_array_vec_fcall := func(e: Expr) returns Option(ref Expr) {
-    if e.node_type.is(NodeType.FuncDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.StructDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.EnumDef) { return Option(ref Expr).None }
-    if e.node_type.is(NodeType.Body) { return Option(ref Expr).None }
+priv fdef_kwargs_index := func(fcall: Expr, fdef: Expr) returns I32 {
+    switch fdef.node_type {
+    case NodeType.FuncDef(fd): return derive_fcall_kwargs_index(fcall, fd)
+    case: return -1
+    }
+}
+
+// True when this FCall is an `array(...)` / `vec(...)` builtin -- the
+// variadic search deliberately stops at one instead of reporting it.
+priv fcall_is_array_vec_builtin := func(e: Expr) returns Bool {
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(cn): return cn.ident_name().eq("array").or(cn.ident_name().eq("vec"))
+    case: return false
+    }
+}
+
+// What a statement needs desugared, answered in ONE walk instead of the
+// three subtree searches (array/vec, variadic, kwargs) the body pass ran
+// back to back -- two of which resolved every FCall's callee through
+// scope. Each question keeps its own "still looking" flag because their
+// stop rules differ: the variadic search abandons a subtree when it hits
+// an array/vec builtin that is itself variadic (children unsearched),
+// while the other two keep descending. All three share the FuncDef /
+// StructDef / EnumDef / Body cuts.
+priv StmtDesugarNeeds := struct {
+    array_vec := false
+    variadic := false
+    kwargs := false
+}
+
+priv scan_stmt_desugar_needs := func(e: Expr, scope: TypeScope, mut n: StmtDesugarNeeds,
+        av_on: Bool, va_on: Bool, kw_on: Bool) {
+    if av_on.not().and(va_on.not()).and(kw_on.not()) { return }
+    if e.node_type.is(NodeType.FuncDef) { return }
+    if e.node_type.is(NodeType.StructDef) { return }
+    if e.node_type.is(NodeType.EnumDef) { return }
+    if e.node_type.is(NodeType.Body) { return }
+    mut sub_va_on := va_on
     switch e.node_type {
     case NodeType.FCall:
-        if e.children.len() > 0 {
-            switch e.children[0].node_type {
-            case NodeType.Ident(cn):
-                ref cn_str : Str = cn.ident_name()
-                if cn_str.eq("array").or(cn_str.eq("vec")) { return Option(ref Expr).Some(e) }
-            case:
+        is_av_builtin := fcall_is_array_vec_builtin(e)
+        if av_on.and(is_av_builtin) { n.array_vec = true }
+        if va_on.or(kw_on) {
+            fdef_o := fcall_callee_fdef(e, scope)
+            if fdef_o.is_some() {
+                ref fdef : Expr = fdef_o.unwrap()
+                if va_on.and(fdef_is_variadic(fdef)) {
+                    // find_variadic_fcall returned None here, which stops
+                    // the search for this subtree without descending.
+                    if is_av_builtin { sub_va_on = false }
+                    else { n.variadic = true }
+                }
+                if kw_on.and(fdef_kwargs_index(e, fdef) >= 0) { n.kwargs = true }
             }
         }
     case:
     }
     for e_i : Expr in e.children {
-        switch find_array_vec_fcall(e_i) {
-        case Option(ref Expr).Some(found): return Option(ref Expr).Some(found)
-        case Option(ref Expr).None:
-        }
+        scan_stmt_desugar_needs(e_i, scope, n,
+            av_on.and(n.array_vec.not()), sub_va_on.and(n.variadic.not()), kw_on.and(n.kwargs.not()))
     }
-    return Option(ref Expr).None
 }
 
 priv set_literal_type_name := func(scope: TypeScope, elem_type: Str) returns Str {
@@ -4149,14 +4183,15 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
                 if rhs.node_type.is_set_lit() { has_set_lit = true }
                 if rhs.node_type.is_map_lit() { has_map_lit = true }
             }
-            if has_array_vec.not() {
-                if find_array_vec_fcall(stmt).is_some() { has_array_vec = true }
-            }
-            if has_variadic.not() {
-                if find_variadic_fcall(stmt, scope).is_some() { has_variadic = true }
-            }
-            if has_kwargs.not() {
-                if find_kwargs_fcall(stmt, scope).is_some() { has_kwargs = true }
+            // One walk answers all three, resolving each call's callee
+            // once instead of once per question (scan_stmt_desugar_needs).
+            if has_array_vec.not().or(has_variadic.not()).or(has_kwargs.not()) {
+                mut needs := StmtDesugarNeeds()
+                scan_stmt_desugar_needs(stmt, scope, needs,
+                    has_array_vec.not(), has_variadic.not(), has_kwargs.not())
+                if needs.array_vec { has_array_vec = true }
+                if needs.variadic { has_variadic = true }
+                if needs.kwargs { has_kwargs = true }
             }
         }
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {

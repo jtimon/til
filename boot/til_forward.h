@@ -345,6 +345,7 @@ typedef enum {
 } Option__Expr_tag;
 typedef struct Option__Expr Option__Expr;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
+typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__StmtFacts priv___src_self_garbager_til__StmtFacts;
@@ -920,6 +921,13 @@ typedef struct Vec__CoverageNode {
     USize count;
     USize cap;
 } Vec__CoverageNode;
+
+
+typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds {
+    Bool array_vec;
+    Bool variadic;
+    Bool kwargs;
+} priv___src_self_desugarer_til__StmtDesugarNeeds;
 
 
 typedef struct priv___src_self_garbager_til__LocalInfo {
@@ -3000,9 +3008,15 @@ Str * priv___src_self_desugarer_til__lvalue_root_name(Expr * e);
 void prepend_clike_payload_binding(TypeScope * scope, Expr * sw_expr, Expr * case_node, Str * sw_sname);
 void replace_body_stmt_with_block(Expr * body, USize stmt_idx, Expr * block);
 Expr * make_for_in_range_while_body(Str * var_name, Str * cur_name, Str * step, Expr * for_body, U32 line, U32 col, Str * elem_type, Bool var_is_mut);
-Option__ref_Expr priv___src_self_desugarer_til__find_variadic_fcall(Expr * e, TypeScope * scope);
-Option__ref_Expr priv___src_self_desugarer_til__find_kwargs_fcall(Expr * e, TypeScope * scope);
-Option__ref_Expr priv___src_self_desugarer_til__find_array_vec_fcall(Expr * e);
+Option__ref_Expr priv___src_self_desugarer_til__fcall_callee_fdef(Expr * fcall, TypeScope * scope);
+Bool priv___src_self_desugarer_til__fdef_is_variadic(Expr * fdef);
+I32 priv___src_self_desugarer_til__fdef_kwargs_index(Expr * fcall, Expr * fdef);
+Bool priv___src_self_desugarer_til__fcall_is_array_vec_builtin(Expr * e);
+priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds_clone(priv___src_self_desugarer_til__StmtDesugarNeeds self);
+void priv___src_self_desugarer_til__StmtDesugarNeeds_delete(priv___src_self_desugarer_til__StmtDesugarNeeds * self, Bool call_free);
+U64 priv___src_self_desugarer_til__StmtDesugarNeeds_hash(priv___src_self_desugarer_til__StmtDesugarNeeds self, HashFn hasher);
+USize priv___src_self_desugarer_til__StmtDesugarNeeds_size(void);
+void priv___src_self_desugarer_til__scan_stmt_desugar_needs(Expr * e, TypeScope * scope, priv___src_self_desugarer_til__StmtDesugarNeeds * n, Bool av_on, Bool va_on, Bool kw_on);
 Str * priv___src_self_desugarer_til__set_literal_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_desugarer_til__map_literal_type_name(Str * key_type, Str * val_type);
 void priv___src_self_desugarer_til__sync_own_args_from_callee(Expr * call, TypeScope * scope);
