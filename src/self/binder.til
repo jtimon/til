@@ -134,40 +134,57 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
 // same generated output (struct typedef, enum typedef, plain alias).
 
 priv push_til_base := func(mut out: Str, c: Str) returns Bool {
-    if c == "void" { out.push_str("Dynamic"); return true }
+    switch c {
+    case "void": out.push_str("Dynamic"); return true
     // Plain `char` -> I8, matching Str.c_str's signedness. `unsigned char`
     // stays U8 (raw-byte buffers).
-    if c.eq("char").or(c.eq("signed char")) { out.push_str("I8"); return true }
-    if c == "unsigned char" { out.push_str("U8"); return true }
-    if c.eq("short").or(c.eq("short int")) { out.push_str("I16"); return true }
-    if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("U16"); return true }
-    if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
-    if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32"); return true }
-    if or(c.eq("long"), c.eq("long int"), c.eq("signed long"),
-          c.eq("signed long int"), c.eq("long long"),
-          c.eq("long long int"), c.eq("signed long long"),
-          c.eq("signed long long int")) { out.push_str("I64"); return true }
-    if c.eq("unsigned long").or(c.eq("unsigned long int"))
-    .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int")) { out.push_str("U64"); return true }
-    if c == "size_t" { out.push_str("USize"); return true }
-    if c == "ssize_t" { out.push_str("I64"); return true }
-    if c == "ptrdiff_t" { out.push_str("I64"); return true }
-    if c == "intptr_t" { out.push_str("I64"); return true }
-    if c == "uintptr_t" { out.push_str("U64"); return true }
-    if c == "int8_t" { out.push_str("I8"); return true }
-    if c == "uint8_t" { out.push_str("U8"); return true }
-    if c == "int16_t" { out.push_str("I16"); return true }
-    if c == "uint16_t" { out.push_str("U16"); return true }
-    if c == "int32_t" { out.push_str("I32"); return true }
-    if c == "uint32_t" { out.push_str("U32"); return true }
-    if c == "int64_t" { out.push_str("I64"); return true }
-    if c == "uint64_t" { out.push_str("U64"); return true }
-    if c.eq("bool").or(c.eq("_Bool")) { out.push_str("Bool"); return true }
-    if c == "float" { out.push_str("F32"); return true }
+    case "char":                   out.push_str("I8"); return true
+    case "signed char":            out.push_str("I8"); return true
+    case "unsigned char":          out.push_str("U8"); return true
+    case "short":                  out.push_str("I16"); return true
+    case "short int":              out.push_str("I16"); return true
+    case "unsigned short":         out.push_str("U16"); return true
+    case "unsigned short int":     out.push_str("U16"); return true
+    case "int":                    out.push_str("I32"); return true
+    case "signed int":             out.push_str("I32"); return true
+    case "signed":                 out.push_str("I32"); return true
+    case "unsigned":               out.push_str("U32"); return true
+    case "unsigned int":           out.push_str("U32"); return true
+    case "long":                   out.push_str("I64"); return true
+    case "long int":               out.push_str("I64"); return true
+    case "signed long":            out.push_str("I64"); return true
+    case "signed long int":        out.push_str("I64"); return true
+    case "long long":              out.push_str("I64"); return true
+    case "long long int":          out.push_str("I64"); return true
+    case "signed long long":       out.push_str("I64"); return true
+    case "signed long long int":   out.push_str("I64"); return true
+    case "unsigned long":          out.push_str("U64"); return true
+    case "unsigned long int":      out.push_str("U64"); return true
+    case "unsigned long long":     out.push_str("U64"); return true
+    case "unsigned long long int": out.push_str("U64"); return true
+    case "size_t":                 out.push_str("USize"); return true
+    case "ssize_t":                out.push_str("I64"); return true
+    case "ptrdiff_t":              out.push_str("I64"); return true
+    case "intptr_t":               out.push_str("I64"); return true
+    case "uintptr_t":              out.push_str("U64"); return true
+    case "int8_t":                 out.push_str("I8"); return true
+    case "uint8_t":                out.push_str("U8"); return true
+    case "int16_t":                out.push_str("I16"); return true
+    case "uint16_t":               out.push_str("U16"); return true
+    case "int32_t":                out.push_str("I32"); return true
+    case "uint32_t":               out.push_str("U32"); return true
+    case "int64_t":                out.push_str("I64"); return true
+    case "uint64_t":               out.push_str("U64"); return true
+    case "bool":                   out.push_str("Bool"); return true
+    case "_Bool":                  out.push_str("Bool"); return true
+    case "float":                  out.push_str("F32"); return true
     // til has no 64-bit float type; map `double` / `long double` onto F32
     // (precision-truncation) so bindings still type-check. Functions that
     // genuinely need 64-bit precision must be hand-edited.
-    if c.eq("double").or(c.eq("long double")) { out.push_str("F32"); return true }
+    case "double":                 out.push_str("F32"); return true
+    case "long double":            out.push_str("F32"); return true
+    case:
+    }
     // Unknown -- pass through. Typedefs from the same header land here and
     // resolve via the alias declarations the walker emits earlier.
     out.push_str(c)

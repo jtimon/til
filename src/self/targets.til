@@ -385,21 +385,24 @@ target_gui_libs := proc(target: Target) returns Str {
 detect_current_target := proc() returns Target {
     os := host_os()
     arch := host_arch()
-    if os == "macos" {
+    switch os {
+    case "macos":
         if arch == "arm64" { return Target.MacosArm64 }
         return Target.MacosX64
-    }
-    if os == "windows" {
+    case "windows":
         if arch == "x86" { return Target.WindowsX86 }
         return Target.WindowsX64
-    }
-    if os == "linux" {
-        if arch == "arm64"   { return Target.LinuxArm64 }
-        if arch == "riscv64" { return Target.LinuxRiscv64 }
-        if arch == "arm32"   { return Target.LinuxArm32 }
-        if arch == "riscv32" { return Target.LinuxRiscv32 }
-        if arch == "x86"     { return Target.LinuxX86 }
+    case "linux":
+        switch arch {
+        case "arm64":   return Target.LinuxArm64
+        case "riscv64": return Target.LinuxRiscv64
+        case "arm32":   return Target.LinuxArm32
+        case "riscv32": return Target.LinuxRiscv32
+        case "x86":     return Target.LinuxX86
+        case:
+        }
         return Target.LinuxX64
+    case:
     }
     return Target.LinuxX64
 }

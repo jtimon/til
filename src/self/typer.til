@@ -1572,17 +1572,20 @@ priv obj_method_type_name := func(obj: Expr) returns Str {
 // to U32 in any U32 context. Mirrors builtin_primitive_from_name's
 // shape; Bool and to_str/to_ptr (non-numeric) deliberately fall through.
 priv numeric_conv_target_name := func(method: Str) returns Str {
-    if method.eq("to_i64")   { return "I64" }
-    if method.eq("to_u8")    { return "U8" }
-    if method.eq("to_i8")    { return "I8" }
-    if method.eq("to_i16")   { return "I16" }
-    if method.eq("to_u16")   { return "U16" }
-    if method.eq("to_i32")   { return "I32" }
-    if method.eq("to_u32")   { return "U32" }
-    if method.eq("to_u64")   { return "U64" }
-    if method.eq("to_f32")   { return "F32" }
-    if method.eq("to_usize") { return "USize" }
-    if method.eq("to_uptr")  { return "UPtr" }
+    switch method {
+    case "to_i64":   return "I64"
+    case "to_u8":    return "U8"
+    case "to_i8":    return "I8"
+    case "to_i16":   return "I16"
+    case "to_u16":   return "U16"
+    case "to_i32":   return "I32"
+    case "to_u32":   return "U32"
+    case "to_u64":   return "U64"
+    case "to_f32":   return "F32"
+    case "to_usize": return "USize"
+    case "to_uptr":  return "UPtr"
+    case:
+    }
     return ""
 }
 

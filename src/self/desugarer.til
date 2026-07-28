@@ -4479,14 +4479,18 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
                 is_ctor_call = true
             }
             ref cn_str : Str = cn.ident_name()
-            if cn_str == "dyn_call" { is_dyn_call = true }
-            if cn_str == "dyn_call_ret" { is_dyn_call = true }
-            if cn_str == "dyn_has_method" { is_dyn_call = true }
-            if cn_str == "dyn_fn" { is_dyn_call = true }
-            if cn_str == "array" { is_array_vec = true }
-            if cn_str == "vec" { is_array_vec = true }
-            if cn_str == "is_n" { is_tag_check = true }
-            if cn_str.eq("malloc").or(cn_str.eq("calloc")) { is_raw_alloc = true }
+            switch cn_str {
+            case "dyn_call":       is_dyn_call = true
+            case "dyn_call_ret":   is_dyn_call = true
+            case "dyn_has_method": is_dyn_call = true
+            case "dyn_fn":         is_dyn_call = true
+            case "array":          is_array_vec = true
+            case "vec":            is_array_vec = true
+            case "is_n":           is_tag_check = true
+            case "malloc":         is_raw_alloc = true
+            case "calloc":         is_raw_alloc = true
+            case:
+            }
         case:
         }
     }

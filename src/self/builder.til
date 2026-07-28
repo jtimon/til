@@ -1061,41 +1061,47 @@ priv func_to_c := func(name: Str) returns Str {
 }
 
 priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
-    if name == "I64" { return "I64 *" }
-    if name == "U8" { return "U8 *" }
-    if name == "I8" { return "I8 *" }
-    if name == "I16" { return "I16 *" }
-    if name == "U16" { return "U16 *" }
-    if name == "I32" { return "I32 *" }
-    if name == "U32" { return "U32 *" }
-    if name == "U64" { return "U64 *" }
-    if name == "USize" { return "USize *" }
-    if name == "UPtr" { return "UPtr *" }
-    if name == "F32" { return "F32 *" }
-    if name == "Bool" { return "Bool *" }
-    if name == "Dynamic" { return "void *" }
-    if name == "Fn" { return "TilClosure *" }
-    if name == "Body" { return "TilClosure *" }
+    switch name {
+    case "I64":     return "I64 *"
+    case "U8":      return "U8 *"
+    case "I8":      return "I8 *"
+    case "I16":     return "I16 *"
+    case "U16":     return "U16 *"
+    case "I32":     return "I32 *"
+    case "U32":     return "U32 *"
+    case "U64":     return "U64 *"
+    case "USize":   return "USize *"
+    case "UPtr":    return "UPtr *"
+    case "F32":     return "F32 *"
+    case "Bool":    return "Bool *"
+    case "Dynamic": return "void *"
+    case "Fn":      return "TilClosure *"
+    case "Body":    return "TilClosure *"
+    case:
+    }
     if ctx.funcsig_names.has(name) { return name }
     return name.format(" *")
 }
 
 priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
-    if name == "I64" { return "I64" }
-    if name == "U8" { return "U8" }
-    if name == "I8" { return "I8" }
-    if name == "I16" { return "I16" }
-    if name == "U16" { return "U16" }
-    if name == "I32" { return "I32" }
-    if name == "U32" { return "U32" }
-    if name == "U64" { return "U64" }
-    if name == "USize" { return "USize" }
-    if name == "UPtr" { return "UPtr" }
-    if name == "F32" { return "F32" }
-    if name == "Bool" { return "Bool" }
-    if name == "Dynamic" { return "void *" }
-    if name == "Fn" { return "TilClosure *" }
-    if name == "Body" { return "TilClosure *" }
+    switch name {
+    case "I64":     return "I64"
+    case "U8":      return "U8"
+    case "I8":      return "I8"
+    case "I16":     return "I16"
+    case "U16":     return "U16"
+    case "I32":     return "I32"
+    case "U32":     return "U32"
+    case "U64":     return "U64"
+    case "USize":   return "USize"
+    case "UPtr":    return "UPtr"
+    case "F32":     return "F32"
+    case "Bool":    return "Bool"
+    case "Dynamic": return "void *"
+    case "Fn":      return "TilClosure *"
+    case "Body":    return "TilClosure *"
+    case:
+    }
     if ctx.funcsig_names.has(name) { return name }
     return name
 }
@@ -4683,28 +4689,29 @@ priv cli_view_scalar := func(by_value: Bool, ctype: Str, conv: Str, arg: Str) re
 }
 
 priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
-    if ttype == "Str" {
+    switch ttype {
+    case "Str":
         // Str is a struct: its C convention is by-pointer either way.
         return "Str_clone(&(Str){.c_str = (void *)".format(arg, ", .count = strlen(", arg, "), .cap = TIL_CAP_LIT})")
-    }
-    if ttype == "I64" { return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg) }
-    if ttype == "U8" { return cli_view_scalar(by_value, "U8", "Str_to_u8(_cv)", arg) }
-    if ttype == "I8" { return cli_view_scalar(by_value, "I8", "I64_to_i8(Str_to_i64(_cv))", arg) }
-    if ttype == "I16" { return cli_view_scalar(by_value, "I16", "I64_to_i16(Str_to_i64(_cv))", arg) }
-    if ttype == "U16" { return cli_view_scalar(by_value, "U16", "I64_to_u16(Str_to_i64(_cv))", arg) }
-    if ttype == "I32" { return cli_view_scalar(by_value, "I32", "Str_to_i32(_cv)", arg) }
-    if ttype == "U32" { return cli_view_scalar(by_value, "U32", "Str_to_u32(_cv)", arg) }
-    if ttype == "U64" { return cli_view_scalar(by_value, "U64", "Str_to_u64(_cv)", arg) }
-    if ttype == "USize" { return cli_view_scalar(by_value, "USize", "Str_to_u64(_cv)", arg) }
-    if ttype == "UPtr" { return cli_view_scalar(by_value, "UPtr", "Str_to_u64(_cv)", arg) }
-    if ttype == "F32" { return cli_view_scalar(by_value, "F32", "Str_to_f32(_cv)", arg) }
-    if ttype == "Bool" {
+    case "I64":   return cli_view_scalar(by_value, "I64", "Str_to_i64(_cv)", arg)
+    case "U8":    return cli_view_scalar(by_value, "U8", "Str_to_u8(_cv)", arg)
+    case "I8":    return cli_view_scalar(by_value, "I8", "I64_to_i8(Str_to_i64(_cv))", arg)
+    case "I16":   return cli_view_scalar(by_value, "I16", "I64_to_i16(Str_to_i64(_cv))", arg)
+    case "U16":   return cli_view_scalar(by_value, "U16", "I64_to_u16(Str_to_i64(_cv))", arg)
+    case "I32":   return cli_view_scalar(by_value, "I32", "Str_to_i32(_cv)", arg)
+    case "U32":   return cli_view_scalar(by_value, "U32", "Str_to_u32(_cv)", arg)
+    case "U64":   return cli_view_scalar(by_value, "U64", "Str_to_u64(_cv)", arg)
+    case "USize": return cli_view_scalar(by_value, "USize", "Str_to_u64(_cv)", arg)
+    case "UPtr":  return cli_view_scalar(by_value, "UPtr", "Str_to_u64(_cv)", arg)
+    case "F32":   return cli_view_scalar(by_value, "F32", "Str_to_f32(_cv)", arg)
+    case "Bool":
         true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
         false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"
         conv := "Str_cmp(_cv, ".format(true_lit, ") == 0 ? 1 : (Str_cmp(_cv, ", false_lit,
             ") == 0 ? 0 : (fprintf(stderr, \"error: cannot parse '%s' as Bool (expected true/false)\\n\", ",
             arg, "), exit(1), 0))")
         return cli_view_scalar(by_value, "Bool", conv, arg)
+    case:
     }
     return ""
 }
@@ -6096,18 +6103,21 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
 }
 
 priv type_name_to_ctypes := func(name: Str) returns Str {
-    if name == "I64" { return "ctypes.c_longlong" }
-    if name == "U8" { return "ctypes.c_ubyte" }
-    if name == "I8" { return "ctypes.c_byte" }
-    if name == "I16" { return "ctypes.c_short" }
-    if name == "U16" { return "ctypes.c_ushort" }
-    if name == "I32" { return "ctypes.c_int" }
-    if name == "U32" { return "ctypes.c_uint" }
-    if name == "U64" { return "ctypes.c_ulonglong" }
-    if name == "F32" { return "ctypes.c_float" }
-    if name == "Bool" { return "ctypes.c_bool" }
-    if name == "Str" { return "Str" }
-    if name == "Dynamic" { return "ctypes.c_void_p" }
+    switch name {
+    case "I64":     return "ctypes.c_longlong"
+    case "U8":      return "ctypes.c_ubyte"
+    case "I8":      return "ctypes.c_byte"
+    case "I16":     return "ctypes.c_short"
+    case "U16":     return "ctypes.c_ushort"
+    case "I32":     return "ctypes.c_int"
+    case "U32":     return "ctypes.c_uint"
+    case "U64":     return "ctypes.c_ulonglong"
+    case "F32":     return "ctypes.c_float"
+    case "Bool":    return "ctypes.c_bool"
+    case "Str":     return "Str"
+    case "Dynamic": return "ctypes.c_void_p"
+    case:
+    }
     return name
 }
 

@@ -567,26 +567,29 @@ priv write_enum_flat := func(data: Dynamic, enum_name: Str, etag: I64, payload_d
 }
 
 priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
-    if type_name == "I64"  { return I64.size() }
-    if type_name == "U8"   { return U8.size() }
-    if type_name == "I8"   { return I8.size() }
-    if type_name == "I16"  { return I16.size() }
-    if type_name == "U16"  { return U16.size() }
-    if type_name == "I32"  { return I32.size() }
-    if type_name == "U32"  { return U32.size() }
-    if type_name == "U64"  { return U64.size() }
+    switch type_name {
+    case "I64":  return I64.size()
+    case "U8":   return U8.size()
+    case "I8":   return I8.size()
+    case "I16":  return I16.size()
+    case "U16":  return U16.size()
+    case "I32":  return I32.size()
+    case "U32":  return U32.size()
+    case "U64":  return U64.size()
     // Width aliases: build_argv_array runs at interpret time, where
     // host == target, so this compiler's own sizes are the right widths.
-    if type_name == "USize" { return USize.size() }
-    if type_name == "UPtr" { return UPtr.size() }
+    case "USize": return USize.size()
+    case "UPtr":  return UPtr.size()
     // Missing F32 fell through to the old `return 8` default, so ..F32
     // variadic elems were written at stride 8 but read at stride 4:
     // every element after the first came back as garbage under interpret.
-    if type_name == "F32"  { return F32.size() }
-    if type_name == "Bool" { return Bool.size() }
+    case "F32":  return F32.size()
+    case "Bool": return Bool.size()
     // #192: Str's size is target-dependent (its count/cap are USize); read it
     // from ctx so a U32-built til_boot folding U64 core uses the source width.
-    if type_name == "Str"  { return ctx_total_size(ctx.cached_str_name, ctx) }
+    case "Str":  return ctx_total_size(ctx.cached_str_name, ctx)
+    case:
+    }
     // The loader restricts variadic main() elem types to the set above;
     // anything else here is a bug -- fail loud, not with a wrong stride.
     panic("elem_size_for_type: unhandled element type '", type_name, "'")
@@ -602,32 +605,32 @@ priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
 priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic {
     t := type_from_name_init(type_name, ctx.scope)
     mut result : Dynamic = dispatch_result_alloc(t, ctx)
-    if type_name == "Str" { dispatch_write_str(result, s.c_str, s.count, ctx); return result }
-    if type_name == "I64" { write_i64(result, s.to_i64()); return result }
-    if type_name == "U8" { write_u8(result, s.to_u8()); return result }
-    if type_name == "I8" { write_i8(result, s.to_i8()); return result }
-    if type_name == "I16" { write_i16(result, s.to_i16()); return result }
-    if type_name == "U16" { write_u16(result, s.to_u16()); return result }
-    if type_name == "I32" { write_i32(result, s.to_i32()); return result }
-    if type_name == "U32" { write_u32(result, s.to_u32()); return result }
-    if type_name == "U64" { write_u64(result, s.to_u64()); return result }
-    if type_name == "USize" {
+    switch type_name {
+    case "Str": dispatch_write_str(result, s.c_str, s.count, ctx); return result
+    case "I64": write_i64(result, s.to_i64()); return result
+    case "U8":  write_u8(result, s.to_u8()); return result
+    case "I8":  write_i8(result, s.to_i8()); return result
+    case "I16": write_i16(result, s.to_i16()); return result
+    case "U16": write_u16(result, s.to_u16()); return result
+    case "I32": write_i32(result, s.to_i32()); return result
+    case "U32": write_u32(result, s.to_u32()); return result
+    case "U64": write_u64(result, s.to_u64()); return result
+    case "USize":
         ref width : Str = resolve_type_alias(ctx.scope, "USize")
         if width == "U32" { write_u32(result, s.to_u32()) }
         else { write_u64(result, s.to_u64()) }
         return result
-    }
-    if type_name == "UPtr" {
+    case "UPtr":
         ref width : Str = resolve_type_alias(ctx.scope, "UPtr")
         if width == "U32" { write_u32(result, s.to_u32()) }
         else { write_u64(result, s.to_u64()) }
         return result
-    }
-    if type_name == "F32" { write_f32(result, s.to_f32()); return result }
-    if type_name == "Bool" {
+    case "F32": write_f32(result, s.to_f32()); return result
+    case "Bool":
         if s == "true" { write_bool(result, true); return result }
         if s == "false" { write_bool(result, false); return result }
         panic("cannot parse '", s, "' as Bool (expected true/false)")
+    case:
     }
     panic("unsupported CLI argument type '", type_name, "'")
     return result
@@ -5863,15 +5866,17 @@ priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     // Collapse the eval to an inline word first: raw_to_u64 is word-based,
     // and the pre-word raw_arg_pointer form fed it an ADDRESS.
     raw := raw_to_u64(src_type, scalar_word_of_raw(s, src_expr, src, src_type, ctx), ctx)
-    if tn == "I8"  { write_i8(r, raw.cast(I64).to_i8()); return true }
-    if tn == "U8"  { write_u8(r, raw.cast(I64).to_u8()); return true }
-    if tn == "I16" { write_i16(r, raw.cast(I64).to_i16()); return true }
-    if tn == "U16" { write_u16(r, raw.cast(I64).to_u16()); return true }
-    if tn == "I32" { write_i32(r, raw.to_i32()); return true }
-    if tn == "U32" { write_u32(r, raw.to_u32()); return true }
-    if tn == "I64" { write_i64(r, raw.cast(I64)); return true }
-    if tn == "U64" { write_u64(r, raw); return true }
-    UNREACHABLE()
+    switch tn {
+    case "I8":  write_i8(r, raw.cast(I64).to_i8()); return true
+    case "U8":  write_u8(r, raw.cast(I64).to_u8()); return true
+    case "I16": write_i16(r, raw.cast(I64).to_i16()); return true
+    case "U16": write_u16(r, raw.cast(I64).to_u16()); return true
+    case "I32": write_i32(r, raw.to_i32()); return true
+    case "U32": write_u32(r, raw.to_u32()); return true
+    case "I64": write_i64(r, raw.cast(I64)); return true
+    case "U64": write_u64(r, raw); return true
+    case: UNREACHABLE()
+    }
     return false
 }
 
@@ -6519,25 +6524,28 @@ priv h_cfile_open := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns B
 // shallow_ffi_type and field_ffi_type, which differ only in the
 // fallback they pick for an unknown type.
 priv known_ffi_type := func(type_name: Str, ctx: Context) returns Option(ref ffi_type) {
-    if type_name == "I64"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint64")) }
-    if type_name == "U8"    { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8")) }
-    if type_name == "I8"    { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint8")) }
-    if type_name == "I16"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint16")) }
-    if type_name == "U16"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint16")) }
-    if type_name == "I32"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint32")) }
-    if type_name == "U32"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint32")) }
-    if type_name == "U64"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint64")) }
-    if type_name == "USize" { return Option(ref ffi_type).Some(usize_ffi_type(ctx)) }
-    if type_name == "UPtr"  { return Option(ref ffi_type).Some(uptr_ffi_type(ctx)) }
-    if type_name == "F32"   { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_float")) }
-    if type_name == "Bool"  { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8")) }
+    switch type_name {
+    case "I64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint64"))
+    case "U8":    return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
+    case "I8":    return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint8"))
+    case "I16":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint16"))
+    case "U16":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint16"))
+    case "I32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_sint32"))
+    case "U32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint32"))
+    case "U64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint64"))
+    case "USize": return Option(ref ffi_type).Some(usize_ffi_type(ctx))
+    case "UPtr":  return Option(ref ffi_type).Some(uptr_ffi_type(ctx))
+    case "F32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_float"))
+    case "Bool":  return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
     // Dynamic IS the opaque pointer type. Its reflection def in
     // src/core/dyn.til is a zero-field `Dynamic : StructDef = struct`,
     // which the struct probe below would turn into a size-0 by-value
     // struct ffi_type (FFI_BAD_TYPEDEF at prep); the first
     // `shallow Dynamic` ext signatures (#286's word helpers) hit that
     // and broke the arm CI hosts.
-    if type_name == "Dynamic" { return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_pointer")) }
+    case "Dynamic": return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_pointer"))
+    case:
+    }
     if ctx.ffi_struct_defs.has(type_name) {
         ref box : ExprPtrBox = ctx.ffi_struct_defs[type_name]
         return Option(ref ffi_type).Some(build_struct_ffi_type(box.ptr, ctx))
@@ -7209,26 +7217,27 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
 }
 
 priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, result: Dynamic, ctx: Context) returns Bool {
-    if rtype == "I64"        { memcpy(result, p, I64.size()); return true }
-    else if rtype == "U8"    { memcpy(result, p, U8.size()); return true }
-    else if rtype == "I8"    { memcpy(result, p, I8.size()); return true }
-    else if rtype == "I16"   { memcpy(result, p, I16.size()); return true }
-    else if rtype == "U16"   { memcpy(result, p, U16.size()); return true }
-    else if rtype == "I32"   { memcpy(result, p, I32.size()); return true }
-    else if rtype == "U32"   { memcpy(result, p, U32.size()); return true }
-    else if rtype == "U64"   { memcpy(result, p, U64.size()); return true }
-    else if rtype == "USize" {
+    switch rtype {
+    case "I64": memcpy(result, p, I64.size()); return true
+    case "U8":  memcpy(result, p, U8.size()); return true
+    case "I8":  memcpy(result, p, I8.size()); return true
+    case "I16": memcpy(result, p, I16.size()); return true
+    case "U16": memcpy(result, p, U16.size()); return true
+    case "I32": memcpy(result, p, I32.size()); return true
+    case "U32": memcpy(result, p, U32.size()); return true
+    case "U64": memcpy(result, p, U64.size()); return true
+    case "USize":
         ref usize_name : Str = resolve_type_alias(ctx.scope, "USize")
         memcpy(result, p, unsigned_prim_width_for_name(usize_name))
         return true
-    }
-    else if rtype == "UPtr" {
+    case "UPtr":
         ref uptr_name : Str = resolve_type_alias(ctx.scope, "UPtr")
         memcpy(result, p, unsigned_prim_width_for_name(uptr_name))
         return true
+    case "F32":  memcpy(result, p, F32.size()); return true
+    case "Bool": memcpy(result, p, Bool.size()); return true
+    case:
     }
-    else if rtype == "F32"   { memcpy(result, p, F32.size()); return true }
-    else if rtype == "Bool"  { memcpy(result, p, Bool.size()); return true }
     return false
 }
 

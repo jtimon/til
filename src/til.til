@@ -941,27 +941,28 @@ main := proc(args: ..Str) {
     prepare_program(lp, cli.command == "test")
 
     mut result : I32 = 0
-    if cli.command == "interpret" {
+    switch cli.command {
+    case "interpret":
         if lp.cur_mode.is_library {
             panic("cannot interpret a library -- use translate or build")
         }
         result = cmd_interpret(lp, user_argv)
-    } else if cli.command == "test" {
+    case "test":
         eprint_single("=== interpret ===\n")
         result = cmd_interpret(lp, user_argv)
         if result == 0 {
             eprint_single("=== compile + run ===\n")
             result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
         }
-    } else if cli.command == "translate" {
+    case "translate":
         result = cmd_translate(lp, cli.custom_c, target)
-    } else if cli.command == "build" {
+    case "build":
         result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
-    } else if cli.command == "install" {
+    case "install":
         result = cmd_install(lp, cli.install_prefix, target, cli.cc, cli.asan, cli.prof)
-    } else if cli.command == "run" {
+    case "run":
         result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof)
-    } else {
+    case:
         println(format("error: unknown command '", cli.command, "'"))
         usage()
         result = 1

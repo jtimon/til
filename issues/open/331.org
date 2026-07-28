@@ -16,7 +16,22 @@
     ~\xNN~ arm stayed an ~if~ after the switch (a guard would have dropped
     the whole switch off the C-like path) and the ~continue~ arms reach
     the enclosing ~while~ through the C switch untouched.
-  - [ ] Tier 2 (~Str~ subjects)
+  - [X] Tier 2 (~Str~ subjects). All fourteen sites converted:
+    ~push_til_base~ (src/self/binder.til); ~type_name_to_c~,
+    ~type_name_to_c_value~, ~cli_box_expr~, ~type_name_to_ctypes~
+    (src/self/builder.til); ~elem_size_for_type~, ~parse_cli_arg~,
+    ~h_cast~, ~known_ffi_type~, ~ffi_decode_scalar~
+    (src/self/interpreter.til); ~numeric_conv_target_name~
+    (src/self/typer.til); the ~cn_str~ builtin-name probes
+    (src/self/desugarer.til); ~detect_current_target~
+    (src/self/targets.til); and the command dispatch in ~main~
+    (src/til.til). Codegen is unchanged -- a ~Str~ switch still lowers to
+    the same ~Str_eq~ if/elif chain -- so this is readability now, and
+    these sites pick up [[./278.org][#278]]'s dispatch for free when it
+    lands. Three arms that were NOT bare equality tests stayed as they
+    were: ~type_name_to_c~ / ~type_name_to_c_value~ end on a
+    ~ctx.funcsig_names.has(name)~ probe and ~known_ffi_type~ on a
+    ~ctx.ffi_struct_defs~ probe, all of which now sit after the switch.
   - [ ] Tier 3 -- blocked behind [[./115.org][#115]] by choice, see below
   - [ ] Tier 4 (runtime case patterns)
 
@@ -156,12 +171,14 @@
 
 *** Scope and staging
 
-   Not one commit. One file (or one function group) per commit, each
-   verified with the full suite, so a regression bisects to a small diff.
-   Pure refactor: no behaviour change, no new helpers, no new dispatch
-   tables, no reordering of arms that could change which one wins when a
-   subject matches two conditions (check the ~.or()~ groups before
-   splitting them).
+   One tier per commit, each verified with the full suite, so a regression
+   bisects to one tier. (An earlier draft here said one FILE per commit;
+   that is wrong -- a branch squashes to a single commit before it is
+   pushed, so per-file commits would mean a branch per file.) Pure
+   refactor: no behaviour change, no new helpers, no new dispatch tables,
+   no reordering of arms that could change which one wins when a subject
+   matches two conditions (check the ~.or()~ groups before splitting
+   them).
 
    Two conversions need care rather than a mechanical rewrite:
 
