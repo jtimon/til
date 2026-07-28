@@ -2379,14 +2379,14 @@ priv lazy_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr)) {
     }
 }
 
-// The value of a single-`return` body `{ return <expr> }`, else NULL.
-priv lazy_single_return_value := func(body: Expr) returns Expr {
-    if body.node_type.is(NodeType.Body).not() { return NULL }
-    if body.children.len().eq(1).not() { return NULL }
+// The value of a single-`return` body `{ return <expr> }`, else None.
+priv lazy_single_return_value := func(body: Expr) returns Option(Expr) {
+    if body.node_type.is(NodeType.Body).not() { return Option(Expr).None }
+    if body.children.len().eq(1).not() { return Option(Expr).None }
     ref ret : Expr = body.children[0]
-    if ret.node_type.is(NodeType.Return).not() { return NULL }
-    if ret.children.len() < 1 { return NULL }
-    return ret.children[0].clone()
+    if ret.node_type.is(NodeType.Return).not() { return Option(Expr).None }
+    if ret.children.len() < 1 { return Option(Expr).None }
+    return Option(Expr).Some(ret.children[0].clone())
 }
 
 // Build `match cond { case true: x case: y }`. Takes ownership of cond/x/y.
@@ -2418,9 +2418,11 @@ priv lazy_build_guard_chain := func(body: Expr, i: USize, n: USize) returns Expr
         return body.children[n - 1].children[0].clone()
     }
     ref g : Expr = body.children[i]               // `if cond { return X }`
-    gx := lazy_single_return_value(g.children[1])
+    // A guard is `if cond { return X }` by construction (lazy_body_inlinable
+    // vetted the shape), so take() panicking on None is the right contract.
+    gx_o := lazy_single_return_value(g.children[1])
     inner := lazy_build_guard_chain(body, i + 1, n)
-    return lazy_make_bool_match(own g.children[0].clone(), own gx, own inner, g.line, g.col)
+    return lazy_make_bool_match(own g.children[0].clone(), own Option(Expr).take(own gx_o), own inner, g.line, g.col)
 }
 
 // The expression a lazy body inlines to, freshly owned, or NULL when the body
@@ -2430,24 +2432,26 @@ priv lazy_build_guard_chain := func(body: Expr, i: USize, n: USize) returns Expr
 //   { if c1 {return X1} ... if ck {return Xk} return Y }  -> nested match
 // The if/else and guard-chain forms become `match` so they inline and
 // short-circuit (til's `if` is a statement, not a value-expression). Other
-// shapes (locals, loops, ...) return NULL; those need the thunk fallback.
-priv lazy_body_as_expr := func(body: Expr) returns Expr {
-    if lazy_body_inlinable(body).not() { return NULL }
+// shapes (locals, loops, ...) return None; those need the thunk fallback.
+priv lazy_body_as_expr := func(body: Expr) returns Option(Expr) {
+    if lazy_body_inlinable(body).not() { return Option(Expr).None }
     n := body.children.len()
     ref last : Expr = body.children[n - 1]
     if n.eq(1) {
         switch last.node_type {
         case NodeType.Return:
-            return last.children[0].clone()
+            return Option(Expr).Some(last.children[0].clone())
         case NodeType.If:
-            x := lazy_single_return_value(last.children[1])
-            y := lazy_single_return_value(last.children[2])
-            return lazy_make_bool_match(own last.children[0].clone(), own x, own y, last.line, last.col)
+            // Both arms are single-return bodies here for the same reason as
+            // in lazy_build_guard_chain: lazy_body_inlinable vetted the shape.
+            x_o := lazy_single_return_value(last.children[1])
+            y_o := lazy_single_return_value(last.children[2])
+            return Option(Expr).Some(lazy_make_bool_match(own last.children[0].clone(), own Option(Expr).take(own x_o), own Option(Expr).take(own y_o), last.line, last.col))
         case:
-            return NULL
+            return Option(Expr).None
         }
     }
-    return lazy_build_guard_chain(body, 0, n)
+    return Option(Expr).Some(lazy_build_guard_chain(body, 0, n))
 }
 
 // Returns true if the call was inlined. Leaves `call` untouched (and
@@ -2490,8 +2494,9 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr) ret
     }
     if ok.not() { return false }
 
-    mut cloned := lazy_body_as_expr(body)
-    if cloned.is_null() { return false }
+    mut cloned_o := lazy_body_as_expr(body)
+    if cloned_o.is_none() { return false }
+    mut cloned := Option(Expr).take(own cloned_o)
     // A bare-Ident body (`return x`) is the whole expression: the walk
     // below only substitutes CHILDREN, so swap the root here. Plain
     // assignment reclaims the first clone (save_old_delete).
@@ -2617,10 +2622,10 @@ priv inline_variadic_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: 
         }
     }
 
-    cloned := lazy_body_as_expr(unrolled)
-    expect(cloned.is_null().not(),
+    cloned_o := lazy_body_as_expr(unrolled)
+    expect(cloned_o.is_some(),
         "variadic lazy unroll produced a non-inlinable body despite lazy_variadic_body_unrollable")
-    parent.children[call_idx] = cloned
+    parent.children[call_idx] = Option(Expr).take(own cloned_o)
     return true
 }
 
@@ -2913,9 +2918,10 @@ priv lazy_expand_recursive := func(call: Expr, is_method: Bool, fdef: Expr,
     cons_subs := lazy_variadic_subs(call, is_method, fdef, nfixed, head, k)
     mut substituted := lazy_subst_arm_clone(own cons_src.clone(), cons_subs)
     if cons_is_body {
-        substituted = lazy_body_as_expr(substituted)
-        expect(substituted.is_null().not(),
+        spliced_o := lazy_body_as_expr(substituted)
+        expect(spliced_o.is_some(),
             "switch-form recursive arm failed to splice despite lazy_body_inlinable")
+        substituted = Option(Expr).take(own spliced_o)
     }
     return lazy_clone_replacing_tail(substituted, tail, self_name, inner)
 }
@@ -3131,18 +3137,18 @@ priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context
 }
 
 // Build `mut _lzr_N : R = default` + `{ <prelude>; _lzr_N = <tail> }`, push
-// both into `new`, and return the result Ident `_lzr_N`. NULL on failure.
-priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) returns Expr {
+// both into `new`, and return the result Ident `_lzr_N`. None on failure.
+priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) returns Option(Expr) {
     ref body : Expr = fdef.children[0]
     split := lazy_body_split_point(body)
-    if split < 0 { return NULL }
+    if split < 0 { return Option(Expr).None }
     sp : USize = split.to_usize()
     mut ret_type := ""
     switch fdef.node_type {
     case NodeType.FuncDef(fd): ret_type = fd.return_type.clone()
     case:
     }
-    if ret_type.len() == 0 { return NULL }
+    if ret_type.len() == 0 { return Option(Expr).None }
     line := call.line
     col := call.col
 
@@ -3154,8 +3160,9 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) retu
     // Tail expression from the substituted suffix [sp, nstmts).
     mut tailb := Expr.new(NodeType.Body, line, col)
     for i in sp..nstmts { tailb.add_child(own bclone.children[i].clone()) }
-    tail_expr := lazy_body_as_expr(tailb)
-    if tail_expr.is_null() { return NULL }
+    tail_expr_o := lazy_body_as_expr(tailb)
+    if tail_expr_o.is_none() { return Option(Expr).None }
+    tail_expr := Option(Expr).take(own tail_expr_o)
 
     name := format("_lzr_", lazy_stmt_temp_counter.to_str())
     lazy_stmt_temp_counter++
@@ -3168,7 +3175,7 @@ priv lazy_build_prelude := func(call: Expr, fdef: Expr, mut new: Vec(Expr)) retu
     deflt := make_default_value_expr(ret_type, line, col)
     new.push(own lazy_make_temp_decl(name, ret_type, own deflt, line, col))
     new.push(own blk)
-    return Expr.new(ident_node(name), line, col)
+    return Option(Expr).Some(Expr.new(ident_node(name), line, col))
 }
 
 // The value-position child of a statement that could hold a lazy call (a
@@ -3194,9 +3201,9 @@ priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Contex
             ref slot_call : Expr = slot_call_o.unwrap()
             fdef_o := lazy_stmt_inlinable_call(slot_call, scope, ctx)
             if fdef_o.is_some() {
-                result := lazy_build_prelude(slot_call, fdef_o.unwrap(), new)
-                if result.is_null().not() {
-                    s.children[0] = result
+                result_o := lazy_build_prelude(slot_call, fdef_o.unwrap(), new)
+                if result_o.is_some() {
+                    s.children[0] = Option(Expr).take(own result_o)
                     new.push_take(old, idx)
                     handled = true
                 }

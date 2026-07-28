@@ -41,5 +41,18 @@ Option := macro(T: Type) returns EnumDef {
             case: panic(__LOC__, "unwrap of a None Option")
             }
         }
+        /// The contained value, MOVED out; PANICS on None, like unwrap.
+        /// unwrap only BORROWS self, so for an owned payload it must hand
+        /// back a deep clone; this consumes the Option instead, so the
+        /// payload's bytes move and only the enum shell is freed (#321).
+        /// Use it wherever the caller takes ownership of what the Option
+        /// held -- an `Option(Expr)` returned by an AST helper, say, where
+        /// a clone would copy a whole subtree and break node identity.
+        take := func(own self: Option(T)) returns T {
+            switch self {
+            case Option(T).Some(v): return v
+            case: panic(__LOC__, "take of a None Option")
+            }
+        }
     }
 }

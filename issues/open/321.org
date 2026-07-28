@@ -828,12 +828,102 @@ Note what the tests can and cannot pin: the clone path is behaviourally
 identical to the steal and differs only in cost, so no til-level test
 distinguishes them. The evidence for the move is the emitted C above.
 
+**** Batch 20: all 37 owned-Expr returns, and what the layout costs
+
+Every ~returns Expr~ ~return NULL~ in src/ is now ~Option(Expr)~:
+loader (lazy_single_return_value, lazy_body_as_expr, lazy_build_prelude
+-- 10), typer + garbager (make_delete_call, gc_make_delete -- 3),
+constfolder (raw_to_expr, try_fast_fold_call, try_eval_call -- 24).
+~Option.take~ (own self, batch 19's steal) is what makes the callers
+cheap; the receiver has to be spelled as a namespace call,
+~Option(Expr).take(own x)~, because ~own~ is not accepted on a UFCS
+receiver in expression position (~own x.take()~ parses as ~own~ on the
+whole argument).
+
+Only 19 ~return NULL~ remain in src/, all ~returns Dynamic~: 16 in
+interpreter.til, 3 in constfolder.til (expr_to_known_raw, is_known).
+That is exactly the quarantined raw layer the Decisions section rules
+out of scope, so step 2 is finished in every sense.
+
+PERF: this costs ~3% on a self-translate (26288/26821 ms before,
+27323/27509 ms after; the loader and typer/garbager batches measured
+clean on their own, so the cost is the constfolder's fold path). The
+cause is layout, not the migration. An owned ~Option(T)~ stores its
+payload INLINE, so a ~Some~ + ~take~ round trip is two malloc/free
+pairs and two struct copies where a bare ~Expr *~ used to pass straight
+through. Nothing in the call sites can recover it.
+
+What WOULD recover it, and make the rest of #321 free: extend #320's
+niche rule so a two-variant enum with one payload-less variant and one
+OWNED AGGREGATE payload also lowers to a bare pointer, None == null --
+Rust's ~Option<Box<T>>~ guarantee, the owned twin of the ~ref~ niche
+already implemented. til's owned aggregates are already heap boxes
+(~Expr *~) as params, returns and locals; storing them inline inside an
+enum is the only place that differs, and it is what forces the copies.
+That is a layout ruling, not a call-site fix, so it is the human's call
+-- noted here rather than taken.
+
+**** Batch 21: owned-payload niche, stage 1 -- the deref gate
+
+The owned niche (batch 20's perf note) is a STAGED change, and the first
+attempt at it in one go proved why. Flipping ~enum_is_niche~ alone builds
+and gets the layout right --
+
+: struct Option__Box { Box *data; };
+: Option__Box Option__Box_Some(Box * val) { Option__Box r; r.data = val; return r; }
+
+-- but every payload ACCESS then reads the wrong thing:
+
+: Box *v = ((void *)((U8 *)(self) + offsetof(Option__Box, data)));
+: Box_delete((U8 *)self + offsetof(Option__Box, data), 0);
+
+~get_payload~ yields the ADDRESS OF THE POINTER SLOT (~Box **~ used as
+~Box *~). A ref payload is saved by the ~deref~ wrapper
+make_payload_ref_decl adds -- but that is gated on
+~enum_variant_payload_ref~, which is false for an owned payload. The
+probe panicked with "take of a None Option".
+
+The root cause is that ONE predicate was answering two questions that
+happen to coincide today:
+  - is this payload stored as a POINTER? (the binding must load it)
+  - is this payload BORROWED? (delete/clone must not touch the pointee)
+A niche is only ever a ref payload today, so ~payload_ref~ answers both.
+The owned niche breaks the coincidence.
+
+Stage 1 separates them, with no behaviour change:
+~enum_payload_is_pointer_slot(enum_def, idx)~ =
+~payload_ref OR enum_is_niche~ (and false for a payload-less variant, so
+the niche arm cannot answer for the wrong variant). The five deref gates
+now ask it -- desugarer's two payload-binding sites, initer's generated
+eq / to_str / clone -- plus the typer's steal gate, which must skip a
+pointer slot because the steal block copies bytes OUT of an inline
+payload and frees the enum box; for a niche that would leak the pointee.
+The ownership sites (generated delete's skip, the ctor param own_type,
+the garbager's borrow source) still ask ~enum_variant_payload_ref~.
+
+Identical today by construction, and verified so: 196/196, pass 1 ==
+pass 2, and test/constfold.c -- a committed golden of emitted C -- came
+back byte-identical.
+
+Remaining stages, in order:
+  2. generated delete and clone: for an owned niche, delete the pointee
+     with call_free TRUE (it is its own box now, not inline) and clone
+     the pointee rather than the slot.
+  3. flip ~enum_is_niche~ to accept an owned aggregate payload
+     (excluding primitives, whose 0 is a legal value, and Dynamic, the
+     quarantined layer where null is legal). Two-pass, since it changes
+     emit.
+  4. a niche-aware ~take~: ~return self.data~ instead of the steal
+     block, which needs a lowering for "hand this pointer back as
+     owned". Until then a niche take keeps the copy stage 1 preserves.
+  5. the interpreter's ownership mirror for an owned niche payload, and
+     the garbager's view of a by-value enum that owns a heap payload.
+
 *** What is left before the forbid can land
 
-0. DONE (batch 19): move-out of an owned ~Option(T)~. The 37
-   ~returns Expr~ ~return NULL~ sites can now become ~Option(Expr)~
-   with an ~own self~ take, which step 4 needs before the keyword can
-   go. Doing that migration is the next step.
+0. DONE (batch 19): move-out of an owned ~Option(T)~.
+   DONE (batch 20): all 37 ~returns Expr~ ~return NULL~ sites, at a ~3%
+   self-translate cost that an owned-payload niche would remove.
 1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
    three Scope-typed owning fields get a real ownership answer.
 2. Flip check_ref_field_owned_default: reject ~= NULL~ on a ref field

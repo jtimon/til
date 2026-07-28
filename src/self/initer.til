@@ -720,10 +720,10 @@ priv generate_enum_eq_chain := func(enum_def: Expr, ename: Str, line: U32, col: 
                 ret_true.add_child(own true_lit)
                 then_body.add_child(own ret_true)
             } else {
-                // #320: for a ref payload the bindings deref the stored
-                // pointers, so eq compares the POINTEES (like Rust's
+                // #320: for a pointer-slot payload the bindings deref the
+                // stored pointers, so eq compares the POINTEES (like Rust's
                 // Option<&T> eq), not pointer identity.
-                eq_payload_is_ref := enum_variant_payload_ref(enum_def, j.to_i32())
+                eq_payload_is_ref := enum_payload_is_pointer_slot(enum_def, j.to_i32())
                 mut self_arg := Expr.new(ident_node("self"), line, col)
                 then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, line, col, false, eq_payload_is_ref))
                 mut other_arg := Expr.new(ident_node("other"), line, col)
@@ -885,9 +885,9 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
             } else if vtype.len() > 0 {
                 pn := format("_p_", vtype, "_", j.to_str())
                 mut self_arg := Expr.new(ident_node("self"), line, col)
-                // #320: ref payload binding derefs the stored pointer, so
-                // to_str prints the pointee.
-                then_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, enum_variant_payload_ref(enum_def, j.to_i32())))
+                // #320: a pointer-slot payload binding derefs the stored
+                // pointer, so to_str prints the pointee.
+                then_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, enum_payload_is_pointer_slot(enum_def, j.to_i32())))
 
                 mut fmt_call := Expr.new(NodeType.FCall(FCallData()), line, col)
                 mut fmt_id := Expr.new(ident_node("format"), line, col)
@@ -1038,7 +1038,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
         ref vtype : Str = variant_types[j]
         if vtype.len() > 0 {
             pn := format("_clone_payload_", vname, "_", j.to_str())
-            payload_is_ref := enum_variant_payload_ref(enum_def, j.to_i32())
+            payload_is_ref := enum_payload_is_pointer_slot(enum_def, j.to_i32())
 
             mut self_arg := Expr.new(ident_node("self"), line, col)
             pd = make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, payload_is_ref)

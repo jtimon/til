@@ -2782,7 +2782,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         bind_ln := match_expr.children[1].line
                                         bind_cl := match_expr.children[1].col
                                         fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
-                                        mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut, enum_variant_payload_ref(enum_def, vt_idx))
+                                        mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut, enum_payload_is_pointer_slot(enum_def, vt_idx))
 
                                         mut old := Vec(Expr).new()
                                         old.move_from(case_body.children)
@@ -3277,7 +3277,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     bind_ln := pat.children[1].line
     bind_cl := pat.children[1].col
     fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
-    mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut, enum_variant_payload_ref(enum_def, vt_idx))
+    mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut, enum_payload_is_pointer_slot(enum_def, vt_idx))
     ref mut body : Expr = case_node.children[1]
     mut old := Vec(Expr).new()
     old.move_from(body.children)

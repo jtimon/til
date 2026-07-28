@@ -192,38 +192,38 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
-priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Expr {
+priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Option(Expr) {
     switch t {
     case Type.Primitive(prim):
         // Primitive values arrive as inline words (nested field/payload
         // callers load them from storage before recursing here).
         switch prim {
         case Primitive.Bool:
-            return Expr.new(NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col)
+            return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col))
         case Primitive.F32:
             n := word_f32(word_bits(raw))
             mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
             e.set_til_type(t)
-            return e
-        case Primitive.U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case Primitive.I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
-        case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return e
+            return Option(Expr).Some(own e)
+        case Primitive.U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case Primitive.I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         }
     case Type.Enum(ename):
         ref tag_ref : I32 = raw
         tag := tag_ref
-        if tag < 0 { return NULL }
+        if tag < 0 { return Option(Expr).None }
         edef_o := lookup_interp_type_def(ename, ctx)
-        if edef_o.is_none() { return NULL }
+        if edef_o.is_none() { return Option(Expr).None }
         ref edef : Expr = edef_o.unwrap()
         switch edef.node_type {
         case NodeType.EnumDef(edd):
-            if tag.to_usize() >= edd.variants.len() { return NULL }
+            if tag.to_usize() >= edd.variants.len() { return Option(Expr).None }
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
             if cf_vd.payload_type.len() > 0 {
@@ -237,13 +237,14 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 ref payload_addr : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
                 mut payload_raw : Dynamic = payload_addr
                 if raw_type_is_prim(payload_type, ctx) { payload_raw = scalar_word_load(payload_type, payload_addr, ctx) }
-                mut payload : Expr = raw_to_expr(payload_raw, payload_type, src, ctx)
-                if payload.is_null() { return NULL }
+                payload_o := raw_to_expr(payload_raw, payload_type, src, ctx)
+                if payload_o.is_none() { return Option(Expr).None }
+                mut payload : Expr = Option(Expr).take(own payload_o)
                 mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
                 call.add_child(own variant)
                 call.add_child(own payload)
                 call.set_til_type(t)
-                return call
+                return Option(Expr).Some(own call)
             }
             mut variant_recv := Expr.new(ident_node(ename), src.line, src.col)
             variant_recv.set_til_type(t)
@@ -258,19 +259,19 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             clone_call.add_child(own clone_callee)
             clone_call.add_child(own variant_expr)
             clone_call.set_til_type(t)
-            return clone_call
+            return Option(Expr).Some(own clone_call)
         case:
-            return NULL
+            return Option(Expr).None
         }
     case Type.Struct(sname):
         if sname == "Str" {
             ref s : Str = to_ptr(raw)
             count := str_count_at(raw, ctx)
             cap := str_cap_at(raw, ctx)
-            if cap.lt(CAP_VIEW).and(cap.gt(count)) { return NULL }
+            if cap.lt(CAP_VIEW).and(cap.gt(count)) { return Option(Expr).None }
             view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
             escaped := str_to_source_form(view)
-            return Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col)
+            return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Str(escaped)), src.line, src.col))
         }
         ref sdef : Expr = lookup_interp_type_def(sname, ctx).unwrap()
         switch sdef.node_type {
@@ -284,25 +285,25 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             ref rte_sl : StructLayout = ctx.struct_layouts[sname]
             mut fi : USize = 0
             for fd : Declaration in sfd.fields {
-                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return NULL }
+                if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return Option(Expr).None }
                 ref fl : FieldLayout = rte_sl.fields.unsafe_get(fi)
                 fi = fi + 1
                 ref field_addr : Dynamic = ptr_add(raw, fl.offset)
                 mut field_raw : Dynamic = field_addr
                 if raw_type_is_prim(fd.til_type, ctx) { field_raw = scalar_word_load(field_word_type(fd.til_type, fl.size, ctx), field_addr, ctx) }
-                mut field_expr : Expr = raw_to_expr(field_raw, fd.til_type, src, ctx)
-                if field_expr.is_null() { return NULL }
-                ctor.add_child(own field_expr)
+                field_expr_o := raw_to_expr(field_raw, fd.til_type, src, ctx)
+                if field_expr_o.is_none() { return Option(Expr).None }
+                ctor.add_child(own Option(Expr).take(own field_expr_o))
             }
             ctor.set_til_type(t)
-            return ctor
+            return Option(Expr).Some(own ctor)
         case:
-            return NULL
+            return Option(Expr).None
         }
     case Type.Custom(name):
         return raw_to_expr(raw, type_from_name_init(name, ctx.scope), src, ctx)
     case:
-        return NULL
+        return Option(Expr).None
     }
 }
 
@@ -620,8 +621,8 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Expr {
-    if fcall.children.len().eq(1).not() { return NULL }
+priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns Option(Expr) {
+    if fcall.children.len().eq(1).not() { return Option(Expr).None }
     ref fc_callee : Expr = fcall.children[0]
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
@@ -648,23 +649,23 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
         }
     case:
     }
-    if fc_fp.is_null() { return NULL }
+    if fc_fp.is_null() { return Option(Expr).None }
     ref fc_fdef : Expr = deref(fc_fp)
-    if fc_fdef.node_type.is(NodeType.FuncDef).not() { return NULL }
+    if fc_fdef.node_type.is(NodeType.FuncDef).not() { return Option(Expr).None }
     lit_o := extract_trivial_literal_return(fc_fdef)
-    if lit_o.is_none() { return NULL }
+    if lit_o.is_none() { return Option(Expr).None }
     ref lit : Expr = lit_o.unwrap()
     mut lit_clone := lit.clone()
     lit_clone.set_til_type(fcall.til_type())
     // Return the owned clone directly: the previous malloc + move into a
     // second heap Expr both double-allocated and abandoned _lit_clone's
     // node (a per-fold leak), and forced callers to clone-and-drop.
-    return lit_clone
+    return Option(Expr).Some(own lit_clone)
 }
 
-priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Expr {
-    mut fast : Expr = try_fast_fold_call(scope, fcall, ctx)
-    if fast.is_null().not() { return fast }
+priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: Context) returns Option(Expr) {
+    fast_o := try_fast_fold_call(scope, fcall, ctx)
+    if fast_o.is_some() { return fast_o }
 
     ref callee : Expr = fcall.children[0]
     // External effects need no name list here: anything side-effecting is a
@@ -689,7 +690,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             switch recv.node_type {
             case NodeType.Ident(ri):
                 if ns_get(ri.ident_name(), "size", ctx).is_none() {
-                    if constfolder_known_has(ctx, ri.ident_name()).not() { return NULL }
+                    if constfolder_known_has(ctx, ri.ident_name()).not() { return Option(Expr).None }
                 }
             case:
             }
@@ -705,11 +706,11 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         ref fdef : Expr = deref(fp)
         switch fdef.node_type {
         case NodeType.FuncDef(fd):
-            if fd.return_own_type.is(OwnType.Ref) { return NULL }
+            if fd.return_own_type.is(OwnType.Ref) { return Option(Expr).None }
             // A raw-memory primitive (Dynamic in its signature) is pure but
             // unsound to fold -- the interpreter can't model the pointer
             // target. See func_sig_has_dynamic.
-            if func_sig_has_dynamic(fdef) { return NULL }
+            if func_sig_has_dynamic(fdef) { return Option(Expr).None }
             // Issue #136 item 1: ext_funcs are foldable too. Built-ins
             // (I64_add etc.) are statically linked and dispatch via
             // ext_function_dispatch; a user .so that wasn't dlopen'd at
@@ -721,7 +722,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     mut fuug_visiting := Set(Str).new()
                     uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, fuug_visiting, ctx)
                     if uses_unknown {
-                        return NULL
+                        return Option(Expr).None
                     }
                 }
             }
@@ -743,7 +744,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         is_container := ret_tname.starts_with("Vec__")
         .or(ret_tname.starts_with("Array__"))
         .or(ret_tname.starts_with("Map__"))
-        if is_container { return NULL }
+        if is_container { return Option(Expr).None }
     }
 
     // Build a call with literal args for the interpreter
@@ -785,10 +786,10 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                             // word raw_to_expr's prim arm expects.
                             scoped_value_raw = scalar_word_load(hb_type(scoped_hb), scoped_raw, ctx)
                         }
-                        mut scoped_lit : Expr = raw_to_expr(scoped_value_raw, hb_type(scoped_hb), arg, ctx)
+                        scoped_lit_o := raw_to_expr(scoped_value_raw, hb_type(scoped_hb), arg, ctx)
                         raw_result_drop(hb_type(scoped_hb), scoped_raw, scoped_is_ref, ctx)
-                        if scoped_lit.is_null().not() {
-                            ec.add_child(own scoped_lit)
+                        if scoped_lit_o.is_some() {
+                            ec.add_child(own Option(Expr).take(own scoped_lit_o))
                             continue
                         }
                     }
@@ -837,7 +838,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                     ": error: macro argument must be known at compile time",
                 )
             }
-            return NULL
+            return Option(Expr).None
         }
         // is_known's contract is an OWNED BLOCK even for prims (NULL is its
         // "not known" sentinel, so a bare word cannot carry it): load the
@@ -846,13 +847,13 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         // prim as an inline word and free nothing).
         mut arg_value_raw : Dynamic = arg_raw
         if raw_type_is_prim(arg.til_type(), ctx) { arg_value_raw = scalar_word_load(arg.til_type(), arg_raw, ctx) }
-        mut arg_lit : Expr = raw_to_expr(arg_value_raw, arg.til_type(), arg, ctx)
+        arg_lit_o := raw_to_expr(arg_value_raw, arg.til_type(), arg, ctx)
         if raw_type_is_prim(arg.til_type(), ctx) { EvalHeap.heap_free(own arg_raw) }
         else { raw_result_drop(arg.til_type(), arg_raw, false, ctx) }
-        if arg_lit.is_null() {
-            return NULL
+        if arg_lit_o.is_none() {
+            return Option(Expr).None
         }
-        ec.add_child(own arg_lit)
+        ec.add_child(own Option(Expr).take(own arg_lit_o))
     }
 
     // Evaluate the call using the interpreter. constfold_active makes a
@@ -877,7 +878,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 ": error: macro aborted (panic/exit) during compile-time evaluation",
             )
         }
-        return NULL
+        return Option(Expr).None
     }
 
     mut can_convert := false
@@ -897,18 +898,19 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
                 ": error: macro returned non-primitive type",
             )
         }
-        return NULL
+        return Option(Expr).None
     }
 
-    mut lit_local : Expr = raw_to_expr(result, fcall.til_type(), fcall, ctx)
+    lit_local_o := raw_to_expr(result, fcall.til_type(), fcall, ctx)
     raw_result_drop(fcall.til_type(), result, false, ctx)
-    if lit_local.is_null() {
-        return NULL
+    if lit_local_o.is_none() {
+        return Option(Expr).None
     }
+    mut lit_local : Expr = Option(Expr).take(own lit_local_o)
     // Preserve aliases such as USize rather than replacing them with the
     // resolved primitive used to decode the raw bytes.
     lit_local.set_til_type(fcall.til_type())
-    return lit_local
+    return Option(Expr).Some(own lit_local)
 }
 
 priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
@@ -1150,8 +1152,9 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
             mut aborted := ctx.eval_aborted
             ctx.eval_aborted = false
             if aborted.not() {
-                mut lit : Expr = raw_to_expr(result, child.til_type(), child, ctx)
-                if lit.is_null().not() {
+                mut lit_o := raw_to_expr(result, child.til_type(), child, ctx)
+                if lit_o.is_some() {
+                    mut lit : Expr = Option(Expr).take(own lit_o)
                     lit.set_til_type(child.til_type())
                     e.children[i] = lit
                     // The variadic fold also replaces a Decl RHS after the
@@ -1287,8 +1290,8 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             if is_macro_call(child, ctx) {
                 // Issue #191: always fold macro calls. Typer already
                 // validated that all args are comptime.
-                mut lit : Expr = try_eval_call(scope, child, true, ctx)
-                if lit.is_null().not() { e.children[i] = lit }
+                lit_o := try_eval_call(scope, child, true, ctx)
+                if lit_o.is_some() { e.children[i] = Option(Expr).take(own lit_o) }
             } else if is_func_call(child, ctx) {
                 // Issue #191: fold func calls when all args are comptime.
                 mut all_comptime := true
@@ -1299,13 +1302,13 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
                     }
                 }
                 if all_comptime.and(result_type_can_fold_to_expr(child.til_type(), ctx)) {
-                    mut lit : Expr = try_fast_fold_call(scope, child, ctx)
-                    if lit.is_null().not() {
-                        e.children[i] = lit
+                    lit_o := try_fast_fold_call(scope, child, ctx)
+                    if lit_o.is_some() {
+                        e.children[i] = Option(Expr).take(own lit_o)
                     } else {
-                        mut lit2 : Expr = try_eval_call(scope, child, false, ctx)
-                        if lit2.is_null().not() {
-                            e.children[i] = lit2
+                        lit2_o := try_eval_call(scope, child, false, ctx)
+                        if lit2_o.is_some() {
+                            e.children[i] = Option(Expr).take(own lit2_o)
                         }
                     }
                 }

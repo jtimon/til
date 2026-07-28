@@ -1575,6 +1575,34 @@ enum_variant_payload_ref := func(enum_def: Expr, idx: I32) returns Bool {
     return false
 }
 
+// #321, stage 1 of the owned-payload niche: is this variant's payload stored
+// in the enum as a POINTER rather than inline? Two different things make it
+// so, and only one of them is about ownership:
+//   - a `ref` payload is a borrowed pointer the enum does not own (#320);
+//   - a NICHE enum's payload IS the whole value, so its slot is a pointer no
+//     matter who owns the pointee.
+// A payload BINDING has to LOAD that pointer either way -- the `deref` wrapper
+// make_payload_ref_decl adds -- so the binding must ask this question, not the
+// ownership one. Today the two coincide exactly: a niche is only ever a `ref`
+// payload, so this returns what enum_variant_payload_ref returns and nothing
+// changes. It exists so the deref gate is already correct when an OWNED
+// aggregate payload becomes niche-eligible, which is the next stage.
+//
+// Sites that really do mean "is this payload borrowed" -- the generated
+// delete and clone skipping a pointee the enum does not own, the ctor param's
+// own_type, the garbager's borrow source -- keep calling
+// enum_variant_payload_ref. Mixing the two up is exactly the bug that made
+// the first attempt at the owned niche read `&self->data` as if it were the
+// payload.
+enum_payload_is_pointer_slot := func(enum_def: Expr, idx: I32) returns Bool {
+    // A payload-less variant has no slot at all. Every caller already skips
+    // those, but the niche arm below would otherwise answer for the wrong
+    // variant of a niche enum.
+    if enum_variant_type(enum_def, idx).len() == 0 { return false }
+    if enum_variant_payload_ref(enum_def, idx) { return true }
+    return enum_is_niche(enum_def)
+}
+
 // #321: does any variant of this enum carry a BORROWED payload? Such an
 // enum hands a borrow out with the value, so a function returning one is
 // as much a borrow source as a `returns ref` function is.

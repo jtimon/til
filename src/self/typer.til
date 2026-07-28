@@ -6385,13 +6385,13 @@ make_closure_delete_call := func(var_name: Str, src: Expr) returns Expr {
     return call
 }
 
-make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Expr {
+make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, call_free: Bool, src: Expr) returns Option(Expr) {
     if type.is_funcptr().or(type.is(Type.Body)) {
-        if call_free.not() { return NULL }
-        return make_closure_delete_call(var_name, src)
+        if call_free.not() { return Option(Expr).None }
+        return Option(Expr).Some(make_closure_delete_call(var_name, src))
     }
     tname := type_to_name(type)
-    if tname.len() == 0 { return NULL }
+    if tname.len() == 0 { return Option(Expr).None }
 
     mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
     call.set_til_type(Type.None)
@@ -6411,7 +6411,7 @@ make_delete_call := func(var_name: Str, shallow type: Type, arg_is_own: Bool, ca
     mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(call_free)), src.line, src.col)
     call.add_child(own cf_lit)
 
-    return call
+    return Option(Expr).Some(own call)
 }
 
 // True when `e` (or any sub-expression) is a struct constructor FCall of the
@@ -7955,9 +7955,13 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mu
     ref enum_def : Expr = enum_def_o.unwrap()
     vt_idx := enum_variant_index(enum_def, variant_name)
     if vt_idx < 0 { return }
-    // A ref payload is a BORROW the enum never owned, so there is nothing to
-    // move and the by-value return must keep copying.
-    if enum_variant_payload_ref(enum_def, vt_idx) { return }
+    // The steal block copies the payload's bytes OUT of the enum and frees
+    // the enum box, so it is only correct for a payload stored INLINE. A
+    // pointer-slot payload is either a borrow the enum never owned (nothing
+    // to move) or -- once the owned niche lands -- the payload box itself,
+    // where freeing the enum would leak the pointee instead of moving it.
+    // Both keep copying; the niche gets its own zero-copy take later.
+    if enum_payload_is_pointer_slot(enum_def, vt_idx) { return }
     payload_type := enum_variant_type(enum_def, vt_idx)
     if payload_type.len() == 0 { return }
     if payload_type != ctx.typer_return_type_name { return }
