@@ -57,38 +57,131 @@
    ~T: Type = ...~ that denotes "the static type inferred from a later
    argument".
 
-*** Findings from the compiler
+*** Compiler map and phase boundary
 
-   The phase boundary is the real problem, not syntax:
+**** Exact code map
 
-   1. ~init_expand_generic_funcs~ runs in ~init_declarations_unit~. It sees an
-      explicit type token, builds ~name__T~, clones/substitutes the body, drops
-      the type-token arguments from the call, and finally removes the generic
-      source declaration because its body cannot type-check while ~T~ is
-      unresolved.
-   2. Operand types are not authoritative until ~infer_fcall_expr~. Locals,
-      chained calls, field accesses, narrowed numeric literals, FuncSig values,
-      and inferred declarations all need the live function/body ~TypeScope~.
-      Reimplementing enough of the typer in init would produce a second,
-      inevitably divergent expression typer.
-   3. Named/default argument alignment is also typer-driven.
-      ~desugar_fcall_args_for_fdef~ fills ~loc = __LOC__~ only after it has the
-      callee's concrete value-parameter list. The generic expander therefore
-      cannot treat ~T~ as an ordinary default: it needs ~T~ before that fill.
-   4. Between init and body typing, the loader expands lazy calls and extends
-      every throwing signature. At the start of a unit's body sweep, the typer
-      also lifts lambdas. A monomorphization created late must receive those
-      same preparations; cloning the original seed-time FuncDef directly in
-      the middle of ~infer_fcall_expr~ would miss them.
-   5. Scope FuncDef entries are raw pointers into AST storage. Appending a
-      synthesized top-level declaration while inference still holds refs into
-      the current AST can invalidate them. Existing lambda/lazy synthesis
-      queues work and flushes it only at a safe boundary, then calls
-      ~init_refresh_seeded_scope_defs~.
+   Read these functions before changing a phase. Do not infer their behavior
+   from names alone:
 
-   This rules out a small default-argument tweak. The implementation needs a
-   type-directed generic-call path integrated with the existing typer and a
-   safe way to add the resulting concrete declaration.
+   - ~src/self/initer.til~ owns direct-generic discovery and init expansion:
+     ~init_func_is_generic~, ~init_seed_declarations_unit~,
+     ~init_expand_generic_funcs~, ~init_generic_walk~,
+     ~generics_lookup_one~, ~init_generic_expand_call~,
+     ~init_type_arg_name~, the ~init_subst_*~ helpers,
+     ~init_substitute_type_params~, ~init_lift_in_body~, and
+     ~init_refresh_seeded_scope_defs~.
+   - ~src/self/context.til~ owns ~Context.generic_funcs~,
+     ~Context.generic_func_synths~, ~TypeBinding~, ~TypeScope.set~,
+     ~TypeScope.get_binding~, ~TypeScope.set_func_def~, and
+     ~TypeScope.lookup_func~.
+   - ~src/self/typer.til~ owns ~infer_fcall_expr~,
+     ~type_binding_is_type_token~, ~infer_and_validate_fcall_args_for_fdef~,
+     ~validate_fcall_arg~, ~validate_fcall_own_args_for_fdef~,
+     ~resolve_fcall_return_type~, ~type_to_name~,
+     ~resolve_type_alias_for_name~, ~infer_ident_expr~,
+     ~infer_field_access_expr~, ~infer_decl_typed_value~,
+     ~infer_decl_untyped_value~, and ~finalize_decl_binding~.
+   - ~src/self/desugarer.til~ owns ~desugar_fcall_args_for_fdef~,
+     ~resolve_default_value~, ~typer_lift_lambdas~,
+     ~typer_lift_lambdas_in_expr~, ~extend_throwing_func_sigs~,
+     ~register_func_throws~, and ~validate_one_fcall_consolidated~.
+   - ~src/self/loader.til~ owns ~type_program_errors~ and the lazy passes:
+     ~expand_lazy_calls_in_program~, ~expand_lazy_thunks_in_program~,
+     ~lazy_thunk_lower_unit~, and ~lazy_flush_pending_decls~.
+   - ~infer_body_unit~ in ~src/self/typer.til~ is the safe late-declaration
+     driver. Its dynamic-length loop can type declarations appended after one
+     top-level ~infer_body_stmt~ has returned and released nested AST refs.
+   - Positive direct-generic coverage is in ~test/first_class.til~. Negative
+     inference diagnostics belong in ~test/typer_errors.til~. Throwing cases
+     belong in ~test/errors.til~. Cross-unit cases need focused fixtures under
+     ~test/imports/~ and registration in ~src/tests.til~.
+
+**** Current phase order
+
+   ~type_program_errors~ currently reaches the relevant phases in this order:
+
+   1. ~init_file~ seeds declarations and calls ~init_declarations_unit~.
+   2. ~init_expand_generic_funcs~ expands explicit calls, recursively expands
+      generic calls in concrete bodies, appends concrete declarations, and
+      removes every generic source declaration. ~init_declarations_unit~ then
+      runs ~init_lift_in_body~, private renaming, and final registration.
+   3. Global initialization, alias retargeting, and binding normalization run.
+   4. Lazy calls and thunks are expanded.
+   5. ~extend_throwing_func_sigs~ extends/registers definitions. Later,
+      ~process_throw_catch_in_func_body~ calls
+      ~validate_one_fcall_consolidated~ and
+      ~inject_err_args_on_one_fcall_consolidated~ to rewrite call sites before
+      ordinary expression inference.
+   6. ~type_check_unit~ lifts lambdas, repeats idempotent throw extension, then
+      ~infer_body_unit~ classifies and types top-level declarations.
+   7. Unused-private checks run, then ~type_file(mode_file, ...)~ types the mode
+      file, scopes are refreshed, and only then do the builder/interpreter
+      consume the concrete AST.
+
+   The required order is therefore: retain prepared generic sources through
+   lazy/throw preparation; skip their unresolved bodies; infer a call while
+   typing its caller; queue a concrete declaration; flush it only after the
+   current top-level statement returns; lift, throw-extend, classify, append,
+   register, and type that declaration; then retire all generic sources before
+   builder/interpreter preparation.
+
+**** Important traps
+
+   1. Init currently accepts any Ident in a ~Type~ slot. Thus
+      ~assert_eq(got, 42)~ is misread as an explicit ~assert_eq__got~ call.
+      Explicit-call recognition must use ~type_binding_is_type_token~ plus a
+      same-unit fixed-point source-name -> canonical-name map for private
+      types/aliases not registered yet before omitted calls can survive to the
+      typer.
+   2. Current monomorph names append raw argument identifiers. They do not use
+      ~init_type_arg_name~, so alias canonicalization must be made common to
+      both explicit and inferred application.
+   3. Operand types are not authoritative until ~infer_fcall_expr~. Locals,
+      calls, fields, numeric literals, and FuncSig values need the live
+      function/body ~TypeScope~; do not duplicate expression typing in init.
+   4. ~desugar_fcall_args_for_fdef~ owns positional/named/default/variadic
+      alignment and call-site ~__LOC__~. Inference must reuse it with a
+      value-only signature, not implement a second argument matcher.
+   5. ~infer_fcall_expr~ rejects all remaining ~ref~ argument bits before it
+      resolves the callee. Delay that rejection for Ident callees until the
+      generic path has had a chance to consume explicit ~ref Type~ arguments.
+   6. Throw call-site lowering precedes ~infer_fcall_expr~. Static throw types
+      can use metadata registered for the retained generic source, but an
+      omitted call to ~throws T~ cannot be safely inferred in the first slice.
+      Detect it before throw output injection, defer that call to the typer,
+      and require explicit type application there. Also recursively expand
+      explicit generic calls in a late concrete body before that body reaches
+      throw lowering.
+   7. ~Context.generic_funcs~ contains seed-time clones made before private
+      mangling, lazy expansion, and throw extension. Late inference must clone
+      the live source from ~TypeScope.lookup_func~, never that stale clone.
+   8. ~Context.generic_func_synths~ is keyed only by monomorphized name.
+      Include declaring path/source identity so two same-named private
+      generics cannot deduplicate to the wrong body.
+   9. AST-backed FuncDef scope entries are raw pointers. Pending storage is
+      stable only until its declaration is moved into the unit. Register the
+      pushed node again and call ~init_refresh_seeded_scope_defs~ after append.
+   10. Late declarations miss ~infer_body_unit~'s initial classification pass.
+       Run ~constfolder_classify_stmt~ on every pending declaration before it
+       enters the dynamic body loop.
+   11. Removing ~Type~ parameters changes ~variadic_index~, ~kwargs_index~,
+       and ownership bitmap positions. Adjust/remap all three explicitly.
+   12. ~TypeBinding~ alone cannot preserve every declared spelling:
+       ~infer_func_def_expr~ and ~infer_func_sig_expr~ normalize return aliases,
+       while struct field ~Declaration.explicit_type~ remains available. A
+       complete provenance task needs both binding provenance and retained
+       source return-type spelling.
+   13. Final retirement must erase generic entries from both
+       ~TypeScope.func_defs~ and ~TypeScope.bindings~ before removing AST
+       declarations. Refreshing pointers does not erase obsolete entries.
+   14. Retained private templates did not previously reach
+       ~init_lift_in_body~ or unused-private checks. Track template use or
+       exempt template sources deliberately so retention does not lift
+       unresolved nested definitions or create false diagnostics.
+
+   These constraints rule out a default-argument tweak. The implementation
+   needs typer-directed inference plus safe late monomorphization.
 
 *** Recommended design
 
@@ -97,36 +190,49 @@
    Split today's init operation into "expand explicit calls" and "retire
    generic sources":
 
-   - Continue expanding calls whose ~Type~-parameter slots contain known type
-     tokens. This keeps all current explicit calls on the proven init path.
+   - Continue expanding calls whose present ~Type~-parameter slots contain
+     bindings accepted by ~type_binding_is_type_token~ or names in a same-unit
+     fixed-point canonical type-name map built before the generic walk. A call
+     that starts with a real type token remains explicit even when a later
+     value argument is missing; normal call validation must report that missing
+     value.
    - Do not mistake a value Ident for a type token. An explicit candidate is
-     valid only when its argument layout matches the full generic signature
-     and every ~Type~ slot is a type binding (or carries explicit ~ref~).
-     Otherwise leave the call for inference.
+     valid only when every present ~Type~ slot is a type binding accepted by
+     the shared predicate. A ~ref~ bit may qualify that accepted type token; it
+     must never make an arbitrary value Ident count as a type token.
    - Keep each source generic declaration in its unit AST through lazy-call
-     expansion, global throw-signature extension, and the body sweep. Teach the
-     normal FuncDef body walk and the initial lambda-lift walk to skip these
-     unresolved template bodies, just as they already skip template macros.
+     expansion, throw processing, all ordinary and mode-file body sweeps, and
+     unused checks. Teach the normal FuncDef body walk and initial lambda-lift
+     walk to skip these unresolved template bodies, just as they already skip
+     template macros. Task 11 extends static-throw sources while permanently
+     excluding type-dependent throw sources from unresolved extension.
    - Record generic source identity separately from a normal concrete FuncDef
      binding, including the declaring path, so local/private and imported
      generics cannot be confused by name alone.
-   - Remove the generic source declarations only after all body typing and
-     unused-private checks have completed. Before removal, verify that no call
-     to a generic source remains. Remove or repoint their scope FuncDef entries
-     and refresh all surviving AST-backed definition pointers.
+   - Remove the generic source declarations only after ordinary body typing,
+     unused-private checks, and ~type_file(mode_file, ...)~ have completed.
+     Before removal, verify that no call to a generic source remains. Erase
+     their ~TypeScope.func_defs~ and ~TypeScope.bindings~ entries, remove their
+     AST declarations, and refresh all surviving AST-backed definition
+     pointers.
 
    Keeping the source alive is important: an inferred monomorphization then
-   clones the already lazy-expanded and throw-extended body, not the stale
-   seed-time copy currently stored in ~ctx.generic_funcs~.
+   clones the live lazy-prepared body (and, for static throws after Task 11,
+   its extended signature), not the stale seed-time copy currently stored in
+   ~ctx.generic_funcs~. Type-dependent throw sources are deliberately not
+   extended while unresolved.
 
 **** Resolve a generic call in the typer
 
-   Add a generic-call check in ~infer_fcall_expr~ after the callee Ident is
-   resolved but before normal FuncDef argument desugaring and before the
-   blanket rejection of leftover ~ref~ argument bits. It handles two shapes:
+   Restructure ~infer_fcall_expr~ so Ident callees resolve before the blanket
+   rejection of leftover ~ref~ argument bits, then run the generic-call check
+   before normal FuncDef argument desugaring. Preserve the current early error
+   for field/non-Ident calls. The generic path handles two shapes:
 
-   - A late explicit call, needed when an inferred monomorphization's body
-     itself contains ~other_generic(I64, value)~.
+   - A late explicit call that survived in a prepared generic source body.
+     Also run the existing recursive explicit expansion on a newly cloned
+     concrete body before queueing it, so explicit dependent-throw calls are
+     concrete before throw call-site lowering.
    - An omitted-type call such as ~assert_eq(got, 42)~ or ~gid(7)~.
 
    For an omitted-type candidate, clone the generic FunctionDef metadata and
@@ -134,7 +240,7 @@
    ~kwargs_index~. Use that value-only signature with the existing
    ~desugar_fcall_args_for_fdef~ so positional/named/default handling stays in
    one implementation. In particular, ~loc = __LOC__~ is materialized here
-   from the original call's path/line/column.
+   from ~ctx.path~ plus the original call's line/column.
 
    Infer every value argument through ordinary ~infer_expr~, then collect
    constraints from formal parameter types. The first implementation should
@@ -149,13 +255,16 @@
 
    Keep inference deterministic and no more permissive than existing calls:
 
-   - ~Dynamic~, ~Unknown~, and ~null~ do not establish a type argument. They
-     may be checked after another operand establishes it.
+   - ~Dynamic~, ~Unknown~, and ~null~ do not establish a type argument. After
+     another operand establishes it, leave their final treatment to ordinary
+     call validation; do not claim a stronger check than current Dynamic
+     semantics provide.
    - A typed non-literal operand is hard evidence. Multiple hard evidence
-     sites for one type parameter must denote the same concrete type. Use the
-     same exact primitive, aggregate-name, and FuncPtrSig comparisons as
-     ~validate_fcall_arg~; do not introduce implicit integer widening (issue
-     #224 already forbids it).
+     sites for one type parameter must denote the same concrete type. Use exact
+     primitive equality, aggregate-name equality, and exact named FuncSig
+     identity. Do not copy permissive call compatibility such as interface
+     conformance, ~USize~ coercion, or wildcard ~funcptr_eq~, and do not add
+     integer widening (issue #224 already forbids it).
    - Numeric literals are soft evidence. If another operand fixes ~T~, validate
      and narrow the literal against that type with ~validate_fcall_arg~. With
      literals only, infer ~F32~ if any literal is fractional/exponent form,
@@ -178,8 +287,13 @@
    - Function calls and fields can recover the declared return/field type from
      their resolved FunctionDef/Declaration.
    - Ident bindings need declared-type provenance for width aliases. Add a
-     small name field to ~TypeBinding~ if necessary and populate it when
-     parameters and typed/inferred declarations are bound.
+     name field to ~TypeBinding~ and populate it when parameters and
+     typed/inferred declarations are bound.
+   - Calls need the source-declared return spelling because
+     ~infer_func_def_expr~ and ~infer_func_sig_expr~ normalize return aliases.
+     Add a source return-type spelling to ~FunctionDef~ and substitute it with
+     the rest of the signature. This new public AST field is an approval gate:
+     do not implement that task until the user explicitly accepts the field.
    - Fall back to ~type_to_name~ for literals and expressions with no retained
      alias spelling, then pass the result through
      ~resolve_type_alias_for_name~. This preserves the existing rule that user
@@ -192,17 +306,46 @@
 
 **** Reuse monomorphization, do not reimplement it
 
+   Introduce a shared ~GenericFuncSource~ record in ~src/self/context.til~
+   containing the borrowed FuncDef cell, declaring path, source name, and
+   privacy. Also expose ~init_func_is_generic~ through that shared layer so
+   initer, desugarer, and typer use one source-classification rule. Local
+   sources get their path from ~ctx.path~; imported sources get it from the
+   resolved ~TypeBinding.path~ rather than from ~Context.generic_funcs~.
    Extract the substitution/name/clone portion of
-   ~init_generic_expand_call~ into shared helpers that accept an ordered map of
-   type-parameter names to concrete type-token Exprs plus the existing
-   ~ref_params~ set. Both init-time explicit expansion and typer-time inferred
-   expansion must call the same code for:
+   ~init_generic_expand_call~ into a shared
+   constructor that accepts this source record, an ordered map of
+   type-parameter names to concrete type-token Exprs, the existing
+   ~ref_params~ set, and the destination Body (init's ~synthesized~ holder or
+   the typer's pending holder).
+
+   The constructor receives a resolved source and never reads
+   ~Context.generic_funcs~ itself. Give recursive expansion two thin source
+   resolvers: init resolves through its local/import seed map; late typing
+   resolves only live retained definitions through ~TypeScope.lookup_func~ and
+   the corresponding binding path.
+
+   Keep call rewriting separate: return the concrete name plus an old-to-new
+   argument-position map from the constructor, then let a call-site helper
+   rewrite ~FCallData~ and its children. Both init-time explicit expansion and
+   typer-time inferred expansion must use these helpers for:
 
    - alias-normalized monomorphization names;
    - dropping ~Type~ parameters from the concrete FunctionDef;
+   - adjusting ~variadic_index~ and ~kwargs_index~ after removals;
+   - remapping call ~own_args~ and consumed ~ref~ bits through the returned
+     argument-position map;
    - ~init_substitute_type_params~ over signatures, defaults, throws, and body;
    - ownership/ref substitutions;
-   - ~ctx.generic_func_synths~ cross-unit deduplication.
+   - source-path-aware ~ctx.generic_func_synths~ cross-unit deduplication;
+   - source privacy/path handling for concrete declarations;
+   - recursive explicit-call expansion exactly once in each concrete body,
+     with nested concrete declarations written to the same destination Body.
+
+   During init, a private concrete declaration keeps ~is_priv~ and its raw
+   source name so the existing private-renaming pass mangles it once. During
+   late inference, start from the already-resolved/mangled source name and do
+   not run private mangling a second time.
 
    This guarantees that ~assert_eq(I32, a, b)~ and ~assert_eq(a, b)~ select the
    same concrete declaration whenever they infer the same name-forming type.
@@ -210,31 +353,40 @@
 **** Queue and type concrete declarations safely
 
    Give ~Context~ a per-unit pending holder of synthesized generic Decl Exprs.
-   A Decl wrapper owns its FuncDef child, so the scope can register the child
-   immediately against stable pending AST storage. After rewriting the call's
-   callee to ~name__T~, let the existing user-call path run unchanged:
-   argument/default validation, ownership checks, return-type resolution,
-   proc restrictions, import-use tracking, and backend-visible type stamps all
-   come from the registered concrete FunctionDef.
+   A Decl wrapper owns its FuncDef child, so expose and call the existing
+   ~register_function_def_for_stmt~ while that child is in stable pending AST
+   storage; this creates both the full binding metadata and ~func_defs~ entry.
+   After rewriting the call's callee to ~name__T~, let the existing concrete
+   call path perform argument/default validation, ownership checks, return-type
+   resolution, proc restrictions, import-use tracking, and backend-visible type
+   stamping from the registered concrete FunctionDef.
 
    Flush pending declarations only after ~infer_body_stmt~ returns to the
    top-level unit loop, where no refs into the current statement remain:
 
    1. Run lambda lifting on the concrete pending bodies, using a unit/context
       counter rather than restarting at ~_lambda_0~.
-   2. Move the pending Decl nodes onto the current unit AST.
-   3. Re-register/refresh scope FuncDef pointers after the append.
-   4. Let ~infer_body_unit~'s existing dynamic-length loop type the appended
+   2. Extend/register static throw metadata for each concrete declaration.
+   3. Run ~constfolder_classify_stmt~ for every pending declaration.
+   4. Record the destination unit's starting child index, then call
+      ~destination.take_children(pending)~ once; it appends every child and
+      empties pending. The old pending registrations become invalid at that
+      move.
+   5. Re-run ~register_function_def_for_stmt~ on each appended AST node by
+      destination index, then
+      call ~init_refresh_seeded_scope_defs~ after the batch.
+   6. Let ~infer_body_unit~'s existing dynamic-length loop type the appended
       functions. Any inferred generic calls in those bodies queue another
       batch, giving a natural fixpoint for generic composition.
 
-   The cloned source has already passed global lazy expansion and throw
-   signature extension. Register the concrete throw metadata under the
-   monomorphized name before its body is typed. A generic whose declared throw
-   type itself depends on ~T~ needs a focused test; if the current pre-typing
-   throw lowering cannot substitute it correctly, require explicit type args
-   for that case in the first slice rather than silently lowering the wrong
-   error payload.
+   The live source has already passed lazy expansion. A static throw type can
+   be registered under both source and monomorphized names so the original
+   caller is lowered before inference and the concrete body is lowered later.
+   A throw type that names ~T~ cannot: unresolved error-output names and caller
+   slots are created before inference. Detect that source in
+   ~validate_one_fcall_consolidated~, defer that call without adding error
+   outputs or generic throw diagnostics, and let ~infer_fcall_expr~ emit the
+   single focused error requiring explicit type application.
 
    No builder/interpreter special case is needed. Both backends continue to
    receive only ordinary concrete calls and concrete FuncDefs.
@@ -263,25 +415,569 @@
      Keep explicit init expansion and share only the concrete-instantiation
      helper.
 
-*** Implementation sequence
+*** Handoff protocol
 
-   1. Refactor the current generic source lookup, explicit-call matching, type
-      substitution, monomorphization naming, and concrete FuncDef construction
-      into reusable helpers with no behavior change.
-   2. Retain source generic declarations through pre-type preparation; skip
-      their unresolved bodies in the ordinary typer/lambda walk; add the final
-      no-unresolved-calls check and source-retirement pass.
-   3. Add value-only argument matching plus direct type-parameter constraint
-      collection/unification in ~infer_fcall_expr~.
-   4. Add the pending declaration holder, immediate concrete registration,
-      safe unit-loop flush, lambda-counter continuation, and recursive
-      composition handling.
-   5. Add type-name provenance/canonicalization tests, especially ~USize~ /
-      ~UPtr~, aliases, structs/enums, and FuncSig values.
-   6. Once the language tests pass, change representative core/test calls to
-      the inferred form. A later mechanical migration may remove redundant
-      explicit arguments repository-wide; retain explicit arguments where
-      they document a real ambiguity or select ~ref Type~.
+   The tasks below are ordered checkpoints, not independent alternatives. A
+   later task may assume every earlier task is complete. Keep all work in the
+   same issue worktree. Intermediate checkpoint commits are acceptable for
+   handoff, but squash them into one feature commit before integration unless
+   an actual bootstrap failure proves that a staged master migration is needed.
+   Tasks 1-5 are preparation with no intended new call syntax; Task 6 is the
+   first user-visible inference slice; Tasks 7-12 close semantic edge cases;
+   Task 13 verifies, squashes, and closes the issue.
+
+   For every task:
+
+   1. Read the named functions before editing. Do not add a parallel helper
+      until the existing helper's contract is understood.
+   2. Make only that task's changes and tests. Do not migrate unrelated generic
+      call sites while changing compiler phases.
+   3. Run the focused test named by the task. Once ~bin/til~ exists,
+      ~bin/test_runner both test/first_class.til~ runs that file in interpret
+      and compile modes. Negative typer tests run through
+      ~bin/til interpret test/typer_errors.til~ and require updating the exact
+      error count in ~src/tests.til~.
+   4. Before any commit containing til source, use the build workflow and run
+      ~systemd-run --user --scope -p MemoryMax=64G make clean && make test~.
+      Never edit ~boot/~ manually.
+   5. Record completed checkpoints by changing their ~[ ]~ to ~[X]~. When
+      implementation begins, change this issue's title from OPEN to WIP.
+   6. Stop on an invariant failure. Do not add null guards, fallback types, or
+      silent skips to make the next phase run.
+
+**** [ ] Task 1: distinguish explicit type tokens from value identifiers
+
+   Goal: omitted calls must survive init unchanged instead of becoming a bogus
+   monomorphization such as ~assert_eq__got~.
+
+   Touch: ~init_generic_walk~ and ~init_generic_expand_call~ in
+   ~src/self/initer.til~, ~type_binding_is_type_token~ in
+   ~src/self/typer.til~, and its shared destination ~src/self/context.til~.
+
+   Steps:
+
+   1. Move ~type_binding_is_type_token~ from typer to ~context.til~, which both
+      typer and initer already import. Keep one binding-based implementation;
+      do not maintain typer and initer copies.
+   2. Before ~init_generic_walk~, seed a same-unit
+      ~local_type_token_names: Map(Str, Str)~ from top-level structs, enums, and
+      bodyless FuncSig FuncDefs. Map public names to themselves and private
+      names to ~priv_c_name(ctx.path, source_name)~, matching the later private
+      pass and preventing cross-unit collisions.
+   3. Iterate alias-shaped ~Alias := Ident~ declarations to a fixed point. Add
+      Alias only when its target already has a canonical map entry or its
+      binding is accepted by ~type_binding_is_type_token~; map it to the
+      target's canonical name. Never classify every Ident RHS as a type alias,
+      because value aliases have the same syntax.
+   4. Add an init helper that returns ~Option(Str)~ canonical spelling from
+      either the shared binding predicate/~init_type_arg_name~ or this map.
+      Use that returned spelling for substitution, monomorph naming, and dedup,
+      not merely as a Bool token check.
+   5. For every present formal parameter whose type is ~Type~, require that
+      wrapper to accept the argument Ident. Preserve explicit ~ref Type~.
+   6. If the first argument is a value Ident or literal, leave the whole call
+      untouched for late inference.
+   7. Once any expected ~Type~ slot contains a real type token, classify the
+      call as explicit. A missing or invalid later ~Type~ slot, or a missing
+      value argument, stays on the explicit-error path; never reinterpret a
+      mixed call such as ~f(I64, 1, true)~ as fully omitted application.
+
+   Verify: existing explicit cases ~test_generic_func_compose~,
+   ~test_generic_func_ref_type_arg~, and ~test_generic_func_swap~ in
+   ~test/first_class.til~ still pass. Add an ad-hoc omitted Ident call under
+   ~tmp/issue328_task1.til~ and run
+   ~bin/til interpret tmp/issue328_task1.til > tmp/issue328_task1.log 2>&1~;
+   failure is expected at this checkpoint, but the log must not contain a
+   concrete name formed from the value binding. Do not commit the ad-hoc file.
+   Add explicit private struct, enum, alias, and FuncSig type arguments to
+   ~test_generic_func_type_tokens~ in ~test/first_class.til~.
+
+   Do not implement inference or change call diagnostics in this task.
+
+**** [ ] Task 2: extract one concrete-instantiation path
+
+   Goal: init-time explicit and typer-time inferred calls must build exactly
+   the same concrete declaration and name.
+
+   Touch: ~GenericFuncSource~ and shared generic classification in
+   ~src/self/context.til~; ~init_generic_expand_call~, ~init_type_arg_name~,
+   the ~init_subst_*~ helpers, and ~Context.generic_func_synths~.
+
+   Steps:
+
+   1. Move/expose ~init_func_is_generic~ as the shared generic-source predicate
+      in ~context.til~, then add the shared ~GenericFuncSource~ record described
+      above. Populate local path from ~ctx.path~ and imported path from the
+      resolved ~TypeBinding.path~.
+   2. Extract a constructor that accepts that source, an ordered
+      type-parameter -> type-token map, explicit ~ref_params~, and a destination
+      Body. Return the concrete name and old-to-new argument-position map.
+   3. Have it canonicalize every name through ~init_type_arg_name~, clone the
+      FuncDef, remove ~Type~ parameters, substitute the signature/defaults/
+      throws/body, construct the concrete Decl, and return its concrete name.
+   4. When removing a ~Type~ parameter, decrement ~variadic_index~ and
+      ~kwargs_index~ when the removed position precedes them. Remap ~own_args~
+      and consumed ~ref~ bits only in the separate call-rewrite helper using
+      the returned position map.
+   5. Key deduplication by declaring path plus concrete name, not concrete name
+      alone. During init, copy source ~is_priv~ to the raw concrete Decl and let
+      the existing later private pass mangle it once. During late inference,
+      append type segments to the already-resolved/mangled source name and do
+      not invoke private mangling again.
+   6. Preserve the current recursive explicit expansion inside the cloned
+      concrete body exactly once and route nested declarations to the supplied
+      destination Body.
+   7. Keep two resolver wrappers around that recursive walk: init may resolve
+      through its local/import seed map; late typing must resolve only retained
+      live FuncDefs through ~TypeScope.lookup_func~.
+   8. Route the old explicit path through these helpers and remove the duplicate
+      clone/substitute/name logic.
+
+   Verify: add ~test_generic_func_canonical_name~ and
+   ~test_generic_func_type_param_layout~ to ~test/first_class.til~. The first
+   instantiates one generic through a user alias and its canonical primitive;
+   translation must contain one canonical implementation. The second puts a
+   leading ~Type~ parameter before variadic/kwargs parameters and proves
+   argument alignment remains correct. Run
+   ~bin/test_runner both test/first_class.til~, then
+   ~bin/til translate -c tmp/issue328_task2.c test/first_class.til~ and inspect
+   definitions for one canonical implementation rather than counting calls.
+
+   Do not add omitted calls yet.
+
+**** [ ] Task 3: retain, skip, and retire generic source declarations
+
+   Goal: keep a prepared live source available through body typing without ever
+   typing or emitting its unresolved ~T~ body.
+
+   Touch: ~init_expand_generic_funcs~, ~init_lift_in_body~,
+   ~typer_lift_lambdas_in_expr~, ~infer_decl_stmt~, unused-private accounting,
+   ~type_program_errors~, and ~init_refresh_seeded_scope_defs~.
+
+   Steps:
+
+   1. Stop removing source declarations at the end of
+      ~init_expand_generic_funcs~. Continue appending explicit concrete
+      declarations exactly as before.
+   2. At ~init_lift_in_body~'s caller in ~init_declarations_unit~, inspect the
+      owning top-level FuncDef and do not call the Body-only helper for a
+      direct-generic source. Also skip those sources in the initial lambda walk
+      and normal FuncDef body inference. Do not skip a concrete FuncDef after
+      its ~Type~ parameters have been removed. Task 4 runs the nested-definition
+      lift on substituted pending concrete bodies.
+   3. Until Task 11 installs generic throw metadata, skip retained source
+      templates themselves in global throw-signature extension; explicit
+      concrete declarations still take the ordinary throw path.
+   4. Before rewriting any explicit or inferred call, credit import use,
+      privacy access, and usedness to the generic source binding. Track source
+      use by instantiation, or deliberately exempt source templates from
+      unused-private checks. The caller-local concrete binding cannot replace
+      this source accounting.
+   5. Add a final retirement routine in ~type_program_errors~ after ordinary
+      body typing, unused-private checks, and ~type_file(mode_file, ...)~, but
+      before the final all-unit scope refresh and backend preparation. It
+      erases the source name from ~TypeScope.func_defs~ and
+      ~TypeScope.bindings~, removes the source AST declaration, and refreshes
+      all surviving AST-backed pointers.
+
+   Verify: all existing explicit generic tests pass in both modes. Run
+   ~bin/til translate -c tmp/issue328_task3.c test/first_class.til~; output must
+   contain concrete names but no bare generic source definition.
+
+   Do not clone ~Context.generic_funcs~ during late work; it is stale seed-time
+   storage.
+
+**** [ ] Task 4: add an empty late-declaration queue and safe flush
+
+   Goal: establish pointer-safe plumbing before inference starts producing
+   declarations.
+
+   Touch: ~Context~, ~type_check_unit~, ~infer_body_unit~,
+   ~typer_lift_lambdas~, ~constfolder_classify_stmt~, and
+   ~init_refresh_seeded_scope_defs~.
+
+   Steps:
+
+   1. Add a per-unit pending Body/Decl holder to ~Context~ and reset it at
+      ~type_check_unit~ entry. Assert it is empty at unit exit.
+   2. Move the lambda naming counter from per-call reset behavior to a monotonic
+      unit/context counter that both initial and late lambda lifting share.
+   3. Expose ~register_function_def_for_stmt~ from ~src/self/initer.til~ and use
+      it against ~ctx.scope~ (never the caller's nested body scope) to register
+      a pending Decl while its child address is stable. Do not approximate this
+      with only ~TypeScope.set_func_def~.
+   4. Expose the existing ~init_lift_in_body~ through ~initer.til~. Immediately
+      after one top-level ~infer_body_stmt~ returns, flush pending declarations:
+      run that lift on substituted concrete Bodies with its actual
+      ~Vec(Expr)~ output. Move lifted FuncDef declarations into the pending Body
+      before lambda lifting, static-throw extension, and classification. A
+      lifted StructDef/EnumDef is an invariant failure here: Task 6 rejects
+      omitted instantiation of such a source before queueing because late type
+      definitions need the full init/layout/generated-method pipeline.
+   5. Move once: record the destination unit's starting child index and call
+      ~destination.take_children(pending)~. That operation appends every child
+      and empties pending; do not perform a second per-declaration move.
+   6. Re-run ~register_function_def_for_stmt~ against ~ctx.scope~ for every
+      pushed node by destination index, clear pending storage, refresh
+      AST-backed pointers, and assert that
+      ~ctx.scope.lookup_func(name).unwrap().ptr_eq(pushed_funcdef)~.
+   7. Rely on ~infer_body_unit~'s existing dynamic-length loop to visit appended
+      declarations. Do not append while nested inference still holds refs.
+
+   Verify: with the queue still empty, ~test/first_class.til~ and ~test/lazy.til~
+   produce unchanged behavior and lambda names do not collide.
+
+**** [ ] Task 5: retain canonical type-name provenance
+
+   Goal: inference needs both semantic type equality and a stable spelling for
+   monomorph names, especially ~USize~, ~UPtr~, aliases, and call results.
+
+   Approval gate: adding source spelling to ~FunctionDef~ changes the public
+   AST surface. Obtain explicit user approval before implementing this task.
+
+   Touch: ~FunctionDef~ in ~src/core/ast.til~; ~TypeBinding~ in
+   ~src/self/context.til~; parameter/local binding in
+   ~infer_func_def_expr~, ~infer_decl_typed_value~,
+   ~infer_decl_untyped_value~, and ~finalize_decl_binding~;
+   ~parse_func_def~ and ~parse_fn_signature~ in ~src/self/parser.til~;
+   ~infer_func_sig_expr~ and ~init_subst_func_params~; expression inference for
+   identifiers, fields, and calls.
+
+   Steps:
+
+   1. Append ~declared_type_name := ""~ at the end of ~TypeBinding~ (before its
+      namespace) and fill it before alias normalization for typed parameters
+      and locals. Propagate RHS provenance to inferred locals when one exists.
+   2. Append ~source_return_type := ""~ at the end of ~FunctionDef~ (before its
+      namespace), preserving existing field order for bootstrap layout.
+      Initialize ~return_type~ and ~source_return_type~ together in
+      ~parse_func_def~ and ~parse_fn_signature~, and substitute both in
+      ~init_subst_func_params~.
+   3. Copy ~source_return_type~ anywhere a FuncSig signature is applied to a
+      concrete function, especially ~register_function_def_for_stmt~ in
+      ~src/self/initer.til~ and ~infer_decl_stmt~ in ~src/self/typer.til~.
+   4. Search every compiler-side assignment to ~FunctionDef.return_type~ and
+      set ~source_return_type~ with it when a declared spelling exists. Include
+      synthesized lazy helpers in ~src/self/loader.til~; parser-only
+      initialization is insufficient for inferred call-result provenance.
+   5. Add one expression helper. Check Ident binding provenance, field
+      ~Declaration.explicit_type~, resolved FunctionDef source return spelling,
+      and named aggregate/enum/FuncSig payloads; only then fall back to
+      ~type_to_name~.
+   6. Pass the selected spelling through ~resolve_type_alias_for_name~ so user
+      aliases canonicalize while ~USize~/~UPtr~ remain target-independent.
+   7. Keep evidence equality separate from spelling choice. The first typed
+      non-literal spelling wins; a literal never replaces it.
+
+   Verify later through Task 6 calls using typed aliases, ~USize~, ~UPtr~,
+   struct/enum values, field access, free/chained calls, and named FuncSig
+   values. At this checkpoint, run the existing suite to prove metadata alone
+   changes no behavior.
+
+   Do not add a parallel Context registry for return spellings; that would be a
+   second source of truth.
+
+**** [ ] Task 6: infer direct hard evidence and queue one concrete function
+
+   Goal: make the smallest useful omitted call work: a direct type parameter
+   constrained by a typed, non-literal value.
+
+   Touch: ~infer_fcall_expr~, ~desugar_fcall_args_for_fdef~,
+   ~infer_expr~, the shared Task 2 helper, and the Task 4 queue.
+
+   Steps:
+
+   1. For Ident callees, delay blanket ~ref~ rejection until the binding is
+      resolved and the generic path has run. Preserve current handling for
+      field/non-Ident callees.
+   2. Resolve the generic source through ~TypeScope.lookup_func~. Never use the
+      seed clone in ~Context.generic_funcs~. Before rewriting, credit source
+      import/privacy/usedness against its original ~TypeBinding~.
+   3. Before any call-child reorder/replacement, end the existing
+      ~ref mut callee~ borrow into ~e.children~. Reacquire children by index
+      after mutation; do not hold a Vec element ref across desugaring.
+   4. Before mutating dedup state or queueing anything, walk the complete live
+      generic-source closure reachable from this source's generic call callees,
+      resolving each through the Task 2 late resolver and guarding cycles by
+      declaring path/name. If any reachable source body contains a nested
+      StructDef/EnumDef declaration, emit one focused diagnostic requiring
+      explicit type application and return through the existing error path.
+      This transitive preflight covers dependent explicit calls that become
+      concrete only after substitution. The explicit init path keeps supporting
+      them because it runs the complete declaration pipeline.
+   5. Build a temporary value-only FunctionDef by removing ~Type~ parameters
+      and adjusting variadic/kwargs indices and ownership positions.
+   6. Run ~desugar_fcall_args_for_fdef~ exactly once on the real call against
+      that value-only shape, then infer all aligned value expressions through
+      ordinary ~infer_expr~. Set a local ~args_already_desugared~ flag so the
+      concrete continuation skips ~desugar_user_func_fcall_args~ instead of
+      desugaring the reordered/default-filled call twice. Check the helper's
+      Bool result; on false, stamp the existing error type and return.
+   7. Collect evidence only when a formal's explicit type is exactly a generic
+      type-parameter name (~v: T~, ~own v: T~, or ~values: ..T~).
+   8. Ignore ~Dynamic~, ~Unknown~, ~null~, and numeric literals for this task.
+      Require exact equality between multiple hard evidence sites.
+   9. If evidence is missing/conflicting, emit the basic focused diagnostic,
+      stamp the call through the existing ~Type.Unknown~ error path, and return
+      from ~infer_fcall_expr~ before ordinary desugaring sees the unresolved
+      full generic signature. Task 7 refines conflict/literal reasons.
+   10. Instantiate with the Task 2 constructor, put the concrete Decl in stable
+      pending storage, register that stable child, rewrite the callee, and then
+      re-resolve the concrete name, ~callee_bind_o~, and FuncDef. Continue
+      with ~infer_and_validate_fcall_args_for_fdef~ using those new values;
+      unlike the wrapper, this preserves type-arg rewrites, Dynamic narrowing,
+      mut/write tracking, variadic Str conversion, and interface boxing without
+      inferring every argument again. Then call
+      ~validate_fcall_own_args_for_fdef~. Do not call the reinferring
+      ~infer_and_validate_fcall_args~ wrapper or bypass the for-FuncDef helper
+      with a raw ~validate_fcall_arg~ loop.
+   11. The Task 2 full-signature position map is for explicit calls. This
+       omitted call is already value-only after desugaring: rewrite only its
+       callee and preserve the aligned value/ownership positions as-is.
+
+   Verify: add ~test_generic_infer_hard_evidence~ to ~test/first_class.til~
+   with typed I64, struct, enum, field, call result, and named FuncSig operands.
+   Add ~gid(typed_value)~ before literal-only ~gid(7)~. Add one return-only case
+   and one generic-with-local-StructDef case to ~test/typer_errors.til~; each
+   requires one focused explicit-application error. Run the first-class focused
+   test and the negative command from the handoff protocol.
+
+   Do not infer nested occurrences such as ~Vec__T~, expected return types, or
+   generic sources that declare local structs/enums; their existing explicit
+   application remains valid.
+
+**** [ ] Task 7: add literal evidence and stable diagnostics
+
+   Goal: support the common ~assert_eq(typed_value, literal)~ and
+   literal-only ~gid(7)~ cases without integer widening.
+
+   Touch: the new constraint collector, ~LiteralNumData.is_float~,
+   ~validate_fcall_arg~, ~literal_in_range~, ~test/first_class.til~, and
+   ~test/typer_errors.til~.
+
+   Steps:
+
+   1. Treat numeric literals as soft evidence even after
+      ~infer_literal_expr~ stamps a provisional type.
+   2. If hard evidence exists, instantiate from it and let ordinary
+      ~validate_fcall_arg~ narrow/range-check the literal.
+   3. With only numeric literals, choose ~F32~ if any literal uses fractional
+      or exponent form; otherwise choose ~I64~.
+   4. Treat Str and Bool literals as fixed hard evidence.
+   5. Record source locations for hard evidence. Refine Task 6's basic failure
+      into one conflict diagnostic
+      naming the type parameter and both concrete types/sites.
+   6. Refine the cannot-infer diagnostic for Dynamic-only, null-only, and
+      nested-only evidence, asking for explicit application. Keep Task 6's
+      early return so no undefined-concrete-name cascade follows.
+
+   Verify: add ~test_generic_infer_literals~ to ~test/first_class.til~ for
+   integer-only, float/exponent, typed I32 plus in-range literal, Str, and Bool.
+   Add labeled cases to ~test/typer_errors.til~ for out-of-range literals,
+   conflicting I32/Bool, Dynamic/null-only, and ~Vec(T)~-only evidence. Update
+   the exact typer error count once. Make the nested-only fixture otherwise
+   recognizable by ~init_func_is_generic~, for example
+   ~nested_only(T: Type, v: Vec(T)) returns T~.
+
+   Do not use interface conformance, wildcard FuncPtr compatibility, runtime
+   widening, or arithmetic unification as evidence equality.
+
+**** [ ] Task 8: preserve named/default/variadic arguments and composition
+
+   Goal: inferred application must use the same call-shape semantics as an
+   explicit call and reach a fixpoint through generated bodies.
+
+   Touch: value-only signature construction, ~resolve_default_value~,
+   the Task 2 constructor/rewrite helpers, and ~infer_body_unit~'s pending
+   flush.
+
+   Steps:
+
+   1. Preserve ~ctx.path~ plus the original call's line/column while desugaring
+      so ~__LOC__~ defaults point to the caller; Expr has no path field.
+   2. Prove positional and named values align after every removed ~Type~ slot.
+   3. Map every effective variadic argument back to its direct ~..T~ formal.
+   4. Handle any explicit call that genuinely survives prepared-source cloning
+      through the same Task 2 helpers. Do not rerun whole-body recursive
+      expansion during flush: the Task 2 constructor owns that recursion and
+      writes nested declarations to the pending destination exactly once.
+   5. Let a concrete body queue another concrete declaration. Flush one batch
+      at a time until the dynamic body loop naturally reaches a fixpoint.
+
+   Verify: add ~test_generic_infer_call_shapes~ to ~test/first_class.til~ with
+   omitted ~assert_eq~ using default location, explicit named ~loc~, direct
+   ~..T~, ~gid58g_compose(v)~, and two generic levels requiring two pending
+   batches.
+
+   Do not add named ~Type~ arguments or angle-generic/macro inference.
+
+**** [ ] Task 9: preserve ownership and explicit ref application
+
+   Goal: inference changes type application only; all existing ownership rules
+   remain authoritative.
+
+   Touch: call argument bitmap remapping, ~validate_fcall_own_args_for_fdef~,
+   explicit ~ref Type~ handling, and ownership tests.
+
+   Steps:
+
+   1. Preserve/remap ~own_args~ through value-only desugaring and call rewrite.
+   2. Leave ~own~/~mut~ transfer and write-through validation to the ordinary
+      concrete call path.
+   3. Continue accepting explicit ~ref Type~ through init and the late-explicit
+      path. Omitted inference must never invent a ref-qualified substitution.
+   4. After generic resolution, reject any remaining ~ref~ bit with the current
+      hard error.
+
+   Verify: add ~test_generic_infer_ownership~ to ~test/first_class.til~ for
+   inferred swap and a direct generic with ~own v: T~; add missing/extra-own
+   diagnostics to ~test/typer_errors.til~; keep existing
+   ~gpick_ref(ref OptQBlob, src)~ coverage. An omitted call selects only the
+   ordinary owned ~T~ substitution; selecting the borrowed monomorph remains
+   an explicit ~ref Type~ operation and is not inferred from destination
+   context.
+
+**** [ ] Task 10: prove live-source lambda and lazy preparation
+
+   Goal: late concrete bodies must clone the fully prepared source, not stale
+   seed-time syntax.
+
+   Touch: source lookup, pending lambda lifting, and lazy generic tests.
+
+   Steps:
+
+   1. Make the late constructor accept only the FuncDef returned by
+      ~TypeScope.lookup_func~; remove any late call site that reads
+      ~Context.generic_funcs~ so the invariant follows from the API.
+   2. Keep retained source bodies out of the initial lambda walk, then lift
+      lambdas in each pending concrete body before append.
+   3. Do not rerun lazy expansion during inference; the retained live source
+      has already passed ~expand_lazy_calls_in_program~ and thunk lowering.
+   4. Translate focused fixtures and inspect the concrete generated functions,
+      rather than adding a fallback pass in the builder.
+
+   Verify: add ~test_generic_infer_lambda~ to ~test/first_class.til~ with a
+   non-capturing lambda using ~T~. Add ~test_generic_infer_lazy_inline~ and
+   ~test_generic_infer_lazy_thunk~ to ~test/lazy.til~. Run both focused files,
+   then run
+   ~bin/til translate -c tmp/issue328_first_class.c test/first_class.til~ and
+   inspect the inferred concrete function for lifted lambda calls rather than
+   an inline lambda node.
+
+   Capturing closure support beyond current behavior remains out of scope.
+
+**** [ ] Task 11: enforce the throwing-generic boundary
+
+   Goal: static throws work with omitted type application; type-dependent
+   throws fail early and loudly instead of creating unresolved error slots.
+
+   Touch: ~extend_throwing_func_sigs~, ~register_func_throws~,
+   ~validate_one_fcall_consolidated~, pending flush, and ~test/errors.til~.
+
+   Steps:
+
+   1. For a retained generic with a static throw type, register source-name
+      metadata early enough for its caller's pre-inference throw lowering.
+   2. Extend/register each pending concrete declaration under its monomorphized
+      name before its own body reaches throw lowering.
+   3. Detect any throw name changed by type substitution: both a direct type
+      parameter such as ~throws T~ and an embedded generated name such as
+      ~throws Err__T~. Do not append unresolved error outputs or caller slots
+      for that source.
+   4. In ~validate_one_fcall_consolidated~, run this omitted-dependent-throw
+      check before existing bang-left and "function does not throw" checks.
+      Return without injecting outputs or emitting a throw diagnostic; this is
+      an intentional deferral to the generic typer, not recovery.
+   5. In ~infer_fcall_expr~, recognize the same dependent-throw source, emit the
+      one focused cannot-infer diagnostic requiring explicit type arguments,
+      stamp the ordinary error type, and return before concrete desugaring.
+   6. Ensure recursive explicit expansion concretizes explicit dependent-throw
+      calls inside a late body before throw validation sees that body.
+
+   Verify: add ~test_generic_infer_static_throw~ to ~test/errors.til~ with both
+   success and throwing paths. Keep an explicit generic ~throws T~ positive
+   case there. Add a labeled omitted ~throws T~ case to
+   ~test/typer_errors.til~, plus an omitted generated ~throws Err__T~ case, and
+   require exactly one error for each.
+
+   Do not move the global throw pass or silently substitute a default payload.
+
+**** [ ] Task 12: prove retirement, cross-unit dedup, and private isolation
+
+   Goal: successful compilation leaves only concrete declarations, with no
+   cross-unit body collision or stale generic binding.
+
+   Touch: source identity keys, private mangling, final unresolved-call scan,
+   retirement, ~test/imports/~ fixtures, and ~src/tests.til~.
+
+   Steps:
+
+   1. Before retirement, and only when no prior type errors exist, scan all
+      non-template bodies for a call still bound to a generic source. Emit one
+      hard error instead of letting it reach a backend. Enter each unit's path
+      while scanning and add the resulting ~ctx.errors~ delta to ~type_errors~;
+      this pass runs after the normal ~type_file~ return counts and cannot rely
+      on them to collect new errors. Skipping the invariant scan after an
+      earlier diagnostic prevents duplicate errors for intentionally rejected
+      calls whose callee remains generic and whose result is ~Type.Unknown~.
+   2. Skip source template bodies during this scan.
+   3. Remove source entries from bindings and FuncDefs. Remove source-name
+      metadata from ~constfolder_foldables~ or ~throws_global~ only when it
+      would affect a later lookup; those registries store values, not AST
+      pointers.
+   4. Add ~test/generic_infer_imports.til~ and register it with ~add_both~ in
+      ~src/tests.til~. Add ~test/imports/generic_infer_public.til~, exporting
+      ~generic_public_id~ plus ~generic_public_explicit_wrapper~ that performs
+      the explicit call inside that imported unit. Make the top-level test use
+      the wrapper and make an inferred call itself; require one concrete
+      declaration across the two units.
+   5. Add ~test/imports/generic_infer_private_a.til~ and
+      ~generic_infer_private_b.til~. Each defines a private
+      ~same_private_generic~ with deliberately different behavior and exports
+      ~private_a_apply~ / ~private_b_apply~ wrappers, so wrong deduplication is
+      visible in output values as well as names.
+   6. Confirm the concrete declaration lives in exactly one unit. Keep the
+      executable flush invariant from Task 4:
+      ~lookup_func(name).unwrap().ptr_eq(appended_funcdef)~ after every append,
+      instead of relying on visual pointer inspection.
+
+   Verify with ~bin/test_runner both test/generic_infer_imports.til~, then run
+   ~bin/til translate -c tmp/issue328_imports.c test/generic_infer_imports.til~.
+   Inspect definitions (not call occurrences): one
+   ~generic_public_id__I64~, no bare generic source definition, and distinct
+   path-mangled private definitions. Name the top-level checks
+   ~test_generic_infer_cross_unit_dedup~ and
+   ~test_generic_infer_private_isolation~.
+
+   REPL cross-turn persistence is explicitly out of scope; batch retirement
+   does not make stale seed clones a valid later-turn source.
+
+**** [ ] Task 13: finish acceptance, bootstrap safely, and close the issue
+
+   Goal: complete the language feature without making the old bootstrap
+   compiler parse source calls it cannot yet understand.
+
+   Steps:
+
+   1. Cover every Acceptance item below in ~test/first_class.til~,
+      ~test/typer_errors.til~, ~test/errors.til~, and focused import fixtures.
+   2. Convert representative test assertion calls only. Do not put omitted
+      generic calls in ~src/**/*.til~ in this feature commit: old ~til_boot~
+      must still compile compiler/core source during pass 1.
+   3. Run the full required clean suite. Confirm builder and interpreter need
+      no generic-specific branch and receive only concrete calls/FuncDefs.
+   4. Mark every task [X], move this issue to ~issues/fixed/328.org~, change WIP
+      to FIXED, and add the required root-cause/change/regression post-mortem in
+      the same final feature commit.
+   5. Squash implementation checkpoints into one feature commit unless an
+      observed pass-1 error proves a documented bootstrap boundary.
+   6. Only after that feature commit is on master may a later commit migrate
+      redundant explicit generic calls in ~src/**/*.til~. A two-pass commit
+      cannot replace this master boundary because pass 1 must parse the source.
+
+   A repository-wide call-site migration, collection-literal inference, nested
+   template decomposition, expected-return inference, and angle-generic/macro
+   inference remain separate work.
 
 *** Acceptance
 
@@ -303,12 +999,24 @@
      ~Vec(T)~-only constraint, and conflicting operands each fail with focused
      diagnostics that tell the caller to pass the type explicitly where
      appropriate.
+   - A generic source closure containing local StructDef/EnumDef declarations
+     requires explicit type application; its existing explicit form remains
+     valid and receives the complete init declaration pipeline.
    - Cross-unit inferred calls deduplicate with explicit calls and emit the
      concrete FuncDef in exactly one unit.
+   - Equal semantic evidence produces canonical monomorph names across user
+     aliases while retaining target-independent ~USize~/~UPtr~ names.
    - ~own~ and ~mut~ generic value parameters retain their existing transfer
      and write-through checks after inferred rewriting.
+   - Concrete bodies cloned late preserve lazy lowering, lift lambdas without
+     name collisions, and recursively infer/expand composed generic calls.
+   - Omitted calls to generics with static throw types work; a type-dependent
+     throw requires explicit application and emits one focused diagnostic.
+   - Successful compilation retires every generic source declaration and stale
+     scope entry before builder/interpreter preparation.
    - Interpret and compile modes have regression coverage in
-     ~test/first_class.til~, ~test/typer_errors.til~, and core assertion tests.
+     ~test/first_class.til~, ~test/typer_errors.til~, ~test/errors.til~, import
+     fixtures, and the specifically named Task 6-12 tests above.
    - Angle-bracket/type-generator macro inference remains out of scope: this
      issue covers direct ~func(T: Type, ...)~ generics. Existing explicit
      ~gid_angle(I64)(7)~ behavior is unchanged.
