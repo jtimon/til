@@ -98,13 +98,21 @@ priv from_source_form := func(s: Str) returns Str {
         ref b : I8 = s.unsafe_get(i)
         if b.eq(92).and(i.add(one).lt(n)) {
             ref nx : I8 = s.unsafe_get(i + one)
-            if nx == 110 { out = format(out, "\n"); i = i + two; continue }
-            if nx == 114 { out = format(out, "\r"); i = i + two; continue }
-            if nx == 116 { out = format(out, "\t"); i = i + two; continue }
-            if nx == 34  { out = format(out, "\""); i = i + two; continue }
-            if nx == 92  { out = format(out, "\\"); i = i + two; continue }
-            if nx == 39  { out = format(out, "'"); i = i + two; continue }
-            if nx == 48  { out = format(out, "\0"); i = i + two; continue }
+            // `continue` targets the enclosing `while`: a C switch does not
+            // capture it (unlike `break`, which is why none appears here).
+            switch nx {
+            case 110: out = format(out, "\n"); i = i + two; continue
+            case 114: out = format(out, "\r"); i = i + two; continue
+            case 116: out = format(out, "\t"); i = i + two; continue
+            case 34:  out = format(out, "\""); i = i + two; continue
+            case 92:  out = format(out, "\\"); i = i + two; continue
+            case 39:  out = format(out, "'"); i = i + two; continue
+            case 48:  out = format(out, "\0"); i = i + two; continue
+            case:
+            }
+            // Kept out of the switch above: the `\xNN` arm needs a length
+            // guard, and a guarded case would drop the whole switch off the
+            // C-like path into the if/elif desugar.
             if nx.eq(120).and(i.add(3).lt(n)) {
                 ref h1 : I8 = s.unsafe_get(i + two)
                 ref h2 : I8 = s.unsafe_get(i + 3)

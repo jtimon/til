@@ -137,17 +137,18 @@ builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool 
 }
 
 builtin_primitive_size_align := func(prim: Primitive, mut sz: USize, mut al: USize) {
-    if prim.is(Primitive.I64) { sz = 8; al = 8; return }
-    if prim.is(Primitive.U8) { sz = 1; al = 1; return }
-    if prim.is(Primitive.I8) { sz = 1; al = 1; return }
-    if prim.is(Primitive.I16) { sz = 2; al = 2; return }
-    if prim.is(Primitive.U16) { sz = 2; al = 2; return }
-    if prim.is(Primitive.I32) { sz = 4; al = 4; return }
-    if prim.is(Primitive.U32) { sz = 4; al = 4; return }
-    if prim.is(Primitive.U64) { sz = 8; al = 8; return }
-    if prim.is(Primitive.F32) { sz = 4; al = 4; return }
-    if prim.is(Primitive.Bool) { sz = 1; al = 1; return }
-    UNREACHABLE()
+    switch prim {
+    case Primitive.I64:  sz = 8; al = 8
+    case Primitive.U8:   sz = 1; al = 1
+    case Primitive.I8:   sz = 1; al = 1
+    case Primitive.I16:  sz = 2; al = 2
+    case Primitive.U16:  sz = 2; al = 2
+    case Primitive.I32:  sz = 4; al = 4
+    case Primitive.U32:  sz = 4; al = 4
+    case Primitive.U64:  sz = 8; al = 8
+    case Primitive.F32:  sz = 4; al = 4
+    case Primitive.Bool: sz = 1; al = 1
+    }
 }
 
 // Look up a builtin type name. Returns true and writes `out` when `name`
@@ -1835,37 +1836,47 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
 //   2  &&               and
 //   1  ||               or
 priv binop_prec := func(tt: TokenType) returns I64 {
-    if tt.is(TokenType.Star).or(tt.is(TokenType.Slash)).or(tt.is(TokenType.Percent)) { return 8 }
-    if tt.is(TokenType.Plus).or(tt.is(TokenType.Minus)) { return 7 }
-    if vor(tt.is(TokenType.EqEq), tt.is(TokenType.Neq), tt.is(TokenType.Lt),
-           tt.is(TokenType.LtEq), tt.is(TokenType.Gt),
-           tt.is(TokenType.GtEq)) { return 6 }
-    if tt.is(TokenType.Ampersand) { return 5 }
-    if tt.is(TokenType.Caret) { return 4 }
-    if tt.is(TokenType.Pipe) { return 3 }
-    if tt.is(TokenType.AmpAmp) { return 2 }
-    if tt.is(TokenType.PipePipe) { return 1 }
-    return -1
+    switch tt {
+    case TokenType.Star:      return 8
+    case TokenType.Slash:     return 8
+    case TokenType.Percent:   return 8
+    case TokenType.Plus:      return 7
+    case TokenType.Minus:     return 7
+    case TokenType.EqEq:      return 6
+    case TokenType.Neq:       return 6
+    case TokenType.Lt:        return 6
+    case TokenType.LtEq:      return 6
+    case TokenType.Gt:        return 6
+    case TokenType.GtEq:      return 6
+    case TokenType.Ampersand: return 5
+    case TokenType.Caret:     return 4
+    case TokenType.Pipe:      return 3
+    case TokenType.AmpAmp:    return 2
+    case TokenType.PipePipe:  return 1
+    case: return -1
+    }
 }
 
 priv binop_method := func(tt: TokenType) returns Str {
-    if tt.is(TokenType.Star)      { return "mul" }
-    if tt.is(TokenType.Slash)     { return "div" }
-    if tt.is(TokenType.Percent)   { return "mod" }
-    if tt.is(TokenType.Plus)      { return "add" }
-    if tt.is(TokenType.Minus)     { return "sub" }
-    if tt.is(TokenType.EqEq)      { return "eq" }
-    if tt.is(TokenType.Neq)       { return "neq" }
-    if tt.is(TokenType.Lt)        { return "lt" }
-    if tt.is(TokenType.LtEq)      { return "lte" }
-    if tt.is(TokenType.Gt)        { return "gt" }
-    if tt.is(TokenType.GtEq)      { return "gte" }
-    if tt.is(TokenType.Ampersand) { return "band" }
-    if tt.is(TokenType.Caret)     { return "bxor" }
-    if tt.is(TokenType.Pipe)      { return "bor" }
-    if tt.is(TokenType.AmpAmp)    { return "and" }
-    if tt.is(TokenType.PipePipe)  { return "or" }
-    UNREACHABLE()
+    switch tt {
+    case TokenType.Star:      return "mul"
+    case TokenType.Slash:     return "div"
+    case TokenType.Percent:   return "mod"
+    case TokenType.Plus:      return "add"
+    case TokenType.Minus:     return "sub"
+    case TokenType.EqEq:      return "eq"
+    case TokenType.Neq:       return "neq"
+    case TokenType.Lt:        return "lt"
+    case TokenType.LtEq:      return "lte"
+    case TokenType.Gt:        return "gt"
+    case TokenType.GtEq:      return "gte"
+    case TokenType.Ampersand: return "band"
+    case TokenType.Caret:     return "bxor"
+    case TokenType.Pipe:      return "bor"
+    case TokenType.AmpAmp:    return "and"
+    case TokenType.PipePipe:  return "or"
+    case: UNREACHABLE()
+    }
     return ""
 }
 
@@ -2347,10 +2358,10 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     t_col := peek_col(p)
     ref t : Token = peek(p)
 
-    if t.type.is(TokenType.Ident) {
+    switch t.type {
+    case TokenType.Ident:
         return parse_statement_ident(p, false, OwnType.Shallow)
-    }
-    if t.type.is(TokenType.KwTest) {
+    case TokenType.KwTest:
         if p.pos + 1 < p.tokens.len() {
             ref nt : Token = p.tokens[p.pos + 1]
             if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
@@ -2359,8 +2370,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
         }
         return parse_expression(p)
-    }
-    if t.type.is(TokenType.KwRef) {
+    case TokenType.KwRef:
         advance(p)
         mut ref_mut := false
         if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
@@ -2379,28 +2389,26 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         mut decl := Expr.new(NodeType.Decl(dd), i_line, i_col)
         decl.add_child(own parse_expression(p))
         return decl
-    }
-    if t.type.is(TokenType.KwMut) {
+    case TokenType.KwMut:
         advance(p)
         return parse_statement_ident(p, true, OwnType.Shallow)
-    }
-    if t.type.is(TokenType.KwShallow) {
+    case TokenType.KwShallow:
+        // No return: parse_fail records the diagnostic and parks on Eof, then
+        // the "expected statement" fail below counts the same token again --
+        // exactly what the old if-chain did by falling through.
         advance(p)
         parse_fail(p, t_line, t_col, "locals cannot use 'shallow'; locals are owned by default")
-    }
-    if t.type.is(TokenType.KwConst) {
+    case TokenType.KwConst:
         advance(p)
         parse_fail(p, t_line, t_col, "redundant 'const' on local: locals are immutable by default; drop it")
-    }
-    if t.type.is(TokenType.KwReturn) {
+    case TokenType.KwReturn:
         advance(p)
         mut ret := Expr.new(NodeType.Return, t_line, t_col)
         if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()).and(check(p, TokenType.KwCase).not()) {
             ret.add_child(own parse_expression(p))
         }
         return ret
-    }
-    if t.type.is(TokenType.KwIf) {
+    case TokenType.KwIf:
         advance(p)
         mut node := Expr.new(NodeType.If, t_line, t_col)
         node.add_child(own parse_expression(p))
@@ -2418,43 +2426,41 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
         }
         return node
-    }
-    if vor(t.type.is(TokenType.StringTok), t.type.is(TokenType.Number),
-           t.type.is(TokenType.KwTrue), t.type.is(TokenType.KwFalse),
-           t.type.is(TokenType.KwNull), t.type.is(TokenType.LParen),
-           t.type.is(TokenType.Minus), t.type.is(TokenType.KwMacro),
-           t.type.is(TokenType.KwMatch)) {
-        // Issue #244: a statement that starts with `match` parses as an
-        // expression statement; the typer then reports its unused value and
-        // points at `switch`.
-        return parse_expression(p)
-    }
-    if t.type.is(TokenType.LBrace) {
+    // A statement that opens with a value token is an expression statement.
+    // Issue #244: `match` lands here too; the typer then reports its unused
+    // value and points at `switch`.
+    case TokenType.StringTok: return parse_expression(p)
+    case TokenType.Number:    return parse_expression(p)
+    case TokenType.KwTrue:    return parse_expression(p)
+    case TokenType.KwFalse:   return parse_expression(p)
+    case TokenType.KwNull:    return parse_expression(p)
+    case TokenType.LParen:    return parse_expression(p)
+    case TokenType.Minus:     return parse_expression(p)
+    case TokenType.KwMacro:   return parse_expression(p)
+    case TokenType.KwMatch:   return parse_expression(p)
+    case TokenType.LBrace:
         advance(p)
         return parse_block(p)
-    }
     // Issue #54: bare capture block `[a, mut b] { ... }`. The bracket list
     // restricts which outer-scope locals the block body may reference. `[`
     // is otherwise only a postfix index token, so a leading `[` is an
     // unambiguous capture block. Modifiers: bare (const ref), `mut`,
     // `shallow` (private value copy) and `own` (the block consumes it).
-    if t.type.is(TokenType.LBracket) {
+    case TokenType.LBracket:
         mut cbd := CaptureBlockData()
         cbd.captures = parse_capture_list(p)
         mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
         expect_token(p, TokenType.LBrace)
         cb.add_child(own parse_block(p))
         return cb
-    }
-    if t.type.is(TokenType.KwWhile) {
+    case TokenType.KwWhile:
         advance(p)
         mut node := Expr.new(NodeType.While, t_line, t_col)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
         return node
-    }
-    if t.type.is(TokenType.KwFor) {
+    case TokenType.KwFor:
         advance(p)
         mut for_is_mut := false
         if check(p, TokenType.KwMut) {
@@ -2490,11 +2496,9 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
         return node
-    }
-    if t.type.is(TokenType.KwSwitch) {
+    case TokenType.KwSwitch:
         return parse_switch(p)
-    }
-    if t.type.is(TokenType.KwOwn) {
+    case TokenType.KwOwn:
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwMut)) {
             mut own_mut := false
@@ -2523,25 +2527,21 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
         }
         return expr
-    }
-    if t.type.is(TokenType.KwBreak) {
+    case TokenType.KwBreak:
         advance(p)
         return Expr.new(NodeType.Break, t_line, t_col)
-    }
-    if t.type.is(TokenType.KwContinue) {
+    case TokenType.KwContinue:
         advance(p)
         return Expr.new(NodeType.Continue, t_line, t_col)
-    }
     // Issue #198: `throw <expr>`. One child = thrown expression.
-    if t.type.is(TokenType.KwThrow) {
+    case TokenType.KwThrow:
         advance(p)
         mut tn := Expr.new(NodeType.Throw, t_line, t_col)
         tn.add_child(own parse_expression(p))
         return tn
-    }
     // Issue #198: `catch (err: T) { body }`.
     // Three children: Ident var name, Ident type name, Body block.
-    if t.type.is(TokenType.KwCatch) {
+    case TokenType.KwCatch:
         advance(p)
         expect_token(p, TokenType.LParen)
         v_line := peek_line(p)
@@ -2559,6 +2559,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         cn.add_child(own Expr.new(ident_node(type_name), ty_line, ty_col))
         cn.add_child(own body)
         return cn
+    case:
     }
 
     parse_fail(p, t_line, t_col, "expected statement, found '", tok_text(p, t), "'")

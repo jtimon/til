@@ -1,0 +1,188 @@
+# priority: medium
+# category: cleanups
+** WIP #331 Replace long same-subject if-chains with switch
+
+*Progress.*
+
+  - [X] Tier 1 (enum/char subjects). All six sites converted and verified
+    emitting real C ~switch~ statements with jump-table labels:
+    ~binop_method~, ~binop_prec~, ~builtin_primitive_size_align~ and
+    ~parse_statement_body~ (src/self/parser.til), ~lookup_two_char~
+    (src/self/lexer.til), and the escape decoder in ~from_source_form~
+    (src/self/constfolder.til). ~builtin_primitive_size_align~ covers all
+    ten ~Primitive~ variants, so it is exhaustive and its trailing
+    ~UNREACHABLE()~ is gone -- the typer now enforces what the comment
+    used to hope for. The two flagged hazards behaved as predicted: the
+    ~\xNN~ arm stayed an ~if~ after the switch (a guard would have dropped
+    the whole switch off the C-like path) and the ~continue~ arms reach
+    the enclosing ~while~ through the C switch untouched.
+  - [ ] Tier 2 (~Str~ subjects)
+  - [ ] Tier 3 -- blocked behind [[./115.org][#115]] by choice, see below
+  - [ ] Tier 4 (runtime case patterns)
+
+   Dozens of functions across the compiler dispatch on a single subject
+   with a linear run of ~if~ statements, one per value, when a ~switch~
+   says the same thing in fewer lines and compiles better. The archetype
+   is ~binop_method~ (src/self/parser.til:1850): sixteen consecutive
+   ~if tt.is(TokenType.X) { return "..." }~ lines that are literally a
+   switch written out by hand.
+
+   #+begin_src til
+   // src/self/parser.til:1850, today
+   priv binop_method := func(tt: TokenType) returns Str {
+       if tt.is(TokenType.Star)      { return "mul" }
+       if tt.is(TokenType.Slash)     { return "div" }
+       // ... 14 more ...
+       UNREACHABLE()
+       return ""
+   }
+
+   // what it should be
+   priv binop_method := func(tt: TokenType) returns Str {
+       switch tt {
+       case TokenType.Star:    return "mul"
+       case TokenType.Slash:   return "div"
+       // ... 14 more ...
+       case: UNREACHABLE()
+       }
+       return ""
+   }
+   #+end_src
+
+*** Why switch, not just "it looks nicer"
+
+   - *Enum / integer / char subjects emit a real C switch.* Since #254 /
+     #276 a switch whose scrutinee is an enum, integer or char and whose
+     cases are bare constants stays a ~Switch~/~Case~ node all the way to
+     the backend (~switch_is_clike~, src/self/desugarer.til:3095), so the
+     C compiler gets a jump table instead of N sequential tag compares.
+     An if-chain over the same values never gets that.
+   - *Enum switches are exhaustiveness-checked.* ~infer_clike_switch~
+     (src/self/typer.til:7779) reports missing variants and rejects a
+     redundant ~case:~. An if-chain silently falls through to whatever
+     comes after the last ~if~, which is how a missing ~F32~ arm in
+     ~elem_size_for_type~ once shipped as a wrong stride (see the comment
+     still sitting at src/self/interpreter.til:541).
+   - *~Str~ subjects lose nothing and gain later.* A string switch still
+     lowers to the same ~Str_eq~ if/elif chain today, so converting is
+     free; when [[./278.org][#278]] lands a smarter string dispatch, every
+     converted site gets it automatically, while every remaining hand-written
+     if-chain stays O(N) forever.
+
+*** What the language does and does not support
+
+   Checked against ~parse_case_head~ (src/self/parser.til:2285): a case
+   takes exactly ONE pattern plus an optional ~if~ guard. There is no
+   multi-pattern case (~case "a", "b":~) and no fallthrough. So an
+   ~.or()~-joined condition -- ~c.eq("char").or(c.eq("signed char"))~ --
+   becomes two cases with the same one-line body. That is fine and still
+   shorter than the ~if~ form; adding multi-pattern cases is a separate
+   language question and is NOT part of this issue.
+
+   Also note that ~switch_is_clike~ only accepts bare constant patterns.
+   A case pattern that is a runtime call (the ~enum_variant_tag(def, "I16")~
+   chains below) parses and type-checks fine but falls back to the
+   if/elif desugar -- readability win only, no jump table.
+
+*** Sites, worst first
+
+   The counts are consecutive same-subject ~if~ arms in each function.
+
+   *Tier 1 -- enum/char subjects, so a real C switch and exhaustiveness:*
+
+   | Count | Location                        | Function                                     |
+   |-------+---------------------------------+----------------------------------------------|
+   |    16 | src/self/parser.til:1850        | ~binop_method~ (the archetype)                |
+   |    19 | src/self/parser.til:2344        | ~parse_statement_body~, on ~t.type~           |
+   |    10 | src/self/parser.til:139         | ~builtin_primitive_size_align~, on ~Primitive~ |
+   |     9 | src/self/parser.til:1836        | ~binop_prec~, ~.or()~-grouped by precedence   |
+   |    10 | src/self/lexer.til:279          | ~lookup_two_char~, nested on ~c~ then ~c2~    |
+   |     7 | src/self/constfolder.til:99     | escape decoding, on the byte after ~\~        |
+
+   ~parse_statement_body~ is the one with a measurable payoff: it runs
+   once per parsed statement and currently walks up to 19 tag compares
+   for a keyword that sits at the bottom of the chain (~catch~, ~throw~).
+   ~parse_primary~ right next to it (src/self/parser.til:1501) is already
+   a switch -- the two should look the same.
+
+   *Tier 2 -- ~Str~ subjects, readability now, [[./278.org][#278]] speedup later:*
+
+   | Count | Location                          | Function                                |
+   |-------+-----------------------------------+-----------------------------------------|
+   |    25 | src/self/binder.til:136           | ~push_til_base~ (C type -> til type)     |
+   |    15 | src/self/builder.til:1072         | ~type_name_to_c~                         |
+   |    15 | src/self/builder.til:1091         | ~type_name_to_c_value~                   |
+   |    13 | src/self/interpreter.til:528      | ~elem_size_for_type~                     |
+   |    13 | src/self/interpreter.til:561      | ~parse_cli_arg~                          |
+   |    13 | src/self/interpreter.til:6480     | ~known_ffi_type~                         |
+   |    12 | src/self/interpreter.til:7159     | ~ffi_decode_scalar~                      |
+   |    12 | src/self/builder.til:4692         | ~cli_box_expr~                           |
+   |    12 | src/self/builder.til:6103         | ~type_name_to_ctypes~                    |
+   |    11 | src/self/typer.til:1574           | ~numeric_conv_target_name~               |
+   |     8 | src/self/interpreter.til:5824     | ~h_cast~, on ~tn~                        |
+   |     8 | src/self/desugarer.til:4446       | the ~cn_str~ builtin-name probes         |
+   |     7 | src/self/targets.til:385          | ~detect_current_target~, on ~os~/~arch~  |
+   |     6 | src/til.til:936                   | the ~cli.command~ tail dispatch          |
+
+   ~cli_box_expr~ and ~parse_cli_arg~ are explicitly documented as kept
+   "in lockstep" with each other; two switches over the same case list
+   diff far more legibly than two if-chains.
+
+   *Tier 3 -- set-membership predicates:*
+
+   ~is_primitive_type~ (src/self/builder.til:259, 12 arms) and
+   ~is_ext_h_type~ (src/self/builder.til:408, 10 arms) are
+   ~if name == "X" { return true }~ runs ending in ~return false~ -- a
+   switch with a ~case:~ default. These overlap [[./115.org][#115]], which
+   tracks folding the repeated primitive-name lists onto one source of
+   truth. If #115 gets there first these functions disappear entirely;
+   converting them to switches in the meantime is fine but low value, so
+   do not spend the effort ahead of #115.
+
+   *Tier 4 -- runtime case patterns, readability only:*
+
+   ~dyn_type_to_str_raw~ (src/self/interpreter.til:6296, 21 arms) and the
+   nested ~Primitive~ decode at src/self/interpreter.til:6401 (10 arms)
+   test ~tag == enum_variant_tag(def, "Name")~. Those patterns are
+   function calls, so ~switch_is_clike~ rejects them and the lowering
+   stays an if/elif chain with the same N calls. Worth converting for
+   shape only.
+
+   *Outside the compiler:* ~build_points~ (examples/plot.til:137) and
+   ~series_has_data~ (examples/plot.til:187) each run ten ~series.eq(...)~
+   compares per row with NO early exit -- every arm is evaluated even
+   after one matches. A switch fixes the waste and the shape at once.
+   Also examples/minesweeper.til:246 and examples/go.til:502.
+
+*** Scope and staging
+
+   Not one commit. One file (or one function group) per commit, each
+   verified with the full suite, so a regression bisects to a small diff.
+   Pure refactor: no behaviour change, no new helpers, no new dispatch
+   tables, no reordering of arms that could change which one wins when a
+   subject matches two conditions (check the ~.or()~ groups before
+   splitting them).
+
+   Two conversions need care rather than a mechanical rewrite:
+
+   - ~parse_statement_body~: the arms are not all bare tag tests. The
+     ~KwTest~ arm peeks at the following token and falls through to
+     ~parse_expression~ when it does not match, and the ~StringTok /
+     Number / KwTrue / ... / KwMatch~ group shares one body. Both are
+     expressible (guard-free early ~return~ inside the case, repeated
+     cases for the shared group), but a blind rewrite will change which
+     statements reach the fallthrough at the end.
+   - ~constfolder.til:99~: the arms ~continue~ the enclosing ~while~. C
+     ~continue~ is not captured by ~switch~ (~switch_is_clike~ says so
+     explicitly), so this is safe -- but a ~break~ in a converted case
+     would NOT be, and the chain must not grow one.
+
+*** Acceptance
+
+   - Every Tier 1 and Tier 2 site listed above is a ~switch~.
+   - No behaviour change: ~make clean && make test~ green at each commit.
+   - Enum-subject conversions carry no ~case:~ default when the switch is
+     exhaustive (the typer rejects a redundant one) and do carry one when
+     it is not.
+   - New same-subject dispatch added after this lands is written as a
+     switch from the start.

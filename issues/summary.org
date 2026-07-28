@@ -21,6 +21,8 @@
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/302.org][#302]] Garbager rework: make the compile-time GC the single, complete ownership authority
 *** [[./open/326.org][#326]] Make unused diagnostics honest and scavenge all unreachable code
+** Medium
+*** [[./open/331.org][#331]] Replace long same-subject if-chains with switch
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs

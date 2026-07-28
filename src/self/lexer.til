@@ -277,16 +277,19 @@ priv lookup_single_char := func(c: I8) returns shallow TokenType {
 // token. Same leak-avoidance rationale as lookup_single_char.
 
 priv lookup_two_char := func(c: I8, c2: I8) returns shallow TokenType {
-    if c.eq(':').and(c2.eq('=')) { return TokenType.ColonEq }
-    if c.eq('=').and(c2.eq('=')) { return TokenType.EqEq }
-    if c.eq('!').and(c2.eq('=')) { return TokenType.Neq }
-    if c.eq('<').and(c2.eq('=')) { return TokenType.LtEq }
-    if c.eq('>').and(c2.eq('=')) { return TokenType.GtEq }
-    if c.eq('+').and(c2.eq('+')) { return TokenType.PlusPlus }
-    if c.eq('-').and(c2.eq('-')) { return TokenType.MinusMinus }
-    if c.eq('.').and(c2.eq('.')) { return TokenType.DotDot }
-    if c.eq('&').and(c2.eq('&')) { return TokenType.AmpAmp }
-    if c.eq('|').and(c2.eq('|')) { return TokenType.PipePipe }
+    switch c {
+    case ':': if c2 == '=' { return TokenType.ColonEq }
+    case '=': if c2 == '=' { return TokenType.EqEq }
+    case '!': if c2 == '=' { return TokenType.Neq }
+    case '<': if c2 == '=' { return TokenType.LtEq }
+    case '>': if c2 == '=' { return TokenType.GtEq }
+    case '+': if c2 == '+' { return TokenType.PlusPlus }
+    case '-': if c2 == '-' { return TokenType.MinusMinus }
+    case '.': if c2 == '.' { return TokenType.DotDot }
+    case '&': if c2 == '&' { return TokenType.AmpAmp }
+    case '|': if c2 == '|' { return TokenType.PipePipe }
+    case:
+    }
     return TokenType.Eof
 }
 
