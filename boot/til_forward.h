@@ -2891,6 +2891,7 @@ Bool priv___src_self_typer_til__match_is_bool_identity(Expr * m);
 void priv___src_self_typer_til__replace_matches_rec(TypeScope * scope, Expr * node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
 Str * priv___src_self_typer_til__lower_one_match(TypeScope * scope, Expr * match_node, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx, Vec__Expr * pre);
 void priv___src_self_typer_til__validate_struct_pattern_rest(TypeScope * scope, Expr * pattern, Context * ctx);
+Bool priv___src_self_typer_til__rhs_is_payload_binding(Expr * rhs);
 Expr * priv___src_self_typer_til__make_type_size_call(Str * tname, Expr * src);
 Expr * priv___src_self_typer_til__make_payload_steal_block(Str * bind_name, Str * param_name, Str * tname, Str * tmp, Expr * src);
 void priv___src_self_typer_til__steal_payload_returns(Expr * body, Str * bind_name, Str * param_name, Str * tname);

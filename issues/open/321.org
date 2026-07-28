@@ -933,16 +933,61 @@ The lesson generalises: every remaining stage has to be read with "which
 of the two questions is this?" in hand, because today every wrong answer
 is invisible.
 
-Remaining stages, in order:
-  3. flip ~enum_is_niche~ to accept an owned aggregate payload
-     (excluding primitives, whose 0 is a legal value, and Dynamic, the
-     quarantined layer where null is legal). Two-pass, since it changes
-     emit.
-  4. a niche-aware ~take~: ~return self.data~ instead of the steal
+Remaining stages, in order (REORDERED by batch 23 -- the interpreter
+mirror has to come BEFORE the flip, not after it):
+  3. the interpreter's raw-layer mirror: the enum CTOR writes an owned
+     payload inline at the flat payload offset, which is the tagged
+     layout. A niche has to store the pointer at offset 0, exactly as
+     the ref-payload arm beside it already does. The deep-clone and
+     deep-free walkers need the same treatment.
+  4. flip ~enum_is_niche~ to accept an owned aggregate payload
+     (excluding primitives, whose 0 is a legal value; Dynamic, the
+     quarantined layer where null is legal; Str, whose literals are
+     `static Str` rather than boxes, so the niche's delete would free a
+     static address -- the tagged ctor's TIL_CAP_LIT check is what
+     guards that today; and funcptr payloads, a distinct C shape the
+     generated delete/clone already special-case). Two-pass, since it
+     changes emit.
+  5. a niche-aware ~take~: ~return self.data~ instead of the steal
      block, which needs a lowering for "hand this pointer back as
      owned". Until then a niche take keeps the copy stage 1 preserves.
-  5. the interpreter's ownership mirror for an owned niche payload, and
-     the garbager's view of a by-value enum that owns a heap payload.
+  6. the garbager's view of a by-value enum that owns a heap payload.
+
+**** Batch 23: stage 3 attempted, and the two bugs it flushed out
+
+Flipping ~enum_is_niche~ was tried and REVERTED; what it uncovered was
+kept. Two latent bugs, both invisible today because every niche payload
+is currently a ~ref~ one, both of which the flip would have turned live:
+
+1. The typer only recognised a payload binding in its BARE shape,
+   ~get_payload(<subject>)~. A payload in a pointer slot binds
+   ~deref(get_payload(<subject>))~, which was therefore not marked as an
+   alias -- so a by-value ~return v~ of it hit the hard error "cannot
+   return ref variable from non-ref function" instead of cloning. Every
+   Option method broke at once under the flip (unwrap, unwrap_or, take).
+   It never showed before because a ref payload lives in an enum whose
+   ~unwrap~ returns ~ref T~, so the return path never asked the
+   question. Fixed by looking through ~deref~
+   (rhs_is_payload_binding).
+
+2. The constfolder's raw_to_expr read a variant tag as an I32 at offset
+   0. A niche stores NO tag -- so it decoded the low bytes of the stored
+   pointer as a variant index, and the fold replaced a whole call with a
+   bogus ~{.data = NULL}~ literal. It also read the payload inline
+   instead of following the pointer. Both fixed; the interpreter's own
+   enum_data_tag_key had the niche case right all along, which is why
+   nothing else had noticed.
+
+The flip still does not work after those two, and the reason is why the
+stage order above changed: the INTERPRETER's enum ctor writes an owned
+payload inline at the flat payload offset. Its ref-payload arm already
+writes the pointer at offset 0 for a niche; the owned arm has no such
+case, so a folded ~Option(Box).Some(...)~ never had a payload to find.
+The raw-layer mirror is a prerequisite for the flip, not a follow-up to
+it.
+
+196/196, pass 1 == pass 2, test/constfold.c byte-identical -- both
+fixes are corrections to code no live path reaches yet.
 
 *** What is left before the forbid can land
 

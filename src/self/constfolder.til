@@ -215,12 +215,34 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         }
     case Type.Enum(ename):
-        ref tag_ref : I32 = raw
-        tag := tag_ref
-        if tag < 0 { return Option(Expr).None }
         edef_o := lookup_interp_type_def(ename, ctx)
         if edef_o.is_none() { return Option(Expr).None }
         ref edef : Expr = edef_o.unwrap()
+        // #321: a NICHE enum stores no tag at all -- the discriminant IS
+        // whether its single stored pointer is null, and the payload hangs
+        // off that pointer instead of sitting at the flat payload offset.
+        // Reading a tag out of offset 0 would decode the low bytes of the
+        // pointer as a variant index, and folding then produced a bogus
+        // `{.data = NULL}` literal in place of the call.
+        mut tag : I32 = 0
+        mut niche_payload : Dynamic = 0
+        is_niche_enum := enum_is_niche(edef)
+        if is_niche_enum {
+            some_idx := enum_niche_some_index(edef)
+            // LOAD the slot; aliasing its address would never read null.
+            ref stored : Dynamic = deref(raw)
+            tag = some_idx
+            if stored.is_null() {
+                tag = 0
+                if some_idx == 0 { tag = 1 }
+            } else {
+                niche_payload = stored
+            }
+        } else {
+            ref tag_ref : I32 = raw
+            tag = tag_ref
+        }
+        if tag < 0 { return Option(Expr).None }
         switch edef.node_type {
         case NodeType.EnumDef(edd):
             if tag.to_usize() >= edd.variants.len() { return Option(Expr).None }
@@ -237,6 +259,10 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 ref payload_addr : Dynamic = ptr_add(raw, ENUM_PAYLOAD_OFFSET)
                 mut payload_raw : Dynamic = payload_addr
                 if raw_type_is_prim(payload_type, ctx) { payload_raw = scalar_word_load(payload_type, payload_addr, ctx) }
+                // A niche payload is not inline: the slot's pointer IS its
+                // address. (Primitives never carry a niche, so the scalar
+                // load above cannot apply here.)
+                if is_niche_enum { payload_raw = niche_payload }
                 payload_o := raw_to_expr(payload_raw, payload_type, src, ctx)
                 if payload_o.is_none() { return Option(Expr).None }
                 mut payload : Expr = Option(Expr).take(own payload_o)

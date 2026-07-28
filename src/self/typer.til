@@ -4856,15 +4856,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             // write-through-the-payload and accepts a constructor /
             // literal RHS (the builder lowers it to `*p = *new` for
             // structs and `*p = (Str){...}` for Str literals).
-            if rhs.node_type.is(NodeType.FCall).and(rhs.children.len().eq(2)) {
-                switch rhs.children[0].node_type {
-                case NodeType.Ident(head_id):
-                    if head_id.ident_name() == "get_payload" {
-                        decl_b.is_alias = true
-                    }
-                case:
-                }
-            }
+            if rhs_is_payload_binding(rhs) { decl_b.is_alias = true }
             if expr_is_ref_decl_source(rhs, scope).not().and(raw_alloc_rhs.not()) {
                 stmt.type_error("'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
             }
@@ -7818,6 +7810,32 @@ priv validate_struct_pattern_rest := proc(scope: TypeScope, pattern: Expr, ctx: 
         }
     case:
     }
+}
+
+// #211/#321: is this Decl RHS a switch PAYLOAD BINDING? Two shapes reach
+// here. An INLINE payload binds the bare `get_payload(<subject>)`, which
+// addresses the payload where it sits. A payload in a POINTER SLOT binds
+// `deref(get_payload(<subject>))`, because the slot holds the pointer and
+// the binding has to LOAD it. Both alias the payload, so both must mark the
+// binding as an alias -- that is what lets a write through it be recognised
+// as a write through the payload, and what makes a by-value `return` of it
+// CLONE rather than be rejected as "cannot return ref variable".
+//
+// Only the bare shape was recognised before, which was invisible while every
+// slot payload was a `ref` one: those live in enums whose `unwrap` returns
+// `ref T`, so the return path never asked. An OWNED slot payload returns by
+// value and asked immediately.
+priv rhs_is_payload_binding := func(rhs: Expr) returns Bool {
+    if rhs.node_type.is(NodeType.FCall).not() { return false }
+    if rhs.children.len() != 2 { return false }
+    mut head := ""
+    switch rhs.children[0].node_type {
+    case NodeType.Ident(hid): head = Str.clone(hid.ident_name())
+    case: return false
+    }
+    if head == "get_payload" { return true }
+    if head == "deref" { return rhs_is_payload_binding(rhs.children[1]) }
+    return false
 }
 
 // #321: `T.size()` as a call node, the same FieldAccess-on-a-type-Ident shape
