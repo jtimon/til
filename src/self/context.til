@@ -1440,7 +1440,7 @@ enum_tag_type := func(enum_def: Expr) returns Str {
     case NodeType.EnumDef(edd):
         if edd.tag_type.len() > 0 { return edd.tag_type.clone() }
     case:
-        UNREACHABLE(__LOC__)
+        UNREACHABLE()
     }
     return "U8"
 }

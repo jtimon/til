@@ -188,7 +188,7 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
                 if or(cname.eq("println"), cname.eq("print"),
                       cname.eq("format"),
                       cname.eq("panic"), cname.eq("TODO"),
-                      cname.eq("expect"),
+                      cname.eq("UNREACHABLE"), cname.eq("expect"),
                       cname.eq("array"), cname.eq("vec")) { return true }
             case:
             }

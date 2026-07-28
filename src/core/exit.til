@@ -23,8 +23,15 @@ TODO := func(parts: ..Str, loc: Str = __LOC__) {
     panic("TODO: ", format(..parts), loc = loc)
 }
 
-UNREACHABLE := func(loc: Str = __LOC__) {
-    panic("unreachable", loc = loc)
+// Like panic/TODO, UNREACHABLE takes formatted message parts. They are
+// optional -- the bare UNREACHABLE() is by far the most common call -- so the
+// empty case keeps the plain "unreachable" text instead of a dangling ": ".
+UNREACHABLE := func(parts: ..Str, loc: Str = __LOC__) {
+    if parts.len() == 0 {
+        panic("unreachable", loc = loc)
+    } else {
+        panic("unreachable: ", format(..parts), loc = loc)
+    }
 }
 
 // assert returns nothing (unlike its former vestigial, unused `Bool`

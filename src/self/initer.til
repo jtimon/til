@@ -1139,10 +1139,13 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
         // emit a synthetic loc string directly.
         loc_text := format(ename, ".clone:", line.to_str(), ":", col.to_str())
         mut unr_id := Expr.new(ident_node("UNREACHABLE"), line, col)
-        mut loc_lit := Expr.new(NodeType.Literal(Literal.Str(loc_text)), line, col)
+        // Named, not positional: UNREACHABLE's first param is the variadic
+        // message block, so a positional string would become a message part.
+        mut loc_named := Expr.new(NodeType.NamedArg("loc"), line, col)
+        loc_named.add_child(own Expr.new(NodeType.Literal(Literal.Str(loc_text)), line, col))
         mut unr_call := Expr.new(NodeType.FCall(FCallData()), line, col)
         unr_call.add_child(own unr_id)
-        unr_call.add_child(own loc_lit)
+        unr_call.add_child(own loc_named)
         func_body.add_child(own unr_call)
 
         mut tail_ename_id := Expr.new(ident_node(ename), line, col)

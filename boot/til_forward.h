@@ -1854,7 +1854,7 @@ Vec__USize * Vec__USize_clone(Vec__USize * self);
 Map__Str_Tuple * Map__Str_Tuple_new(void);
 Vec__Tuple * Vec__Tuple_new(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
-__attribute__((noreturn)) void UNREACHABLE(Str * loc);
+__attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void expect(Bool cond, Array__Str * parts, Str * loc);
 void println(Array__Str * parts);
 void swap_bytes(void * a, void * b, UPtr size);
