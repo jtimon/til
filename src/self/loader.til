@@ -995,9 +995,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 switch decl.children[0].node_type {
                 case NodeType.StructDef(bfs_sdd):
                     for bfs_fd : Declaration in bfs_sdd.fields {
-                        if bfs_fd.default_value.is_null().not() {
-                            collect_refs(bfs_fd.default_value, worklist)
-                        }
+                        // #326: a field DEFAULT is not a reachability edge --
+                        // see collect_refs. Only the field's type is, because
+                        // that is the struct's layout.
                         if bfs_fd.explicit_type.len() > 0 {
                             vec_push_str(worklist, bfs_fd.explicit_type)
                         }
@@ -1023,9 +1023,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                 switch decl.children[0].node_type {
                 case NodeType.StructDef(bfs_sdd2):
                     for bfs_fd2 : Declaration in bfs_sdd2.fields {
-                        if bfs_fd2.default_value.is_null().not() {
-                            collect_refs(bfs_fd2.default_value, worklist)
-                        }
+                        // #326: a field DEFAULT is not a reachability edge --
+                        // see collect_refs. Only the field's type is, because
+                        // that is the struct's layout.
                         if bfs_fd2.explicit_type.len() > 0 {
                             vec_push_str(worklist, bfs_fd2.explicit_type)
                         }

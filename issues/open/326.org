@@ -378,6 +378,21 @@ Landed (suite green, `make test_two_pass`):
   output has no never-called function left: snake defines 24 and calls all
   of them.  ~cli_args_no_inlined_accessors~ is the regression.
 
+- [X] A struct field DEFAULT is not a reachability edge.  The typer
+  substitutes a default into every construction site that OMITS the field,
+  and that copy is an ordinary AST child the walk reaches on its own --
+  the same fact that let the builder stop emitting closure machinery for
+  field defaults.  Walking the ORIGINAL kept whatever it named alive even
+  when no constructor ever omits the field: ~examples/lib/alphabeta.til~
+  declares ~h : Heuristic = default_heuristic~, chess and go always supply
+  ~h~, and both emitted ~default_heuristic~ and ~default_next_boards~ with
+  no caller.  ~collect_refs~ and both BFS field walks now push only the
+  field's ~explicit_type~, which is the struct's layout rather than a
+  default.  ~examples/chess.til~ 8,346 -> 8,328 lines, ~examples/go.til~
+  6,179 -> 6,161; both now define no never-called function at all.
+  ~first_class_no_dead_field_default~ is the regression, and the
+  omitted-default tests next to it keep the substitution path honest.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit

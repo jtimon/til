@@ -246,6 +246,23 @@ CounterHolder := struct {
     step : Body = { }
 }
 
+// The other direction: a default that no constructor OMITS is not a
+// reachability edge either, because the typer only substitutes it where
+// the field is missing. unused_default_op is named nowhere else, so
+// first_class_no_dead_field_default asserts it is absent from the C --
+// examples/lib/alphabeta.til's `h : Heuristic = default_heuristic` used to
+// emit a callerless function in chess and go for exactly this reason.
+unused_default_op := func(x: I64) returns I64 { return x.mul(5) }
+
+DefaultedHolder := struct {
+    op : UnaryOp = unused_default_op
+}
+
+test_supplied_field_default_is_not_rooted := test() {
+    h := DefaultedHolder(op = func(x: I64) returns I64 { return x.add(1) })
+    assert_eq(I64, h.op(4), 5)
+}
+
 test_body_field_default_omitted := test() {
     h := CounterHolder()
     h.step()

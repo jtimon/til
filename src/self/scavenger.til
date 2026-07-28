@@ -242,9 +242,17 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case NodeType.StructDef(cr_sdd):
         for cr_fd : Declaration in cr_sdd.fields {
-            if cr_fd.default_value.is_null().not() {
-                collect_refs(cr_fd.default_value, refs)
-            }
+            // #326: a field DEFAULT is not a reachability edge. The typer
+            // substitutes it into every construction site that OMITS the
+            // field, and that copy is an ordinary AST child which the walk
+            // reaches on its own -- the same fact that let the builder stop
+            // emitting closure machinery for field defaults. Walking the
+            // ORIGINAL kept whatever it named alive even when no
+            // constructor ever omits the field: examples/lib/alphabeta.til
+            // declares `h : Heuristic = default_heuristic` and chess always
+            // supplies h, yet default_heuristic was emitted with no caller.
+            // The field's explicit_type stays -- that one is the struct's
+            // layout, not a default.
             if cr_fd.explicit_type.len() > 0 {
                 vec_push_str(refs, cr_fd.explicit_type)
             }

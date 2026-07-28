@@ -550,6 +550,8 @@ main := proc(args: ..Str) {
     // and both are inlined, so neither name may appear at all.
     add_count(tests, "cli_args_no_inlined_accessors", "build", "Array__Str_unsafe_get", 0,
         format(til_bin, " translate -c gen/c/cli_args_acc.c examples/cli_args.til '&&' cat gen/c/cli_args_acc.c"))
+    add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
+        format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
         format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
 
