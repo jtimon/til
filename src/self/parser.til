@@ -1471,8 +1471,86 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     }
     expect_token(p, TokenType.RParen)
     parse_throw_bang_suffix(p, call)
+    return nest_nary_and_or(own call)
+}
+
+// `and`/`or` are strictly binary primitives, but the Lisp/Clojure spelling
+// `and(a, b, c, d)` is the natural one for a long conjunction. Fold the extra
+// operands here into ordinary binary calls so the rest of the compiler only
+// ever sees the two-operand form -- no n-ary case anywhere downstream, and no
+// arity error at the call site.
+//
+// RIGHT-nested on purpose: `and(a, and(b, c))`, never `and(and(a, b), c)`.
+// Both spell the same short-circuit (and/or are associative and the operand
+// order is untouched), but the loader splices each call into
+// `match a { case true: b case: false }`, and a nested match in the ARM of
+// another one reuses its result temp, while one in the SUBJECT has to be
+// hoisted into a temp of its own first. Right-nesting is a whole chain in one
+// temp; left-nesting is one temp per operand.
+priv nest_nary_and_or := func(own call: Expr) returns Expr {
+    if call.children.len() < 3 { return call }
+    // Every call with two or more arguments reaches here, so decide on the
+    // callee name without copying it.
+    mut is_and_or := false
+    mut keep : USize = 1        // plain form keeps args[1] as the first operand
+    switch call.children[0].node_type {
+    case NodeType.Ident(cn):
+        is_and_or = cn.ident_name().eq("and").or(cn.ident_name().eq("or"))
+    // Method form (`a.and(b, c)`): the receiver is the first operand, so
+    // every argument folds into the single second one.
+    case NodeType.FieldAccess(fa):
+        if call.children[0].children.len() == 1 {
+            is_and_or = fa.name.eq("and").or(fa.name.eq("or"))
+            keep = 0
+        }
+    case:
+    }
+    if is_and_or.not() { return call }
+    if call.children.len() < keep + 3 { return call }
+    // Named/own/ref/splat/rest arguments have no meaning on a Bool primitive;
+    // leave them to the typer's arity and argument checks rather than folding
+    // a shape this rewrite cannot preserve.
+    mut plain := true
+    switch call.node_type {
+    case NodeType.FCall(fcd):
+        if fcd.is_splat { plain = false }
+        if fcd.own_args != 0 { plain = false }
+        if fcd.ref_args != 0 { plain = false }
+    case:
+    }
+    for ai in 1..call.children.len() {
+        if call.children[ai].node_type.is(NodeType.NamedArg) { plain = false }
+        if call.children[ai].node_type.is(NodeType.RestPattern) { plain = false }
+    }
+    if plain.not() { return call }
+    mut name := ""
+    switch call.children[0].node_type {
+    case NodeType.Ident(cn2):      name = Str.clone(cn2.ident_name())
+    case NodeType.FieldAccess(fa2): name = Str.clone(fa2.name)
+    case: UNREACHABLE()
+    }
+    // Fold from the tail: c, then and(b, c), then and(a, and(b, c)). The
+    // accumulator lives in `acc` rather than a plain binding: it is moved into
+    // each node it becomes the right operand of, and a moved-from binding
+    // cannot be assigned again.
+    mut acc := Vec(Expr).new()
+    mut last := call.children.pop()
+    acc.push(own last)
+    while call.children.len() > keep + 1 {
+        mut operand := call.children.pop()
+        mut inner := Expr.new(NodeType.FCall(FCallData()), operand.line, operand.col)
+        mut inner_callee := Expr.new(ident_node(name), operand.line, operand.col)
+        inner.add_child(own inner_callee)
+        inner.add_child(own operand)
+        mut prev := acc.pop()
+        inner.add_child(own prev)
+        acc.push(own inner)
+    }
+    mut folded := acc.pop()
+    call.add_child(own folded)
     return call
 }
+
 
 // make_binop_call: helper to desugar a OP b -> a.method(b)
 // lhs stays a borrow (cloned here): every caller reassigns its own `e`
@@ -1794,7 +1872,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             }
             expect_token(p, TokenType.RParen)
             parse_throw_bang_suffix(p, mcall)
-            e = mcall
+            e = nest_nary_and_or(own mcall)
         } else {
             mut access := Expr.new(field_access_node(fname), f_line, f_col)
             access.add_child(own take_expr(e))

@@ -344,6 +344,62 @@ test_core_or_short_circuits := test() {
     assert_eq(I64, eval_count, 0)
 }
 
+# --- N-ary and/or. `and`/`or` stay strictly binary primitives; the parser
+#     (nest_nary_and_or) folds a call with more operands into RIGHT-nested
+#     binary calls, `and(a, and(b, c))`, so the Lisp/Clojure spelling costs
+#     nothing and short-circuits operand by operand exactly like the chain
+#     it becomes. Right-nested because the inlined match of an inner call
+#     then lands in the ARM of the outer one and shares its result temp. ---
+
+test_nary_and_or := test() {
+    expect(and(true, true, true), "and(T,T,T)")
+    expect(and(true, true, false).not(), "and(T,T,F)")
+    expect(and(true, false, true).not(), "and(T,F,T)")
+    expect(and(false, true, true).not(), "and(F,...)")
+    expect(or(false, false, true), "or(F,F,T)")
+    expect(or(false, false, false).not(), "or(F,F,F)")
+    expect(or(true, false, false), "or(T,...)")
+    # five operands, and the two-operand call the fold leaves alone
+    expect(and(true, true, true, true, true), "and x5 T")
+    expect(and(true, true, true, true, false).not(), "and x5 with F")
+    expect(or(false, false, false, false, true), "or x5 with T")
+    expect(and(true, true), "and(T,T)")
+    expect(or(false, true), "or(F,T)")
+    # method form: the receiver is the first operand
+    expect(true.and(true, true), "T.and(T,T)")
+    expect(false.or(false, true), "F.or(F,T)")
+}
+
+test_nary_short_circuits := test() {
+    eval_count = 0
+    # first false decides it -- neither later operand runs
+    r := and(false, bump(), bump())
+    expect(r.not(), "and(false, bump, bump) skips all")
+    assert_eq(I64, eval_count, 0)
+
+    eval_count = 0
+    r2 := or(true, bump(), bump())
+    expect(r2, "or(true, bump, bump) short-circuits")
+    assert_eq(I64, eval_count, 0)
+
+    eval_count = 0
+    # the last operand is reached, and evaluated exactly once
+    r3 := and(true, true, bump())
+    expect(r3, "and(true, true, bump) evaluates last")
+    assert_eq(I64, eval_count, 1)
+
+    eval_count = 0
+    r4 := or(false, false, bump())
+    expect(r4, "or(false, false, bump) evaluates last")
+    assert_eq(I64, eval_count, 1)
+
+    eval_count = 0
+    # a middle operand that decides it stops the rest
+    r5 := and(true, false, bump(), bump())
+    expect(r5.not(), "and stops at the middle false")
+    assert_eq(I64, eval_count, 0)
+}
+
 test_ampamp_short_circuits := test() {
     eval_count = 0
     r := false && bump()
