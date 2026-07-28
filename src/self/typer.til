@@ -5389,7 +5389,17 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                 ref mut rb : TypeBinding = rb_o.unwrap()
                 rb_old_sd_o := scope.struct_def_of(rb.name)
                 if rb_old_sd_o.is_some().and(
-                    rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef))) {
+                    rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef)))
+                    .and(rb_old_sd_o.unwrap().ptr_eq(rstmt.children[0]).not()) {
+                        // Skipped when the registered def IS this statement's
+                        // def -- every typer sweep after the first re-walks
+                        // the same bodies, and the broadcast below then hands
+                        // each aliased binding the pointer it already holds.
+                        // It pivots on ptr_eq of the OLD def, so old == new
+                        // makes every write a no-op; the scan is not. That
+                        // scan costs one scope lookup PER BINDING IN SCOPE per
+                        // def statement, which is why this function was 7.4%
+                        // of a self-translate.
                         ref rb_old_sd : Expr = rb_old_sd_o.unwrap()
                         scope.set_struct_def(rb.name, rstmt.children[0])
                         for b in scope.bindings.values {
@@ -5402,7 +5412,9 @@ priv reregister_scope_defs := func(body: Expr, scope: TypeScope) {
                         }
                     }
                 rb_old_fd_o := scope.lookup_func(rb.name)
-                if rb_old_fd_o.is_some().and(rfirst.node_type.is(NodeType.FuncDef)) {
+                if rb_old_fd_o.is_some().and(rfirst.node_type.is(NodeType.FuncDef))
+                    .and(rb_old_fd_o.unwrap().ptr_eq(rstmt.children[0]).not()) {
+                    // Same no-op guard as the struct/enum broadcast above.
                     ref rb_old_fd : Expr = rb_old_fd_o.unwrap()
                     scope.set_func_def(rb.name, rstmt.children[0])
                     for b in scope.bindings.values {
