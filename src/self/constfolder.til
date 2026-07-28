@@ -1412,7 +1412,10 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.FuncDef) {
-            if rhs.children.len() > 0 { process_body(scope, stmt.children[0].children[0], ctx, false) }
+            // fold_subtree(stmt) above already descended into this
+            // FuncDef -- its own FuncDef branch folds the body under a
+            // fresh `known` view. Recursing here folded every function
+            // body a second time.
             continue
         }
         if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
