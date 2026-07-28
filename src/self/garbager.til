@@ -1258,8 +1258,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool)
     return facts
 }
 
-priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, mut locals_vec: Vec(LocalInfo)) {
-    facts := body_stmt_facts(body, scope, true)
+priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: Vec(StmtFacts), mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
@@ -1564,9 +1563,8 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: 
     }
 }
 
-priv collect_borrow_edges := func(body: Expr, scope: TypeScope) returns Vec(GcBorrowEdge) {
+priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: Vec(StmtFacts)) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
-    facts := body_stmt_facts(body, scope, false)
     body_last := body.children.len().sub(1).to_i32()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
@@ -1689,8 +1687,8 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalI
     }
 }
 
-priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope) {
-    edges := collect_borrow_edges(body, scope)
+priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, facts: Vec(StmtFacts)) {
+    edges := collect_borrow_edges(body, scope, facts)
     propagate_borrow_edges(edges, locals)
 }
 
@@ -1712,7 +1710,7 @@ priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scop
 // such temp. Deferring an owned local's delete is always memory-safe, so the
 // (slightly over-eager) transitive taint -- which also follows clone results
 // that no longer alias the buffer -- only pushes the delete a touch later.
-priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
+priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), facts: Vec(StmtFacts)) {
     // #302 stage 3: the taint rule expressed as borrow edges on the
     // same machinery as rules 1-3 (collect_borrow_edges). Discovery is
     // unchanged (collect_hoist_taint's transitive initializer-read
@@ -1722,7 +1720,6 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo)) {
     // over-eager taint must not spuriously flag a transfer (see the
     // call site).
     mut edges := Vec(GcBorrowEdge).new()
-    facts := body_stmt_facts(body, NULL, false)
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
         tainted := collect_hoist_taint(local.name, facts, facts.len())
@@ -2839,7 +2836,19 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     is_program_scope := scope.parent.is_none()
 
     mut locals_vec := Vec(LocalInfo).new()
-    collect_scope_locals(ctx, body, scope, is_program_scope, locals_vec)
+    // One fact computation for every pass that reads this body BEFORE it
+    // is restructured. Each pass used to build its own -- collect_scope_
+    // locals, collect_borrow_edges, extend_hoist_view_lifetimes and the
+    // taint walk below -- so a body's statements were walked four times
+    // over. `with_transfers` is the superset (only collect_scope_locals
+    // reads that set, and it is the only part that consults scope), so
+    // computing it once here serves all of them.
+    //
+    // The recompute after sink_conditional_transfer_deletes is not
+    // optional: StmtFacts are positional, and sink can grow branch
+    // bodies, so facts taken before it would index the wrong statements.
+    pre_facts := body_stmt_facts(body, scope, true)
+    collect_scope_locals(ctx, body, scope, is_program_scope, pre_facts, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -2849,7 +2858,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec, scope)
+    extend_ref_local_lifetimes(body, locals_vec, scope, pre_facts)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
     record_storage_decisions(body, locals_vec)
@@ -2857,7 +2866,11 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later
     // statement that reads a hoisted view aliasing its buffer. See #250.
-    extend_hoist_view_lifetimes(body, locals_vec)
+    // Recomputed: sink above may have restructured the body, and facts
+    // are positional. Shared with the taint walk below, which needs the
+    // same post-sink view.
+    post_facts := body_stmt_facts(body, scope, false)
+    extend_hoist_view_lifetimes(body, locals_vec, post_facts)
 
     // #302 stage 0: decision audit. The analysis above has settled every
     // per-binding decision; the dump itself runs after the insertion loop
@@ -2904,7 +2917,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // StmtFacts.def_name closes that gap: one walk, one implementation,
     // and it keeps answering after the move_from below empties
     // body.children.
-    taint_facts := body_stmt_facts(body, scope, false)
+    ref taint_facts : Vec(StmtFacts) = post_facts
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
