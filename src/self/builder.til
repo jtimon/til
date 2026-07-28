@@ -3677,17 +3677,29 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                         // enum is a struct with `tag` at offset 0, and the
                         // field's declared width makes the compare
                         // width-correct with no size arg.
+                        //
+                        // #320/#321: except a NICHE enum, which has no tag at
+                        // all -- its discriminant is whether the single pointer
+                        // is null. This is the second tag-compare emitter (the
+                        // is_n one below is the other); it was missed when the
+                        // niche landed because Option's own is_some/is_none go
+                        // through a switch, so no niche enum reached `is` until
+                        // an ordinary two-variant enum became one. Delegating to
+                        // emit_is_n_operand keeps the two lowerings from drifting
+                        // apart again.
+                        mut is_op_niche := false
+                        is_op_def_o := find_struct_def(sname, ctx)
+                        if is_op_def_o.is_some() {
+                            ref is_op_def : Expr = is_op_def_o.unwrap()
+                            if is_op_def.node_type.is(NodeType.EnumDef) { is_op_niche = enum_is_niche(is_op_def) }
+                        }
                         f.write("((")
                         f.write(core_ret_c)
-                        f.write(")(((")
-                        f.write(sname)
-                        f.write(" *)(")
-                        emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                        f.write("))->tag == ((")
-                        f.write(sname)
-                        f.write(" *)(")
-                        emit_as_ptr(f, e.children[2], depth, get_own_arg(e, 2), ctx)
-                        f.write("))->tag))")
+                        f.write(")(")
+                        emit_is_n_operand(f, e, 1, sname, is_op_niche, depth, ctx)
+                        f.write(" == ")
+                        emit_is_n_operand(f, e, 2, sname, is_op_niche, depth, ctx)
+                        f.write("))")
                     } else {
                         core_c_op := core_binop_to_c(core_op)
                         if core_c_op.len() == 0 { panic(__LOC__, ": core_func backend lowering: unknown op '", core_op, "'") }
@@ -5332,7 +5344,12 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Con
     // to a nullable C pointer (Rust's Option<&T>).
     if enum_is_niche(enum_def) {
         niche_vt := enum_variant_type(enum_def, enum_niche_some_index(enum_def))
-        f.write("    ").write(type_name_to_c_value(niche_vt, ctx)).write(" *data;\n")
+        niche_ct := type_name_to_c_value(niche_vt, ctx)
+        // #321: a funcptr payload's C VALUE type is already a pointer
+        // (TilClosure *), so adding another star would declare the slot as
+        // `TilClosure **` while the ctor is handed a `TilClosure *`.
+        f.write("    ").write(niche_ct)
+        if niche_ct.ends_with("*") { f.write("data;\n") } else { f.write(" *data;\n") }
         f.write("};\n\n")
         return
     }

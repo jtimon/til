@@ -1004,7 +1004,7 @@ typedef struct Vec__GcCfgBlock {
 
 
 struct Option__ref_Dynamic {
-    void * *data;
+    void *data;
 };
 
 struct Option__ref_Scope {

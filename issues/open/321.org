@@ -1109,6 +1109,50 @@ mangling: the builder's ctx.scope does not carry another module's priv
 type defs under either spelling. That is the next thing to fix, and it is
 a def-resolution bug independent of this issue.
 
+**** Batch 27: three real bugs, found by a 6-line repro
+
+The is_n theory from batch 25/26 was WRONG twice over -- it had nothing
+to do with `priv` types or name mangling. A minimal repro settled it in
+six lines:
+
+: Cell := struct { n := 0 }
+: E := enum { A, B: Cell }
+: mut v := Vec(E).new()
+: v.push(own E.A())
+: if v[0].is(E.B) { println("b") } else { println("a") }
+
+Instrumenting showed the is_n site resolving the def fine and computing
+niche=true. The bad `->tag` came from somewhere else entirely: a SECOND
+tag-compare emitter, the `core_op == "is"` arm in builder.til, which had
+no niche awareness at all. `.is()` lowers through it, not through is_n.
+It was missed when the niche landed because Option's own is_some/is_none
+go through a switch, so no niche enum ever reached `is` until an ordinary
+two-variant enum became one. It now delegates to emit_is_n_operand, so
+the two lowerings cannot drift apart again.
+
+Two more, found by running the suite with the flip applied locally:
+
+- A NESTED pattern (`case DeepE.O(MidE.M(...))`) builds its inner subject
+  from the outer enum's payload. For a pointer-slot payload the slot holds
+  the address, so the inner subject must LOAD it -- the same deref the
+  payload binding does. Without it a nested match reads the slot's address
+  as the payload and picks the wrong arm (test_nested_triple returned the
+  default arm's -99 instead of 7).
+- A funcptr payload's C VALUE type is already a pointer (TilClosure *), so
+  the niche struct body was declaring `TilClosure **data` while the ctor
+  was handed a `TilClosure *`.
+
+All three are fixed and are correct independent of the flip. This one IS
+a Two-pass commit: routing `is` through emit_is_n_operand changes emitted
+C (extra parens around each tag read -- semantically identical, visible in
+test/constfold.c).
+
+STATE OF THE FLIP: with these three in, a locally-flipped build compiles,
+self-hosts through BOTH passes, and reaches 195/198. What remains is
+nested niches -- an enum whose owned payload is itself a niche enum
+(DeepE -> MidE -> InnerInnerE) double-frees, so the delete/clone walkers
+need to handle a chain of boxes rather than one. That is the last piece.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

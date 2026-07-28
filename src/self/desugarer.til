@@ -2938,7 +2938,21 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
-                                        inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
+                                        // #321: the inner subject of a NESTED pattern is the outer
+                                        // enum's payload. When that payload lives in a POINTER SLOT
+                                        // the slot holds its address, so the inner subject has to LOAD
+                                        // it -- the same deref the payload BINDING does. Without this
+                                        // a nested match reads the slot's address as if it were the
+                                        // payload and picks the wrong arm.
+                                        mut inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
+                                        if enum_payload_is_pointer_slot(enum_def3, vt_idx3) {
+                                            mut inner_deref_id := Expr.new(ident_node("deref"), sw_line, sw_col)
+                                            mut inner_deref := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
+                                            inner_deref.add_child(own inner_deref_id)
+                                            inner_deref.add_child(own inner_sw_ref)
+                                            inner_deref.set_til_type(til_type_from_explicit_type(payload_type3))
+                                            inner_sw_ref = inner_deref
+                                        }
 
                                         // Recurse on the nested pattern; bindings prepend to case_body
                                         // and use ~get_payload(sw_ref, payload_type)~ as their root.

@@ -1317,10 +1317,10 @@ USize Token_size(void) {
 
 void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
-    Bool hoisted__Bool_6428 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
+    Bool hoisted__Bool_6428 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
     assert(hoisted__Bool_6428, &_til_str_lits[44]);
     Str_delete(&_til_str_lits[44], (Bool){0});
-    Bool hoisted__Bool_6430 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag));
+    Bool hoisted__Bool_6430 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
     Bool hoisted__Bool_6431 = ((Bool)(!(hoisted__Bool_6430)));
     assert(hoisted__Bool_6431, &_til_str_lits[45]);
     Str_delete(&_til_str_lits[45], (Bool){0});
@@ -1340,10 +1340,10 @@ void test_enum_return_fold(void) {
 
 void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
-    Bool hoisted__Bool_6440 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Num}))->tag));
+    Bool hoisted__Bool_6440 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
     assert(hoisted__Bool_6440, &_til_str_lits[48]);
     Str_delete(&_til_str_lits[48], (Bool){0});
-    Bool hoisted__Bool_6442 = ((Bool)(((Token *)(t))->tag == ((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag));
+    Bool hoisted__Bool_6442 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
     Bool hoisted__Bool_6443 = ((Bool)(!(hoisted__Bool_6442)));
     assert(hoisted__Bool_6443, &_til_str_lits[49]);
     Str_delete(&_til_str_lits[49], (Bool){0});
