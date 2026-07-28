@@ -19,13 +19,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
@@ -130,6 +131,7 @@ namespace:
     mut include_flags : Str
     mut link_c_paths : Str
     mut run_tests : Bool
+    mut load_errors : I32
     mut usize_override_bits : I64
 namespace:
     func delete(own self: LoadedProgram, shallow call_free: Bool)
@@ -153,7 +155,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.loader.load_program">
 <h2>load_program</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str) returns LoadedProgram
+<pre><code class="language-til">proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, import_base: Str) returns LoadedProgram
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.loader.DocMeta">
@@ -311,6 +313,10 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_DeclRef
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
     func len(self: Map__Str_DeclRef) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_DeclRef)

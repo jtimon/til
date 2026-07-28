@@ -1,6 +1,16 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
+
+* system_cmd
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.system_cmd
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc system_cmd(cmd: Str) returns shallow I32
+#+end_src
 
 * spawn_cmd
 :PROPERTIES:
@@ -80,6 +90,16 @@ ext_proc peak_rss_bytes() returns shallow U64
 
 #+begin_src til
 ext_proc current_rss_bytes(shallow pid: I64) returns shallow U64
+#+end_src
+
+* process_id
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.process_id
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc process_id() returns shallow I32
 #+end_src
 
 * host_os

@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * Primitive
@@ -236,6 +236,7 @@ struct FunctionDef {
     mut is_enum_variant_ctor : Bool
     mut captures : Vec__Declaration
     mut closure_name : Str
+    mut noreturn : Bool
 namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns shallow Bool
     func to_str(self: FunctionDef) returns Str
@@ -274,6 +275,8 @@ struct FCallData {
     mut keep_outer_args : U64
     mut swap_replace : Bool
     mut til_type : Type
+    mut noreturn_call : Bool
+    mut ref_args : U64
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns shallow Bool
     func to_str(_self: FCallData) returns Str
@@ -308,6 +311,13 @@ namespace:
     func to_usize(self: LiteralNumData) returns shallow USize
     func to_f32(self: LiteralNumData) returns shallow F32
     func literal_num_text(self: LiteralNumData) returns Str
+    /// Does the literal's TEXT spell a float? The lexer accepts a fractional
+    /// part ('.' then a digit) and an exponent (e/E, optional sign, digits)
+    /// only on the non-prefixed decimal path, so a 0x/0b/0o literal is an
+    /// integer even though hex digits include 'e' and 'E'. Callers that infer
+    /// a type FROM a literal need this; a literal that narrows from context
+    /// (declaration or parameter type) keeps that type instead.
+    func is_float(self: LiteralNumData) returns shallow Bool
     func clone(self: LiteralNumData) returns LiteralNumData
     func delete(own self: LiteralNumData, shallow call_free: Bool)
     func hash(self: LiteralNumData, hasher: HashFn) returns shallow U64
@@ -382,8 +392,10 @@ compute_struct_layout at typer time.
 
 #+begin_src til
 struct StructDef {
-    mut fields : Vec__Declaration
-    mut ns_decls : Vec__Declaration
+    own mut fields : Vec__Declaration
+    own mut ns_decls : Vec__Declaration
+    own mut fields_index : Map__Str_USize
+    own mut ns_index : Map__Str_USize
     mut c_tag : Str
     mut is_interface : Bool
     mut interface_ns_marker : Bool
@@ -391,9 +403,79 @@ struct StructDef {
 namespace:
     func eq(a: StructDef, b: StructDef) returns shallow Bool
     func to_str(_self: StructDef) returns Str
+    /// Append a field: the index key becomes the single owner of the
+    /// field's name; the stored Declaration carries none. Appends never
+    /// shift declaration positions, so there is nothing to fix up.
+    func push_field(mut self: StructDef, own fd: Declaration)
+    /// Append a namespace member (see push_field). A duplicate name
+    /// re-points the index at the newest declaration.
+    func push_member(mut self: StructDef, own nd: Declaration)
+    /// Field name at declaration position i: reverse lookup over the
+    /// index (O(members), tiny and emit-time only). Panics if the index
+    /// has no entry for that position (see member_name_of).
+    func field_name_at(self: StructDef, i: USize) returns ref Str
+    /// Field Declaration at declaration position i (name == "").
+    func field_at(self: StructDef, i: USize) returns ref Declaration
+    /// Namespace member name at declaration position i.
+    func member_name_at(self: StructDef, i: USize) returns ref Str
+    /// Namespace member Declaration at declaration position i.
+    func member_at(self: StructDef, i: USize) returns ref Declaration
     func clone(self: StructDef) returns StructDef
     func delete(own self: StructDef, shallow call_free: Bool)
-    func hash(self: StructDef, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* member_name_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.member_name_of
+:group: Core
+:END:
+
+Reverse index lookup shared by every *_name_at accessor: the name whose
+stored position is `pos`, None for a position no entry points at (one
+shadowed by a later duplicate name). The three *_name_at wrappers
+unwrap it: their call sites all walk positions the def itself reports
+and use the name unchecked, so a miss means the index and the decl Vec
+disagree, and unwrap says so loudly instead of handing back a null Str.
+
+Instantiating Option in this unit needed two prerequisites: the #303
+noreturn seed made order-independent (seed_noreturn_chain, loader.til),
+since Option.unwrap ends in `case: panic` and core.til imports ast
+before exit; and the borrowed-Str fix in call_copies_ref_str, since
+this is the first Option(ref Str) interpreted code calls.
+
+#+begin_src til
+func member_name_of(idx: Map__Str_USize, pos: USize) returns shallow Option__ref_Str
+#+end_src
+
+* VariantDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.VariantDef
+:group: Core
+:END:
+
+Issue #307: one record per variant instead of the five position-parallel
+collections EnumDef used to carry (variants Vec(Str) + payload_types
+Map(I64, Str) + payload_consts Vec(Bool) + tag_values Vec(I64) +
+payload_refs Vec(Bool)). The record's position in EnumDef.variants is
+the declaration index the per-variant data used to be keyed by.
+
+#+begin_src til
+struct VariantDef {
+    mut name : Str
+    /// Leading /// doc comment run, like Declaration.doc for fields.
+    mut doc : Str
+    mut payload_type : Str
+    mut payload_const : Bool
+    mut tag_value : I64
+    mut payload_ref : Bool
+namespace:
+    func eq(a: VariantDef, b: VariantDef) returns shallow Bool
+    func to_str(self: VariantDef) returns Str
+    func clone(self: VariantDef) returns VariantDef
+    func delete(own self: VariantDef, shallow call_free: Bool)
+    func hash(self: VariantDef, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -404,26 +486,32 @@ namespace:
 :group: Core
 :END:
 
-Enum definition: variants, payload types, namespace methods.
+Enum definition: variants, namespace methods.
 Issue #147 step 4: total_enum_size dropped from the AST in favour
 of ctx.struct_layouts[name].total_size, populated by
 compute_enum_layout at typer time.
+Issue #307: ns_decls gets the same name-keyed storage as StructDef's
+(see the StructDef doc comment); variants stays a plain Vec because
+its order IS the tag assignment and it holds the names themselves.
 
 #+begin_src til
 struct EnumDef {
-    mut ns_decls : Vec__Declaration
-    mut variants : Vec__Str
-    mut payload_types : Map__I64_Str
-    mut payload_consts : Vec__Bool
+    own mut ns_decls : Vec__Declaration
+    own mut ns_index : Map__Str_USize
+    mut variants : Vec__VariantDef
     mut implements_name : Str
     mut tag_type : Str
-    mut tag_values : Vec__I64
 namespace:
     func eq(a: EnumDef, b: EnumDef) returns shallow Bool
     func to_str(_self: EnumDef) returns Str
+    /// Append a namespace member (see StructDef.push_member).
+    func push_member(mut self: EnumDef, own nd: Declaration)
+    /// Namespace member name at declaration position i.
+    func member_name_at(self: EnumDef, i: USize) returns ref Str
+    /// Namespace member Declaration at declaration position i.
+    func member_at(self: EnumDef, i: USize) returns ref Declaration
     func clone(self: EnumDef) returns EnumDef
     func delete(own self: EnumDef, shallow call_free: Bool)
-    func hash(self: EnumDef, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -489,6 +577,7 @@ struct AssignData {
     mut save_old_delete : Bool
     mut is_payload_alias : Bool
     mut swap_replace : Bool
+    mut is_move : Bool
 namespace:
     func eq(a: AssignData, b: AssignData) returns shallow Bool
     func to_str(self: AssignData) returns Str
@@ -510,6 +599,7 @@ struct FieldAssignData {
     mut name : Str
     mut save_old_delete : Bool
     mut transfers_own : Bool
+    mut is_move : Bool
 namespace:
     func eq(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
     func to_str(self: FieldAssignData) returns Str
@@ -701,6 +791,16 @@ TYPE_BOOL is a Type
 TYPE_I64 is a Type
 #+end_src
 
+* TYPE_F32
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.TYPE_F32
+:group: Core
+:END:
+
+#+begin_src til
+TYPE_F32 is a Type
+#+end_src
+
 * TYPE_STR
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.TYPE_STR
@@ -884,48 +984,93 @@ namespace:
 }
 #+end_src
 
-* Map__I64_Str
+* Option__ref_Str
 :PROPERTIES:
-:CUSTOM_ID: til.src.core.ast.Map__I64_Str
+:CUSTOM_ID: til.src.core.ast.Option__ref_Str
 :group: Core
 :END:
 
 #+begin_src til
-struct Map__I64_Str {
-    mut keys : Vec__I64
-    mut values : Vec__Str
+enum Option__ref_Str {
+    None
+    Some: Str
+namespace:
+    func is_some(shallow self: Option__ref_Str) returns shallow Bool
+    func is_none(shallow self: Option__ref_Str) returns shallow Bool
+    func unwrap_or(self: Option__ref_Str, default_v: Str) returns ref Str
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_Str) returns ref Str
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_Str) returns ref Str
+    ext_func None() returns shallow Option__ref_Str
+    ext_func Some(val: Str) returns shallow Option__ref_Str
+    core_func is(self: Option__ref_Str, other: Option__ref_Str) returns shallow Bool
+    func eq(shallow self: Option__ref_Str, shallow other: Option__ref_Str) returns shallow Bool
+    func delete(own self: Option__ref_Str, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Str) returns Str
+    func clone(self: Option__ref_Str) returns shallow Option__ref_Str
+    func size() returns shallow USize
+}
+#+end_src
+
+* Map__Str_USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Map__Str_USize
+:group: Core
+:END:
+
+#+begin_src til
+struct Map__Str_USize {
+    mut keys : Vec__Str
+    mut values : Vec__USize
 namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
-    func new() returns Map__I64_Str
-    func len(self: Map__I64_Str) returns shallow USize
+    func new() returns Map__Str_USize
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_USize
+    func len(self: Map__Str_USize) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
-    func clear(mut self: Map__I64_Str)
+    func clear(mut self: Map__Str_USize)
     /// True if a value exists for the given key.
-    func has(self: Map__I64_Str, shallow key: I64) returns shallow Bool
+    func has(self: Map__Str_USize, key: Str) returns shallow Bool
     /// Return a ref to the value for `key`. Throws KeyNotFound if
     /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
     /// on a missing key.
-    func get(self: Map__I64_Str, key: I64, mut _err_kind: I64) returns ref Str
+    func get(self: Map__Str_USize, key: Str, mut _err_kind: I64) returns ref USize
     /// Insert or overwrite the value for `key`. The value is owned.
-    func set(mut self: Map__I64_Str, shallow key: I64, own val: Str)
+    func set(mut self: Map__Str_USize, key: Str, own val: USize)
     /// Remove `key`, dropping its key and value. Returns false if absent.
-    func remove(mut self: Map__I64_Str, shallow key: I64) returns shallow Bool
-    func delete(own self: Map__I64_Str, shallow call_free: Bool)
-    func clone(self: Map__I64_Str) returns Map__I64_Str
-    func hash(self: Map__I64_Str, hasher: HashFn) returns shallow U64
+    func remove(mut self: Map__Str_USize, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_USize, shallow call_free: Bool)
+    func clone(self: Map__Str_USize) returns Map__Str_USize
+    func hash(self: Map__Str_USize, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
 
-* Vec__Bool
+* Vec__VariantDef
 :PROPERTIES:
-:CUSTOM_ID: til.src.core.ast.Vec__Bool
+:CUSTOM_ID: til.src.core.ast.Vec__VariantDef
 :group: Core
 :END:
 
 #+begin_src til
-struct Vec__Bool {
+struct Vec__VariantDef {
     own mut data : U8
     mut count : USize
     mut cap : USize
@@ -935,171 +1080,78 @@ namespace:
     /// and the grow sites below seed cap 0->1 on the first insert. This keeps
     /// the many containers that stay empty (e.g. the unused maps in a fresh
     /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__Bool
+    func new() returns Vec__VariantDef
     /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
     /// items reallocs zero times. Use at call sites where the final length is
     /// known up front (cloning a Vec of known length, building a fixed arg
     /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
     /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
     /// no allocation (the grow sites seed cap 0->1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__Bool
-    func len(self: Vec__Bool) returns shallow USize
+    func with_capacity(shallow n: USize) returns Vec__VariantDef
+    func len(self: Vec__VariantDef) returns shallow USize
     /// Drop all live elements via elem_delete but keep the allocated
     /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__Bool)
+    func clear(mut self: Vec__VariantDef)
     /// Drop the elements flagged in `marks` (a byte-per-element buffer,
     /// nonzero = drop, at least self.count entries) via elem_delete, then
     /// compact the survivors forward and update count. This is the
     /// container home for the scavenger's mark/sweep/compact, which used
     /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__Bool, marks: Dynamic)
+    func delete_marked(mut self: Vec__VariantDef, marks: Dynamic)
     /// Append an element to the end. `val` is owned: after this call the
     /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__Bool, own val: Bool)
+    func push(mut self: Vec__VariantDef, own val: VariantDef)
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__Bool, own other: Vec__Bool)
+    func append(mut self: Vec__VariantDef, own other: Vec__VariantDef)
     /// Replace self's contents with other's via memcpy (no per-elem clone).
     /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
     /// Takes `mut` (not `own`) so caller retains ownership of other; its
     /// natural scope-end auto-delete frees other.data. Setting other.count = 0
     /// prevents that auto-delete from re-running elem_delete on items whose
     /// bytes were moved into self.
-    func move_from(mut self: Vec__Bool, mut other: Vec__Bool)
+    func move_from(mut self: Vec__VariantDef, mut other: Vec__VariantDef)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i < len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it
     /// directly because its `_fi < len()` termination test already
     /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__Bool, i: USize) returns ref Bool
+    func unsafe_get(self: Vec__VariantDef, i: USize) returns ref VariantDef
     /// Return a reference to the element at index `i`. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i]`
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    func get(self: Vec__Bool, i: USize, mut _err_kind: I64) returns ref Bool
+    func get(self: Vec__VariantDef, i: USize, mut _err_kind: I64) returns ref VariantDef
     /// Remove and return the last element. Panics if empty. The caller
     /// takes ownership of the returned value.
-    func pop(mut self: Vec__Bool) returns shallow Bool
+    func pop(mut self: Vec__VariantDef) returns VariantDef
     /// Remove and drop the element at `i`, shifting later elements left.
-    func remove_at(mut self: Vec__Bool, shallow i: USize, mut _err_kind: I64)
+    func remove_at(mut self: Vec__VariantDef, shallow i: USize, mut _err_kind: I64)
     /// Split off the first `n` elements into a new Vec. Panics if `n`
     /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__Bool, shallow n: USize) returns Vec__Bool
+    func take_prefix(mut self: Vec__VariantDef, shallow n: USize) returns Vec__VariantDef
     /// Drop the elements from index `n` to the end, freeing each via
     /// elem_delete, and set count to `n` (the survivors [0, n) are left
     /// untouched). Panics if `n` exceeds len. This is the container home
     /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__Bool, shallow n: USize)
+    func truncate(mut self: Vec__VariantDef, shallow n: USize)
     /// Overwrite the element at index `i` without a bounds check, dropping
     /// the old value. Caller guarantees `i < self.count`; the write-side
     /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__Bool, shallow i: USize, own val: Bool)
+    func unsafe_set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef)
     /// Overwrite the element at index `i`. `val` is owned. Throws
     /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
     /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
+    func set(mut self: Vec__VariantDef, shallow i: USize, own val: VariantDef, mut _err_kind: I64)
     /// Move bytes of src[i] into self (push). Source slot is zeroed so that
     /// src's eventual elem_delete on it is a no-op (relies on the same
     /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, shallow i: USize)
+    func push_take(mut self: Vec__VariantDef, mut src: Vec__VariantDef, shallow i: USize)
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
-    func delete(own self: Vec__Bool, shallow call_free: Bool)
+    func delete(own self: Vec__VariantDef, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__Bool) returns Vec__Bool
-    func size() returns shallow USize
-}
-#+end_src
-
-* Vec__I64
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.ast.Vec__I64
-:group: Core
-:END:
-
-#+begin_src til
-struct Vec__I64 {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    /// Create a new empty Vec for elements of type T. Lazy: no allocation
-    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
-    /// the many containers that stay empty (e.g. the unused maps in a fresh
-    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
-    func new() returns Vec__I64
-    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
-    /// items reallocs zero times. Use at call sites where the final length is
-    /// known up front (cloning a Vec of known length, building a fixed arg
-    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
-    /// no allocation (the grow sites seed cap 0->1 on the first insert).
-    func with_capacity(shallow n: USize) returns Vec__I64
-    func len(self: Vec__I64) returns shallow USize
-    /// Drop all live elements via elem_delete but keep the allocated
-    /// storage and element-type metadata so the Vec can be reused.
-    func clear(mut self: Vec__I64)
-    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
-    /// nonzero = drop, at least self.count entries) via elem_delete, then
-    /// compact the survivors forward and update count. This is the
-    /// container home for the scavenger's mark/sweep/compact, which used
-    /// to reach into data/count directly.
-    func delete_marked(mut self: Vec__I64, marks: Dynamic)
-    /// Append an element to the end. `val` is owned: after this call the
-    /// caller must not use the value passed -- clone it first if needed.
-    func push(mut self: Vec__I64, own val: I64)
-    /// Consume the contents of `other` by appending them to `self`.
-    /// `other` is taken by ownership and will be empty after the call.
-    func append(mut self: Vec__I64, own other: Vec__I64)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__I64, mut other: Vec__I64)
-    /// Unchecked element access: return a reference to the element at
-    /// index `i` with NO bounds check. The caller must prove `i < len()`.
-    /// This is the unchecked core that `get` wraps; for-in uses it
-    /// directly because its `_fi < len()` termination test already
-    /// proves the index in bounds (issue #284).
-    func unsafe_get(self: Vec__I64, i: USize) returns ref I64
-    /// Return a reference to the element at index `i`. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i]`
-    /// to panic on a bad index. The reference is valid until the
-    /// next mutation.
-    func get(self: Vec__I64, i: USize, mut _err_kind: I64) returns ref I64
-    /// Remove and return the last element. Panics if empty. The caller
-    /// takes ownership of the returned value.
-    func pop(mut self: Vec__I64) returns shallow I64
-    /// Remove and drop the element at `i`, shifting later elements left.
-    func remove_at(mut self: Vec__I64, shallow i: USize, mut _err_kind: I64)
-    /// Split off the first `n` elements into a new Vec. Panics if `n`
-    /// exceeds self.len(). The remaining elements shift to the front.
-    func take_prefix(mut self: Vec__I64, shallow n: USize) returns Vec__I64
-    /// Drop the elements from index `n` to the end, freeing each via
-    /// elem_delete, and set count to `n` (the survivors [0, n) are left
-    /// untouched). Panics if `n` exceeds len. This is the container home
-    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-    func truncate(mut self: Vec__I64, shallow n: USize)
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.count`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(mut self: Vec__I64, shallow i: USize, own val: I64)
-    /// Overwrite the element at index `i`. `val` is owned. Throws
-    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
-    /// (or `vec.set(i, own val)!`) to panic on a bad index.
-    func set(mut self: Vec__I64, shallow i: USize, own val: I64, mut _err_kind: I64)
-    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
-    /// src's eventual elem_delete on it is a no-op (relies on the same
-    /// count==0/data==NULL convention used by take_children and Vec.delete).
-    func push_take(mut self: Vec__I64, mut src: Vec__I64, shallow i: USize)
-    /// Drop each element via elem_delete, free storage, then free self
-    /// unless `call_free` is false.
-    func delete(own self: Vec__I64, shallow call_free: Bool)
-    /// Deep-copy the Vec and all its elements via elem_clone.
-    func clone(self: Vec__I64) returns Vec__I64
+    func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns shallow USize
 }
 #+end_src
@@ -1379,6 +1431,99 @@ namespace:
     func delete(own self: Vec__Expr, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Expr) returns Vec__Expr
+    func size() returns shallow USize
+}
+#+end_src
+
+* Vec__USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Vec__USize
+:group: Core
+:END:
+
+#+begin_src til
+struct Vec__USize {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
+    func new() returns Vec__USize
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
+    func with_capacity(shallow n: USize) returns Vec__USize
+    func len(self: Vec__USize) returns shallow USize
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__USize)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__USize, marks: Dynamic)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__USize, own val: USize)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__USize, own other: Vec__USize)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__USize, mut other: Vec__USize)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__USize, i: USize) returns ref USize
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__USize, i: USize, mut _err_kind: I64) returns ref USize
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__USize) returns shallow USize
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__USize, shallow i: USize, mut _err_kind: I64)
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__USize, shallow n: USize) returns Vec__USize
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__USize, shallow n: USize)
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__USize, shallow i: USize, own val: USize)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__USize, mut src: Vec__USize, shallow i: USize)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__USize, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__USize) returns Vec__USize
     func size() returns shallow USize
 }
 #+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * TokenType
@@ -261,6 +261,10 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_TokenType
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_TokenType
     func len(self: Map__Str_TokenType) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_TokenType)

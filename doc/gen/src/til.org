@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -52,14 +52,14 @@ ext_proc get_bin_dir() returns Str
 ext_proc get_cwd_str() returns Str
 #+end_src
 
-* repl_read_line
+* repl_read_block
 :PROPERTIES:
-:CUSTOM_ID: til.src.til.repl_read_line
+:CUSTOM_ID: til.src.til.repl_read_block
 :group: CLI
 :END:
 
 #+begin_src til
-proc repl_read_line(mode_name: Str) returns Str
+proc repl_read_block(mode_name: Str, mut eof: Bool) returns Str
 #+end_src
 
 * repl_typecheck
@@ -79,7 +79,7 @@ proc repl_typecheck(mut lp: LoadedProgram) returns shallow I32
 :END:
 
 #+begin_src til
-proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32) returns Str
+proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_capture_eval_tail
@@ -89,7 +89,7 @@ proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram
 :END:
 
 #+begin_src til
-proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize) returns Str
+proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, shallow start_idx: USize, shallow count: USize, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_source_line_count

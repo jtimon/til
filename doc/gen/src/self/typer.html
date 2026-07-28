@@ -19,13 +19,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
@@ -49,7 +50,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
-<li><a class="current" href="../../src/self/typer.html">src/self/typer.til</a><ul><li><a href="#til.src.self.typer.fa_is_ns">fa_is_ns</a></li><li><a href="#til.src.self.typer.make_til_type_expr">make_til_type_expr</a></li><li><a href="#til.src.self.typer.fa_own_type">fa_own_type</a></li><li><a href="#til.src.self.typer.I64Name">I64Name</a></li><li><a href="#til.src.self.typer.U8Name">U8Name</a></li><li><a href="#til.src.self.typer.I8Name">I8Name</a></li><li><a href="#til.src.self.typer.I16Name">I16Name</a></li><li><a href="#til.src.self.typer.U16Name">U16Name</a></li><li><a href="#til.src.self.typer.I32Name">I32Name</a></li><li><a href="#til.src.self.typer.U32Name">U32Name</a></li><li><a href="#til.src.self.typer.U64Name">U64Name</a></li><li><a href="#til.src.self.typer.F32Name">F32Name</a></li><li><a href="#til.src.self.typer.BoolName">BoolName</a></li><li><a href="#til.src.self.typer.type_error">type_error</a></li><li><a href="#til.src.self.typer.type_error_at">type_error_at</a></li><li><a href="#til.src.self.typer.find_namespace_func">find_namespace_func</a></li><li><a href="#til.src.self.typer.find_ns_decl">find_ns_decl</a></li><li><a href="#til.src.self.typer.resolve_fn_sig">resolve_fn_sig</a></li><li><a href="#til.src.self.typer.fcall_returns_own">fcall_returns_own</a></li><li><a href="#til.src.self.typer.is_clone_fcall">is_clone_fcall</a></li><li><a href="#til.src.self.typer.resolve_default_value">resolve_default_value</a></li><li><a href="#til.src.self.typer.infer_expr">infer_expr</a></li><li><a href="#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a></li><li><a href="#til.src.self.typer.check_unused_locals">check_unused_locals</a></li><li><a href="#til.src.self.typer.check_unused_mut_locals">check_unused_mut_locals</a></li><li><a href="#til.src.self.typer.check_unused_priv_top_level">check_unused_priv_top_level</a></li><li><a href="#til.src.self.typer.check_unused_priv_members_in_program">check_unused_priv_members_in_program</a></li><li><a href="#til.src.self.typer.is_simple_lvalue_expr">is_simple_lvalue_expr</a></li><li><a href="#til.src.self.typer.is_compile_directive">is_compile_directive</a></li><li><a href="#til.src.self.typer.infer_body_stmt">infer_body_stmt</a></li><li><a href="#til.src.self.typer.reregister_repl_scope_defs">reregister_repl_scope_defs</a></li><li><a href="#til.src.self.typer.infer_body">infer_body</a></li><li><a href="#til.src.self.typer.normalize_scope_bindings">normalize_scope_bindings</a></li><li><a href="#til.src.self.typer.type_file">type_file</a></li><li><a href="#til.src.self.typer.type_repl_delta">type_repl_delta</a></li><li><a href="#til.src.self.typer.rhs_is_clone_fcall">rhs_is_clone_fcall</a></li><li><a href="#til.src.self.typer.assign_target_is_func_local">assign_target_is_func_local</a></li><li><a href="#til.src.self.typer.is_numeric_type">is_numeric_type</a></li><li><a href="#til.src.self.typer.is_integral_numeric_type">is_integral_numeric_type</a></li><li><a href="#til.src.self.typer.literal_in_range">literal_in_range</a></li><li><a href="#til.src.self.typer.type_from_name">type_from_name</a></li><li><a href="#til.src.self.typer.resolve_type_alias">resolve_type_alias</a></li><li><a href="#til.src.self.typer.usize_type">usize_type</a></li><li><a href="#til.src.self.typer.type_has_cmp">type_has_cmp</a></li><li><a href="#til.src.self.typer.expr_uses_var">expr_uses_var</a></li><li><a href="#til.src.self.typer.expr_contains_decl">expr_contains_decl</a></li><li><a href="#til.src.self.typer.expr_used_in_nested_func">expr_used_in_nested_func</a></li><li><a href="#til.src.self.typer.type_prefix">type_prefix</a></li><li><a href="#til.src.self.typer.type_to_name">type_to_name</a></li><li><a href="#til.src.self.typer.make_closure_delete_call">make_closure_delete_call</a></li><li><a href="#til.src.self.typer.make_delete_call">make_delete_call</a></li><li><a href="#til.src.self.typer.transfer_is_shallow_field_value_copy">transfer_is_shallow_field_value_copy</a></li><li><a href="#til.src.self.typer.make_free_call">make_free_call</a></li><li><a href="#til.src.self.typer.make_clone_call">make_clone_call</a></li><li><a href="#til.src.self.typer.make_ns_call">make_ns_call</a></li><li><a href="#til.src.self.typer.variadic_array_type_name">variadic_array_type_name</a></li><li><a href="#til.src.self.typer.expr_transfers_own">expr_transfers_own</a></li><li><a href="#til.src.self.typer.fcall_is_get_method">fcall_is_get_method</a></li><li><a href="#til.src.self.typer.fcall_returns_ref">fcall_returns_ref</a></li><li><a href="#til.src.self.typer.fcall_returns_shallow">fcall_returns_shallow</a></li><li><a href="#til.src.self.typer.Vec__CtorArg">Vec__CtorArg</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode">Vec__CoverageNode</a></li></ul></li>
+<li><a class="current" href="../../src/self/typer.html">src/self/typer.til</a><ul><li><a href="#til.src.self.typer.fa_is_ns">fa_is_ns</a></li><li><a href="#til.src.self.typer.make_til_type_expr">make_til_type_expr</a></li><li><a href="#til.src.self.typer.fa_own_type">fa_own_type</a></li><li><a href="#til.src.self.typer.I64Name">I64Name</a></li><li><a href="#til.src.self.typer.U8Name">U8Name</a></li><li><a href="#til.src.self.typer.I8Name">I8Name</a></li><li><a href="#til.src.self.typer.I16Name">I16Name</a></li><li><a href="#til.src.self.typer.U16Name">U16Name</a></li><li><a href="#til.src.self.typer.I32Name">I32Name</a></li><li><a href="#til.src.self.typer.U32Name">U32Name</a></li><li><a href="#til.src.self.typer.U64Name">U64Name</a></li><li><a href="#til.src.self.typer.F32Name">F32Name</a></li><li><a href="#til.src.self.typer.BoolName">BoolName</a></li><li><a href="#til.src.self.typer.type_error">type_error</a></li><li><a href="#til.src.self.typer.type_error_at">type_error_at</a></li><li><a href="#til.src.self.typer.find_namespace_func">find_namespace_func</a></li><li><a href="#til.src.self.typer.find_ns_decl">find_ns_decl</a></li><li><a href="#til.src.self.typer.resolve_fn_sig">resolve_fn_sig</a></li><li><a href="#til.src.self.typer.fcall_returns_own">fcall_returns_own</a></li><li><a href="#til.src.self.typer.is_clone_fcall">is_clone_fcall</a></li><li><a href="#til.src.self.typer.resolve_default_value">resolve_default_value</a></li><li><a href="#til.src.self.typer.expr_declared_type_name">expr_declared_type_name</a></li><li><a href="#til.src.self.typer.infer_expr">infer_expr</a></li><li><a href="#til.src.self.typer.PTR_SIZE_BYTES">PTR_SIZE_BYTES</a></li><li><a href="#til.src.self.typer.check_unused_locals">check_unused_locals</a></li><li><a href="#til.src.self.typer.check_unused_mut_locals">check_unused_mut_locals</a></li><li><a href="#til.src.self.typer.mark_binding_referenced">mark_binding_referenced</a></li><li><a href="#til.src.self.typer.check_unused_priv_top_level">check_unused_priv_top_level</a></li><li><a href="#til.src.self.typer.check_unused_priv_members_in_program">check_unused_priv_members_in_program</a></li><li><a href="#til.src.self.typer.is_simple_lvalue_expr">is_simple_lvalue_expr</a></li><li><a href="#til.src.self.typer.is_compile_directive">is_compile_directive</a></li><li><a href="#til.src.self.typer.infer_body_stmt">infer_body_stmt</a></li><li><a href="#til.src.self.typer.reregister_repl_scope_defs">reregister_repl_scope_defs</a></li><li><a href="#til.src.self.typer.infer_body">infer_body</a></li><li><a href="#til.src.self.typer.normalize_scope_bindings">normalize_scope_bindings</a></li><li><a href="#til.src.self.typer.type_file">type_file</a></li><li><a href="#til.src.self.typer.type_repl_delta">type_repl_delta</a></li><li><a href="#til.src.self.typer.rhs_is_clone_fcall">rhs_is_clone_fcall</a></li><li><a href="#til.src.self.typer.assign_target_is_func_local">assign_target_is_func_local</a></li><li><a href="#til.src.self.typer.is_numeric_type">is_numeric_type</a></li><li><a href="#til.src.self.typer.is_integral_numeric_type">is_integral_numeric_type</a></li><li><a href="#til.src.self.typer.literal_in_range">literal_in_range</a></li><li><a href="#til.src.self.typer.type_from_name">type_from_name</a></li><li><a href="#til.src.self.typer.resolve_type_alias">resolve_type_alias</a></li><li><a href="#til.src.self.typer.resolve_type_alias_for_name">resolve_type_alias_for_name</a></li><li><a href="#til.src.self.typer.usize_type">usize_type</a></li><li><a href="#til.src.self.typer.type_has_cmp">type_has_cmp</a></li><li><a href="#til.src.self.typer.expr_uses_var">expr_uses_var</a></li><li><a href="#til.src.self.typer.expr_contains_decl">expr_contains_decl</a></li><li><a href="#til.src.self.typer.expr_used_in_nested_func">expr_used_in_nested_func</a></li><li><a href="#til.src.self.typer.type_prefix">type_prefix</a></li><li><a href="#til.src.self.typer.type_to_name">type_to_name</a></li><li><a href="#til.src.self.typer.make_closure_delete_call">make_closure_delete_call</a></li><li><a href="#til.src.self.typer.make_delete_call">make_delete_call</a></li><li><a href="#til.src.self.typer.transfer_is_shallow_field_value_copy">transfer_is_shallow_field_value_copy</a></li><li><a href="#til.src.self.typer.make_free_call">make_free_call</a></li><li><a href="#til.src.self.typer.make_clone_call">make_clone_call</a></li><li><a href="#til.src.self.typer.make_ns_call">make_ns_call</a></li><li><a href="#til.src.self.typer.variadic_array_type_name">variadic_array_type_name</a></li><li><a href="#til.src.self.typer.arg_addressed_ident">arg_addressed_ident</a></li><li><a href="#til.src.self.typer.expr_transfers_own">expr_transfers_own</a></li><li><a href="#til.src.self.typer.expr_collect_ptr_escapes">expr_collect_ptr_escapes</a></li><li><a href="#til.src.self.typer.expr_collect_stmt_facts">expr_collect_stmt_facts</a></li><li><a href="#til.src.self.typer.fcall_is_get_method">fcall_is_get_method</a></li><li><a href="#til.src.self.typer.fcall_returns_ref">fcall_returns_ref</a></li><li><a href="#til.src.self.typer.fcall_returns_shallow">fcall_returns_shallow</a></li><li><a href="#til.src.self.typer.Vec__CtorArg">Vec__CtorArg</a></li><li><a href="#til.src.self.typer.Option__Expr">Option__Expr</a></li><li><a href="#til.src.self.typer.Vec__CoverageNode">Vec__CoverageNode</a></li></ul></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
 </ul>
@@ -172,19 +173,19 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.find_namespace_func">
 <h2>find_namespace_func</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns ref Expr
+<pre><code class="language-til">func find_namespace_func(sdef: Expr, method: Str, scope: TypeScope) returns shallow Option__ref_Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.find_ns_decl">
 <h2>find_ns_decl</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func find_ns_decl(sdef: Expr, method: Str) returns ref Declaration
+<pre><code class="language-til">func find_ns_decl(sdef: Expr, method: Str) returns shallow Option__ref_Declaration
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.resolve_fn_sig">
 <h2>resolve_fn_sig</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns ref Expr
+<pre><code class="language-til">func resolve_fn_sig(fcall: Expr, scope: TypeScope) returns shallow Option__ref_Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fcall_returns_own">
@@ -203,6 +204,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>resolve_default_value</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func resolve_default_value(default_value: Expr, call_expr: Expr, ctx: Context) returns Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_declared_type_name">
+<h2>expr_declared_type_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_declared_type_name(scope: TypeScope, e: Expr) returns Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.infer_expr">
@@ -227,6 +234,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>check_unused_mut_locals</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">proc check_unused_mut_locals(scope: TypeScope, path: Str, ctx: Context)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.mark_binding_referenced">
+<h2>mark_binding_referenced</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func mark_binding_referenced(mut ctx: Context, mut b: TypeBinding)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.check_unused_priv_top_level">
@@ -331,6 +344,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func resolve_type_alias(scope: TypeScope, name: Str) returns ref Str
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.typer.resolve_type_alias_for_name">
+<h2>resolve_type_alias_for_name</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func resolve_type_alias_for_name(scope: TypeScope, name: Str) returns ref Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.typer.usize_type">
 <h2>usize_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -382,7 +401,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.make_delete_call">
 <h2>make_delete_call</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr
+<pre><code class="language-til">func make_delete_call(var_name: Str, shallow type: Type, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Option__Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.transfer_is_shallow_field_value_copy">
@@ -415,10 +434,28 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func variadic_array_type_name(scope: TypeScope, elem_type: Str) returns Str
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.typer.arg_addressed_ident">
+<h2>arg_addressed_ident</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func arg_addressed_ident(arg: Expr) returns shallow Option__ref_Str
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.typer.expr_transfers_own">
 <h2>expr_transfers_own</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">func expr_transfers_own(e: Expr, var_name: Str, scope: TypeScope, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_collect_ptr_escapes">
+<h2>expr_collect_ptr_escapes</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_collect_ptr_escapes(e: Expr, mut out: Set__Str)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.expr_collect_stmt_facts">
+<h2>expr_collect_stmt_facts</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func expr_collect_stmt_facts(e: Expr, scope: TypeScope, shallow want_transfers: Bool, shallow transfers_on: Bool, mut uses: Set__Str, mut decls: Set__Str, mut nested: Set__Str, mut escapes: Set__Str, mut transfers: Set__Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.fcall_is_get_method">
@@ -436,7 +473,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.typer.fcall_returns_shallow">
 <h2>fcall_returns_shallow</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func fcall_returns_shallow(fcall: Expr, scope: TypeScope) returns shallow I32
+<pre><code class="language-til">func fcall_returns_shallow(fcall: Expr, scope: TypeScope, ctx: Context) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.typer.Vec__CtorArg">
@@ -524,6 +561,43 @@ namespace:
     func delete(own self: Vec__CtorArg, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__CtorArg) returns Vec__CtorArg
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.typer.Option__Expr">
+<h2>Option__Expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">enum Option__Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(self: Option__Expr) returns shallow Bool
+    func is_none(self: Option__Expr) returns shallow Bool
+    func unwrap_or(self: Option__Expr, default_v: Expr) returns Expr
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__Expr) returns Expr
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__Expr) returns Expr
+    ext_func None() returns Option__Expr
+    ext_func Some(own val: Expr) returns Option__Expr
+    core_func is(self: Option__Expr, other: Option__Expr) returns shallow Bool
+    func eq(self: Option__Expr, other: Option__Expr) returns shallow Bool
+    func delete(own self: Option__Expr, shallow call_free: Bool)
+    func to_str(self: Option__Expr) returns Str
+    func clone(self: Option__Expr) returns Option__Expr
     func size() returns shallow USize
 }
 </code></pre>

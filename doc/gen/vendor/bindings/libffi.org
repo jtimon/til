@@ -1,5 +1,5 @@
 #+TITLE: vendor/bindings/libffi.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * FFI_TYPE_VOID
@@ -340,7 +340,7 @@ FFI_64_BIT_MAX is a I64
 
 #+begin_src til
 struct ffi_type {
-    mut size : USize
+    mut size : U64
     mut alignment : U16
     mut type : U16
     ref mut elements : Dynamic

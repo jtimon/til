@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * collect_enum_variants
@@ -20,6 +20,16 @@ func collect_enum_variants(enum_def: Expr, mut variant_names: Vec__Str, mut vari
 
 #+begin_src til
 func register_funcsig_alias_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
+#+end_src
+
+* register_function_def_for_stmt
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.register_function_def_for_stmt
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func register_function_def_for_stmt(ctx: Context, stmt: Expr, scope: TypeScope)
 #+end_src
 
 * gen_struct_size_method_for_stmt
@@ -92,6 +102,16 @@ proc compute_enum_layout(name: Str, enum_def: Expr, scope: TypeScope, ctx: Conte
 func ctx_total_size(name: Str, ctx: Context) returns shallow USize
 #+end_src
 
+* EMPTY_FIELD_LAYOUT
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.EMPTY_FIELD_LAYOUT
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+EMPTY_FIELD_LAYOUT is a FieldLayout
+#+end_src
+
 * ctx_field_layout
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.ctx_field_layout
@@ -102,6 +122,16 @@ func ctx_total_size(name: Str, ctx: Context) returns shallow USize
 func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref FieldLayout
 #+end_src
 
+* init_lift_in_body
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_lift_in_body
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_lift_in_body(mut body: Expr, parent_prefix: Str, mut top_level: Vec__Expr)
+#+end_src
+
 * init_refresh_seeded_scope_defs
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.init_refresh_seeded_scope_defs
@@ -110,6 +140,55 @@ func ctx_field_layout(sname: Str, field_name: Str, ctx: Context) returns ref Fie
 
 #+begin_src til
 func init_refresh_seeded_scope_defs(program: Expr, mut scope: TypeScope)
+#+end_src
+
+* GenericSources
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.GenericSources
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct GenericSources {
+    mut defs : Map__Str_Dynamic
+    mut sources : Map__Str_GenericFuncSource
+    mut late : Bool
+namespace:
+    func clone(self: GenericSources) returns GenericSources
+    func delete(own self: GenericSources, shallow call_free: Bool)
+    func hash(self: GenericSources, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* generic_instantiate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.generic_instantiate
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func generic_instantiate(src: GenericFuncSource, gfd_expr: Expr, subs: Map__Str_Expr, ref_params: Set__Str, gs: GenericSources, local_types: Map__Str_Str, mut seen: Map__Str_Str, mut destination: Expr, mut arg_pos: Vec__I64, shallow line: U32, shallow col: U32, scope: TypeScope, ctx: Context) returns Str
+#+end_src
+
+* init_scan_unresolved_generic_calls
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_scan_unresolved_generic_calls
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_scan_unresolved_generic_calls(program: Expr, scope: TypeScope, ctx: Context) returns shallow I32
+#+end_src
+
+* init_retire_generic_sources
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_retire_generic_sources
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func init_retire_generic_sources(mut program: Expr, mut scope: TypeScope)
 #+end_src
 
 * init_declarations_global
@@ -169,7 +248,7 @@ func clone_call_type_name(e: Expr) returns Str
 :END:
 
 #+begin_src til
-func is_pod_enum_clone_of(e: Expr, edef: Expr) returns shallow Bool
+func is_pod_enum_clone_of(e: Expr, shallow edef_o: Option__ref_Expr) returns shallow Bool
 #+end_src
 
 * Map__Str_I64
@@ -186,6 +265,10 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_I64
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_I64
     func len(self: Map__Str_I64) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_I64)
@@ -202,6 +285,137 @@ namespace:
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* Map__Str_GenericFuncSource
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.Map__Str_GenericFuncSource
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Map__Str_GenericFuncSource {
+    mut keys : Vec__Str
+    mut values : Vec__GenericFuncSource
+namespace:
+    /// Create an empty Map of the types provided for the key and values respectively.
+    /// The key type must implement `cmp`.
+    func new() returns Map__Str_GenericFuncSource
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_GenericFuncSource
+    func len(self: Map__Str_GenericFuncSource) returns shallow USize
+    /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
+    func clear(mut self: Map__Str_GenericFuncSource)
+    /// True if a value exists for the given key.
+    func has(self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
+    /// Return a ref to the value for `key`. Throws KeyNotFound if
+    /// `key` is absent; call as `map.get(k)!` (or `map[k]`) to panic
+    /// on a missing key.
+    func get(self: Map__Str_GenericFuncSource, key: Str, mut _err_kind: I64) returns ref GenericFuncSource
+    /// Insert or overwrite the value for `key`. The value is owned.
+    func set(mut self: Map__Str_GenericFuncSource, key: Str, own val: GenericFuncSource)
+    /// Remove `key`, dropping its key and value. Returns false if absent.
+    func remove(mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
+    func delete(own self: Map__Str_GenericFuncSource, shallow call_free: Bool)
+    func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
+    func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
+    func size() returns shallow USize
+}
+#+end_src
+
+* Vec__GenericFuncSource
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.Vec__GenericFuncSource
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct Vec__GenericFuncSource {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
+    func new() returns Vec__GenericFuncSource
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
+    func with_capacity(shallow n: USize) returns Vec__GenericFuncSource
+    func len(self: Vec__GenericFuncSource) returns shallow USize
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__GenericFuncSource)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__GenericFuncSource, marks: Dynamic)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__GenericFuncSource, own val: GenericFuncSource)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__GenericFuncSource, own other: Vec__GenericFuncSource)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__GenericFuncSource, mut other: Vec__GenericFuncSource)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__GenericFuncSource, i: USize) returns ref GenericFuncSource
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__GenericFuncSource, i: USize, mut _err_kind: I64) returns ref GenericFuncSource
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__GenericFuncSource) returns GenericFuncSource
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__GenericFuncSource, shallow i: USize, mut _err_kind: I64)
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__GenericFuncSource, shallow n: USize) returns Vec__GenericFuncSource
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__GenericFuncSource, shallow n: USize)
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__GenericFuncSource, shallow i: USize, own val: GenericFuncSource, mut _err_kind: I64)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__GenericFuncSource, mut src: Vec__GenericFuncSource, shallow i: USize)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__GenericFuncSource, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func size() returns shallow USize
 }
 #+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/core/exit.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * exit
@@ -39,7 +39,7 @@ func TODO(parts: ..Str, loc: Str)
 :END:
 
 #+begin_src til
-func UNREACHABLE(loc: Str)
+func UNREACHABLE(parts: ..Str, loc: Str)
 #+end_src
 
 * assert

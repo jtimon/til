@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -73,6 +73,7 @@ struct LoadedProgram {
     mut include_flags : Str
     mut link_c_paths : Str
     mut run_tests : Bool
+    mut load_errors : I32
     mut usize_override_bits : I64
 namespace:
     func delete(own self: LoadedProgram, shallow call_free: Bool)
@@ -108,7 +109,7 @@ func retarget_loaded_aliases(lp: LoadedProgram)
 :END:
 
 #+begin_src til
-proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str) returns LoadedProgram
+proc load_program(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, import_base: Str) returns LoadedProgram
 #+end_src
 
 * DocMeta
@@ -358,6 +359,10 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_DeclRef
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_DeclRef
     func len(self: Map__Str_DeclRef) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_DeclRef)

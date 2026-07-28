@@ -1,16 +1,6 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
-
-* system_cmd
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.system_cmd
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ext_proc system_cmd(cmd: Str) returns shallow I32
-#+end_src
 
 * CALLABLE_BOX_MAGIC
 :PROPERTIES:
@@ -40,6 +30,16 @@ namespace:
 }
 #+end_src
 
+* hb_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.hb_type
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func hb_type(hb: HeapBinding) returns ref Type
+#+end_src
+
 * HeapBinding
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.HeapBinding
@@ -49,7 +49,7 @@ namespace:
 #+begin_src til
 struct HeapBinding {
     ref mut ptr : U8
-    mut til_type : Type
+    ref mut til_type_p : U8
     mut own_type : OwnType
     ref mut ctx : Context
     mut is_local : Bool
@@ -75,11 +75,12 @@ namespace:
 struct Scope {
     mut heap_bindings : Map__Str_HeapBinding
     mut heap_aliases : Map__Str_Str
-    ref mut parent : Scope
+    mut parent : Option__ref_Scope
     mut is_call_scope : Bool
 namespace:
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, shallow call_free: Bool)
+    func hash(self: Scope, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -96,6 +97,7 @@ struct InterpSession {
     mut core_evaluated : Bool
     mut user_argc : USize
     mut retained_programs : Vec__DynPtrBox
+    mut is_repl : Bool
     mut evaluated_units : Set__Str
 namespace:
     func clone(self: InterpSession) returns InterpSession
@@ -111,17 +113,7 @@ namespace:
 :END:
 
 #+begin_src til
-func lookup_interp_type_def(name: Str, ctx: Context) returns ref Expr
-#+end_src
-
-* ENUM_PAYLOAD_OFFSET
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ENUM_PAYLOAD_OFFSET is a U32
+func lookup_interp_type_def(name: Str, ctx: Context) returns shallow Option__ref_Expr
 #+end_src
 
 * raw_type_is_prim
@@ -201,7 +193,7 @@ proc raw_result_drop(shallow t: Type, raw: Dynamic, shallow return_is_ref: Bool,
 :END:
 
 #+begin_src til
-func scope_set_raw_owned(scope: Scope, name: Str, raw: Dynamic, shallow t: Type, own_type: OwnType, ctx: Context, shallow borrowed: Bool)
+func scope_set_raw_owned(scope: Scope, name: Str, raw: Dynamic, t_w: Dynamic, own_type: OwnType, ctx: Context, shallow borrowed: Bool)
 #+end_src
 
 * eval_expr_raw
@@ -241,7 +233,7 @@ func scope_pool_drain()
 :END:
 
 #+begin_src til
-func scope_new(parent: Scope) returns Scope
+func scope_new(shallow parent: Option__ref_Scope) returns Scope
 #+end_src
 
 * scope_lookup_heap_binding
@@ -251,7 +243,7 @@ func scope_new(parent: Scope) returns Scope
 :END:
 
 #+begin_src til
-func scope_lookup_heap_binding(mut s: Scope, name: Str) returns ref HeapBinding
+func scope_lookup_heap_binding(mut s: Scope, name: Str) returns shallow Option__ref_HeapBinding
 #+end_src
 
 * scope_read_bound_raw
@@ -264,6 +256,16 @@ func scope_lookup_heap_binding(mut s: Scope, name: Str) returns ref HeapBinding
 func scope_read_bound_raw(scope: Scope, name: Str, ctx: Context) returns Dynamic
 #+end_src
 
+* interp_intern_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.interp_intern_type
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func interp_intern_type(shallow t: Type, mut ctx: Context) returns Dynamic
+#+end_src
+
 * scope_set_heap_owned
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.scope_set_heap_owned
@@ -271,7 +273,7 @@ func scope_read_bound_raw(scope: Scope, name: Str, ctx: Context) returns Dynamic
 :END:
 
 #+begin_src til
-func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, shallow til_type: Type, own_type: OwnType, ctx: Context, shallow is_local: Bool, shallow is_borrowed: Bool, shallow is_erased_dynamic: Bool)
+func scope_set_heap_owned(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: Dynamic, own_type: OwnType, ctx: Context, shallow is_local: Bool, shallow is_borrowed: Bool, shallow is_erased_dynamic: Bool)
 #+end_src
 
 * scope_set_heap_moved
@@ -291,7 +293,7 @@ func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
 :END:
 
 #+begin_src til
-func scope_new_boxed(parent: Scope) returns ref Scope
+func scope_new_boxed(parent: Option__ref_Scope) returns ref Scope
 #+end_src
 
 * scope_drop_owned_bindings
@@ -341,7 +343,7 @@ proc interpreter_init_ns(mut ctx: Context, global: Scope, program: Expr)
 :END:
 
 #+begin_src til
-func ns_get(sname: Str, fname: Str, mut ctx: Context) returns ref Dynamic
+func ns_get(sname: Str, fname: Str, mut ctx: Context) returns shallow Option__ref_Dynamic
 #+end_src
 
 * interpreter_free_ns
@@ -372,16 +374,6 @@ func str_cap_at(str_base: Dynamic, ctx: Context) returns shallow USize
 
 #+begin_src til
 func str_count_at(str_base: Dynamic, ctx: Context) returns shallow USize
-#+end_src
-
-* ENUM_PAYLOAD_OFFSET
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.ENUM_PAYLOAD_OFFSET
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ENUM_PAYLOAD_OFFSET is a U32
 #+end_src
 
 * read_field
@@ -501,7 +493,7 @@ proc interp_session_eval_imported_once(mut session: InterpSession, mut lp: Loade
 :END:
 
 #+begin_src til
-proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32)
+proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProgram, shallow block_start_line: U32, shallow eval_doc_line: Bool, shallow doc_init_line: U32) returns shallow Bool
 #+end_src
 
 * interp_session_eval_current_tail
@@ -511,7 +503,7 @@ proc interp_session_eval_current_root(session: InterpSession, mut lp: LoadedProg
 :END:
 
 #+begin_src til
-proc interp_session_eval_current_tail(session: InterpSession, mut lp: LoadedProgram, shallow start_idx: USize, shallow count: USize)
+proc interp_session_eval_current_tail(session: InterpSession, mut lp: LoadedProgram, shallow start_idx: USize, shallow count: USize) returns shallow Bool
 #+end_src
 
 * cmd_interpret
@@ -533,7 +525,7 @@ proc cmd_interpret(lp: LoadedProgram, user_argv: Vec__Str) returns shallow I32
 #+begin_src til
 struct FFIEntry {
     ref mut fn : U8
-    ref mut return_type : Str
+    mut return_type : Option__ref_Str
     mut nparam : USize
     ref mut param_shallows : U8
     ref mut param_dynamics : U8
@@ -650,36 +642,6 @@ ext_func ffi_global_symbol(name: Str) returns ref U8
 ext_proc ffi_last_error() returns Str
 #+end_src
 
-* stderr_print
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.stderr_print
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ext_proc stderr_print(msg: Str) returns shallow I32
-#+end_src
-
-* unlink_path
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.unlink_path
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ext_proc unlink_path(path: Str)
-#+end_src
-
-* process_id
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.process_id
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ext_proc process_id() returns shallow I32
-#+end_src
-
 * til_built_with_asan
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.til_built_with_asan
@@ -740,14 +702,43 @@ proc ffi_init_scan_program(program: Expr, ctx: Context)
 proc ffi_cleanup(ctx: Context)
 #+end_src
 
-* Vec__USize
+* Option__ref_HeapBinding
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.Vec__USize
+:CUSTOM_ID: til.src.self.interpreter.Option__ref_HeapBinding
 :group: Compiler tools
 :END:
 
 #+begin_src til
-Vec__USize
+enum Option__ref_HeapBinding {
+    None
+    Some: HeapBinding
+namespace:
+    func is_some(shallow self: Option__ref_HeapBinding) returns shallow Bool
+    func is_none(shallow self: Option__ref_HeapBinding) returns shallow Bool
+    func unwrap_or(self: Option__ref_HeapBinding, default_v: HeapBinding) returns ref HeapBinding
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_HeapBinding) returns ref HeapBinding
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_HeapBinding) returns ref HeapBinding
+    ext_func None() returns shallow Option__ref_HeapBinding
+    ext_func Some(val: HeapBinding) returns shallow Option__ref_HeapBinding
+    core_func is(self: Option__ref_HeapBinding, other: Option__ref_HeapBinding) returns shallow Bool
+    func delete(own self: Option__ref_HeapBinding, shallow call_free: Bool)
+    func clone(self: Option__ref_HeapBinding) returns shallow Option__ref_HeapBinding
+    func size() returns shallow USize
+}
 #+end_src
 
 * Map__Str_HeapBinding
@@ -764,6 +755,10 @@ namespace:
     /// Create an empty Map of the types provided for the key and values respectively.
     /// The key type must implement `cmp`.
     func new() returns Map__Str_HeapBinding
+    /// Create an empty Map pre-sized for `n` entries, so inserting up to
+    /// `n` reallocs neither backing Vec (Vec.with_capacity's
+    /// counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+    func with_capacity(shallow n: USize) returns Map__Str_HeapBinding
     func len(self: Map__Str_HeapBinding) returns shallow USize
     /// Drop all live keys and values but keep the allocated storage so the Map can be reused.
     func clear(mut self: Map__Str_HeapBinding)
@@ -873,6 +868,45 @@ namespace:
     func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
+    func size() returns shallow USize
+}
+#+end_src
+
+* Option__ref_ffi_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.Option__ref_ffi_type
+:group: Compiler tools
+:END:
+
+#+begin_src til
+enum Option__ref_ffi_type {
+    None
+    Some: ffi_type
+namespace:
+    func is_some(shallow self: Option__ref_ffi_type) returns shallow Bool
+    func is_none(shallow self: Option__ref_ffi_type) returns shallow Bool
+    func unwrap_or(self: Option__ref_ffi_type, default_v: ffi_type) returns ref ffi_type
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_ffi_type) returns ref ffi_type
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_ffi_type) returns ref ffi_type
+    ext_func None() returns shallow Option__ref_ffi_type
+    ext_func Some(val: ffi_type) returns shallow Option__ref_ffi_type
+    core_func is(self: Option__ref_ffi_type, other: Option__ref_ffi_type) returns shallow Bool
+    func delete(own self: Option__ref_ffi_type, shallow call_free: Bool)
+    func clone(self: Option__ref_ffi_type) returns shallow Option__ref_ffi_type
     func size() returns shallow USize
 }
 #+end_src

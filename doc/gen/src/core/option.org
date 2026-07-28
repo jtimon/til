@@ -1,0 +1,20 @@
+#+TITLE: src/core/option.til
+#+SUBTITLE: til 0.0.1-ef4e43f87
+#+OPTIONS: toc:t
+
+* Option
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.option.Option
+:group: Core
+:END:
+
+Optional value, ala Rust's Option<T> (#320): Some carries a value of
+type T, None carries nothing. ONE template serves owned payloads
+(Option(X)) and borrowed ones (Option(ref X)) via ref-qualified type
+arguments; a borrowed Some shares its pointee (the enum does not own
+it). Option(ref T) is the shape #321's NULL removal migrates ref
+fields and lookup returns onto.
+
+#+begin_src til
+macro Option(T: Type) returns EnumDef
+#+end_src

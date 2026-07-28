@@ -19,13 +19,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
@@ -47,7 +48,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
 <li><a href="../../src/self/context.html">src/self/context.til</a></li>
-<li><a class="current" href="../../src/self/modes.html">src/self/modes.til</a><ul><li><a href="#til.src.self.modes.context_register_path_mode">context_register_path_mode</a></li><li><a href="#til.src.self.modes.context_set_mode_from_path">context_set_mode_from_path</a></li><li><a href="#til.src.self.modes.context_enter_file">context_enter_file</a></li><li><a href="#til.src.self.modes.context_init_mode_registry">context_init_mode_registry</a></li><li><a href="#til.src.self.modes.mode_resolve">mode_resolve</a></li></ul></li>
+<li><a class="current" href="../../src/self/modes.html">src/self/modes.til</a><ul><li><a href="#til.src.self.modes.context_register_path_mode">context_register_path_mode</a></li><li><a href="#til.src.self.modes.context_set_mode_from_path">context_set_mode_from_path</a></li><li><a href="#til.src.self.modes.context_enter_file">context_enter_file</a></li><li><a href="#til.src.self.modes.context_init_mode_registry">context_init_mode_registry</a></li><li><a href="#til.src.self.modes.mode_resolve">mode_resolve</a></li><li><a href="#til.src.self.modes.Option__ref_Mode">Option__ref_Mode</a></li></ul></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
 <li><a href="../../src/self/desugarer.html">src/self/desugarer.til</a></li>
@@ -106,7 +107,42 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.modes.mode_resolve">
 <h2>mode_resolve</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func mode_resolve(ctx: Context, name: Str) returns ref Mode
+<pre><code class="language-til">func mode_resolve(ctx: Context, name: Str) returns shallow Option__ref_Mode
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.modes.Option__ref_Mode">
+<h2>Option__ref_Mode</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">enum Option__ref_Mode {
+    None
+    Some: Mode
+namespace:
+    func is_some(shallow self: Option__ref_Mode) returns shallow Bool
+    func is_none(shallow self: Option__ref_Mode) returns shallow Bool
+    func unwrap_or(self: Option__ref_Mode, default_v: Mode) returns ref Mode
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_Mode) returns ref Mode
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_Mode) returns ref Mode
+    ext_func None() returns shallow Option__ref_Mode
+    ext_func Some(val: Mode) returns shallow Option__ref_Mode
+    core_func is(self: Option__ref_Mode, other: Option__ref_Mode) returns shallow Bool
+    func delete(own self: Option__ref_Mode, shallow call_free: Bool)
+    func clone(self: Option__ref_Mode) returns shallow Option__ref_Mode
+    func size() returns shallow USize
+}
 </code></pre>
 </article>
 </main></div>

@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -50,6 +50,16 @@ proc lower_guard_bang_calls(scope: TypeScope, mut guard_if: Expr, mut dest: Vec_
 
 #+begin_src til
 func subtree_references_name(e: Expr, name: Str) returns shallow Bool
+#+end_src
+
+* toplevel_needs_throw_lowering
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.toplevel_needs_throw_lowering
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func toplevel_needs_throw_lowering(e: Expr) returns shallow Bool
 #+end_src
 
 * subtree_has_bang
@@ -120,6 +130,16 @@ func make_if_kind_eq_zero_wrap(stmt: Expr, shallow line: U32, shallow col: U32) 
 
 #+begin_src til
 proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
+#+end_src
+
+* make_uncaught_throw_panic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.desugarer.make_uncaught_throw_panic
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32) returns Expr
 #+end_src
 
 * process_throw_catch_in_func_body
@@ -219,7 +239,7 @@ func switch_is_clike(scope: TypeScope, stmt: Expr, sw_expr: Expr, shallow is_mat
 :END:
 
 #+begin_src til
-func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str)
+func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, shallow binding_is_dead: Bool)
 #+end_src
 
 * replace_body_stmt_with_block

@@ -19,13 +19,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
@@ -41,7 +42,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Standard library</h2><ul>
 <li><a href="../../src/std/mode_type.html">src/std/mode_type.til</a></li>
 <li><a href="../../src/std/file.html">src/std/file.til</a></li>
-<li><a class="current" href="../../src/std/sys.html">src/std/sys.til</a><ul><li><a href="#til.src.std.sys.spawn_cmd">spawn_cmd</a></li><li><a href="#til.src.std.sys.check_cmd_status">check_cmd_status</a></li><li><a href="#til.src.std.sys.sleep_ms">sleep_ms</a></li><li><a href="#til.src.std.sys.file_mtime">file_mtime</a></li><li><a href="#til.src.std.sys.clock_ms">clock_ms</a></li><li><a href="#til.src.std.sys.get_thread_count">get_thread_count</a></li><li><a href="#til.src.std.sys.peak_rss_bytes">peak_rss_bytes</a></li><li><a href="#til.src.std.sys.current_rss_bytes">current_rss_bytes</a></li><li><a href="#til.src.std.sys.host_os">host_os</a></li><li><a href="#til.src.std.sys.host_arch">host_arch</a></li><li><a href="#til.src.std.sys.mkdir_p">mkdir_p</a></li><li><a href="#til.src.std.sys.copy_file">copy_file</a></li><li><a href="#til.src.std.sys.copy_tree">copy_tree</a></li><li><a href="#til.src.std.sys.stdio_capture_begin">stdio_capture_begin</a></li><li><a href="#til.src.std.sys.stdio_capture_end">stdio_capture_end</a></li><li><a href="#til.src.std.sys.in_read_line">in_read_line</a></li><li><a href="#til.src.std.sys.wait_cmd">wait_cmd</a></li><li><a href="#til.src.std.sys.run_cmd">run_cmd</a></li></ul></li>
+<li><a class="current" href="../../src/std/sys.html">src/std/sys.til</a><ul><li><a href="#til.src.std.sys.system_cmd">system_cmd</a></li><li><a href="#til.src.std.sys.spawn_cmd">spawn_cmd</a></li><li><a href="#til.src.std.sys.check_cmd_status">check_cmd_status</a></li><li><a href="#til.src.std.sys.sleep_ms">sleep_ms</a></li><li><a href="#til.src.std.sys.file_mtime">file_mtime</a></li><li><a href="#til.src.std.sys.clock_ms">clock_ms</a></li><li><a href="#til.src.std.sys.get_thread_count">get_thread_count</a></li><li><a href="#til.src.std.sys.peak_rss_bytes">peak_rss_bytes</a></li><li><a href="#til.src.std.sys.current_rss_bytes">current_rss_bytes</a></li><li><a href="#til.src.std.sys.process_id">process_id</a></li><li><a href="#til.src.std.sys.host_os">host_os</a></li><li><a href="#til.src.std.sys.host_arch">host_arch</a></li><li><a href="#til.src.std.sys.mkdir_p">mkdir_p</a></li><li><a href="#til.src.std.sys.copy_file">copy_file</a></li><li><a href="#til.src.std.sys.copy_tree">copy_tree</a></li><li><a href="#til.src.std.sys.stdio_capture_begin">stdio_capture_begin</a></li><li><a href="#til.src.std.sys.stdio_capture_end">stdio_capture_end</a></li><li><a href="#til.src.std.sys.in_read_line">in_read_line</a></li><li><a href="#til.src.std.sys.wait_cmd">wait_cmd</a></li><li><a href="#til.src.std.sys.run_cmd">run_cmd</a></li></ul></li>
 </ul>
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
@@ -79,6 +80,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </section>
 <nav><a href="../../index.html">Index</a></nav>
 <h1>src/std/sys.til</h1>
+<article class="doc-entry" id="til.src.std.sys.system_cmd">
+<h2>system_cmd</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<pre><code class="language-til">ext_proc system_cmd(cmd: Str) returns shallow I32
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.std.sys.spawn_cmd">
 <h2>spawn_cmd</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
@@ -125,6 +132,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>current_rss_bytes</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
 <pre><code class="language-til">ext_proc current_rss_bytes(shallow pid: I64) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.std.sys.process_id">
+<h2>process_id</h2>
+<dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<pre><code class="language-til">ext_proc process_id() returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.sys.host_os">

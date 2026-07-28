@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -103,6 +103,30 @@ namespace:
     /// Free the backing buffer unless it is borrowed/static. CAP_LIT names a
     /// static literal wrapper, so call_free does not free that wrapper either.
     func delete(own self: Str, shallow call_free: Bool)
+    /// Return a non-owning view of the WHOLE string -- `substr(0, len())`
+    /// without the bounds arithmetic. Allocates nothing: the result shares
+    /// `s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
+    /// for a view held inside a container, anything else it does not own.
+    /// 
+    /// Compiled, the view and its source share one buffer. The
+    /// INTERPRETER materialises a view when it binds one (as it does for
+    /// substr and from_c_str), so do not write code that depends on
+    /// pointer identity across both modes -- the saving is a compiled-mode
+    /// property; the value semantics below hold everywhere.
+    /// 
+    /// Use it where a copy would be paid for storage that provably dies
+    /// FIRST -- a lookup key, a set of names collected during one pass
+    /// over an AST that outlives it. Where the copy must outlive its
+    /// source, or the source is itself a view of something shorter-lived,
+    /// `clone` is still the answer: this borrows, it does not own.
+    /// 
+    /// #+begin_src til :doctest
+    /// s := "hello"
+    /// v := s.borrowed_view()
+    /// assert_eq(Str, v, "hello")
+    /// assert_eq(USize, v.len(), s.len())
+    /// #+end_src
+    func borrowed_view(s: Str) returns Str
     /// Return a view into `s` from `start` for `n` bytes (no allocation).
     /// Clamps to valid bounds.
     func substr(s: Str, shallow start: USize, shallow n: USize) returns Str

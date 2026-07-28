@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -39,7 +39,7 @@ func collect_refs(e: Expr, mut refs: Vec__Str)
 :END:
 
 #+begin_src til
-func scavenge_filter(mut program: Expr, visited: Set__Str)
+func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool)
 #+end_src
 
 * dce_program_bodies

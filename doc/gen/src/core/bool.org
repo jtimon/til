@@ -1,5 +1,5 @@
 #+TITLE: src/core/bool.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
 
 * and
@@ -20,26 +20,6 @@ func and(shallow a: Bool, shallow b: Bool) returns shallow Bool
 
 #+begin_src til
 func or(shallow a: Bool, shallow b: Bool) returns shallow Bool
-#+end_src
-
-* vand
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.bool.vand
-:group: Core
-:END:
-
-#+begin_src til
-func vand(xs: ..Bool) returns Bool
-#+end_src
-
-* vor
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.bool.vor
-:group: Core
-:END:
-
-#+begin_src til
-func vor(xs: ..Bool) returns Bool
 #+end_src
 
 * not
@@ -77,42 +57,5 @@ namespace:
     func neq(shallow a: Bool, shallow b: Bool) returns shallow Bool
     func lte(shallow a: Bool, shallow b: Bool) returns shallow Bool
     func gte(shallow a: Bool, shallow b: Bool) returns shallow Bool
-}
-#+end_src
-
-* Array__Bool
-:PROPERTIES:
-:CUSTOM_ID: til.src.core.bool.Array__Bool
-:group: Core
-:END:
-
-#+begin_src til
-struct Array__Bool {
-    own mut data : U8
-    cap : USize
-namespace:
-    /// Create a zero-initialized Array with the given capacity.
-    func new(shallow cap: USize) returns Array__Bool
-    func len(self: Array__Bool) returns shallow USize
-    /// Unchecked element access: ref to the element at index `i` with
-    /// NO bounds check. The caller must prove `i < len()`. This is the
-    /// unchecked core that `get` wraps; for-in uses it directly because
-    /// its `_fi < len()` termination test already proves the index in
-    /// bounds (issue #284).
-    func unsafe_get(self: Array__Bool, i: USize) returns ref Bool
-    /// Ref to the element at index `i`. Throws OutOfBounds if `i` is
-    /// past the end; call as `arr.get(i)!` to panic on a bad index.
-    func get(self: Array__Bool, i: USize, mut _err_kind: I64) returns ref Bool
-    /// Overwrite the element at index `i` without a bounds check, dropping
-    /// the old value. Caller guarantees `i < self.cap`; the write-side
-    /// mirror of unsafe_get (issue #284).
-    func unsafe_set(self: Array__Bool, shallow i: USize, own val: Bool)
-    /// Overwrite the element at index `i`. Drops the old value. `val` is
-    /// owned. Throws OutOfBounds if `i` is past the end; call as
-    /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
-    func set(self: Array__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
-    func delete(own self: Array__Bool, shallow call_free: Bool)
-    func clone(self: Array__Bool) returns Array__Bool
-    func size() returns shallow USize
 }
 #+end_src

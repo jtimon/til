@@ -19,13 +19,14 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-c545271f6</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
 <li><a href="../../src/core/bool.html">src/core/bool.til</a></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
+<li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
@@ -50,7 +51,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
-<li><a class="current" href="../../src/self/desugarer.html">src/self/desugarer.til</a><ul><li><a href="#til.src.self.desugarer.desugar_fcall_args_for_fdef">desugar_fcall_args_for_fdef</a></li><li><a href="#til.src.self.desugarer.desugar_user_func_fcall_args">desugar_user_func_fcall_args</a></li><li><a href="#til.src.self.desugarer.typer_lift_lambdas">typer_lift_lambdas</a></li><li><a href="#til.src.self.desugarer.lower_guard_bang_calls">lower_guard_bang_calls</a></li><li><a href="#til.src.self.desugarer.subtree_references_name">subtree_references_name</a></li><li><a href="#til.src.self.desugarer.subtree_has_bang">subtree_has_bang</a></li><li><a href="#til.src.self.desugarer.throw_type_has_payload">throw_type_has_payload</a></li><li><a href="#til.src.self.desugarer.append_err_out_params">append_err_out_params</a></li><li><a href="#til.src.self.desugarer.make_int_lit">make_int_lit</a></li><li><a href="#til.src.self.desugarer.make_default_value_expr">make_default_value_expr</a></li><li><a href="#til.src.self.desugarer.make_if_kind_eq_zero_wrap">make_if_kind_eq_zero_wrap</a></li><li><a href="#til.src.self.desugarer.extend_throwing_func_sigs">extend_throwing_func_sigs</a></li><li><a href="#til.src.self.desugarer.process_throw_catch_in_func_body">process_throw_catch_in_func_body</a></li><li><a href="#til.src.self.desugarer.stmt_contains_match">stmt_contains_match</a></li><li><a href="#til.src.self.desugarer.splice_stmts_before">splice_stmts_before</a></li><li><a href="#til.src.self.desugarer.collect_switch_case_bindings">collect_switch_case_bindings</a></li><li><a href="#til.src.self.desugarer.make_switch_case_condition">make_switch_case_condition</a></li><li><a href="#til.src.self.desugarer.replace_switch_stmt_with_block">replace_switch_stmt_with_block</a></li><li><a href="#til.src.self.desugarer.append_switch_else_if">append_switch_else_if</a></li><li><a href="#til.src.self.desugarer.attach_switch_default_body">attach_switch_default_body</a></li><li><a href="#til.src.self.desugarer.switch_is_clike">switch_is_clike</a></li><li><a href="#til.src.self.desugarer.prepend_clike_payload_binding">prepend_clike_payload_binding</a></li><li><a href="#til.src.self.desugarer.replace_body_stmt_with_block">replace_body_stmt_with_block</a></li><li><a href="#til.src.self.desugarer.make_for_in_range_while_body">make_for_in_range_while_body</a></li><li><a href="#til.src.self.desugarer.body_pre_passes">body_pre_passes</a></li></ul></li>
+<li><a class="current" href="../../src/self/desugarer.html">src/self/desugarer.til</a><ul><li><a href="#til.src.self.desugarer.desugar_fcall_args_for_fdef">desugar_fcall_args_for_fdef</a></li><li><a href="#til.src.self.desugarer.desugar_user_func_fcall_args">desugar_user_func_fcall_args</a></li><li><a href="#til.src.self.desugarer.typer_lift_lambdas">typer_lift_lambdas</a></li><li><a href="#til.src.self.desugarer.lower_guard_bang_calls">lower_guard_bang_calls</a></li><li><a href="#til.src.self.desugarer.subtree_references_name">subtree_references_name</a></li><li><a href="#til.src.self.desugarer.toplevel_needs_throw_lowering">toplevel_needs_throw_lowering</a></li><li><a href="#til.src.self.desugarer.subtree_has_bang">subtree_has_bang</a></li><li><a href="#til.src.self.desugarer.throw_type_has_payload">throw_type_has_payload</a></li><li><a href="#til.src.self.desugarer.append_err_out_params">append_err_out_params</a></li><li><a href="#til.src.self.desugarer.make_int_lit">make_int_lit</a></li><li><a href="#til.src.self.desugarer.make_default_value_expr">make_default_value_expr</a></li><li><a href="#til.src.self.desugarer.make_if_kind_eq_zero_wrap">make_if_kind_eq_zero_wrap</a></li><li><a href="#til.src.self.desugarer.extend_throwing_func_sigs">extend_throwing_func_sigs</a></li><li><a href="#til.src.self.desugarer.make_uncaught_throw_panic">make_uncaught_throw_panic</a></li><li><a href="#til.src.self.desugarer.process_throw_catch_in_func_body">process_throw_catch_in_func_body</a></li><li><a href="#til.src.self.desugarer.stmt_contains_match">stmt_contains_match</a></li><li><a href="#til.src.self.desugarer.splice_stmts_before">splice_stmts_before</a></li><li><a href="#til.src.self.desugarer.collect_switch_case_bindings">collect_switch_case_bindings</a></li><li><a href="#til.src.self.desugarer.make_switch_case_condition">make_switch_case_condition</a></li><li><a href="#til.src.self.desugarer.replace_switch_stmt_with_block">replace_switch_stmt_with_block</a></li><li><a href="#til.src.self.desugarer.append_switch_else_if">append_switch_else_if</a></li><li><a href="#til.src.self.desugarer.attach_switch_default_body">attach_switch_default_body</a></li><li><a href="#til.src.self.desugarer.switch_is_clike">switch_is_clike</a></li><li><a href="#til.src.self.desugarer.prepend_clike_payload_binding">prepend_clike_payload_binding</a></li><li><a href="#til.src.self.desugarer.replace_body_stmt_with_block">replace_body_stmt_with_block</a></li><li><a href="#til.src.self.desugarer.make_for_in_range_while_body">make_for_in_range_while_body</a></li><li><a href="#til.src.self.desugarer.body_pre_passes">body_pre_passes</a></li></ul></li>
 <li><a href="../../src/self/loader.html">src/self/loader.til</a></li>
 </ul>
 <h2>Compiler backend</h2><ul>
@@ -109,6 +110,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">func subtree_references_name(e: Expr, name: Str) returns shallow Bool
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.desugarer.toplevel_needs_throw_lowering">
+<h2>toplevel_needs_throw_lowering</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func toplevel_needs_throw_lowering(e: Expr) returns shallow Bool
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.desugarer.subtree_has_bang">
 <h2>subtree_has_bang</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -149,6 +156,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>extend_throwing_func_sigs</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
 <pre><code class="language-til">proc extend_throwing_func_sigs(mut ctx: Context, mut e: Expr)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.desugarer.make_uncaught_throw_panic">
+<h2>make_uncaught_throw_panic</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func make_uncaught_throw_panic(error_type: Str, shallow line: U32, shallow col: U32) returns Expr
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.process_throw_catch_in_func_body">
@@ -208,7 +221,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.desugarer.prepend_clike_payload_binding">
 <h2>prepend_clike_payload_binding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str)
+<pre><code class="language-til">func prepend_clike_payload_binding(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, shallow binding_is_dead: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.desugarer.replace_body_stmt_with_block">

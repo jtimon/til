@@ -1,16 +1,6 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-c545271f6
+#+SUBTITLE: til 0.0.1-ef4e43f87
 #+OPTIONS: toc:t
-
-* system_cmd
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.builder.system_cmd
-:group: Compiler backend
-:END:
-
-#+begin_src til
-ext_proc system_cmd(cmd: Str) returns shallow I32
-#+end_src
 
 * closure_call_name
 :PROPERTIES:

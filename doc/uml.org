@@ -106,6 +106,7 @@
 *** is_enum_variant_ctor := false
 *** captures := Vec(Declaration).new()
 *** closure_name := ""
+*** noreturn := false
 ** FCallData: StructDef
 *** is_splat := false
 *** does_throw := false
@@ -114,6 +115,8 @@
 *** keep_outer_args : U64 = 0
 *** swap_replace := false
 *** til_type := Type.Unknown
+*** noreturn_call := false
+*** ref_args : U64 = 0
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -124,20 +127,27 @@
 *** name := ""
 *** til_type := Type.Unknown
 ** StructDef: StructDef
-*** fields := Vec(Declaration).new()
-*** ns_decls := Vec(Declaration).new()
+*** own fields : Vec(Declaration) = Vec(Declaration).new()
+*** own ns_decls : Vec(Declaration) = Vec(Declaration).new()
+*** own fields_index : Map(Str, USize) = Map(Str, USize).new()
+*** own ns_index : Map(Str, USize) = Map(Str, USize).new()
 *** c_tag := ""
 *** is_interface := false
 *** interface_ns_marker := false
 *** implements_name := ""
+** VariantDef: StructDef
+*** name := ""
+*** doc := ""
+*** payload_type := ""
+*** payload_const := false
+*** tag_value : I64 = 0
+*** payload_ref := false
 ** EnumDef: StructDef
-*** ns_decls := Vec(Declaration).new()
-*** variants := Vec(Str).new()
-*** payload_types : Map(I64, Str) = Map(I64, Str).new()
-*** payload_consts := Vec(Bool).new()
+*** own ns_decls : Vec(Declaration) = Vec(Declaration).new()
+*** own ns_index : Map(Str, USize) = Map(Str, USize).new()
+*** variants := Vec(VariantDef).new()
 *** implements_name := ""
 *** tag_type := ""
-*** tag_values := Vec(I64).new()
 ** FieldLayout: StructDef
 *** offset : USize = 0
 *** size : USize = 0
@@ -156,10 +166,12 @@
 *** save_old_delete := false
 *** is_payload_alias := false
 *** swap_replace := false
+*** is_move := false
 ** FieldAssignData: StructDef
 *** name := ""
 *** save_old_delete := false
 *** transfers_own := false
+*** is_move := false
 ** ForInData: StructDef
 *** name := ""
 *** is_mut := false
@@ -226,6 +238,8 @@
 *** anon_cache := Map(Str, Str).new()
 *** anon_type_counter : I64 = 0
 *** pending_doc := ""
+*** error_count : I32 = 0
+*** error_msg := ""
 *** source := ""
 * context
 ** TypeBinding: StructDef
@@ -249,6 +263,7 @@
 *** mut_explicit := false
 *** orig_name := ""
 *** dynvec_elem := ""
+*** declared_type_name := ""
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -258,7 +273,11 @@
 *** target_uptr_pname := "U64"
 *** func_defs := Map(Str, Dynamic).new()
 *** struct_defs := Map(Str, Dynamic).new()
-*** ref parent : TypeScope = NULL
+*** parent := Option(ref TypeScope).None
+** GenericFuncSource: StructDef
+*** name := ""
+*** path := ""
+*** is_priv := false
 ** ImportUnit: StructDef
 *** mode_str := ""
 *** mode := Mode()
@@ -274,6 +293,13 @@
 *** ref_locals := Set(Str).new()
 *** ref_dyn_locals := Set(Str).new()
 *** ptr_locals := Set(Str).new()
+** InternedTypes: StructDef
+*** simples := Vec(Dynamic).new()
+*** prims := Vec(Dynamic).new()
+*** structs := Map(Str, Dynamic).new()
+*** enums := Map(Str, Dynamic).new()
+*** customs := Map(Str, Dynamic).new()
+*** funcsigs := Map(Str, Dynamic).new()
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -294,15 +320,15 @@
 *** ref return_value : Dynamic = NULL
 *** interp_ret_is_ref := false
 *** ref interp_ret_dest : Dynamic = NULL
-*** ref interp_ret_type : Str = NULL
+*** interp_ret_type := Option(ref Str).None
 *** interp_ret_own_type := OwnType.Shallow
 *** constfold_active := false
-*** constfold_aborted := false
+*** eval_aborted := false
+*** repl_session := false
 *** ref ns_fields : Scope = NULL
 *** ns_inited := false
 *** imported := Map(Str, ImportUnit).new()
-*** check_unused_imports := false
-*** ... (62 more)
+*** ... (61 more)
 * targets
 ** Lang: EnumDef
 *** C
@@ -341,6 +367,7 @@
 *** include_flags := ""
 *** link_c_paths := ""
 *** run_tests := false
+*** load_errors : I32 = 0
 *** usize_override_bits : I64 = 0
 ** DeclRef: StructDef
 *** path := ""
@@ -358,6 +385,11 @@
 *** label := ""      // import path literal as written, for the message
 *** dep := ""        // resolved display path of the imported file
 *** decl_name := ""  // non-empty for `name := import(...)` form
+* initer
+** GenericSources: StructDef
+*** defs := Map(Str, Dynamic).new()
+*** sources := Map(Str, GenericFuncSource).new()
+*** late := false
 * typer
 ** CtorArg: EnumDef
 *** Unfilled
@@ -368,28 +400,40 @@
 *** sub_nodes := Vec(CoverageNode).new()
 * garbager
 ** LocalInfo: StructDef
-*** ref name : Str = NULL
+*** ref name : Str
 *** type := Type.Unknown
 *** decl_index : I32 = 0
 *** last_use : I32 = 0
 *** own_transfer : I32 = -1
+*** has_transfer := false
 *** skip_scope_delete := false
 *** is_heap := false
 *** dtor_transfer := false
 *** shallow_copy_transfer := false
 *** raw_alloc := false
 ** GcCfgBlock: StructDef
-*** ref body : Expr = NULL
+*** body := Option(ref Expr).None
 *** start : I32 = 0
 *** end : I32 = 0
 *** is_root := false
 *** succs := Vec(I32).new()
+** StmtFacts: StructDef
+*** uses := Set(Str).with_capacity(4)
+*** decls := Set(Str).new()
+*** nested := Set(Str).new()
+*** transfers := Set(Str).new()
+*** escapes := Set(Str).new()
+*** def_name := ""
+** GcBorrowEdge: StructDef
+*** owner := ""
+*** borrower := ""
+*** fixed_reach : I32 = -1
 * builder
 ** CollectionInfo: StructDef
-*** ref type_name : Str = NULL
+*** ref type_name : Str
 *** is_vec : I32 = 0
 ** DynCallInfo: StructDef
-*** ref method : Str = NULL
+*** ref method : Str
 *** nargs : I32 = 1
 *** has_return := false
 ** BuildPaths: StructDef
@@ -416,13 +460,13 @@
 * interpreter
 ** InterpCallableBox: StructDef
 *** magic : U64 = 0
-*** ref func_def : Expr = NULL
-*** ref env : Scope = NULL
+*** ref func_def : Expr
+*** ref env : Scope
 ** HeapBinding: StructDef
-*** ref ptr : U8 = NULL
-*** til_type := Type.Unknown
+*** ref ptr : U8
+*** ref til_type_p : U8
 *** own_type := OwnType.Shallow
-*** ref ctx : Context = NULL
+*** ref ctx : Context
 *** is_local := false
 *** is_borrowed := false
 *** is_erased_dynamic := false
@@ -432,38 +476,44 @@
 ** Scope: StructDef
 *** heap_bindings := Map(Str, HeapBinding).new()
 *** heap_aliases := Map(Str, Str).new()
-*** ref parent : Scope = NULL
+*** parent := Option(ref Scope).None
 *** is_call_scope := false
 ** InterpSession: StructDef
 *** ref global : Scope = NULL
 *** core_evaluated := false
 *** user_argc : USize = 0
 *** retained_programs := Vec(DynPtrBox).new()
+*** is_repl := false
 *** evaluated_units := Set(Str).new()
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** ExtStr: StructDef
-*** ref data : U8 = NULL
+*** ref data : U8
 *** count : USize = 0
 *** cap : USize = 0
 ** FFIEntry: StructDef
-*** ref fn : U8 = NULL
-*** ref return_type : Str = NULL
+*** ref fn : U8
+*** return_type := Option(ref Str).None
 *** nparam : USize = 0
 *** ref param_shallows : U8 = NULL
 *** ref param_dynamics : U8 = NULL
 *** return_is_shallow := false
 *** return_is_ref := false
-*** ref cif : ffi_cif = NULL
-*** ref arg_types : Dynamic = NULL
+*** ref cif : ffi_cif
+*** ref arg_types : Dynamic
 ** ExprPtrBox: StructDef
-*** ref ptr : Expr = NULL
+*** ref ptr : Expr
 ** FFITypePtrBox: StructDef
-*** ref ptr : ffi_type = NULL
+*** ref ptr : ffi_type
 * binder
 ** BinderState: StructDef
 *** alias_to_primitive := "|"
 *** alias_to_dynamic := "|"
+* desugarer
+** StmtDesugarNeeds: StructDef
+*** array_vec := false
+*** variadic := false
+*** kwargs := false
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
