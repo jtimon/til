@@ -945,9 +945,7 @@ mirror has to come BEFORE the flip, not after it):
      guards that today; and funcptr payloads, a distinct C shape the
      generated delete/clone already special-case). Two-pass, since it
      changes emit.
-  5. a niche-aware ~take~: ~return self.data~ instead of the steal
-     block, which needs a lowering for "hand this pointer back as
-     owned". Until then a niche take keeps the copy stage 1 preserves.
+  5. DONE (batch 26): the zero-copy niche take.
   6. the garbager's view of a by-value enum that owns a heap payload.
 
 **** Batch 23: stage 3 attempted, and the two bugs it flushed out
@@ -1065,6 +1063,51 @@ So the next commit has to do both: flip the rule AND lower a niche take
 to ~return self.data~. That lowering is the open piece -- til still has
 no way to spell "hand this pointer back as owned", which is the same
 wall this issue opened with, now confined to one place.
+
+**** Batch 26: the zero-copy niche take -- the lowering exists now
+
+Stage 5's blocker is gone. "Hand this pointer back as owned" turned out
+to need no new syntax at all: for a payload in a POINTER SLOT the move is
+the inline steal block MINUS the malloc and the memcpy, because the slot
+already holds the payload's box.
+
+: { <tmp> : T = deref(get_payload(<param>))
+:   free(own <param>)
+:   return <tmp> }
+
+~free(own <param>)~ releases the enum SHELL without running the payload's
+destructor -- which is what makes handing the box on sound -- and it is
+the same own-transfer that stands the param's exit delete down. Emitted C
+for a niche take, with the flip applied locally to check it:
+
+: Box * Option__Box_take(Option__Box * self) {
+:     Box *_steal_v = deref(&self->data);
+:     free(self);
+:     return _steal_v;
+: }
+
+No allocation, no copy, no clone; ASAN clean, both modes agree.
+
+Two supporting pieces were needed. The typer's own move-out temp is the
+one place where OWNING a ref-returning result is correct (the deref loads
+a box the enum is giving up in the same block), so the "cannot own result
+of ref-returning function" check exempts ~_steal_~-named decls -- a
+compiler-internal prefix like the ~hoisted__~ ones other passes already
+recognise, so no user-writable spelling gains it. And since the zero-copy
+form never reads the pointee, the payload binding can end up with no
+readers at all; emitting it would be a dead C local, which #326
+deliberately keeps as -Werror=unused-variable, so the binding is skipped
+when the rewrite leaves it unreferenced.
+
+WHAT STILL BLOCKS THE FLIP, and it is now exactly one thing: the ~is_n~
+tag check resolves its enum with ~find_struct_def~, and for a ~priv~ enum
+declared in another module (CtorArg, in typer.til) that lookup MISSES in
+the builder's scope. isn_niche stays false and it emits ~->tag~ against a
+struct with no tag. Trying the obvious fix -- retry the lookup on the
+demangled tail after the last ~__~ -- did NOT help, which rules out name
+mangling: the builder's ctx.scope does not carry another module's priv
+type defs under either spelling. That is the next thing to fix, and it is
+a def-resolution bug independent of this issue.
 
 *** What is left before the forbid can land
 

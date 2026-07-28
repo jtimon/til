@@ -5461,7 +5461,13 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
                 }
             }
         }
-        if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
+        // #321: the typer's own move-out temp (`_steal_...`, built by
+        // make_niche_steal_block) is the one place where owning a
+        // ref-returning result is CORRECT: the deref loads a niche enum's
+        // payload box, which the enum is giving up in the same block. Named
+        // like the `hoisted__` temps other passes already recognise, so no
+        // user-writable spelling gains the exemption.
+        if sdecl.own_type.is(OwnType.Ref).not().and(rhs.node_type.is(NodeType.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)).and(sdecl.name.starts_with("_steal_").not()) {
             stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
         }
         if sdecl.own_type.is(OwnType.Ref).not().and(sdecl.is_mut.not()).and(stmt.til_type().is_funcptr().not()).and(stmt.til_type().is(Type.Body).not()) {
@@ -8553,6 +8559,51 @@ priv make_type_size_call := func(tname: Str, src: Expr) returns Expr {
 // caller. And `free(own <param>)` is an own-transfer the garbager already
 // understands, so it stands the param's exit delete down on this path exactly
 // as it does for a hand-written one.
+// #321: the same move, for a payload that lives in a POINTER SLOT (a niche
+// enum). There is nothing to copy -- the slot already holds the payload's
+// box -- so the block is the steal above minus the malloc and the memcpy:
+//
+//   { <tmp> : T = deref(get_payload(<param>))
+//     free(own <param>)
+//     return <tmp> }
+//
+// `free(own <param>)` releases the enum SHELL without running the payload's
+// destructor, which is what makes handing the box on sound; it is also the
+// own-transfer that stands the param's exit delete down, exactly as in the
+// inline case. This is the zero-copy take: no allocation at all.
+priv make_niche_steal_block := func(param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
+    mut blk := Expr.new(NodeType.Body, src.line, src.col)
+
+    // <tmp> : T = deref(get_payload(<param>))
+    mut self_id := Expr.new(ident_node(param_name), src.line, src.col)
+    mut gp := make_get_payload_fcall(own self_id, til_type_from_explicit_type(tname), src.line, src.col)
+    mut deref_id := Expr.new(ident_node("deref"), src.line, src.col)
+    mut deref_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    deref_call.add_child(own deref_id)
+    deref_call.add_child(own gp)
+    deref_call.set_til_type(til_type_from_explicit_type(tname))
+    mut decl := Expr.new(NodeType.Decl(decl_typed(name = tmp, explicit_type = tname)), src.line, src.col)
+    decl.add_child(own deref_call)
+    blk.add_child(own decl)
+
+    // free(own <param>)
+    mut free_id := Expr.new(ident_node("free"), src.line, src.col)
+    mut free_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
+    free_call.add_child(own free_id)
+    set_own_arg(free_call, free_call.children.len())
+    mut param_id := Expr.new(ident_node(param_name), src.line, src.col)
+    free_call.add_child(own param_id)
+    blk.add_child(own free_call)
+
+    // return <tmp>
+    mut ret := Expr.new(NodeType.Return, src.line, src.col)
+    mut ret_id := Expr.new(ident_node(tmp), src.line, src.col)
+    ret.add_child(own ret_id)
+    blk.add_child(own ret)
+
+    return blk
+}
+
 priv make_payload_steal_block := func(bind_name: Str, param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
     mut blk := Expr.new(NodeType.Body, src.line, src.col)
 
@@ -8599,7 +8650,21 @@ priv make_payload_steal_block := func(bind_name: Str, param_name: Str, tname: St
 // Replace every `return <bind_name>` in this case body with the steal block.
 // Nested FuncDefs are skipped: a closure's `return` belongs to the closure,
 // not to the function that owns the enum.
-priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: Str, tname: Str) {
+// Does this subtree still name `n`? Used to tell whether the niche move-out
+// left the payload binding with no readers at all.
+priv subtree_names_ident := func(e: Expr, n: Str) returns Bool {
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        if idn.ident_name() == n { return true }
+    case:
+    }
+    for c : Expr in e.children {
+        if subtree_names_ident(c, n) { return true }
+    }
+    return false
+}
+
+priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: Str, tname: Str, in_slot: Bool) {
     for i in 0..body.children.len() {
         ref mut st : Expr = body.children[i]
         if st.node_type.is(NodeType.FuncDef) { continue }
@@ -8611,11 +8676,15 @@ priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: S
             }
             if is_bind {
                 tmp := format("_steal_", bind_name, "_", st.line.to_str(), "_", st.col.to_str())
-                body.children[i] = make_payload_steal_block(bind_name, param_name, tname, tmp, st)
+                if in_slot {
+                    body.children[i] = make_niche_steal_block(param_name, tname, tmp, st)
+                } else {
+                    body.children[i] = make_payload_steal_block(bind_name, param_name, tname, tmp, st)
+                }
                 continue
             }
         }
-        steal_payload_returns(st, bind_name, param_name, tname)
+        steal_payload_returns(st, bind_name, param_name, tname, in_slot)
     }
 }
 
@@ -8631,47 +8700,52 @@ priv steal_payload_returns := proc(mut body: Expr, bind_name: Str, param_name: S
 // can simply be moved into a fresh box. Gated on exactly that -- an own param
 // subject, an owned (non-ref) payload, and a return type that IS the payload
 // type -- so a borrowed subject or a ref payload keeps the clone.
-priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, ctx: Context) {
-    if ctx.typer_return_type_name.len() == 0 { return }
+priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, ctx: Context) returns Bool {
+    if ctx.typer_return_type_name.len() == 0 { return false }
     mut param_name := ""
     switch sw_expr.node_type {
     case NodeType.Ident(sw_idn): param_name = Str.clone(sw_idn.ident_name())
-    case: return
+    case: return false
     }
     sw_b_o := scope.get_binding(param_name)
-    if sw_b_o.is_none() { return }
+    if sw_b_o.is_none() { return false }
     ref sw_b : TypeBinding = sw_b_o.unwrap()
-    if sw_b.is_param.and(sw_b.own_type.is(OwnType.Own)).not() { return }
+    if sw_b.is_param.and(sw_b.own_type.is(OwnType.Own)).not() { return false }
 
     ref pat : Expr = case_node.children[0]
-    if pat.node_type.is(NodeType.FCall).not() { return }
-    if pat.children.len() != 2 { return }
+    if pat.node_type.is(NodeType.FCall).not() { return false }
+    if pat.children.len() != 2 { return false }
     mut variant_name := ""
     switch pat.children[0].node_type {
     case NodeType.FieldAccess(vn): variant_name = Str.clone(vn.field_access_name())
-    case: return
+    case: return false
     }
     mut bind_name := ""
     switch pat.children[1].node_type {
     case NodeType.Ident(bn): bind_name = Str.clone(bn.ident_name())
-    case: return
+    case: return false
     }
     enum_def_o := scope.get_struct(sw_sname)
-    if enum_def_o.is_none() { return }
+    if enum_def_o.is_none() { return false }
     ref enum_def : Expr = enum_def_o.unwrap()
     vt_idx := enum_variant_index(enum_def, variant_name)
-    if vt_idx < 0 { return }
-    // The steal block copies the payload's bytes OUT of the enum and frees
-    // the enum box, so it is only correct for a payload stored INLINE. A
-    // pointer-slot payload is either a borrow the enum never owned (nothing
-    // to move) or -- once the owned niche lands -- the payload box itself,
-    // where freeing the enum would leak the pointee instead of moving it.
-    // Both keep copying; the niche gets its own zero-copy take later.
-    if enum_payload_is_pointer_slot(enum_def, vt_idx) { return }
+    if vt_idx < 0 { return false }
+    // A BORROWED payload is a pointer the enum never owned, so there is
+    // nothing to move and the by-value return must keep copying.
+    if enum_variant_payload_ref(enum_def, vt_idx) { return false }
+    // An OWNED payload in a pointer slot is the box itself: hand it straight
+    // back, no copy. An inline one is copied out of the enum's own storage.
+    in_slot := enum_payload_is_pointer_slot(enum_def, vt_idx)
     payload_type := enum_variant_type(enum_def, vt_idx)
-    if payload_type.len() == 0 { return }
-    if payload_type != ctx.typer_return_type_name { return }
-    steal_payload_returns(case_node.children[1], bind_name, param_name, payload_type)
+    if payload_type.len() == 0 { return false }
+    if payload_type != ctx.typer_return_type_name { return false }
+    steal_payload_returns(case_node.children[1], bind_name, param_name, payload_type, in_slot)
+    // The zero-copy form hands the payload BOX back without ever reading the
+    // pointee, so if that was the binding's only reader it now has none. Say
+    // so, and the binding is not emitted at all -- a dead one would reach gcc
+    // as -Werror=unused-variable, which #326 deliberately keeps loud.
+    if in_slot.not() { return false }
+    return subtree_names_ident(case_node.children[1], bind_name).not()
 }
 
 // #254: type-check a C-like switch in place, leaving its Switch/Case nodes for
@@ -8713,8 +8787,8 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         } else {
             if is_enum {
                 mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0])
-                steal_own_param_payload_returns(scope, sw_expr, cn, sw_sname, ctx)
-                prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname)
+                stole_box := steal_own_param_payload_returns(scope, sw_expr, cn, sw_sname, ctx)
+                prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname, stole_box)
             }
             if is_bool { bool_labels = bool_labels + 1 }
             last_case_idx = ci

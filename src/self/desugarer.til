@@ -3299,7 +3299,13 @@ priv lvalue_root_name := func(e: Expr) returns Str {
 // make_switch_case_condition's #211/#164 binding logic) so the body type-checks
 // with x in scope. The C switch label stays the variant tag; the binding rides
 // the case body as an ordinary statement both backends already handle.
-prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str) {
+// `binding_is_dead`: the typer's niche move-out replaces the case body's
+// whole `return <binding>` with a block that hands the payload BOX back
+// without reading the pointee. When that leaves the binding with no readers
+// at all, emitting it would produce a dead C local -- which #326 deliberately
+// keeps as -Werror=unused-variable -- so skip it entirely.
+prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_node: Expr, sw_sname: Str, binding_is_dead: Bool = false) {
+    if binding_is_dead { return }
     ref pat : Expr = case_node.children[0]
     if pat.node_type.is(NodeType.FCall).not() { return }
     if pat.children.len() != 2 { return }
