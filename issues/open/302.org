@@ -1210,6 +1210,27 @@ let the ownership pass insert temps itself; start with the check.
     Byte-identical C for the whole corpus under the corrected referee;
     make clean && make test 196/196 with ASAN; self-translate 29.3s
     against master's 30.1s.
+  - [X] 2026-07-27 Stage 3: alias_used_in_stmts is GONE, and it was
+    dead rather than merely redundant. It excluded a local from an exit
+    delete when the return operand named a `ref X := local` alias, and
+    a probe on its true branch fired ZERO times over src/til.til, every
+    test and every example. Two independent reasons. Structurally it
+    cannot fire: both call sites scan the statement list the insertion
+    loop is consuming, and push_take has already zeroed everything
+    before the current index, so the alias Decls it looks for are
+    invisible by the time it looks (a `ref X := local` declared AFTER
+    the exit cannot be named by that exit's operand anyway). And the
+    case it guards is handled elsewhere: the typer hoists the operand,
+    so the alias read lands in a temp BEFORE the exit deletes run --
+    verified on the emitted C for `ref v : Str = s; return
+    v.len().to_i64()`, where `v->count` is read into a temp and only
+    then is `Str_delete(s, 1)` emitted. That ordering is stage 2's
+    design ("exit deletes are always PRECEDING statements"), so the
+    guard was covering a case the hoist already closed.
+    Removed with the corpus as the judge, per the no-defensive-guards
+    rule: emitted C byte-identical everywhere, make clean && make test
+    196/196 with ASAN. insert_exit_deletes_into_stmt loses its
+    body_stmts parameter with it.
   - [ ] Stage 3 (rest): delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,

@@ -1022,22 +1022,6 @@ priv aliased_by_returned_ref := func(body: Expr, name: Str) returns Bool {
     return false
 }
 
-priv alias_used_in_stmts := func(stmts: Vec(Expr), name: Str, expr: Expr) returns Bool {
-    for d : Expr in stmts {
-        switch d.node_type {
-        case NodeType.Decl(dd):
-            if dd.own_type.is(OwnType.Ref).and(d.children.len().gt(0)) {
-                src_o := arg_addressed_ident(d.children[0])
-                if src_o.is_some().and(src_o.unwrap() == name) {
-                    if expr_uses_var(expr, dd.name) { return true }
-                }
-            }
-        case:
-        }
-    }
-    return false
-}
-
 // Issue #238: the typer's hoist pass can lift a view-returning subexpression
 // of an assignment's RHS (e.g. `vname.substr(...)`) into a `hoisted__` temp
 // that ALIASES vname's heap buffer, emitted as a statement BEFORE the assign.
@@ -1939,7 +1923,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 ref local : LocalInfo = live[li]
                 if stmt.children.len() > 0 {
                     ref retval : Expr = stmt.children[0]
-                    if expr_uses_var(retval, local.name).or(alias_used_in_stmts(old, local.name, retval)) {
+                    if expr_uses_var(retval, local.name) {
                         continue
                     }
                 }
@@ -2076,7 +2060,7 @@ priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr)) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr)) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -2086,7 +2070,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, body_stmts: Vec(Expr), lo
         ref local : LocalInfo = locals[li]
         if stmt.children.len() > 0 {
             ref retval : Expr = stmt.children[0]
-            if expr_uses_var(retval, local.name).or(alias_used_in_stmts(body_stmts, local.name, retval)) {
+            if expr_uses_var(retval, local.name) {
                 continue
             }
         }
@@ -2932,7 +2916,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     for i in 0..old.len() {
         ref stmt : Expr = old[i]
         if is_compile_directive(stmt) { continue }
-        insert_exit_deletes_into_stmt(stmt, old, locals_vec, i, root_flow, root_stmts, new_ch)
+        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
         insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, i)
         mut post_deletes := Vec(Expr).new()
