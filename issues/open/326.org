@@ -346,6 +346,24 @@ Landed (suite green, `make test_two_pass`):
   still evaluates that operand by constructing the variant, so it would
   need the same compile-only conditioning ~*.size~ has.
 
+- [X] Step 4's CLI root policy is exact: "main plus exact generated argv
+  parsing helpers".  The seed used to push the whole Str.to_* / I64.to_*
+  family plus ~Str.from_c_str~ for EVERY cli/gui program, so a
+  no-argument ~mode gui~ main carried seven dead converters and whatever
+  they pulled in -- and ~Str.from_c_str~ has been dead since the Str case
+  became an inline ~Str_clone~.  ~seed_cli_main_arg_roots~ reads main's own
+  signature and seeds one converter per parameter type, mirroring
+  ~cli_box_expr~ (a variadic main also roots the element type's ~delete~,
+  which the alias forwarding resolves for USize/UPtr).
+  ~examples/snake.til~ 3,843 -> 3,020 lines of C (43 -> 28 emitted
+  functions), ~examples/chess.til~ 9,220 -> 8,397 (84 -> 69).
+  ~cli_args_exact_argv_roots~ is the regression: a ~..Str~ main emits no
+  ~Str_to_~ at all.  ~Str.from_c_str~ and ~Str.delete~ are NOT dead after
+  all -- every non-Str parameter parses through
+  ~({ Str *_cv = Str_from_c_str(a); T _v = <conv>; Str_delete(_cv, true);
+  _v; })~ -- so they come with any scalar parameter and only a Str-only or
+  no-argument main goes without them.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit

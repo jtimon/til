@@ -737,6 +737,66 @@ priv stamp_noreturn_calls := proc(mut e: Expr, noreturn_names: Set(Str)) {
     }
 }
 
+// #326: the argv-parsing helper a CLI parameter of type `tname` needs.
+// This mirrors cli_box_expr in builder.til, which picks exactly ONE
+// conversion per parameter type; keep the two in sync when adding a type
+// (validate_cli_main already rejects any type neither of them handles).
+priv seed_cli_arg_helpers := func(tname: Str, mut worklist: Vec(Str)) {
+    // Str parses inline to a Str_clone of a CAP_LIT view; clone is already
+    // an unconditional root because ext.c calls it. Every OTHER type goes
+    // through the from_c_str pipeline -- `({ Str *_cv = Str_from_c_str(a);
+    // T _v = <conv>; Str_delete(_cv, true); _v; })` (cli_view_value /
+    // cli_view_box) -- so those two come with any scalar parameter.
+    if tname == "Str" { return }
+    push_qn(worklist, "Str", "from_c_str")
+    push_qn(worklist, "Str", "delete")
+    if tname == "I64" { push_qn(worklist, "Str", "to_i64") return }
+    if tname == "U8" { push_qn(worklist, "Str", "to_u8") return }
+    if tname == "I32" { push_qn(worklist, "Str", "to_i32") return }
+    if tname == "U32" { push_qn(worklist, "Str", "to_u32") return }
+    if tname == "F32" { push_qn(worklist, "Str", "to_f32") return }
+    // The narrow signed/unsigned widths go through I64 first.
+    if tname == "I8" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i8") return }
+    if tname == "I16" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i16") return }
+    if tname == "U16" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_u16") return }
+    if or(tname.eq("U64"), tname.eq("USize"), tname.eq("UPtr")) { push_qn(worklist, "Str", "to_u64") return }
+    // Bool compares the argument against the "true"/"false" literals.
+    if tname == "Bool" { push_qn(worklist, "Str", "cmp") return }
+}
+
+// #326: root EXACTLY the helpers main's own signature needs. The whole
+// Str.to_* / I64.to_* family used to be seeded for every CLI or GUI
+// program, so a no-argument `mode gui` main carried seven dead converters
+// -- plus Str.from_c_str, which nothing has emitted since the Str case
+// became an inline Str_clone. A variadic main also deletes each parsed
+// element, so the element type's delete is a root too (the BFS forwards
+// USize.delete to U32.delete through the alias).
+priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            mut is_main_decl := false
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                if d.name == "main" { is_main_decl = true }
+            case:
+            }
+            if is_main_decl.not() { continue }
+            switch stmt.children[0].node_type {
+            case NodeType.FuncDef(fdef):
+                mut pi : I32 = 0
+                for p : Declaration in fdef.params {
+                    seed_cli_arg_helpers(p.explicit_type, worklist)
+                    if pi == fdef.variadic_index { push_qn(worklist, p.explicit_type, "delete") }
+                    pi++
+                }
+            case:
+            }
+        }
+    }
+}
+
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     if lp.cur_mode.is_null().not() {
@@ -799,27 +859,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     vec_push_str(worklist, "CAP_VIEW")
     if is_cli {
         vec_push_str(worklist, "main")
-        // The generated CLI entry wrapper (emit_cli_parse_arg in
-        // builder.til) parses typed argv into main()'s params inline,
-        // by raw-C name: Str.from_c_str wraps each argv c-string and the
-        // Str.to_* / I64.to_* family converts it. Those calls are emitted
-        // after this reachability prune, so the names never appear in the
-        // user stream -- seed them as roots here, or DCE drops the til
-        // definitions and the wrapper fails to link. (Str.from_c_str
-        // pulls in c_str_len transitively; Str.cmp/Str.delete come in via
-        // the "Str" root above but are listed for clarity.)
-        push_qn(worklist, "Str", "from_c_str")
-        push_qn(worklist, "Str", "to_i64")
-        push_qn(worklist, "Str", "to_u8")
-        push_qn(worklist, "Str", "to_i32")
-        push_qn(worklist, "Str", "to_u32")
-        push_qn(worklist, "Str", "to_u64")
-        push_qn(worklist, "Str", "to_f32")
-        push_qn(worklist, "Str", "cmp")
-        push_qn(worklist, "Str", "delete")
-        push_qn(worklist, "I64", "to_i8")
-        push_qn(worklist, "I64", "to_i16")
-        push_qn(worklist, "I64", "to_u16")
+        // The generated CLI entry wrapper parses typed argv into main()'s
+        // params inline, by raw-C name. Those calls are emitted after this
+        // reachability prune, so the names never appear in the user stream
+        // -- seed them here or the wrapper fails to link.
+        seed_cli_main_arg_roots(lp, worklist)
         for u : ProgramUnit in lp.units {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {

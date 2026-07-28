@@ -538,6 +538,12 @@ main := proc(args: ..Str) {
     // it compile: every emitted static has a real C reference. first_class
     // is the fixture with the most closure machinery -- lifted lambdas,
     // capture blocks, Body fields and their defaults.
+    // Issue #326: a CLI main roots only the argv converters ITS signature
+    // needs. cli_args takes `..Str`, which parses inline to a Str_clone, so
+    // none of the Str.to_* family may appear -- the whole family used to be
+    // seeded for every CLI or GUI program.
+    add_count(tests, "cli_args_exact_argv_roots", "build", "Str_to_", 0,
+        format(til_bin, " translate -c gen/c/cli_args_roots.c examples/cli_args.til '&&' cat gen/c/cli_args_roots.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
         format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
 
