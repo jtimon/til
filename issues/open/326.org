@@ -364,6 +364,20 @@ Landed (suite green, `make test_two_pass`):
   _v; })~ -- so they come with any scalar parameter and only a Str-only or
   no-argument main goes without them.
 
+- [X] An inlined accessor gets no out-of-line definition and no prototype.
+  ~builder_is_inline_accessor~ keys on the CALLEE's shape (~len~ /
+  ~unsafe_get~ with a single-return body), not on the call site, so when it
+  holds EVERY direct call splices the body and the emitted function has no
+  caller left.  ~emit_ns_method~ and all six namespace forward-declaration
+  loops now skip it.  The one C that could still call it is generated dyn
+  dispatch -- the per-method ~_dyn~ wrapper and the ~dyn_call_<m>~ bodies
+  both call the real function -- so the skip is off whenever ~dyn_fn~,
+  ~dyn_call~ or ~dyn_call_ret~ is in the emit inventory.
+  ~examples/snake.til~ 3,020 -> 2,986 lines, ~examples/chess.til~ 8,397 ->
+  8,346, ~test/minimal_reach.til~ 276 -> 259.  With this, a real program's
+  output has no never-called function left: snake defines 24 and calls all
+  of them.  ~cli_args_no_inlined_accessors~ is the regression.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit

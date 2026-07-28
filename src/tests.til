@@ -544,6 +544,12 @@ main := proc(args: ..Str) {
     // seeded for every CLI or GUI program.
     add_count(tests, "cli_args_exact_argv_roots", "build", "Str_to_", 0,
         format(til_bin, " translate -c gen/c/cli_args_roots.c examples/cli_args.til '&&' cat gen/c/cli_args_roots.c"))
+    // An accessor the builder splices at every call site gets no
+    // out-of-line definition and no prototype. cli_args' `for a : Str in
+    // args` loop calls Array.len and Array.unsafe_get on every iteration,
+    // and both are inlined, so neither name may appear at all.
+    add_count(tests, "cli_args_no_inlined_accessors", "build", "Array__Str_unsafe_get", 0,
+        format(til_bin, " translate -c gen/c/cli_args_acc.c examples/cli_args.til '&&' cat gen/c/cli_args_acc.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
         format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
 

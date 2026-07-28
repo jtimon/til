@@ -151,7 +151,6 @@ struct Token {
 };
 
 Str * format(Array__Str * parts);
-USize Str_len(Str * self);
 Bool Str_eq(Str * a, Str * b);
 Str * Str_with_capacity(USize n);
 void Str_push_str(Str * self, Str * s);
@@ -162,8 +161,6 @@ USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
 USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
-USize Array__Str_len(Array__Str * self);
-Str * Array__Str_unsafe_get(Array__Str * self, USize * i);
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
 void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
@@ -234,7 +231,6 @@ void print_single(Str *s);
 void print_flush();
 
 Str * format(Array__Str * parts);
-USize Str_len(Str * self);
 Bool Str_eq(Str * a, Str * b);
 Str * Str_with_capacity(USize n);
 void Str_push_str(Str * self, Str * s);
@@ -245,8 +241,6 @@ USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
 USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
-USize Array__Str_len(Array__Str * self);
-Str * Array__Str_unsafe_get(Array__Str * self, USize * i);
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
 void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
@@ -479,11 +473,6 @@ Str * format(Array__Str * parts) {
     __builtin_unreachable();
 }
 
-USize Str_len(Str * self) {
-    return self->count;
-    __builtin_unreachable();
-}
-
 Bool Str_eq(Str * a, Str * b) {
     Bool hoisted__Bool_93 = ((Bool)(a->count != b->count));
     if (hoisted__Bool_93) {
@@ -634,19 +623,6 @@ Array__Str * Array__Str_new(USize cap) {
     hoisted__Array__Str_616->data = hoisted__v_615;
     hoisted__Array__Str_616->cap = cap;
     return hoisted__Array__Str_616;
-    __builtin_unreachable();
-}
-
-USize Array__Str_len(Array__Str * self) {
-    return self->cap;
-    __builtin_unreachable();
-}
-
-Str * Array__Str_unsafe_get(Array__Str * self, USize * i) {
-    U32 hoisted__U32_617 = 16;
-    U32 hoisted__U32_618 = ((U32)(DEREF(i) * hoisted__U32_617));
-    void *hoisted__v_619 = ((void *)((U8 *)(self->data) + (hoisted__U32_618)));
-    return hoisted__v_619;
     __builtin_unreachable();
 }
 

@@ -3413,6 +3413,7 @@ void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitt
 void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def, Set__Str * emitted_tags);
+Bool priv___src_self_builder_til__builder_ns_method_inlined_away(Str * type_name, Str * member, Context * ctx);
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);

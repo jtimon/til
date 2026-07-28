@@ -5168,6 +5168,21 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
     }
 }
 
+// #326: true when `type_name.member` is an accessor the builder splices at
+// EVERY direct call site, so its out-of-line definition would have no
+// caller. builder_is_inline_accessor keys on the CALLEE's shape (len /
+// unsafe_get with a single-return body), not on the site, so the decision
+// is the same for every caller. The one C that could still call it is
+// generated dyn dispatch -- the per-method `_dyn` wrapper and the
+// `dyn_call_<m>` bodies both call the real function -- so the skip is off
+// whenever any dyn dispatch is requested.
+priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if builder_is_inline_accessor(member, type_name.concat3("_", member), ctx).not() { return false }
+    if builder_needs_reflect("dyn_fn", ctx) { return false }
+    if builder_needs_reflect("dyn_call", ctx) { return false }
+    return builder_needs_reflect("dyn_call_ret", ctx).not()
+}
+
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
     mut is_auto_size := false
     switch fdef.node_type {
@@ -5181,6 +5196,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len() == 0 { return }
+    if builder_ns_method_inlined_away(name, dd_name, lp.ctx) { return }
     full_name := name.concat3("_", dd_name)
     // Issue #309: on a width-mismatched target (`--usize=32` or a narrower
     // cross-compile target), emit the auto-generated size method as C
@@ -5884,6 +5900,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                             case NodeType.FuncDef(fd):
                                 full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi))
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
+                                if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
                             }
@@ -5922,6 +5939,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         fwi2 = fwi2 + 1
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                        if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
                         full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi2))
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     }
@@ -7011,6 +7029,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
+                                if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
                                 full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw2i))
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
@@ -7059,6 +7078,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         switch fdd.default_value.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
+                            if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw3i))
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
@@ -7140,6 +7160,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                             switch fdd.default_value.node_type {
                             case NodeType.FuncDef(fd):
                                 if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
+                                if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
                                 full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af1i))
                                 emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                             case:
@@ -7183,6 +7204,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         af2i = af2i + 1
                         if fdd.default_value.is_null() { continue }
                         if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                        if builder_ns_method_inlined_away(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
                         full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af2i))
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     }
