@@ -4705,6 +4705,43 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
         type_errors = type_errors + type_file(mode_file, lp.ctx)
     }
 
+    // Issue #328: prove the invariant the retirement below depends on --
+    // no call is still bound to a generic source. Only when nothing else
+    // failed: a rejected inference leaves its callee generic on purpose,
+    // and reporting it twice would bury the focused diagnostic.
+    if type_errors == 0 {
+        if lp.skip_core.not() {
+            for cus : ProgramUnit in lp.core_units {
+                context_enter_file(lp.ctx, cus.path)
+                type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[cus.path].ast, lp.ctx.scope, lp.ctx)
+            }
+        }
+        for uus : ProgramUnit in lp.units {
+            context_enter_file(lp.ctx, uus.path)
+            type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[uus.path].ast, lp.ctx.scope, lp.ctx)
+        }
+        for mfs : Str in lp.mode_files {
+            context_enter_file(lp.ctx, mfs)
+            type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[mfs].ast, lp.ctx.scope, lp.ctx)
+        }
+    }
+
+    // Issue #328: every body -- including the mode files -- is typed, so
+    // no call can still be bound to a generic source. Retire the source
+    // templates (AST declaration plus scope entries) before the pointer
+    // refresh below, so the backends only ever see concrete declarations.
+    if lp.skip_core.not() {
+        for cug : ProgramUnit in lp.core_units {
+            init_retire_generic_sources(lp.ctx.imported[cug.path].ast, lp.ctx.scope)
+        }
+    }
+    for uug : ProgramUnit in lp.units {
+        init_retire_generic_sources(lp.ctx.imported[uug.path].ast, lp.ctx.scope)
+    }
+    for mfg : Str in lp.mode_files {
+        init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope)
+    }
+
     // Typing can APPEND top-level decls to unit ASTs (lifted lambdas,
     // monomorphized Array__T/Vec__T defs); an append that reallocs a
     // children Vec moves every node in it, dangling the func_def /

@@ -47,7 +47,6 @@
 ** Medium
 *** [[./open/280.org][#280]] Variadic (N-ary) and/or folding (short-circuit, const-foldable)
 *** [[./open/321.org][#321]] Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
-*** [[./open/328.org][#328]] Infer omitted generic type arguments from value arguments
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/332.org][#332]] REPL line editing and history, without an external dependency

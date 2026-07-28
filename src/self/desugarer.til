@@ -182,6 +182,11 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     // a template that initer's pre-pass substitutes and lifts at each call
     // site, not a lambda to extract here (the type-param references would
     // immediately fail under the lifted lambda's normal-typing path).
+    // Issue #328: a retained direct-generic SOURCE is a template too --
+    // its body still names the unbound `T`, so a lambda lifted out of it
+    // would be typed as an ordinary function against an undefined type.
+    // The concrete monomorphizations get their lambdas lifted instead.
+    if init_func_is_generic(e) { return counter }
     switch e.node_type {
     case NodeType.FuncDef(lift_fd_check):
         if lift_fd_check.captures.len().gt(0).and(lift_fd_check.closure_name.len().eq(0)) {
@@ -280,8 +285,12 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, ct
 typer_lift_lambdas := proc(mut scope: TypeScope, mut prog: Expr, ctx: Context) {
     if prog.node_type.is(NodeType.Body).not() { return }
     mut top_level := Vec(Expr).new()
-    mut ctr : I64 = 0
+    // #328: the counter is per-CONTEXT, not per-call. A late concrete
+    // generic body is lifted after this initial sweep, so restarting at
+    // `_lambda_0` would collide with a name this sweep already emitted.
+    mut ctr : I64 = ctx.lambda_counter
     ctr = typer_lift_lambdas_in_expr(prog, top_level, ctr)
+    ctx.lambda_counter = ctr
     for l : Expr in top_level {
         // Push the lifted decl into the AST FIRST, then register the
         // scope's func_def pointer against the PUSHED copy. set_func_def
@@ -1042,6 +1051,47 @@ priv register_func_throws := func(mut ctx: Context, name: Str, throws_list: Vec(
 }
 
 extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
+    // Issue #328: a retained direct-generic SOURCE is unresolved. Appending
+    // err out-params to it, or registering its throws under the source
+    // name, would let a caller's pre-inference throw lowering create error
+    // slots for a signature that only exists after substitution. Task 11
+    // installs the metadata a STATIC throw type can safely publish; until
+    // then no source template is extended -- the concrete declarations
+    // synthesized from it take the ordinary throw path.
+    if init_stmt_is_generic_source(e) {
+        // A source with a STATIC throw type publishes its metadata under
+        // the SOURCE name, because a caller's throw lowering runs before
+        // inference has a monomorphized name to key on. Extending the
+        // source's signature once also means every clone taken from it
+        // already carries the err out-params. A type-DEPENDENT throw
+        // cannot do either (#328 task 11): it is left untouched here and
+        // rejected with one focused diagnostic at the call.
+        if generic_source_throws_depend_on_type(e.children[0]) { return }
+        switch e.node_type {
+        case NodeType.Decl(gsd):
+            switch e.children[0].node_type {
+            case NodeType.FuncDef(gsfd):
+                register_func_throws(ctx, gsd.name, gsfd.throw_types)
+                for gstn : Str in gsfd.throw_types {
+                    register_throw_type(ctx, gstn)
+                }
+                if gsfd.throw_types.len() > 0 {
+                    mut gs_already := false
+                    for gsp : Declaration in gsfd.params {
+                        if gsp.name == "_err_kind" { gs_already = true }
+                    }
+                    if gs_already.not() {
+                        append_err_out_params(gsfd.params, gsfd.throw_types, ctx)
+                    }
+                }
+            case:
+            }
+        case:
+        }
+        // Never recurse into an unresolved template body.
+        return
+    }
+    if init_func_is_generic(e) { return }
     // Register Decl(name) -> FuncDef in the global throws map.
     if e.node_type.is(NodeType.Decl) {
         if e.children.len() > 0 {
@@ -1561,6 +1611,22 @@ priv vec_str_push_uniq := func(mut v: Vec(Str), name: Str) {
 // the FCall flags so downstream stages don't trip on a half-shaped
 // signature, and updates the body-level pending / seen /
 // types_to_declare lists with the callee's declared throw types.
+// The callee of this call, when it is still bound to a generic source
+// whose throws depend on a type parameter.
+priv fcall_callee_is_dependent_throw_generic := func(ctx: Context, e: Expr) returns Bool {
+    if e.children.len() == 0 { return false }
+    switch e.children[0].node_type {
+    case NodeType.Ident(cn):
+        fd_o := ctx.scope.lookup_func(cn.ident_name())
+        if fd_o.is_none() { return false }
+        ref fd : Expr = fd_o.unwrap()
+        if init_func_is_generic(fd).not() { return false }
+        return generic_source_throws_depend_on_type(fd)
+    case:
+    }
+    return false
+}
+
 priv validate_one_fcall_consolidated := proc(
     ctx: Context,
     mut e: Expr,
@@ -1571,6 +1637,13 @@ priv validate_one_fcall_consolidated := proc(
     path: Str
 ) {
     if e.node_type.is(NodeType.FCall).not() { return }
+    // #328: a generic whose `throws` clause names a type parameter is
+    // lowered nowhere before inference resolves it -- error outputs and
+    // caller slots would be created for a signature that only exists
+    // after substitution. Defer the whole call to infer_fcall_expr, which
+    // requires explicit type application and emits the one focused
+    // diagnostic. An intentional deferral, not error recovery.
+    if fcall_callee_is_dependent_throw_generic(ctx, e) { return }
     mut does_throw := false
     mut is_bang_left := false
     switch e.node_type {

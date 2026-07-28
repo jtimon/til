@@ -638,6 +638,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/tuples.til", flags)
     add_both(tests, "test/auto.til", flags)
     add_both(tests, "test/first_class.til", flags)
+    add_both(tests, "test/generic_infer_imports.til", flags)
     add_both(tests, "test/closures.til", flags)
     add_both(tests, "test/regression.til", flags)
     add_both(tests, "test/files.til", flags)
@@ -795,7 +796,7 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 169,
+    add_count(tests, "typer_errors", "typer", "error:", 179,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,

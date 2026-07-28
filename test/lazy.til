@@ -817,3 +817,39 @@ test_and_or_throwing_arg_short_circuits := test() {
     expect((empty.len().eq(0) || empty[0].gt(0)), "||: empty guarded")
     expect((v.len().gt(0) && v[0].eq(42)), "&&: nonempty taken arm")
 }
+
+// #328: a generic source is retained through lazy expansion, so a late
+// concrete body is cloned from the ALREADY-LOWERED source -- inference
+// never re-runs lazy expansion, and it never clones the pre-lazy seed.
+lazy_pick328 := lazy_func(c: Bool, a: I64, b: I64) returns I64 {
+    if c { return a }
+    return b
+}
+
+ginline328 := func(T: Type, v: T) returns T {
+    picked := lazy_pick328(true, 1, 2)
+    if picked.eq(1) { return v }
+    return v
+}
+
+test_generic_infer_lazy_inline := test() {
+    n : I64 = 7
+    assert_eq(I64, ginline328(n), 7)
+}
+
+lazy_thunk328 := lazy_func(c: Bool, a: I64, b: I64) returns I64 {
+    if c { return a }
+    return b
+}
+
+gthunk328 := func(T: Type, v: T, flag: Bool) returns T {
+    picked := lazy_thunk328(flag, 1, 2)
+    if picked.eq(1) { return v }
+    return v
+}
+
+test_generic_infer_lazy_thunk := test() {
+    n : I64 = 9
+    assert_eq(I64, gthunk328(n, true), 9)
+    assert_eq(I64, gthunk328(n, false), 9)
+}

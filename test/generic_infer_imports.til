@@ -1,0 +1,30 @@
+mode test
+
+import("imports/generic_infer_public")
+import("imports/generic_infer_private_a")
+import("imports/generic_infer_private_b")
+
+// #328: an inferred call here and an explicit call inside the imported
+// unit select the same concrete declaration, emitted in exactly one unit.
+// The operands come out of a Vec so the calls survive const folding and
+// the generated C really contains the definitions to inspect.
+priv runtime_i64_328 := func(seed: I64) returns I64 {
+    mut v := Vec(I64).new()
+    v.push(own seed)
+    ref got : I64 = v[0]
+    return got.clone()
+}
+
+test_generic_infer_cross_unit_dedup := test() {
+    n := runtime_i64_328(5)
+    assert_eq(I64, generic_public_id(n), 5)
+    assert_eq(I64, generic_public_explicit_wrapper(runtime_i64_328(6)), 6)
+}
+
+// Two same-named PRIVATE generics keep their own implementations: wrong
+// deduplication shows up in the VALUES, not only in the symbol names.
+test_generic_infer_private_isolation := test() {
+    m := runtime_i64_328(4)
+    assert_eq(I64, private_a_apply(m), 5)
+    assert_eq(I64, private_b_apply(m), 40)
+}

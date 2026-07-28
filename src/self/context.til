@@ -56,6 +56,16 @@ TypeBinding := struct {
     // direct subscript CALL on a stored funcptr (`ops[0](args)`) typable.
     // Empty when unknown (non-literal elem type, reassigned vec, etc.).
     dynvec_elem := ""
+    // Issue #328: the type name AS DECLARED at the binding site, before
+    // alias normalization rewrote it. Generic inference forms a
+    // monomorphization name from it, so a `n: USize` operand contributes
+    // the target-independent `USize` and not the target's `U32`, and a
+    // user alias contributes the alias (which canonicalizes later through
+    // resolve_type_alias_for_name). Empty when there is no declared
+    // spelling to keep (a literal, an unannotated local with no
+    // provenance). Appended at the END so the committed boot's layout
+    // stays stable.
+    declared_type_name := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -264,6 +274,16 @@ namespace:
         if bo.is_some() { return bo.unwrap().is_mut }
         return false
     }
+    // Issue #328: retiring a generic source template has to ERASE its
+    // entries, not re-point them -- init_refresh_seeded_scope_defs only
+    // refreshes names that are still declared, so an obsolete one would
+    // keep a dangling FuncDef pointer for the backends to find.
+    erase_func_def := func(mut self: TypeScope, name: Str) {
+        self.func_defs.remove(name)
+    }
+    erase_binding := func(mut self: TypeScope, name: Str) {
+        self.bindings.remove(name)
+    }
     set := func(mut self: TypeScope, name: Str, type: Type,
         is_mut: Bool,
         path: Str,
@@ -298,6 +318,130 @@ namespace:
 // and FuncPtr-typed callees skip those checks entirely).
 binding_func_type := func(b: TypeBinding) returns shallow FuncType {
     return b.func_type
+}
+
+// Issue #328: does this binding denote a TYPE (a real type token), as
+// opposed to a value? Shared by the typer (rewrite_til_type_arg) and the
+// initer (telling `gid(I64, v)` apart from `gid(v, 42)`), so both phases
+// classify a `Type`-slot argument by exactly one rule. A bodyless FuncDef
+// binding is a FuncSig type name (`BinaryOp := func(a: I64) returns I64`).
+type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Bool {
+    if b.is_type_alias { return true }
+    if scope.struct_def_of(b.name).is_some() { return true }
+    bfd_o := scope.lookup_func(b.name)
+    if bfd_o.is_some() {
+        // A BODYLESS FuncDef binding is a FuncSig type name; anything with
+        // a body is a function VALUE. This is tested before is_builtin
+        // because ext_func/core_func declarations (`vec`, `array`, `cast`,
+        // ...) are builtins too, and reading one as a type token turned a
+        // local named `vec` in a generic's value slot into a bogus type
+        // application (#328).
+        return bfd_o.unwrap().children.len() == 0
+    }
+    if b.is_builtin { return true }
+    return false
+}
+
+// Issue #58 "Phase now": a top-level `name := func(T: Type, ...)` is a
+// GENERIC function -- a func/proc whose param list has at least one
+// `Type`-typed param. Unlike a macro it is CALLED DIRECTLY with the
+// type-arg inline (`identity(I64, 42)`, `swap(I64, x, y)`); it is
+// monomorphized per distinct type-arg tuple into a concrete copy, and
+// each call is rewritten to that copy with the type-args dropped.
+// Issue #328 moved it here from initer.til: initer, desugarer and typer
+// all need ONE source-classification rule.
+init_func_is_generic := func(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case NodeType.FuncDef(fd):
+        gok := fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc))
+        if gok.not() { return false }
+        // A `P: Type` param is a generic TYPE-PARAMETER only if its name
+        // is actually USED as a type elsewhere in the signature -- as
+        // another param's explicit_type, or as the return type. A plain
+        // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
+        // never used to type anything, e.g. til_type_name_c) is NOT a
+        // generic and must be left untouched.
+        for p : Declaration in fd.params {
+            if p.explicit_type.eq("Type").not() { continue }
+            tname := p.name
+            if fd.return_type == tname { return true }
+            for q : Declaration in fd.params {
+                if q.explicit_type == tname { return true }
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Issue #328: is this top-level statement a direct-generic SOURCE
+// template -- a `name := func(T: Type, ...)` decl whose body still names
+// its unbound type parameters? Retained through typing, never typed or
+// emitted itself.
+init_stmt_is_generic_source := func(stmt: Expr) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() == 0 { return false }
+    return init_func_is_generic(stmt.children[0])
+}
+
+// Issue #328: does `name` mention the type parameter `pname` as a whole
+// name SEGMENT? A generated instance name is `Base__Arg1_Arg2`, so the
+// parameter shows up between underscores. A plain substring test would
+// find `T` inside `BadThing328` and misread an ordinary error type as a
+// type-dependent one.
+type_name_mentions_param := func(name: Str, pname: Str) returns Bool {
+    if pname.len() == 0 { return false }
+    if name.eq(pname) { return true }
+    segs := name.split("_")
+    for sg : Str in segs {
+        if sg.eq(pname) { return true }
+    }
+    return false
+}
+
+// Issue #328: does this generic source's `throws` clause name a type
+// PARAMETER -- directly (`throws T`) or inside a generated instance name
+// (`throws Err__T`)? Such a source cannot publish throw metadata under
+// its source name: a caller's error outputs and result slots are built
+// before inference resolves T, so they would name a type that does not
+// exist yet. It stays an explicit-application-only generic. A STATIC
+// throw type has no such problem and takes the ordinary path.
+generic_source_throws_depend_on_type := func(rhs: Expr) returns Bool {
+    switch rhs.node_type {
+    case NodeType.FuncDef(fd):
+        for p : Declaration in fd.params {
+            if p.explicit_type.eq("Type").not() { continue }
+            for t : Str in fd.throw_types {
+                if type_name_mentions_param(t, p.name) { return true }
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Issue #328: one RESOLVED generic-function source. The shared
+// instantiation constructor takes this record plus the live FuncDef Expr
+// and never reads Context.generic_funcs itself, so init-time explicit
+// expansion and typer-time inferred expansion cannot drift apart.
+// `path` is half the dedup key: two units' private generics that happen to
+// share a name must not collapse onto one monomorphization.
+GenericFuncSource := struct {
+    // Source name as currently spelled in the owning scope: the raw name
+    // during init (private mangling has not run yet), the already-mangled
+    // one for a late typer resolution.
+    name := ""
+    path := ""
+    is_priv := false
+namespace:
+    eq := func(a: GenericFuncSource, b: GenericFuncSource) returns Bool {
+        return a.name.eq(b.name).and(a.path.eq(b.path))
+    }
+    to_str := func(self: GenericFuncSource) returns Str {
+        return format(self.path, ":", self.name)
+    }
 }
 
 // Issue #147 helper: pick the FuncType for a func_def Expr. Empty
@@ -530,6 +674,19 @@ Context := struct {
     // emits the concrete decl; later units only rewrite their calls to it.
     generic_funcs := Map(Str, Expr).new()
     generic_func_synths := Set(Str).new()
+    // Issue #328: per-unit holder for the concrete declarations that late
+    // (typer-time) generic inference synthesizes. A Decl OWNS its FuncDef
+    // child, so the child address is only stable while it sits in this
+    // holder -- the queue exists so a declaration can be registered and
+    // typed WITHOUT being appended to the unit while nested inference
+    // still holds refs into the statement being typed. The flush moves
+    // every child at once (take_children) once infer_body_stmt has
+    // returned to the top-level loop. Reset at type_check_unit entry and
+    // asserted empty at unit exit.
+    own generic_pending : Expr = Expr.new(NodeType.Body, 0, 0)
+    // Monotonic across a unit's INITIAL lambda lift and every later flush,
+    // so a late concrete body's lambdas cannot collide with `_lambda_0`.
+    lambda_counter : I64 = 0
 
     scope := TypeScope()
     is_repl := false

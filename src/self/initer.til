@@ -1378,7 +1378,11 @@ priv register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: 
     }
 }
 
-priv register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
+// #328: exposed so the typer can register a late-synthesized concrete
+// generic declaration while its FuncDef child is still in stable
+// pending storage (a Decl OWNS that child, so registering it after the
+// move would point at freed memory).
+register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     ref def : Expr = stmt.children[0]
     if def.node_type.is(NodeType.FuncDef).not() { return }
@@ -2494,7 +2498,9 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
     }
 }
 
-priv init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
+// #328: exposed so the typer's pending flush runs the same
+// nested-definition lift on a substituted concrete body.
+init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec(Expr)) {
     if body.node_type.is(NodeType.Body).not() { return }
 
     mut renamings := Map(Str, Str).new()
@@ -2704,7 +2710,20 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
             }
         case:
         }
-        if replaced.not() { init_substitute_idents(c, subs, ref_params) }
+        if replaced.not() {
+            // #328: a NESTED definition inside the body -- a local
+            // `f := func(x: T) returns T {...}` or a lambda literal in an
+            // argument -- carries its type parameters on its own
+            // FunctionDef payload, which the Ident walk cannot see. Route
+            // it through the full substitution so `T` disappears from its
+            // signature too, not just from its body's Idents.
+            defn := c.node_type.is(NodeType.FuncDef).or(c.node_type.is(NodeType.StructDef)).or(c.node_type.is(NodeType.EnumDef))
+            if defn {
+                init_substitute_type_params(c, subs, ref_params)
+            } else {
+                init_substitute_idents(c, subs, ref_params)
+            }
+        }
     }
 }
 
@@ -3562,57 +3581,322 @@ init_refresh_seeded_scope_defs := func(program: Expr, mut scope: TypeScope) {
     }
 }
 
-// Issue #58 "Phase now": a top-level `name := func(T: Type, ...)` is a
-// GENERIC function -- a func/proc whose param list has at least one
-// `Type`-typed param. Unlike a macro it is CALLED DIRECTLY with the
-// type-arg inline (`identity(I64, 42)`, `swap(I64, x, y)`); init
-// monomorphizes it per distinct type-arg tuple, synthesizes the
-// concrete copy, and rewrites each call to that copy with the type-args
-// dropped. The generic decl itself is removed (its body can't type-check
-// with T undefined).
-priv init_func_is_generic := func(rhs: Expr) returns Bool {
-    switch rhs.node_type {
-    case NodeType.FuncDef(fd):
-        gok := fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc))
-        if gok.not() { return false }
-        // A `P: Type` param is a generic TYPE-PARAMETER only if its name
-        // is actually USED as a type elsewhere in the signature -- as
-        // another param's explicit_type, or as the return type. A plain
-        // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
-        // never used to type anything, e.g. til_type_name_c) is NOT a
-        // generic and must be left untouched.
-        for p : Declaration in fd.params {
-            if p.explicit_type.eq("Type").not() { continue }
-            tname := p.name
-            if fd.return_type == tname { return true }
-            for q : Declaration in fd.params {
-                if q.explicit_type == tname { return true }
+// Issue #328: generic expansion runs BEFORE this unit's private decls are
+// mangled and registered, so `type_binding_is_type_token` alone cannot
+// recognise a private struct/enum/FuncSig named as a generic type
+// argument. Seed a same-unit source-name -> canonical-name map for every
+// top-level type declaration; public names map to themselves, private ones
+// to the `priv_c_name` spelling the later private pass will give them (so
+// two units' privates cannot collide in one monomorphization name).
+priv init_seed_local_type_tokens := func(program: Expr, scope: TypeScope, ctx: Context) returns Map(Str, Str) {
+    mut out := Map(Str, Str).new()
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        ref rhs : Expr = stmt.children[0]
+        mut is_type_decl := rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef))
+        // A bodyless FuncDef decl is a FuncSig type name
+        // (`BinaryOp := func(a: I64, b: I64) returns I64`).
+        if rhs.node_type.is(NodeType.FuncDef).and(rhs.children.len() == 0) { is_type_decl = true }
+        if is_type_decl.not() { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            mangle := dd.is_priv.and(dd.name.starts_with("priv__").not()).and(dd.orig_name.len() == 0)
+            if mangle {
+                out.set(dd.name, own priv_c_name(ctx.path, dd.name))
+            } else {
+                out.set(dd.name, own dd.name.clone())
+            }
+        case:
+        }
+    }
+    // `Alias := Ident` is a TYPE alias only when its target is already
+    // known to be a type; `f := g` has the identical shape and must stay
+    // out. Iterating to a fixed point lets alias chains resolve whatever
+    // their declaration order.
+    mut grew := true
+    while grew {
+        grew = false
+        for stmt2 : Expr in program.children {
+            if stmt2.node_type.is(NodeType.Decl).not() { continue }
+            if stmt2.children.len() == 0 { continue }
+            ref rhs2 : Expr = stmt2.children[0]
+            switch rhs2.node_type {
+            case NodeType.Ident(tn):
+                mut canon := ""
+                ref target : Str = tn.ident_name()
+                if out.has(target) {
+                    canon = out[target].clone()
+                } else {
+                    tb_o := scope.get_binding(target)
+                    if tb_o.is_some() {
+                        if type_binding_is_type_token(scope, tb_o.unwrap()) {
+                            canon = init_type_arg_name(scope, target)
+                        }
+                    }
+                }
+                if canon.len() == 0 { continue }
+                switch stmt2.node_type {
+                case NodeType.Decl(dd2):
+                    if out.has(dd2.name) { continue }
+                    out.set(dd2.name, own canon.clone())
+                    grew = true
+                case:
+                }
+            case:
             }
         }
-        return false
-    case:
-        return false
     }
+    return out
+}
+
+// Issue #328: the canonical type-token spelling for an argument Ident in a
+// generic's `Type` slot, or "" when the Ident denotes a VALUE (a type name
+// is never empty, the `init_lookup_name` sentinel shape). This one wrapper
+// is what tells the explicit `gid(I64, v)` from the omitted `gid(v)`, and
+// it also supplies the spelling used for substitution, monomorph naming
+// and dedup -- so `MyInt := I64` and `I64` land on one implementation.
+priv init_generic_type_arg_name := func(scope: TypeScope, local_types: Map(Str, Str), name: Str) returns Str {
+    // Scope first: it is the one place that knows `USize`/`UPtr` must stay
+    // target-independent even when a unit declares its own `USize := U64`
+    // alias. The same-unit map is the FALLBACK, for names scope cannot know
+    // yet (this unit's private structs/enums/FuncSigs).
+    b_o := scope.get_binding(name)
+    if b_o.is_some() {
+        if type_binding_is_type_token(scope, b_o.unwrap()) {
+            return init_type_arg_name(scope, name)
+        }
+    }
+    if local_types.has(name) { return local_types[name].clone() }
+    return ""
+}
+
+// Issue #328: the generic sources visible to one expansion pass, plus how
+// to resolve one. Immutable for the whole walk (the mutable `seen` map and
+// the destination Body travel separately), so a borrowed def cell stays
+// valid while the walk mutates its output.
+GenericSources := struct {
+    // name -> borrowed FuncDef cell (the func_defs Dynamic pattern).
+    defs := Map(Str, Dynamic).new()
+    // name -> declaring path / privacy for those same entries.
+    sources := Map(Str, GenericFuncSource).new()
+    // false: init-time expansion, resolving through `defs` above.
+    // true: late typer expansion, which resolves ONLY live retained
+    // FuncDefs through TypeScope.lookup_func -- the ctx.generic_funcs
+    // seeds are pre-lazy, pre-mangling clones and must never be
+    // instantiated from.
+    late := false
+}
+
+// Leaf single-probe lookup for the borrowed generic-def cells (the
+// func_defs_lookup_one shape; that one is priv to context.til).
+priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
+    ref slot : Dynamic = m.get(name)?
+    catch (e: KeyNotFound) { return Option(ref Expr).None }
+    ref g : Expr = deref(slot)
+    return Option(ref Expr).Some(g)
+}
+
+// Issue #328: the two source resolvers behind one signature. Init reads
+// its local/import seed map; late typing reads only what is still live in
+// the scope chain.
+priv generic_resolve_source := func(gs: GenericSources, name: Str, scope: TypeScope) returns Option(ref Expr) {
+    if gs.late.not() { return generics_lookup_one(gs.defs, name) }
+    fd_o := scope.lookup_func(name)
+    if fd_o.is_none() { return Option(ref Expr).None }
+    ref fd : Expr = fd_o.unwrap()
+    if init_func_is_generic(fd).not() { return Option(ref Expr).None }
+    return Option(ref Expr).Some(fd)
+}
+
+// The declaring path / privacy of a source `generic_resolve_source` just
+// answered Some for. Init took them from the seed map; late resolution
+// takes them from the live binding that lookup_func gated on.
+priv generic_source_of := func(gs: GenericSources, name: Str, scope: TypeScope, ctx: Context) returns GenericFuncSource {
+    if gs.late.not() { return gs.sources[name].clone() }
+    b_o := scope.get_binding(name)
+    if b_o.is_none() {
+        panic(ctx.path, ": generic source '", name, "' resolved without a binding")
+    }
+    ref b : TypeBinding = b_o.unwrap()
+    return GenericFuncSource(name = name.clone(), path = b.path.clone(), is_priv = b.is_priv)
+}
+
+// The concrete type name a type-parameter is substituted with.
+priv generic_subs_type_name := func(subs: Map(Str, Expr), pname: Str) returns Str {
+    ref sub : Expr = subs[pname]
+    switch sub.node_type {
+    case NodeType.Ident(sn): return Str.clone(sn.ident_name())
+    case:
+    }
+    UNREACHABLE()
+    return ""
+}
+
+// Issue #328: THE concrete-instantiation path. Both init-time explicit
+// expansion and typer-time inferred expansion build their declaration
+// here, so `assert_eq(I32, a, b)` and `assert_eq(a, b)` cannot land on two
+// different implementations. It clones the source, drops its `Type`
+// params (adjusting variadic_index / kwargs_index), substitutes the type
+// arguments through signature, defaults, throws and body, recursively
+// expands the explicit generic calls the substitution just made concrete,
+// and appends the concrete Decl to `destination`.
+//
+// Returns the concrete name. `arg_pos` receives the old-to-new
+// argument-position map -- one entry per SOURCE param, -1 for a dropped
+// `Type` slot -- which generic_rewrite_call uses to move own/ref bits.
+generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(Str, Expr), ref_params: Set(Str), gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, mut arg_pos: Vec(I64), line: U32, col: U32, scope: TypeScope, ctx: Context) returns Str {
+    switch gfd_expr.node_type {
+    case NodeType.FuncDef(gfd):
+        mut mono := format(src.name, "__")
+        mut first := true
+        mut new_idx : I64 = 0
+        for i in 0..gfd.params.len() {
+            ref p : Declaration = gfd.params[i]
+            if p.explicit_type.eq("Type").not() {
+                // A fresh box per push: Vec.push CONSUMES its argument, so
+                // pushing the running counter itself would free it.
+                kept_pos : I64 = new_idx
+                arg_pos.push(own kept_pos)
+                new_idx = new_idx + 1
+                continue
+            }
+            dropped : I64 = -1
+            arg_pos.push(own dropped)
+            if first.not() { mono = format(mono, "_") }
+            // #320: the same `ref_` mangle segment as the type-gen paths,
+            // so owned and borrowed monomorphizations stay distinct.
+            if ref_params.has(p.name) { mono = format(mono, "ref_") }
+            // User aliases canonicalize, width aliases stay
+            // target-independent: `MyInt := I64` and `I64` name one
+            // implementation, `USize` keeps its own.
+            mono = format(mono, init_type_arg_name(scope, generic_subs_type_name(subs, p.name)))
+            first = false
+        }
+
+        // Synthesize the concrete copy once per distinct (declaring path,
+        // concrete name). The local `seen` guards re-expansion within this
+        // unit; ctx.generic_func_synths dedupes the EMITTED decl across
+        // units in one binary (issue #58 cross-unit): the first unit to
+        // need `assert_eq__I64` emits the concrete decl, later units only
+        // rewrite their calls to that name. The path half of the key keeps
+        // two units' same-named PRIVATE generics apart.
+        dedup_key := format(src.path, "#", mono)
+        if seen.has(dedup_key).not() {
+            if ctx.generic_func_synths.has(dedup_key).not() {
+                ctx.generic_func_synths.add(own dedup_key.clone())
+                mut cloned := gfd_expr.clone()
+                switch cloned.node_type {
+                case NodeType.FuncDef(cfd):
+                    mut kept := Vec(Declaration).new()
+                    mut vidx : I32 = cfd.variadic_index
+                    mut kidx : I32 = cfd.kwargs_index
+                    for ci in 0..cfd.params.len() {
+                        ref kp : Declaration = cfd.params[ci]
+                        if kp.explicit_type == "Type" {
+                            // Removing a param shifts every later block
+                            // marker down by one.
+                            cpos : I32 = ci.to_i64().to_i32()
+                            if vidx > cpos { vidx = vidx - 1 }
+                            if kidx > cpos { kidx = kidx - 1 }
+                            continue
+                        }
+                        kept.push(own kp.clone())
+                    }
+                    cfd.params.clear()
+                    for kp2 : Declaration in kept {
+                        cfd.params.push(own kp2.clone())
+                    }
+                    cfd.variadic_index = vidx
+                    cfd.kwargs_index = kidx
+                case:
+                }
+                init_substitute_type_params(cloned, subs, ref_params)
+                // Composition: the freshly-substituted body may now contain
+                // calls to OTHER generic funcs (or to this one with different
+                // type-args). Walk it with the same sources/seen/destination,
+                // so those calls get rewritten and any new monomorphizations
+                // get appended -- the program-level outer loop will then pick
+                // them up alongside the rest.
+                init_generic_walk(cloned, gs, local_types, seen, destination, scope, ctx)
+                // A private source keeps its privacy AND its raw name here,
+                // so the later private pass mangles this concrete decl
+                // exactly once. A late instantiation starts from the
+                // already-mangled source name and that pass is long done.
+                mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone(), is_priv = src.is_priv)), line, col)
+                decl.add_child(own cloned)
+                destination.add_child(own decl)
+            }
+            seen.set(dedup_key, own mono.clone())
+        }
+        return mono
+    case:
+    }
+    UNREACHABLE()
+    return ""
+}
+
+// Issue #328: rewrite an expanded generic call in place -- callee becomes
+// the concrete name, the `Type` arguments are dropped, and own/ref bits
+// ride along to their new positions through the constructor's map. Args
+// past the last formal are variadic tail elements and keep their order.
+priv generic_rewrite_call := func(mut parent: Expr, call_idx: USize, mono: Str, arg_pos: Vec(I64)) {
+    ref call : Expr = parent.children[call_idx]
+    mut newcall := Expr.new(NodeType.FCall(FCallData()), call.line, call.col)
+    switch call.node_type {
+    case NodeType.FCall(old_fd):
+        switch newcall.node_type {
+        case NodeType.FCall(new_fd):
+            new_fd.is_splat = old_fd.is_splat
+            new_fd.does_throw = old_fd.does_throw
+            new_fd.is_bang = old_fd.is_bang
+        case:
+        }
+    case:
+    }
+    mut mono_id := Expr.new(ident_node(mono), call.line, call.col)
+    newcall.add_child(own mono_id)
+    mut new_pos : USize = 1
+    for k in 1..call.children.len() {
+        pidx := k - 1
+        mut drop_arg := false
+        if pidx < arg_pos.len() {
+            if arg_pos[pidx] < 0 { drop_arg = true }
+        }
+        if drop_arg { continue }
+        src_own := get_own_arg(call, k)
+        newcall.add_child(own call.children[k].clone())
+        if src_own { set_own_arg(newcall, new_pos) }
+        new_pos = new_pos + 1
+    }
+    // Rewrite through the parent slot: Vec.set deep-deletes the old
+    // call (issue #272; replaces Expr.replace_with).
+    parent.children[call_idx] = newcall
 }
 
 // Expand a single generic-func call `call` = `gname(typearg, ..., valargs)`
-// against the generic funcdef `gfd_expr`. Synthesizes the monomorphization
-// (deduped via `seen`, accumulated in `synthesized`) and rewrites `call`
-// in place to the concrete `gname__T1_T2(valargs)`.
-priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, generics: Map(Str, Dynamic), mut seen: Map(Str, Str), mut synthesized: Expr, ctx: Context) {
+// against the generic funcdef `gfd_expr`: read the explicit type tokens off
+// the call, then instantiate and rewrite through the shared helpers.
+priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: Str, gfd_expr: Expr, gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, scope: TypeScope, ctx: Context) {
     ref call : Expr = parent.children[call_idx]
     switch gfd_expr.node_type {
     case NodeType.FuncDef(gfd):
-        // Build the type-param substitution map and the mono name from
-        // the type-args at the Type-param positions.
+        // Build the type-param substitution map from the type-args at the
+        // Type-param positions.
         mut subs := Map(Str, Expr).new()
         // #320: type params whose arg carried the `ref` qualifier
         // (`gpick(ref X, v)`); substitution makes `returns T` a borrowed
         // return etc., exactly as for type-gen macros.
         mut ref_params := Set(Str).new()
-        mut mono := format(gname, "__")
-        mut first := true
         mut ok := true
+        // Issue #328: `explicit` flips to true the moment a present `Type`
+        // slot holds a REAL type token. Until then a present slot holding a
+        // value Ident (or a literal) means the caller omitted the type
+        // arguments -- leave the whole call untouched so the typer can infer
+        // them, instead of monomorphizing `assert_eq__got`. Once explicit,
+        // a later invalid or missing slot stays on the explicit-error path;
+        // `f(I64, 1, true)` is never re-read as fully omitted application.
+        mut explicit := false
         for i in 0..gfd.params.len() {
             ref p : Declaration = gfd.params[i]
             // Only Type params need a corresponding type-arg to build the
@@ -3639,98 +3923,40 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
             ref arg : Expr = call.children[argidx]
             switch arg.node_type {
             case NodeType.Ident(an):
-                ref tn : Str = an.ident_name()
+                tn := init_generic_type_arg_name(scope, local_types, an.ident_name())
+                if tn.len() == 0 {
+                    // A value in a type slot: omitted application if we have
+                    // not already seen a real type token, an ordinary
+                    // explicit-call error otherwise.
+                    if explicit.not() { return }
+                    ok = false
+                    break
+                }
+                explicit = true
                 mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
                 subs.set(p.name, own tid)
-                if first.not() { mono = format(mono, "_") }
-                // #320: same `ref_` mangle segment as the type-gen paths,
-                // so owned and borrowed monomorphizations stay distinct.
-                if get_ref_arg(call, argidx) {
-                    ref_params.add(own p.name.clone())
-                    mono = format(mono, "ref_")
-                }
-                mono = format(mono, tn)
-                first = false
+                if get_ref_arg(call, argidx) { ref_params.add(own p.name.clone()) }
             case:
+                // A literal (or any non-Ident) in the first expected type
+                // slot is an omitted-type call too; after a real type token
+                // it stays the existing explicit-call error path.
+                if explicit.not() { return }
                 ok = false
             }
         }
         if ok.not() { return }
 
-        // Synthesize the concrete copy once per distinct mono name. The local
-        // `seen` guards re-expansion within this unit; ctx.generic_func_synths
-        // dedupes the EMITTED decl across units in one binary (issue #58
-        // cross-unit): the first unit to need `assert_eq__I64` emits the
-        // concrete decl, later units only rewrite their calls to that name.
-        if seen.has(mono).not() {
-            if ctx.generic_func_synths.has(mono).not() {
-                ctx.generic_func_synths.add(own mono.clone())
-                mut cloned := gfd_expr.clone()
-                switch cloned.node_type {
-                case NodeType.FuncDef(cfd):
-                    mut kept := Vec(Declaration).new()
-                    for kp : Declaration in cfd.params {
-                        if kp.explicit_type == "Type" { continue }
-                        kept.push(own kp.clone())
-                    }
-                    cfd.params.clear()
-                    for kp2 : Declaration in kept {
-                        cfd.params.push(own kp2.clone())
-                    }
-                case:
-                }
-                init_substitute_type_params(cloned, subs, ref_params)
-                // Composition: the freshly-substituted body may now contain
-                // calls to OTHER generic funcs (or to this one with different
-                // type-args). Walk it with the same generics/seen/synthesized,
-                // so those calls get rewritten and any new monomorphizations
-                // get appended -- the program-level outer loop will then pick
-                // them up alongside the rest.
-                init_generic_walk(cloned, generics, seen, synthesized, ctx)
-                mut decl := Expr.new(NodeType.Decl(Declaration(name = mono.clone())), call.line, call.col)
-                decl.add_child(own cloned)
-                synthesized.add_child(own decl)
-            }
-            seen.set(mono, own mono.clone())
-        }
-
-        // Rewrite the call: callee -> Ident(mono); keep only the value
-        // args (drop the type-args). own-arg markers from the source
-        // call carry over to the matching new positions, so a generic
-        // taking `own v: T` keeps its move semantics after the rewrite.
-        mut newcall := Expr.new(NodeType.FCall(FCallData()), call.line, call.col)
-        mut mono_id := Expr.new(ident_node(mono), call.line, call.col)
-        newcall.add_child(own mono_id)
-        mut new_arg_pos := 1
-        for j in 0..gfd.params.len() {
-            if gfd.params[j].explicit_type == "Type" { continue }
-            vargidx := j + 1
-            if vargidx < call.children.len() {
-                src_own := get_own_arg(call, vargidx)
-                newcall.add_child(own call.children[vargidx].clone())
-                if src_own { set_own_arg(newcall, new_arg_pos.to_usize()) }
-                new_arg_pos++
-            }
-        }
-        // Rewrite through the parent slot: Vec.set deep-deletes the old
-        // call (issue #272; replaces Expr.replace_with).
-        parent.children[call_idx] = newcall
+        src := generic_source_of(gs, gname, scope, ctx)
+        mut arg_pos := Vec(I64).new()
+        mono := generic_instantiate(src, gfd_expr, subs, ref_params, gs, local_types, seen, destination, arg_pos, call.line, call.col, scope, ctx)
+        generic_rewrite_call(parent, call_idx, mono, arg_pos)
     case:
     }
 }
 
 // Walk `e`'s subtree rewriting every generic-func call to its
-// monomorphization. `generics` maps name -> generic funcdef Expr.
-// Leaf single-probe lookup for the borrowed generic-def cells (the
-// func_defs_lookup_one shape; that one is priv to context.til).
-priv generics_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
-    ref slot : Dynamic = m.get(name)?
-    catch (e: KeyNotFound) { return Option(ref Expr).None }
-    ref g : Expr = deref(slot)
-    return Option(ref Expr).Some(g)
-}
-
-priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut seen: Map(Str, Str), mut synthesized: Expr, ctx: Context) {
+// monomorphization.
+priv init_generic_walk := func(mut e: Expr, gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, scope: TypeScope, ctx: Context) {
     // Namespace members (struct/enum `namespace:` decls, including inline
     // test() decls) live in ns_decls, not e.children, so the generic-call
     // rewrite must descend into their bodies separately -- otherwise a
@@ -3742,13 +3968,13 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut see
     case NodeType.StructDef(sdd_g):
         for mut nd : Declaration in sdd_g.ns_decls {
             if nd.default_value.is_null().not() {
-                init_generic_walk(nd.default_value, generics, seen, synthesized, ctx)
+                init_generic_walk(nd.default_value, gs, local_types, seen, destination, scope, ctx)
             }
         }
     case NodeType.EnumDef(edd_g):
         for mut nd : Declaration in edd_g.ns_decls {
             if nd.default_value.is_null().not() {
-                init_generic_walk(nd.default_value, generics, seen, synthesized, ctx)
+                init_generic_walk(nd.default_value, gs, local_types, seen, destination, scope, ctx)
             }
         }
     case:
@@ -3760,7 +3986,7 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut see
             switch c.children[0].node_type {
             case NodeType.Ident(cn):
                 ref gnm : Str = cn.ident_name()
-                gfd_expr_o := generics_lookup_one(generics, gnm)
+                gfd_expr_o := generic_resolve_source(gs, gnm, scope)
                 if gfd_expr_o.is_some() {
                     ref gfd_expr : Expr = gfd_expr_o.unwrap()
                     // #154: calling a generic defined in another file counts
@@ -3770,20 +3996,24 @@ priv init_generic_walk := func(mut e: Expr, generics: Map(Str, Dynamic), mut see
                     note_cross_file_type_use(ctx.scope, ctx, gnm)
                     // Recurse into the args first (nested generic calls),
                     // then expand this call.
-                    init_generic_walk(c, generics, seen, synthesized, ctx)
-                    init_generic_expand_call(e, i, gnm, gfd_expr, generics, seen, synthesized, ctx)
+                    init_generic_walk(c, gs, local_types, seen, destination, scope, ctx)
+                    init_generic_expand_call(e, i, gnm, gfd_expr, gs, local_types, seen, destination, scope, ctx)
                     handled = true
                 }
             case:
             }
         }
         if handled.not() {
-            init_generic_walk(c, generics, seen, synthesized, ctx)
+            init_generic_walk(c, gs, local_types, seen, destination, scope, ctx)
         }
     }
 }
 
-priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
+// Returns true when it synthesized at least one concrete declaration:
+// those bodies can carry template instantiations (a `rest: ..T` variadic
+// becomes `..I64`, needing Array__I64) that the type-gen pass, which ran
+// BEFORE this one, has not seen.
+priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, ctx: Context) returns Bool {
     // Collect top-level generic func/proc decls. The map holds BORROWED
     // def pointers (malloc'd Dynamic cells, the func_defs pattern): the
     // pointees live in program.children (local decls; never rewritten or
@@ -3791,7 +4021,7 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     // or in ctx.generic_funcs (cross-unit seeds; stable). The old shape
     // deep-cloned EVERY public generic def into every unit up front,
     // whether or not the unit called it.
-    mut generics := Map(Str, Dynamic).new()
+    mut gs := GenericSources()
     for stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -3801,21 +4031,34 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
         case NodeType.Decl(dd):
             gcell : UPtr = malloc(UPtr.size())
             write_ptr(gcell, rhs)
-            generics.set(dd.name, own gcell)
+            gs.defs.set(dd.name, own gcell)
+            gs.sources.set(dd.name, own GenericFuncSource(name = dd.name.clone(), path = ctx.path.clone(), is_priv = dd.is_priv))
         case:
         }
     }
     // Issue #58 cross-unit: also pull in generics defined in imported units
     // (recorded at seed time). A call here to a generic defined elsewhere
     // (e.g. core `assert_eq`) is monomorphized against the imported decl.
-    // A local decl of the same name already in `generics` wins.
+    // A local decl of the same name already in `gs.defs` wins.
     for gname, gdef in ctx.generic_funcs {
-        if generics.has(gname) { continue }
+        if gs.defs.has(gname) { continue }
         gcell2 : UPtr = malloc(UPtr.size())
         write_ptr(gcell2, gdef)
-        generics.set(gname, own gcell2)
+        gs.defs.set(gname, own gcell2)
+        // #328: an imported source's declaring path comes off its resolved
+        // binding, never off ctx.path -- it is half the dedup key.
+        mut gpath := ctx.path.clone()
+        mut gpriv := false
+        gb_o := scope.get_binding(gname)
+        if gb_o.is_some() {
+            ref gb : TypeBinding = gb_o.unwrap()
+            gpath = gb.path.clone()
+            gpriv = gb.is_priv
+        }
+        gs.sources.set(gname, own GenericFuncSource(name = gname.clone(), path = gpath.clone(), is_priv = gpriv))
     }
-    if generics.len() == 0 { return }
+    if gs.defs.len() == 0 { return false }
+    local_types := init_seed_local_type_tokens(program, scope, ctx)
 
     // Rewrite all calls (skipping the generic decls themselves, whose
     // bodies reference the still-unbound type-param). Synthesized
@@ -3826,30 +4069,97 @@ priv init_expand_generic_funcs := func(mut program: Expr, ctx: Context) {
     for mut stmt : Expr in program.children {
         is_generic_decl := stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(init_func_is_generic(stmt.children[0]))
         if is_generic_decl { continue }
-        init_generic_walk(stmt, generics, seen, synthesized, ctx)
+        init_generic_walk(stmt, gs, local_types, seen, synthesized, scope, ctx)
     }
 
-    // Drop the generic decls in place, then append the synthesized
-    // monomorphizations by moving them over. The dropped generic decls
-    // are freed by remove_at, so scope.func_defs still holds a (now
-    // dangling) pointer for each generic name; nothing dereferences it
-    // -- calls were rewritten to the monomorphizations above, and the
-    // type-gen-macro hoist skips generic names (init_lookup_type_gen_macro).
-    mut drop_idxs := Vec(I64).new()
-    for i2 in 0..program.children.len() {
-        ref stmt2 : Expr = program.children[i2]
-        drop := stmt2.node_type.is(NodeType.Decl).and(stmt2.children.len().gt(0)).and(init_func_is_generic(stmt2.children[0]))
-        if drop {
-            drop_i : I64 = i2.to_i64()
-            drop_idxs.push(own drop_i)
+    // Issue #328: the generic source decls STAY. They used to be dropped
+    // here, which left scope.func_defs holding a dangling pointer per
+    // generic name; now they travel through lazy expansion, throw
+    // preparation and body typing as live templates so late inference can
+    // clone a fully prepared body, and init_retire_generic_sources removes
+    // them (and their scope entries) once every body is typed. Every pass
+    // that would type or emit an unresolved `T` body skips them --
+    // init_declarations_unit's nested lift, typer_lift_lambdas_in_expr,
+    // extend_throwing_func_sigs, infer_decl_stmt and the unused-priv scan.
+    made_any := synthesized.children.len() > 0
+    program.take_children(synthesized)
+    return made_any
+}
+
+
+// Issue #328: once every body is typed, no call may still be bound to a
+// generic SOURCE -- such a call would reach a backend with a signature
+// that only exists after substitution. This is the invariant scan the
+// retirement below depends on. It runs ONLY when nothing else failed, so
+// an intentionally rejected inference (whose callee stays generic and
+// whose result is Type.Unknown) is not reported twice.
+priv init_scan_generic_calls_in := proc(e: Expr, scope: TypeScope, ctx: Context) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
+        switch e.children[0].node_type {
+        case NodeType.Ident(cn):
+            fd_o := scope.lookup_func(cn.ident_name())
+            if fd_o.is_some() {
+                if init_func_is_generic(fd_o.unwrap()) {
+                    e.type_error(format("call to generic '", cn.ident_name(),
+                        "' was never monomorphized; pass its type arguments explicitly"), ctx)
+                }
+            }
+        case:
         }
+    }
+    switch e.node_type {
+    case NodeType.StructDef(ssd):
+        for nd : Declaration in ssd.ns_decls {
+            if nd.default_value.is_null().not() { init_scan_generic_calls_in(nd.default_value, scope, ctx) }
+        }
+    case NodeType.EnumDef(sed):
+        for nd2 : Declaration in sed.ns_decls {
+            if nd2.default_value.is_null().not() { init_scan_generic_calls_in(nd2.default_value, scope, ctx) }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        init_scan_generic_calls_in(c, scope, ctx)
+    }
+}
+
+// Returns how many errors this scan added. type_file's return counts are
+// already banked by the time this runs, so the delta has to be measured
+// here rather than read off them.
+init_scan_unresolved_generic_calls := proc(program: Expr, scope: TypeScope, ctx: Context) returns I32 {
+    before := ctx.errors
+    for stmt : Expr in program.children {
+        // A source template body legitimately calls other generics.
+        if init_stmt_is_generic_source(stmt) { continue }
+        init_scan_generic_calls_in(stmt, scope, ctx)
+    }
+    return ctx.errors - before
+}
+
+// Issue #328: retire this unit's generic source templates. Runs after
+// ordinary body typing, the unused-priv checks and the mode files, and
+// before the final AST-backed pointer refresh: erase the scope entries
+// first (a refresh only re-points names that are still declared, it never
+// removes obsolete ones), then drop the declarations.
+init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) {
+    mut drop_idxs := Vec(I64).new()
+    for i in 0..program.children.len() {
+        ref stmt : Expr = program.children[i]
+        if init_stmt_is_generic_source(stmt).not() { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            scope.erase_func_def(dd.name)
+            scope.erase_binding(dd.name)
+        case:
+        }
+        drop_i : I64 = i.to_i64()
+        drop_idxs.push(own drop_i)
     }
     mut di := drop_idxs.len()
     while di > 0 {
         di = di - 1
         program.children.remove_at(drop_idxs[di].to_usize())!
     }
-    program.take_children(synthesized)
 }
 
 priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ctx: Context) {
@@ -4118,7 +4428,14 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     // after macro expansion so a macro-generated generic func would also
     // be picked up. Rewrites each call to its concrete copy and removes
     // the generic decl.
-    init_expand_generic_funcs(program, ctx)
+    // #328: a monomorphized body can name template instantiations the
+    // type-gen pass above never saw -- a `rest: ..T` variadic becomes
+    // `rest: ..I64` and needs Array__I64 synthesized. Re-run that pass
+    // (it dedupes through ctx.type_gen_synths) only when this unit
+    // actually produced concrete declarations.
+    if init_expand_generic_funcs(program, scope, ctx) {
+        init_expand_type_gen_macros(program, scope, ctx)
+    }
     init_refresh_seeded_scope_defs(program, scope)
 
     // Single AST walk: register every type name in scope (struct, enum,
@@ -4152,6 +4469,12 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
     for lstmt : Expr in program.children {
         if lstmt.node_type.is(NodeType.Decl).not() { continue }
         if lstmt.children.len() == 0 { continue }
+        // #328: a retained generic SOURCE body still names its unbound
+        // type parameters; lifting its nested definitions would hoist
+        // unresolved `T` declarations to the top level. The concrete
+        // monomorphizations synthesized from it do get lifted (their
+        // Type params are gone by then).
+        if init_stmt_is_generic_source(lstmt) { continue }
         ref lrhs : Expr = lstmt.children[0]
         if lrhs.node_type.is(NodeType.FuncDef).not() { continue }
         if lrhs.children.len() == 0 { continue }

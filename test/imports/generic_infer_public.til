@@ -1,0 +1,10 @@
+mode lib
+
+// #328: a PUBLIC direct generic defined here and instantiated both here
+// (explicitly, through the wrapper) and in the importing unit (with the
+// type argument omitted). Both must land on ONE concrete declaration.
+generic_public_id := func(T: Type, v: T) returns T { return v }
+
+generic_public_explicit_wrapper := func(n: I64) returns I64 {
+    return generic_public_id(I64, n)
+}

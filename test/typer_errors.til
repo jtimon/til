@@ -893,3 +893,81 @@ priv cyc_live_b := func(n: I64) returns I64 {
 }
 
 cyc_live_result := cyc_live_a(3)
+
+// #328: omitted generic type arguments that cannot be deduced. Each of
+// these must produce exactly ONE focused diagnostic telling the caller to
+// spell the type argument; the explicit form of every one still works.
+
+// A type parameter used only by the return type has no value operand to
+// deduce it from (expected-result-type inference is separate work).
+g328_return_only := func(T: Type) returns T { return T() }
+g328_return_only_result := g328_return_only()
+
+// A source that DECLARES a type in its body needs init's full
+// declaration pipeline (layout, generated methods, registration), which
+// late instantiation cannot provide.
+g328_local_struct := func(T: Type, v: T) returns I64 {
+    Inner328 := struct { n := 0 }
+    box := Inner328(n = 1)
+    if v.eq(v) { return box.n }
+    return 0
+}
+g328_local_struct_result := g328_local_struct(7)
+
+// A parameter reached only through a generated template name is not
+// decomposed.
+g328_nested_only := func(T: Type, v: Vec(T)) returns T { return v[0] }
+g328_nested_arg := Vec(I64).new()
+g328_nested_result := g328_nested_only(g328_nested_arg)
+
+// Dynamic establishes no type.
+g328_dyn_id := func(T: Type, v: T) returns T { return v }
+g328_dyn_arg : Dynamic = 0
+g328_dyn_result := g328_dyn_id(g328_dyn_arg)
+
+// Two operands of one type parameter must denote the SAME type: no
+// widening, no interface conformance, no wildcard funcptr match.
+g328_pick := func(T: Type, a: T, b: T) returns T {
+    if a.eq(b) { return b }
+    return a
+}
+g328_conflict_i32 : I32 = 5
+g328_conflict_result := g328_pick(g328_conflict_i32, true)
+
+// A literal narrows against hard evidence, and the ordinary range check
+// still applies.
+g328_range_i8 : I8 = 3
+g328_range_result := g328_pick(g328_range_i8, 9000)
+
+// #328 task 9: inference changes TYPE application only -- ownership
+// mistakes on an inferred call get exactly the diagnostics an explicit
+// one gets, from the ordinary concrete path.
+G328Item := struct { n := 0 }
+g328_consume := func(T: Type, own v: T) returns I64 {
+    if v.eq(v) { return 1 }
+    return 0
+}
+g328_borrow := func(T: Type, v: T) returns I64 {
+    if v.eq(v) { return 1 }
+    return 0
+}
+g328_missing_own_arg := G328Item(n = 1)
+g328_missing_own := g328_consume(g328_missing_own_arg)
+g328_extra_own_arg := G328Item(n = 2)
+g328_extra_own := g328_borrow(own g328_extra_own_arg)
+
+// A `ref` qualifier belongs on a TYPE argument; on a value argument of an
+// inferred call it is still the hard error.
+g328_ref_value_arg := G328Item(n = 3)
+g328_ref_value := g328_borrow(ref g328_ref_value_arg)
+
+// #328 task 11: a generic whose `throws` clause names a type parameter
+// cannot be lowered before inference resolves it, so it requires explicit
+// type application -- one focused diagnostic, no throw cascade.
+g328_dep_throw := func(T: Type, v: T, fail: Bool) returns T throws T {
+    if fail.not() { return v }
+    throw v
+}
+g328_dep_throw_v : I64 = 5
+g328_dep_throw_result := g328_dep_throw(g328_dep_throw_v, false)?
+catch (e: I64) { }

@@ -256,6 +256,7 @@ typedef enum {
 } ScopeFind_tag;
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
+typedef struct GenericFuncSource GenericFuncSource;
 typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
@@ -306,7 +307,10 @@ typedef enum {
     Option__ref_Mode_TAG_Some
 } Option__ref_Mode_tag;
 typedef struct Option__ref_Mode Option__ref_Mode;
+typedef struct GenericSources GenericSources;
 typedef struct Map__Str_I64 Map__Str_I64;
+typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
+typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
 typedef enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
@@ -744,6 +748,7 @@ typedef struct TypeBinding {
     Bool mut_explicit;
     Str orig_name;
     Str dynvec_elem;
+    Str declared_type_name;
 } TypeBinding;
 
 
@@ -754,6 +759,13 @@ struct ScopeFind {
         void *_til_payload_align;
     } data;
 };
+
+typedef struct GenericFuncSource {
+    Str name;
+    Str path;
+    Bool is_priv;
+} GenericFuncSource;
+
 
 struct Option__ref_TypeBinding {
     TypeBinding *data;
@@ -868,6 +880,13 @@ typedef struct Map__Str_I64 {
     Vec__Str keys;
     Vec__I64 values;
 } Map__Str_I64;
+
+
+typedef struct Vec__GenericFuncSource {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__GenericFuncSource;
 
 
 struct Lang {
@@ -1414,6 +1433,12 @@ typedef struct Map__Str_ExprPtrBox {
 } Map__Str_ExprPtrBox;
 
 
+typedef struct Map__Str_GenericFuncSource {
+    Vec__Str keys;
+    Vec__GenericFuncSource values;
+} Map__Str_GenericFuncSource;
+
+
 struct priv___src_self_typer_til__CtorArg {
     U8 tag;
     union {
@@ -1533,6 +1558,8 @@ typedef struct Context {
     Set__Str type_gen_synths;
     Map__Str_Expr generic_funcs;
     Set__Str generic_func_synths;
+    Expr *generic_pending;
+    I64 lambda_counter;
     TypeScope scope;
     Bool is_repl;
     Map__Str_StructLayout struct_layouts;
@@ -1583,6 +1610,13 @@ typedef struct Context {
     Vec__FFITypePtrBox ffi_type_cache;
     Bool ffi_type_cache_inited;
 } Context;
+
+
+typedef struct GenericSources {
+    Map__Str_Dynamic defs;
+    Map__Str_GenericFuncSource sources;
+    Bool late;
+} GenericSources;
 
 
 typedef struct LoadedProgram {
@@ -1668,6 +1702,7 @@ void Vec__Str_push(Vec__Str * self, Str * val);
 void Vec__Str_move_from(Vec__Str * self, Vec__Str * other);
 Str * Vec__Str_unsafe_get(Vec__Str * self, USize * i);
 Str * Vec__Str_get(Vec__Str * self, USize * i, I64 * _err_kind);
+void Vec__Str_remove_at(Vec__Str * self, USize i, I64 * _err_kind);
 void Vec__Str_truncate(Vec__Str * self, USize n);
 void Vec__Str_unsafe_set(Vec__Str * self, USize i, Str * val);
 void Vec__Str_set(Vec__Str * self, USize i, Str * val, I64 * _err_kind);
@@ -1999,6 +2034,7 @@ void Map__Str_Str_set(Map__Str_Str * self, Str * key, Str * val);
 void Map__Str_Str_delete(Map__Str_Str * self, Bool call_free);
 Map__Str_Str * Map__Str_Str_clone(Map__Str_Str * self);
 Vec__Bool * Vec__Bool_new(void);
+USize Vec__Bool_len(Vec__Bool * self);
 void Vec__Bool_clear(Vec__Bool * self);
 void Vec__Bool_push(Vec__Bool * self, Bool * val);
 Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
@@ -2037,10 +2073,19 @@ void TypeScope_set_func_def(TypeScope * self, Str * name, Expr * fdef);
 void TypeScope_set_func_symbol(TypeScope * self, Str * name, Expr * fdef);
 void TypeScope_set_struct_def(TypeScope * self, Str * name, Expr * sdef);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
+void TypeScope_erase_func_def(TypeScope * self, Str * name);
+void TypeScope_erase_binding(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
 FuncType binding_func_type(TypeBinding * b);
+Bool type_binding_is_type_token(TypeScope * scope, TypeBinding * b);
+Bool init_func_is_generic(Expr * rhs);
+Bool init_stmt_is_generic_source(Expr * stmt);
+Bool type_name_mentions_param(Str * name, Str * pname);
+Bool generic_source_throws_depend_on_type(Expr * rhs);
+GenericFuncSource * GenericFuncSource_clone(GenericFuncSource * self);
+void GenericFuncSource_delete(GenericFuncSource * self, Bool call_free);
 FuncType func_def_type(Expr * fdef);
 ImportUnit * ImportUnit_clone(ImportUnit * self);
 void ImportUnit_delete(ImportUnit * self, Bool call_free);
@@ -2133,6 +2178,7 @@ Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
 void Map__Str_TypeBinding_set(Map__Str_TypeBinding * self, Str * key, TypeBinding * val);
+Bool Map__Str_TypeBinding_remove(Map__Str_TypeBinding * self, Str * key);
 void Map__Str_TypeBinding_delete(Map__Str_TypeBinding * self, Bool call_free);
 Map__Str_TypeBinding * Map__Str_TypeBinding_clone(Map__Str_TypeBinding * self);
 Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
@@ -2147,6 +2193,7 @@ void Vec__Dynamic_clear(Vec__Dynamic * self);
 void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
 void * Vec__Dynamic_unsafe_get(Vec__Dynamic * self, USize * i);
 void * Vec__Dynamic_get(Vec__Dynamic * self, USize * i, I64 * _err_kind);
+void Vec__Dynamic_remove_at(Vec__Dynamic * self, USize i, I64 * _err_kind);
 void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, USize i, void * val);
 void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
 Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
@@ -2199,6 +2246,7 @@ USize Map__Str_Dynamic_len(Map__Str_Dynamic * self);
 Bool Map__Str_Dynamic_has(Map__Str_Dynamic * self, Str * key);
 void * Map__Str_Dynamic_get(Map__Str_Dynamic * self, Str * key, I64 * _err_kind);
 void Map__Str_Dynamic_set(Map__Str_Dynamic * self, Str * key, void * val);
+Bool Map__Str_Dynamic_remove(Map__Str_Dynamic * self, Str * key);
 void Map__Str_Dynamic_delete(Map__Str_Dynamic * self, Bool call_free);
 Map__Str_Dynamic * Map__Str_Dynamic_clone(Map__Str_Dynamic * self);
 Map__Str_FFIEntry * Map__Str_FFIEntry_new(void);
@@ -2244,6 +2292,7 @@ Vec__TypeBinding * Vec__TypeBinding_new(void);
 USize Vec__TypeBinding_len(Vec__TypeBinding * self);
 void Vec__TypeBinding_clear(Vec__TypeBinding * self);
 TypeBinding * Vec__TypeBinding_unsafe_get(Vec__TypeBinding * self, USize * i);
+void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kind);
 void Vec__TypeBinding_unsafe_set(Vec__TypeBinding * self, USize i, TypeBinding * val);
 void Vec__TypeBinding_delete(Vec__TypeBinding * self, Bool call_free);
 Vec__TypeBinding * Vec__TypeBinding_clone(Vec__TypeBinding * self);
@@ -2326,7 +2375,7 @@ void priv___src_self_initer_til__gen_missing_enum_clone_for_stmt(Expr * stmt, Ty
 void register_funcsig_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__register_type_alias_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__register_top_level_value_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
-void priv___src_self_initer_til__register_function_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
+void register_function_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void gen_struct_size_method_for_stmt(Expr * stmt, Context * ctx);
 void gen_enum_size_method_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 void gen_unity_derived_for_stmt(Expr * stmt);
@@ -2342,7 +2391,7 @@ Str * priv___src_self_initer_til__init_lookup_name(Map__Str_Str * renamings, Str
 void priv___src_self_initer_til__init_rename_ident_in_place(Expr * e, Map__Str_Str * renamings);
 void priv___src_self_initer_til__init_rename_decl_in_place(Declaration * dd, Map__Str_Str * renamings);
 void priv___src_self_initer_til__init_rewrite_refs(Expr * e, Map__Str_Str * renamings);
-void priv___src_self_initer_til__init_lift_in_body(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
+void init_lift_in_body(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_lift_in_ns_decls(Expr * def, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_subbodies(Expr * body, Str * parent_prefix, Vec__Expr * top_level);
 void priv___src_self_initer_til__init_recurse_into_expr(Expr * e, Str * parent_prefix, Vec__Expr * top_level);
@@ -2381,11 +2430,21 @@ void priv___src_self_initer_til__init_collect_variadic_arrays(TypeScope * scope,
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
-Bool priv___src_self_initer_til__init_func_is_generic(Expr * rhs);
-void priv___src_self_initer_til__init_generic_expand_call(Expr * parent, USize call_idx, Str * gname, Expr * gfd_expr, Map__Str_Dynamic * generics, Map__Str_Str * seen, Expr * synthesized, Context * ctx);
+Map__Str_Str * priv___src_self_initer_til__init_seed_local_type_tokens(Expr * program, TypeScope * scope, Context * ctx);
+Str * priv___src_self_initer_til__init_generic_type_arg_name(TypeScope * scope, Map__Str_Str * local_types, Str * name);
+void GenericSources_delete(GenericSources * self, Bool call_free);
 Option__ref_Expr priv___src_self_initer_til__generics_lookup_one(Map__Str_Dynamic * m, Str * name);
-void priv___src_self_initer_til__init_generic_walk(Expr * e, Map__Str_Dynamic * generics, Map__Str_Str * seen, Expr * synthesized, Context * ctx);
-void priv___src_self_initer_til__init_expand_generic_funcs(Expr * program, Context * ctx);
+Option__ref_Expr priv___src_self_initer_til__generic_resolve_source(GenericSources * gs, Str * name, TypeScope * scope);
+GenericFuncSource * priv___src_self_initer_til__generic_source_of(GenericSources * gs, Str * name, TypeScope * scope, Context * ctx);
+Str * priv___src_self_initer_til__generic_subs_type_name(Map__Str_Expr * subs, Str * pname);
+Str * generic_instantiate(GenericFuncSource * src, Expr * gfd_expr, Map__Str_Expr * subs, Set__Str * ref_params, GenericSources * gs, Map__Str_Str * local_types, Map__Str_Str * seen, Expr * destination, Vec__I64 * arg_pos, U32 line, U32 col, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__generic_rewrite_call(Expr * parent, USize call_idx, Str * mono, Vec__I64 * arg_pos);
+void priv___src_self_initer_til__init_generic_expand_call(Expr * parent, USize call_idx, Str * gname, Expr * gfd_expr, GenericSources * gs, Map__Str_Str * local_types, Map__Str_Str * seen, Expr * destination, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_generic_walk(Expr * e, GenericSources * gs, Map__Str_Str * local_types, Map__Str_Str * seen, Expr * destination, TypeScope * scope, Context * ctx);
+Bool priv___src_self_initer_til__init_expand_generic_funcs(Expr * program, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_scan_generic_calls_in(Expr * e, TypeScope * scope, Context * ctx);
+I32 init_scan_unresolved_generic_calls(Expr * program, TypeScope * scope, Context * ctx);
+void init_retire_generic_sources(Expr * program, TypeScope * scope);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__note_template_decl_use(Declaration * d, TypeScope * scope, Context * ctx);
@@ -2412,6 +2471,15 @@ Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key);
 I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
 void Map__Str_I64_set(Map__Str_I64 * self, Str * key, I64 * val);
 void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
+Map__Str_GenericFuncSource * Map__Str_GenericFuncSource_new(void);
+GenericFuncSource * Map__Str_GenericFuncSource_get(Map__Str_GenericFuncSource * self, Str * key, I64 * _err_kind);
+void Map__Str_GenericFuncSource_set(Map__Str_GenericFuncSource * self, Str * key, GenericFuncSource * val);
+void Map__Str_GenericFuncSource_delete(Map__Str_GenericFuncSource * self, Bool call_free);
+Vec__GenericFuncSource * Vec__GenericFuncSource_new(void);
+void Vec__GenericFuncSource_clear(Vec__GenericFuncSource * self);
+GenericFuncSource * Vec__GenericFuncSource_unsafe_get(Vec__GenericFuncSource * self, USize * i);
+void Vec__GenericFuncSource_unsafe_set(Vec__GenericFuncSource * self, USize i, GenericFuncSource * val);
+void Vec__GenericFuncSource_delete(Vec__GenericFuncSource * self, Bool call_free);
 Bool Lang_is(Lang * self, Lang * other);
 Bool Lang_eq(Lang * self, Lang * other);
 void Lang_delete(Lang * self, Bool call_free);
@@ -2443,7 +2511,6 @@ Str * target_gui_libs(Target * target);
 Target * detect_current_target(void);
 Bool fa_is_ns(Expr * e, TypeScope * scope);
 Bool priv___src_self_typer_til__fa_is_ns_named(Expr * e, TypeScope * scope, Str * sn);
-Bool priv___src_self_typer_til__type_binding_is_type_token(TypeScope * scope, TypeBinding * b);
 Expr * make_til_type_expr(Expr * src, Type * t);
 void priv___src_self_typer_til__rewrite_til_type_arg(TypeScope * scope, Expr * parent, USize arg_idx, Type * ptype, I32 in_func, Context * ctx);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
@@ -2493,6 +2560,21 @@ Bool priv___src_self_typer_til__cast_pair_ok(Type * src, Type * target);
 void priv___src_self_typer_til__infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__infer_funcptr_call_via_cast(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_array_vec_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
+Str * priv___src_self_typer_til__generic_field_declared_type(TypeScope * scope, Expr * e);
+Str * priv___src_self_typer_til__generic_call_declared_return(TypeScope * scope, Expr * e);
+Str * expr_declared_type_name(TypeScope * scope, Expr * e);
+Bool priv___src_self_typer_til__generic_body_declares_type(Expr * e);
+Bool priv___src_self_typer_til__generic_closure_declares_type(TypeScope * scope, Str * name, Set__Str * seen);
+Bool priv___src_self_typer_til__generic_closure_walk_calls(TypeScope * scope, Expr * e, Set__Str * seen);
+Bool priv___src_self_typer_til__generic_is_type_param(FunctionDef * gfd, Str * pname);
+FunctionDef * priv___src_self_typer_til__generic_value_only_fdef(FunctionDef * gfd);
+Bool priv___src_self_typer_til__generic_call_is_explicit(TypeScope * scope, Expr * e, FunctionDef * gfd);
+Bool priv___src_self_typer_til__generic_explicit_subs(TypeScope * scope, Expr * e, FunctionDef * gfd, Map__Str_Expr * subs, Set__Str * ref_params, Str * display_name, Context * ctx);
+Bool priv___src_self_typer_til__generic_infer_subs(TypeScope * scope, Expr * e, FunctionDef * gfd, Map__Str_Expr * subs, Str * display_name, I32 in_func, Context * ctx);
+void priv___src_self_typer_til__generic_rewrite_call_in_place(Expr * e, Str * mono, Vec__I64 * arg_pos);
+void priv___src_self_typer_til__generic_normalize_concrete_sig(TypeScope * scope, Expr * fdef_expr, Context * ctx);
+void priv___src_self_typer_til__generic_finish_fcall(TypeScope * scope, Expr * e, Str * src_name, Map__Str_Expr * subs, Set__Str * ref_params, Bool explicit, I32 in_func, Context * ctx);
+void priv___src_self_typer_til__infer_generic_fcall(TypeScope * scope, Expr * e, Str * src_name, Str * display_name, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_ident_expr(TypeScope * scope, Expr * expr, Context * ctx);
@@ -2561,6 +2643,7 @@ void infer_body_stmt(TypeScope * scope, Expr * body, USize * i, I32 in_func, I32
 void priv___src_self_typer_til__reregister_scope_defs(Expr * body, TypeScope * scope);
 void reregister_repl_scope_defs(Expr * body, TypeScope * scope);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
+void priv___src_self_typer_til__flush_generic_pending(TypeScope * scope, Expr * body, Context * ctx);
 void priv___src_self_typer_til__infer_body_unit(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body, Context * ctx);
 void normalize_scope_bindings(TypeScope * scope);
 I32 priv___src_self_typer_til__type_check_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
@@ -2722,6 +2805,7 @@ Str * priv___src_self_desugarer_til__find_callee_throws_key(Context * ctx, Expr 
 Bool priv___src_self_desugarer_til__pending_remove_all_matching(Vec__Str * pending, Str * type_name);
 Bool priv___src_self_desugarer_til__vec_str_contains(Vec__Str * v, Str * name);
 void priv___src_self_desugarer_til__vec_str_push_uniq(Vec__Str * v, Str * name);
+Bool priv___src_self_desugarer_til__fcall_callee_is_dependent_throw_generic(Context * ctx, Expr * e);
 void priv___src_self_desugarer_til__validate_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);
 void priv___src_self_desugarer_til__inject_err_args_on_one_fcall_consolidated(Context * ctx, Expr * e, Expr * body);
 void priv___src_self_desugarer_til__validate_and_inject_expr_consolidated(Context * ctx, Expr * e, Expr * body, Vec__Str * pending, Vec__Str * seen, Vec__Str * types_to_declare, Str * path);

@@ -1,6 +1,102 @@
 # priority: medium
 # category: features
-** OPEN #328 Infer omitted generic type arguments from value arguments
+** FIXED #328 Infer omitted generic type arguments from value arguments
+
+*** Post-mortem
+
+   Root cause: a direct generic's type arguments were resolved in ONE
+   place -- init, syntactically, from the call's leading arguments -- and
+   init cannot type a value expression. Anything omitted therefore had to
+   stay omitted forever, so ~assert_eq(I64, got, 42)~ repeated a type
+   that both operands already carried. Worse, init accepted ANY Ident in
+   a ~Type~ slot, so ~assert_eq(got, 42)~ was not merely unsupported: it
+   was silently monomorphized into ~assert_eq__got~.
+
+   What changed:
+
+   - ~type_binding_is_type_token~ and ~init_func_is_generic~ moved to
+     ~src/self/context.til~ so init, desugarer and typer classify a
+     ~Type~-slot argument and a generic source by ONE rule. The
+     predicate now tests a bodyless FuncDef (a FuncSig type name) BEFORE
+     ~is_builtin~, because ext_func declarations (~vec~, ~array~,
+     ~cast~) are builtins too and reading one as a type token turned a
+     local named ~vec~ into a bogus type application.
+   - Init keeps a same-unit source-name -> canonical-name map for the
+     type declarations scope does not know yet (this unit's private
+     structs, enums and FuncSigs, plus ~Alias := Ident~ decls resolved to
+     a fixed point). A call whose first present ~Type~ slot holds a value
+     survives init untouched.
+   - ~generic_instantiate~ (initer.til) is the single concrete-
+     instantiation path: it canonicalizes every type-argument spelling,
+     drops the ~Type~ params while moving ~variadic_index~ /
+     ~kwargs_index~ with them, copies source privacy, and keys cross-unit
+     dedup by declaring path plus concrete name. Init's explicit
+     expansion and the typer's inferred expansion both build their
+     declaration there, so the two cannot drift.
+   - Generic SOURCE declarations are retained through lazy expansion,
+     throw preparation and body typing, skipped by every pass that would
+     type or emit an unresolved ~T~ body, and retired (AST plus scope
+     entries) in ~type_program_errors~ after an invariant scan proves no
+     call is still bound to one.
+   - ~infer_fcall_expr~ routes a callee still bound to a source through
+     ~infer_generic_fcall~: it desugars the call ONCE against a
+     value-only clone of the signature (so positional/named/default/
+     variadic handling and the caller's ~__LOC__~ stay in the one
+     existing matcher), collects evidence from the formals that ARE a
+     type parameter, instantiates, queues the declaration, and continues
+     down the ordinary concrete path.
+   - Evidence rules: a typed non-literal operand is hard evidence and
+     several must denote the same concrete type (exact primitive /
+     aggregate-name / named-FuncSig equality only -- no interface
+     conformance, no USize coercion, no wildcard funcptr match, no
+     widening). Numeric literals are soft: they narrow against hard
+     evidence through the ordinary ~validate_fcall_arg~, and with
+     literals only pick I64, or F32 when any is fractional/exponent form.
+     Dynamic, Unknown and null establish nothing.
+
+   Three defects outside the feature surfaced and were fixed at the
+   source rather than worked around:
+
+   - ~Expr.take_children~ freed and nulled the source buffer but left
+     ~cap~ behind, so a REUSED holder pushed straight into NULL.
+   - ~init_substitute_idents~ never descended into a NESTED definition's
+     own FunctionDef payload, so a local ~f := func(x: T)~ inside a
+     generic body kept ~T~ in its signature after substitution.
+   - A late concrete declaration is typed after the caller that queued
+     it, so its return ownership is normalized (#223 auto-shallow) at
+     queue time, and it registers against ~ctx.scope~ rather than the
+     caller's body scope -- otherwise the garbager recorded a HeapBox for
+     a call result the builder emitted as a stack shallow return (#302).
+
+   Task 5's approval gate turned out not to be needed: the name-forming
+   spelling of a call result is already preserved on
+   ~FunctionDef.return_type~, because ~infer_func_def_expr~ leaves
+   USize/UPtr alone when the two widths differ and a user alias
+   canonicalizes to the same primitive ~resolve_type_alias_for_name~
+   would pick. No new public AST field was added; ~TypeBinding~ gained
+   the compiler-internal ~declared_type_name~ instead.
+
+   Regression tests: ~test_generic_func_type_tokens~,
+   ~test_generic_func_canonical_name~,
+   ~test_generic_func_type_param_layout~,
+   ~test_generic_infer_hard_evidence~, ~test_generic_infer_declared_name~,
+   ~test_generic_infer_literals~, ~test_generic_infer_call_shapes~,
+   ~test_generic_infer_ownership~ and ~test_generic_infer_lambda~ in
+   ~test/first_class.til~; ~test_generic_infer_lazy_inline~ and
+   ~test_generic_infer_lazy_thunk~ in ~test/lazy.til~;
+   ~test_generic_infer_static_throw~ in ~test/errors.til~;
+   ~test_generic_infer_cross_unit_dedup~ and
+   ~test_generic_infer_private_isolation~ in
+   ~test/generic_infer_imports.til~; and the return-only, local-struct,
+   nested-only, Dynamic-only, conflicting-operand, out-of-range-literal,
+   missing/extra-own, ref-on-value and dependent-throw cases in
+   ~test/typer_errors.til~.
+
+   Known limitation, unchanged by this issue: an inferred call to a
+   generic with a ~..T~ variadic needs the concrete ~Array__T~ instance,
+   which only init's type-gen pass creates, so it asks for explicit type
+   application when no explicit call in the program has created it.
+
 
    Core's ~assert_eq~ is a direct generic:
 
@@ -445,7 +541,7 @@
    6. Stop on an invariant failure. Do not add null guards, fallback types, or
       silent skips to make the next phase run.
 
-**** [ ] Task 1: distinguish explicit type tokens from value identifiers
+**** [X] Task 1: distinguish explicit type tokens from value identifiers
 
    Goal: omitted calls must survive init unchanged instead of becoming a bogus
    monomorphization such as ~assert_eq__got~.
@@ -494,7 +590,7 @@
 
    Do not implement inference or change call diagnostics in this task.
 
-**** [ ] Task 2: extract one concrete-instantiation path
+**** [X] Task 2: extract one concrete-instantiation path
 
    Goal: init-time explicit and typer-time inferred calls must build exactly
    the same concrete declaration and name.
@@ -545,7 +641,7 @@
 
    Do not add omitted calls yet.
 
-**** [ ] Task 3: retain, skip, and retire generic source declarations
+**** [X] Task 3: retain, skip, and retire generic source declarations
 
    Goal: keep a prepared live source available through body typing without ever
    typing or emitting its unresolved ~T~ body.
@@ -587,7 +683,7 @@
    Do not clone ~Context.generic_funcs~ during late work; it is stale seed-time
    storage.
 
-**** [ ] Task 4: add an empty late-declaration queue and safe flush
+**** [X] Task 4: add an empty late-declaration queue and safe flush
 
    Goal: establish pointer-safe plumbing before inference starts producing
    declarations.
@@ -627,7 +723,7 @@
    Verify: with the queue still empty, ~test/first_class.til~ and ~test/lazy.til~
    produce unchanged behavior and lambda names do not collide.
 
-**** [ ] Task 5: retain canonical type-name provenance
+**** [X] Task 5: retain canonical type-name provenance
 
    Goal: inference needs both semantic type equality and a stable spelling for
    monomorph names, especially ~USize~, ~UPtr~, aliases, and call results.
@@ -677,7 +773,7 @@
    Do not add a parallel Context registry for return spellings; that would be a
    second source of truth.
 
-**** [ ] Task 6: infer direct hard evidence and queue one concrete function
+**** [X] Task 6: infer direct hard evidence and queue one concrete function
 
    Goal: make the smallest useful omitted call work: a direct type parameter
    constrained by a typed, non-literal value.
@@ -746,7 +842,7 @@
    generic sources that declare local structs/enums; their existing explicit
    application remains valid.
 
-**** [ ] Task 7: add literal evidence and stable diagnostics
+**** [X] Task 7: add literal evidence and stable diagnostics
 
    Goal: support the common ~assert_eq(typed_value, literal)~ and
    literal-only ~gid(7)~ cases without integer widening.
@@ -782,7 +878,7 @@
    Do not use interface conformance, wildcard FuncPtr compatibility, runtime
    widening, or arithmetic unification as evidence equality.
 
-**** [ ] Task 8: preserve named/default/variadic arguments and composition
+**** [X] Task 8: preserve named/default/variadic arguments and composition
 
    Goal: inferred application must use the same call-shape semantics as an
    explicit call and reach a fixpoint through generated bodies.
@@ -811,7 +907,7 @@
 
    Do not add named ~Type~ arguments or angle-generic/macro inference.
 
-**** [ ] Task 9: preserve ownership and explicit ref application
+**** [X] Task 9: preserve ownership and explicit ref application
 
    Goal: inference changes type application only; all existing ownership rules
    remain authoritative.
@@ -837,7 +933,7 @@
    an explicit ~ref Type~ operation and is not inferred from destination
    context.
 
-**** [ ] Task 10: prove live-source lambda and lazy preparation
+**** [X] Task 10: prove live-source lambda and lazy preparation
 
    Goal: late concrete bodies must clone the fully prepared source, not stale
    seed-time syntax.
@@ -866,7 +962,7 @@
 
    Capturing closure support beyond current behavior remains out of scope.
 
-**** [ ] Task 11: enforce the throwing-generic boundary
+**** [X] Task 11: enforce the throwing-generic boundary
 
    Goal: static throws work with omitted type application; type-dependent
    throws fail early and loudly instead of creating unresolved error slots.
@@ -902,7 +998,7 @@
 
    Do not move the global throw pass or silently substitute a default payload.
 
-**** [ ] Task 12: prove retirement, cross-unit dedup, and private isolation
+**** [X] Task 12: prove retirement, cross-unit dedup, and private isolation
 
    Goal: successful compilation leaves only concrete declarations, with no
    cross-unit body collision or stale generic binding.
@@ -952,7 +1048,7 @@
    REPL cross-turn persistence is explicitly out of scope; batch retirement
    does not make stale seed clones a valid later-turn source.
 
-**** [ ] Task 13: finish acceptance, bootstrap safely, and close the issue
+**** [X] Task 13: finish acceptance, bootstrap safely, and close the issue
 
    Goal: complete the language feature without making the old bootstrap
    compiler parse source calls it cannot yet understand.

@@ -36,17 +36,6 @@ priv fa_is_ns_named := func(e: Expr, scope: TypeScope, sn: Str) returns Bool {
     }
 }
 
-priv type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Bool {
-    if b.is_type_alias { return true }
-    if b.is_builtin { return true }
-    if scope.struct_def_of(b.name).is_some() { return true }
-    bfd_o := scope.lookup_func(b.name)
-    if bfd_o.is_some() {
-        if bfd_o.unwrap().children.len() == 0 { return true }
-    }
-    return false
-}
-
 make_til_type_expr := func(src: Expr, t: Type) returns Expr {
     mut variant_name := ""
     mut payload_name := ""
@@ -2358,13 +2347,549 @@ priv infer_array_vec_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, in_
     }
 }
 
+// --- Issue #328: omitted generic type arguments ------------------------
+//
+// A direct generic `gid := func(T: Type, v: T) returns T` can be called
+// as `gid(7)` as well as `gid(I64, 7)`. Init leaves the omitted form
+// untouched (it cannot type the value arguments), so the call arrives
+// here still bound to the retained generic SOURCE. This is where the type
+// arguments are deduced from the value arguments, a concrete declaration
+// is queued through the shared init constructor, and the call continues
+// down the ordinary concrete path.
+
+// The best DECLARED type name for an expression -- the spelling a
+// monomorphization name should be formed from. Ident bindings carry their
+// declared spelling, struct fields their field annotation, and named
+// aggregate / enum / FuncSig types come off the Expr's own Type payload;
+// everything else falls back to type_to_name. The result goes through
+// resolve_type_alias_for_name, so user aliases canonicalize while
+// USize/UPtr stay target-independent -- exactly the rule init's explicit
+// path uses, so both spellings select one implementation.
+priv generic_field_declared_type := func(scope: TypeScope, e: Expr) returns Str {
+    if e.children.len() == 0 { return "" }
+    owner := til_type_name(e.children[0].til_type())
+    if owner.len() == 0 { return "" }
+    sd_o := scope.get_struct(owner)
+    if sd_o.is_none() { return "" }
+    mut fname := ""
+    switch e.node_type {
+    case NodeType.FieldAccess(fan): fname = Str.clone(fan.field_access_name())
+    case:
+        return ""
+    }
+    switch sd_o.unwrap().node_type {
+    case NodeType.StructDef(sdd):
+        for fd : Declaration in sdd.fields {
+            if fd.name == fname { return fd.explicit_type.clone() }
+        }
+    case:
+    }
+    return ""
+}
+
+// The declared return spelling of a call, read off the RESOLVED callee.
+// infer_func_def_expr normalizes a return type through resolve_type_alias
+// but deliberately leaves USize/UPtr alone when the two widths differ, so
+// this keeps a target-independent return name while a user alias has
+// already canonicalized to the same primitive resolve_type_alias_for_name
+// would pick anyway.
+priv generic_call_declared_return := func(scope: TypeScope, e: Expr) returns Str {
+    if e.children.len() == 0 { return "" }
+    switch e.children[0].node_type {
+    case NodeType.Ident(cn):
+        b_o := scope.get_binding(cn.ident_name())
+        if b_o.is_none() { return "" }
+        fd_o := scope.lookup_func(b_o.unwrap().name)
+        if fd_o.is_none() { return "" }
+        switch fd_o.unwrap().node_type {
+        case NodeType.FuncDef(cfd): return cfd.return_type.clone()
+        case:
+        }
+    case:
+    }
+    return ""
+}
+
+expr_declared_type_name := func(scope: TypeScope, e: Expr) returns Str {
+    mut spelled := ""
+    switch e.node_type {
+    case NodeType.Ident(idn):
+        b_o := scope.get_binding(idn.ident_name())
+        if b_o.is_some() { spelled = b_o.unwrap().declared_type_name.clone() }
+    case NodeType.FieldAccess:
+        spelled = generic_field_declared_type(scope, e)
+    case NodeType.FCall:
+        spelled = generic_call_declared_return(scope, e)
+    case:
+    }
+    if spelled.len() == 0 { spelled = type_to_name(e.til_type()) }
+    if spelled.len() == 0 { return "" }
+    return resolve_type_alias_for_name(scope, spelled).clone()
+}
+
+// Does this generic source -- or any generic source reachable from its
+// calls -- declare a struct or enum in its body? A late instantiation
+// skips the full init declaration pipeline (layout, generated methods,
+// registration), so such a source keeps requiring explicit application.
+priv generic_body_declares_type := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.Decl).and(e.children.len().gt(0)) {
+        ref drhs : Expr = e.children[0]
+        if drhs.node_type.is(NodeType.StructDef).or(drhs.node_type.is(NodeType.EnumDef)) { return true }
+    }
+    for c : Expr in e.children {
+        if generic_body_declares_type(c) { return true }
+    }
+    return false
+}
+
+priv generic_closure_declares_type := func(scope: TypeScope, name: Str, mut seen: Set(Str)) returns Bool {
+    if seen.has(name) { return false }
+    seen.add(own name.clone())
+    fd_o := scope.lookup_func(name)
+    if fd_o.is_none() { return false }
+    ref fd : Expr = fd_o.unwrap()
+    if init_func_is_generic(fd).not() { return false }
+    if generic_body_declares_type(fd) { return true }
+    return generic_closure_walk_calls(scope, fd, seen)
+}
+
+priv generic_closure_walk_calls := func(scope: TypeScope, e: Expr, mut seen: Set(Str)) returns Bool {
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gt(0)) {
+        switch e.children[0].node_type {
+        case NodeType.Ident(cn):
+            if generic_closure_declares_type(scope, cn.ident_name(), seen) { return true }
+        case:
+        }
+    }
+    for c : Expr in e.children {
+        if generic_closure_walk_calls(scope, c, seen) { return true }
+    }
+    return false
+}
+
+// Is `pname` one of this source's type-parameter names?
+priv generic_is_type_param := func(gfd: FunctionDef, pname: Str) returns Bool {
+    for p : Declaration in gfd.params {
+        if p.explicit_type.eq("Type").and(p.name.eq(pname)) { return true }
+    }
+    return false
+}
+
+// A value-only clone of the generic's signature: the `Type` params are
+// gone and the variadic / kwargs block markers move with them. Used to
+// desugar the omitted call through the ONE existing argument matcher
+// (positional / named / defaults / variadic / call-site __LOC__) instead
+// of writing a second one.
+priv generic_value_only_fdef := func(gfd: FunctionDef) returns FunctionDef {
+    mut out := FunctionDef(func_type = gfd.func_type, return_type = gfd.return_type.clone())
+    mut vidx : I32 = gfd.variadic_index
+    mut kidx : I32 = gfd.kwargs_index
+    for i in 0..gfd.params.len() {
+        ref p : Declaration = gfd.params[i]
+        if p.explicit_type == "Type" {
+            cpos : I32 = i.to_i64().to_i32()
+            if vidx > cpos { vidx = vidx - 1 }
+            if kidx > cpos { kidx = kidx - 1 }
+            continue
+        }
+        out.params.push(own p.clone())
+    }
+    out.variadic_index = vidx
+    out.kwargs_index = kidx
+    return out
+}
+
+// Does the call spell its type arguments? The first PRESENT `Type` slot
+// decides, exactly as in init: a real type token there means explicit
+// application, anything else means the caller omitted them.
+priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDef) returns Bool {
+    for i in 0..gfd.params.len() {
+        ref p : Declaration = gfd.params[i]
+        if p.explicit_type.eq("Type").not() { continue }
+        argidx := i + 1
+        if argidx >= e.children.len() { return false }
+        switch e.children[argidx].node_type {
+        case NodeType.Ident(an):
+            tb_o := scope.get_binding(an.ident_name())
+            if tb_o.is_some() {
+                return type_binding_is_type_token(scope, tb_o.unwrap())
+            }
+            return false
+        case:
+            return false
+        }
+    }
+    return false
+}
+
+// Explicit late application: read the type tokens straight off the call.
+priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, ctx: Context) returns Bool {
+    for i in 0..gfd.params.len() {
+        ref p : Declaration = gfd.params[i]
+        if p.explicit_type.eq("Type").not() { continue }
+        argidx := i + 1
+        if argidx >= e.children.len() {
+            e.type_error(format("missing type argument for parameter '", p.name, "' of generic '", display_name, "'"), ctx)
+            return false
+        }
+        ref arg : Expr = e.children[argidx]
+        switch arg.node_type {
+        case NodeType.Ident(an):
+            tn := resolve_type_alias_for_name(scope, an.ident_name()).clone()
+            mut tid := Expr.new(ident_node(tn), arg.line, arg.col)
+            subs.set(p.name, own tid)
+            if get_ref_arg(e, argidx) { ref_params.add(own p.name.clone()) }
+        case:
+            e.type_error(format("type argument for parameter '", p.name, "' of generic '", display_name, "' must be a type"), ctx)
+            return false
+        }
+    }
+    return true
+}
+
+// Omitted application: desugar the call against the value-only signature,
+// infer every value argument, then read the type arguments back off the
+// formals that ARE a type parameter (`v: T`, `own v: T`, `xs: ..T`).
+//
+// A typed non-literal operand is HARD evidence: several of them must
+// denote the same concrete type, by exact primitive equality, aggregate
+// name equality or named-FuncSig identity -- never by the permissive
+// call-site compatibility rules (no interface conformance, no USize
+// coercion, no wildcard funcptr match, no integer widening, #224).
+// Numeric literals are SOFT: they narrow against hard evidence when there
+// is any, and otherwise pick the documented I64 / F32 default. Dynamic,
+// Unknown and null establish nothing at all.
+priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, ctx: Context) returns Bool {
+    vo := generic_value_only_fdef(gfd)
+    if desugar_fcall_args_for_fdef(e, display_name, vo, ctx).not() { return false }
+    for ai in 1..e.children.len() {
+        infer_expr(scope, e.children[ai], in_func, ctx)
+    }
+    // param name -> canonical type key (equality), declared spelling
+    // (naming) and the site the evidence came from (diagnostics).
+    mut ev_key := Map(Str, Str).new()
+    mut ev_spell := Map(Str, Str).new()
+    mut ev_site := Map(Str, Str).new()
+    mut soft_num := Set(Str).new()
+    mut soft_float := Set(Str).new()
+    mut soft_empty := Set(Str).new()
+    mut nested_only := Set(Str).new()
+    // A parameter that appears only inside a generated template name
+    // (`Vec__T`) is not decomposed here; record it so the diagnostic can
+    // say so instead of the generic "cannot infer".
+    for np : Declaration in vo.params {
+        for tp : Declaration in gfd.params {
+            if tp.explicit_type.eq("Type").not() { continue }
+            if np.explicit_type.eq(tp.name) { continue }
+            if type_name_mentions_param(np.explicit_type, tp.name) { nested_only.add(own tp.name.clone()) }
+        }
+    }
+    fvi := vo.variadic_index
+    fkwi := vo.kwargs_index
+    mut fvc : USize = 0
+    if fvi >= 0 { fvc = fcall_variadic_count(e, vo.params.len(), fkwi >= 0) }
+    mut fkc : USize = 0
+    if fkwi >= 0 { fkc = fcall_kwargs_count(e) }
+    mut ci : USize = 1
+    mut pi : USize = 0
+    while pi < vo.params.len() {
+        mut run : USize = 1
+        if pi.to_i32() == fvi { run = fvc }
+        if pi.to_i32() == fkwi { run = fkc }
+        ref p : Declaration = vo.params[pi]
+        if generic_is_type_param(gfd, p.explicit_type) {
+            for k in 0..run {
+                if ci + k >= e.children.len() { break }
+                ref arg : Expr = e.children[ci + k]
+                mut is_num := false
+                mut is_float_num := false
+                mut is_empty := false
+                switch arg.node_type {
+                case NodeType.Literal(Literal.Num(lnum)):
+                    is_num = true
+                    is_float_num = lnum.is_float()
+                case NodeType.Literal(Literal.Null): is_empty = true
+                case:
+                }
+                if is_num {
+                    soft_num.add(own p.explicit_type.clone())
+                    if is_float_num { soft_float.add(own p.explicit_type.clone()) }
+                    continue
+                }
+                ref at : Type = arg.til_type()
+                if is_empty.or(at.is(Type.Unknown)).or(at.is(Type.Dynamic)) {
+                    soft_empty.add(own p.explicit_type.clone())
+                    continue
+                }
+                spell := expr_declared_type_name(scope, arg)
+                if spell.len() == 0 {
+                    soft_empty.add(own p.explicit_type.clone())
+                    continue
+                }
+                // The equality key comes from the operand's TYPE; a plain
+                // Type.FuncPtr has no name of its own, so a value whose
+                // declared type is a named FuncSig falls back to that
+                // spelling -- two different signatures then still conflict.
+                mut key := type_to_name(at)
+                if key.len() == 0 { key = spell.clone() }
+                site := format(ctx.path, ":", arg.line.to_str(), ":", arg.col.to_str())
+                if ev_key.has(p.explicit_type) {
+                    if ev_key[p.explicit_type].eq(key).not() {
+                        arg.type_error(format("conflicting evidence for type argument '", p.explicit_type,
+                            "' of '", display_name, "': ", ev_key[p.explicit_type], " at ", ev_site[p.explicit_type],
+                            " and ", key, " at ", site), ctx)
+                        return false
+                    }
+                    continue
+                }
+                ev_key.set(p.explicit_type, own key.clone())
+                ev_spell.set(p.explicit_type, own spell.clone())
+                ev_site.set(p.explicit_type, own site.clone())
+            }
+        }
+        ci = ci + run
+        pi++
+    }
+    for tp : Declaration in gfd.params {
+        if tp.explicit_type.eq("Type").not() { continue }
+        mut chosen := ""
+        if ev_spell.has(tp.name) {
+            chosen = ev_spell[tp.name].clone()
+        } else if soft_num.has(tp.name) {
+            // Literal-only: the documented defaults. A fractional or
+            // exponent literal anywhere in the group picks F32.
+            if soft_float.has(tp.name) { chosen = "F32" } else { chosen = "I64" }
+        }
+        if chosen.len() == 0 {
+            if nested_only.has(tp.name) {
+                e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                    "': it appears only inside another type (nested type arguments are not deduced); pass it explicitly"), ctx)
+            } else if soft_empty.has(tp.name) {
+                e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                    "': Dynamic and null arguments establish no type; pass it explicitly"), ctx)
+            } else {
+                e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                    "'; pass it explicitly"), ctx)
+            }
+            return false
+        }
+        // A `..T` formal needs the concrete Array instance to EXIST: the
+        // type-gen pass that synthesizes `Array__I64` is init-only, and it
+        // has long finished by the time a call is typed. Init does
+        // synthesize it for an explicit application, so that is the
+        // instruction -- not a silent fallback to an untyped variadic.
+        if vo.variadic_index >= 0 {
+            ref vp : Declaration = vo.params[vo.variadic_index.to_usize()]
+            if vp.explicit_type.eq(tp.name) {
+                va_name := variadic_array_type_name(scope, chosen)
+                if scope.get_struct(va_name).is_none() {
+                    e.type_error(format("cannot infer type argument '", tp.name, "' for '", display_name,
+                        "': its variadic '", vp.name, ": ..", tp.name, "' needs the '", va_name,
+                        "' instance, which only explicit type application creates; pass it explicitly"), ctx)
+                    return false
+                }
+            }
+        }
+        mut tid := Expr.new(ident_node(chosen), e.line, e.col)
+        subs.set(tp.name, own tid)
+    }
+    return true
+}
+
+// Rewrite an expanded generic call IN PLACE: the callee becomes the
+// concrete name and the `Type` arguments are dropped, own bits following
+// their formals. The parent-slot variant lives in initer.til; here the
+// caller holds the call itself, not its parent.
+priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(I64)) {
+    mut new_ch := Vec(Expr).with_capacity(e.children.len())
+    mut owned := Vec(Bool).new()
+    new_ch.push(own Expr.new(ident_node(mono), e.children[0].line, e.children[0].col))
+    for k in 1..e.children.len() {
+        pidx := k - 1
+        mut drop_arg := false
+        if pidx < arg_pos.len() {
+            if arg_pos[pidx] < 0 { drop_arg = true }
+        }
+        if drop_arg { continue }
+        kept : Bool = get_own_arg(e, k)
+        owned.push(own kept)
+        new_ch.push(own e.children[k].clone())
+    }
+    e.children.move_from(new_ch)
+    switch e.node_type {
+    case NodeType.FCall(fcd):
+        fcd.own_args = 0
+        fcd.ref_args = 0
+    case:
+    }
+    for bi in 0..owned.len() {
+        if owned[bi] { set_own_arg(e, bi + 1) }
+    }
+}
+
+// Issue #328: a late concrete declaration is typed by the body loop only
+// AFTER the caller that queued it, but the caller needs its ABI-relevant
+// signature NOW -- whether the return and each parameter are shallow
+// decides how the caller stores the result (#223 auto-shallow, and with
+// it the #302 storage record the builder checks). Apply exactly the
+// ownership normalization infer_func_def_expr applies, so the two agree;
+// the full inference re-runs it idempotently when the body is typed.
+priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Expr, ctx: Context) {
+    switch fdef_expr.node_type {
+    case NodeType.FuncDef(fdef):
+        auto_ok := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
+            .or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.LazyProc))
+        if auto_ok.not() { return }
+        widths_differ := resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()
+        if fdef.return_type.len() > 0 {
+            rname := fdef.return_type.clone()
+            ref resolved_r : Str = resolve_type_alias(scope, rname)
+            if is_usize_name(rname).or(is_uptr_name(rname)).and(widths_differ).not() { fdef.return_type = resolved_r }
+            if fdef.return_own_type.is(OwnType.Own) {
+                rt := type_from_name(fdef.return_type, scope, ctx)
+                if is_auto_shallow_type(rt, fdef.return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
+            }
+        }
+        // Params are NOT pre-normalized: infer_func_def_expr rejects a
+        // 'shallow' primitive param as redundant BEFORE it applies the
+        // same Ref->Shallow normalization, so doing it early would turn
+        // every inferred call into a spurious diagnostic. Only the return
+        // ownership is needed this early, and only it is idempotent.
+    case:
+    }
+}
+
+// Instantiate through the shared init constructor, queue the concrete
+// declaration, rewrite the call, and continue down the ordinary concrete
+// path with the resolved concrete FunctionDef.
+priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, ctx: Context) {
+    mut src := GenericFuncSource(name = src_name.clone(), path = ctx.path.clone())
+    sb_o := scope.get_binding(src_name)
+    if sb_o.is_some() {
+        ref sb : TypeBinding = sb_o.unwrap()
+        src.path = sb.path.clone()
+        src.is_priv = sb.is_priv
+    }
+    gs := GenericSources(late = true)
+    lt := Map(Str, Str).new()
+    mut seen := Map(Str, Str).new()
+    mut arg_pos := Vec(I64).new()
+    pend_start := ctx.generic_pending.children.len()
+    mono := generic_instantiate(src, scope.lookup_func(src_name).unwrap(), subs, ref_params, gs, lt, seen, ctx.generic_pending, arg_pos, e.line, e.col, scope, ctx)
+    // Register while the Decl's FuncDef child is still in stable pending
+    // storage; the flush re-registers everything after the single move.
+    for k in pend_start..ctx.generic_pending.children.len() {
+        if ctx.generic_pending.children[k].children.len() > 0 {
+            generic_normalize_concrete_sig(scope, ctx.generic_pending.children[k].children[0], ctx)
+        }
+        // Against ctx.scope, NEVER the caller's nested body scope: the
+        // concrete declaration is a UNIT-level function, and a binding
+        // left in a body scope dies with it (the garbager then reads no
+        // signature and records the wrong storage for the call result).
+        register_function_def_for_stmt(ctx, ctx.generic_pending.children[k], ctx.scope)
+    }
+    if explicit {
+        generic_rewrite_call_in_place(e, mono, arg_pos)
+    } else {
+        // The omitted call is already value-only after desugaring: only
+        // the callee changes, every aligned value/ownership position stays.
+        e.children[0] = Expr.new(ident_node(mono), e.line, e.col)
+    }
+    // #320/#328: the generic path is the ONLY legitimate consumer of a
+    // `ref` argument bit. Anything left after type application is a ref on
+    // a value argument, and gets the same hard error every other call does.
+    if fcall_has_ref_args(e) {
+        e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
+    }
+    cfd_o := scope.lookup_func(mono)
+    if cfd_o.is_none() {
+        panic(ctx.path, ": concrete generic '", mono, "' is not registered")
+    }
+    mut cb_used := scope.get_binding(mono)
+    if cb_used.is_some() {
+        ref mut cbu : TypeBinding = cb_used.unwrap()
+        cbu.used = true
+    }
+    switch cfd_o.unwrap().node_type {
+    case NodeType.FuncDef(cfd):
+        if explicit {
+            if desugar_fcall_args_for_fdef(e, mono, cfd, ctx).not() {
+                e.set_til_type(Type.Unknown)
+                return
+            }
+            for ai in 1..e.children.len() {
+                infer_expr(scope, e.children[ai], in_func, ctx)
+            }
+        }
+        infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx)
+        validate_fcall_own_args_for_fdef(scope, e, cfd, ctx)
+    case:
+        UNREACHABLE()
+    }
+    resolve_fcall_return_type(scope, e, mono, scope.get_binding(mono), in_func, ctx)
+}
+
+// Type a call whose callee is still bound to a retained generic SOURCE.
+priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, display_name: Str, in_func: I32, ctx: Context) {
+    // A source whose call closure declares a struct or enum needs init's
+    // complete declaration pipeline (layout, generated methods,
+    // registration); late instantiation cannot provide it, so those keep
+    // requiring explicit type application.
+    mut closure_seen := Set(Str).new()
+    if generic_closure_declares_type(scope, src_name, closure_seen) {
+        e.type_error(format("cannot infer type arguments for '", display_name, "': it declares a type in its body; pass them explicitly"), ctx)
+        e.set_til_type(Type.Unknown)
+        return
+    }
+    gfd_o := scope.lookup_func(src_name)
+    mut subs := Map(Str, Expr).new()
+    mut ref_params := Set(Str).new()
+    mut ok := false
+    mut explicit := false
+    switch gfd_o.unwrap().node_type {
+    case NodeType.FuncDef(gfd):
+        explicit = generic_call_is_explicit(scope, e, gfd)
+        if explicit.not() {
+            // #328 task 11: a `throws T` (or `throws Err__T`) source is
+            // deliberately not lowered before this point, so there is
+            // nothing to infer against -- the caller must spell it.
+            if generic_source_throws_depend_on_type(gfd_o.unwrap()) {
+                e.type_error(format("cannot infer type arguments for '", display_name,
+                    "': its 'throws' clause names a type parameter; pass them explicitly"), ctx)
+                e.set_til_type(Type.Unknown)
+                return
+            }
+        }
+        if explicit {
+            ok = generic_explicit_subs(scope, e, gfd, subs, ref_params, display_name, ctx)
+        } else {
+            ok = generic_infer_subs(scope, e, gfd, subs, display_name, in_func, ctx)
+        }
+    case:
+        UNREACHABLE()
+    }
+    if ok.not() {
+        e.set_til_type(Type.Unknown)
+        return
+    }
+    generic_finish_fcall(scope, e, src_name, subs, ref_params, explicit, in_func, ctx)
+}
+
 priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) {
     // #320: ref-qualified args (`f(ref x)`) only mean something on type
     // arguments of type-gen macro instantiations, and those are fully
     // expanded during init -- any call still carrying a ref bit here is
     // user error, rejected instead of silently ignoring the qualifier.
-    if fcall_has_ref_args(e) {
-        e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
+    // #328: for an IDENT callee the rejection waits until the binding is
+    // resolved, because an explicit `ref Type` argument to a retained
+    // generic source is legitimate and is consumed by the generic path
+    // below. Every other callee shape is rejected right here, as before.
+    mut callee_is_ident := false
+    if e.children.len() > 0 { callee_is_ident = e.children[0].node_type.is(NodeType.Ident) }
+    if callee_is_ident.not() {
+        if fcall_has_ref_args(e) {
+            e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
+        }
     }
     // #164: a UFCS receiver `obj.method(args)` is conservatively treated
     // as "written" -- the namespace method may mutate it via `mut self`
@@ -2448,15 +2973,35 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
     callee_bind_o := scope.get_binding(name)
+    // #328: set when the callee resolves to a retained generic SOURCE.
+    // Recorded as a NAME so the binding borrow above is released before
+    // the generic path mutates e.children and registers new bindings.
+    mut generic_src_name := ""
     if callee_bind_o.is_some() {
         ref mut callee_bind : TypeBinding = callee_bind_o.unwrap()
         // #187: a call from inside a function is only evidence once that
         // function is itself reachable -- see mark_binding_referenced.
+        // The source binding is credited here, before the call is
+        // rewritten to a concrete name it does not own.
         mark_binding_referenced(ctx, callee_bind)
         note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, ctx)
-        if scope.lookup_func(callee_bind.name).is_some() {
-            desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
+        cfd_o := scope.lookup_func(callee_bind.name)
+        if cfd_o.is_some() {
+            if init_func_is_generic(cfd_o.unwrap()) {
+                generic_src_name = callee_bind.name.clone()
+            } else {
+                desugar_user_func_fcall_args(scope, e, name, callee_bind, ctx)
+            }
+        }
+    }
+    if generic_src_name.len() > 0 {
+        infer_generic_fcall(scope, e, generic_src_name, name, in_func, ctx)
+        return
+    }
+    if callee_is_ident {
+        if fcall_has_ref_args(e) {
+            e.type_error("'ref' argument qualifier is only valid on type arguments of type templates (e.g. Opt(ref T))", ctx)
         }
     }
     // Issue #289: array(T, ...) / vec(T, ...) carry the element type as a bare
@@ -3434,6 +3979,15 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                     }
                 }
             }
+            // #328: keep the spelling the user DECLARED. The alias
+            // normalization above already overwrote param.explicit_type,
+            // so this is the only place that still knows a `n: USize`
+            // param was written USize rather than the target's U32.
+            pb_o := func_scope.get_binding(param.name)
+            if pb_o.is_some() {
+                ref mut pb : TypeBinding = pb_o.unwrap()
+                pb.declared_type_name = ptype_name.clone()
+            }
         }
         mut in_func_val : I32 = 0
         if is_func { in_func_val = 1 }
@@ -3753,6 +4307,15 @@ check_unused_priv_top_level := proc(scope: TypeScope, ctx: Context) returns I32 
         if b.used { continue }
         if b.name.len() == 0 { continue }
         if b.name.starts_with("_") { continue }
+        // Issue #328: a retained generic SOURCE template is deliberately
+        // exempt. Nothing calls it -- init and the typer rewrite every
+        // call to a concrete monomorphization -- so usedness is credited
+        // to the concrete declaration, and before #328 kept the source
+        // alive it was dropped long before this check ran.
+        mut b_is_generic_source := false
+        b_fd_o := scope.lookup_func(b.name)
+        if b_fd_o.is_some() { b_is_generic_source = init_func_is_generic(b_fd_o.unwrap()) }
+        if b_is_generic_source { continue }
         mut kind := "value"
         if scope.lookup_func(b.name).is_some() { kind = "func" }
         b_sd_o := scope.struct_def_of(b.name)
@@ -4792,6 +5355,22 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
         // later typer machinery (array/vec literal rewrite, alias
         // promotion etc.) auto-promotes is_mut.
         decl_b.mut_explicit = sdecl.is_mut
+        // #328: declared-spelling provenance. An annotated local keeps its
+        // own annotation; an inferred one inherits the RHS's provenance
+        // when the RHS is a plain Ident that has some, so
+        // `n : USize = ...; m := n` still contributes USize.
+        if sdecl.explicit_type.len() > 0 {
+            decl_b.declared_type_name = sdecl.explicit_type.clone()
+        } else {
+            switch rhs.node_type {
+            case NodeType.Ident(prov_id):
+                prov_o := scope.get_binding(prov_id.ident_name())
+                if prov_o.is_some() {
+                    decl_b.declared_type_name = prov_o.unwrap().declared_type_name.clone()
+                }
+            case:
+            }
+        }
         decl_b.used = sdecl.used
         if ctx.throw_used_local_names.has(sdecl.name) { decl_b.used = true }
         decl_b.is_priv = sdecl.is_priv
@@ -4922,6 +5501,12 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
 
 priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_type_body: I32, ctx: Context) {
     if stmt.children.len() == 0 { return }
+    // Issue #328: a retained direct-generic SOURCE is a template, not code.
+    // Its signature and body still name the unbound type parameters, so
+    // typing it would report `T` as an undefined type. It stays live only
+    // so late inference can clone a fully prepared body from it;
+    // init_retire_generic_sources drops it once every body is typed.
+    if init_stmt_is_generic_source(stmt) { return }
     mut dv_elem := ""
     ref first_child : Expr = stmt.children[0]
     if first_child.node_type.is(NodeType.StructDef).or(first_child.node_type.is(NodeType.EnumDef)) {
@@ -5477,6 +6062,74 @@ infer_body := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I
     }
 }
 
+// Issue #328: move every concrete declaration that late generic inference
+// queued while the statement just typed was being walked onto the unit,
+// then let infer_body_unit's dynamic-length loop type them.
+//
+// A Decl OWNS its FuncDef child, so a pending declaration's registration
+// is valid only while it sits in ctx.generic_pending. The single
+// take_children move invalidates all of them at once, which is why the
+// re-registration below happens immediately after it and by destination
+// index -- never against the pending storage, and never one-at-a-time
+// interleaved with more moves.
+priv flush_generic_pending := proc(mut scope: TypeScope, mut body: Expr, ctx: Context) {
+    if ctx.generic_pending.children.len() == 0 { return }
+
+    // Nested struct/enum/func definitions inside a substituted body are
+    // lifted to the top level exactly as init_declarations_unit does for
+    // an ordinary function. Task 6 refuses to infer a source whose
+    // closure declares a struct or enum, so only FuncDefs reach here.
+    mut nested := Vec(Expr).new()
+    for pstmt : Expr in ctx.generic_pending.children {
+        if pstmt.children.len() == 0 { continue }
+        ref prhs : Expr = pstmt.children[0]
+        if prhs.node_type.is(NodeType.FuncDef).not() { continue }
+        if prhs.children.len() == 0 { continue }
+        switch pstmt.node_type {
+        case NodeType.Decl(pdd):
+            init_lift_in_body(prhs.children[0], pdd.name, nested)
+        case:
+        }
+    }
+    for nl : Expr in nested {
+        ctx.generic_pending.children.push(own nl.clone())
+    }
+
+    // Lambdas in those bodies, off the context-wide monotonic counter.
+    typer_lift_lambdas(scope, ctx.generic_pending, ctx)
+
+    for mut tstmt : Expr in ctx.generic_pending.children {
+        extend_throwing_func_sigs(ctx, tstmt)
+    }
+    // Late declarations miss infer_body_unit's initial classification
+    // sweep, so classify each one before it enters the body loop.
+    for cstmt : Expr in ctx.generic_pending.children {
+        constfolder_classify_stmt(cstmt, ctx)
+    }
+
+    start := body.children.len()
+    body.take_children(ctx.generic_pending)
+
+    for k in start..body.children.len() {
+        register_function_def_for_stmt(ctx, body.children[k], scope)
+    }
+    init_refresh_seeded_scope_defs(body, scope)
+    for k2 in start..body.children.len() {
+        switch body.children[k2].node_type {
+        case NodeType.Decl(kdd):
+            if body.children[k2].children.len() == 0 { continue }
+            kf_o := scope.lookup_func(kdd.name)
+            if kf_o.is_none() {
+                panic(ctx.path, ": late generic '", kdd.name, "' is not registered after append")
+            }
+            if kf_o.unwrap().ptr_eq(body.children[k2].children[0]).not() {
+                panic(ctx.path, ": late generic '", kdd.name, "' is registered against stale storage")
+            }
+        case:
+        }
+    }
+}
+
 priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, ctx: Context) {
     body.set_til_type(Type.None)
     // Issue #158: record foldable macro/func names so constfolder reuses
@@ -5502,6 +6155,12 @@ priv infer_body_unit := proc(scope: TypeScope, mut body: Expr, in_func: I32, own
     mut i : USize = 0
     while i < body.children.len() {
         infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
+        // #328: only here -- back in the top-level loop, with no ref into
+        // the statement just typed still alive -- is it safe to append.
+        // The loop re-reads children.len() each turn, so the appended
+        // declarations are typed by this same sweep, and a concrete body
+        // that queues another batch reaches a natural fixpoint.
+        flush_generic_pending(scope, body, ctx)
         i++
     }
     if body_pre_passes(ctx, body, scope, owns_scope) {
@@ -5562,6 +6221,10 @@ normalize_scope_bindings := func(scope: TypeScope) {
 priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     ctx.errors = 0
     context_enter_file(ctx, path)
+    // #328: the late-generic queue is per unit. It should already be
+    // empty (every flush drains it), but a stale entry would be appended
+    // to the WRONG unit, so clear it here and check it drained at exit.
+    ctx.generic_pending.children.clear()
     // Lift anonymous func literals out of expression positions to
     // top-level _lambda_<N> priv decls. The typer then types them as
     // ordinary named functions through the normal walk below. Doing
@@ -5595,6 +6258,11 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
     }
     // For per-file units, we do not switch modes per statement.
     infer_body_unit(scope, program, 0, 1, 0, 0, 0, ctx)
+    // #328: every batch the body loop queued has been flushed onto this
+    // unit. A leftover would silently land on the next unit typed.
+    if ctx.generic_pending.children.len() > 0 {
+        panic(path, ": late generic declarations left unflushed at unit exit")
+    }
     // Program-scope asap runs from prepare_program via
     // garbager_destroy(ctx) once all files are typed -- see issue #204
     // step 3b.

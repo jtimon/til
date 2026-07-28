@@ -1,0 +1,11 @@
+mode lib
+
+// #328: two units define a PRIVATE generic of the same name with
+// different behaviour. Deduplication is keyed by declaring path plus
+// concrete name, so they must stay separate implementations -- wrong
+// dedup shows up in the VALUES these wrappers return, not just in names.
+priv same_private_generic := func(T: Type, v: T) returns T { return v }
+
+private_a_apply := func(n: I64) returns I64 {
+    return same_private_generic(n).add(1)
+}

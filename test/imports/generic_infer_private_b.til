@@ -1,0 +1,7 @@
+mode lib
+
+priv same_private_generic := func(T: Type, v: T) returns T { return v }
+
+private_b_apply := func(n: I64) returns I64 {
+    return same_private_generic(n).mul(10)
+}

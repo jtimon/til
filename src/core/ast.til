@@ -866,6 +866,10 @@ namespace:
         // memcpy'd into self, but other's malloc'd buffer would leak.
         free(own other.children.data)
         other.children.data = NULL
+        // ...and drop the capacity with it. A holder that is REUSED after
+        // a take (#328's per-unit pending queue) would otherwise see
+        // count < cap over a NULL data pointer and push straight into it.
+        other.children.cap = 0
     }
     /// Create a new Expr with the given node_type and source location.
     new := func(data: NodeType, line: U32, col: U32) returns Expr {

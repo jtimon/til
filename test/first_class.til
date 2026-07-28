@@ -1011,6 +1011,227 @@ test_generic_func_swap := test() {
     assert_eq(I64, y, 3)
 }
 
+// #328 Task 1: every kind of real type token is accepted in a generic's
+// `Type` slot, including the PRIVATE ones this unit has not mangled or
+// registered yet when generic expansion runs, and a type ALIAS. The alias
+// case also pins canonicalization: `MyInt328` and `I64` name the same
+// monomorphization, so there is one concrete `gid328` for both.
+priv PrivPoint328 := struct {
+    x := 0
+namespace:
+    eq := func(a: PrivPoint328, b: PrivPoint328) returns Bool { return a.x.eq(b.x) }
+    to_str := func(self: PrivPoint328) returns Str { return self.x.to_str() }
+}
+priv PrivTag328 := enum { One, Two }
+priv PrivBin328 := func(a: I64, b: I64) returns I64
+priv MyInt328 := I64
+
+priv add328 := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+gid328 := func(T: Type, v: T) returns T { return v }
+// A FuncSig type argument is CONSUMED inside the generic rather than
+// returned: `returns T` under a FuncSig T is the separate funcptr-return
+// path, which has its own (pre-existing) interpreter behaviour.
+gapply328 := func(T: Type, op: T, a: I64, b: I64) returns I64 { return op(a, b) }
+
+test_generic_func_type_tokens := test() {
+    p := gid328(PrivPoint328, PrivPoint328(x = 3))
+    assert_eq(I64, p.x, 3)
+    t := gid328(PrivTag328, PrivTag328.Two)
+    assert_eq(Bool, t.is(PrivTag328.Two), true)
+    assert_eq(I64, gapply328(PrivBin328, add328, 2, 5), 7)
+    // Alias and its target select the same concrete implementation.
+    assert_eq(I64, gid328(MyInt328, 11), 11)
+    assert_eq(I64, gid328(I64, 12), 12)
+}
+
+// #328 Task 2: one concrete-instantiation path. A generic reached through
+// a user alias and through the alias's canonical primitive is ONE
+// implementation (`gcanon328__I64`), because the shared constructor
+// canonicalizes every type-argument spelling before it forms the name.
+// USize keeps its own target-independent name.
+priv Weight328 := USize
+
+gcanon328 := func(T: Type, v: T) returns T { return v }
+
+test_generic_func_canonical_name := test() {
+    assert_eq(I64, gcanon328(MyInt328, 4), 4)
+    assert_eq(I64, gcanon328(I64, 5), 5)
+    w : USize = 6
+    assert_eq(USize, gcanon328(Weight328, w), 6)
+    assert_eq(USize, gcanon328(USize, w), 6)
+}
+
+// #328 Task 2: dropping a leading `Type` parameter shifts the variadic and
+// kwargs block markers with it, so the value arguments still align.
+gsum328 := func(T: Type, base: T, rest: ..I64) returns T {
+    mut acc := base
+    for i in 0..rest.len() {
+        acc = acc.add(rest[i])
+    }
+    return acc
+}
+gopts328 := func(T: Type, v: T, opts: ...) returns Str {
+    if opts.has("tag") {
+        ref t : Str = opts.get("tag")
+        return format(t, "=", v.to_str())
+    }
+    return v.to_str()
+}
+
+test_generic_func_type_param_layout := test() {
+    assert_eq(I64, gsum328(I64, 1, 2, 3, 4), 10)
+    assert_eq(I64, gsum328(I64, 7), 7)
+    assert_eq(Str, gopts328(I64, 9), "9")
+    assert_eq(Str, gopts328(I64, 9, tag = "n"), "n=9")
+}
+
+// #328 Task 6: OMITTED type arguments. `gid(v)` deduces T from the value
+// argument, so the type only has to be written where it is genuinely
+// ambiguous. A typed non-literal operand is hard evidence; a struct, an
+// enum, a field, a call result and a named-FuncSig local all qualify.
+E328 := enum { One328, Two328 }
+Sig328 := func(a: I64, b: I64) returns I64
+mkpoint328 := func() returns Point58g { return Point58g(x = 6, y = 7) }
+holds328 := struct { n : USize = 0 }
+
+test_generic_infer_hard_evidence := test() {
+    n : I64 = 42
+    assert_eq(I64, gid(n), 42)
+    p := Point58g(x = 3, y = 4)
+    assert_eq(I64, gid(p).x, 3)
+    tag := E328.Two328
+    assert_eq(Bool, gid(tag).is(E328.Two328), true)
+    h := holds328(n = 9)
+    assert_eq(USize, gid(h.n), 9)
+    assert_eq(I64, gid(mkpoint328()).y, 7)
+    op : Sig328 = add58
+    assert_eq(I64, gapply328(op, 2, 5), 7)
+    s : Str = "til"
+    assert_eq(Str, gid(s), "til")
+    b : Bool = true
+    assert_eq(Bool, gid(b), true)
+    // The explicit form still works and selects the SAME implementation.
+    assert_eq(I64, gid(I64, 11), 11)
+}
+
+// #328 Task 5: name-forming provenance. A `USize` operand contributes
+// the target-INDEPENDENT `USize`, not the target's primitive, whether it
+// arrives as a typed local, a field, or a call result -- so all three and
+// the explicit spelling land on one implementation.
+usize_id328 := func(n: USize) returns USize { return n }
+holds_usize328 := struct { n : USize = 0 }
+
+test_generic_infer_declared_name := test() {
+    w : USize = 3
+    assert_eq(USize, gid(w), 3)
+    assert_eq(USize, gid(usize_id328(w)), 3)
+    hu := holds_usize328(n = 4)
+    assert_eq(USize, gid(hu.n), 4)
+    assert_eq(USize, gid(USize, w), 3)
+}
+
+// #328 Task 7: literals. A typed operand fixes T and the literal narrows
+// against it (with the ordinary range check); with literals only, an
+// integer picks I64 and a fractional/exponent literal picks F32. Str and
+// Bool literals are exact evidence on their own.
+gpick328 := func(T: Type, a: T, b: T) returns T {
+    if a.eq(b) { return b }
+    return a
+}
+
+test_generic_infer_literals := test() {
+    assert_eq(I64, gid(7), 7)
+    assert_eq(F32, gid(1.5), 1.5)
+    assert_eq(F32, gid(2e1), 20.0)
+    narrow : I32 = 5
+    assert_eq(I32, gpick328(narrow, 3), 5)
+    assert_eq(Str, gid("til"), "til")
+    assert_eq(Bool, gid(true), true)
+}
+
+// #328 Task 8: an inferred call keeps every call-shape rule an explicit
+// one has -- the trailing optional location still resolves at the CALLER,
+// a named argument still reaches its parameter, a `..T` variadic still
+// collects its run, and a concrete body may itself queue another
+// monomorphization (two batches: gtwo328 -> gid58g_compose -> gid58g).
+gloc328 := func(T: Type, v: T, loc: Str = __LOC__) returns Str {
+    if v.eq(v) { return loc.clone() }
+    return loc.clone()
+}
+gvarsum328 := func(T: Type, base: T, rest: ..T) returns T {
+    mut acc := base
+    for i in 0..rest.len() {
+        acc = acc.add(rest[i])
+    }
+    return acc
+}
+gtwo328 := func(T: Type, v: T) returns T { return gid58g_compose(v) }
+
+test_generic_infer_call_shapes := test() {
+    n : I64 = 5
+    assert_eq(Bool, gloc328(n).contains("first_class.til"), true)
+    assert_eq(Str, gloc328(n, loc = "explicit"), "explicit")
+    // Explicit application creates the Array instance the inferred call
+    // then reuses; both select one implementation.
+    assert_eq(I64, gvarsum328(I64, 1, 2, 3, 4), 10)
+    assert_eq(I64, gvarsum328(n, 2, 3), 10)
+    assert_eq(I64, gid58g_compose(n), 5)
+    assert_eq(I64, gtwo328(n), 5)
+    // The headline case: no type argument on either side.
+    got : I64 = 42
+    assert_eq(got, 42)
+    name : Str = "til"
+    assert_eq(name, "til")
+    assert_eq(got, 42, loc = __LOC__)
+}
+
+// #328 Task 9: inference changes TYPE application only. own/mut transfer,
+// write-through and the borrowed `ref Type` monomorphization all keep
+// their existing meaning.
+gswap328 := func(T: Type, mut a: T, mut b: T) {
+    t := a
+    a = b
+    b = t
+}
+gtake328 := func(T: Type, mut into: Vec(GItem58), own v: T) { into.push(own v) }
+
+test_generic_infer_ownership := test() {
+    mut x : I64 = 3
+    mut y : I64 = 7
+    gswap328(x, y)
+    assert_eq(I64, x, 7)
+    assert_eq(I64, y, 3)
+    mut vec := Vec(GItem58).new()
+    a := GItem58(n = 5)
+    gtake328(vec, own a)
+    assert_eq(USize, vec.len(), 1)
+    ref got : GItem58 = vec[0]
+    assert_eq(USize, got.n, 5)
+    // A borrowed monomorphization stays an EXPLICIT `ref Type` operation;
+    // it is never inferred from destination context.
+    mut src : OptQBlob = OptQBlob(n = 2)
+    ref r : OptQBlob = gpick_ref(ref OptQBlob, src)
+    src.n = 10
+    assert_eq(I64, r.n, 10)
+}
+
+// #328 Task 10: a late concrete body is cloned from the LIVE prepared
+// source, so a nested definition inside it is substituted and lifted like
+// any other -- `T` never survives into the lifted signature -- and lifted
+// names cannot collide with the unit's earlier lambdas.
+glifted328 := func(T: Type, v: T) returns T {
+    same := func(x: T) returns T { return x }
+    return same(v)
+}
+
+test_generic_infer_lambda := test() {
+    n : I64 = 4
+    assert_eq(I64, glifted328(n), 4)
+    s : Str = "til"
+    assert_eq(Str, glifted328(s), "til")
+}
+
 // `func<T: Type>(...)` angle-bracket sugar (parser-level): desugars to
 // `macro(T: Type) returns FuncDef { return func(...) { ... } }`, mirroring
 // how `struct<T: Type> { ... }` desugars to a StructDef-returning macro

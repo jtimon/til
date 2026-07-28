@@ -857,3 +857,32 @@ test_throw_post_guard_locals := test() {
     catch (e: OutOfBounds) { caught = true }
     assert(caught)
 }
+
+// #328: a generic with a STATIC throw type works with omitted type
+// arguments. Its throws metadata is published under the SOURCE name --
+// the caller's throw lowering runs before inference has a monomorphized
+// name to key on -- and the concrete declaration inherits the extended
+// signature from the clone.
+Rejected328 := struct { why := "" }
+
+gchecked328 := func(T: Type, v: T, fail: Bool) returns T throws Rejected328 {
+    if fail {
+        throw Rejected328(why = "rejected")
+    }
+    return v
+}
+
+test_generic_infer_static_throw := test() {
+    n : I64 = 5
+    // Success path, type argument omitted.
+    ok := gchecked328(n, false)!
+    assert_eq(I64, ok, 5)
+    // Throwing path, type argument omitted.
+    mut caught := false
+    gchecked328(n, true)?
+    catch (e: Rejected328) { caught = true }
+    assert(caught)
+    // The explicit form selects the same concrete implementation.
+    also_ok := gchecked328(I64, n, false)!
+    assert_eq(I64, also_ok, 5)
+}
