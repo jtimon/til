@@ -1,6 +1,48 @@
 # priority: medium
 # category: cleanups
-** WIP #331 Replace long same-subject if-chains with switch
+** FIXED #331 Replace long same-subject if-chains with switch
+
+*Post-mortem.*
+
+  Not a bug: a shape cleanup across four commits, one per tier. 43
+  functions that dispatched on a single subject with a linear run of
+  ~if~s -- one arm per value -- are ~switch~ statements now. What each
+  tier actually bought, measured rather than assumed:
+
+  - Tier 1 (enum/char subjects) was the only tier that changed codegen.
+    Those six switches satisfy ~switch_is_clike~, so they survive to the
+    backend as ~Switch~/~Case~ nodes and emit a real C ~switch~; verified
+    by reading the regenerated ~boot/til.c~, not inferred. The one
+    substantive find of the whole issue is there:
+    ~builtin_primitive_size_align~ tested exactly the ten ~Primitive~
+    variants, so its switch is exhaustive and its trailing
+    ~UNREACHABLE()~ is gone -- the typer enforces the coverage the
+    ~UNREACHABLE~ was hoping to catch at runtime.
+  - Tiers 2 and 3 (~Str~ subjects) and Tier 4 (runtime
+    ~enum_variant_tag~ case patterns) are shape only. Both lower to the
+    same if/elif chain they replaced, confirmed in the emitted C. Their
+    value is that [[./278.org][#278]]'s smarter string dispatch will
+    reach these sites for free, where a hand-written chain would have
+    stayed O(N) forever.
+
+  No regression test: every commit is a pure refactor with no behaviour
+  change, so the existing suite IS the test -- ~make clean && make test~
+  green at each of the four (196/196, 196/196, 197/197, 199/199 as the
+  suite grew underneath).
+
+  Two things worth carrying forward. First, ~case~ takes ONE pattern and
+  there is no fallthrough, so every ~.or()~-joined arm became one case
+  per label with the body repeated; multi-pattern cases (~case a, b:~)
+  are a real language gap this issue kept running into, not filed here.
+  Second, Tier 3 was written up as "do not spend the effort ahead of
+  [[./115.org][#115]]" and that was wrong -- a switch is exactly as easy
+  for #115 to delete as an if-chain, and #115 has no schedule, so
+  deferring bought nothing. Converting them surfaced the thing #115
+  actually needs to decide: ~is_primitive_type~ (12 names) and
+  ~is_ext_h_type~ (10) differ by exactly ~USize~ and ~UPtr~, and neither
+  said why. Both now carry a comment saying the divergence is deliberate
+  -- the aliases are not names ext.h declares -- so #115 folds them onto
+  one source of truth knowing that, rather than silently flattening it.
 
 *Progress.*
 
@@ -40,7 +82,10 @@
     N calls the old chain did. Shape only, as predicted -- no jump table,
     no behaviour change. The one arm that shared a body, the
     ~Unknown~/~None~ pair, is two cases (no multi-pattern case).
-  - [ ] Tier 3 -- blocked behind [[./115.org][#115]] by choice, see below
+  - [X] Tier 3 (set-membership predicates). ~is_primitive_type~ and
+    ~is_ext_h_type~ (src/self/builder.til) are switches, and each now
+    states why its list is the length it is. Originally parked behind
+    [[./115.org][#115]]; see the post-mortem for why that was a bad call.
 
    Dozens of functions across the compiler dispatch on a single subject
    with a linear run of ~if~ statements, one per value, when a ~switch~
@@ -157,9 +202,8 @@
    ~if name == "X" { return true }~ runs ending in ~return false~ -- a
    switch with a ~case:~ default. These overlap [[./115.org][#115]], which
    tracks folding the repeated primitive-name lists onto one source of
-   truth. If #115 gets there first these functions disappear entirely;
-   converting them to switches in the meantime is fine but low value, so
-   do not spend the effort ahead of #115.
+   truth. (This section originally said to leave them until #115 had had
+   its say. That was wrong; see the post-mortem.)
 
    *Tier 4 -- runtime case patterns, readability only:*
 
