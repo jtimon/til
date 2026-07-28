@@ -5199,6 +5199,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             // Simple enum
             for vd : VariantDef in edd.variants {
                 ref vn : Str = vd.name
+                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
                 f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
                 f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
                 f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
@@ -5210,6 +5211,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             for i in 0..edd.variants.len() {
                 ref vd : VariantDef = edd.variants[i]
                 ref vn : Str = vd.name
+                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
                 vt := enum_variant_type(enum_def, i.to_i32())
                 f.write(name).write(" ").write(name).write("_").write(vn).write("(")
                 if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
@@ -5224,6 +5226,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             for i in 0..edd.variants.len() {
                 ref vd : VariantDef = edd.variants[i]
                 ref vn : Str = vd.name
+                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
                 vt := enum_variant_type(enum_def, i.to_i32())
                 if vt.len() == 0 {
                     f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
@@ -5299,6 +5302,16 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
     f.write("(((").write(enum_c).write(" *)(")
     emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
     f.write("))->tag)")
+}
+
+// #326: a variant constructor is an ns member like every other method, so
+// the scavenger's member sweep has already decided whether it survives.
+// The C constructor is emitted from `edd.variants` instead -- the list that
+// also defines the tag ABI and therefore must keep EVERY variant -- so it
+// never saw that decision, and an enum that survived for one variant
+// carried a malloc-and-tag constructor for all of them. Ask the ns index.
+priv builder_variant_ctor_kept := func(enum_def: Expr, vname: Str) returns Bool {
+    return def_ns_get(enum_def, vname).is_some()
 }
 
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
@@ -5911,6 +5924,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 case NodeType.EnumDef(hdr_edd):
                     ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
+                        if builder_variant_ctor_kept(stmt.children[0], hdr_vd.name).not() { continue }
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                             f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7059,6 +7073,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 case NodeType.EnumDef(hdr_edd):
                     ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
+                        if builder_variant_ctor_kept(stmt.children[0], hdr_vd.name).not() { continue }
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                             f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")

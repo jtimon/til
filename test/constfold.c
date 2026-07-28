@@ -891,56 +891,6 @@ USize Bool_size(void) {
     __builtin_unreachable();
 }
 
-Primitive *Primitive_I16() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_I16 };
-    return r;
-}
-Primitive *Primitive_U16() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_U16 };
-    return r;
-}
-Primitive *Primitive_I8() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_I8 };
-    return r;
-}
-Primitive *Primitive_U8() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_U8 };
-    return r;
-}
-Primitive *Primitive_U32() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_U32 };
-    return r;
-}
-Primitive *Primitive_I32() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_I32 };
-    return r;
-}
-Primitive *Primitive_U64() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_U64 };
-    return r;
-}
-Primitive *Primitive_I64() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_I64 };
-    return r;
-}
-Primitive *Primitive_F32() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_F32 };
-    return r;
-}
-Primitive *Primitive_Bool() {
-    Primitive *r = malloc(sizeof(Primitive));
-    *r = (Primitive){ .tag = Primitive_TAG_Bool };
-    return r;
-}
 USize Primitive_size(void) {
     U32 hoisted__U32_1912 = 1;
     return hoisted__U32_1912;
@@ -948,81 +898,6 @@ USize Primitive_size(void) {
 }
 
 
-Type *Type_Unknown() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Unknown;
-    return r;
-}
-Type *Type_None() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_None;
-    return r;
-}
-Type *Type_Struct(Str * val) {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Struct;
-    r->data.Struct = *val;
-    if (val->cap != TIL_CAP_LIT) { free(val); }
-    return r;
-}
-Type *Type_StructDef() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_StructDef;
-    return r;
-}
-Type *Type_Enum(Str * val) {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Enum;
-    r->data.Enum = *val;
-    if (val->cap != TIL_CAP_LIT) { free(val); }
-    return r;
-}
-Type *Type_EnumDef() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_EnumDef;
-    return r;
-}
-Type *Type_FuncDef() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_FuncDef;
-    return r;
-}
-Type *Type_FuncPtr() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_FuncPtr;
-    return r;
-}
-Type *Type_Dynamic() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Dynamic;
-    return r;
-}
-Type *Type_Custom(Str * val) {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Custom;
-    r->data.Custom = *val;
-    if (val->cap != TIL_CAP_LIT) { free(val); }
-    return r;
-}
-Type *Type_Primitive(Primitive * val) {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Primitive;
-    r->data.Primitive = *val;
-    free(val);
-    return r;
-}
-Type *Type_FuncPtrSig(Str * val) {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_FuncPtrSig;
-    r->data.FuncPtrSig = *val;
-    if (val->cap != TIL_CAP_LIT) { free(val); }
-    return r;
-}
-Type *Type_Body() {
-    Type *r = malloc(sizeof(Type));
-    r->tag = Type_TAG_Body;
-    return r;
-}
 USize Type_size(void) {
     U32 hoisted__U32_2054 = 24;
     return hoisted__U32_2054;

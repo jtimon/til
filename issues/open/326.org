@@ -327,6 +327,25 @@ Landed (suite green, `make test_two_pass`):
   the substitution path needs, and ~first_class_no_unused_attrs~ asserts
   zero attributes in the closure-heaviest fixture's generated C.
 
+- [X] An enum's variant constructors follow the ns member sweep.  A variant
+  ctor is an ns member like any other method, but the C constructor is
+  emitted from ~edd.variants~ -- the list that also defines the tag ABI and
+  must therefore keep EVERY variant -- so it never saw the scavenger's
+  decision, and an enum reached for one reason carried a malloc-and-tag
+  constructor for all of its variants.  The three definition branches and
+  both prototype loops now ask the ns index.  ~test/constfold.c~ 1,567 ->
+  1,442 lines, 101 -> 78 emitted functions: all 13 ~Type_*~ and all 10
+  ~Primitive_*~ constructors go.
+  LIMIT worth recording: this fires only for an enum with no live VALUES.
+  A constructed enum local gets a garbager-inserted ~delete~, and the
+  generated ~delete~/~eq~/~to_str~/~clone~ switch over every variant, so
+  their ~is_n(self, E.V, w)~ tag checks root all of them.  Those are real
+  AST references whose C lowering is a compound-literal tag compare, not a
+  constructor call -- separating the two needs the builder-side inventory
+  of ctor CALL sites (the ~is_n~ tag operand excluded), and the interpreter
+  still evaluates that operand by constructing the variant, so it would
+  need the same compile-only conditioning ~*.size~ has.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
