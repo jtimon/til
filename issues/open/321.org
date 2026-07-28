@@ -935,11 +935,7 @@ is invisible.
 
 Remaining stages, in order (REORDERED by batch 23 -- the interpreter
 mirror has to come BEFORE the flip, not after it):
-  3. the interpreter's raw-layer mirror: the enum CTOR writes an owned
-     payload inline at the flat payload offset, which is the tagged
-     layout. A niche has to store the pointer at offset 0, exactly as
-     the ref-payload arm beside it already does. The deep-clone and
-     deep-free walkers need the same treatment.
+  3. DONE (batch 24): the interpreter's raw-layer mirror.
   4. flip ~enum_is_niche~ to accept an owned aggregate payload
      (excluding primitives, whose 0 is a legal value; Dynamic, the
      quarantined layer where null is legal; Str, whose literals are
@@ -988,6 +984,36 @@ it.
 
 196/196, pass 1 == pass 2, test/constfold.c byte-identical -- both
 fixes are corrections to code no live path reaches yet.
+
+**** Batch 24: owned-payload niche, stage 3 -- the interpreter's raw layer
+
+The prerequisite batch 23 uncovered. Three sites in the interpreter's
+raw layer assumed a payload sits INLINE at ENUM_PAYLOAD_OFFSET, which is
+the tagged layout; a niche stores a POINTER to it at offset 0 instead.
+
+The enum CTOR is the one that made the flip fail outright.
+write_enum_flat deliberately only ZEROES a niche slot -- it expects the
+ctor to fill the pointer -- and until now only the ref-payload arm did,
+so a constructed owned niche always read back as None. The owned arm now
+writes the payload box at offset 0 and, crucially, does NOT free it: the
+enum has adopted it, where the tagged path frees the source after
+copying the bytes in. What differs between the two arms is ownership,
+not layout.
+
+enum_payload_deep_free frees the box as well as the pointee. For a
+tagged payload the storage IS the enum's, so there is nothing extra to
+reclaim; for a niche the box is a separate allocation and leaks
+otherwise. (A borrowed slot payload still returns early -- the enum
+never owned it.)
+
+enum_payload_deep_clone gives the copy its OWN box rather than copying
+bytes into shared storage, which would have left two enums pointing at
+one allocation and double-freeing it -- the raw-layer twin of the
+generated-clone bug batch 22 fixed.
+
+Still preparation: 196/196, pass 1 == pass 2, test/constfold.c
+byte-identical. Nothing reaches these paths until stage 4 flips
+enum_is_niche, which is now the next commit.
 
 *** What is left before the forbid can land
 

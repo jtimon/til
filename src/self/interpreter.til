@@ -428,6 +428,15 @@ priv enum_payload_is_ref := func(enum_name: Str, data: Dynamic, ctx: Context) re
     return enum_variant_payload_ref(edef, idx)
 }
 
+// #321: is this enum laid out as a niche, by NAME? The raw-layer walkers
+// carry the enum's name rather than its def, and a niche's payload does not
+// sit at ENUM_PAYLOAD_OFFSET -- the enum stores a POINTER to it at offset 0.
+priv enum_name_is_niche := func(enum_name: Str, ctx: Context) returns Bool {
+    edef_o := lookup_interp_type_def(enum_name, ctx)
+    if edef_o.is_none() { return false }
+    return enum_is_niche(edef_o.unwrap())
+}
+
 priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
     mut payload_type := ""
     switch enum_payload_type_ref(enum_name, data, ctx) {
@@ -442,6 +451,28 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
     ref payload_def : Expr = payload_def_o.unwrap()
+    // #321: an OWNED payload of a niche enum is its own box hanging off the
+    // stored pointer, not bytes inside the enum. Free the box too -- a
+    // tagged payload's storage IS the enum's, so there is nothing extra to
+    // reclaim there. (A BORROWED slot payload already returned above.)
+    if enum_name_is_niche(enum_name, ctx) {
+        ref niche_slot : Dynamic = deref(data)
+        if niche_slot.is_null() { return }
+        // Rebind by value: heap_free takes the box as `own`, and a ref
+        // binding cannot be handed to an own parameter.
+        mut niche_box : Dynamic = niche_slot
+        switch payload_def.node_type {
+        case NodeType.StructDef:
+            heap_drop_struct(payload_type, niche_box, ctx)
+        case NodeType.EnumDef:
+            enum_payload_deep_free(payload_type, niche_box, ctx)
+        case:
+            panic("enum payload is not a struct or enum: ", payload_type)
+        }
+        EvalHeap.heap_free(own niche_box)
+        write_ptr(data, NULL)
+        return
+    }
     ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
     switch payload_def.node_type {
     case NodeType.StructDef:
@@ -468,6 +499,16 @@ priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
     ref payload_def : Expr = payload_def_o.unwrap()
+    // #321: the copy of a niche enum needs its OWN box -- the clone stores a
+    // fresh pointer rather than copying bytes into shared storage. Sharing
+    // the original's box would double-free it.
+    if enum_name_is_niche(enum_name, ctx) {
+        ref niche_src : Dynamic = deref(data)
+        if niche_src.is_null() { return }
+        cloned_box : Dynamic = heap_clone(payload_type, niche_src, ctx)
+        write_ptr(data, cloned_box)
+        return
+    }
     ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
     switch payload_def.node_type {
     case NodeType.StructDef:
@@ -7143,6 +7184,17 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     pdata_is_word = true
                 }
                 psz := raw_type_size(payload_expr.til_type(), ctx)
+                // #321: an OWNED payload of a niche enum is stored as the
+                // POINTER, exactly like the borrowed one above -- what differs
+                // is ownership, not layout. write_enum_flat only ZEROES a
+                // niche slot (it expects the ctor to fill it, which until now
+                // only the ref arm did), so write the payload box here, and do
+                // NOT free it: the enum has adopted it.
+                if enum_is_niche(enum_def) {
+                    write_enum_flat(result, enum_name, ctor_tag, NULL, 0, false, false, ctx)
+                    write_ptr(result, pdata)
+                    return true
+                }
                 write_enum_flat(result, enum_name, ctor_tag, pdata, psz, vtype == "Str", true, ctx)
                 // write_enum_flat moved nested ownership into the enum bytes.
                 if pdata_is_word { word_drop(own pdata) }

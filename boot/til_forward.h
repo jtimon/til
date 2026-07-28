@@ -3538,6 +3538,7 @@ void priv___src_self_interpreter_til__enum_free_str_payload(void * data, Context
 I64 priv___src_self_interpreter_til__enum_data_tag_key(void * data, Expr * enum_def);
 Option__ref_Str priv___src_self_interpreter_til__enum_payload_type_ref(Str * enum_name, void * data, Context * ctx);
 Bool priv___src_self_interpreter_til__enum_payload_is_ref(Str * enum_name, void * data, Context * ctx);
+Bool priv___src_self_interpreter_til__enum_name_is_niche(Str * enum_name, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_free(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__enum_payload_deep_clone(Str * enum_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__heap_drop_enum(Str * enum_name, void * data, Context * ctx);
