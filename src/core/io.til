@@ -7,6 +7,16 @@ eprint_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
 
 /// Print strings to stdout followed by a newline.
+//
+// REM: unreachable from til source as of the parser's println desugar --
+// `println(a, b)` is rewritten to `print(a, b, "\n")` before this proc can
+// ever be resolved (parser.til, desugar_println_call). It survives only to
+// keep the BOOTSTRAP compiler working: til_boot is built from the previous
+// commit, its parser has no desugar, and it still resolves the source tree's
+// `println(...)` call sites against this declaration. Once the desugar has
+// been merged to master, til_boot has it baked in, and this proc plus the
+// print_flush extern below can go (doc/self.org, "Staged migration across
+// master merges").
 println := proc(parts: ..Str) {
     for s : Str in parts {
         print_single(s)

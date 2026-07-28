@@ -29,6 +29,24 @@ test_variadic_proc := test() {
     variadic_print(10, 20, 30)
 }
 
+// `println(a, b)` is parser sugar for `print(a, b, "\n")`, and a SPLAT
+// println goes through format() so the splat stays the sole variadic arg
+// (see desugar_println_call). Splatting into println worked before the
+// sugar existed; this pins that it still does, and that the empty-array
+// case prints a bare newline rather than nothing. The suite compares
+// interpreted against compiled output, so both backends are checked.
+println_splat := proc(parts: ..Str) {
+    println(..parts)
+}
+
+test_println_splat := test() {
+    println_splat("a", "b", "c")
+    println_splat("solo")
+    println_splat()
+    arr := array(Str, "x", "y")
+    println(..arr)
+}
+
 // Variadic Str
 variadic_concat := func(parts: ..Str) returns Str {
     mut result := ""

@@ -1418,6 +1418,88 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     return lhs
 }
 
+// `println(a, b)` is sugar for `print(a, b, "\n")`. A trailing newline was
+// the only thing that ever separated the two procs, so it is spelled once
+// here instead of costing a second variadic proc in src/core/io.til.
+//
+// Only a bare `println` Ident callee is rewritten; a method call
+// (`x.println()`) parses its callee as a FieldAccess and is left alone.
+//
+// A SPLAT call takes the format() road: `println(..parts)` becomes
+// `print(format(..parts), "\n")`, not `print(..parts, "\n")`. The naive form
+// would leave a splat sharing the variadic block with the appended newline,
+// and desugar_pure_splat_variadic_call substitutes a splat 1-for-1 only when
+// it is the SOLE variadic arg; any other shape survives to cc as an
+// `Array__Str *` passed where a `Str *` is expected. Wrapping keeps the splat
+// sole (format is itself `..Str`) and collapses it to one Str, so the outer
+// call carries no splat at all. `println(..parts)` worked before this sugar
+// existed and still does; it costs one Str allocation, on the splat path
+// only. Concatenating then printing is byte-identical to printing each part.
+priv desugar_println_call := func(mut call: Expr) {
+    mut is_println := false
+    switch call.children[0].node_type {
+    case NodeType.Ident(cn): is_println = cn.name == "println"
+    case:
+    }
+    if is_println.not() { return }
+    line := call.line
+    col := call.col
+    mut is_splat := false
+    mut own_bits : U64 = 0
+    mut ref_bits : U64 = 0
+    switch call.node_type {
+    case NodeType.FCall(fcd):
+        is_splat = fcd.is_splat
+        own_bits = fcd.own_args
+        ref_bits = fcd.ref_args
+    case: UNREACHABLE("expected FCall, got ", call.node_type.head_str())
+    }
+    // The lexer keeps string-literal text RAW (escapes undecoded, see the
+    // StringTok arm), so the newline is the two bytes `\` `n` here: the
+    // builder re-emits them verbatim into C and the interpreter decodes
+    // them in eval_expr_raw's Literal.Str arm.
+    if is_splat.not() {
+        switch call.children[0].node_type {
+        case NodeType.Ident(cn2): cn2.name = "print"
+        case: UNREACHABLE("expected Ident, got ", call.children[0].node_type.head_str())
+        }
+        call.add_child(own Expr.new(NodeType.Literal(Literal.Str("\\n")), line, col))
+        return
+    }
+    mut old := Vec(Expr).new()
+    old.move_from(call.children)
+    mut inner_ch := Vec(Expr).with_capacity(old.len())
+    inner_ch.push(own Expr.new(ident_node("format"), line, col))
+    for j in 1..old.len() {
+        inner_ch.push_take(old, j)
+    }
+    mut inner := Expr.new(NodeType.FCall(FCallData()), line, col)
+    inner.children.move_from(inner_ch)
+    // The arg bitmaps carry over verbatim: bit i indexes children[i], and the
+    // args keep their slots under the new callee (format replaces println at
+    // children[0]). The outer call is left with no own/ref/splat args of its
+    // own -- its two children are the format call and a literal.
+    switch inner.node_type {
+    case NodeType.FCall(ifcd):
+        ifcd.is_splat = true
+        ifcd.own_args = own_bits
+        ifcd.ref_args = ref_bits
+    case: UNREACHABLE("expected FCall, got ", inner.node_type.head_str())
+    }
+    mut outer_ch := Vec(Expr).with_capacity(3)
+    outer_ch.push(own Expr.new(ident_node("print"), line, col))
+    outer_ch.push(own inner)
+    outer_ch.push(own Expr.new(NodeType.Literal(Literal.Str("\\n")), line, col))
+    call.children.move_from(outer_ch)
+    switch call.node_type {
+    case NodeType.FCall(fcd2):
+        fcd2.is_splat = false
+        fcd2.own_args = 0
+        fcd2.ref_args = 0
+    case: UNREACHABLE("expected FCall, got ", call.node_type.head_str())
+    }
+}
+
 // parse_call: callee Expr already built, current token is '('. The callee
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
@@ -1471,6 +1553,7 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     }
     expect_token(p, TokenType.RParen)
     parse_throw_bang_suffix(p, call)
+    desugar_println_call(call)
     return nest_nary_and_or(own call)
 }
 
