@@ -6349,90 +6349,77 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
         ref tag_ptr : Dynamic = type_data
         ref tag_ref : I32 = tag_ptr
         tag := tag_ref.cast(I64)
-        if tag.eq(enum_variant_tag(til_type_def, "Unknown")).or(tag.eq(enum_variant_tag(til_type_def, "None"))) {
+        // Case patterns are enum_variant_tag calls, not constants, so
+        // switch_is_clike leaves this to the if/elif desugar -- the same N
+        // calls as the old chain, in the shape the dispatch actually has.
+        switch tag {
+        case enum_variant_tag(til_type_def, "Unknown"):
             dispatch_write_str(r, "".c_str, 0, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "I64") {
+        case enum_variant_tag(til_type_def, "None"):
+            dispatch_write_str(r, "".c_str, 0, ctx)
+            return true
+        case enum_variant_tag(til_type_def, "I64"):
             dispatch_write_str(r, "I64".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "U8") {
+        case enum_variant_tag(til_type_def, "U8"):
             dispatch_write_str(r, "U8".c_str, 2, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "I8") {
+        case enum_variant_tag(til_type_def, "I8"):
             dispatch_write_str(r, "I8".c_str, 2, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "I16") {
+        case enum_variant_tag(til_type_def, "I16"):
             dispatch_write_str(r, "I16".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "U16") {
+        case enum_variant_tag(til_type_def, "U16"):
             dispatch_write_str(r, "U16".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "I32") {
+        case enum_variant_tag(til_type_def, "I32"):
             dispatch_write_str(r, "I32".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "U32") {
+        case enum_variant_tag(til_type_def, "U32"):
             dispatch_write_str(r, "U32".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "U64") {
+        case enum_variant_tag(til_type_def, "U64"):
             dispatch_write_str(r, "U64".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "F32") {
+        case enum_variant_tag(til_type_def, "F32"):
             dispatch_write_str(r, "F32".c_str, 3, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Bool") {
+        case enum_variant_tag(til_type_def, "Bool"):
             dispatch_write_str(r, "Bool".c_str, 4, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Struct") {
+        case enum_variant_tag(til_type_def, "Struct"):
             ref payload : Str = ptr_add(type_data, ENUM_PAYLOAD_OFFSET)
             dispatch_write_str(r, payload.c_str, str_count_at(ptr_add(type_data, ENUM_PAYLOAD_OFFSET), ctx), ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "StructDef") {
+        case enum_variant_tag(til_type_def, "StructDef"):
             dispatch_write_str(r, "StructDef".c_str, 9, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Enum") {
+        case enum_variant_tag(til_type_def, "Enum"):
             ref payload2 : Str = ptr_add(type_data, ENUM_PAYLOAD_OFFSET)
             dispatch_write_str(r, payload2.c_str, str_count_at(ptr_add(type_data, ENUM_PAYLOAD_OFFSET), ctx), ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "EnumDef") {
+        case enum_variant_tag(til_type_def, "EnumDef"):
             dispatch_write_str(r, "EnumDef".c_str, 7, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "FuncDef") {
+        case enum_variant_tag(til_type_def, "FuncDef"):
             dispatch_write_str(r, "FunctionDef".c_str, 11, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "FuncPtr") {
+        case enum_variant_tag(til_type_def, "FuncPtr"):
             dispatch_write_str(r, "Fn".c_str, 2, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Body") {
+        case enum_variant_tag(til_type_def, "Body"):
             dispatch_write_str(r, "Body".c_str, 4, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Dynamic") {
+        case enum_variant_tag(til_type_def, "Dynamic"):
             dispatch_write_str(r, "Dynamic".c_str, 7, ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Custom") {
+        case enum_variant_tag(til_type_def, "Custom"):
             ref payload3 : Str = ptr_add(type_data, ENUM_PAYLOAD_OFFSET)
             dispatch_write_str(r, payload3.c_str, str_count_at(ptr_add(type_data, ENUM_PAYLOAD_OFFSET), ctx), ctx)
             return true
-        }
-        if tag == enum_variant_tag(til_type_def, "Primitive") {
+        case enum_variant_tag(til_type_def, "Primitive"):
             // Type.Primitive(p) carries a Primitive enum value inline at
             // ENUM_PAYLOAD_OFFSET (its tag is the first I32). Decode it to
             // the primitive's name -- mirrors the data-driven nested switch
@@ -6444,17 +6431,21 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
             ref prim_def : Expr = prim_def_o.unwrap()
             ref prim_tag_ref : I32 = ptr_add(type_data, ENUM_PAYLOAD_OFFSET)
             ptag := prim_tag_ref.cast(I64)
-            if ptag == enum_variant_tag(prim_def, "I16") { dispatch_write_str(r, "I16".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "U16") { dispatch_write_str(r, "U16".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "I8")  { dispatch_write_str(r, "I8".c_str, 2, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "U8")  { dispatch_write_str(r, "U8".c_str, 2, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "U32") { dispatch_write_str(r, "U32".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "I32") { dispatch_write_str(r, "I32".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "U64") { dispatch_write_str(r, "U64".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "I64") { dispatch_write_str(r, "I64".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "F32") { dispatch_write_str(r, "F32".c_str, 3, ctx); return true }
-            if ptag == enum_variant_tag(prim_def, "Bool") { dispatch_write_str(r, "Bool".c_str, 4, ctx); return true }
+            switch ptag {
+            case enum_variant_tag(prim_def, "I16"):  dispatch_write_str(r, "I16".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "U16"):  dispatch_write_str(r, "U16".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "I8"):   dispatch_write_str(r, "I8".c_str, 2, ctx); return true
+            case enum_variant_tag(prim_def, "U8"):   dispatch_write_str(r, "U8".c_str, 2, ctx); return true
+            case enum_variant_tag(prim_def, "U32"):  dispatch_write_str(r, "U32".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "I32"):  dispatch_write_str(r, "I32".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "U64"):  dispatch_write_str(r, "U64".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "I64"):  dispatch_write_str(r, "I64".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "F32"):  dispatch_write_str(r, "F32".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "Bool"): dispatch_write_str(r, "Bool".c_str, 4, ctx); return true
+            case:
+            }
             panic("dyn_type_to_str: unknown Primitive tag")
+        case:
         }
         return false
 }

@@ -32,8 +32,15 @@
     were: ~type_name_to_c~ / ~type_name_to_c_value~ end on a
     ~ctx.funcsig_names.has(name)~ probe and ~known_ffi_type~ on a
     ~ctx.ffi_struct_defs~ probe, all of which now sit after the switch.
+  - [X] Tier 4 (runtime case patterns). ~dyn_type_to_str_raw~ and its
+    nested ~Primitive~ decode (src/self/interpreter.til) are switches now.
+    Confirmed in the regenerated ~boot/til.c~ that both stay an if/else
+    chain: the case patterns are ~enum_variant_tag(def, "Name")~ calls, so
+    ~switch_is_clike~ rejects them and the lowering makes exactly the same
+    N calls the old chain did. Shape only, as predicted -- no jump table,
+    no behaviour change. The one arm that shared a body, the
+    ~Unknown~/~None~ pair, is two cases (no multi-pattern case).
   - [ ] Tier 3 -- blocked behind [[./115.org][#115]] by choice, see below
-  - [ ] Tier 4 (runtime case patterns)
 
    Dozens of functions across the compiler dispatch on a single subject
    with a linear run of ~if~ statements, one per value, when a ~switch~
