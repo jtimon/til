@@ -2689,6 +2689,7 @@ Option__ref_Str arg_addressed_ident(Expr * arg);
 Bool priv___src_self_typer_til__check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool priv___src_self_typer_til__fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope, Context * ctx);
+Str * priv___src_self_typer_til__borrowed_name(Str * s);
 void priv___src_self_typer_til__nested_uses_add(Str * name, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
 void priv___src_self_typer_til__expr_collect_uses_excluding(Expr * e, Vec__Declaration * params, Vec__Declaration * caps, Set__Str * out);
 void expr_collect_ptr_escapes(Expr * e, Set__Str * out);

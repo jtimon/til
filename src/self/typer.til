@@ -7484,6 +7484,19 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
 // stay in lockstep with its predicate above; the recursion cuts (FuncDef
 // opacity) are identical.
 
+// A borrowed view of a name, for the per-statement fact sets below. The
+// names they hold live in AST node payloads (IdentData / AssignData /
+// Declaration), and every set is built and consumed inside one pass over
+// one body -- the Exprs holding those bytes outlive the sets by a wide
+// margin. Sharing the bytes instead of copying them removes a malloc per
+// recorded name, and costs nothing on the way out: Set element teardown
+// calls Str.delete(elem, false), which frees neither the shared bytes
+// (cap >= CAP_VIEW) nor the inline box. Anything that must OUTLIVE the
+// walk still clones.
+priv borrowed_name := func(s: Str) returns Str {
+    return s.substr(0, s.count)
+}
+
 // expr_used_in_nested_func's shadow rule, applied at add time so the
 // FuncDef body's uses never need materializing separately.
 priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
@@ -7499,7 +7512,7 @@ priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Decl
     for c : Declaration in caps {
         if c.name == name { if c.own_type.is(OwnType.Ref) { return } }
     }
-    out.add(own name.clone())
+    out.add(own borrowed_name(name))
 }
 
 priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
@@ -7533,7 +7546,7 @@ expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                out.add(own vn.ident_name().clone())
+                out.add(own borrowed_name(vn.ident_name()))
             case:
             }
         }
@@ -7554,7 +7567,7 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
                 an_o := arg_addressed_ident(arg)
                 if an_o.is_some() {
                     ref an : Str = an_o.unwrap()
-                    out.add(own an.clone())
+                    out.add(own borrowed_name(an))
                 }
             }
         }
@@ -7589,7 +7602,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                                 if an_o.is_some().and(fld_decl.own_type.is(OwnType.Ref).not()) {
                                     ref an : Str = an_o.unwrap()
                                     if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                        out.add(own an.clone())
+                                        out.add(own borrowed_name(an))
                                     }
                                 }
                             }
@@ -7672,7 +7685,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                escapes.add(own vn.ident_name().clone())
+                escapes.add(own borrowed_name(vn.ident_name()))
             case:
             }
         }
@@ -7685,7 +7698,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
         // then leave the body to the escapes-only walk.
         if want_transfers.and(transfers_on) {
             for cap : Declaration in fdef.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own borrowed_name(cap.name)) }
             }
         }
         if e.children.len() > 0 {
@@ -7696,7 +7709,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     case NodeType.BodyValue(bvd):
         if want_transfers.and(transfers_on) {
             for cap : Declaration in bvd.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own borrowed_name(cap.name)) }
             }
         }
         // expr_collect_transfers returns here; the other sets keep going,
@@ -7705,21 +7718,21 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     case NodeType.CaptureBlock(cbd):
         if want_transfers.and(transfers_on) {
             for cap : Declaration in cbd.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.clone()) }
+                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own borrowed_name(cap.name)) }
             }
         }
     case NodeType.Ident(id):
-        uses.add(own id.ident_name().clone())
+        uses.add(own borrowed_name(id.ident_name()))
     case NodeType.Assign(asgn):
-        uses.add(own asgn.name.clone())
+        uses.add(own borrowed_name(asgn.name))
     case NodeType.Decl(dd):
-        decls.add(own dd.name.clone())
+        decls.add(own borrowed_name(dd.name))
     case NodeType.FCall(fcd):
         if want_transfers.and(transfers_on) {
             if fcd.swap_replace.and(e.children.len().gte(3)) {
                 switch e.children[2].node_type {
                 case NodeType.Ident(src):
-                    transfers.add(own src.ident_name().clone())
+                    transfers.add(own borrowed_name(src.ident_name()))
                 case:
                 }
             }
@@ -7733,7 +7746,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
             if e.children.len() > 1 {
                 switch e.children[1].node_type {
                 case NodeType.Ident(ei):
-                    transfers.add(own ei.ident_name().clone())
+                    transfers.add(own borrowed_name(ei.ident_name()))
                 case:
                 }
             }
