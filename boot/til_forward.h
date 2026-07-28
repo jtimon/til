@@ -1984,6 +1984,7 @@ void set_keep_outer_arg(Expr * fcall, USize arg_index);
 Bool get_keep_outer_arg(Expr * fcall, USize arg_index);
 Str * func_type_name(FuncType * ft);
 Set__Str * Set__Str_new(void);
+Set__Str * Set__Str_with_capacity(USize n);
 USize Set__Str_len(Set__Str * self);
 void Set__Str_clear(Set__Str * self);
 Bool Set__Str_has(Set__Str * self, Str * val);

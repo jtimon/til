@@ -1223,7 +1223,13 @@ is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
 // self-translate profile. scope may be NULL when with_transfers=false
 // (the transfers walk is the only scope consumer).
 priv StmtFacts := struct {
-    uses := Set(Str).new()
+    // uses is the only one of these five that reliably fills: it takes
+    // every Ident and Assign name in the statement, while decls/nested/
+    // transfers/escapes are empty for most statements. Pre-size just
+    // this one -- pre-sizing all five would eagerly allocate for the
+    // majority that stay empty, undoing Set's lazy-empty default. 4 is
+    // measured, not guessed: see the commit that introduced it.
+    uses := Set(Str).with_capacity(4)
     decls := Set(Str).new()
     nested := Set(Str).new()
     transfers := Set(Str).new()
