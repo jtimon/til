@@ -43,20 +43,16 @@ doc_init_org_files := proc(index_path: Str, user_info_data: Str, user_docs_data:
     __til_docs_blob__ = format(core_docs, user_docs_data)
 }
 
-// Scan blob for `name`. Returns the matching value as an owned Str or
-// "" if not found. Implemented in C because REPL help() searches the
-// packed core cache interactively.
-__doc_lookup__ := func(blob: Str, name: Str) returns Str {
-    return doc_blob_lookup(blob, name)
-}
-
 /// Print the doc comment and the kind/signature info for a top-level
 /// declaration or struct/enum member (`Type.method`). When both are
 /// registered, print the doc first then the info. If neither is
 /// registered print "undefined symbol: <name>".
 help := proc(name: Str) {
-    doc := __doc_lookup__(__til_docs_blob__, name)
-    info := __doc_lookup__(__til_info_blob__, name)
+    // doc_blob_lookup scans the packed blob for `name` and returns the
+    // matching value as an owned Str, "" when absent. It is in C because
+    // REPL help() searches the packed core cache interactively.
+    doc := doc_blob_lookup(__til_docs_blob__, name)
+    info := doc_blob_lookup(__til_info_blob__, name)
     if doc.is_empty().not() {
         println(doc)
     }

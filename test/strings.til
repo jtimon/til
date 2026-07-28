@@ -354,3 +354,30 @@ test_if_body_literal_reassign_move := test() {
     }
     assert_eq(Str, out, "zz")
 }
+
+// Passing a Str to a C `char *` parameter: a VIEW (substr/trim) has no
+// NUL at count, so `view.c_str` would pass C the view's bytes plus
+// whatever follows. clone() is the fix -- an owned Str always carries the
+// terminator. from_c_str walks to the NUL, so round-tripping through it
+// proves the terminator is where C expects it. See doc/ffi.org, "Passing
+// a Str to a C string parameter".
+test_clone_terminates_views := test() {
+    backed := "abcdefZZZ"
+    // A CAP_VIEW into backed when compiled; the interpreter materialises
+    // substr as an owned copy instead, so only the compiled run exercises
+    // the unterminated case -- the round trip has to hold either way.
+    view := backed.substr(0, 6)
+
+    // BIND the clone, never chain: `view.clone().c_str` reads the field of
+    // a temporary the garbager frees at that same last use, so the pointer
+    // dangles by the time C sees it (compiled only -- the interpreter keeps
+    // the temporary alive, so the chained form passes there and fails in
+    // the binary).
+    c := view.clone()
+    assert_eq(Str, Str.from_c_str(c.c_str), "abcdef")
+    // The backing buffer is untouched by the copy.
+    assert_eq(Str, backed, "abcdefZZZ")
+
+    // Literals already carry the NUL, so they need no copy.
+    assert_eq(Str, Str.from_c_str("literal".c_str), "literal")
+}

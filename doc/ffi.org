@@ -98,6 +98,69 @@ ABI shape), use ~shallow~ on the arg and ~returns shallow T~ on
 the return -- those map to plain ~T arg~ / ~T return~ in the
 generated C.
 
+** Passing a Str to a C string parameter
+
+A til ~Str~ is ~{c_str, count, cap}~ -- length-counted, like a Go
+slice or a Rust ~&str~, not a C string.  C string APIs
+(~fopen~, ~unlink~, ~dlsym~, raylib's ~DrawText~, ...) take a
+~char *~ and read until they find a zero byte, so handing one a
+~Str~'s buffer is only correct when a NUL actually sits at
+~count~.
+
+Whether it does depends on how the ~Str~ was made:
+
+| Str origin                                  | NUL at count? |
+|---------------------------------------------+---------------|
+| ~Str.clone~, ~Str.with_capacity~, ~format~   | yes (they allocate count+1 and write it) |
+| string literals                              | yes (C string constants when compiled; the interpreter terminates its interned copy) |
+| ~Str.from_c_str~                             | yes (it wrapped a C string, and count stopped at the NUL) |
+| ~substr~, ~trim~, ~trim_start~ -- any ~CAP_VIEW~ | *NO* -- the view points into the middle of another buffer |
+
+So a view's ~.c_str~ hands C the view's bytes *plus whatever
+follows them*.  This is silent: the C call operates on a
+different string than the program meant, and usually just fails
+(~ENOENT~ from ~unlink~, ~NULL~ from ~dlsym~) somewhere far from
+the cause.  Note it only bites in COMPILED code -- the
+interpreter materialises ~substr~ as an owned copy -- so a bug
+here can pass every interpreted test and still ship.
+
+Two rules follow:
+
+1. *Writing a binding's C side* (~src/c/ext.c~ and any
+   ~link_c~ module): never cast ~s->c_str~ to a ~char *~.  Copy
+   through ~dup_n(s->c_str, s->count)~ and ~free~ it, the way
+   every path-taking function in ~ext.c~ does.  The callee cannot
+   see whether its caller passed a view, so the copy is the only
+   correct default.  ~test_file_c_boundary_takes_views~ in
+   ~test/files.til~ pins this: it drives the File API over a
+   ~substr~-backed path whose next byte is ~'Z'~.
+2. *Writing til code that calls C directly* (~DrawText(s.c_str,
+   ...)~ and friends): a bare ~.c_str~ is fine for a literal or an
+   owned local, but not for anything that might be a view -- and a
+   ~s : Str~ parameter might always be one, since the caller
+   chooses.  ~clone()~ the string first: an owned copy always
+   carries the NUL.  BIND the clone; do not chain:
+
+     c := s.clone()
+     DrawText(c.c_str, 10, 10, 20, WHITE)   // correct
+
+     DrawText(s.clone().c_str, ...)         // WRONG: dangling
+
+   The chained form reads a field of a temporary whose last use IS
+   that read, so the garbager frees the copy before the call runs
+   and C receives a dangling pointer.  Compiled code prints
+   garbage; the interpreter keeps the temporary alive and looks
+   fine, so this is another divergence that passes interpreted
+   tests and fails in the binary.
+   ~test_clone_terminates_views~ in ~test/strings.til~ pins the
+   bound form.
+
+The same reasoning is why ~count~, not the terminator, is
+authoritative on the til side: ~fwrite(s->c_str, 1, s->count,
+...)~ and ~memcmp(a, b, count)~ are always correct, on views and
+owned strings alike.  Prefer the count-bounded C API when the
+function offers one.
+
 ** ext_struct vs struct: the field-layout contract
 
 ~ext_struct~ is not just "a struct whose methods live in C".  Its

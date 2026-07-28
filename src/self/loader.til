@@ -1561,7 +1561,8 @@ priv til_type_user := func(t: Type) returns Str {
 
 // Append "name<0x01>value<0x02>" to packed. 0x01/0x02 are control bytes
 // that won't appear in identifiers or /// doc text, so they make safe
-// field/record separators for __doc_lookup__ in std/doc.til.
+// field/record separators for doc_blob_lookup, which std/doc.til's help()
+// scans them with.
 priv append_packed_entry := func(mut packed: Str, name: Str, value: Str) {
     packed.push_str(name)
     packed.push_str(Str.from_byte(1))
