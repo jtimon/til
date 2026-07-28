@@ -8155,7 +8155,30 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     // clone (whose destructor frees clone-owned strings that downstream
     // case-bindings expose via CAP_VIEW pointers in callers like
     // ffi_register). Re-evaluate sw_expr per case condition instead.
-    if is_simple_lvalue_expr(sw_expr).or(sw_expr.til_type().is(Type.Enum)) {
+    // A match whose SUBJECT is another match of the same type is the mirror of
+    // the tail-position case handled above -- and it is the shape every
+    // left-associative chain has: `a && b && c`, `a.and(b).and(c)`, or nested
+    // matches written by hand. Lowering it as a plain subject would hoist a
+    // temp of its own and copy it here, one per operand. Instead give it THIS
+    // result temp and switch on that: the subject writes the temp, `_sw` reads
+    // it back before any arm assigns, and a whole chain costs one temp.
+    mut subject_shares_temp := false
+    if is_match.and(sw_expr.node_type.is(NodeType.Match)) {
+        rt_bind_o := scope.get_binding(result_temp)
+        if rt_bind_o.is_some() {
+            ref rt_bind : TypeBinding = rt_bind_o.unwrap()
+            subject_shares_temp = type_to_name(rt_bind.type) == type_to_name(sw_expr.til_type())
+        }
+    }
+    if subject_shares_temp {
+        mut subj_match := sw_expr.clone()
+        switch subj_match.node_type {
+        case NodeType.Match(smd): smd.result_temp = result_temp.clone()
+        case: UNREACHABLE()
+        }
+        block.add_child(own subj_match)
+        sw_ref = Expr.new(ident_node(result_temp), sw_line, sw_col)
+    } else if is_simple_lvalue_expr(sw_expr).or(sw_expr.til_type().is(Type.Enum)) {
         sw_ref = sw_expr.clone()
     } else {
         tp := type_prefix(sw_expr.til_type())
