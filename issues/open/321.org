@@ -936,7 +936,8 @@ is invisible.
 Remaining stages, in order (REORDERED by batch 23 -- the interpreter
 mirror has to come BEFORE the flip, not after it):
   3. DONE (batch 24): the interpreter's raw-layer mirror.
-  4. flip ~enum_is_niche~ to accept an owned aggregate payload
+  4. flip ~enum_is_niche~ AND give the niche a zero-copy take, together
+     in one commit -- batch 25 showed they cannot be separated
      (excluding primitives, whose 0 is a legal value; Dynamic, the
      quarantined layer where null is legal; Str, whose literals are
      `static Str` rather than boxes, so the niche's delete would free a
@@ -1014,6 +1015,56 @@ generated-clone bug batch 22 fixed.
 Still preparation: 196/196, pass 1 == pass 2, test/constfold.c
 byte-identical. Nothing reaches these paths until stage 4 flips
 enum_is_niche, which is now the next commit.
+
+**** Batch 25: the flip attempted again -- it works, and still cannot land alone
+
+With stages 1-3 in, the flip DOES produce the intended layout. Verified
+on a probe before reverting:
+
+: struct Option__Box { Box *data; };
+: Option__Box Option__Box_Some(Box * val) { Option__Box r; r.data = val; return r; }
+: void Option__Box_delete(Option__Box * self, Bool call_free) {
+:     if (self->data != NULL) { Box_delete(deref(&self->data), 1); }
+:     if (call_free) { free(self); }
+: }
+
+One word, the ctor adopts the pointer with no malloc and no copy, the
+delete follows the pointer and frees the box -- and interpreted and
+compiled modes agree on the value. Stages 1-3 did their job. Two things
+still block it, and the second is the important one.
+
+1. An emit bug the flip exposes. At the ~is_n~ tag-check site the
+   builder resolves the enum with ~find_struct_def(enum_c, ctx)~, where
+   ~enum_c~ came from ~til_type_name~ -- the MANGLED name for a ~priv~
+   enum. The lookup misses, ~isn_niche~ stays false, and it emits
+   ~->tag~ against a struct that has no tag:
+
+   : error: 'priv___src_self_typer_til__CtorArg' has no member named 'tag'
+
+   The sibling default-value emit in the same expression rendered
+   ~{.data = NULL}~ correctly, so two lookups in one statement disagree
+   about whether the same enum is a niche. (CtorArg, a priv enum in
+   typer.til, is the first non-Option enum the rule ever matched.)
+
+2. The flip makes ~take~ REGRESS, which is why stage 4 and stage 5 are
+   one commit and not two. Stage 1 deliberately made the steal gate skip
+   pointer slots -- the steal block copies bytes OUT of an inline payload
+   and frees the enum box, which would leak a niche's pointee -- with the
+   note that "the niche gets its own zero-copy take later". Later is now:
+   with the flip, ~Option(Expr).take(...)~ falls back to the CLONE path,
+   so every take deep-copies a whole AST subtree. That is worse than the
+   tagged layout it replaces (a shallow malloc+memcpy of the Expr header)
+   and it is a semantic change, since the passes compare and mutate nodes
+   by identity. It is exactly the cost the niche exists to remove.
+
+   ASAN made it visible on the probe: ~Option__Box_take~ -> ~Box_clone~
+   -> ~Str_clone~, allocating a copy where the steal had moved the
+   original.
+
+So the next commit has to do both: flip the rule AND lower a niche take
+to ~return self.data~. That lowering is the open piece -- til still has
+no way to spell "hand this pointer back as owned", which is the same
+wall this issue opened with, now confined to one place.
 
 *** What is left before the forbid can land
 
