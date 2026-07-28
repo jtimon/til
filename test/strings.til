@@ -381,3 +381,47 @@ test_clone_terminates_views := test() {
     // Literals already carry the NUL, so they need no copy.
     assert_eq(Str, Str.from_c_str("literal".c_str), "literal")
 }
+
+test_borrowed_view := test() {
+    s := format("bor", "rowed")
+    v := s.borrowed_view()
+    assert_eq(Str, v, "borrowed")
+    assert_eq(USize, v.len(), s.len())
+
+    // Byte sharing is deliberately NOT asserted here: compiled, the view
+    // and its source hold the same pointer, but the interpreter
+    // materialises a view when it binds one -- true of substr and
+    // from_c_str too, not just this method -- so pointer identity is a
+    // compiled-mode property and a cross-mode test would fail there.
+    // What both modes guarantee is everything below: the value, and that
+    // the source survives the view.
+
+    // Whole-string view == substr over the whole range, and an empty
+    // string views as empty.
+    assert_eq(Str, v, s.substr(0, s.len()))
+    assert_eq(USize, "".borrowed_view().len(), 0)
+
+    // Views compare and search like any other Str: nothing downstream
+    // needs to know the bytes are borrowed.
+    assert(v.starts_with("bor"))
+    assert(v.eq(s))
+    assert_eq(I64, v.find("rowed"), 3)
+    assert_eq(Str, v.substr(3, 5), "rowed")
+
+    // Dropping the view leaves the source intact -- delete frees neither
+    // the shared bytes nor a buffer it never owned.
+    Str.delete(own v.clone(), true)
+    assert_eq(Str, s, "borrowed")
+}
+
+test_borrowed_view_in_container := test() {
+    // The case this exists for: a set of names borrowed from strings that
+    // outlive it. Teardown frees the set's boxes, not the shared bytes.
+    owner := format("na", "me")
+    mut names := Set(Str).new()
+    names.add(own owner.borrowed_view())
+    assert(names.has("name"))
+    assert_eq(USize, names.len(), 1)
+    names.clear()
+    assert_eq(Str, owner, "name")
+}

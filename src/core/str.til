@@ -155,6 +155,33 @@ namespace:
         if call_free.and(self.cap.neq(CAP_LIT)) { free(own self) }
     }
 
+    /// Return a non-owning view of the WHOLE string -- `substr(0, len())`
+    /// without the bounds arithmetic. Allocates nothing: the result shares
+    /// `s`'s bytes and `delete` frees neither them (cap >= CAP_VIEW) nor,
+    /// for a view held inside a container, anything else it does not own.
+    ///
+    /// Compiled, the view and its source share one buffer. The
+    /// INTERPRETER materialises a view when it binds one (as it does for
+    /// substr and from_c_str), so do not write code that depends on
+    /// pointer identity across both modes -- the saving is a compiled-mode
+    /// property; the value semantics below hold everywhere.
+    ///
+    /// Use it where a copy would be paid for storage that provably dies
+    /// FIRST -- a lookup key, a set of names collected during one pass
+    /// over an AST that outlives it. Where the copy must outlive its
+    /// source, or the source is itself a view of something shorter-lived,
+    /// `clone` is still the answer: this borrows, it does not own.
+    ///
+    /// #+begin_src til :doctest
+    /// s := "hello"
+    /// v := s.borrowed_view()
+    /// assert_eq(Str, v, "hello")
+    /// assert_eq(USize, v.len(), s.len())
+    /// #+end_src
+    borrowed_view := func(s: Str) returns Str {
+        return Str(c_str = s.c_str, count = s.count, cap = CAP_VIEW)
+    }
+
     /// Return a view into `s` from `start` for `n` bytes (no allocation).
     /// Clamps to valid bounds.
     substr := func(s: Str, start: USize, n: USize) returns Str {
