@@ -228,6 +228,29 @@ test_body_struct_field := test() {
     assert_eq(I64, x, 3)
 }
 
+// Issue #326: a field default is never emitted in place -- the typer
+// substitutes it into every construction site that OMITS the field, which
+// is why the builder no longer emits closure machinery for the original.
+// These two pin that substitution: without them, dropping a default's
+// closure function/value would compile and no test would notice.
+TripleHolder := struct {
+    op : UnaryOp = func(x: I64) returns I64 { return x.mul(3) }
+}
+
+test_func_field_default_omitted := test() {
+    h := TripleHolder()
+    assert_eq(I64, h.op(7), 21)
+}
+
+CounterHolder := struct {
+    step : Body = { }
+}
+
+test_body_field_default_omitted := test() {
+    h := CounterHolder()
+    h.step()
+}
+
 test_dyn_type_to_str_body := test() {
     assert_eq(Str, "Body", dyn_type_to_str(Body))
 }

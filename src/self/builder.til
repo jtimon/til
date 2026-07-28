@@ -4882,7 +4882,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         // Return type
         ret := func_return_ctype(fd, lp.ctx)
         // Signature
-        if is_static { f.write("static __attribute__((unused)) ") }
+        if is_static { f.write("static ") }
         // #303: same source of truth as the forward decl -- definition and
         // prototype must agree or the C compiler rejects the mismatch.
         if fd.noreturn { f.write("__attribute__((noreturn)) ") }
@@ -4928,7 +4928,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
             f.write("    ").write(ctype).write(" *").write(cap.name).write(";\n")
         }
         f.write("} ").write(env_type).write(";\n")
-        f.write("static __attribute__((unused)) void ").write(fd.closure_name).write("_drop(void *til_env_raw) {\n")
+        f.write("static void ").write(fd.closure_name).write("_drop(void *til_env_raw) {\n")
         f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
         for drop_cap : Declaration in fd.captures {
             if drop_cap.own_type.is(OwnType.Ref).not() {
@@ -4955,7 +4955,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         for cap_r : Declaration in fd.captures {
             if cl_refs.has(cap_r.name) { env_read = true }
         }
-        f.write("static __attribute__((unused)) ").write(ret).write(" ").write(fd.closure_name).write("(void *")
+        f.write("static ").write(ret).write(" ").write(fd.closure_name).write("(void *")
         if env_read { f.write("til_env_raw") } else { f.write("_til_env_raw") }
         if fd.params.len() > 0 {
             f.write(", ")
@@ -4999,7 +4999,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
             f.write("    ").write(ctype_b2).write(" *").write(cap_b2.name).write(";\n")
         }
         f.write("} ").write(env_type_b).write(";\n")
-        f.write("static __attribute__((unused)) void ").write(bd.closure_name).write("_drop(void *til_env_raw) {\n")
+        f.write("static void ").write(bd.closure_name).write("_drop(void *til_env_raw) {\n")
         f.write("    ").write(env_type_b).write(" *til_env = (").write(env_type_b).write(" *)til_env_raw;\n")
         for drop_cap_b : Declaration in bd.captures {
             if drop_cap_b.own_type.is(OwnType.Ref).not() {
@@ -5020,7 +5020,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         for cap_rb : Declaration in bd.captures {
             if cl_refs_b.has(cap_rb.name) { env_read_b = true }
         }
-        f.write("static __attribute__((unused)) void ").write(bd.closure_name).write("(void *")
+        f.write("static void ").write(bd.closure_name).write("(void *")
         if env_read_b { f.write("til_env_raw") } else { f.write("_til_env_raw") }
         f.write(") {\n")
         if env_read_b {
@@ -5051,13 +5051,21 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
     }
 }
 
+// #326: a struct FIELD DEFAULT is never emitted in place. The typer
+// substitutes it into every construction site that omits the field, and
+// that copy is an ordinary child of the AST -- `h := Holder()` emits
+// `h.op = (void *)&_lambda_0__til_closure` from the substituted Ident. So
+// walking sdd.fields here emitted the closure function, its _drop and its
+// value for a default no constructor ever omits, and only a blanket
+// __attribute__((unused)) kept that dead code compiling. Namespace
+// declarations are NOT defaults -- they are the methods themselves -- so
+// they stay.
 emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str), lp: LoadedProgram) {
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params { emit_capturing_closures_in_expr(f, p.default_value, emitted, lp) }
     case NodeType.StructDef(sdd):
-        for cf_d : Declaration in sdd.fields { emit_capturing_closures_in_expr(f, cf_d.default_value, emitted, lp) }
         for cn_d : Declaration in sdd.ns_decls { emit_capturing_closures_in_expr(f, cn_d.default_value, emitted, lp) }
     case NodeType.EnumDef(edd):
         for en_d : Declaration in edd.ns_decls { emit_capturing_closures_in_expr(f, en_d.default_value, emitted, lp) }
@@ -5526,7 +5534,7 @@ priv emit_closure_forward_decl := proc(f: File, name: Str, fdef: Expr, ctx: Cont
             emit_param_list(f, fdef, true, false, ctx)
         }
         f.write(");\n")
-        f.write("static __attribute__((unused)) TilClosure ").write(value_name).write(";\n")
+        f.write("static TilClosure ").write(value_name).write(";\n")
     case:
         UNREACHABLE()
     }
@@ -5556,7 +5564,7 @@ priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, ctx: Conte
         }
         f.write(");\n")
         f.write("}\n")
-        f.write("static __attribute__((unused)) TilClosure ").write(value_name).write(" = { (void *)").write(call_name).write(", NULL, NULL };\n")
+        f.write("static TilClosure ").write(value_name).write(" = { (void *)").write(call_name).write(", NULL, NULL };\n")
     case:
         UNREACHABLE()
     }
@@ -6898,9 +6906,10 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
             collect_closure_value_names(p.default_value, names, ctx)
         }
     case NodeType.StructDef(sdd):
-        for cvfd : Declaration in sdd.fields {
-            collect_closure_value_names(cvfd.default_value, names, ctx)
-        }
+        // #326: field defaults are substituted into the construction sites
+        // that omit them (see emit_capturing_closures_in_expr), so the
+        // copy there is what needs the closure value. Counting the
+        // ORIGINAL emitted a value nothing referenced.
         for cvnd : Declaration in sdd.ns_decls {
             collect_closure_value_names(cvnd.default_value, names, ctx)
         }

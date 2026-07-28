@@ -534,6 +534,12 @@ main := proc(args: ..Str) {
     // the old blanket rule emitted (ten of them, one per scalar) is gone.
     add_count(tests, "minimal_reach_no_dead_lifecycle", "build", "_hash", 0,
         format(til_bin, " translate -c gen/c/minimal_reach_lc.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_lc.c"))
+    // No generated helper exists only because __attribute__((unused)) lets
+    // it compile: every emitted static has a real C reference. first_class
+    // is the fixture with the most closure machinery -- lifted lambdas,
+    // capture blocks, Body fields and their defaults.
+    add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,
+        format(til_bin, " translate -c gen/c/first_class_attrs.c test/first_class.til '&&' cat gen/c/first_class_attrs.c"))
 
     // Tests are registered slowest-first: run_all_parallel fills its parallel
     // slots in registration order and never reorders, so front-loading the

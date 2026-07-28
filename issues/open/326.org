@@ -311,18 +311,28 @@ Landed (suite green, `make test_two_pass`):
   ~println("minimal")~ went 681 -> 276 lines of C (50 -> 12 emitted
   functions) and ~test/constfold.c~ 2,075 -> 1,542.
 
+- [X] The last blanket ~__attribute__((unused))~ are gone: the builder no
+  longer emits the attribute anywhere.  All seven sites (static function
+  definitions, both closure ~_drop~s, both closure funcs, and the closure
+  value's forward declaration and definition) dropped it, and the one dead
+  shape that exposed was a struct FIELD DEFAULT.  A field default is never
+  emitted in place -- the typer substitutes it into every construction
+  site that OMITS the field, and that copy is an ordinary AST child
+  (~h := Holder()~ emits ~h.op = (void *)&_lambda_0__til_closure~).  So
+  walking ~sdd.fields~ in ~emit_capturing_closures_in_expr~ and
+  ~collect_closure_value_names~ emitted a closure function, its ~_drop~
+  and its value for a default no constructor ever omits; both walks now
+  skip field defaults (namespace declarations are methods, not defaults,
+  and stay).  ~test/first_class.til~ gains the two omitted-default cases
+  the substitution path needs, and ~first_class_no_unused_attrs~ asserts
+  zero attributes in the closure-heaviest fixture's generated C.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
   top-level values are still blanket roots (sweeping them needs the
   effect-preserving rewrite of step 3 so a dropped binding cannot drop an
   observable initializer).
-- [ ] Remaining blanket ~__attribute__((unused))~: static function
-  definitions (~emit_func_def~), non-capturing closure wrappers/values
-  (~emit_closure_forward_decl~ / ~emit_closure_wrapper_def~) and
-  capturing closure funcs/drops.  Step 5's rule -- emit a function's
-  closure wrapper/value only when it is used as a first-class value --
-  still applies.
 - [ ] Step 2's stack-delete ~call_free~ cast, which #209 owns.
 - [ ] Step 3's general scope-aware read/write liveness (the landed work
   removed the temps at their source instead).
