@@ -723,11 +723,11 @@ priv generate_enum_eq_chain := func(enum_def: Expr, ename: Str, line: U32, col: 
                 // #320: for a pointer-slot payload the bindings deref the
                 // stored pointers, so eq compares the POINTEES (like Rust's
                 // Option<&T> eq), not pointer identity.
-                eq_payload_is_ref := enum_payload_is_pointer_slot(enum_def, j.to_i32())
+                eq_payload_in_slot := enum_payload_is_pointer_slot(enum_def, j.to_i32())
                 mut self_arg := Expr.new(ident_node("self"), line, col)
-                then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, line, col, false, eq_payload_is_ref))
+                then_body.add_child(own make_payload_ref_decl(own self_arg, "_sp", vtype, line, col, false, eq_payload_in_slot))
                 mut other_arg := Expr.new(ident_node("other"), line, col)
-                then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, line, col, false, eq_payload_is_ref))
+                then_body.add_child(own make_payload_ref_decl(own other_arg, "_op", vtype, line, col, false, eq_payload_in_slot))
 
                 mut sp_id := Expr.new(ident_node("_sp"), line, col)
                 mut eq_call := make_method_call_fcall(own sp_id, "eq", line, col)
@@ -816,9 +816,30 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             self_arg.set_til_type(Type.Enum(ename.clone()))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
-            del_call.add_child(own gc)
+            // #321 stage 2: an OWNED payload in a POINTER SLOT is its own heap
+            // box, not bytes inside the enum. Two things follow, and the ref
+            // payloads that also live in a slot never reach here -- they
+            // `continue`d above, because the enum does not own their pointee.
+            //   - the slot holds the pointer, so delete must LOAD it (deref),
+            //     exactly as the payload BINDING does; passing the slot's
+            //     ADDRESS would delete the pointer variable as if it were the
+            //     payload.
+            //   - that box has to be freed, so call_free is TRUE. An inline
+            //     payload keeps false: its storage IS the enum's, and freeing
+            //     it would free the enum out from under the caller.
+            payload_in_slot := enum_payload_is_pointer_slot(enum_def, j.to_i32())
+            if payload_in_slot {
+                mut deref_id := Expr.new(ident_node("deref"), line, col)
+                mut deref_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+                deref_call.add_child(own deref_id)
+                deref_call.add_child(own gc)
+                deref_call.set_til_type(type_from_name_init(vtype, scope))
+                del_call.add_child(own deref_call)
+            } else {
+                del_call.add_child(own gc)
+            }
 
-            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(payload_in_slot)), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
@@ -1038,10 +1059,16 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
         ref vtype : Str = variant_types[j]
         if vtype.len() > 0 {
             pn := format("_clone_payload_", vname, "_", j.to_str())
-            payload_is_ref := enum_payload_is_pointer_slot(enum_def, j.to_i32())
+            // Storage: the binding derefs a pointer slot to reach the pointee.
+            payload_in_slot := enum_payload_is_pointer_slot(enum_def, j.to_i32())
+            // Ownership: only a BORROWED payload is shared by a clone. An owned
+            // payload in a slot is still owned, so it must be deep-cloned --
+            // reusing the storage answer here would make a niche clone alias
+            // the original's payload and double-free it.
+            payload_is_borrowed := enum_variant_payload_ref(enum_def, j.to_i32())
 
             mut self_arg := Expr.new(ident_node("self"), line, col)
-            pd = make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, payload_is_ref)
+            pd = make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, payload_in_slot)
             has_pd = true
 
             mut ctor_call := Expr.new(NodeType.FCall(FCallData()), line, col)
@@ -1059,7 +1086,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
                                        resolved_pc.is_funcptr().not(),
                                        resolved_pc.is(Type.Body).not(),
                                        vtype.starts_with("_Fn_").not(),
-                                       payload_is_ref.not())
+                                       payload_is_borrowed.not())
             if payload_needs_clone {
                 mut clone_call := make_method_call_fcall(own p_id, "clone", line, col)
                 ctor_call.add_child(own clone_call)

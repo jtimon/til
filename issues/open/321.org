@@ -905,10 +905,35 @@ Identical today by construction, and verified so: 196/196, pass 1 ==
 pass 2, and test/constfold.c -- a committed golden of emitted C -- came
 back byte-identical.
 
+**** Batch 22: owned-payload niche, stage 2 -- delete and clone
+
+Still preparation, still behaviour-identical (196/196, pass 1 == pass 2,
+test/constfold.c byte-identical), and it found a real latent bug stage 1
+had left behind.
+
+The generated DELETE now asks the storage question where it was reading
+the slot raw. For a payload in a pointer slot it derefs -- passing the
+slot's ADDRESS would have deleted the pointer variable as if it were the
+payload, the same mistake the first niche attempt made -- and it passes
+call_free TRUE, because such a payload is its own heap box rather than
+bytes inside the enum. An inline payload keeps false: its storage IS the
+enum's. Ref payloads never reach either branch; they `continue` earlier,
+since the enum does not own their pointee.
+
+The generated CLONE is where stage 1 had introduced the bug. It had one
+~payload_is_ref~ variable feeding BOTH the binding (storage) and
+~payload_needs_clone~ (ownership), and stage 1 pointed that variable at
+the storage predicate. Harmless today, but the moment an owned payload
+is niched it would have made a clone ALIAS the original's payload and
+then double-free it. Split into ~payload_in_slot~ (binding) and
+~payload_is_borrowed~ (deep-clone decision); only a borrowed payload is
+shared by a clone.
+
+The lesson generalises: every remaining stage has to be read with "which
+of the two questions is this?" in hand, because today every wrong answer
+is invisible.
+
 Remaining stages, in order:
-  2. generated delete and clone: for an owned niche, delete the pointee
-     with call_free TRUE (it is its own box now, not inline) and clone
-     the pointee rather than the slot.
   3. flip ~enum_is_niche~ to accept an owned aggregate payload
      (excluding primitives, whose 0 is a legal value, and Dynamic, the
      quarantined layer where null is legal). Two-pass, since it changes
