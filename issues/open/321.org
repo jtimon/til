@@ -1153,6 +1153,50 @@ nested niches -- an enum whose owned payload is itself a niche enum
 (DeepE -> MidE -> InnerInnerE) double-frees, so the delete/clone walkers
 need to handle a chain of boxes rather than one. That is the last piece.
 
+**** Batch 28: a use-after-free on every nested pattern over a borrowed payload
+
+Found while chasing the flip, but it is a bug in MASTER today, with no
+niche involved. A nested pattern whose OUTER payload is borrowed --
+
+: switch pick(h) {
+: case Option(ref Inner).Some(Inner.X(n)): r = n
+: case Option(ref Inner).Some(Inner.Y):    r = -1
+: case Option(ref Inner).None:             r = -99
+: }
+
+-- corrupted the heap at COMPILE time, in both modes. ASAN named the site
+exactly, which is what ended three turns of guessing:
+
+: heap-use-after-free ... NodeType_delete <- Expr_delete
+:                         <- make_switch_case_condition
+
+It was batch 27's own code. The nested subject was built as
+
+: mut inner_sw_ref := make_get_payload_fcall(own sw_for_gp, ...)
+: if in_slot { ... deref.add_child(own inner_sw_ref)
+:              inner_sw_ref = deref }
+
+`add_child(own inner_sw_ref)` MOVES the binding into the wrapper, and the
+assignment on the next line then deletes the binding's old value -- which
+the wrapper now owns. Fixed by building the subject in a helper that
+returns the finished expression (make_nested_subject), so the binding is
+written exactly ONCE and never assigned over a moved-from value.
+
+Worth remembering as a shape, not just an instance: `x = wrap(own x)` is
+a use-after-free wherever the wrapper takes ownership.
+
+STILL BROKEN on that same path, and it is a SECOND bug: compiled mode now
+reaches C with an unnamed type -- `(( *)(t))->tag` and
+`offsetof(, data)`. The hoisted temp standing in for the nested subject
+carries no type name, because `deref` declares `returns ref Dynamic` and
+the hoist re-infers from the callee rather than keeping the stamp the
+desugar put on the call. The binding path escapes this by pinning the
+type on a Decl (`make_payload_ref_decl` passes explicit_type); a bare
+subject expression has nowhere to pin it. That is the next fix, and it is
+also the last thing between here and the flip.
+
+199/199, pass 1 == pass 2, test/constfold.c byte-identical.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

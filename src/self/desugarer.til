@@ -2743,6 +2743,30 @@ priv fold_and_chain := func(conds: Vec(Expr), line: U32, col: U32) returns Expr 
     return acc.clone()
 }
 
+// #321: the subject of a NESTED pattern is the outer enum's payload. For a
+// payload stored INLINE that is `get_payload(subject)`, which addresses it
+// where it sits. For one in a POINTER SLOT the slot holds its ADDRESS, so the
+// subject has to LOAD it -- the same deref the payload BINDING uses -- or the
+// match reads the slot's address as if it were the payload and picks the
+// wrong arm.
+//
+// Built here rather than inline because the wrapping has to happen WITHOUT
+// reassigning: `x = wrap(own x)` moves x into the wrapper and then the
+// assignment deletes x's old value, which the wrapper now owns. That was a
+// use-after-free on every nested pattern over a borrowed payload (ASAN:
+// NodeType_delete <- Expr_delete <- make_switch_case_condition). Returning the
+// finished expression means the binding is written exactly once.
+priv make_nested_subject := func(own subj: Expr, shallow payload_t: Type, in_slot: Bool, line: U32, col: U32) returns Expr {
+    mut gp := make_get_payload_fcall(own subj, payload_t, line, col)
+    if in_slot.not() { return gp }
+    mut deref_id := Expr.new(ident_node("deref"), line, col)
+    mut deref_call := Expr.new(NodeType.FCall(FCallData()), line, col)
+    deref_call.add_child(own deref_id)
+    deref_call.add_child(own gp)
+    deref_call.set_til_type(payload_t)
+    return deref_call
+}
+
 make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_ref: Expr, sw_line: U32, sw_col: U32) returns Expr {
     mut condition := Expr.new(NodeType.Body, sw_line, sw_col)
     mut has_condition := false
@@ -2950,21 +2974,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
 
                                         // inner sw_ref: get_payload(sw_ref, payload_type)
                                         mut sw_for_gp := sw_ref.clone()
-                                        // #321: the inner subject of a NESTED pattern is the outer
-                                        // enum's payload. When that payload lives in a POINTER SLOT
-                                        // the slot holds its address, so the inner subject has to LOAD
-                                        // it -- the same deref the payload BINDING does. Without this
-                                        // a nested match reads the slot's address as if it were the
-                                        // payload and picks the wrong arm.
-                                        mut inner_sw_ref := make_get_payload_fcall(own sw_for_gp, til_type_from_explicit_type(payload_type3), sw_line, sw_col)
-                                        if enum_payload_is_pointer_slot(enum_def3, vt_idx3) {
-                                            mut inner_deref_id := Expr.new(ident_node("deref"), sw_line, sw_col)
-                                            mut inner_deref := Expr.new(NodeType.FCall(FCallData()), sw_line, sw_col)
-                                            inner_deref.add_child(own inner_deref_id)
-                                            inner_deref.add_child(own inner_sw_ref)
-                                            inner_deref.set_til_type(til_type_from_explicit_type(payload_type3))
-                                            inner_sw_ref = inner_deref
-                                        }
+                                        inner_sw_ref := make_nested_subject(own sw_for_gp, til_type_from_explicit_type(payload_type3), enum_payload_is_pointer_slot(enum_def3, vt_idx3), sw_line, sw_col)
 
                                         // Recurse on the nested pattern; bindings prepend to case_body
                                         // and use ~get_payload(sw_ref, payload_type)~ as their root.

@@ -2825,6 +2825,7 @@ void splice_stmts_before(Expr * body, USize idx, Vec__Expr * pre);
 Str * priv___src_self_desugarer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);
 void collect_switch_case_bindings(Context * ctx, Expr * e);
 Expr * priv___src_self_desugarer_til__fold_and_chain(Vec__Expr * conds, U32 line, U32 col);
+Expr * priv___src_self_desugarer_til__make_nested_subject(Expr * subj, Type payload_t, Bool in_slot, U32 line, U32 col);
 Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
 void replace_switch_stmt_with_block(Expr * body, USize stmt_idx, Expr * block);
 void append_switch_else_if(Expr * root_if, Expr * if_node);
