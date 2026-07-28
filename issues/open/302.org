@@ -1262,10 +1262,42 @@ let the ownership pass insert temps itself; start with the check.
     removal is unaffected: whatever the probe said, its byte-identical
     corpus diff PROVES the guard never returned true, since one true
     return would have changed a delete somewhere.)
-  - [ ] Stage 3 (rest): delete the index-model special cases
+  - [X] Stage 3 (rest) DONE 2026-07-27: every item on this list is
+    either migrated, deleted, or PROVEN LIVE by experiment. The list
+    read "delete the index-model special cases
     (sink_conditional_transfer_deletes' index gates, the pre-transfer
     exit rules, extend_*_lifetimes, collect_hoist_taint,
-    alias_used_in_stmts).
+    alias_used_in_stmts)"; the verdict on each:
+      - the pre-transfer exit rules: MIGRATED. All three exit sites
+        (insert_exit_deletes, insert_nested_exit_deletes,
+        insert_exit_deletes_into_stmt) now read a flow verdict and free
+        only what every path still owns.
+      - alias_used_in_stmts: DELETED, dead twice over (its scan targets
+        are zeroed by push_take, and the hoist already orders the alias
+        read before the exit deletes).
+      - var_aliases_target: DELETED, fires nowhere.
+      - rhs_depends_on_var's taint half: LIVE. Removing it turned five
+        save_old_delete sites into delete-then-clone-from-freed-memory.
+      - collect_hoist_taint: down to ONE implementation and one
+        remaining consumer (extend_hoist_view_lifetimes).
+      - transfer_lex_inside_while: LIVE, and the broken probe had said
+        otherwise. Removing it grafts `Expr_delete(splat, 1)` into the
+        non-transfer path of the desugarer's splat-push loop -- exactly
+        the double-free its comment describes, where the transfer
+        belongs to a DIFFERENT iteration than the grafted path. A
+        single per-body flow view cannot express that, so the gate is
+        not a compensation; it is the pass knowing what it cannot see.
+      - sink_conditional_transfer_deletes' remaining own_transfer use:
+        the graft LOCATION, i.e. which statement performs the transfer.
+        Site identity, not an ownership state; nothing to migrate to.
+      - extend_*_lifetimes: rules 1-4 are GcBorrowEdge records solved
+        by one propagation; the taint application stays separate ON
+        PURPOSE (it must run after check_use_after_own_transfer, or an
+        over-eager taint spuriously flags a transfer).
+    The general lesson, paid for twice this session: a guard is only
+    dead if REMOVING it leaves the emitted C unchanged. A probe that
+    reports zero can be lying about its own plumbing; the referee
+    cannot.
     FIRST SLICE LANDED 2026-07-16: extend_ref_local_lifetimes' three
     interleaved rules are now explicit GcBorrowEdge records
     (collect_borrow_edges) solved by one max-propagation
