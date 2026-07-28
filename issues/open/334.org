@@ -1,0 +1,162 @@
+# priority: medium
+# category: features
+** OPEN #334 One body, several case labels: multi-pattern cases or a fallthrough switch
+
+   A ~case~ takes exactly ONE pattern (~parse_case_head~,
+   src/self/parser.til:2375, accepts one pattern plus an optional ~if~
+   guard) and til cases never fall through (~emit_stmt_switch~,
+   src/self/builder.til:2604, terminates every case body with ~break;~).
+   So two labels that share one body have no spelling: the body has to be
+   written twice.
+
+   [[../fixed/331.org][#331]] hit this in every one of its four tiers --
+   it is the single language gap that work kept running into. Every
+   ~.or()~-joined arm it converted became one case per label with the body
+   copied. The worst case is ~push_til_base~ (src/self/binder.til): eight
+   C spellings of a signed 64-bit int are eight identical two-statement
+   cases.
+
+   #+begin_src til
+   // what #331 had to write
+   case "long":                 out.push_str("I64"); return true
+   case "long int":             out.push_str("I64"); return true
+   case "signed long":          out.push_str("I64"); return true
+   case "signed long int":      out.push_str("I64"); return true
+   case "long long":            out.push_str("I64"); return true
+   case "long long int":        out.push_str("I64"); return true
+   case "signed long long":     out.push_str("I64"); return true
+   case "signed long long int": out.push_str("I64"); return true
+   #+end_src
+
+   Others from #331: ~binop_prec~'s six comparison tokens all returning 6,
+   ~parse_statement_body~'s nine value-opening tokens all returning
+   ~parse_expression(p)~, ~lookup_two_char~, ~push_til_base~'s ~char~ /
+   ~signed char~ and ~bool~ / ~_Bool~ and ~double~ / ~long double~ pairs,
+   ~dyn_type_to_str_raw~'s ~Unknown~/~None~ pair. The duplication is not
+   just noise: it is N places to edit when the shared body changes, and
+   nothing checks that the N copies stayed identical.
+
+*** Two candidate solutions
+
+   **** A. Multi-pattern cases: ~case a, b:~
+
+   #+begin_src til
+   case "long", "long int", "signed long", "signed long int",
+        "long long", "long long int", "signed long long",
+        "signed long long int":
+       out.push_str("I64")
+       return true
+   #+end_src
+
+   No new keyword, no new statement form, no new failure mode -- one body
+   runs when the subject matches any listed pattern. Every language in
+   the family that dropped C's fallthrough replaced it with exactly this
+   (Go's ~case a, b:~, Rust's ~a | b~, Swift's ~case a, b:~, Zig's
+   ~a, b =>~), because sharing a body is the legitimate use fallthrough
+   was serving.
+
+   Work, per stage:
+
+   - Parser: ~parse_case_head~ parses a comma-separated pattern list
+     instead of one pattern. The ~Case~ node's child layout is currently
+     positional -- ~[pattern, body]~, ~[pattern, guard, body]~, and #262's
+     ~ListPattern~ -- so N patterns needs a shape the readers agree on.
+     That layout change is the bulk of the work; every site below indexes
+     ~cn.children[0]~ today.
+   - Typer: ~mark_pattern_coverage~ (src/self/typer.til:8131) marks one
+     pattern per case; it would mark each. Exhaustiveness and the
+     unreachable-case diagnostics come along for free once it does.
+   - ~switch_is_clike~ (src/self/desugarer.til:3169) collects one label
+     per case into ~labels~ for its duplicate check; it would collect each.
+   - Builder: ~emit_stmt_switch~ emits one ~case X:~ then a body block;
+     it would emit N labels then one block. This is the cheap end -- C
+     stacked labels are exactly the target shape.
+   - Interpreter: ~eval_switch~ (src/self/interpreter.til:1852) compares
+     the subject to ~cn.children[0]~; it would match against any pattern.
+   - Payload bindings (#276) and guards need a decision: ~case V(x), W(x):~
+     only makes sense if both variants carry a compatible payload, and the
+     simplest first cut is to REJECT a payload binding or a guard on a
+     multi-pattern case rather than define that.
+
+   **** B. A fallthrough switch: a ~switch~ form without the implicit breaks
+
+   The other direction: keep one pattern per case, and add a switch
+   variant that does not terminate each case with ~break;~, so an empty
+   case falls into the next -- the C idiom.
+
+   #+begin_src til
+   fallthrough_switch c {
+   case "long":
+   case "long int":
+   case "signed long":
+       out.push_str("I64")
+       return true
+   }
+   #+end_src
+
+   Cheaper in the backend -- ~emit_stmt_switch~ just stops writing
+   ~break;~ -- but it costs more everywhere else, and one of the costs is
+   sharp:
+
+   - *~break~ changes meaning inside it.* Today a til ~break~ in a case
+     body targets the ENCLOSING LOOP, and that is load-bearing: a C
+     ~switch~ would capture it, so ~switch_is_clike~ deliberately rejects
+     any switch whose case body holds a loop-targeting ~break~
+     (~expr_has_unguarded_break~, src/self/desugarer.til:3154) and sends
+     it to the if/elif desugar instead. In a fallthrough switch the user
+     needs ~break~ to mean "leave the switch", because that is the only
+     way to stop falling. So the same keyword in the same syntactic
+     position would mean two different things depending on which switch
+     keyword opened the block. That is a genuinely bad trap, and it is the
+     main reason I would not pick this one.
+   - The interpreter's ~eval_switch~ returns after the first matching
+     case; fallthrough means continuing into subsequent case bodies, so
+     its match loop needs restructuring rather than a tweak.
+   - It is a new statement keyword -- a new language surface, where (A)
+     extends syntax that already exists.
+   - It brings back the construct ~-Wimplicit-fallthrough~ exists for,
+     and that Go, Rust, Swift and Zig all removed or gated -- but only
+     inside the new keyword. ~doc/enums.org~ (line 50, "no accidental
+     fallthrough") and ~doc/c2til.org~ (line 363, "No ~break~ needed --
+     cases do not fall through") describe ~switch~ and ~match~, and those
+     stay exactly as they are, so nothing documented is reversed. The
+     cost is not a contradiction, it is two switch forms with opposite
+     fallthrough rules to learn and to keep straight at each call site.
+
+   Worth noting: fallthrough's OTHER use -- a case that runs its own
+   statements AND then the next case's -- is not something #331 ever
+   wanted. Every instance was purely "these N labels do the same thing",
+   which (A) covers completely.
+
+   **** Prior art worth a look before choosing
+
+   Go and Swift kept an explicit ~fallthrough~ STATEMENT written inside a
+   case body, alongside multi-pattern cases. That preserves ~break~'s
+   current meaning (the statement, not the absence of one, is what
+   falls), and it is strictly opt-in per case. If the appeal of (B) is
+   having fallthrough available at all rather than avoiding (A)'s parser
+   work, this is the version that does not set the ~break~ trap.
+
+*** Recommendation
+
+   (A). It solves every case #331 actually hit, adds no keyword, and
+   keeps ~break~ meaning one thing. (B)'s only real advantage is a
+   smaller backend diff, and it pays for that with an overloaded ~break~
+   and a second switch form to keep straight.
+
+   These are alternatives, not stages: (A) makes (B) unnecessary for the
+   shared-body problem, and (B) does not remove the reason to want (A).
+
+*** Test
+
+   Whichever lands: an enum subject and a ~Str~ subject, each with a
+   multi-label arm, under both interpret and compile; an exhaustiveness
+   check that counts a multi-label arm's labels as covered; and a
+   duplicate-label case rejected as it is today.
+
+*** Note
+
+   Not a blocker for anything. #331 shipped with the duplication in
+   place and the compiler is correct; this is about the next person who
+   edits one of those eight ~push_til_base~ bodies and misses the other
+   seven.
