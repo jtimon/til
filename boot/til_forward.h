@@ -18,7 +18,6 @@ typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
 typedef struct DivideByZero DivideByZero;
 typedef struct IntegerOverflow IntegerOverflow;
-typedef struct Array__Bool Array__Bool;
 typedef enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -347,6 +346,7 @@ typedef struct priv___src_self_garbager_til__StmtFacts priv___src_self_garbager_
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct Vec__I32 Vec__I32;
 typedef struct Array__USize Array__USize;
+typedef struct Array__Bool Array__Bool;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__StmtFacts Vec__StmtFacts;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
@@ -468,12 +468,6 @@ typedef struct IntegerOverflow {
     Str msg;
 } IntegerOverflow;
 
-
-
-typedef struct Array__Bool {
-    U8 *data;
-    USize cap;
-} Array__Bool;
 
 
 struct Primitive {
@@ -965,6 +959,12 @@ typedef struct Array__USize {
     U8 *data;
     USize cap;
 } Array__USize;
+
+
+typedef struct Array__Bool {
+    U8 *data;
+    USize cap;
+} Array__Bool;
 
 
 typedef struct Array__U8 {
@@ -1772,14 +1772,6 @@ I64 Bool_cmp(Bool a, Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 USize Bool_size(void);
 U64 Bool_hash(Bool self, HashFn hasher);
-Array__Bool * Array__Bool_new(USize cap);
-Bool * Array__Bool_unsafe_get(Array__Bool * self, USize * i);
-Bool * Array__Bool_get(Array__Bool * self, USize * i, I64 * _err_kind);
-void Array__Bool_unsafe_set(Array__Bool * self, USize i, Bool * val);
-void Array__Bool_set(Array__Bool * self, USize i, Bool * val, I64 * _err_kind);
-void Array__Bool_delete(Array__Bool * self, Bool call_free);
-Array__Bool * Array__Bool_clone(Array__Bool * self);
-USize Array__Bool_size(void);
 Bool Primitive_eq(Primitive * self, Primitive * other);
 void Primitive_delete(Primitive * self, Bool call_free);
 Primitive * Primitive_clone(Primitive * self);
@@ -3138,6 +3130,14 @@ void Array__USize_set(Array__USize * self, USize i, USize * val, I64 * _err_kind
 void Array__USize_delete(Array__USize * self, Bool call_free);
 Array__USize * Array__USize_clone(Array__USize * self);
 USize Array__USize_size(void);
+Array__Bool * Array__Bool_new(USize cap);
+Bool * Array__Bool_unsafe_get(Array__Bool * self, USize * i);
+Bool * Array__Bool_get(Array__Bool * self, USize * i, I64 * _err_kind);
+void Array__Bool_unsafe_set(Array__Bool * self, USize i, Bool * val);
+void Array__Bool_set(Array__Bool * self, USize i, Bool * val, I64 * _err_kind);
+void Array__Bool_delete(Array__Bool * self, Bool call_free);
+Array__Bool * Array__Bool_clone(Array__Bool * self);
+USize Array__Bool_size(void);
 Array__U8 * Array__U8_new(USize cap);
 U8 * Array__U8_unsafe_get(Array__U8 * self, USize * i);
 U8 * Array__U8_get(Array__U8 * self, USize * i, I64 * _err_kind);

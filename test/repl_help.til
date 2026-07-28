@@ -102,15 +102,15 @@ main := proc() {
     caught_oob := count_matches(output, "caught oob")
     caught_wrong := count_matches(output, "unreachable")
     caught_then := count_matches(output, "caught_then=3")
-    if vand(n.eq(2), bad.eq(0), missing.eq(1), bad_y.eq(0), two.eq(2),
-            a.eq(1), seven.eq(1), user_info.eq(1), member_doc.eq(1),
-            ctor.eq(1), defaults.eq(1), named_err.eq(0), undef_p.eq(0),
-            field_echo.eq(1), syntax_err.eq(1), stray_close.eq(1),
-            survived.eq(1), state_kept.eq(2), veclen.eq(1), vec0.eq(1),
-            strval.eq(1), oob.eq(1), err_kind_bug.eq(0), panicked.eq(1),
-            survived_panic.eq(1), state_after_panic.eq(1), multiline.eq(1),
-            blanks.eq(1), caught_oob.eq(1), caught_wrong.eq(0),
-            caught_then.eq(1)) {
+    if and(n.eq(2), bad.eq(0), missing.eq(1), bad_y.eq(0), two.eq(2),
+           a.eq(1), seven.eq(1), user_info.eq(1), member_doc.eq(1),
+           ctor.eq(1), defaults.eq(1), named_err.eq(0), undef_p.eq(0),
+           field_echo.eq(1), syntax_err.eq(1), stray_close.eq(1),
+           survived.eq(1), state_kept.eq(2), veclen.eq(1), vec0.eq(1),
+           strval.eq(1), oob.eq(1), err_kind_bug.eq(0), panicked.eq(1),
+           survived_panic.eq(1), state_after_panic.eq(1), multiline.eq(1),
+           blanks.eq(1), caught_oob.eq(1), caught_wrong.eq(0),
+           caught_then.eq(1)) {
         println("repl_help PASS")
         return
     }

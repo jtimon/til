@@ -1459,12 +1459,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                 // so the record can simply tell the truth. (The
                 // builder's extra returns-Dynamic guard is subsumed:
                 // is_aggregate excludes Dynamic bindings.)
-                if vand(is_program_scope.not(),
-                        b.own_type.is(OwnType.Own).not(),
-                        b.type.is_funcptr().not(),
-                        b.type.is(Type.Dynamic).not(),
-                        is_aggregate(b.type),
-                        li_rhs.node_type.is(NodeType.FCall)) {
+                if and(is_program_scope.not(),
+                       b.own_type.is(OwnType.Own).not(),
+                       b.type.is_funcptr().not(),
+                       b.type.is(Type.Dynamic).not(),
+                       is_aggregate(b.type),
+                       li_rhs.node_type.is(NodeType.FCall)) {
                     li.is_heap = false
                 }
                 if is_pod_enum_clone_wrap(li_rhs, scope) {

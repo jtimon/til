@@ -185,11 +185,11 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
             switch callee.node_type {
             case NodeType.Ident(name):
                 ref cname : Str = name.ident_name()
-                if vor(cname.eq("println"), cname.eq("print"),
-                       cname.eq("format"),
-                       cname.eq("panic"), cname.eq("TODO"),
-                       cname.eq("expect"),
-                       cname.eq("array"), cname.eq("vec")) { return true }
+                if or(cname.eq("println"), cname.eq("print"),
+                      cname.eq("format"),
+                      cname.eq("panic"), cname.eq("TODO"),
+                      cname.eq("expect"),
+                      cname.eq("array"), cname.eq("vec")) { return true }
             case:
             }
         }
@@ -477,12 +477,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
         mut block_start_line : U32 = 3
         if doc_line.len() > 0 { block_start_line++ }
         block_start_line = block_start_line + repl_source_line_count(accum)
-        use_full_load := vor(repl_has_loader_directives,
-                             current_has_loader_directive,
-                             repl_has_lazy_defs,
-                             current_has_lazy_def,
-                             repl_has_full_state,
-                             current_has_known_variadic_call)
+        use_full_load := or(repl_has_loader_directives,
+                            current_has_loader_directive,
+                            repl_has_lazy_defs,
+                            current_has_lazy_def,
+                            repl_has_full_state,
+                            current_has_known_variadic_call)
         commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast))
 
         if repl_parse_allows_wrap(peek_ast) {
@@ -753,18 +753,18 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         return cli
     }
 
-    if vand(cli.command.starts_with("-").not(),
-            cli.command.eq("interpret").not(),
-            cli.command.eq("translate").not(),
-            cli.command.eq("build").not(),
-            cli.command.eq("install").not(),
-            cli.command.eq("run").not(), cli.command.eq("test").not(),
-            cli.command.eq("doc").not(), cli.command.eq("ast").not(),
-            cli.command.eq("bindings").not(),
-            cli.command.eq("help").not(),
-            cli.command.eq("--help").not(),
-            cli.command.eq("--version").not(),
-            cli.command.eq("-v").not()) {
+    if and(cli.command.starts_with("-").not(),
+           cli.command.eq("interpret").not(),
+           cli.command.eq("translate").not(),
+           cli.command.eq("build").not(),
+           cli.command.eq("install").not(),
+           cli.command.eq("run").not(), cli.command.eq("test").not(),
+           cli.command.eq("doc").not(), cli.command.eq("ast").not(),
+           cli.command.eq("bindings").not(),
+           cli.command.eq("help").not(),
+           cli.command.eq("--help").not(),
+           cli.command.eq("--version").not(),
+           cli.command.eq("-v").not()) {
         cli.command = "interpret"
         cli.path_idx = 0
     } else if cli.command.starts_with("-") {

@@ -144,14 +144,28 @@ test_core_bool_and_or := test() {
     expect((false || false).not(), "F || F")
 }
 
-# --- Genuinely-variadic vand/vor (src/core/bool.til): declared
-#     `lazy_func(xs: ..Bool)` with the recursive (Haskell-style) match body,
-#     GHC's `and (x:xs) = x && and xs` shape. Every call site unrolls
-#     bottom-up at compile time over its known operands into nested
-#     short-circuit matches (inline_recursive_variadic_lazy_call,
-#     src/self/loader.til). `and`/`or` stay strictly binary. The iterative
-#     for-in and statement/switch spellings of the same feature are covered
-#     below as test-local defs. ---
+# --- Genuinely-variadic vand/vor: declared `lazy_func(xs: ..Bool)` with the
+#     recursive (Haskell-style) match body, GHC's `and (x:xs) = x && and xs`
+#     shape. Every call site unrolls bottom-up at compile time over its known
+#     operands into nested short-circuit matches
+#     (inline_recursive_variadic_lazy_call, src/self/loader.til). They are
+#     test-local defs, like the iterative for-in and statement/switch
+#     spellings below: nothing in the compiler needs them now that an n-ary
+#     `and(a, b, c)` folds to binary calls in the parser, and this is where
+#     the feature they exercise is under test. ---
+
+vand := lazy_func(xs: ..Bool) returns Bool {
+    return match xs {
+    case []:        true
+    case [x, ..tl]: match x { case true: vand(..tl) case: false }
+    }
+}
+vor := lazy_func(xs: ..Bool) returns Bool {
+    return match xs {
+    case []:        false
+    case [x, ..tl]: match x { case true: true case: vor(..tl) }
+    }
+}
 
 test_variadic_vand_vor := test() {
     expect(vand(true, true, true), "vand(T,T,T)")

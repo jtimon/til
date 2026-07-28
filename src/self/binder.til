@@ -143,10 +143,10 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     if c.eq("unsigned short").or(c.eq("unsigned short int")) { out.push_str("U16"); return true }
     if c.eq("int").or(c.eq("signed int")).or(c.eq("signed")) { out.push_str("I32"); return true }
     if c.eq("unsigned").or(c.eq("unsigned int")) { out.push_str("U32"); return true }
-    if vor(c.eq("long"), c.eq("long int"), c.eq("signed long"),
-           c.eq("signed long int"), c.eq("long long"),
-           c.eq("long long int"), c.eq("signed long long"),
-           c.eq("signed long long int")) { out.push_str("I64"); return true }
+    if or(c.eq("long"), c.eq("long int"), c.eq("signed long"),
+          c.eq("signed long int"), c.eq("long long"),
+          c.eq("long long int"), c.eq("signed long long"),
+          c.eq("signed long long int")) { out.push_str("I64"); return true }
     if c.eq("unsigned long").or(c.eq("unsigned long int"))
     .or(c.eq("unsigned long long")).or(c.eq("unsigned long long int")) { out.push_str("U64"); return true }
     if c == "size_t" { out.push_str("USize"); return true }
@@ -210,21 +210,21 @@ priv is_alias_to_dynamic := func(bs: BinderState, name: Str) returns Bool {
 priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
     if c.eq("bool").or(c.eq("_Bool")) { out.push_str("false"); return }
     if c == "void" { out.push_str("0"); return }
-    if vor(c.eq("char"), c.eq("unsigned char"), c.eq("signed char"),
-           c.eq("short"), c.eq("short int"), c.eq("unsigned short"),
-           c.eq("unsigned short int"), c.eq("int"), c.eq("signed int"),
-           c.eq("signed"), c.eq("unsigned"), c.eq("unsigned int"),
-           c.eq("long"), c.eq("long int"), c.eq("signed long"),
-           c.eq("signed long int"), c.eq("long long"),
-           c.eq("long long int"), c.eq("signed long long"),
-           c.eq("signed long long int"), c.eq("unsigned long"),
-           c.eq("unsigned long int"), c.eq("unsigned long long"),
-           c.eq("unsigned long long int"), c.eq("size_t"),
-           c.eq("ssize_t"), c.eq("ptrdiff_t"), c.eq("intptr_t"),
-           c.eq("uintptr_t"), c.eq("int8_t"), c.eq("uint8_t"),
-           c.eq("int16_t"), c.eq("uint16_t"), c.eq("int32_t"),
-           c.eq("uint32_t"), c.eq("int64_t"), c.eq("uint64_t"),
-           c.eq("float"), c.eq("double"), c.eq("long double")) {
+    if or(c.eq("char"), c.eq("unsigned char"), c.eq("signed char"),
+          c.eq("short"), c.eq("short int"), c.eq("unsigned short"),
+          c.eq("unsigned short int"), c.eq("int"), c.eq("signed int"),
+          c.eq("signed"), c.eq("unsigned"), c.eq("unsigned int"),
+          c.eq("long"), c.eq("long int"), c.eq("signed long"),
+          c.eq("signed long int"), c.eq("long long"),
+          c.eq("long long int"), c.eq("signed long long"),
+          c.eq("signed long long int"), c.eq("unsigned long"),
+          c.eq("unsigned long int"), c.eq("unsigned long long"),
+          c.eq("unsigned long long int"), c.eq("size_t"),
+          c.eq("ssize_t"), c.eq("ptrdiff_t"), c.eq("intptr_t"),
+          c.eq("uintptr_t"), c.eq("int8_t"), c.eq("uint8_t"),
+          c.eq("int16_t"), c.eq("uint16_t"), c.eq("int32_t"),
+          c.eq("uint32_t"), c.eq("int64_t"), c.eq("uint64_t"),
+          c.eq("float"), c.eq("double"), c.eq("long double")) {
         out.push_str("0")
         return
     }
@@ -344,13 +344,13 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         }
         ws := skip_word(line, p)
         if ws == p { return false }
-        if vor(range_eq_lit(line, p, ws, "const"),
-               range_eq_lit(line, p, ws, "volatile"),
-               range_eq_lit(line, p, ws, "restrict"),
-               range_eq_lit(line, p, ws, "__restrict"),
-               range_eq_lit(line, p, ws, "__restrict__"),
-               range_eq_lit(line, p, ws, "static"),
-               range_eq_lit(line, p, ws, "register")) {
+        if or(range_eq_lit(line, p, ws, "const"),
+              range_eq_lit(line, p, ws, "volatile"),
+              range_eq_lit(line, p, ws, "restrict"),
+              range_eq_lit(line, p, ws, "__restrict"),
+              range_eq_lit(line, p, ws, "__restrict__"),
+              range_eq_lit(line, p, ws, "static"),
+              range_eq_lit(line, p, ws, "register")) {
             p = skip_ws(line, ws)
             continue
         }
@@ -1590,8 +1590,8 @@ priv looks_like_macro_fragment := func(line: Str) returns Bool {
     mut had_word := false
     while i < n {
         ref b : I8 = line.unsafe_get(i)
-        if vor(b.eq(';'), b.eq('{'), b.eq('}'), b.eq('('), b.eq(')'),
-               b.eq(','), b.eq('/')) { return false }
+        if or(b.eq(';'), b.eq('{'), b.eq('}'), b.eq('('), b.eq(')'),
+              b.eq(','), b.eq('/')) { return false }
         if bind_is_ws(b).or(b.eq('*')) {
             i++
             continue

@@ -416,13 +416,13 @@ priv try_ufcs_rewrite := func(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: 
                         // though the sig's own FuncDef is a Func.
                         top_ft := binding_func_type(top)
                         is_free_func := top.is_func_decl.and(
-                            vor(top_ft.is(FuncType.Func),
-                                top_ft.is(FuncType.ExtFunc),
-                                top_ft.is(FuncType.Proc),
-                                top_ft.is(FuncType.ExtProc),
-                                top_ft.is(FuncType.CoreFunc),
-                                top_ft.is(FuncType.CoreProc),
-                                top_ft.is(FuncType.CoreLazyFunc)))
+                            or(top_ft.is(FuncType.Func),
+                               top_ft.is(FuncType.ExtFunc),
+                               top_ft.is(FuncType.Proc),
+                               top_ft.is(FuncType.ExtProc),
+                               top_ft.is(FuncType.CoreFunc),
+                               top_ft.is(FuncType.CoreProc),
+                               top_ft.is(FuncType.CoreLazyFunc)))
                         if type_name.len() > 0 {
                             if first_param == type_name {
                                 ufcs_match = 1
@@ -3555,13 +3555,13 @@ priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
         // functions are the compiler's own concern, not user-facing.
         if fdef.return_type.len() == 0 { return }
         if fdef.auto_generated { return }
-        if vor(fdef.func_type.is(FuncType.ExtFunc),
-               fdef.func_type.is(FuncType.ExtProc),
-               fdef.func_type.is(FuncType.CoreFunc),
-               fdef.func_type.is(FuncType.CoreProc),
-               fdef.func_type.is(FuncType.CoreLazyFunc),
-               fdef.func_type.is(FuncType.Macro),
-               fdef.func_type.is(FuncType.Test)) { return }
+        if or(fdef.func_type.is(FuncType.ExtFunc),
+              fdef.func_type.is(FuncType.ExtProc),
+              fdef.func_type.is(FuncType.CoreFunc),
+              fdef.func_type.is(FuncType.CoreProc),
+              fdef.func_type.is(FuncType.CoreLazyFunc),
+              fdef.func_type.is(FuncType.Macro),
+              fdef.func_type.is(FuncType.Test)) { return }
         if stmt_always_diverges(expr.children[0]).not() {
             expr.type_error(format("non-void function can reach its end without returning; every path must return a value (declared 'returns ", fdef.return_type, "')"), ctx)
         }

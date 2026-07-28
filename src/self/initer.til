@@ -1054,12 +1054,12 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
             // #320: a ref payload is a borrow -- the clone shares the
             // pointee (pointer copy), never deep-clones it.
             resolved_pc := type_from_name_init(vtype, scope)
-            payload_needs_clone := vand(is_primitive(resolved_pc).not(),
-                                        vtype.eq("Dynamic").not(),
-                                        resolved_pc.is_funcptr().not(),
-                                        resolved_pc.is(Type.Body).not(),
-                                        vtype.starts_with("_Fn_").not(),
-                                        payload_is_ref.not())
+            payload_needs_clone := and(is_primitive(resolved_pc).not(),
+                                       vtype.eq("Dynamic").not(),
+                                       resolved_pc.is_funcptr().not(),
+                                       resolved_pc.is(Type.Body).not(),
+                                       vtype.starts_with("_Fn_").not(),
+                                       payload_is_ref.not())
             if payload_needs_clone {
                 mut clone_call := make_method_call_fcall(own p_id, "clone", line, col)
                 ctor_call.add_child(own clone_call)

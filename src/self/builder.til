@@ -3887,12 +3887,12 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 f.write("enum_variant_count(")
                 emit_as_ptr(f, e.children[1], depth, false, ctx)
                 f.write(")")
-            } else if vor(name.ident_name().eq("enum_variant_name"),
-                          name.ident_name().eq("enum_variant_has_payload"),
-                          name.ident_name().eq("enum_variant_payload_type"),
-                          name.ident_name().eq("enum_variant_tag_value"),
-                          name.ident_name().eq("enum_variant_payload_is_const"),
-                          name.ident_name().eq("enum_variant_payload_is_ref")) {
+            } else if or(name.ident_name().eq("enum_variant_name"),
+                         name.ident_name().eq("enum_variant_has_payload"),
+                         name.ident_name().eq("enum_variant_payload_type"),
+                         name.ident_name().eq("enum_variant_tag_value"),
+                         name.ident_name().eq("enum_variant_payload_is_const"),
+                         name.ident_name().eq("enum_variant_payload_is_ref")) {
                 f.write(name.ident_name())
                 f.write("(")
                 emit_as_ptr(f, e.children[1], depth, false, ctx)
@@ -9245,14 +9245,15 @@ priv doc_default_group := func(unit_path: Str) returns Str {
     if path.starts_with("src/std/") { return "Standard library" }
     if path == "src/til.til" { return "CLI" }
     if path.starts_with("vendor/bindings/") { return "Vendor bindings" }
-    if vor(path.eq("src/self/lexer.til"), path.eq("src/self/parser.til"),
-           path.eq("src/self/context.til"),
-           path.eq("src/self/modes.til"),
-           path.eq("src/self/loader.til"),
-           path.eq("src/self/initer.til"),
-           path.eq("src/self/desugarer.til"),
-           path.eq("src/self/typer.til")) {
-        return "Compiler frontend"
+    if or(path.eq("src/self/lexer.til"),
+        path.eq("src/self/parser.til"),
+        path.eq("src/self/context.til"),
+        path.eq("src/self/modes.til"),
+        path.eq("src/self/loader.til"),
+        path.eq("src/self/initer.til"),
+        path.eq("src/self/desugarer.til"),
+        path.eq("src/self/typer.til")) {
+            return "Compiler frontend"
     }
     if path.eq("src/self/garbager.til")
         .or(path.eq("src/self/constfolder.til"))
