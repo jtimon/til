@@ -88,14 +88,42 @@
    ~test_generic_infer_cross_unit_dedup~ and
    ~test_generic_infer_private_isolation~ in
    ~test/generic_infer_imports.til~; and the return-only, local-struct,
-   nested-only, Dynamic-only, conflicting-operand, out-of-range-literal,
-   missing/extra-own, ref-on-value and dependent-throw cases in
-   ~test/typer_errors.til~.
+   nested-return-only, Dynamic-only, conflicting-operand,
+   out-of-range-literal, missing/extra-own, ref-on-value and
+   dependent-throw cases in ~test/typer_errors.til~.
 
-   Known limitation, unchanged by this issue: an inferred call to a
-   generic with a ~..T~ variadic needs the concrete ~Array__T~ instance,
-   which only init's type-gen pass creates, so it asks for explicit type
-   application when no explicit call in the program has created it.
+   Follow-up commits after the feature merge (both on master):
+
+   - A thrown PARAMETER's type is resolved through the
+     ~ctx.lowering_param_types~ map the typer seeds before throw
+     lowering, and the prior-declaration scan starts at the last index
+     instead of ~len()~ (an empty body no longer crashes the compiler on
+     ~if fail { throw e }~). Together these make ~throws T~ generics work
+     under EXPLICIT type application; omitted inference of one is still
+     refused, since the caller's error slots are built before inference
+     could resolve T. Tests: ~test_throw_param_first_stmt_of_nested_body~,
+     ~test_throw_param_in_tail_position~ and
+     ~test_generic_dependent_throw_explicit~ in ~test/errors.til~.
+   - NESTED type arguments are deduced. ~init_func_is_generic~ matches a
+     type parameter as a whole name SEGMENT of a generated instance name
+     (the parser mangles ~v: Vec(T)~ to ~Vec__T~ before expansion), which
+     also fixed the explicit form -- such a function was previously not a
+     template at all. Inference lines the formal's spelling up against
+     the operand's (~Vec__T~ vs ~Vec__I64~; ~Map__K_V~ binds K and V from
+     their own segments), declining on any mismatch in base, argument
+     count, ~ref_~ segments, or agreement. No late type synthesis is
+     involved: the instance exists because the caller is holding one.
+     Test: ~test_generic_infer_nested_type_args~ in
+     ~test/first_class.til~. A parameter appearing ONLY in the return
+     type still has nothing to line up against and keeps the explicit
+     requirement (~g328_nested_return_only~ in ~test/typer_errors.til~).
+
+   Known limitation, unchanged: an inferred-only call to a generic with a
+   ~..T~ variadic needs the concrete ~Array__T~ instance, which only
+   init's type-gen pass creates -- unlike a ~Vec(T)~ operand, the caller
+   holds no ~Array__T~ value to read the name off -- so it asks for
+   explicit type application when no explicit call in the program has
+   created the instance.
 
 
    Core's ~assert_eq~ is a direct generic:
