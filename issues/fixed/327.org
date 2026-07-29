@@ -1,0 +1,106 @@
+# priority: medium
+# category: bugs
+** FIXED #327 Builder ident queries match by NAME, so a local can be mistaken for a same-named param
+
+*** Post-mortem (2026-07-27)
+
+Both halves are fixed. A name that resolves to a local is never again
+served the shape of a same-named parameter.
+
+Root cause: the builder answers "what shape is this ident?" by comparing
+the NAME against ~ctx.current_fdef~'s parameters, with nothing tying the
+answer to the binding the ident actually resolves to. Three distinct
+failures came out of that single design flaw, and each was found only by
+trying to reproduce the previous one:
+
+1. ~ctx.current_fdef~ was never set for main's entry wrapper, so the
+   queries answered from whichever function happened to be emitted LAST.
+   `main(w: I64) { id(w) }` emitted `id(w)` instead of `id(DEREF(w))`
+   whenever `id`'s parameter was also named `w`; renaming either one hid
+   it. Fixed by setting current_fdef there and binding shallow CLI params
+   by value (the two halves have to agree). Guarded by
+   examples/cli_scalars.til, which now routes every scalar CLI argument
+   through a helper whose parameter name collides.
+
+2. Re-binding a name in one scope -- `x := ...; x := ...`, no parameter
+   involved -- was accepted by the interpreter (newest binding wins) but
+   emitted two C declarations of one identifier, so the compiled backend
+   died with "redefinition of 'x'". A parameter and a body-level local
+   collide the same way, parameters sharing the body's top scope. Fixed
+   in the TYPER: same-scope re-binding is now a type error naming
+   `mut x := ...` + `x = ...` as the intended spelling. The corpus needed
+   no changes, so nothing relied on it.
+
+3. The original report: a POINTER-shaped local in a NESTED block
+   shadowing a shallow parameter still got the parameter's shape, so
+   codegen took `&w` on something already a pointer ("'w' is a pointer;
+   did you mean to use '->'"). Fixed in the BUILDER: ~emit_body~ registers
+   the decls of the block it is about to emit that shadow a parameter in
+   ~BuilderFuncScratch.shadowed_params~ and drops them when the block
+   closes; ~is_shallow_param~ consults that set first.
+
+Why this shape of fix rather than the per-function shape table the issue
+proposed: the table would not have covered (2) at all -- that one is a C
+identifier collision, not a misclassification -- and (3) needs SCOPE, not
+function, granularity, because the shadow must end with its block. The
+typer rule removes the same-scope case entirely, which leaves the builder
+with only the nested case to track, and a block-scoped set is enough for
+that. It also mirrors the existing #220 treatment of locals shadowing
+globals (~ptr_locals~ consulted by ~is_value_global~/~is_ref_global~).
+
+What stayed legal, and is regression-tested in both backends: a local
+shadowing a GLOBAL, a for-in loop variable reusing a parameter's name
+(the desugar renames it in C), and a nested block local of the SAME shape
+as the parameter. An early version of the typer rule walked to the
+function root and rejected the loop-variable case -- working code -- which
+is why the check stops at the current scope.
+
+Regression guard: examples/cli_scalars.til (colliding parameter names on
+every scalar CLI type, both backends) plus the suite at 202/202.
+
+
+
+  ~is_shallow_param~, ~is_stack_local~ and ~is_value_global~ (src/self/
+  builder.til) answer "what shape is this ident?" by comparing the ident's
+  NAME against the parameter list of ~ctx.current_fdef~. Nothing ties the
+  answer to the binding the ident actually resolves to, so any two
+  same-named bindings with different shapes can be confused.
+
+  The builder already documents the hazard, in ~emit_deref~:
+
+    // Issue #223 step 3: a ref local is unambiguously a borrowed
+    // pointer and must be DEREF'd, even if its name happens to
+    // collide with a shallow parameter of another function (the
+    // is_shallow_param check below matches by name and can false-
+    // positive across funcs).
+
+  ...and works around it for exactly one shape (ref locals), leaving the
+  general case open.
+
+  One instance of this HAS already bitten and is fixed: the main entry
+  wrapper never set ~ctx.current_fdef~, so the queries answered from
+  whichever function was emitted last, and
+
+      id := func(w: I64) returns I64 { return w }
+      main := proc(w: I64) { println(id(w).to_str()) }
+
+  emitted ~id(w)~ instead of ~id(DEREF(w))~ -- a C compile error that
+  disappeared if either parameter was renamed. That fix (set current_fdef
+  + bind shallow CLI params by value) closed the cross-function leak and
+  is covered by examples/cli_scalars.til.
+
+  What remains is the by-name matching itself. With ~current_fdef~ now
+  always correct the lookup is at least scoped to the right function, but
+  within one function a LOCAL whose name matches a shallow PARAMETER of
+  that same function still gets the parameter's shape. The pattern is the
+  same class of bug and would surface the same way (a missing or spurious
+  DEREF, i.e. a C type error or silent pointer/value confusion).
+
+  Suggested fix: give the builder a per-function shape table for
+  parameters AND locals, populated as the body is emitted, and have the
+  three queries consult the binding rather than the name. That is roughly
+  the direction #246 / #247 already want (layout/binding facts kept off
+  name-keyed side tables).
+
+  Found while fixing the main-entry-wrapper codegen bug.
+

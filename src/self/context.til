@@ -557,6 +557,15 @@ BuilderFuncScratch := struct {
     // is_value_global/is_ref_global so the effect is limited to the
     // global-vs-local decision.
     ptr_locals := Set(Str).new()
+    // #327: parameter names that a NESTED block currently re-binds. The
+    // builder's ident queries match by name, so inside such a block
+    // `is_shallow_param` would otherwise report the parameter's shape for
+    // what is really the block's local -- a pointer local shadowing a
+    // shallow parameter got `&w` (address of a pointer) instead of `w`.
+    // emit_body adds a block's shadowing decls on entry and drops them on
+    // exit, so the parameter's shape is restored once the block closes.
+    // Same-scope re-binding cannot reach here: the typer rejects it.
+    shadowed_params := Set(Str).new()
 }
 
 // #286 follow-up: canonical heap Type blocks that HeapBinding.til_type

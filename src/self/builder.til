@@ -777,6 +777,9 @@ priv builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
 }
 
 priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
+    // #327: a nested block re-binding this name shadows the parameter, so
+    // the ident is the block's local, not the param.
+    if ctx.builder_func.shadowed_params.has(name) { return false }
     switch ctx.current_fdef {
     case Option(ref Expr).None: return false
     case Option(ref Expr).Some(cf):
@@ -1855,6 +1858,7 @@ priv builder_reset_func_scratch := func(mut ctx: Context) {
     ctx.builder_func.ref_locals = Set(Str).new()
     ctx.builder_func.ref_dyn_locals = Set(Str).new()
     ctx.builder_func.ptr_locals = Set(Str).new()
+    ctx.builder_func.shadowed_params = Set(Str).new()
     ctx.builder_func.local_fn_sigs = Map(Str, Dynamic).new()
 }
 
@@ -4334,8 +4338,26 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
 }
 
 priv emit_body := proc(f: File, body: Expr, depth: I32, ctx: Context) {
+    // #327: register the decls in THIS block that shadow a parameter, so
+    // the name-keyed ident queries resolve to the local while the block is
+    // open, then drop them so the parameter is visible again afterwards.
+    mut shadowing := Vec(Str).new()
+    for e_s : Expr in body.children {
+        switch e_s.node_type {
+        case NodeType.Decl(sdd):
+            if is_current_func_param(sdd.name, ctx)
+            .and(ctx.builder_func.shadowed_params.has(sdd.name).not()) {
+                ctx.builder_func.shadowed_params.add(own sdd.name.clone())
+                shadowing.push(own sdd.name.clone())
+            }
+        case:
+        }
+    }
     for e_i : Expr in body.children {
         emit_stmt(f, e_i, depth, ctx)
+    }
+    for done_name : Str in shadowing {
+        ctx.builder_func.shadowed_params.remove(done_name)
     }
 }
 priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Context) {

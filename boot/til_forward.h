@@ -1374,6 +1374,7 @@ typedef struct BuilderFuncScratch {
     Set__Str ref_locals;
     Set__Str ref_dyn_locals;
     Set__Str ptr_locals;
+    Set__Str shadowed_params;
 } BuilderFuncScratch;
 
 
@@ -2025,6 +2026,7 @@ USize Set__Str_len(Set__Str * self);
 void Set__Str_clear(Set__Str * self);
 Bool Set__Str_has(Set__Str * self, Str * val);
 void Set__Str_add(Set__Str * self, Str * val);
+Bool Set__Str_remove(Set__Str * self, Str * val);
 void Set__Str_delete(Set__Str * self, Bool call_free);
 Set__Str * Set__Str_clone(Set__Str * self);
 Map__Str_Str * Map__Str_Str_new(void);
