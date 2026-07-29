@@ -4131,6 +4131,21 @@ init_scan_unresolved_generic_calls := proc(program: Expr, scope: TypeScope, ctx:
     for stmt : Expr in program.children {
         // A source template body legitimately calls other generics.
         if init_stmt_is_generic_source(stmt) { continue }
+        // So does a type-gen macro (`Vec := struct<T: Type>`): its
+        // methods run with T unbound, and only its instantiations are
+        // typed and emitted. Skipped HERE rather than by widening
+        // init_stmt_is_generic_source, which the retirement pass also
+        // consults -- retiring the macro breaks incremental REPL state.
+        if stmt.children.len() > 0 {
+            switch stmt.children[0].node_type {
+            case NodeType.FuncDef(tgm):
+                if tgm.func_type.is(FuncType.Macro) {
+                    if tgm.return_type.eq("StructDef").or(tgm.return_type.eq("EnumDef"))
+                        .or(tgm.return_type.eq("FuncDef")).or(tgm.return_type.eq("FunctionDef")) { continue }
+                }
+            case:
+            }
+        }
         init_scan_generic_calls_in(stmt, scope, ctx)
     }
     return ctx.errors - before
