@@ -140,16 +140,19 @@ build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
     while i.lt(rows.len()) {
         ref row : Row = rows[i]
         mut val := 0
-        if series.eq("interp") { val = row.interp_ms }
-        if series.eq("compile") { val = row.compile_ms }
-        if series.eq("run") { val = row.run_ms }
-        if series.eq("wall") { val = row.wall_ms }
-        if series.eq("self") { val = row.self_ms }
-        if series.eq("mem-inte") { val = row.mem_inte }
-        if series.eq("mem-comp") { val = row.mem_comp }
-        if series.eq("mem-run") { val = row.mem_run }
-        if series.eq("mem-total") { val = row.mem_total }
-        if series.eq("self-mem") { val = row.self_mem }
+        switch series {
+        case "interp":    val = row.interp_ms
+        case "compile":   val = row.compile_ms
+        case "run":       val = row.run_ms
+        case "wall":      val = row.wall_ms
+        case "self":      val = row.self_ms
+        case "mem-inte":  val = row.mem_inte
+        case "mem-comp":  val = row.mem_comp
+        case "mem-run":   val = row.mem_run
+        case "mem-total": val = row.mem_total
+        case "self-mem":  val = row.self_mem
+        case:
+        }
         x := x_px(i.to_i64(), rows.len().to_i64())
         y := y_px(val, y_max)
         if i.gt(0) { pts = format(pts, " ") }
@@ -187,16 +190,19 @@ svg_polyline := func(points: Str, color: Str) returns Str {
 series_has_data := func(rows: Vec(Row), series: Str) returns Bool {
     for row : Row in rows {
         mut val := 0
-        if series.eq("interp") { val = row.interp_ms }
-        if series.eq("compile") { val = row.compile_ms }
-        if series.eq("run") { val = row.run_ms }
-        if series.eq("wall") { val = row.wall_ms }
-        if series.eq("self") { val = row.self_ms }
-        if series.eq("mem-inte") { val = row.mem_inte }
-        if series.eq("mem-comp") { val = row.mem_comp }
-        if series.eq("mem-run") { val = row.mem_run }
-        if series.eq("mem-total") { val = row.mem_total }
-        if series.eq("self-mem") { val = row.self_mem }
+        switch series {
+        case "interp":    val = row.interp_ms
+        case "compile":   val = row.compile_ms
+        case "run":       val = row.run_ms
+        case "wall":      val = row.wall_ms
+        case "self":      val = row.self_ms
+        case "mem-inte":  val = row.mem_inte
+        case "mem-comp":  val = row.mem_comp
+        case "mem-run":   val = row.mem_run
+        case "mem-total": val = row.mem_total
+        case "self-mem":  val = row.self_mem
+        case:
+        }
         if val.gt(0) { return true }
     }
     return false
