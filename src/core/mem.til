@@ -78,3 +78,27 @@ swap := func(T: Type, mut a: T, mut b: T) {
 move := func(T: Type, mut dest: T, own src: T) {
     swap_bytes(dest, src, T.size())
 }
+
+/// Adopt src into UNINITIALIZED storage (#302 stage 4): dest is a raw
+/// slot with no value in it -- a container's `data[count]` -- so there
+/// is nothing to destroy and move() cannot express it (its swap would
+/// hand dest's garbage back to src, whose deep delete would then free
+/// it). The caller guarantees dest is uninitialized; that is the unsafe
+/// part, and why this belongs to container internals like swap_bytes
+/// above.
+///
+/// Ownership is exact: src's contents become dest's, and free(own src)
+/// releases the BOX only -- it is also the transfer that stands the
+/// garbager's scheduled deep delete down, which is what the
+/// hand-written `memset(src, 0, T.size())` used to do at every call
+/// site. Freeing beats blanking: no zero-fill, and no destructor call
+/// walking fields that were just zeroed.
+///
+/// TYPED on purpose. A Dynamic version compiles and then aborts on a
+/// literal Str: the value points into the static _til_str_lits table,
+/// and the guard that saves it -- `if (v->cap != TIL_CAP_LIT) free(v);`
+/// -- is emitted only because the call site knows the type.
+adopt := func(T: Type, dest: Dynamic, own src: T) {
+    memcpy(dest, src, T.size())
+    free(own src)
+}

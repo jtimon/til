@@ -1346,12 +1346,20 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
 }
 
 priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind_o: Option(ref TypeBinding), in_func: I32, ctx: Context) {
+    // The binding is a REFERENCE into the scope's Map(Str, TypeBinding)
+    // storage, and inferring the args below can instantiate a generic --
+    // generic_finish_fcall registers the new monomorphization, which
+    // grows that map and reallocs it out from under this ref. Copy the
+    // one field we need BEFORE the loop and re-look-up after. (ASAN
+    // heap-use-after-free in Str_cmp under Map lookup, surfaced by the
+    // first container method to call a generic.)
+    mut cb_name := ""
+    if callee_bind_o.is_some() { cb_name = callee_bind_o.unwrap().name.clone() }
     for i in 1..e.children.len() {
         infer_expr(scope, e.children[i], in_func, ctx)
     }
     if callee_bind_o.is_none() { return }
-    ref callee_bind : TypeBinding = callee_bind_o.unwrap()
-    fdef_o := scope.lookup_func(callee_bind.name)
+    fdef_o := scope.lookup_func(cb_name)
     if fdef_o.is_none() { return }
     switch fdef_o.unwrap().node_type {
     case NodeType.FuncDef(fdef_data):
@@ -3046,7 +3054,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         return
     }
     if infer_struct_constructor_fcall(scope, e, name, in_func, ctx) { return }
-    callee_bind_o := scope.get_binding(name)
+    mut callee_bind_o := scope.get_binding(name)
     // #328: set when the callee resolves to a retained generic SOURCE.
     // Recorded as a NAME so the binding borrow above is released before
     // the generic path mutates e.children and registers new bindings.
@@ -3124,6 +3132,11 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         }
     }
     infer_and_validate_fcall_args(scope, e, callee_bind_o, in_func, ctx)
+    // Re-resolve: inferring the args above can instantiate a generic,
+    // and registering the monomorphization grows the scope's binding
+    // map, invalidating any ref taken before the call (same hazard the
+    // callee documents).
+    callee_bind_o = scope.get_binding(name)
     if name == "free" { check_free_managed_local(scope, e, ctx) }
     // (check_move_managed_dest retired with the raw byte-move: `move` is
     // now the typed ownership primitive that destroys dest's old value

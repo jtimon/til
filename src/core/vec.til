@@ -88,8 +88,7 @@ namespace:
             self.data = realloc(own self.data, new_cap.mul(T.size()))
             self.cap = new_cap
         }
-        memcpy(ptr_add(self.data, self.count.mul(T.size())), val, T.size())
-        memset(val, 0, T.size())
+        adopt(T, ptr_add(self.data, self.count.mul(T.size())), own val)
         self.count = self.count + 1
     }
 
