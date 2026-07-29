@@ -1426,10 +1426,16 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     mut mode_str := ""
     mut parse_errors_user_ast : I32 = 0
     user_ast := parse(tokens, source, path, mode_str, lp.ctx.anon_type_counter, parse_errors_user_ast)
-    // A syntax error must stop the build here. parse reports it and returns
-    // a PARTIAL ast so the REPL can survive a bad turn; a file compile that
-    // carried on would bury that message under downstream type errors.
-    if parse_errors_user_ast > 0 { exit(1) }
+    // A syntax error must stop the load here. parse reports it and returns a
+    // PARTIAL ast, and carrying on would bury that message under downstream
+    // type errors. Recorded rather than exit(1): the entrypoint is the REPL's
+    // own scratch file on every full-load turn, so exiting killed the session
+    // whenever a line reached this path -- a bare `sys` after any import, for
+    // one, since an import makes every later turn a full load.
+    if parse_errors_user_ast > 0 {
+        lp.load_errors = parse_errors_user_ast
+        return lp
+    }
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
     ref mut cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
@@ -2224,7 +2230,7 @@ priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str)) {
 // replace it with a direct `sym` Ident; a member outside the alias's
 // public set is a load-time error (same stage as the selective-import
 // symbol-not-found error). Anything else recurses.
-priv ns_alias_rewrite_child := func(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str)) {
+priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), ctx: Context) {
     ref mut c : Expr = e.children[i]
     mut alias_name := ""
     mut member := ""
@@ -2244,15 +2250,22 @@ priv ns_alias_rewrite_child := func(mut e: Expr, i: USize, alias_names: Set(Str)
     }
     if alias_name.len() > 0 {
         if alias_members.has(format(alias_name, "|", member)).not() {
-            loc := format(path, ":", c.line.to_str(), ":", c.col.to_str())
-            panic("no public symbol '", member, "' in namespace import '",
-                alias_name, "' of '", alias_paths[alias_name], "'", loc = loc)
+            // A member the alias does not export is ordinary user error: a
+            // typo is enough, and the REPL's auto-echo reaches it just by
+            // echoing the alias (`sys` wraps to `sys.to_str`). This used to
+            // panic, which ended the process -- and with it the whole REPL
+            // session. Report it like any other type error and leave the node
+            // alone; type_program_errors returns before the initer walks it.
+            type_error_at(path, c.line, c.col,
+                format("no public symbol '", member, "' in namespace import '",
+                    alias_name, "' of '", alias_paths[alias_name], "'"), ctx)
+            return
         }
         mut idn := Expr.new(ident_node(member), c.line, c.col)
         // Vec.set deep-deletes the replaced FieldAccess subtree.
         e.children[i] = idn
     } else {
-        rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path, shadowed)
+        rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path, shadowed, ctx)
     }
 }
 
@@ -2263,31 +2276,31 @@ priv ns_alias_rewrite_child := func(mut e: Expr, i: USize, alias_names: Set(Str)
 // params/captures, body locals (from their decl point onward), for-in
 // loop vars, switch-case payload binders, and catch vars -- so a local
 // that shadows the alias name is left alone.
-priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str)) {
+priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), ctx: Context) {
     switch e.node_type {
     case NodeType.StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
             if fd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
             if nd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         return
     case NodeType.EnumDef(edd):
         for mut nd2 : Declaration in edd.ns_decls {
             if nd2.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         return
     case NodeType.FuncDef(fdd):
         for mut pd : Declaration in fdd.params {
             if pd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path, shadowed)
+                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         mut fn_shadow := shadowed.clone()
@@ -2298,7 +2311,7 @@ priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_mem
             fn_shadow.add(own cap.name.clone())
         }
         for fi in 0..e.children.len() {
-            ns_alias_rewrite_child(e, fi, alias_names, alias_members, alias_paths, path, fn_shadow)
+            ns_alias_rewrite_child(e, fi, alias_names, alias_members, alias_paths, path, fn_shadow, ctx)
         }
         return
     case NodeType.Body:
@@ -2306,7 +2319,7 @@ priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_mem
         // AFTER each Decl child is walked (its RHS still sees the alias).
         mut body_shadow := shadowed.clone()
         for bi in 0..e.children.len() {
-            ns_alias_rewrite_child(e, bi, alias_names, alias_members, alias_paths, path, body_shadow)
+            ns_alias_rewrite_child(e, bi, alias_names, alias_members, alias_paths, path, body_shadow, ctx)
             switch e.children[bi].node_type {
             case NodeType.Decl(bd):
                 body_shadow.add(own bd.name.clone())
@@ -2316,20 +2329,20 @@ priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_mem
         return
     case NodeType.ForIn(fid):
         if e.children.len() >= 2 {
-            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed)
+            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             mut loop_shadow := shadowed.clone()
             loop_shadow.add(own fid.name.clone())
             if fid.name2.len() > 0 { loop_shadow.add(own fid.name2.clone()) }
-            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, loop_shadow)
+            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, loop_shadow, ctx)
             return
         }
     case NodeType.Case:
         // [pattern, body]: payload binders in the pattern shadow the body.
         if e.children.len() == 2 {
-            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed)
+            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed, ctx)
             mut case_shadow := shadowed.clone()
             collect_case_pattern_binders(e.children[0], case_shadow)
-            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, case_shadow)
+            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, case_shadow, ctx)
             return
         }
     case NodeType.Catch:
@@ -2341,17 +2354,17 @@ priv rewrite_ns_alias_uses := func(mut e: Expr, alias_names: Set(Str), alias_mem
                 catch_shadow.add(own Str.clone(cvid.ident_name()))
             case:
             }
-            ns_alias_rewrite_child(e, 2, alias_names, alias_members, alias_paths, path, catch_shadow)
+            ns_alias_rewrite_child(e, 2, alias_names, alias_members, alias_paths, path, catch_shadow, ctx)
             return
         }
     case:
     }
     for i in 0..e.children.len() {
-        ns_alias_rewrite_child(e, i, alias_names, alias_members, alias_paths, path, shadowed)
+        ns_alias_rewrite_child(e, i, alias_names, alias_members, alias_paths, path, shadowed, ctx)
     }
 }
 
-priv desugar_namespace_imports := func(path: Str, mut iu: ImportUnit, ctx: Context) {
+priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Context) {
     mut old := Vec(Expr).new()
     old.move_from(iu.ast.children)
     mut new_ch := Vec(Expr).new()
@@ -2447,7 +2460,7 @@ priv desugar_namespace_imports := func(path: Str, mut iu: ImportUnit, ctx: Conte
     if ns_alias_names.len() > 0 {
         no_shadows := Set(Str).new()
         for j in 0..new_ch.len() {
-            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows)
+            rewrite_ns_alias_uses(new_ch[j], ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows, ctx)
         }
     }
 
@@ -4666,6 +4679,11 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     for u : ProgramUnit in lp.units {
         desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
     }
+    // An `alias.member` the alias does not export is left unrewritten, so the
+    // initer would walk a FieldAccess whose base names no value. Stop here:
+    // the message is already out, and one error beats a cascade of confused
+    // follow-ups.
+    if lp.ctx.errors > 0 { return lp.ctx.errors }
 
     // Issue #158: the typer populates the foldable-name sets via
     // constfolder_classify_stmt (a pre-pass in infer_body_unit, before it walks

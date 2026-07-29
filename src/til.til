@@ -496,10 +496,28 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                             current_has_known_variadic_call)
         commit_compiler_state := use_full_load.not().or(current_has_known_variadic_call.not()).or(repl_ast_updates_doc_cache(peek_ast))
 
-        if repl_parse_allows_wrap(peek_ast) {
+        // Auto-echo, tried in two shapes before giving up on the wrap.
+        //
+        // `(expr).to_str()` is what turns a value into something print_single
+        // takes -- but the typer rejects to_str on a value that is ALREADY a
+        // Str ("redundant self-conversion"), so every Str-valued expression at
+        // the prompt failed to type, fell through to the raw statement, and
+        // printed NOTHING: `format("a","b")`, `s.substr(0,1)`, a bare `s`. A
+        // bare literal was worse -- `"hi"` reached "unexpected statement type,
+        // this is a bug in the language", blamed on the injected doc import.
+        // So when the conversion is what fails, retry with the value as-is;
+        // print_single takes a Str, which is exactly the case to_str rejected.
+        //
+        // Both attempts stay inside the quiet block below (their type errors
+        // are captured, not shown): failing is how the ladder picks a shape.
+        mut wrap_attempt : USize = 0
+        while repl_parse_allows_wrap(peek_ast).and(ran_ok.not()).and(wrap_attempt < 2) {
             echo_name := format("repl_auto_echo_", repl_echo_counter.to_str())
             repl_echo_counter++
-            block_eff = format("priv ", echo_name, " := (", block, ").to_str()\nprint_single(", echo_name, ")\nprint_single(\"\\n\")")
+            mut echo_value := format("(", block, ").to_str()")
+            if wrap_attempt > 0 { echo_value = format("(", block, ")") }
+            wrap_attempt++
+            block_eff = format("priv ", echo_name, " := ", echo_value, "\nprint_single(", echo_name, ")\nprint_single(\"\\n\")")
             mut trial_counter := repl_anon_type_counter
             mut combined := ""
             combined = combined.format("mode ", mode_str, "\n")
@@ -562,9 +580,11 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             } else {
                 interp_program_free(run_raw)
             }
-            if ran_ok.not() {
-                block_eff = block.clone()
-            }
+        }
+        // Neither wrap typed: the line is not an expression to echo (a method
+        // call returning nothing, say). Run it verbatim, loudly.
+        if ran_ok.not() {
+            block_eff = block.clone()
         }
 
         if ran_ok.not() {

@@ -3155,8 +3155,8 @@ void collect_decl_packed(Expr * body, TypeScope * scope, Str * info, Str * docs)
 Str * build_doc_init_line_org_files(Str * index_path, Str * packed_user_info, Str * packed_user_docs);
 Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Str * decl_name, Context * ctx, Str * resolved_path, Set__Str * ns_alias_names, Set__Str * ns_alias_members, Map__Str_Str * ns_alias_paths);
 void priv___src_self_loader_til__collect_case_pattern_binders(Expr * pat, Set__Str * out);
-void priv___src_self_loader_til__ns_alias_rewrite_child(Expr * e, USize i, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed);
-void priv___src_self_loader_til__rewrite_ns_alias_uses(Expr * e, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed);
+void priv___src_self_loader_til__ns_alias_rewrite_child(Expr * e, USize i, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed, Context * ctx);
+void priv___src_self_loader_til__rewrite_ns_alias_uses(Expr * e, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed, Context * ctx);
 void priv___src_self_loader_til__desugar_namespace_imports(Str * path, ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
 Option__Expr * priv___src_self_loader_til__lazy_single_return_value(Expr * body);
