@@ -117,6 +117,12 @@ TypeScope := struct {
     // #321: None at the root scope; every lookup below walks the chain
     // until it runs out of parents. Real control flow, not a guard.
     parent := Option(ref TypeScope).None
+    // #327: true for the scope a function's PARAMETERS are bound in. Block
+    // scopes inside the body chain up to it, so a walk that stops here has
+    // seen exactly this function's params and locals -- what a redeclaration
+    // check must consider, without reaching enclosing/global bindings (a
+    // local legitimately shadows a global, and codegen handles that).
+    is_func_root := false
 namespace:
     // Iterative single-probe walk (the interpreter's scope_get shape):
     // one call frame per lookup, one binary search per level -- the
@@ -141,6 +147,30 @@ namespace:
             }
         }
         return Option(ref TypeBinding).Some(b)
+    }
+    // #327: is `name` already bound by THIS function -- its parameters or a
+    // local in an enclosing block of the same body? Walks like get_binding
+    // but stops at the function root, so a global of the same name is not
+    // reported (shadowing a global is legal and codegen handles it).
+    // #327: are we inside a function body at all? (A func root somewhere up
+    // the chain.) At global scope there is none, and a top-level redeclaration
+    // is a separate matter handled elsewhere.
+    in_function := func(self: TypeScope) returns Bool {
+        if self.is_func_root { return true }
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.in_function()
+        case Option(ref TypeScope).None: return false
+        }
+        return false
+    }
+    bound_in_this_func := func(self: TypeScope, name: Str) returns Bool {
+        if self.bindings.has(name) { return true }
+        if self.is_func_root { return false }
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.bound_in_this_func(name)
+        case Option(ref TypeScope).None: return false
+        }
+        return false
     }
     find := func(self: TypeScope, name: Str) returns ScopeFind {
         bo := self.get_binding(name)

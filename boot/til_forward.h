@@ -1517,6 +1517,7 @@ typedef struct TypeScope {
     Map__Str_Dynamic func_defs;
     Map__Str_Dynamic struct_defs;
     Option__ref_TypeScope parent;
+    Bool is_func_root;
 } TypeScope;
 
 
@@ -2059,6 +2060,7 @@ void ScopeFind_delete(ScopeFind * self, Bool call_free);
 Option__ref_Expr priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
 Option__ref_TypeBinding priv___src_self_context_til__bindings_lookup_one(Map__Str_TypeBinding * m, Str * name);
 Option__ref_TypeBinding TypeScope_get_binding(TypeScope * self, Str * name);
+Bool TypeScope_in_function(TypeScope * self);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);

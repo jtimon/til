@@ -3862,7 +3862,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 expr.type_error("proc not allowed in pure mode", ctx)
             }
         }
-        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
+        mut func_scope := TypeScope(parent = Option(ref TypeScope).Some(scope), is_func_root = true)
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
@@ -5348,6 +5348,29 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             } else {
                 stmt.type_error(format("no need for 'own' on local '", sdecl.name, "'; locals are owned by default"), ctx)
             }
+        }
+        // #327: reject re-binding a name already bound in THIS scope -- a
+        // second `x := ...` in one block, or a body-level local reusing a
+        // parameter's name (parameters live in the same scope as the body's
+        // top-level locals). til accepted both and the interpreter took the
+        // newest binding, but codegen emits them under one C identifier, so
+        // the compiled backend died with "redefinition of 'x'": a silent
+        // interpret/compile divergence, now a diagnostic at the source.
+        //
+        // Deliberately SAME-SCOPE only. A binding in a nested block is a
+        // different C scope, where C's own shadowing rules apply and the
+        // for-in desugar's loop variable (which reuses the user's name and
+        // is renamed by codegen) is legitimate -- rejecting those would
+        // break working programs. The one nested case that still misbehaves
+        // is a pointer-shaped block local shadowing a shallow parameter,
+        // where the builder's name-keyed shape query picks the parameter;
+        // that fails LOUDLY at C compile ("'w' is a pointer"), never
+        // silently, and is what keeps #327 open for the builder-side fix.
+        if scope.in_function().and(scope.bindings.has(sdecl.name)) {
+            stmt.type_error(format("'", sdecl.name,
+                "' is already declared in this function; pick another name",
+                " (or use 'mut ", sdecl.name, " := ...' and assign with '",
+                sdecl.name, " = ...' to rebind)"), ctx)
         }
         scope.set(sdecl.name, stmt.til_type(), sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
         ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name).unwrap()
