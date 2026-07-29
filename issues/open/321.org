@@ -1197,6 +1197,46 @@ also the last thing between here and the flip.
 
 199/199, pass 1 == pass 2, test/constfold.c byte-identical.
 
+**** Batch 29: get_payload loads its own slot; the deref wrapper is gone
+
+The compiled half of batch 28's path is fixed, and the fix removes the
+construct rather than patching it.
+
+Two panics located the problem exactly. At creation the desugar stamped
+the nested subject correctly (~NSUB payload_t name='Inner' set='Inner'~);
+by the time it reached hoist_to_temp the stamp was EMPTY
+(~HOISTDIAG callee=deref tname=''~), which is why type_prefix fell to its
+"v" default and the temp came out ~void *~. Inference re-typed the call
+from ~deref~'s declared ~returns ref Dynamic~ and threw the payload type
+away. Compiled mode then emitted ~(( *)(t))->tag~ and
+~offsetof(, data)~.
+
+So the deref wrapper was the wrong shape: the codebase already treats
+~deref~/~to_ptr~ as LAUNDERING (see call_copies_ref_str, which says the
+real type "comes from the CALLER"), but nothing enforced it, so any bare
+~deref(...)~ expression loses its type. Rather than teach two emit sites
+to recover the name -- and one of them, ~offsetof(, data)~, has nothing to
+recover from -- get_payload now LOADS the slot itself for a niche.
+
+That is unambiguous precisely for a niche: it has exactly one payload
+variant, so "is this slot a pointer" has a single answer. A TAGGED enum
+cannot do this (which variants hold pointers differs per variant, and
+get_payload sees only the receiver), so enum_payload_is_pointer_slot now
+means "the CALLER must wrap in deref" and answers true only for a tagged
+borrowed payload. Both wrappers -- make_payload_ref_decl's and
+make_nested_subject's -- disappear for niches.
+
+One wart worth naming: the loaded pointer is cast back to ~void *~
+because a get_payload result is bound to a temp the builder types
+generically (~I64 *~). The old offset form satisfied that by being void *
+already; handing back a concrete ~T *~ trips
+-Werror=incompatible-pointer-types.
+
+Nested patterns over a borrowed payload now give the right answer in BOTH
+modes -- the first time that path has ever worked. Two-pass, since the
+emit changes (test/constfold.c is temp-counter renumbering only: the
+desugar builds fewer nodes now). 201/201.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

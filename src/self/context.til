@@ -1824,8 +1824,13 @@ enum_payload_is_pointer_slot := func(enum_def: Expr, idx: I32) returns Bool {
     // those, but the niche arm below would otherwise answer for the wrong
     // variant of a niche enum.
     if enum_variant_type(enum_def, idx).len() == 0 { return false }
-    if enum_variant_payload_ref(enum_def, idx) { return true }
-    return enum_is_niche(enum_def)
+    // #321: a NICHE loads its own slot inside get_payload (it has exactly one
+    // payload variant, so the lowering is unambiguous there). Only a TAGGED
+    // enum's borrowed payload still needs the caller to wrap the call in
+    // `deref(...)`, because which variants are pointers differs per variant
+    // and get_payload alone cannot tell.
+    if enum_is_niche(enum_def) { return false }
+    return enum_variant_payload_ref(enum_def, idx)
 }
 
 // #321: does any variant of this enum carry a BORROWED payload? Such an

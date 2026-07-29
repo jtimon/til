@@ -6850,20 +6850,24 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
 priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     // #320 niche: the payload IS the whole value, at offset 0.
     mut gp_off : USize = ENUM_PAYLOAD_OFFSET
+    mut gp_is_niche := false
     gp_def_o := lookup_interp_type_def(til_type_name(e.children[1].til_type()), ctx)
     if gp_def_o.is_some() {
         ref gp_def : Expr = gp_def_o.unwrap()
         if gp_def.node_type.is(NodeType.EnumDef) {
-            if enum_is_niche(gp_def) { gp_off = 0 }
+            if enum_is_niche(gp_def) { gp_off = 0 gp_is_niche = true }
         }
     }
     fa_payload : Dynamic = get_payload_field_addr(s, e.children[1], ctx)
     if fa_payload.is_null().not() {
+        // #321: for a niche the slot HOLDS the payload's address, so load it.
+        if gp_is_niche { write_ptr(r, deref(fa_payload)) return true }
         write_ptr(r, ptr_add(fa_payload, gp_off))
         return true
     }
     ref arg : Expr = e.children[1]
     raw : Dynamic = eval_expr_raw(s, arg, ctx)
+    if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(s, arg, raw, ctx))) return true }
     write_ptr(r, ptr_add(raw_arg_pointer(s, arg, raw, ctx), gp_off))
     raw_result_drop(arg.til_type(), raw, expr_raw_is_ref(s, arg, ctx), ctx)
     return true

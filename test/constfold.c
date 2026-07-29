@@ -882,89 +882,89 @@ USize Type_size(void) {
 
 
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
-    U32 hoisted__U32_5538 = 3;
-    Array__Str *_va_Array_152 = Array__Str_new(hoisted__U32_5538);
+    U32 hoisted__U32_5530 = 3;
+    Array__Str *_va_Array_152 = Array__Str_new(hoisted__U32_5530);
     (void)_va_Array_152;
     I64 _va_Array_152_ek = 0;
     (void)_va_Array_152_ek;
-    U32 hoisted__U32_5539 = 0;
-    Str *hoisted__Str_5540 = Str_clone(loc);
-    Array__Str_set(_va_Array_152, hoisted__U32_5539, hoisted__Str_5540, &_va_Array_152_ek);
-    U32 hoisted__U32_5541 = 1;
-    Array__Str_set(_va_Array_152, hoisted__U32_5541, &_til_str_lits[0], &_va_Array_152_ek);
-    Array__Str *hoisted__Array__Str_5543 = Array__Str_clone(parts);
-    U32 hoisted__U32_5544 = 2;
-    Str *hoisted__Str_5545 = format(hoisted__Array__Str_5543);
-    Array__Str_set(_va_Array_152, hoisted__U32_5544, hoisted__Str_5545, &_va_Array_152_ek);
+    U32 hoisted__U32_5531 = 0;
+    Str *hoisted__Str_5532 = Str_clone(loc);
+    Array__Str_set(_va_Array_152, hoisted__U32_5531, hoisted__Str_5532, &_va_Array_152_ek);
+    U32 hoisted__U32_5533 = 1;
+    Array__Str_set(_va_Array_152, hoisted__U32_5533, &_til_str_lits[0], &_va_Array_152_ek);
+    Array__Str *hoisted__Array__Str_5535 = Array__Str_clone(parts);
+    U32 hoisted__U32_5536 = 2;
+    Str *hoisted__Str_5537 = format(hoisted__Array__Str_5535);
+    Array__Str_set(_va_Array_152, hoisted__U32_5536, hoisted__Str_5537, &_va_Array_152_ek);
     Array__Str_delete(parts, 1);
     println(_va_Array_152);
-    I64 hoisted__I64_5546 = 1;
-    exit(hoisted__I64_5546);
+    I64 hoisted__I64_5538 = 1;
+    exit(hoisted__I64_5538);
 }
 
 __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc) {
-    USize hoisted__U32_5562 = (parts->cap);
-    U32 hoisted__U32_5563 = 0;
-    Bool hoisted__Bool_5564 = ((Bool)(hoisted__U32_5562 == hoisted__U32_5563));
-    if (hoisted__Bool_5564) {
-        U32 hoisted__U32_5553 = 1;
-        Array__Str *_va_Array_154 = Array__Str_new(hoisted__U32_5553);
+    USize hoisted__U32_5554 = (parts->cap);
+    U32 hoisted__U32_5555 = 0;
+    Bool hoisted__Bool_5556 = ((Bool)(hoisted__U32_5554 == hoisted__U32_5555));
+    if (hoisted__Bool_5556) {
+        U32 hoisted__U32_5545 = 1;
+        Array__Str *_va_Array_154 = Array__Str_new(hoisted__U32_5545);
         (void)_va_Array_154;
         I64 _va_Array_154_ek = 0;
         (void)_va_Array_154_ek;
-        U32 hoisted__U32_5554 = 0;
-        Array__Str_set(_va_Array_154, hoisted__U32_5554, &_til_str_lits[1], &_va_Array_154_ek);
+        U32 hoisted__U32_5546 = 0;
+        Array__Str_set(_va_Array_154, hoisted__U32_5546, &_til_str_lits[1], &_va_Array_154_ek);
         panic(_va_Array_154, loc);
     } else {
-        U32 hoisted__U32_5556 = 2;
-        Array__Str *_va_Array_155 = Array__Str_new(hoisted__U32_5556);
+        U32 hoisted__U32_5548 = 2;
+        Array__Str *_va_Array_155 = Array__Str_new(hoisted__U32_5548);
         (void)_va_Array_155;
         I64 _va_Array_155_ek = 0;
         (void)_va_Array_155_ek;
-        U32 hoisted__U32_5557 = 0;
-        Array__Str_set(_va_Array_155, hoisted__U32_5557, &_til_str_lits[2], &_va_Array_155_ek);
-        Array__Str *hoisted__Array__Str_5559 = Array__Str_clone(parts);
-        U32 hoisted__U32_5560 = 1;
-        Str *hoisted__Str_5561 = format(hoisted__Array__Str_5559);
-        Array__Str_set(_va_Array_155, hoisted__U32_5560, hoisted__Str_5561, &_va_Array_155_ek);
+        U32 hoisted__U32_5549 = 0;
+        Array__Str_set(_va_Array_155, hoisted__U32_5549, &_til_str_lits[2], &_va_Array_155_ek);
+        Array__Str *hoisted__Array__Str_5551 = Array__Str_clone(parts);
+        U32 hoisted__U32_5552 = 1;
+        Str *hoisted__Str_5553 = format(hoisted__Array__Str_5551);
+        Array__Str_set(_va_Array_155, hoisted__U32_5552, hoisted__Str_5553, &_va_Array_155_ek);
         panic(_va_Array_155, loc);
     }
     Array__Str_delete(parts, 1);
 }
 
 void assert(Bool cond, Str * loc) {
-    Bool hoisted__Bool_5568 = ((Bool)(!(cond)));
-    if (hoisted__Bool_5568) {
-        U32 hoisted__U32_5565 = 1;
-        Array__Str *_va_Array_156 = Array__Str_new(hoisted__U32_5565);
+    Bool hoisted__Bool_5560 = ((Bool)(!(cond)));
+    if (hoisted__Bool_5560) {
+        U32 hoisted__U32_5557 = 1;
+        Array__Str *_va_Array_156 = Array__Str_new(hoisted__U32_5557);
         (void)_va_Array_156;
         I64 _va_Array_156_ek = 0;
         (void)_va_Array_156_ek;
-        U32 hoisted__U32_5566 = 0;
-        Array__Str_set(_va_Array_156, hoisted__U32_5566, &_til_str_lits[3], &_va_Array_156_ek);
+        U32 hoisted__U32_5558 = 0;
+        Array__Str_set(_va_Array_156, hoisted__U32_5558, &_til_str_lits[3], &_va_Array_156_ek);
         panic(_va_Array_156, loc);
     }
 }
 
 void println(Array__Str * parts) {
     {
-        Array__Str *_fc_Array__Str_5576 = parts;
-        (void)_fc_Array__Str_5576;
-        (void)_fc_Array__Str_5576;
-        U32 _fi_USize_5576 = 0;
-        (void)_fi_USize_5576;
+        Array__Str *_fc_Array__Str_5568 = parts;
+        (void)_fc_Array__Str_5568;
+        (void)_fc_Array__Str_5568;
+        U32 _fi_USize_5568 = 0;
+        (void)_fi_USize_5568;
         while (1) {
-            USize hoisted__U32_5578 = (_fc_Array__Str_5576->cap);
-            Bool _wcond_Bool_5577 = ((Bool)(_fi_USize_5576 < hoisted__U32_5578));
-            (void)_wcond_Bool_5577;
-            if (_wcond_Bool_5577) {
+            USize hoisted__U32_5570 = (_fc_Array__Str_5568->cap);
+            Bool _wcond_Bool_5569 = ((Bool)(_fi_USize_5568 < hoisted__U32_5570));
+            (void)_wcond_Bool_5569;
+            if (_wcond_Bool_5569) {
             } else {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_5576->data) + (((U32)(_fi_USize_5576 * 16))))));
-            U32 hoisted__U32_5579 = 1;
-            U32 hoisted__U32_5580 = ((U32)(_fi_USize_5576 + hoisted__U32_5579));
-            _fi_USize_5576 = hoisted__U32_5580;
+            Str *s = ((Str *)((void *)((U8 *)(_fc_Array__Str_5568->data) + (((U32)(_fi_USize_5568 * 16))))));
+            U32 hoisted__U32_5571 = 1;
+            U32 hoisted__U32_5572 = ((U32)(_fi_USize_5568 + hoisted__U32_5571));
+            _fi_USize_5568 = hoisted__U32_5572;
             print_single(s);
         }
     }
@@ -973,29 +973,29 @@ void println(Array__Str * parts) {
 }
 
 USize Range_size(void) {
-    U32 hoisted__U32_5619 = 16;
-    return hoisted__U32_5619;
+    U32 hoisted__U32_5611 = 16;
+    return hoisted__U32_5611;
     __builtin_unreachable();
 }
 
 void test_simple_add(void) {
     I64 result = 3;
-    I64 hoisted__I64_5633 = 3;
-    assert_eq__I64(result, hoisted__I64_5633, &_til_str_lits[4]);
+    I64 hoisted__I64_5625 = 3;
+    assert_eq__I64(result, hoisted__I64_5625, &_til_str_lits[4]);
     Str_delete(&_til_str_lits[4], (Bool){0});
 }
 
 void test_nested_arithmetic(void) {
     I64 result = 15;
-    I64 hoisted__I64_5641 = 15;
-    assert_eq__I64(result, hoisted__I64_5641, &_til_str_lits[5]);
+    I64 hoisted__I64_5633 = 15;
+    assert_eq__I64(result, hoisted__I64_5633, &_til_str_lits[5]);
     Str_delete(&_til_str_lits[5], (Bool){0});
 }
 
 void test_deeply_nested(void) {
     I64 result = 26;
-    I64 hoisted__I64_5649 = 26;
-    assert_eq__I64(result, hoisted__I64_5649, &_til_str_lits[6]);
+    I64 hoisted__I64_5641 = 26;
+    assert_eq__I64(result, hoisted__I64_5641, &_til_str_lits[6]);
     Str_delete(&_til_str_lits[6], (Bool){0});
 }
 
@@ -1032,8 +1032,8 @@ void test_variadic_direct_fold(void) {
     Str_delete(&_til_str_lits[14], (Bool){0});
     Str_delete(&_til_str_lits[15], (Bool){0});
     I64 d3 = 106;
-    I64 hoisted__I64_5718 = 106;
-    assert_eq__I64(d3, hoisted__I64_5718, &_til_str_lits[16]);
+    I64 hoisted__I64_5710 = 106;
+    assert_eq__I64(d3, hoisted__I64_5710, &_til_str_lits[16]);
     Str_delete(&_til_str_lits[16], (Bool){0});
 }
 
@@ -1054,17 +1054,17 @@ void test_lolalalo(void) {
 
 void test_fold_variable(void) {
     I64 result = 8;
-    I64 hoisted__I64_6211 = 8;
-    assert_eq__I64(result, hoisted__I64_6211, &_til_str_lits[21]);
+    I64 hoisted__I64_6203 = 8;
+    assert_eq__I64(result, hoisted__I64_6203, &_til_str_lits[21]);
     Str_delete(&_til_str_lits[21], (Bool){0});
 }
 
 void test_loc_folded(void) {
-    Bool hoisted__Bool_6215 = 1;
-    assert(hoisted__Bool_6215, &_til_str_lits[22]);
+    Bool hoisted__Bool_6207 = 1;
+    assert(hoisted__Bool_6207, &_til_str_lits[22]);
     Str_delete(&_til_str_lits[22], (Bool){0});
-    Bool hoisted__Bool_6219 = 1;
-    assert(hoisted__Bool_6219, &_til_str_lits[23]);
+    Bool hoisted__Bool_6211 = 1;
+    assert(hoisted__Bool_6211, &_til_str_lits[23]);
     Str_delete(&_til_str_lits[23], (Bool){0});
 }
 
@@ -1086,29 +1086,29 @@ void CfVec2_delete(CfVec2 * self, Bool call_free) {
 }
 
 USize CfVec2_size(void) {
-    U32 hoisted__U32_6263 = 16;
-    return hoisted__U32_6263;
+    U32 hoisted__U32_6255 = 16;
+    return hoisted__U32_6255;
     __builtin_unreachable();
 }
 
 void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
-    I64 hoisted__I64_6264 = 42;
-    assert_eq__I64(v.x, hoisted__I64_6264, &_til_str_lits[28]);
+    I64 hoisted__I64_6256 = 42;
+    assert_eq__I64(v.x, hoisted__I64_6256, &_til_str_lits[28]);
     Str_delete(&_til_str_lits[28], (Bool){0});
-    I64 hoisted__I64_6266 = 99;
-    assert_eq__I64(v.y, hoisted__I64_6266, &_til_str_lits[29]);
+    I64 hoisted__I64_6258 = 99;
+    assert_eq__I64(v.y, hoisted__I64_6258, &_til_str_lits[29]);
     Str_delete(&_til_str_lits[29], (Bool){0});
     CfVec2_delete(&v, (Bool){0});
 }
 
 void test_struct_fold_values(void) {
     CfVec2 p = (CfVec2){.x = 10, .y = 20};
-    I64 hoisted__I64_6270 = 10;
-    assert_eq__I64(p.x, hoisted__I64_6270, &_til_str_lits[30]);
+    I64 hoisted__I64_6262 = 10;
+    assert_eq__I64(p.x, hoisted__I64_6262, &_til_str_lits[30]);
     Str_delete(&_til_str_lits[30], (Bool){0});
-    I64 hoisted__I64_6272 = 20;
-    assert_eq__I64(p.y, hoisted__I64_6272, &_til_str_lits[31]);
+    I64 hoisted__I64_6264 = 20;
+    assert_eq__I64(p.y, hoisted__I64_6264, &_til_str_lits[31]);
     Str_delete(&_til_str_lits[31], (Bool){0});
     CfVec2_delete(&p, (Bool){0});
 }
@@ -1120,24 +1120,24 @@ void CfRect_delete(CfRect * self, Bool call_free) {
 }
 
 USize CfRect_size(void) {
-    U32 hoisted__U32_6305 = 32;
-    return hoisted__U32_6305;
+    U32 hoisted__U32_6297 = 32;
+    return hoisted__U32_6297;
     __builtin_unreachable();
 }
 
 void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
-    I64 hoisted__I64_6306 = 5;
-    assert_eq__I64(r.top_left.x, hoisted__I64_6306, &_til_str_lits[32]);
+    I64 hoisted__I64_6298 = 5;
+    assert_eq__I64(r.top_left.x, hoisted__I64_6298, &_til_str_lits[32]);
     Str_delete(&_til_str_lits[32], (Bool){0});
-    I64 hoisted__I64_6308 = 10;
-    assert_eq__I64(r.top_left.y, hoisted__I64_6308, &_til_str_lits[33]);
+    I64 hoisted__I64_6300 = 10;
+    assert_eq__I64(r.top_left.y, hoisted__I64_6300, &_til_str_lits[33]);
     Str_delete(&_til_str_lits[33], (Bool){0});
-    I64 hoisted__I64_6310 = 100;
-    assert_eq__I64(r.bottom_right.x, hoisted__I64_6310, &_til_str_lits[34]);
+    I64 hoisted__I64_6302 = 100;
+    assert_eq__I64(r.bottom_right.x, hoisted__I64_6302, &_til_str_lits[34]);
     Str_delete(&_til_str_lits[34], (Bool){0});
-    I64 hoisted__I64_6312 = 200;
-    assert_eq__I64(r.bottom_right.y, hoisted__I64_6312, &_til_str_lits[35]);
+    I64 hoisted__I64_6304 = 200;
+    assert_eq__I64(r.bottom_right.y, hoisted__I64_6304, &_til_str_lits[35]);
     Str_delete(&_til_str_lits[35], (Bool){0});
     CfRect_delete(&r, (Bool){0});
 }
@@ -1149,26 +1149,26 @@ void CfVec3f_delete(CfVec3f * self, Bool call_free) {
 }
 
 USize CfVec3f_size(void) {
-    U32 hoisted__U32_6350 = 12;
-    return hoisted__U32_6350;
+    U32 hoisted__U32_6342 = 12;
+    return hoisted__U32_6342;
     __builtin_unreachable();
 }
 
 void test_struct_fold_f32(void) {
     CfVec3f v = (CfVec3f){.x = 3, .y = 4, .z = 5};
-    Str *hoisted__Str_6354 = F32_to_str(v.x);
-    assert_eq__Str(hoisted__Str_6354, &_til_str_lits[36], &_til_str_lits[37]);
-    Str_delete(hoisted__Str_6354, 1);
+    Str *hoisted__Str_6346 = F32_to_str(v.x);
+    assert_eq__Str(hoisted__Str_6346, &_til_str_lits[36], &_til_str_lits[37]);
+    Str_delete(hoisted__Str_6346, 1);
     Str_delete(&_til_str_lits[36], (Bool){0});
     Str_delete(&_til_str_lits[37], (Bool){0});
-    Str *hoisted__Str_6357 = F32_to_str(v.y);
-    assert_eq__Str(hoisted__Str_6357, &_til_str_lits[38], &_til_str_lits[39]);
-    Str_delete(hoisted__Str_6357, 1);
+    Str *hoisted__Str_6349 = F32_to_str(v.y);
+    assert_eq__Str(hoisted__Str_6349, &_til_str_lits[38], &_til_str_lits[39]);
+    Str_delete(hoisted__Str_6349, 1);
     Str_delete(&_til_str_lits[38], (Bool){0});
     Str_delete(&_til_str_lits[39], (Bool){0});
-    Str *hoisted__Str_6360 = F32_to_str(v.z);
-    assert_eq__Str(hoisted__Str_6360, &_til_str_lits[40], &_til_str_lits[41]);
-    Str_delete(hoisted__Str_6360, 1);
+    Str *hoisted__Str_6352 = F32_to_str(v.z);
+    assert_eq__Str(hoisted__Str_6352, &_til_str_lits[40], &_til_str_lits[41]);
+    Str_delete(hoisted__Str_6352, 1);
     Str_delete(&_til_str_lits[40], (Bool){0});
     Str_delete(&_til_str_lits[41], (Bool){0});
     CfVec3f_delete(&v, (Bool){0});
@@ -1190,8 +1190,8 @@ Color *Color_Blue() {
     return r;
 }
 Bool Color_eq(Color * self, Color * other) {
-    Bool hoisted__Bool_6363 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
-    return hoisted__Bool_6363;
+    Bool hoisted__Bool_6355 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
+    return hoisted__Bool_6355;
     __builtin_unreachable();
 }
 
@@ -1202,49 +1202,49 @@ void Color_delete(Color * self, Bool call_free) {
 }
 
 Color * Color_clone(Color * self) {
-    Bool hoisted__Bool_6371 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
-    if (hoisted__Bool_6371) {
+    Bool hoisted__Bool_6363 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
+    if (hoisted__Bool_6363) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
         return _r; }
     }
-    Bool hoisted__Bool_6372 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
-    if (hoisted__Bool_6372) {
+    Bool hoisted__Bool_6364 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
+    if (hoisted__Bool_6364) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Green;
         return _r; }
     }
-    Bool hoisted__Bool_6373 = Color_eq(self, &(Color){.tag = Color_TAG_Blue});
-    if (hoisted__Bool_6373) {
+    Bool hoisted__Bool_6365 = Color_eq(self, &(Color){.tag = Color_TAG_Blue});
+    if (hoisted__Bool_6365) {
         { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Blue;
         return _r; }
     }
-    U32 hoisted__U32_6374 = 0;
-    Array__Str *_va_Array_191 = Array__Str_new(hoisted__U32_6374);
+    U32 hoisted__U32_6366 = 0;
+    Array__Str *_va_Array_191 = Array__Str_new(hoisted__U32_6366);
     (void)_va_Array_191;
     I64 _va_Array_191_ek = 0;
     (void)_va_Array_191_ek;
-    static Str hoisted__Str_6375 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
-    UNREACHABLE(_va_Array_191, &hoisted__Str_6375);
-    Str_delete(&hoisted__Str_6375, (Bool){0});
+    static Str hoisted__Str_6367 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
+    UNREACHABLE(_va_Array_191, &hoisted__Str_6367);
+    Str_delete(&hoisted__Str_6367, (Bool){0});
     { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
     return _r; }
     __builtin_unreachable();
 }
 
 USize Color_size(void) {
-    U32 hoisted__U32_6376 = 1;
-    return hoisted__U32_6376;
+    U32 hoisted__U32_6368 = 1;
+    return hoisted__U32_6368;
     __builtin_unreachable();
 }
 
 
 void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
-    Bool hoisted__Bool_6377 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
-    assert(hoisted__Bool_6377, &_til_str_lits[42]);
+    Bool hoisted__Bool_6369 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
+    assert(hoisted__Bool_6369, &_til_str_lits[42]);
     Str_delete(&_til_str_lits[42], (Bool){0});
-    Bool hoisted__Bool_6379 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
-    Bool hoisted__Bool_6380 = ((Bool)(!(hoisted__Bool_6379)));
-    assert(hoisted__Bool_6380, &_til_str_lits[43]);
+    Bool hoisted__Bool_6371 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
+    Bool hoisted__Bool_6372 = ((Bool)(!(hoisted__Bool_6371)));
+    assert(hoisted__Bool_6372, &_til_str_lits[43]);
     Str_delete(&_til_str_lits[43], (Bool){0});
 }
 
@@ -1267,17 +1267,17 @@ Token *Token_Eof() {
     return r;
 }
 void Token_delete(Token * self, Bool call_free) {
-    Bool hoisted__Bool_6399 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
-    if (hoisted__Bool_6399) {
-        I64 *hoisted__I64_6395 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        Bool hoisted__Bool_6396 = 0;
-        I64_delete(hoisted__I64_6395, hoisted__Bool_6396);
+    Bool hoisted__Bool_6391 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    if (hoisted__Bool_6391) {
+        I64 *hoisted__I64_6387 = ((void *)((U8 *)(self) + offsetof(Token, data)));
+        Bool hoisted__Bool_6388 = 0;
+        I64_delete(hoisted__I64_6387, hoisted__Bool_6388);
     }
-    Bool hoisted__Bool_6400 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Name}))->tag)));
-    if (hoisted__Bool_6400) {
-        Str *hoisted__Str_6397 = ((void *)((U8 *)(self) + offsetof(Token, data)));
-        Bool hoisted__Bool_6398 = 0;
-        Str_delete(hoisted__Str_6397, hoisted__Bool_6398);
+    Bool hoisted__Bool_6392 = ((Bool)((((Token *)(self))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Name}))->tag)));
+    if (hoisted__Bool_6392) {
+        Str *hoisted__Str_6389 = ((void *)((U8 *)(self) + offsetof(Token, data)));
+        Bool hoisted__Bool_6390 = 0;
+        Str_delete(hoisted__Str_6389, hoisted__Bool_6390);
     }
     if (call_free) {
         free(self);
@@ -1285,91 +1285,91 @@ void Token_delete(Token * self, Bool call_free) {
 }
 
 USize Token_size(void) {
-    U32 hoisted__U32_6427 = 24;
-    return hoisted__U32_6427;
+    U32 hoisted__U32_6419 = 24;
+    return hoisted__U32_6419;
     __builtin_unreachable();
 }
 
 
 void test_enum_payload_fold(void) {
     Token *t = Token_Num(&(I64){42});
-    Bool hoisted__Bool_6429 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
-    assert(hoisted__Bool_6429, &_til_str_lits[44]);
+    Bool hoisted__Bool_6421 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    assert(hoisted__Bool_6421, &_til_str_lits[44]);
     Str_delete(&_til_str_lits[44], (Bool){0});
-    Bool hoisted__Bool_6431 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
-    Bool hoisted__Bool_6432 = ((Bool)(!(hoisted__Bool_6431)));
-    assert(hoisted__Bool_6432, &_til_str_lits[45]);
+    Bool hoisted__Bool_6423 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
+    Bool hoisted__Bool_6424 = ((Bool)(!(hoisted__Bool_6423)));
+    assert(hoisted__Bool_6424, &_til_str_lits[45]);
     Str_delete(&_til_str_lits[45], (Bool){0});
     Token_delete(t, 1);
 }
 
 void test_enum_return_fold(void) {
     Color c = (Color){.tag = Color_TAG_Green};
-    Bool hoisted__Bool_6434 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
-    assert(hoisted__Bool_6434, &_til_str_lits[46]);
+    Bool hoisted__Bool_6426 = Color_eq(&c, &(Color){.tag = Color_TAG_Green});
+    assert(hoisted__Bool_6426, &_til_str_lits[46]);
     Str_delete(&_til_str_lits[46], (Bool){0});
-    Bool hoisted__Bool_6436 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
-    Bool hoisted__Bool_6437 = ((Bool)(!(hoisted__Bool_6436)));
-    assert(hoisted__Bool_6437, &_til_str_lits[47]);
+    Bool hoisted__Bool_6428 = Color_eq(&c, &(Color){.tag = Color_TAG_Red});
+    Bool hoisted__Bool_6429 = ((Bool)(!(hoisted__Bool_6428)));
+    assert(hoisted__Bool_6429, &_til_str_lits[47]);
     Str_delete(&_til_str_lits[47], (Bool){0});
 }
 
 void test_enum_payload_return_fold(void) {
     Token *t = Token_Num(&(I64){7});
-    Bool hoisted__Bool_6441 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
-    assert(hoisted__Bool_6441, &_til_str_lits[48]);
+    Bool hoisted__Bool_6433 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Num}))->tag)));
+    assert(hoisted__Bool_6433, &_til_str_lits[48]);
     Str_delete(&_til_str_lits[48], (Bool){0});
-    Bool hoisted__Bool_6443 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
-    Bool hoisted__Bool_6444 = ((Bool)(!(hoisted__Bool_6443)));
-    assert(hoisted__Bool_6444, &_til_str_lits[49]);
+    Bool hoisted__Bool_6435 = ((Bool)((((Token *)(t))->tag) == (((Token *)(&(Token){.tag = Token_TAG_Eof}))->tag)));
+    Bool hoisted__Bool_6436 = ((Bool)(!(hoisted__Bool_6435)));
+    assert(hoisted__Bool_6436, &_til_str_lits[49]);
     Str_delete(&_til_str_lits[49], (Bool){0});
     Token_delete(t, 1);
 }
 
 void assert_eq__I64(I64 a, I64 b, Str * loc) {
-    Bool hoisted__Bool_6512 = ((Bool)(a != b));
-    if (hoisted__Bool_6512) {
-        U32 hoisted__U32_6501 = 5;
-        Array__Str *_va_Array_194 = Array__Str_new(hoisted__U32_6501);
+    Bool hoisted__Bool_6504 = ((Bool)(a != b));
+    if (hoisted__Bool_6504) {
+        U32 hoisted__U32_6493 = 5;
+        Array__Str *_va_Array_194 = Array__Str_new(hoisted__U32_6493);
         (void)_va_Array_194;
         I64 _va_Array_194_ek = 0;
         (void)_va_Array_194_ek;
-        U32 hoisted__U32_6502 = 0;
-        Array__Str_set(_va_Array_194, hoisted__U32_6502, &_til_str_lits[50], &_va_Array_194_ek);
-        U32 hoisted__U32_6504 = 1;
-        Str *hoisted__Str_6505 = I64_to_str(a);
-        Array__Str_set(_va_Array_194, hoisted__U32_6504, hoisted__Str_6505, &_va_Array_194_ek);
-        U32 hoisted__U32_6506 = 2;
-        Array__Str_set(_va_Array_194, hoisted__U32_6506, &_til_str_lits[51], &_va_Array_194_ek);
-        U32 hoisted__U32_6508 = 3;
-        Str *hoisted__Str_6509 = I64_to_str(b);
-        Array__Str_set(_va_Array_194, hoisted__U32_6508, hoisted__Str_6509, &_va_Array_194_ek);
-        U32 hoisted__U32_6510 = 4;
-        Array__Str_set(_va_Array_194, hoisted__U32_6510, &_til_str_lits[52], &_va_Array_194_ek);
+        U32 hoisted__U32_6494 = 0;
+        Array__Str_set(_va_Array_194, hoisted__U32_6494, &_til_str_lits[50], &_va_Array_194_ek);
+        U32 hoisted__U32_6496 = 1;
+        Str *hoisted__Str_6497 = I64_to_str(a);
+        Array__Str_set(_va_Array_194, hoisted__U32_6496, hoisted__Str_6497, &_va_Array_194_ek);
+        U32 hoisted__U32_6498 = 2;
+        Array__Str_set(_va_Array_194, hoisted__U32_6498, &_til_str_lits[51], &_va_Array_194_ek);
+        U32 hoisted__U32_6500 = 3;
+        Str *hoisted__Str_6501 = I64_to_str(b);
+        Array__Str_set(_va_Array_194, hoisted__U32_6500, hoisted__Str_6501, &_va_Array_194_ek);
+        U32 hoisted__U32_6502 = 4;
+        Array__Str_set(_va_Array_194, hoisted__U32_6502, &_til_str_lits[52], &_va_Array_194_ek);
         panic(_va_Array_194, loc);
     }
 }
 
 void assert_eq__Str(Str * a, Str * b, Str * loc) {
-    Bool hoisted__Bool_6524 = Str_neq(a, b);
-    if (hoisted__Bool_6524) {
-        U32 hoisted__U32_6513 = 5;
-        Array__Str *_va_Array_195 = Array__Str_new(hoisted__U32_6513);
+    Bool hoisted__Bool_6516 = Str_neq(a, b);
+    if (hoisted__Bool_6516) {
+        U32 hoisted__U32_6505 = 5;
+        Array__Str *_va_Array_195 = Array__Str_new(hoisted__U32_6505);
         (void)_va_Array_195;
         I64 _va_Array_195_ek = 0;
         (void)_va_Array_195_ek;
-        U32 hoisted__U32_6514 = 0;
-        Array__Str_set(_va_Array_195, hoisted__U32_6514, &_til_str_lits[50], &_va_Array_195_ek);
-        U32 hoisted__U32_6516 = 1;
-        Str *hoisted__Str_6517 = Str_to_str(a);
-        Array__Str_set(_va_Array_195, hoisted__U32_6516, hoisted__Str_6517, &_va_Array_195_ek);
-        U32 hoisted__U32_6518 = 2;
-        Array__Str_set(_va_Array_195, hoisted__U32_6518, &_til_str_lits[51], &_va_Array_195_ek);
-        U32 hoisted__U32_6520 = 3;
-        Str *hoisted__Str_6521 = Str_to_str(b);
-        Array__Str_set(_va_Array_195, hoisted__U32_6520, hoisted__Str_6521, &_va_Array_195_ek);
-        U32 hoisted__U32_6522 = 4;
-        Array__Str_set(_va_Array_195, hoisted__U32_6522, &_til_str_lits[52], &_va_Array_195_ek);
+        U32 hoisted__U32_6506 = 0;
+        Array__Str_set(_va_Array_195, hoisted__U32_6506, &_til_str_lits[50], &_va_Array_195_ek);
+        U32 hoisted__U32_6508 = 1;
+        Str *hoisted__Str_6509 = Str_to_str(a);
+        Array__Str_set(_va_Array_195, hoisted__U32_6508, hoisted__Str_6509, &_va_Array_195_ek);
+        U32 hoisted__U32_6510 = 2;
+        Array__Str_set(_va_Array_195, hoisted__U32_6510, &_til_str_lits[51], &_va_Array_195_ek);
+        U32 hoisted__U32_6512 = 3;
+        Str *hoisted__Str_6513 = Str_to_str(b);
+        Array__Str_set(_va_Array_195, hoisted__U32_6512, hoisted__Str_6513, &_va_Array_195_ek);
+        U32 hoisted__U32_6514 = 4;
+        Array__Str_set(_va_Array_195, hoisted__U32_6514, &_til_str_lits[52], &_va_Array_195_ek);
         panic(_va_Array_195, loc);
     }
 }

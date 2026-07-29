@@ -4101,9 +4101,35 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                 // (a core_func is not FFI-registered) using the enum's typed raw
                 // bytes, so both modes agree for every payload width.
                 ename := til_type_name(e.children[1].til_type())
-                f.write("((void *)((U8 *)(")
-                emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write(") + offsetof(").write(ename).write(", data)))")
+                // #321: a NICHE enum's payload is not stored inline -- the enum
+                // IS one pointer to it. So the payload's ADDRESS is that
+                // pointer, and get_payload must LOAD the slot rather than
+                // return the slot's own address. Doing it here, where the enum
+                // is known, is what lets callers stop wrapping the call in
+                // `deref(...)`: that wrapper declared `returns ref Dynamic`, so
+                // inference re-stamped the expression as Dynamic and threw away
+                // the payload type the desugar had put on it -- which is how a
+                // nested pattern reached C as `(( *)(t))->tag`.
+                mut gp_is_niche := false
+                gp_def_o := find_struct_def(ename, ctx)
+                if gp_def_o.is_some() {
+                    ref gp_def : Expr = gp_def_o.unwrap()
+                    if gp_def.node_type.is(NodeType.EnumDef) { gp_is_niche = enum_is_niche(gp_def) }
+                }
+                if gp_is_niche {
+                    // Cast the loaded pointer back to void *: a get_payload
+                    // result is bound to a temp the builder types generically
+                    // (I64 *), which the old offset form satisfied because it
+                    // was already void *. Handing back a concrete T * instead
+                    // trips -Werror=incompatible-pointer-types.
+                    f.write("((void *)((").write(ename).write(" *)(")
+                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                    f.write("))->data)")
+                } else {
+                    f.write("((void *)((U8 *)(")
+                    emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
+                    f.write(") + offsetof(").write(ename).write(", data)))")
+                }
             } else {
                 // User-defined function call
                 fc := func_to_c(name.ident_name())
