@@ -93,14 +93,18 @@ init_window := proc(w: I32, h: I32, title: Str) {
 // File dialog helpers -- return file path or empty string on cancel
 // (c_str_len lives in src/core/str.til, reachable here via core import)
 save_file_dialog := proc(title: Str, default_path: Str) returns Str {
-    ref result : I8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL)
-    if result.is_null() { return "" }
-    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
-    return view.clone()
+    switch tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, Option(ref Dynamic).None, Option(ref I8).None) {
+    case Option(ref I8).Some(result):
+        view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
+        return view.clone()
+    case Option(ref I8).None: return ""
+    }
 }
 open_file_dialog := proc(title: Str, default_path: Str) returns Str {
-    ref result : I8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, NULL, NULL, 0)
-    if result.is_null() { return "" }
-    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
-    return view.clone()
+    switch tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, Option(ref Dynamic).None, Option(ref I8).None, 0) {
+    case Option(ref I8).Some(result):
+        view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
+        return view.clone()
+    case Option(ref I8).None: return ""
+    }
 }

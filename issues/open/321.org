@@ -1271,6 +1271,38 @@ future field that genuinely wants comparing would.
 
 203/203, pass 1 == pass 2.
 
+**** Batch 30: tinyfiledialogs, the boundary where NULL crossed both ways
+
+The other C-boundary case the Decisions section names, done. gui.til had
+NULL going OUT as "no filter" arguments and coming BACK as "user
+cancelled":
+
+: ref result : I8 = tinyfd_saveFileDialog(title.c_str, path.c_str, 0, NULL, NULL)
+: if result.is_null() { return "" }
+
+Both directions are now ~Option(ref T)~ in the ext declaration, and the
+call site is a switch. src/modes/gui.til contains no NULL at all any
+more.
+
+What made it work, and it is the niche's whole promise being cashed: the
+Option params and return have to be declared ~shallow~. Without that the
+ext boundary passes them BY POINTER --
+
+: Option__ref_I8 * tinyfd_saveFileDialog(const I8 *, ..., const Option__ref_I8 *)
+
+-- which is not what C exports and would have crashed. With ~shallow~:
+
+: Option__ref_I8 tinyfd_saveFileDialog(const I8 *, ..., Option__ref_I8)
+
+~Option__ref_I8~ is ~struct { I8 *data; }~, and the x86-64 SysV ABI
+passes and returns a one-pointer struct in a register exactly like a bare
+pointer. So the declaration is ABI-identical to the C it binds, which is
+what "the niche makes Option(ref T) usable directly at the C boundary"
+has to mean in practice. Worth writing down: at an ext boundary a niche
+Option needs ~shallow~ explicitly; it is not inferred.
+
+204/204, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.
