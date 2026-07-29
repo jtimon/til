@@ -3045,6 +3045,7 @@ priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_unsafe_get(Vec__GcCfg
 priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_get(Vec__GcCfgBlock * self, USize * i, I64 * _err_kind);
 void Vec__GcCfgBlock_delete(Vec__GcCfgBlock * self, Bool call_free);
 void adopt__I32(void * dest, I32 * src);
+void adopt__U8(void * dest, U8 * src);
 void adopt__priv___src_self_garbager_til__StmtFacts(void * dest, priv___src_self_garbager_til__StmtFacts * src);
 void adopt__priv___src_self_garbager_til__GcBorrowEdge(void * dest, priv___src_self_garbager_til__GcBorrowEdge * src);
 void adopt__priv___src_self_garbager_til__LocalInfo(void * dest, priv___src_self_garbager_til__LocalInfo * src);

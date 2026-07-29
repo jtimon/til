@@ -44,8 +44,7 @@ namespace:
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(self: Array(T), i: USize, own val: T) {
         T.delete(own self.unsafe_get(i), false)
-        memcpy(self.unsafe_get(i), val, T.size())
-        memset(val, 0, T.size())
+        adopt(T, self.unsafe_get(i), own val)
     }
 
     /// Overwrite the element at index `i`. Drops the old value. `val` is

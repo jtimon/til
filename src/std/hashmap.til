@@ -162,9 +162,7 @@ namespace:
             slot_idx : USize = existing.to_usize()
             slot_off : USize = slot_idx * V.size()
             V.delete(own ptr_add(self.values.data, slot_off), false)
-            memcpy(ptr_add(self.values.data, slot_off), val, V.size())
-            memset(val, 0, V.size())
-            free(own val)
+            adopt(V, ptr_add(self.values.data, slot_off), own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
             head_val : I64 = self.buckets.unsafe_get(bi).clone()

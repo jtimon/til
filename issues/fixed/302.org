@@ -1,6 +1,25 @@
 # priority: high
+# post-mortem: The compile-time GC was not the single ownership
+# authority: liveness was a statement-index model with name-string
+# helpers, decisions traveled by shape re-recognition, and every
+# backend compensated (delete shims, swap_freed, clone-elision
+# rewrites, interpreter shadow memory). The rework, staged over ~3
+# weeks: decisions RECORDED (GcStorage, is_move, save_old_delete,
+# shallow_copy_transfer); returns normalized; a per-body CFG +
+# ownership dataflow whose verdicts replaced the positional exit
+# rules (free only what EVERY path still owns); no-op scalar deletes
+# never inserted; the temp contract checked; interpreter and builder
+# compensations retired; and move/swap/adopt as typed ownership
+# primitives draining the manual memcpy+memset idiom from the
+# containers. Five real memory bugs found and fixed along the way,
+# plus two compiler bugs (import-order generic seeding, dangling
+# TypeBinding refs). Referees: the pass-1-vs-pass-2 / old-vs-new
+# emitted-C byte-diff (compare gen/til/*.c against the commit's own
+# parent -- stdout is just a banner), the gc_audit golden, and the
+# full ASAN suite. Regression tests: the test_bug302_* family in
+# test/regression.til; ~47s self-translate at start, ~27s at close.
 # category: cleanups
-** WIP #302 Garbager rework: make the compile-time GC the single, complete ownership authority
+** FIXED #302 Garbager rework: make the compile-time GC the single, complete ownership authority
 
 make test now runs the full ASAN suite and is leak-clean (e3134d5,
 fe53487), but a substantial share of that greenness was bought with
@@ -1372,12 +1391,34 @@ let the ownership pass insert temps itself; start with the check.
     "move expressed by silently editing an expression" channel is
     dead: decision recorded in one place, executed by each backend
     from the record.
-  - [ ] Stage 4 (rest): user-facing
-    move for the container memcpy+memset idiom (census class c) --
-    NOTE: push/pop write UNINITIALIZED slots, so move() (which
-    destroys dest's old value) cannot express them; a placement-adopt
-    primitive would be a NEW language surface and needs an explicit
-    ruling first.
+  - [X] Stage 4 (rest) DONE 2026-07-28: adopt(T, dest, own src), the
+    placement-move primitive, ruled by Jorge and landed in three
+    commits (two compiler unblocks + the primitive and its sweep).
+    Unblocks first, each a real bug adopt merely exposed: (1) seeding
+    ran per-branch, so a unit deeper in the import graph than mem.til
+    could never monomorphize its generics -- why no container had ever
+    called move()/swap(); (2) the #328 scan reported generic calls
+    inside type-gen macro bodies, where T is legitimately unbound; (3)
+    two TypeBinding refs held across arg inference dangled when
+    registering a monomorphization realloc'd the scope map
+    (ASAN-caught once containers started calling generics).
+    The primitive is TYPED on purpose: the Dynamic prototype aborted
+    on literal Strs because the CAP_LIT guard on free is emitted only
+    where the call site knows the type. Twelve call sites across
+    Vec/Set/Map/Array/HashMap replace memcpy + defusing-memset (+
+    free(own ...) where present) with one named transfer; overwrite
+    shapes (unsafe_set, HashMap value replace) are delete-old + adopt.
+    move() was tried there first and CANNOT be used: its byte swap
+    writes dest's old bytes into src's storage, and the global-init
+    path passes literal Strs as raw own args (unboxed), so the swap
+    wipes the CAP_LIT sentinel in _til_str_lits and the scheduled
+    delete frees static memory. adopt never mutates src before its
+    guarded free, so it tolerates the same callers. Sanctioned
+    residue: Vec.pop / Vec.push_take / DynVec.push_take move SLOT TO
+    SLOT (no box to free -- the memset stays), and the dyn_*
+    containers are type-erased, so the typed primitive cannot apply.
+    make clean && make test 204/204 (ASAN); gc_audit golden pins the
+    new shapes.
   - [X] 2026-07-16 Stage 5 DONE: the temp contract is CHECKED. New
     temp_check_body/temp_check_expr walk in the garbager (runs for
     every body, before the zero-locals early return): an own-returning
