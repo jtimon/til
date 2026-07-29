@@ -95,6 +95,14 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
 
 priv struct_field_supports_generated_method := func(fd: Declaration, method: Str, scope: TypeScope) returns Bool {
     if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
+    // #321: an `Option(ref T)` field is what a nullable pointer field used to
+    // spell as `ref field : T = NULL`, and a ref field is skipped above. It has
+    // to stay skipped: the pointee is frequently an opaque ext struct with no
+    // eq/to_str of its own, and the template instantiation cannot have one
+    // either. Matching on the source spelling because the field carries the
+    // APPLICATION (`Option(ref X)`), which no scope lookup resolves.
+    fd_tn := field_inferred_type_name(fd)
+    if fd_tn.starts_with("Option(ref ").or(fd_tn.starts_with("Option__ref_")) { return false }
     type_name := field_inferred_type_name(fd)
     if type_name.len() == 0 { return false }
     resolved := type_from_name_init(type_name, scope)

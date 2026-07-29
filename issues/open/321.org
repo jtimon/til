@@ -1237,6 +1237,40 @@ modes -- the first time that path has ever worked. Two-pass, since the
 emit changes (test/constfold.c is temp-counter renumbering only: the
 desugar builds fewer nodes now). 201/201.
 
+**** Batch 29: the bindings generator stops emitting NULL
+
+The C-boundary item from the Decisions section, done. binder.til emitted
+~ref field : T = NULL~ for every pointer field; it now emits
+~field : Option(ref T) = Option(ref T).None~, and a regenerated
+vendor/bindings has ZERO ~= NULL~ left in it. The nng_url case the
+Decisions section names ("will be NULL if not specified") comes out as
+the Option directly.
+
+Two things make this the right shape rather than a rename. The #320 niche
+keeps Option(ref T) one pointer wide with None == the null bit pattern,
+so the emitted struct stays byte-identical to the C one -- saying it
+honestly costs no marshalling. And the default is legal where
+~ref field = NULL~ was legal only by exemption: an inline ENUM field
+never reaches check_ref_field_owned_default at all.
+
+One fix was needed to land it, and bindgen_typechecks caught it: an
+ext_struct's generated eq/to_str call those methods on every field, and
+~Option(ref rAudioBuffer)~ has neither -- the pointee is an opaque
+ext_struct with no eq of its own, so the instantiation cannot have one.
+struct_field_supports_generated_method already skips ~ref~ fields for
+exactly this reason, and these Option fields ARE the ref fields, so they
+skip on the same grounds. It matches both spellings, the source
+application ~Option(ref X)~ and the instantiated ~Option__ref_X~, because
+which one the field carries depends on how far inference has run.
+
+Note what this does NOT settle: ~Option.eq~ / ~Option.to_str~ still do
+not exist. Defining them means deciding whether equality on an
+~Option(ref T)~ compares POINTERS or POINTEES, and the answer has to hold
+for owned payloads too. Skipped fields do not force that decision; a
+future field that genuinely wants comparing would.
+
+203/203, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

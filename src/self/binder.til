@@ -264,6 +264,24 @@ priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
 // which is shared by every declarator on the same C line, since
 // `float m0, m4;` states the type once and `int *a, b;` gives each
 // declarator its own star count off that one base.
+// #321: a nullable C pointer field is `Option(ref T)`, not `ref T = NULL`.
+// The niche layout (#320) keeps Option(ref T) one pointer wide with None ==
+// the null bit pattern, so the emitted struct stays byte-identical to the C
+// one -- saying it honestly costs no marshalling. And the default is legal
+// where `ref field = NULL` was only legal by exemption: this is an inline
+// ENUM field, so check_ref_field_owned_default never sees it.
+//
+// `void *` and multi-level pointers keep Dynamic as the pointee: that is the
+// quarantined raw layer, where null is a legitimate value, not an absent one.
+priv push_nullable_ptr_field := func(mut out: Str, fname: Str, base_view: Str) {
+    out.push_str(fname)
+    out.push_str(" : Option(ref ")
+    if base_view == "void" { out.push_str("Dynamic") } else { push_til_base(out, base_view) }
+    out.push_str(") = Option(ref ")
+    if base_view == "void" { out.push_str("Dynamic") } else { push_til_base(out, base_view) }
+    out.push_str(").None")
+}
+
 priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
     base_off: USize, base_end: USize, name_start: USize, name_end: USize,
     ptrs: I32, comment: Str) {
@@ -278,11 +296,7 @@ priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
     if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
         // Field is typed as a previously-emitted Dynamic alias (typedef'd
         // pointer or function pointer). Treat it like a pointer field.
-        out.push_str("ref ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : ")
-        push_til_base(out, base_view)
-        out.push_str(" = NULL")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view)
     } else if ptrs == 0 {
         out.push_str(line.substr(name_start, word_len))
         out.push_str(" : ")
@@ -290,19 +304,11 @@ priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
         out.push_str(" = ")
         push_til_default(bs, out, base_view)
     } else if ptrs.eq(1).and(range_eq_lit(line, base_off, base_end, "void")) {
-        out.push_str("ref ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = NULL")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void")
     } else if ptrs == 1 {
-        out.push_str("ref ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : ")
-        push_til_base(out, base_view)
-        out.push_str(" = NULL")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view)
     } else {
-        out.push_str("ref ")
-        out.push_str(line.substr(name_start, word_len))
-        out.push_str(" : Dynamic = NULL")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void")
     }
     if comment.is_empty().not() {
         out.push_str("  // ")
