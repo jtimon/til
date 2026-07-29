@@ -1762,7 +1762,91 @@ priv collect_unsafe_to_hoist := proc(ctx: Context, body: Expr) {
     }
 }
 
+// #326: record the names this body READS (Ident uses and assignment
+// targets, exactly what collect_ident_refs gathers) and the names it
+// declares more than once, so emit_stmt_decl can tell an unread
+// `_`-prefixed binding from one that is used.
+priv builder_collect_body_liveness := proc(mut ctx: Context, body: Expr) {
+    ctx.builder_func.body_refs = Set(Str).new()
+    ctx.builder_func.body_multi_decls = Set(Str).new()
+    builder_collect_body_reads(body, ctx.builder_func.body_refs)
+    mut seen := Set(Str).new()
+    builder_collect_decl_names(body, seen, ctx.builder_func.body_multi_decls)
+}
+
+// READS only, unlike collect_ident_refs: an assignment TARGET is a write,
+// and C has a separate diagnostic for a variable that is only ever written
+// (-Wunused-but-set-variable), so a written-never-read binding still needs
+// the cast. The assignment's right-hand side is an ordinary child, so
+// `x = x.add(1)` still counts its own read.
+priv builder_collect_body_reads := proc(e: Expr, mut refs: Set(Str)) {
+    // A `<T>.delete(x, ...)` cleanup is not a read. The builder elides
+    // whole classes of them (is_noop_delete_stmt, the stack-local shims),
+    // and that is exactly when the binding needs its cast. When the delete
+    // IS emitted the name appears in the C, so C sees the use and the
+    // missing cast costs nothing -- correct in both directions, unlike
+    // guessing which deletes survive.
+    if builder_is_delete_call(e) { return }
+    switch e.node_type {
+    case NodeType.Ident(rname): refs.add(own Str.clone(rname.ident_name()))
+    case:
+    }
+    // A Case is [pattern, (guard,) body]: the pattern's payload binder is a
+    // DECLARATION, not a read. Counting it kept `case Option(T).Some(_v):`
+    // from ever looking unread, which is precisely the shape the underscore
+    // escape hatch exists for.
+    skip_pattern := e.node_type.is(NodeType.Case)
+    mut bcr_i : USize = 0
+    for bcr_c : Expr in e.children {
+        cur_bcr := bcr_i
+        bcr_i = bcr_i + 1
+        if cur_bcr.eq(0).and(skip_pattern) { continue }
+        builder_collect_body_reads(bcr_c, refs)
+    }
+}
+
+priv builder_is_delete_call := func(e: Expr) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() < 2 { return false }
+    switch e.children[0].node_type {
+    case NodeType.FieldAccess(bid_m): return bid_m.field_access_name().eq("delete")
+    case:
+    }
+    return false
+}
+
+priv builder_collect_decl_names := proc(e: Expr, mut seen: Set(Str), mut dupes: Set(Str)) {
+    switch e.node_type {
+    case NodeType.Decl(bcd):
+        if seen.has(bcd.name) {
+            if dupes.has(bcd.name).not() { dupes.add(own Str.clone(bcd.name)) }
+        } else {
+            seen.add(own Str.clone(bcd.name))
+        }
+    case:
+    }
+    for bcd_c : Expr in e.children {
+        builder_collect_decl_names(bcd_c, seen, dupes)
+    }
+}
+
+// #326: a `_`-prefixed binding may carry an unused cast -- that is til's
+// deliberately-unused convention (#86) -- but it needs one only when the
+// emitted body never reads it. The old rule cast every underscore name
+// unconditionally, so 17,000 of them in boot/til.c sat next to a read on
+// the following line, the same noise the `hoisted__` exemption produced.
+// A name declared more than once in the body keeps the unconditional cast:
+// the ref set is name-keyed and cannot tell sibling-scope bindings apart,
+// and guessing wrong there would be a build error on valid code.
+priv builder_needs_unused_cast := func(name: Str, ctx: Context) returns Bool {
+    if name.starts_with("_").not() { return false }
+    if ctx.builder_func.body_multi_decls.has(name) { return true }
+    return ctx.builder_func.body_refs.has(name).not()
+}
+
 priv builder_reset_func_scratch := func(mut ctx: Context) {
+    ctx.builder_func.body_refs = Set(Str).new()
+    ctx.builder_func.body_multi_decls = Set(Str).new()
     ctx.builder_func.stack_locals = Set(Str).new()
     ctx.builder_func.stack_local_types = Map(Str, Str).new()
     ctx.builder_func.stack_lit_str_locals = Set(Str).new()
@@ -2178,8 +2262,9 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
             // them in check_unused_locals, so we need a (void) guard to
             // keep C's -Wunused-variable quiet. #326: ONLY `_`-prefixed
             // names get one -- a dead `hoisted__` temp must reach gcc as
-            // -Werror=unused-variable so the pass that orphaned it is fixed.
-            if dd.name.starts_with("_") {
+            // -Werror=unused-variable so the pass that orphaned it is fixed
+            // -- and only when the binding is actually unread.
+            if builder_needs_unused_cast(dd.name, ctx) {
                 emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
             }
         } else {
@@ -2385,7 +2470,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         // `hoisted__` temps are deliberately NOT exempted, so a compiler
         // temp that goes dead trips -Werror=unused-variable instead of
         // being silently accepted.
-        if dd.name.starts_with("_") {
+        if builder_needs_unused_cast(dd.name, ctx) {
             emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
         }
     }
@@ -4911,6 +4996,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         }
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
+        builder_collect_body_liveness(lp.ctx, body)
         lp.ctx.in_main_func = true
         // Every other body emission sets current_fdef (plain funcs and
         // closures below); the main entry wrapper did not, so name-keyed
@@ -4954,6 +5040,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         lp.ctx.current_fdef = Option(ref Expr).Some(func_def)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, body)
+        builder_collect_body_liveness(lp.ctx, body)
         emit_body(f, body, 1, lp.ctx)
         lp.ctx.in_func_def = false
         emit_diverge_terminator(f, ret, body)
@@ -5028,6 +5115,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
+        builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env
         lp.ctx.closure_emit_captures = saved_caps
@@ -5089,6 +5177,7 @@ emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitted: Se
         lp.ctx.current_fdef = Option(ref Expr).Some(closure_expr)
         builder_reset_func_scratch(lp.ctx)
         collect_unsafe_to_hoist(lp.ctx, closure_expr.children[0])
+        builder_collect_body_liveness(lp.ctx, closure_expr.children[0])
         emit_body(f, closure_expr.children[0], 1, lp.ctx)
         lp.ctx.closure_emit_env = saved_env_b
         lp.ctx.closure_emit_captures = saved_caps_b
@@ -8718,6 +8807,7 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         collect_unsafe_to_hoist(lp.ctx, iu.ast)
+        builder_collect_body_liveness(lp.ctx, iu.ast)
     }
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

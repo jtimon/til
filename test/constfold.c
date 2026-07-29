@@ -425,14 +425,10 @@ Str * format(Array__Str * parts) {
     U32 total = 0;
     {
         Array__Str *_fc_Array__Str_55 = parts;
-        (void)_fc_Array__Str_55;
-        (void)_fc_Array__Str_55;
         U32 _fi_USize_55 = 0;
-        (void)_fi_USize_55;
         while (1) {
             USize hoisted__U32_57 = (_fc_Array__Str_55->cap);
             Bool _wcond_Bool_56 = ((Bool)(_fi_USize_55 < hoisted__U32_57));
-            (void)_wcond_Bool_56;
             if (_wcond_Bool_56) {
             } else {
                 break;
@@ -449,14 +445,10 @@ Str * format(Array__Str * parts) {
     Str *out = Str_with_capacity(total);
     {
         Array__Str *_fc_Array__Str_62 = parts;
-        (void)_fc_Array__Str_62;
-        (void)_fc_Array__Str_62;
         U32 _fi_USize_62 = 0;
-        (void)_fi_USize_62;
         while (1) {
             USize hoisted__U32_64 = (_fc_Array__Str_62->cap);
             Bool _wcond_Bool_63 = ((Bool)(_fi_USize_62 < hoisted__U32_64));
-            (void)_wcond_Bool_63;
             if (_wcond_Bool_63) {
             } else {
                 break;
@@ -523,9 +515,7 @@ void Str_push_str(Str * self, Str * s) {
     if (hoisted__Bool_118) {
         U32 hoisted__U32_108 = 1;
         Array__Str *_va_Array_1 = Array__Str_new(hoisted__U32_108);
-        (void)_va_Array_1;
         I64 _va_Array_1_ek = 0;
-        (void)_va_Array_1_ek;
         U32 hoisted__U32_109 = 0;
         static Str hoisted__Str_110 = (Str){.c_str = (void *)"Str.push_str: cannot mutate a string view or literal", .count = 52ULL, .cap = TIL_CAP_LIT};
         Array__Str_set(_va_Array_1, hoisted__U32_109, &hoisted__Str_110, &_va_Array_1_ek);
@@ -538,9 +528,7 @@ void Str_push_str(Str * self, Str * s) {
     if (hoisted__Bool_119) {
         U32 hoisted__U32_112 = 1;
         Array__Str *_va_Array_2 = Array__Str_new(hoisted__U32_112);
-        (void)_va_Array_2;
         I64 _va_Array_2_ek = 0;
-        (void)_va_Array_2_ek;
         U32 hoisted__U32_113 = 0;
         static Str hoisted__Str_114 = (Str){.c_str = (void *)"Str.push_str: capacity exceeded", .count = 31ULL, .cap = TIL_CAP_LIT};
         Array__Str_set(_va_Array_2, hoisted__U32_113, &hoisted__Str_114, &_va_Array_2_ek);
@@ -657,14 +645,11 @@ void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind) {
 void Array__Str_delete(Array__Str * self, Bool call_free) {
     {
         U32 _re_U32_636 = self->cap;
-        (void)_re_U32_636;
         U32 _rc_U32_636 = 0;
-        (void)_rc_U32_636;
         Bool hoisted__Bool_647 = ((Bool)(_rc_U32_636 <= _re_U32_636));
         if (hoisted__Bool_647) {
             while (1) {
                 Bool _wcond_Bool_637 = ((Bool)(_rc_U32_636 < _re_U32_636));
-                (void)_wcond_Bool_637;
                 if (_wcond_Bool_637) {
                 } else {
                     break;
@@ -680,7 +665,6 @@ void Array__Str_delete(Array__Str * self, Bool call_free) {
         } else {
             while (1) {
                 Bool _wcond_Bool_642 = ((Bool)(_rc_U32_636 > _re_U32_636));
-                (void)_wcond_Bool_642;
                 if (_wcond_Bool_642) {
                 } else {
                     break;
@@ -706,14 +690,11 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     U8 *new_data = malloc(((U32)(self->cap * hoisted__U32_668)));
     {
         U32 _re_U32_648 = self->cap;
-        (void)_re_U32_648;
         U32 _rc_U32_648 = 0;
-        (void)_rc_U32_648;
         Bool hoisted__Bool_667 = ((Bool)(_rc_U32_648 <= _re_U32_648));
         if (hoisted__Bool_667) {
             while (1) {
                 Bool _wcond_Bool_649 = ((Bool)(_rc_U32_648 < _re_U32_648));
-                (void)_wcond_Bool_649;
                 if (_wcond_Bool_649) {
                 } else {
                     break;
@@ -737,7 +718,6 @@ Array__Str * Array__Str_clone(Array__Str * self) {
         } else {
             while (1) {
                 Bool _wcond_Bool_658 = ((Bool)(_rc_U32_648 > _re_U32_648));
-                (void)_wcond_Bool_658;
                 if (_wcond_Bool_658) {
                 } else {
                     break;
@@ -825,9 +805,7 @@ Str * I64_to_str(I64 val) {
         U64 mag = ((U64)(hoisted__U64_1646 - hoisted__U64_1647));
         U32 hoisted__U32_1648 = 2;
         Array__Str *_va_Array_39 = Array__Str_new(hoisted__U32_1648);
-        (void)_va_Array_39;
         I64 _va_Array_39_ek = 0;
-        (void)_va_Array_39_ek;
         U32 hoisted__U32_1649 = 0;
         static Str hoisted__Str_1650 = (Str){.c_str = (void *)"-", .count = 1ULL, .cap = TIL_CAP_LIT};
         Array__Str_set(_va_Array_39, hoisted__U32_1649, &hoisted__Str_1650, &_va_Array_39_ek);
@@ -884,9 +862,7 @@ USize Type_size(void) {
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     U32 hoisted__U32_5530 = 3;
     Array__Str *_va_Array_152 = Array__Str_new(hoisted__U32_5530);
-    (void)_va_Array_152;
     I64 _va_Array_152_ek = 0;
-    (void)_va_Array_152_ek;
     U32 hoisted__U32_5531 = 0;
     Str *hoisted__Str_5532 = Str_clone(loc);
     Array__Str_set(_va_Array_152, hoisted__U32_5531, hoisted__Str_5532, &_va_Array_152_ek);
@@ -909,18 +885,14 @@ __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc) {
     if (hoisted__Bool_5556) {
         U32 hoisted__U32_5545 = 1;
         Array__Str *_va_Array_154 = Array__Str_new(hoisted__U32_5545);
-        (void)_va_Array_154;
         I64 _va_Array_154_ek = 0;
-        (void)_va_Array_154_ek;
         U32 hoisted__U32_5546 = 0;
         Array__Str_set(_va_Array_154, hoisted__U32_5546, &_til_str_lits[1], &_va_Array_154_ek);
         panic(_va_Array_154, loc);
     } else {
         U32 hoisted__U32_5548 = 2;
         Array__Str *_va_Array_155 = Array__Str_new(hoisted__U32_5548);
-        (void)_va_Array_155;
         I64 _va_Array_155_ek = 0;
-        (void)_va_Array_155_ek;
         U32 hoisted__U32_5549 = 0;
         Array__Str_set(_va_Array_155, hoisted__U32_5549, &_til_str_lits[2], &_va_Array_155_ek);
         Array__Str *hoisted__Array__Str_5551 = Array__Str_clone(parts);
@@ -937,9 +909,7 @@ void assert(Bool cond, Str * loc) {
     if (hoisted__Bool_5560) {
         U32 hoisted__U32_5557 = 1;
         Array__Str *_va_Array_156 = Array__Str_new(hoisted__U32_5557);
-        (void)_va_Array_156;
         I64 _va_Array_156_ek = 0;
-        (void)_va_Array_156_ek;
         U32 hoisted__U32_5558 = 0;
         Array__Str_set(_va_Array_156, hoisted__U32_5558, &_til_str_lits[3], &_va_Array_156_ek);
         panic(_va_Array_156, loc);
@@ -949,14 +919,10 @@ void assert(Bool cond, Str * loc) {
 void println(Array__Str * parts) {
     {
         Array__Str *_fc_Array__Str_5568 = parts;
-        (void)_fc_Array__Str_5568;
-        (void)_fc_Array__Str_5568;
         U32 _fi_USize_5568 = 0;
-        (void)_fi_USize_5568;
         while (1) {
             USize hoisted__U32_5570 = (_fc_Array__Str_5568->cap);
             Bool _wcond_Bool_5569 = ((Bool)(_fi_USize_5568 < hoisted__U32_5570));
-            (void)_wcond_Bool_5569;
             if (_wcond_Bool_5569) {
             } else {
                 break;
@@ -1219,7 +1185,6 @@ Color * Color_clone(Color * self) {
     }
     U32 hoisted__U32_6366 = 0;
     Array__Str *_va_Array_191 = Array__Str_new(hoisted__U32_6366);
-    (void)_va_Array_191;
     I64 _va_Array_191_ek = 0;
     (void)_va_Array_191_ek;
     static Str hoisted__Str_6367 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
@@ -1331,9 +1296,7 @@ void assert_eq__I64(I64 a, I64 b, Str * loc) {
     if (hoisted__Bool_6504) {
         U32 hoisted__U32_6493 = 5;
         Array__Str *_va_Array_194 = Array__Str_new(hoisted__U32_6493);
-        (void)_va_Array_194;
         I64 _va_Array_194_ek = 0;
-        (void)_va_Array_194_ek;
         U32 hoisted__U32_6494 = 0;
         Array__Str_set(_va_Array_194, hoisted__U32_6494, &_til_str_lits[50], &_va_Array_194_ek);
         U32 hoisted__U32_6496 = 1;
@@ -1355,9 +1318,7 @@ void assert_eq__Str(Str * a, Str * b, Str * loc) {
     if (hoisted__Bool_6516) {
         U32 hoisted__U32_6505 = 5;
         Array__Str *_va_Array_195 = Array__Str_new(hoisted__U32_6505);
-        (void)_va_Array_195;
         I64 _va_Array_195_ek = 0;
-        (void)_va_Array_195_ek;
         U32 hoisted__U32_6506 = 0;
         Array__Str_set(_va_Array_195, hoisted__U32_6506, &_til_str_lits[50], &_va_Array_195_ek);
         U32 hoisted__U32_6508 = 1;

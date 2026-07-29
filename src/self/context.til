@@ -523,6 +523,16 @@ BuilderFuncScratch := struct {
     // this from the typer (keyed by function name) so the builder reads
     // without a per-emit reset; this commit only moves the storage.
     local_fn_sigs := Map(Str, Dynamic).new()
+    // #326: which names the CURRENT function body reads, and which it
+    // declares more than once. emit_stmt_decl consults them so a
+    // `_`-prefixed local gets its `(void)` cast only when the binding is
+    // genuinely unread -- the escape hatch says a cast is ALLOWED there,
+    // not that one is always needed, and 17k of them in boot/til.c sat
+    // next to a read on the very next line. A name declared twice in one
+    // body (sibling scopes) always gets the cast: this set is name-keyed,
+    // so it cannot tell those two bindings apart.
+    body_refs := Set(Str).new()
+    body_multi_decls := Set(Str).new()
     stack_locals := Set(Str).new()
     stack_local_types := Map(Str, Str).new()
     stack_lit_str_locals := Set(Str).new()

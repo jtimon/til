@@ -1364,6 +1364,8 @@ typedef struct ImportUnit {
 
 typedef struct BuilderFuncScratch {
     Map__Str_Dynamic local_fn_sigs;
+    Set__Str body_refs;
+    Set__Str body_multi_decls;
     Set__Str stack_locals;
     Map__Str_Str stack_local_types;
     Set__Str stack_lit_str_locals;
@@ -3363,6 +3365,11 @@ void priv___src_self_builder_til__emit_user_fcall_args(File * f, Expr * e, Str *
 void priv___src_self_builder_til__emit_user_fcall_with_inline_closure_cleanup(File * f, Expr * e, Str * source_name, Str * cname, I32 depth, Context * ctx);
 void priv___src_self_builder_til__check_fcall_mut_args(Context * ctx, Expr * e);
 void priv___src_self_builder_til__collect_unsafe_to_hoist(Context * ctx, Expr * body);
+void priv___src_self_builder_til__builder_collect_body_liveness(Context * ctx, Expr * body);
+void priv___src_self_builder_til__builder_collect_body_reads(Expr * e, Set__Str * refs);
+Bool priv___src_self_builder_til__builder_is_delete_call(Expr * e);
+void priv___src_self_builder_til__builder_collect_decl_names(Expr * e, Set__Str * seen, Set__Str * dupes);
+Bool priv___src_self_builder_til__builder_needs_unused_cast(Str * name, Context * ctx);
 void priv___src_self_builder_til__builder_reset_func_scratch(Context * ctx);
 Bool priv___src_self_builder_til__builder_is_hoisted_str_lit_ident(Str * name);
 void priv___src_self_builder_til__builder_reset_str_lit_pool(Context * ctx);

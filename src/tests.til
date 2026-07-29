@@ -519,6 +519,12 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/dead_temps_attrs.c test/dead_temps.til '&&' cat gen/c/dead_temps_attrs.c"))
     add_count(tests, "dead_temps_underscore_cast", "build", "(void)_b;", 1,
         format(til_bin, " translate -c gen/c/dead_temps_uscore.c test/dead_temps.til '&&' cat gen/c/dead_temps_uscore.c"))
+    // ...and it is the ONLY cast in the file. The `_` prefix says a cast is
+    // ALLOWED where a binding is deliberately unread, not that one is
+    // always needed: every other `_`-prefixed temp this fixture generates
+    // is read, most of them on the very next line.
+    add_count(tests, "dead_temps_one_cast_total", "build", "(void)_", 1,
+        format(til_bin, " translate -c gen/c/dead_temps_one.c test/dead_temps.til '&&' cat gen/c/dead_temps_one.c"))
 
     // Issue #326: a program that names no compiler AST type and no
     // reflection must not carry the compiler's data model into its output.

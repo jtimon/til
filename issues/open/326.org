@@ -407,6 +407,27 @@ Landed (suite green, `make test_two_pass`):
   ~examples/hello_pure.til~ -> 548, and the public ABI is intact.
   ~pure_lib_no_ast_model~ is the regression.
 
+- [X] A `_`-prefixed binding is cast only when it is UNREAD.  #86's escape
+  hatch says a cast is ALLOWED on a deliberately-unused name, not that one
+  is always needed, but ~emit_stmt_decl~ cast every underscore name
+  unconditionally: ~boot/til.c~ carried about 17,000 of them, most sitting
+  next to a read on the very next line -- the same noise the ~hoisted__~
+  exemption produced, which is where this issue started.
+  ~builder_collect_body_liveness~ records, per function body, the names it
+  READS and the names it declares more than once; the cast is emitted when
+  the binding is unread, or when the name is declared twice (the ref set is
+  name-keyed and cannot tell sibling-scope bindings apart, so it takes the
+  safe side there).  Three exclusions make reads mean what C means: an
+  assignment TARGET is a write, not a read (C has a separate
+  -Wunused-but-set-variable); a ~T.delete(x, ...)~ cleanup is not a read
+  (the builder elides whole classes of them, and when one IS emitted the
+  name appears in the C anyway, so the missing cast costs nothing); and a
+  Case node's PATTERN holds binders, not reads, which is exactly the
+  ~case Option(T).Some(_v):~ shape the hatch exists for.
+  ~src/til.til~ 281k -> 261.5k lines of C and ~17k -> 2,389 casts;
+  ~examples/chess.til~ 7 casts, ~examples/snake.til~ 1,
+  ~test/minimal_reach.til~ 0.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
