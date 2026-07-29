@@ -563,6 +563,17 @@ main := proc(args: ..Str) {
     // scavenging outright.
     add_count(tests, "pure_lib_no_ast_model", "build", "NodeType", 0,
         format(til_bin, " translate -c gen/c/pure_reach.c test/pure.til '&&' cat gen/c/pure_reach.c"))
+    // Issue #326: a variant's C constructor is emitted only where some
+    // expression actually CONSTRUCTS it. Surviving the ns member sweep is not
+    // enough -- an enum with any live value gets a generated
+    // delete/eq/to_str/clone that names every variant in an `is_n` tag check,
+    // which lowers to a compound-literal compare, not a call. The old blanket
+    // rule declared a ctor for each of those, so pure.til carried prototypes
+    // whose definitions the scavenger had already dropped: declared, never
+    // defined, never called. `Type.Unknown` is the witness -- test/pure.til
+    // reaches core's `Type` enum but never builds that variant.
+    add_count(tests, "pure_no_unbuilt_variant_ctor", "build", "Type_Unknown", 0,
+        format(til_bin, " translate -c gen/c/pure_variant.c test/pure.til '&&' cat gen/c/pure_variant.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
         format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,

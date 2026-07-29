@@ -1452,15 +1452,18 @@ priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Contex
 priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
+    lp.ctx.builder_variant_ctor_sites = Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
             builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
+            builder_collect_variant_ctor_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_variant_ctor_sites)
         }
     }
     for u : ProgramUnit in lp.units {
         builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
         builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
+        builder_collect_variant_ctor_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_variant_ctor_sites)
     }
 }
 
@@ -5424,7 +5427,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             // Simple enum
             for vd : VariantDef in edd.variants {
                 ref vn : Str = vd.name
-                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
+                if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
                 f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
                 f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
                 f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
@@ -5436,7 +5439,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             for i in 0..edd.variants.len() {
                 ref vd : VariantDef = edd.variants[i]
                 ref vn : Str = vd.name
-                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
+                if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
                 vt := enum_variant_type(enum_def, i.to_i32())
                 f.write(name).write(" ").write(name).write("_").write(vn).write("(")
                 if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
@@ -5451,7 +5454,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
             for i in 0..edd.variants.len() {
                 ref vd : VariantDef = edd.variants[i]
                 ref vn : Str = vd.name
-                if builder_variant_ctor_kept(enum_def, vn).not() { continue }
+                if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
                 vt := enum_variant_type(enum_def, i.to_i32())
                 if vt.len() == 0 {
                     f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
@@ -5535,8 +5538,64 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
 // also defines the tag ABI and therefore must keep EVERY variant -- so it
 // never saw that decision, and an enum that survived for one variant
 // carried a malloc-and-tag constructor for all of them. Ask the ns index.
-priv builder_variant_ctor_kept := func(enum_def: Expr, vname: Str) returns Bool {
-    return def_ns_get(enum_def, vname).is_some()
+// #326: a variant's C constructor is emitted when the scavenger kept its ns
+// member AND some emitted expression actually constructs it. The member
+// sweep alone is not enough: an enum with any live value gets a
+// garbager-inserted delete, and the generated delete/eq/to_str/clone switch
+// over EVERY variant, so their `is_n(self, E.V, w)` tag checks name them
+// all. Those are real references whose C lowering is a compound-literal tag
+// compare, not a call.
+priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns Bool {
+    if def_ns_get(enum_def, vname).is_none() { return false }
+    return ctx.builder_variant_ctor_sites.has(ename.concat3(".", vname))
+}
+
+// Key a namespace-shaped field access the way the CALL emitter names the C
+// function: `til_type_name` of the receiver's type, not the receiver ident's
+// spelling. That is what makes `Option(ref OptSrc).Some(x)` -- whose
+// receiver is an FCall, not an Ident -- come out as
+// `Option__ref_OptSrc_Some`, and it is why the definition, the four
+// prototype loops and this inventory agree by construction.
+//
+// Two positions are skipped because the builder never lowers them to a
+// call: `is_n`'s tag operand (child 2), which becomes a compound-literal
+// tag compare, and a Case node's pattern (child 0) in a C-like switch,
+// which becomes a case label.
+priv builder_collect_variant_ctor_sites := proc(e: Expr, mut sites: Set(Str)) {
+    switch e.node_type {
+    case NodeType.FieldAccess(bvs_f):
+        if e.children.len() > 0 {
+            recv_type := til_type_name(e.children[0].til_type())
+            if recv_type.len() > 0 {
+                key := recv_type.concat3(".", bvs_f.field_access_name())
+                if sites.has(key).not() { sites.add(own key.clone()) }
+            }
+        }
+    case:
+    }
+    mut skip_child : USize = 99
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
+        switch e.children[0].node_type {
+        case NodeType.Ident(bvs_c):
+            if bvs_c.ident_name() == "is_n" { skip_child = 2 }
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.Case) { skip_child = 0 }
+    mut bvs_i : USize = 0
+    for bvs_ch : Expr in e.children {
+        cur_bvs := bvs_i
+        bvs_i = bvs_i + 1
+        if cur_bvs == skip_child { continue }
+        builder_collect_variant_ctor_sites(bvs_ch, sites)
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref bvs_ns : Vec(Declaration) = def_ns_decls(e)
+        for bvs_d : Declaration in bvs_ns {
+            if bvs_d.default_value.is_null() { continue }
+            builder_collect_variant_ctor_sites(bvs_d.default_value, sites)
+        }
+    }
 }
 
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
@@ -6156,7 +6215,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 case NodeType.EnumDef(hdr_edd):
                     ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
-                        if builder_variant_ctor_kept(stmt.children[0], hdr_vd.name).not() { continue }
+                        if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                             f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7307,7 +7366,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 case NodeType.EnumDef(hdr_edd):
                     ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                     for hdr_vd : VariantDef in hdr_edd.variants {
-                        if builder_variant_ctor_kept(stmt.children[0], hdr_vd.name).not() { continue }
+                        if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                         if hdr_vd.payload_type.len() > 0 {
                             tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                             f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7434,6 +7493,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     case NodeType.EnumDef(shdr_edd):
                         ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                         for shdr_vd : VariantDef in shdr_edd.variants {
+                            if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                             if shdr_vd.payload_type.len() > 0 {
                                 tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                                 f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7463,6 +7523,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             case NodeType.EnumDef(shdr_edd):
                 ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                 for shdr_vd : VariantDef in shdr_edd.variants {
+                    if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                     if shdr_vd.payload_type.len() > 0 {
                         tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                         f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")

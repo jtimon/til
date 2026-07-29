@@ -444,6 +444,28 @@ Landed (suite green, `make test_two_pass`):
   ~test/first_class.til~ 20,515 -> 18,340 lines of C,
   ~test/dyn_vecs.til~ -> 8,612.
 
+- [X] Step 5 again, for the other generated per-variant family: an enum
+  variant's C constructor is emitted only where some expression actually
+  CONSTRUCTS it.  Surviving the scavenger's ns member sweep is not enough.
+  An enum with any live value gets a garbager-inserted delete, and the
+  generated delete/eq/to_str/clone switch over EVERY variant, so their
+  ~is_n(self, E.V, w)~ tag checks NAME them all -- real references whose C
+  lowering is a compound-literal tag compare, not a call.  So the blanket
+  rule declared a constructor for each, and ~test/pure.til~ carried 23
+  prototypes whose definitions the scavenger had already dropped: declared,
+  never defined, never called.  ~builder_collect_variant_ctor_sites~ keys a
+  namespace-shaped field access the way the CALL emitter names the C
+  function -- ~til_type_name~ of the RECEIVER'S TYPE, not the receiver
+  ident's spelling.  That is what makes ~Option(ref OptCell).None~, whose
+  receiver is an FCall rather than an Ident, come out as
+  ~Option__ref_OptCell_None~, and it is why the three definition branches
+  and all four prototype loops agree by construction; keying on the
+  spelling instead is a link error, which is how the first attempt failed.
+  Two positions are skipped because the builder never lowers them to a
+  call: ~is_n~'s tag operand (child 2) and a Case node's pattern (child 0).
+  ~examples/chess.til~ now emits 43 functions of which the only never-called
+  one is ~main~.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit

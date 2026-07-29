@@ -911,6 +911,11 @@ Context := struct {
     // dyn_fn's dispatch table, so this is what decides which ones are
     // emitted; without it every surviving namespace method got one.
     builder_dyn_fn_targets := Set(Str).new()
+    // #326: the `Enum.Variant` pairs some emitted expression CONSTRUCTS,
+    // keyed exactly the way the namespace-call emitter names the C function
+    // -- til_type_name of the RECEIVER, which is what turns
+    // `Option(ref OptSrc).Some(x)` into `Option__ref_OptSrc_Some(x)`.
+    builder_variant_ctor_sites := Set(Str).new()
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 

@@ -223,7 +223,6 @@ Color *Color_Red();
 Color *Color_Green();
 Color *Color_Blue();
 Token *Token_Num(I64 *);
-Token *Token_Name(Str *);
 Token *Token_Eof();
 #include "ext.h"
 
@@ -303,35 +302,11 @@ void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
 void assert_eq__I64(I64 a, I64 b, Str * loc);
 void assert_eq__Str(Str * a, Str * b, Str * loc);
-Primitive *Primitive_I16();
-Primitive *Primitive_U16();
-Primitive *Primitive_I8();
-Primitive *Primitive_U8();
-Primitive *Primitive_U32();
-Primitive *Primitive_I32();
-Primitive *Primitive_U64();
-Primitive *Primitive_I64();
-Primitive *Primitive_F32();
-Primitive *Primitive_Bool();
-Type *Type_Unknown();
-Type *Type_None();
-Type *Type_Struct(Str *);
-Type *Type_StructDef();
-Type *Type_Enum(Str *);
-Type *Type_EnumDef();
-Type *Type_FuncDef();
-Type *Type_FuncPtr();
-Type *Type_Dynamic();
-Type *Type_Custom(Str *);
-Type *Type_Primitive(Primitive *);
-Type *Type_FuncPtrSig(Str *);
-Type *Type_Body();
 Bool Color_eq(Color *, Color *);
 Color *Color_Red();
 Color *Color_Green();
 Color *Color_Blue();
 Token *Token_Num(I64 *);
-Token *Token_Name(Str *);
 Token *Token_Eof();
 
 
@@ -1215,13 +1190,6 @@ Token *Token_Num(I64 * val) {
     Token *r = malloc(sizeof(Token));
     r->tag = Token_TAG_Num;
     r->data.Num = *val;
-    return r;
-}
-Token *Token_Name(Str * val) {
-    Token *r = malloc(sizeof(Token));
-    r->tag = Token_TAG_Name;
-    r->data.Name = *val;
-    if (val->cap != TIL_CAP_LIT) { free(val); }
     return r;
 }
 Token *Token_Eof() {
