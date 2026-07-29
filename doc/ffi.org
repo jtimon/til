@@ -139,19 +139,33 @@ Two rules follow:
    owned local, but not for anything that might be a view -- and a
    ~s : Str~ parameter might always be one, since the caller
    chooses.  ~clone()~ the string first: an owned copy always
-   carries the NUL.  BIND the clone; do not chain:
+   carries the NUL.
 
      c := s.clone()
-     DrawText(c.c_str, 10, 10, 20, WHITE)   // correct
+     DrawText(c.c_str, 10, 10, 20, WHITE)
 
-     DrawText(s.clone().c_str, ...)         // WRONG: dangling
+   A chained ~s.clone().c_str~ is a temporary, and the garbager
+   frees it at the END of the statement -- the emitted C is
+   ~clone; call; delete~, in that order.  So which form is safe
+   depends on what the callee does with the pointer:
 
-   The chained form reads a field of a temporary whose last use IS
-   that read, so the garbager frees the copy before the call runs
-   and C receives a dangling pointer.  Compiled code prints
-   garbage; the interpreter keeps the temporary alive and looks
-   fine, so this is another divergence that passes interpreted
-   tests and fails in the binary.
+   - *Reads it during the call* (~DrawText~, ~unlink~, ~fopen~,
+     ~strlen~ -- nearly every C string API): the chain is safe.
+     The delete runs after the call returns.
+   - *Retains it past the call*: the chain dangles.  ~Str.from_c_str~
+     is the in-tree example -- it returns a ~CAP_VIEW~ over the
+     buffer it was handed, so the view outlives the temporary and
+     reads freed memory.  Storing the pointer C-side, or returning
+     it, is the same shape.
+
+   Binding the clone is the rule to teach because it is correct in
+   both cases and costs nothing: the local lives to the end of its
+   scope, so no callee can outlive it by accident.  ~c := s.clone()~
+   then ~c.c_str~.
+
+   Compiled code is again where this bites: the interpreter keeps
+   the temporary alive, so a retaining chain prints the right
+   string interpreted and garbage from the binary.
    ~test_clone_terminates_views~ in ~test/strings.til~ pins the
    bound form.
 

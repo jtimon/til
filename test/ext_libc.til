@@ -33,5 +33,34 @@ main := proc() {
         println("unsetenv failed")
         return
     }
+
+    // A CHAINED clone reaching a C string parameter. The clone is a
+    // temporary and the garbager frees it at the end of the statement, so
+    // the emitted C is `clone; call; delete` -- safe for any callee that
+    // reads the pointer DURING the call, which is nearly every C string
+    // API (this setenv, DrawText, unlink, fopen). It is only a callee that
+    // RETAINS the pointer past the call that dangles, and no C string API
+    // in the tree does. See doc/ffi.org, "Passing a Str to a C string
+    // parameter"; that section teaches binding the clone because it is
+    // correct in both cases, but the chain must not silently start
+    // reading freed memory here.
+    backed := "TIL_ISSUE_176_CHAINZZZ"
+    name := backed.substr(0, 19)
+    rc3 := setenv(name.clone().c_str, "chained".c_str, 1)
+    if rc3.neq(0) {
+        println("chained setenv failed")
+        return
+    }
+    ref v2 : I8 = getenv("TIL_ISSUE_176_CHAIN".c_str)
+    if is_null(v2) {
+        println("chained getenv returned NULL")
+        return
+    }
+    if Str.from_c_str(v2).neq("chained") {
+        println("chained setenv stored the wrong value")
+        return
+    }
+    _rc4 := unsetenv("TIL_ISSUE_176_CHAIN".c_str)
+
     println("ok")
 }
