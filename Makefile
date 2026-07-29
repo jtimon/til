@@ -163,9 +163,11 @@ endif
 # vendor/bindings/*.til files.  Normal `make` / `make test` consumes
 # whatever is committed there.  This is intentional: the auto-generator
 # can't infer til-level qualifiers (proc vs func for purity, own vs ref
-# for pointer ownership) from C headers alone, so the committed
-# vendor/bindings/*.til files are hand-curated -- they happen to start
-# their life as generator output but are edited in-tree afterwards.
+# for pointer ownership, and never-NULL promises for pointers --
+# nullability lives in header comments, not in C's types) from C headers
+# alone, so the committed vendor/bindings/*.til files are hand-curated --
+# they happen to start their life as generator output but are edited
+# in-tree afterwards.
 # Running update_c_libs blows away those edits; redo the audit (see
 # doc/ffi.org) before committing.
 #

@@ -1303,6 +1303,45 @@ Option needs ~shallow~ explicitly; it is not inferred.
 
 204/204, pass 1 == pass 2.
 
+**** Batch 31: nng_url, hand-tightened from its own C docs
+
+The third C-boundary case the Decisions section names. nng_url is an ext
+struct whose C layout mandates per-field nullability, and the header says
+which fields are which -- so this is the "generated bindings are then
+hand-tightened" workflow, done from the comments the generator already
+carried over:
+
+- "never NULL" (u_rawurl, u_scheme) and the four that are documented as
+  ~""~ when unset (u_hostname, u_port, u_path, u_requri) are non-null by
+  C contract -> mandatory ~ref field : I8~, no default at all. #242 makes
+  a no-default field mandatory at instantiation, and nothing in til ever
+  constructs an nng_url, so that costs nothing.
+- the three documented "will be NULL if not specified" (u_userinfo,
+  u_query, u_fragment) plus u_host, which the header does not commit on,
+  become ~Option(ref I8)~.
+- nng_iov's iov_buf becomes ~Option(ref Dynamic)~.
+
+vendor/bindings/nng.til now has zero ~= NULL~. The niche keeps every one
+of those fields one pointer wide, so the struct stays byte-identical to
+C's -- which is the whole reason this can be said honestly instead of
+being left as a nullable ref.
+
+TRIED AND REVERTED, worth recording so it is not re-attempted blind:
+raylib.til's 29 NULL fields do NOT migrate this way. Its fields ARE
+constructed from til (gui.til builds a Wave with ~data=to_ptr(buf)~), and
+turning a ~ref~ field into an inline Option field changes the
+CONSTRUCTION contract -- the field stops being a borrow, so the ctor
+reads the argument as an ownership transfer:
+
+: error: use of 'buf' after ownership transfer
+
+Wrapping the argument in ~Option(ref Dynamic).Some(...)~ does not settle
+it either; the borrow is still inside a field, which is #324's territory.
+So the binding files split: ones nothing constructs (nng_url) migrate
+now, ones til constructs wait on #324.
+
+204/204, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

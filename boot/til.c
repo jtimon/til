@@ -12214,7 +12214,7 @@ static Str _til_str_lits[5317] = {
     (Str){.c_str = (void *)"./src/self/binder.til:1842:27", .count = 29ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"mode lib\n\n", .count = 10ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"0.0.1-", .count = 6ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"0.0.1-ba83aa0c4", .count = 15ULL, .cap = TIL_CAP_LIT},
+    (Str){.c_str = (void *)"0.0.1-4ba9c1a7f", .count = 15ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"til[", .count = 4ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"]... ", .count = 5ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"]> ", .count = 3ULL, .cap = TIL_CAP_LIT},
@@ -261293,7 +261293,7 @@ int main(int argc, char **argv) {
     priv___src_self_interpreter_til__word_ring_idx = 0;
     { Vec__DynPtrBox *_hp = (Vec__DynPtrBox *)Vec__DynPtrBox_new(); priv___src_self_interpreter_til__scope_pool = *_hp; free(_hp); }
     BASE_VERSION = (Str){.c_str=(void*)"0.0.1-", .count=6ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str=(void*)"0.0.1-ba83aa0c4", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-4ba9c1a7f", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str * args = malloc(sizeof(Array__Str));

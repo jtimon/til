@@ -26,6 +26,15 @@ that the C header simply does not encode.  C has no syntax for:
   ~GetClipboardText()~ point at memory the caller must free, or
   at raylib-internal scratch that mustn't be freed by anyone but
   raylib?
+- *pointer nullability* (#321).  Every C pointer type admits NULL;
+  whether a given field or result actually uses it ("never NULL",
+  "will be NULL if not specified", "returns NULL on cancel") lives
+  in header comments, not in the types.  The binder emits the safe
+  shape for every pointer struct field --
+  ~field : Option(ref T) = Option(ref T).None~ -- and cannot know
+  which pointers the C library promises are non-null.  Tightening
+  those to a mandatory ~ref field : T~ is a human call, made by
+  reading the library's docs.
 
 So the auto-generator (~src/self/binder.til~, run via
 ~make update_c_libs~) produces a starting point: structs spelled
@@ -67,7 +76,30 @@ in the output and ask:
    which is the safe choice -- audit the few cases where the C
    call actually hands ownership over.
 
-If any of (1)-(3) flips, also walk the matching wrapper in
+4. *Does the C library document a pointer as never NULL?*  The
+   binder emits every pointer struct field as
+   ~field : Option(ref T) = Option(ref T).None~ -- nullable, the
+   safe default, one word wide via the #320 niche, byte-identical
+   to the C pointer it maps.  Where the header's comments promise
+   the pointer is never NULL (nng_url's ~u_rawurl~: "never NULL"),
+   or promise ~""~ rather than NULL when unset, tighten the field
+   to a mandatory ~ref field : T~ (no default) so til code reads it
+   without an unwrap.  Only that direction needs auditing: leaving
+   a never-NULL pointer as Option is safe, just noisier for
+   callers.  Two constraints come with the Option spelling:
+   - at an ext SIGNATURE (param or return) a niche Option must be
+     declared ~shallow~.  ~Option__ref_I8~ is
+     ~struct { I8 *data; }~ and the SysV ABI passes it in a
+     register exactly like the bare pointer -- but only by value;
+     without ~shallow~ the ext boundary passes it by pointer and
+     the call is ABI-wrong.  ~shallow~ is not inferred here.
+   - a struct FIELD that til code CONSTRUCTS cannot take the
+     Option shape yet: the ctor treats the payload as an ownership
+     transfer rather than a borrow (#324), so those keep
+     ~ref field : T = NULL~ until #324 lands.  raylib.til is the
+     in-tree example -- gui.til builds a ~Wave~ from a til buffer.
+
+If any of (1)-(4) flips, also walk the matching wrapper in
 ~src/modes/gui.til~ (or wherever the user-facing surface lives)
 and propagate the same qualifier change.  A ~func~ wrapper
 around an ~ext_proc~ has to itself become a ~proc~, or constfolder
@@ -92,6 +124,9 @@ layer.
 | Mutates a non-const ~T *~ pointer arg       | ~ext_*(mut buf : T)~ (the generator's default for non-const)|
 | Returns an internal pointer (do not free)  | ~ext_*(...) returns ref T {}~                               |
 | Returns a heap pointer the caller owns     | ~ext_*(...) returns T {}~ (default; ~own~ keyword redundant) |
+| Nullable pointer struct field              | ~field : Option(ref T) = Option(ref T).None~ (generator default) |
+| Pointer field documented never NULL        | ~ref field : T~ (mandatory, no default -- hand-tightened)   |
+| Nullable pointer param / return            | ~shallow p : Option(ref T)~ / ~returns shallow Option(ref T) {}~ |
 
 For passing scalars and small structs by value (the normal C
 ABI shape), use ~shallow~ on the arg and ~returns shallow T~ on
@@ -275,6 +310,21 @@ which must be re-applied after regeneration:
    ~ext_proc(mut sock : nng_socket) returns shallow I32 {}~, taking
    the socket out-parameter by address -- ~mut~ because the call
    writes the socket through that non-const pointer).
+4. *nng_url nullability* (checklist item 4).  The generator emits
+   every pointer field as ~Option(ref I8)~; re-tighten the six
+   fields whose header comments promise non-null (~u_rawurl~,
+   ~u_scheme~, ~u_hostname~, ~u_port~, ~u_path~, ~u_requri~) back
+   to mandatory ~ref field : I8~.  The four genuinely nullable url
+   fields and ~nng_iov.iov_buf~ stay exactly as generated.
+
+tinyfd has one hand-edit beyond the ext_proc flips: the file
+dialogs pass NULL both ways (filter args in, "user cancelled"
+out), so ~tinyfd_saveFileDialog~ / ~tinyfd_openFileDialog~ take
+~shallow ... : Option(ref Dynamic)~ / ~Option(ref I8)~ filter args
+and return ~shallow Option(ref I8)~ -- the generator still emits
+plain ~Dynamic~ / ~I8~ params and ~returns ref I8~ there
+(checklist item 4's ~shallow~ note applies: without it the ABI is
+wrong).
 
 libffi has three hand-edits, marked "Hand-audited" / "keep across
 regens" in ~vendor/bindings/libffi.til~:
@@ -371,7 +421,7 @@ rather than letting til treat the result as owned:
   not a plain ~free()~), so a wrapper must route cleanup through
   ~UnloadTextLines~, not til's owned-Dynamic auto-free.
 
-tinyfd (~tinyfd_*Dialog~ -> ~returns ref I8~ into a static buffer)
-and libffi (~ffi_closure_alloc~ -> ~Dynamic~, freed via
-~ffi_closure_free~) follow the same rules and were spot-checked
-clean.
+tinyfd (~tinyfd_*Dialog~ -> ~returns shallow Option(ref I8)~: a
+static buffer, or None on cancel -- #321) and libffi
+(~ffi_closure_alloc~ -> ~Dynamic~, freed via ~ffi_closure_free~)
+follow the same rules and were spot-checked clean.

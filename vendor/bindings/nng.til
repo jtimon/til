@@ -128,7 +128,7 @@ nng_sockaddr := Dynamic  // typedef union from C, opaque here
 
 // Scatter/gather I/O.
 nng_iov := struct {
-    ref iov_buf : Dynamic = NULL
+    iov_buf : Option(ref Dynamic) = Option(ref Dynamic).None
     iov_len : USize = 0
 }
 
@@ -945,16 +945,16 @@ nng_device_aio := ext_proc(mut _arg : nng_aio, shallow _arg : nng_socket, shallo
 // give us a convenient way of doing so.
 
 nng_url := struct {
-    ref u_rawurl : I8 = NULL  // never NULL
-    ref u_scheme : I8 = NULL  // never NULL
-    ref u_userinfo : I8 = NULL  // will be NULL if not specified
-    ref u_host : I8 = NULL  // including colon and port
-    ref u_hostname : I8 = NULL  // name only, will be "" if not specified
-    ref u_port : I8 = NULL  // port, will be "" if not specified
-    ref u_path : I8 = NULL  // path, will be "" if not specified
-    ref u_query : I8 = NULL  // without '?', will be NULL if not specified
-    ref u_fragment : I8 = NULL  // without '#', will be NULL if not specified
-    ref u_requri : I8 = NULL  // includes query and fragment, "" if not specified
+    ref u_rawurl : I8  // never NULL
+    ref u_scheme : I8  // never NULL
+    u_userinfo : Option(ref I8) = Option(ref I8).None  // will be NULL if not specified
+    u_host : Option(ref I8) = Option(ref I8).None  // including colon and port
+    ref u_hostname : I8  // name only, will be "" if not specified
+    ref u_port : I8  // port, will be "" if not specified
+    ref u_path : I8  // path, will be "" if not specified
+    u_query : Option(ref I8) = Option(ref I8).None  // without '?', will be NULL if not specified
+    u_fragment : Option(ref I8) = Option(ref I8).None  // without '#', will be NULL if not specified
+    ref u_requri : I8  // includes query and fragment, "" if not specified
 }
 
 // nng_url_parse parses a URL string into a structured form.
