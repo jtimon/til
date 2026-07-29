@@ -103,11 +103,8 @@ namespace:
                     ptr_add(self.values.data, lo.mul(V.size())),
                     self.values.count.sub(lo).mul(V.size()))
             mut cloned_key : K = K.clone(key)
-            memcpy(ptr_add(self.keys.data, lo.mul(K.size())), cloned_key, K.size())
-            memset(cloned_key, 0, K.size())
-            memcpy(ptr_add(self.values.data, lo.mul(V.size())), val, V.size())
-            memset(val, 0, V.size())
-            free(own val)
+            adopt(K, ptr_add(self.keys.data, lo.mul(K.size())), own cloned_key)
+            adopt(V, ptr_add(self.values.data, lo.mul(V.size())), own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1
         }

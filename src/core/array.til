@@ -71,8 +71,7 @@ namespace:
         for i in 0..self.cap {
             ref src : T = ptr_add(self.data, i.mul(T.size()))
             mut cloned : T = T.clone(src)
-            memcpy(ptr_add(new_data, i.mul(T.size())), cloned, T.size())
-            memset(cloned, 0, T.size())
+            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
         }
         return Array(T)(data = new_data, cap = self.cap)
     }

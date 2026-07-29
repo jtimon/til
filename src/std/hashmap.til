@@ -182,11 +182,8 @@ namespace:
             }
 
             mut key_copy : K = K.clone(key)
-            memcpy(ptr_add(self.keys.data, self.keys.count.mul(K.size())), key_copy, K.size())
-            memset(key_copy, 0, K.size())
-            memcpy(ptr_add(self.values.data, self.values.count.mul(V.size())), val, V.size())
-            memset(val, 0, V.size())
-            free(own val)
+            adopt(K, ptr_add(self.keys.data, self.keys.count.mul(K.size())), own key_copy)
+            adopt(V, ptr_add(self.values.data, self.values.count.mul(V.size())), own val)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1
 
