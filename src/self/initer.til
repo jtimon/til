@@ -4943,6 +4943,27 @@ count_ast_imports := func(body: Expr) returns USize {
     return n
 }
 
+// Seed a unit AND everything it imports, before any of them runs its
+// declarations pass. init_file used to seed only its own unit and then
+// recurse, which made cross-unit generic monomorphization depend on
+// import ORDER: a unit's declarations pass runs after its own imports
+// but possibly before a sibling branch is seeded, so a generic func
+// registered by that branch (mem.til's swap/move) was invisible. The
+// call then survived unmonomorphized as a binding with no FuncDef, and
+// the typer met it as UNREACHABLE. Concretely: mem -> dyn -> str ->
+// vec, so vec's pass runs FIRST and never saw mem's generics -- which
+// is why no container has ever been able to call move() or swap().
+// imports_init_seed_done makes this idempotent and cycle-safe.
+priv init_seed_tree := proc(path: Str, ctx: Context) {
+    if ctx.imports_init_seed_done.has(path) { return }
+    if ctx.imported.has(path).not() { return }
+    ref iu : ImportUnit = ctx.imported[path]
+    _ : I32 = init_seed_declarations_unit(path, iu.ast, ctx.scope, ctx)
+    for p : Str in iu.imports {
+        init_seed_tree(p, ctx)
+    }
+}
+
 init_file := proc(path: Str, ctx: Context) returns I32 {
     if ctx.imports_init_done.has(path) {
         return 0
@@ -4955,7 +4976,7 @@ init_file := proc(path: Str, ctx: Context) returns I32 {
     ref iu : ImportUnit = ctx.imported[path]
 
     ctx.mode = iu.mode.clone()
-    init_seed_declarations_unit(path, iu.ast, ctx.scope, ctx)
+    init_seed_tree(path, ctx)
 
     // Walk the AST in source order and recurse on each ~import("...")~ FCall.
     // iu.imports is kept as a side table that maps the i-th import FCall to

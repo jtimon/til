@@ -2461,6 +2461,7 @@ void priv___src_self_initer_til__gen_implements_defaults_for_stmt(Expr * stmt, T
 void priv___src_self_initer_til__gen_substitute_self_type(Expr * fexpr, Str * from_name, Str * to_name);
 I32 init_declarations_global(Context * ctx, Expr * program, TypeScope * scope);
 USize count_ast_imports(Expr * body);
+void priv___src_self_initer_til__init_seed_tree(Str * path, Context * ctx);
 I32 init_file(Str * path, Context * ctx);
 I32 init_repl_delta(Str * path, Expr * program, Context * ctx);
 Bool priv___src_self_initer_til__enum_variant_is_payload_less(Expr * enum_def, Str * variant_name);
