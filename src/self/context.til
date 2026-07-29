@@ -897,6 +897,13 @@ Context := struct {
     // wrappers/closure values, and the struct/enum/FuncSig reflection
     // families -- all of which used to be emitted unconditionally.
     builder_reflect_inventory := Set(Str).new()
+    // #326: the `Type.method` pairs dyn_fn can actually ask for -- an exact
+    // pair for `dyn_fn("T", "m")`, or `*.m` when the type name is a runtime
+    // expression (interface dispatch, DynVec/DynMap element handling). The
+    // per-method `_dyn` wrapper and closure value exist only to fill
+    // dyn_fn's dispatch table, so this is what decides which ones are
+    // emitted; without it every surviving namespace method got one.
+    builder_dyn_fn_targets := Set(Str).new()
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 

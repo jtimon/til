@@ -1403,15 +1403,64 @@ priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str)) {
     }
 }
 
+// #326: record what dyn_fn can dispatch to. The method is always a string
+// literal; the TYPE is literal for a static `dyn_fn("Vec", "clone")` and a
+// runtime expression for the collection/interface shape
+// (`dyn_fn(elem_type, "clone")` in std/dyn_array.til), which can name any
+// type and so records the `*.m` wildcard the scavenger already uses.
+priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str)) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
+        mut is_dyn_fn := false
+        switch e.children[0].node_type {
+        case NodeType.Ident(dfn): is_dyn_fn = dfn.ident_name().eq("dyn_fn")
+        case:
+        }
+        if is_dyn_fn {
+            switch e.children[2].node_type {
+            case NodeType.Literal(Literal.Str(dfm)):
+                mut key := "*.".concat3(dfm, "")
+                switch e.children[1].node_type {
+                case NodeType.Literal(Literal.Str(dft)): key = dft.concat3(".", dfm)
+                case:
+                }
+                if targets.has(key).not() { targets.add(own key.clone()) }
+            case:
+            }
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref cdt_ns : Vec(Declaration) = def_ns_decls(e)
+        for cdt_d : Declaration in cdt_ns {
+            if cdt_d.default_value.is_null() { continue }
+            builder_collect_dyn_fn_targets(cdt_d.default_value, targets)
+        }
+    }
+    for cdt_c : Expr in e.children {
+        builder_collect_dyn_fn_targets(cdt_c, targets)
+    }
+}
+
+// A `Type.member` pair dyn_fn's dispatch table can name. The wrapper, its
+// closure value and the table entry are all gated on this, identically --
+// a mismatch would leave the table pointing at a symbol that was not
+// emitted, which is a link error rather than a silent hole.
+priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if ctx.builder_dyn_fn_targets.has("*.".concat3(member, "")) { return true }
+    return ctx.builder_dyn_fn_targets.has(type_name.concat3(".", member))
+}
+
 priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
+    lp.ctx.builder_dyn_fn_targets = Set(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
+            builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
         }
     }
     for u : ProgramUnit in lp.units {
         builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
+        builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
     }
 }
 
@@ -7732,7 +7781,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                             // #269: no wrapper for abstract interface
                             // methods -- there is no C function behind them.
                             // ext_funcs on non-interface types are C-backed.
-                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()) {
+                            if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
                                 emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw0i), fd, lp.ctx)
                                 emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw0i), "_dyn")
                             }
@@ -7763,7 +7812,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface methods --
                         // there is no C function behind them. ext_funcs on
                         // non-interface types are C-backed.
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()) {
+                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
                             emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw1i), fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw1i), "_dyn")
                         }
@@ -7796,7 +7845,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                             // #269: abstract interface methods have no
                             // _dyn wrapper closure to point at. ext_funcs
                             // on non-interface types are C-backed.
-                            if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()) {
+                            if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                                 tlen := dd.name.len()
                                 mlen := nsd_name.len()
                                 f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
@@ -7828,7 +7877,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: abstract interface methods have no _dyn
                         // wrapper closure to point at. ext_funcs on
                         // non-interface types are C-backed.
-                        if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()) {
+                        if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd2_name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")

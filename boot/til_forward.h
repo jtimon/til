@@ -1601,6 +1601,7 @@ typedef struct Context {
     Vec__Str builder_str_lit_values;
     Map__Str_Str builder_str_lit_ident_symbols;
     Set__Str builder_reflect_inventory;
+    Set__Str builder_dyn_fn_targets;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
@@ -3353,6 +3354,8 @@ void priv___src_self_builder_til__emit_param_list(File * f, Expr * fdef, Bool wi
 Bool priv___src_self_builder_til__builder_is_reflect_builtin_name(Str * n);
 void priv___src_self_builder_til__builder_record_reflect_name(Str * n, Set__Str * inv);
 void priv___src_self_builder_til__builder_collect_reflect_inventory(Expr * e, Set__Str * inv);
+void priv___src_self_builder_til__builder_collect_dyn_fn_targets(Expr * e, Set__Str * targets);
+Bool priv___src_self_builder_til__builder_dyn_fn_target_kept(Str * type_name, Str * member, Context * ctx);
 void priv___src_self_builder_til__builder_fill_reflect_inventory(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_needs_reflect(Str * name, Context * ctx);
 void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);

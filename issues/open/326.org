@@ -428,6 +428,22 @@ Landed (suite green, `make test_two_pass`):
   ~examples/chess.til~ 7 casts, ~examples/snake.til~ 1,
   ~test/minimal_reach.til~ 0.
 
+- [X] Step 5's last clause: a ~_dyn~ wrapper and its closure value are
+  emitted only for the ~Type.method~ pairs dyn_fn can actually ask for.
+  The family was gated as a whole (on ~dyn_fn~ appearing anywhere), so one
+  ~dyn_fn~ call site meant a wrapper plus a closure value for EVERY
+  surviving namespace method of every type -- ~test/first_class.til~
+  emitted 610 never-called functions out of 1,310, most of them
+  ~AnonEnumN_<Variant>_dyn~ for variant constructors nothing dispatches to.
+  ~builder_collect_dyn_fn_targets~ records what each ~dyn_fn~ call names:
+  an exact pair for ~dyn_fn("T", "m")~, and the ~*.m~ wildcard when the
+  type is a runtime expression, which is the collection shape
+  (~dyn_fn(elem_type, "clone")~ in std/dyn_array.til).  The wrapper, the
+  closure value and the dispatch-table entry share one predicate, so a
+  mismatch would be a link error rather than a silent hole.
+  ~test/first_class.til~ 20,515 -> 18,340 lines of C,
+  ~test/dyn_vecs.til~ -> 8,612.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit
