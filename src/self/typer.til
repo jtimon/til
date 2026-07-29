@@ -2475,6 +2475,50 @@ priv generic_is_type_param := func(gfd: FunctionDef, pname: Str) returns Bool {
     return false
 }
 
+// Issue #328: bind a type parameter that appears INSIDE a generated
+// instance name. The parser mangles an annotation `v: Vec(T)` to
+// `Vec__T` and a `Map(K, V)` to `Map__K_V`, so a formal and its operand
+// are two spellings of the same shape: line the segments up and the
+// argument falls out (`Vec__T` against `Vec__I64` gives T = I64).
+//
+// Deliberately conservative -- it declines rather than guesses. The bases
+// must match, the argument counts must match, every non-parameter segment
+// must match exactly (so a `ref_` mangle segment cannot be crossed with an
+// owned one), and every position claiming the parameter must agree.
+// Returns "" when the shape does not line up, which keeps the existing
+// cannot-infer diagnostic.
+priv generic_decompose_nested := func(gfd: FunctionDef, formal: Str, actual: Str, pname: Str) returns Str {
+    fm := formal.find("__")
+    am := actual.find("__")
+    if fm.lt(0).or(am.lt(0)) { return "" }
+    fm_u : USize = fm.to_usize()
+    am_u : USize = am.to_usize()
+    if formal.substr(0, fm_u).eq(actual.substr(0, am_u)).not() { return "" }
+    if fm_u + 2 >= formal.len() { return "" }
+    if am_u + 2 >= actual.len() { return "" }
+    fargs := formal.substr(fm_u + 2, formal.len().sub(fm_u) - 2).split("_")
+    aargs := actual.substr(am_u + 2, actual.len().sub(am_u) - 2).split("_")
+    if fargs.len() != aargs.len() { return "" }
+    mut bound := ""
+    for i in 0..fargs.len() {
+        ref fseg : Str = fargs[i]
+        ref aseg : Str = aargs[i]
+        if fseg.eq(pname) {
+            if aseg.len() == 0 { return "" }
+            if bound.len().gt(0).and(bound.eq(aseg).not()) { return "" }
+            bound = aseg.clone()
+        } else if generic_is_type_param(gfd, fseg) {
+            // Another type parameter of the SAME generic: its own pass
+            // binds it, so it is a wildcard here rather than a mismatch --
+            // `Map__K_V` against `Map__Str_I64` binds K on this pass and V
+            // on the next.
+        } else if fseg.eq(aseg).not() {
+            return ""
+        }
+    }
+    return bound
+}
+
 // A value-only clone of the generic's signature: the `Type` params are
 // gone and the variadic / kwargs block markers move with them. Used to
 // desugar the omitted call through the ONE existing argument matcher
@@ -2574,9 +2618,10 @@ priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef,
     mut soft_float := Set(Str).new()
     mut soft_empty := Set(Str).new()
     mut nested_only := Set(Str).new()
-    // A parameter that appears only inside a generated template name
-    // (`Vec__T`) is not decomposed here; record it so the diagnostic can
-    // say so instead of the generic "cannot infer".
+    // A parameter reached only through a generated instance name
+    // (`Vec__T`) is deduced by lining the two spellings up below; the flag
+    // records that this is where its evidence has to come from, so a
+    // shape that does not line up says exactly that.
     for np : Declaration in vo.params {
         for tp : Declaration in gfd.params {
             if tp.explicit_type.eq("Type").not() { continue }
@@ -2597,6 +2642,35 @@ priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef,
         if pi.to_i32() == fvi { run = fvc }
         if pi.to_i32() == fkwi { run = fkc }
         ref p : Declaration = vo.params[pi]
+        // Nested: the formal is a generated instance name mentioning one
+        // or more type parameters. Every operand in the run must agree.
+        if generic_is_type_param(gfd, p.explicit_type).not() {
+            for ntp : Declaration in gfd.params {
+                if ntp.explicit_type.eq("Type").not() { continue }
+                if type_name_mentions_param(p.explicit_type, ntp.name).not() { continue }
+                for nk in 0..run {
+                    if ci + nk >= e.children.len() { break }
+                    ref narg : Expr = e.children[ci + nk]
+                    nspell := expr_declared_type_name(scope, narg)
+                    if nspell.len() == 0 { continue }
+                    nbound := generic_decompose_nested(gfd, p.explicit_type, nspell, ntp.name)
+                    if nbound.len() == 0 { continue }
+                    nsite := format(ctx.path, ":", narg.line.to_str(), ":", narg.col.to_str())
+                    if ev_key.has(ntp.name) {
+                        if ev_key[ntp.name].eq(nbound).not() {
+                            narg.type_error(format("conflicting evidence for type argument '", ntp.name,
+                                "' of '", display_name, "': ", ev_key[ntp.name], " at ", ev_site[ntp.name],
+                                " and ", nbound, " at ", nsite), ctx)
+                            return false
+                        }
+                        continue
+                    }
+                    ev_key.set(ntp.name, own nbound.clone())
+                    ev_spell.set(ntp.name, own nbound.clone())
+                    ev_site.set(ntp.name, own nsite.clone())
+                }
+            }
+        }
         if generic_is_type_param(gfd, p.explicit_type) {
             for k in 0..run {
                 if ci + k >= e.children.len() { break }

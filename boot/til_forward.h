@@ -2574,6 +2574,7 @@ Bool priv___src_self_typer_til__generic_body_declares_type(Expr * e);
 Bool priv___src_self_typer_til__generic_closure_declares_type(TypeScope * scope, Str * name, Set__Str * seen);
 Bool priv___src_self_typer_til__generic_closure_walk_calls(TypeScope * scope, Expr * e, Set__Str * seen);
 Bool priv___src_self_typer_til__generic_is_type_param(FunctionDef * gfd, Str * pname);
+Str * priv___src_self_typer_til__generic_decompose_nested(FunctionDef * gfd, Str * formal, Str * actual, Str * pname);
 FunctionDef * priv___src_self_typer_til__generic_value_only_fdef(FunctionDef * gfd);
 Bool priv___src_self_typer_til__generic_call_is_explicit(TypeScope * scope, Expr * e, FunctionDef * gfd);
 Bool priv___src_self_typer_til__generic_explicit_subs(TypeScope * scope, Expr * e, FunctionDef * gfd, Map__Str_Expr * subs, Set__Str * ref_params, Str * display_name, Context * ctx);

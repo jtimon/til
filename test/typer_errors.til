@@ -914,11 +914,14 @@ g328_local_struct := func(T: Type, v: T) returns I64 {
 }
 g328_local_struct_result := g328_local_struct(7)
 
-// A parameter reached only through a generated template name is not
-// decomposed.
-g328_nested_only := func(T: Type, v: Vec(T)) returns T { return v[0] }
-g328_nested_arg := Vec(I64).new()
-g328_nested_result := g328_nested_only(g328_nested_arg)
+// A nested type argument IS deduced now (`Vec(T)` against a `Vec__I64`
+// operand), but only from a value argument. A parameter that appears
+// solely in the RETURN type has nothing to line up against.
+g328_nested_return_only := func(T: Type, n: USize) returns Vec(T) {
+    if n.gt(0) { return Vec(T).new() }
+    return Vec(T).new()
+}
+g328_nested_return_result := g328_nested_return_only(1)
 
 // Dynamic establishes no type.
 g328_dyn_id := func(T: Type, v: T) returns T { return v }

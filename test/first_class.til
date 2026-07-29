@@ -1190,6 +1190,33 @@ test_generic_infer_literals := test() {
     assert_eq(Bool, gid(true), true)
 }
 
+// #328 follow-up: a type parameter reached through a generated instance
+// name. The parser mangles `v: Vec(T)` to `Vec__T` and `m: Map(K, V)` to
+// `Map__K_V`, so the formal and its operand are two spellings of one
+// shape and the argument falls out of lining the segments up. This is
+// what makes such a function a template at all -- before it, `Vec__T`
+// was an undefined type and `T` an unused parameter, so not even the
+// explicit form worked.
+gcount328 := func(T: Type, v: Vec(T)) returns USize { return v.len() }
+gentries328 := func(K: Type, V: Type, m: Map(K, V)) returns USize { return m.len() }
+
+test_generic_infer_nested_type_args := test() {
+    mut xs := Vec(I64).new()
+    xs.push(own 7)
+    // Explicit and inferred select the same implementation.
+    assert_eq(USize, gcount328(I64, xs), 1)
+    assert_eq(USize, gcount328(xs), 1)
+    mut names := Vec(Str).new()
+    names.push(own "til")
+    assert_eq(USize, gcount328(names), 1)
+    // Two parameters, each bound from its own segment.
+    mut m := Map(Str, I64).new()
+    m.set("a", own 1)
+    m.set("b", own 2)
+    assert_eq(USize, gentries328(m), 2)
+    assert_eq(USize, gentries328(Str, I64, m), 2)
+}
+
 // #328 Task 8: an inferred call keeps every call-shape rule an explicit
 // one has -- the trailing optional location still resolves at the CALLER,
 // a named argument still reaches its parameter, a `..T` variadic still

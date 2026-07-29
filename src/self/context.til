@@ -414,9 +414,16 @@ init_func_is_generic := func(rhs: Expr) returns Bool {
         for p : Declaration in fd.params {
             if p.explicit_type.eq("Type").not() { continue }
             tname := p.name
-            if fd.return_type == tname { return true }
+            // Directly (`v: T`, `returns T`), or as a SEGMENT of a
+            // generated instance name: the parser mangles an annotation
+            // `v: Vec(T)` to `Vec__T` before any expansion runs, and
+            // init_subst_ident_name already rewrites that segment to the
+            // concrete argument. Recognising it here is what makes such a
+            // function a template at all -- without it `Vec__T` was just
+            // an undefined type and `T` an unused parameter.
+            if type_name_mentions_param(fd.return_type, tname) { return true }
             for q : Declaration in fd.params {
-                if q.explicit_type == tname { return true }
+                if type_name_mentions_param(q.explicit_type, tname) { return true }
             }
         }
         return false
