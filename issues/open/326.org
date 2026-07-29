@@ -393,6 +393,20 @@ Landed (suite green, `make test_two_pass`):
   ~first_class_no_dead_field_default~ is the regression, and the
   omitted-default tests next to it keep the substitution path honest.
 
+- [X] Libraries are scavenged too, which completes the invariant's last
+  clause: "Library output keeps its exported ABI as roots even when there
+  is no internal caller."  ~finish_prepare_program~ used to skip top-level
+  scavenging for library modes outright, so a 43-line ~mode pure~ file
+  emitted 21,264 lines of C -- 724 functions, 445 of them never called,
+  the compiler's own Expr/NodeType model included.  ~seed_library_roots~
+  seeds every non-priv top-level declaration and every non-priv member of
+  an exported type (a consumer can call any of them, and there is no main
+  to reach them from), plus executable top-level statements exactly as
+  script mode does; priv declarations and untouched core/std are swept
+  like anywhere else.  ~test/pure.til~ 21,264 -> 959 lines,
+  ~examples/hello_pure.til~ -> 548, and the public ABI is intact.
+  ~pure_lib_no_ast_model~ is the regression.
+
 Still open:
 
 - [ ] Step 4's root policy is not centralized per mode yet, and user-unit

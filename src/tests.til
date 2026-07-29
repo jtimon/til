@@ -550,6 +550,13 @@ main := proc(args: ..Str) {
     // and both are inlined, so neither name may appear at all.
     add_count(tests, "cli_args_no_inlined_accessors", "build", "Array__Str_unsafe_get", 0,
         format(til_bin, " translate -c gen/c/cli_args_acc.c examples/cli_args.til '&&' cat gen/c/cli_args_acc.c"))
+    // Issue #326: a library is scavenged like every other mode, with its
+    // EXPORTED declarations as roots. test/pure.til is 43 lines and used to
+    // emit 21,264 -- the whole of core and std, the compiler's own
+    // Expr/NodeType model included -- because library mode skipped
+    // scavenging outright.
+    add_count(tests, "pure_lib_no_ast_model", "build", "NodeType", 0,
+        format(til_bin, " translate -c gen/c/pure_reach.c test/pure.til '&&' cat gen/c/pure_reach.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
         format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,

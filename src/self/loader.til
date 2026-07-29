@@ -804,14 +804,48 @@ priv seed_cli_main_arg_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) 
     }
 }
 
+// #326: a library exports its non-priv top-level declarations, and a
+// consumer can call any of them -- including any non-priv member of an
+// exported type -- so those are the roots. There is no main to reach them
+// from, which is why library mode used to skip scavenging altogether.
+// Executable top-level statements are roots too, exactly as in script mode.
+priv seed_library_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() {
+                collect_refs(stmt, worklist)
+                continue
+            }
+            switch stmt.node_type {
+            case NodeType.Decl(d):
+                if d.is_priv { continue }
+                vec_push_str(worklist, d.name)
+                if is_struct_or_enum(stmt).not() { continue }
+                ref sdef : Expr = stmt.children[0]
+                ref lib_ns : Vec(Declaration) = def_ns_decls(sdef)
+                mut lib_i : USize = 0
+                for nsd : Declaration in lib_ns {
+                    cur_lib_i := lib_i
+                    lib_i = lib_i + 1
+                    if nsd.is_priv { continue }
+                    push_qn(worklist, d.name, def_ns_name_at(sdef, cur_lib_i))
+                }
+            case:
+            }
+        }
+    }
+}
+
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
+    mut is_library := false
     if lp.cur_mode.is_null().not() {
         if lp.cur_mode.needs_main {
             if lp.run_tests.not() {
                 is_cli = true
             }
         }
+        is_library = lp.cur_mode.is_library
     }
 
     // 1) Build top-level decl maps: name -> (path, idx)
@@ -864,7 +898,9 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     push_qn(worklist, "Str", "clone")
     vec_push_str(worklist, "CAP_LIT")
     vec_push_str(worklist, "CAP_VIEW")
-    if is_cli {
+    if is_library {
+        seed_library_roots(lp, worklist)
+    } else if is_cli {
         vec_push_str(worklist, "main")
         // The generated CLI entry wrapper parses typed argv into main()'s
         // params inline, by raw-C name. Those calls are emitted after this
@@ -4892,25 +4928,15 @@ init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
 
 finish_prepare_program := proc(mut lp: LoadedProgram) {
     constfolder_imported(lp)
-
-    // Skip top-level scavenging for libraries only. link() and link_c()
-    // directives are compile-time concerns and should not disable normal
-    // AST scavenging.
-    skip_scavenge := lp.cur_mode.is_library
-    if skip_scavenge.not() {
-        scavenge_imported(lp)
-    } else {
-        // Even libraries get body-level DCE so the dead arg-temps left
-        // behind by constant folding don't bloat the emitted C.
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                dce_program_bodies(lp.ctx.imported[u.path].ast)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            dce_program_bodies(lp.ctx.imported[u.path].ast)
-        }
-    }
+    // #326: libraries are scavenged like every other mode. They used to be
+    // skipped entirely, which is why a 20-line `mode pure` file emitted the
+    // whole of core and std -- 21,264 lines of C, 724 functions, 445 of
+    // them never called, including the compiler's own Expr/NodeType model.
+    // Their roots are their EXPORTED declarations (seed_library_roots): a
+    // consumer can call any of them and there is no main to reach them
+    // from, so the public ABI is preserved exactly while priv declarations
+    // and untouched core/std are swept.
+    scavenge_imported(lp)
 }
 
 repl_init_cached_program := proc(mut lp: LoadedProgram) returns I32 {

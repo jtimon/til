@@ -3122,6 +3122,7 @@ void priv___src_self_loader_til__seed_noreturn_chain(Expr * ast);
 void priv___src_self_loader_til__stamp_noreturn_calls(Expr * e, Set__Str * noreturn_names);
 void priv___src_self_loader_til__seed_cli_arg_helpers(Str * tname, Vec__Str * worklist);
 void priv___src_self_loader_til__seed_cli_main_arg_roots(LoadedProgram * lp, Vec__Str * worklist);
+void priv___src_self_loader_til__seed_library_roots(LoadedProgram * lp, Vec__Str * worklist);
 Set__Str * priv___src_self_loader_til__scavenge_visited_imported(LoadedProgram * lp);
 void priv___src_self_loader_til__validate_cli_main(LoadedProgram * lp);
 void priv___src_self_loader_til__scavenge_imported(LoadedProgram * lp);
