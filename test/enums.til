@@ -1167,3 +1167,57 @@ test_ref_payload_field_chain_borrow := test() {
     assert_eq(I64, got, 12)
     assert_eq(I64, h.inner.n, 12)
 }
+
+// #335: cmp is derived for enums (declaration order, then payload), so a
+// user enum can be a Set element, a Map key or a range bound. Before, any
+// of those failed with "no namespace function 'cmp'".
+CmpColor := enum { Red, Green, Blue }
+
+test_enum_derived_cmp := test() {
+    assert_eq(I64, CmpColor.cmp(CmpColor.Red, CmpColor.Blue), -1)
+    assert_eq(I64, CmpColor.cmp(CmpColor.Blue, CmpColor.Red), 1)
+    assert_eq(I64, CmpColor.cmp(CmpColor.Green, CmpColor.Green), 0)
+    // lt/gt/lte/gte derive from cmp in turn.
+    assert(CmpColor.Red.lt(CmpColor.Green))
+    assert(CmpColor.Blue.gt(CmpColor.Green))
+    assert(CmpColor.Green.lte(CmpColor.Green))
+}
+
+test_enum_in_set := test() {
+    mut s := Set(CmpColor).new()
+    s.add(own CmpColor.Blue)
+    s.add(own CmpColor.Red)
+    s.add(own CmpColor.Red)
+    assert_eq(USize, s.len(), 2)
+    assert(s.has(CmpColor.Red))
+    assert(s.has(CmpColor.Green).not())
+}
+
+test_option_payload_cmp := test() {
+    // None orders before Some; two Somes compare payloads.
+    assert_eq(I64, Option(I64).cmp(Option(I64).None, Option(I64).Some(1)), -1)
+    assert_eq(I64, Option(I64).cmp(Option(I64).Some(1), Option(I64).None), 1)
+    assert_eq(I64, Option(I64).cmp(Option(I64).Some(1), Option(I64).Some(2)), -1)
+    assert_eq(I64, Option(I64).cmp(Option(I64).Some(2), Option(I64).Some(2)), 0)
+
+    mut o := Set(Option(I64)).new()
+    o.add(own Option(I64).Some(2))
+    o.add(own Option(I64).None)
+    o.add(own Option(I64).Some(2))
+    assert_eq(USize, o.len(), 2)
+}
+
+test_option_ref_payload_in_set := test() {
+    // The case that opened #335: borrowed elements in an ordered
+    // container. The payload cmp compares the POINTEES, and the set owns
+    // no bytes -- both sources survive it.
+    a := format("al", "pha")
+    b := format("be", "ta")
+    mut s := Set(Option(ref Str)).new()
+    s.add(own Option(ref Str).Some(a))
+    s.add(own Option(ref Str).Some(b))
+    s.add(own Option(ref Str).Some(a))
+    assert_eq(USize, s.len(), 2)
+    assert_eq(Str, a, "alpha")
+    assert_eq(Str, b, "beta")
+}

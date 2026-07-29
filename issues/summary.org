@@ -48,6 +48,7 @@
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/332.org][#332]] REPL line editing and history, without an external dependency
 *** [[./open/334.org][#334]] One body, several case labels: multi-pattern cases or a fallthrough switch
+*** [[./open/335.org][#335]] No user type can be a Set element or Map key: cmp is never derived
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/63.org][#63]] User-defined modes

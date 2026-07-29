@@ -781,6 +781,93 @@ priv finish_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U
     }
 }
 
+// #335: cmp for enums, so a user enum can be a Set element, a Map key
+// or a range bound. Order is declaration order: the first variant that
+// matches either side decides, and two matching payload variants defer
+// to the payload's own cmp. Same gate as eq/to_str -- generated only
+// when every payload type is comparable, so a payload without cmp
+// leaves the enum unordered and says so at the use site.
+priv generate_enum_cmp_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names[j]
+        ref vtype : Str = variant_types[j]
+
+        // if a.is(E.V) { ... }
+        mut then_body := Expr.new(NodeType.Body, line, col)
+        mut b_is := make_is_tag_check_fcall("b", ename, vn, enum_tag_size(enum_def), line, col)
+        mut same_body := Expr.new(NodeType.Body, line, col)
+        if vtype.len() > 0 {
+            vt_resolved := type_from_name_init(vtype, scope)
+            if vt_resolved.is_funcptr().or(vt_resolved.is(Type.Body)) {
+                mut ret_zero := Expr.new(NodeType.Return, line, col)
+                ret_zero.add_child(own Expr.new(literal_num_node("0"), line, col))
+                same_body.add_child(own ret_zero)
+            } else {
+                in_slot := enum_payload_is_pointer_slot(enum_def, j.to_i32())
+                mut a_arg := Expr.new(ident_node("a"), line, col)
+                same_body.add_child(own make_payload_ref_decl(own a_arg, "_ap", vtype, line, col, false, in_slot))
+                mut b_arg := Expr.new(ident_node("b"), line, col)
+                same_body.add_child(own make_payload_ref_decl(own b_arg, "_bp", vtype, line, col, false, in_slot))
+                mut ap_id := Expr.new(ident_node("_ap"), line, col)
+                mut cmp_call := make_method_call_fcall(own ap_id, "cmp", line, col)
+                cmp_call.add_child(own Expr.new(ident_node("_bp"), line, col))
+                mut ret_cmp := Expr.new(NodeType.Return, line, col)
+                ret_cmp.add_child(own cmp_call)
+                same_body.add_child(own ret_cmp)
+            }
+        } else {
+            mut ret_zero := Expr.new(NodeType.Return, line, col)
+            ret_zero.add_child(own Expr.new(literal_num_node("0"), line, col))
+            same_body.add_child(own ret_zero)
+        }
+        mut same_if := Expr.new(NodeType.If, line, col)
+        same_if.add_child(own b_is)
+        same_if.add_child(own same_body)
+        then_body.add_child(own same_if)
+        // b is a LATER variant: a orders first.
+        mut ret_neg := Expr.new(NodeType.Return, line, col)
+        ret_neg.add_child(own Expr.new(literal_num_node("-1"), line, col))
+        then_body.add_child(own ret_neg)
+
+        mut a_is := make_is_tag_check_fcall("a", ename, vn, enum_tag_size(enum_def), line, col)
+        mut if_node := Expr.new(NodeType.If, line, col)
+        if_node.add_child(own a_is)
+        if_node.add_child(own then_body)
+        func_body.add_child(own if_node)
+
+        // a is a later variant than this one, but b is THIS one: b first.
+        mut b_only_is := make_is_tag_check_fcall("b", ename, vn, enum_tag_size(enum_def), line, col)
+        mut b_only_body := Expr.new(NodeType.Body, line, col)
+        mut ret_pos := Expr.new(NodeType.Return, line, col)
+        ret_pos.add_child(own Expr.new(literal_num_node("1"), line, col))
+        b_only_body.add_child(own ret_pos)
+        mut b_only_if := Expr.new(NodeType.If, line, col)
+        b_only_if.add_child(own b_only_is)
+        b_only_if.add_child(own b_only_body)
+        func_body.add_child(own b_only_if)
+    }
+    mut ret_end := Expr.new(NodeType.Return, line, col)
+    ret_end.add_child(own Expr.new(literal_num_node("0"), line, col))
+    func_body.add_child(own ret_end)
+
+    mut fdecl := FunctionDef(auto_generated = true)
+    fdecl.func_type = FuncType.Func
+    fdecl.params.push(own decl_typed(name = "a", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = "b", explicit_type = ename, own_type = OwnType.Ref))
+    fdecl.return_type = "I64"
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
+    fdef.add_child(own func_body)
+    switch enum_def.node_type {
+    case NodeType.EnumDef(ecmp_edd):
+        ecmp_edd.push_member(own Declaration(name = "cmp", default_value = fdef))
+    case:
+        UNREACHABLE()
+    }
+}
+
 priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(NodeType.Body, line, col)
     if has_payloads {
@@ -1205,12 +1292,14 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     mut has_eq := false
     mut has_delete := false
     mut has_to_str := false
+    mut has_cmp := false
     switch stmt.children[0].node_type {
     case NodeType.EnumDef(ens_edd):
         has_is = ens_edd.ns_index.has("is")
         has_eq = ens_edd.ns_index.has("eq")
         has_delete = ens_edd.ns_index.has("delete")
         has_to_str = ens_edd.ns_index.has("to_str")
+        has_cmp = ens_edd.ns_index.has("cmp")
     case:
         UNREACHABLE()
     }
@@ -1223,6 +1312,9 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
     if has_delete.not() {
         generate_enum_delete_method(stmt.children[0], ename, line, col, variant_names, variant_types, has_payloads, scope)
+    }
+    if has_cmp.not().and(enum_payloads_support_generated_method(variant_types, "cmp", scope)) {
+        generate_enum_cmp_method(stmt.children[0], ename, line, col, variant_names, variant_types, scope)
     }
     if has_to_str.not().and(enum_payloads_support_generated_method(variant_types, "to_str", scope)) {
         generate_enum_to_str_method(stmt.children[0], ename, line, col, variant_names, variant_types, has_payloads, scope)

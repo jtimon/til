@@ -2368,6 +2368,7 @@ void priv___src_self_initer_til__generate_enum_is_method(Expr * enum_def, Str * 
 void priv___src_self_initer_til__generate_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_eq_chain(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope, Expr * func_body);
 void priv___src_self_initer_til__finish_enum_eq_method(Expr * enum_def, Str * ename, U32 line, U32 col, Expr * func_body);
+void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_delete_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_to_str_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 Bool priv___src_self_initer_til__init_ns_has_func(Expr * def, Str * method);

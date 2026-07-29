@@ -1,0 +1,113 @@
+# priority: medium
+# category: features
+** WIP #335 No user type can be a Set element or Map key: cmp is never derived
+
+  ~Set(T)~ binary-searches, so it needs ~T.cmp~; ~Map(K, V)~ needs
+  ~K.cmp~ for the same reason. Every user type is rejected there,
+  because ~cmp~ is the one comparison the compiler never generates:
+
+  #+begin_src til
+  P := struct { x := 0 }
+  mut s := Set(P).new()          // error: no namespace function 'cmp'
+
+  Color := enum { Red, Green }
+  mut s2 := Set(Color).new()     // same
+
+  mut s3 := Set(Option(I64)).new()   // same
+  #+end_src
+
+  Give any of them a hand-written ~cmp~ and the container works
+  (dedup, ordering, membership -- verified). So this is a missing
+  derivation, not a container limitation.
+
+*** How it was found
+
+  Chasing string churn in the garbager's per-statement fact sets. Those
+  sets hold names BORROWED from AST nodes, and the natural spelling for
+  a borrowed element is ~Option(ref Str)~ (#320/#321's shape for exactly
+  this). ~Set(Option(ref Str))~ does not compile, so the sets currently
+  store ~Str.borrowed_view()~ values instead -- an owned Str that owns no
+  bytes. That works, but it is a workaround for this gap.
+
+  ~Vec(Option(ref Str))~ DOES work today: it needs no ordering. The wall
+  is ordering, and only ordering.
+
+*** What is already derived, and what is not
+
+  The initer generates ~eq~, ~clone~, ~delete~, ~to_str~, ~hash~ and the
+  variant constructors. It also derives ~lt~/~gt~/~lte~/~gte~ FROM a
+  ~cmp~ the user wrote (~gen_cmp_derived_for_stmt~, gated on
+  ~def_ns_has(def, "cmp")~). So ordering is deliberately user-supplied
+  today, and everything downstream of it is automatic.
+
+*** The design question this opens
+
+  Deriving ~cmp~ means choosing an ORDER, which is a language decision,
+  not an implementation detail:
+
+  - struct: lexicographic by declaration order? (matches how ~eq~ walks
+    fields, and how most languages derive it)
+  - enum: by tag first, then payload? (tag order = declaration order,
+    which #264/#307 already treat as meaningful)
+  - a ~ref~ payload: compare the POINTEES, consistent with ~eq~
+  - a field/payload whose own type has no ~cmp~: derive nothing, and let
+    the existing "no namespace function 'cmp'" error stand
+
+  Deriving only where every component is comparable keeps it total: a
+  type that cannot be ordered simply is not, and says so at the use site.
+
+*** Writing Option.cmp in til does NOT work -- tried it
+
+  The obvious first step is a hand-written ~cmp~ in core/option.til
+  (None before Some, two Somes by ~T.cmp~). It breaks the build:
+
+  #+begin_src
+  ./src/self/parser.til:37:51: error: no namespace function 'cmp'
+  #+end_src
+
+  A namespace method exists in EVERY instantiation of the template, and
+  the compiler instantiates ~Option(ref Expr)~, ~Option(ref TypeBinding)~,
+  ~Option(ref Scope)~ ... none of whose payloads have ~cmp~. The method
+  body fails to typecheck there even though nothing calls it (scavenging
+  drops unused methods only AFTER typing).
+
+  It cannot be made conditional either. A type-gen macro may branch on
+  its type argument, but ~init_macro_cond_eval~ recognises exactly one
+  condition shape: ~T.is(Type.X)~ / ~T.is(Type.Primitive(Primitive.X))~,
+  an identity test. There is no "does T have cmp" predicate at expansion
+  time. So a payload-conditional method is not expressible in til today.
+
+  That leaves two routes, both compiler-side:
+
+  1. DERIVE cmp, next to the eq/clone/delete/to_str the initer already
+     generates, and only where every component is comparable. Enums
+     first (tag order, then payload) -- that alone unblocks Option and
+     leaves the structs question open. Cost: every comparable enum gains
+     ~cmp~, and gen_cmp_derived_for_stmt then also gives it lt/gt/lte/gte
+     -- five methods per enum in every program, whether or not anything
+     orders that type.
+
+  2. Add a compile-time ~has method~ predicate to the macro conditions,
+     and keep the definition in til source. Smaller generated output (the
+     method exists only where it typechecks), but it is a new
+     compile-time capability, and it only helps templates -- a plain
+     ~enum { A, B }~ still needs a hand-written cmp to enter a Set.
+
+  Route 1, for ENUMS, is what landed: generate_enum_cmp_method sits next
+  to the eq/to_str generators and reuses their gate. Structs are left
+  alone -- lexicographic-by-field is the obvious mirror, but it is the
+  more contentious choice and nothing needed it yet.
+
+*** Progress
+
+  - [X] Investigate: not ref, not Option -- no user type gets a derived
+        cmp, so none can be a Set element or Map key; a hand-written cmp
+        makes it work; Vec is fine because it needs no ordering
+  - [X] Establish that the til-source fix is not available (above)
+  - [X] Route 1 for ENUMS: generate_enum_cmp_method, gated by the same
+        enum_payloads_support_generated_method predicate eq and to_str
+        already use. Declaration order, then payload; a pointer-slot
+        payload compares pointees. Tests in test/enums.til cover the
+        enum, Option(T) and Option(ref T) cases
+  - [ ] Structs: lexicographic by field would be the mirror image, but
+        the ordering choice is more contentious there -- left open
