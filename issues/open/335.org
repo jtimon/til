@@ -93,10 +93,8 @@
      compile-time capability, and it only helps templates -- a plain
      ~enum { A, B }~ still needs a hand-written cmp to enter a Set.
 
-  Route 1, for ENUMS, is what landed: generate_enum_cmp_method sits next
-  to the eq/to_str generators and reuses their gate. Structs are left
-  alone -- lexicographic-by-field is the obvious mirror, but it is the
-  more contentious choice and nothing needed it yet.
+  Route 1 is what landed, for enums first and now structs too: each
+  generator sits next to the eq/to_str ones and reuses their gate.
 
 *** Progress
 
@@ -109,5 +107,15 @@
         already use. Declaration order, then payload; a pointer-slot
         payload compares pointees. Tests in test/enums.til cover the
         enum, Option(T) and Option(ref T) cases
-  - [ ] Structs: lexicographic by field would be the mirror image, but
-        the ordering choice is more contentious there -- left open
+  - [X] Structs: generate_struct_cmp_method, lexicographic by field in
+        declaration order, gated by struct_fields_support_generated_method
+        -- so an own/ref field (or any incomparable one) leaves the struct
+        unordered, the same rule eq and to_str follow. Tests in
+        test/structs.til; test/typer_errors.til's NoCmp fixture grew an
+        own field, since a plain `struct { x := 0 }` is now ordered
+  - [ ] Map with a STRUCT key: deriving cmp makes such a key reachable
+        for the first time, and it does not compile --
+        `Map__CmpPoint_Str_set` emits `CmpPoint cloned_key = key;` where
+        key is a pointer, which cc rejects as an invalid initializer. A
+        Set of the same struct is fine. Defect is in Map's codegen for a
+        non-scalar key, not in the derivation

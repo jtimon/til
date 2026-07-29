@@ -1,0 +1,37 @@
+# priority: low
+# category: features
+** OPEN #336 Element-wise cmp for the core containers, so Set(Vec(T)) etc. work
+
+  #335 derives ~cmp~ for structs and enums whose components are all
+  comparable, which makes user types usable as ~Set~ elements and ~Map~
+  keys. Containers are deliberately EXEMPT: ~Vec~, ~Set~, ~Map~ and
+  friends hold an ~own~ data buffer, and the derivation's own/ref gate
+  keeps them unordered -- field-wise comparison of a container would
+  order by pointer addresses, which is meaningless.
+
+  So today ~Set(Vec(I64))~ is a compile error ("no namespace function
+  'cmp'"), and that is correct as far as it goes. If nesting containers
+  in ordered containers is ever wanted, the fix is NOT the derivation:
+  it is a hand-written, element-wise ~cmp~ on the container itself in
+  core/std, the way ~Str~ already orders by bytes:
+
+  - ~Vec(T).cmp~: element by element via ~T.cmp~, first non-zero
+    decides, shorter orders first on a common prefix (Str's exact rule).
+  - ~Array(T)~: same.
+  - ~Set(T)~ / ~Map(K, V)~: the backing vecs are SORTED, so the same
+    element-wise walk gives a canonical order for equal-content sets
+    regardless of insertion order.
+  - ~HashMap~ and the Dyn* containers: no canonical iteration order, so
+    probably never -- leaving them unordered is the honest answer.
+
+  Note the same template-method totality problem #335 documents: a
+  namespace method must typecheck in EVERY instantiation, and
+  ~Vec(ref Expr)~ etc. have payloads with no ~cmp~. So ~Vec(T).cmp~
+  written naively in core/vec.til will break the compiler's own
+  instantiations exactly like Option.cmp did. It needs either the
+  compile-time "has method" predicate (#335 route 2, still unbuilt) or
+  generation in the initer keyed on the element type -- worth deciding
+  before starting, not after.
+
+  Not a priority: nothing in the compiler or the tests needs a container
+  inside an ordered container today.

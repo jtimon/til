@@ -69,6 +69,7 @@
 *** [[./open/314.org][#314]] Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
 *** [[./open/317.org][#317]] MLIR backend alongside the C backend
 *** [[./open/318.org][#318]] Portable SIMD vector type like Mojo's SIMD[dtype, width]
+*** [[./open/336.org][#336]] Element-wise cmp for the core containers, so Set(Vec(T)) etc. work
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

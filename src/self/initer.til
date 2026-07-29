@@ -124,6 +124,77 @@ priv make_struct_field_access := func(receiver_name: Str, field_name: Str, line:
     return field
 }
 
+// #335: cmp for structs -- lexicographic by DECLARATION order, the same
+// order eq walks and the same order a reader sees. Field by field: a
+// non-zero cmp decides, ties move to the next field, all ties means
+// equal. Gated by struct_fields_support_generated_method(sdd, "cmp"),
+// so one incomparable field leaves the struct unordered and the use
+// site says so, exactly as with eq and to_str.
+priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
+    mut func_body := Expr.new(NodeType.Body, line, col)
+    mut field_count : USize = 0
+    switch struct_def.node_type {
+    case NodeType.StructDef(sdd):
+        field_count = sdd.fields.len()
+        mut cfi : USize = 0
+        for _ : Declaration in sdd.fields {
+            ref cmp_fname : Str = sdd.field_name_at(cfi)
+            tmp_name := format("_c", cfi.to_str())
+            cfi = cfi + 1
+
+            // _cN := a.<field>.cmp(b.<field>)
+            mut a_field := make_struct_field_access("a", cmp_fname, line, col)
+            mut cmp_call := make_method_call_fcall(own a_field, "cmp", line, col)
+            mut b_field := make_struct_field_access("b", cmp_fname, line, col)
+            cmp_call.add_child(own b_field)
+            mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), explicit_type = "I64")), line, col)
+            tmp_decl.add_child(own cmp_call)
+            func_body.add_child(own tmp_decl)
+
+            // if _cN.neq(0) { return _cN }
+            mut tmp_id := Expr.new(ident_node(tmp_name), line, col)
+            mut neq_call := make_method_call_fcall(own tmp_id, "neq", line, col)
+            neq_call.add_child(own Expr.new(literal_num_node("0"), line, col))
+            mut ret_tmp := Expr.new(NodeType.Return, line, col)
+            ret_tmp.add_child(own Expr.new(ident_node(tmp_name), line, col))
+            mut then_body := Expr.new(NodeType.Body, line, col)
+            then_body.add_child(own ret_tmp)
+            mut if_node := Expr.new(NodeType.If, line, col)
+            if_node.add_child(own neq_call)
+            if_node.add_child(own then_body)
+            func_body.add_child(own if_node)
+        }
+    case:
+        UNREACHABLE()
+    }
+
+    mut ret_zero := Expr.new(NodeType.Return, line, col)
+    ret_zero.add_child(own Expr.new(literal_num_node("0"), line, col))
+    func_body.add_child(own ret_zero)
+
+    mut fdecl := FunctionDef(auto_generated = true)
+    fdecl.func_type = FuncType.Func
+    mut a_name := "a"
+    mut b_name := "b"
+    if field_count == 0 {
+        a_name = "_a"
+        b_name = "_b"
+    }
+    fdecl.params.push(own decl_typed(name = a_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.params.push(own decl_typed(name = b_name, explicit_type = sname, own_type = OwnType.Ref))
+    fdecl.return_type = "I64"
+    fdecl.variadic_index = -1
+    fdecl.kwargs_index = -1
+    mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
+    fdef.add_child(own func_body)
+    switch struct_def.node_type {
+    case NodeType.StructDef(scmp_sdd):
+        scmp_sdd.push_member(own Declaration(name = "cmp", default_value = fdef))
+    case:
+        UNREACHABLE()
+    }
+}
+
 priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut field_count : USize = 0
@@ -515,6 +586,10 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
 
                 sdd.push_member(own Declaration(name = "hash", default_value = hash_def))
             }
+        }
+
+        if init_ns_has_func(sdef, "cmp").not().and(struct_fields_support_generated_method(sdd, "cmp", scope)) {
+            generate_struct_cmp_method(sdef, sname, stmt.line, stmt.col)
         }
 
         if has_eq.not().and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "eq", scope)) {

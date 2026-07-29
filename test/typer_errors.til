@@ -228,12 +228,15 @@ str_va(NoToStr())
 dyn_vec := vec(I64, 10, 20)
 dyn_bad := dyn_vec.get(0).add(35)
 
-// map literal: key type must implement cmp
-NoCmp := struct { x := 0 }
-bad_map := {NoCmp(x=1): "one"}
+// map literal: key type must implement cmp. #335 derives cmp for a
+// struct whose fields are all comparable, so this fixture needs a field
+// that disqualifies the derivation -- an `own` one, same rule eq and
+// to_str already follow.
+NoCmp := struct { own buf : Str = "" }
+bad_map := {NoCmp(): "one"}
 
 // set literal: element type must implement cmp
-bad_set := {NoCmp(x=1), NoCmp(x=2)}
+bad_set := {NoCmp(), NoCmp()}
 
 // for-in: Dynamic collection without explicit type
 forin_vec := vec(I64, 1, 2, 3)

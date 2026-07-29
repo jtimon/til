@@ -522,3 +522,40 @@ test_usize_alias_instance_names := test() {
     assert_eq(USize, h.get_via_free("missing"), 999)
     assert_eq(USize, h.first_via_free(), 41)
 }
+
+// #335: cmp is derived for a struct whose fields are all comparable --
+// lexicographic in declaration order, the same order eq walks. That makes
+// a struct usable as a Set element, a Map key and a range bound; before,
+// each of those failed with "no namespace function 'cmp'".
+CmpPoint := struct {
+    x := 0
+    y := 0
+}
+
+test_struct_derived_cmp := test() {
+    // First field decides; ties fall through to the next.
+    assert_eq(I64, CmpPoint.cmp(CmpPoint(x = 1, y = 2), CmpPoint(x = 2, y = 0)), -1)
+    assert_eq(I64, CmpPoint.cmp(CmpPoint(x = 2, y = 0), CmpPoint(x = 1, y = 9)), 1)
+    assert_eq(I64, CmpPoint.cmp(CmpPoint(x = 1, y = 2), CmpPoint(x = 1, y = 3)), -1)
+    assert_eq(I64, CmpPoint.cmp(CmpPoint(x = 1, y = 2), CmpPoint(x = 1, y = 2)), 0)
+    // lt/gt/lte/gte derive from cmp in turn.
+    assert(CmpPoint(x = 1, y = 0).lt(CmpPoint(x = 1, y = 1)))
+    assert(CmpPoint(x = 2, y = 0).gt(CmpPoint(x = 1, y = 9)))
+    assert(CmpPoint(x = 1, y = 1).gte(CmpPoint(x = 1, y = 1)))
+}
+
+test_struct_in_set := test() {
+    mut s := Set(CmpPoint).new()
+    s.add(own CmpPoint(x = 2, y = 0))
+    s.add(own CmpPoint(x = 1, y = 1))
+    s.add(own CmpPoint(x = 1, y = 1))
+    assert_eq(USize, s.len(), 2)
+    assert(s.has(CmpPoint(x = 2, y = 0)))
+    assert(s.has(CmpPoint(x = 9, y = 9)).not())
+}
+
+// A struct as a MAP key is not covered here: Map.set monomorphized over a
+// struct key emits `CmpPoint cloned_key = key;` where key is a pointer,
+// which cc rejects. Deriving cmp is what first makes such a key
+// reachable, but the defect is in Map's codegen, not in the derivation --
+// see issues/open/335.org.

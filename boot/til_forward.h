@@ -2379,6 +2379,7 @@ I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ctx, Expr
 Bool priv___src_self_initer_til__struct_field_supports_generated_method(Declaration * fd, Str * method, TypeScope * scope);
 Bool priv___src_self_initer_til__struct_fields_support_generated_method(StructDef * sdd, Str * method, TypeScope * scope);
 Expr * priv___src_self_initer_til__make_struct_field_access(Str * receiver_name, Str * field_name, U32 line, U32 col);
+void priv___src_self_initer_til__generate_struct_cmp_method(Expr * struct_def, Str * sname, U32 line, U32 col);
 void priv___src_self_initer_til__generate_struct_eq_method(Expr * struct_def, Str * sname, U32 line, U32 col);
 void priv___src_self_initer_til__generate_struct_to_str_method(Expr * struct_def, Str * sname, U32 line, U32 col);
 void priv___src_self_initer_til__gen_struct_clone_delete_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);

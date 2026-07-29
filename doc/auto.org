@@ -30,11 +30,31 @@
    with owned or borrowed fields must define a content-aware hash if they
    need one.
 
+** cmp := func(a: T, b: T) returns I64
+   Lexicographic by DECLARATION order: the first field whose ~cmp~ is
+   non-zero decides, ties fall through to the next field, all ties means
+   equal. Generated under the same rule as ~eq~ -- every instance field
+   shallow and comparable -- so a struct with an ~own~ or ~ref~ field, a
+   funcptr field, or a field whose type has no ~cmp~ of its own is NOT
+   ordered, and using it where ordering is required still fails at the
+   use site with "no namespace function 'cmp'".
+
+   That exemption is what keeps CONTAINERS out: ~Vec~, ~Set~, ~Map~ and
+   friends hold an ~own~ data buffer, so none of them gets a derived
+   ~cmp~ -- ordering them by their fields would compare pointer
+   addresses. Types that want an order define ~cmp~ themselves (~Str~
+   does), and a hand-written one always wins over the derivation.
+
+   Deriving nothing is deliberate over deriving something that panics: a
+   panicking ~cmp~ would let ~Set(Vec(I64))~ compile and die at runtime,
+   where today it is a compile error. (#335)
+
 ** eq := func(self: T, other: T) returns Bool
    Generated when every instance field is shallow and comparable. Compares
    fields in declaration order and returns false at the first mismatch.
-   If the struct defines ~cmp~, the cmp-derived comparison helpers still
-   win. Structs with own/ref fields are left to explicit methods for now
+   If the struct defines ~cmp~ -- or gets one derived, which now happens
+   whenever the fields allow -- the cmp-derived comparison helpers win.
+   Structs with own/ref fields are left to explicit methods for now
    (tracked by #270).
 
 ** to_str := func(self: T) returns Str
@@ -50,6 +70,14 @@
    their type's eq method. FuncPtr payloads use tag-only comparison.
    For payload enums, generation is skipped unless every payload type is
    comparable.
+
+** cmp := func(a: E, b: E) returns I64
+   Declaration order: walking variants in order, the first that matches
+   either side decides, and two matching payload variants defer to the
+   payload's own ~cmp~. A pointer-slot payload compares POINTEES, the
+   same rule ~eq~ follows, which is what lets ~Option(ref T)~ be ordered.
+   Generated only when every payload type is comparable, so an enum
+   carrying an unordered payload stays unordered. (#335)
 
 ** is := func(self: E, other: E) returns Bool
    Calls the runtime tag comparison helper.
