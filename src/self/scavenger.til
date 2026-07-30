@@ -90,11 +90,11 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                                 }
                             }
                         case:
-                            UNREACHABLE()
+                            UNREACHABLE("expected FieldAccess, got ", fa.node_type.head_str())
                             return
                         }
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected Ident, got ", fa.children[0].node_type.head_str())
                         return
                     }
                     // Recurse into args (skip callee -- already handled)
@@ -174,7 +174,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                         }
                     }
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
                 }
             }
         }
@@ -222,7 +222,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), field_name.field_access_name())
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
                 }
             }
         }
@@ -234,7 +234,7 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
                     vec_push_str(refs, type_name.ident_name())
                     push_qn(refs, type_name.ident_name(), fad.name)
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
                 }
             }
         }
@@ -412,7 +412,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
                     swept.add(own vd.name.clone())
                 }
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
             }
         }
         if is_def(stmt) {
@@ -431,7 +431,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
                     memset(ptr_add(pm, i), 1, 1)
                 }
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
             }
         }
     }
@@ -454,10 +454,10 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
             case NodeType.EnumDef(scv_edd):
                 scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_index, sdecl.name, visited)
             case:
-                UNREACHABLE()
+                UNREACHABLE("unexpected ", sdef.node_type.head_str())
             }
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         }
     }
 }

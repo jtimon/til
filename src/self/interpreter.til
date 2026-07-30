@@ -201,7 +201,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                             memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
                             EvalHeap.heap_free(own cloned_ptr2)
                         case:
-                            UNREACHABLE()
+                            UNREACHABLE("expected StructDef, got ", nested_def.node_type.head_str())
                         }
                     }
                 }
@@ -227,7 +227,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         }
         return dst_data
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
         return NULL
     }
 }
@@ -2644,7 +2644,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
     }
     c.has_return = false
     c.return_value = NULL
@@ -2802,7 +2802,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 case NodeType.FuncDef(fp_fdef):
                     fp_func_type = fp_fdef.func_type
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
                 }
                 if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
                     for qn, nsv_hb in c.ns_fields.heap_bindings {
@@ -2820,7 +2820,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 concrete_return_own_type = concrete_fd.return_own_type
                                 if concrete_fd.return_type.len() > 0 { concrete_result_type = type_from_name_init(concrete_fd.return_type, ctx.scope) }
                             case:
-                                UNREACHABLE()
+                                UNREACHABLE("expected FuncDef, got ", nsv_fdef.node_type.head_str())
                             }
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = ident_node(fp_flat)
@@ -2851,7 +2851,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 direct_return_own_type = fdef_ns.return_own_type
                 if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
             }
             if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
                 parent_sname := til_type_name(callee_expr.children[0].til_type())
@@ -2882,7 +2882,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 }
                                 if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                             case:
-                                UNREACHABLE()
+                                UNREACHABLE("expected FieldAccess, got ", callee_expr.node_type.head_str())
                             }
                         }
                 }
@@ -2922,7 +2922,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     }
                     return result
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected FieldAccess, got ", callee_expr.node_type.head_str())
                 }
             }
 
@@ -2960,7 +2960,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             case NodeType.StructDef:
             case NodeType.EnumDef:
             case:
-                UNREACHABLE()
+                UNREACHABLE("unexpected ", ext_def.node_type.head_str())
             }
         }
         // `cast(e, T)` and dyn_call_ret declare Dynamic because til has no
@@ -3213,7 +3213,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     callable_raw_free(fn_raw, ctx)
                     return inst_data
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected StructDef, got ", fn_def.node_type.head_str())
                 }
         }
 
@@ -3229,7 +3229,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         callable_raw_free(cast_raw, ctx)
         return result
     case:
-        UNREACHABLE()
+        UNREACHABLE("unexpected ", callee_expr.node_type.head_str())
         if destination.is_null().not() { return destination }
         return raw_unit_result(e.til_type(), ctx)
     }
@@ -4324,7 +4324,7 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) ret
             capture_raw_binding(env, scope, cap2, ctx)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("unexpected ", func_def.node_type.head_str())
     }
     box : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
     ref callable : InterpCallableBox = to_ptr(box)
@@ -5396,7 +5396,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 eval_body(main_scope, body, lp.ctx)
                 scope_free(own main_scope)
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
             }
     } } }
 
@@ -5875,7 +5875,7 @@ priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     case "U32": write_u32(r, raw.to_u32()); return true
     case "I64": write_i64(r, raw.cast(I64)); return true
     case "U64": write_u64(r, raw); return true
-    case: UNREACHABLE()
+    case: UNREACHABLE("unexpected scalar type name '", tn, "'")
     }
     return false
 }
@@ -6023,7 +6023,7 @@ priv h_struct_field_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) r
     case NodeType.StructDef(sd):
         write_i64(r, sd.fields.len().to_i64())
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6048,7 +6048,7 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
         }
         str_copy_into(r, sd.field_name_at(idx), ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6066,7 +6066,7 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
         ref fd : Declaration = sd.field_at(idx)
         if fd.is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6084,7 +6084,7 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
         ref fd : Declaration = sd.field_at(idx)
         str_copy_into(r, fd.explicit_type, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6117,7 +6117,7 @@ priv h_enum_variant_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) r
     case NodeType.EnumDef(ed):
         write_i64(r, ed.variants.len().to_i64())
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6135,7 +6135,7 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
         ref vd : VariantDef = ed.variants[idx]
         str_copy_into(r, vd.name, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6153,7 +6153,7 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Cont
         ref vd : VariantDef = ed.variants[idx]
         if vd.payload_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6171,7 +6171,7 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Con
         ref vd : VariantDef = ed.variants[idx]
         str_copy_into(r, vd.payload_type, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6189,7 +6189,7 @@ priv h_enum_variant_tag_value := proc(s: Scope, e: Expr, r: Dynamic, ctx: Contex
         ref vd : VariantDef = ed.variants[idx]
         write_i64(r, vd.tag_value)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6207,7 +6207,7 @@ priv h_enum_variant_payload_is_const := proc(s: Scope, e: Expr, r: Dynamic, ctx:
         ref vd : VariantDef = ed.variants[idx]
         if vd.payload_const { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6225,7 +6225,7 @@ priv h_enum_variant_payload_is_ref := proc(s: Scope, e: Expr, r: Dynamic, ctx: C
         ref vd : VariantDef = ed.variants[idx]
         if vd.payload_ref { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6258,7 +6258,7 @@ priv h_func_sig_param_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     case NodeType.FuncDef(fd):
         write_i64(r, fd.params.len().to_i64())
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6276,7 +6276,7 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
         ref pd : Declaration = fd.params[idx]
         str_copy_into(r, pd.explicit_type, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6288,7 +6288,7 @@ priv h_func_sig_return_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context
     case NodeType.FuncDef(fd):
         if fd.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6305,7 +6305,7 @@ priv h_func_sig_return_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
         }
         str_copy_into(r, fd.return_type, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6317,7 +6317,7 @@ priv h_func_sig_throw_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     case NodeType.FuncDef(fd):
         write_i64(r, fd.throw_types.len().to_i64())
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -6335,7 +6335,7 @@ priv h_func_sig_throw_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
         ref tt : Str = fd.throw_types[idx]
         str_copy_into(r, tt, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
     }
     return true
 }
@@ -7056,7 +7056,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     switch arity_expr.node_type {
     case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected LiteralNum, got ", arity_expr.node_type.head_str())
     }
     if method == "delete" {
         if nargs == 0 { panic("dyn_call delete without receiver") }
@@ -7912,7 +7912,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         memset(entry, 0, FFIEntry.size())
         ctx.ffi_map.set(name, own val)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", fdef.node_type.head_str())
     }
 }
 
@@ -7988,7 +7988,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                                         ffi_register(iname.name, ifn, idef, ctx)
                                                     }
                                                 case:
-                                                    UNREACHABLE()
+                                                    UNREACHABLE("expected Decl, got ", inner.node_type.head_str())
                                                 }
                                             }
                                         case:
@@ -7998,10 +7998,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                             }
                         }
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected StructDef, got ", stmt.children[0].node_type.head_str())
                     }
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
                 }
             }
         }

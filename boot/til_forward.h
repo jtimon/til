@@ -1918,6 +1918,7 @@ I64 run_cmd(Str * output, Array__Str * args);
 Bool TokenType_is(TokenType * self, TokenType * other);
 Bool TokenType_eq(TokenType * self, TokenType * other);
 void TokenType_delete(TokenType * self, Bool call_free);
+Str * TokenType_to_str(TokenType * self);
 TokenType * TokenType_clone(TokenType * self);
 Token * Token_clone(Token * self);
 void Token_delete(Token * self, Bool call_free);
@@ -2548,6 +2549,7 @@ priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Unfilled
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Filled(Expr * val);
 Bool priv___src_self_typer_til__CtorArg_is(priv___src_self_typer_til__CtorArg * self, priv___src_self_typer_til__CtorArg * other);
 void priv___src_self_typer_til__CtorArg_delete(priv___src_self_typer_til__CtorArg * self, Bool call_free);
+Str * priv___src_self_typer_til__CtorArg_to_str(priv___src_self_typer_til__CtorArg * self);
 priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_clone(priv___src_self_typer_til__CtorArg * self);
 void type_error(Expr * e, Str * msg, Context * ctx);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);

@@ -795,8 +795,10 @@ namespace:
         case NodeType.Catch:          return "Catch"
         case NodeType.CaptureBlock:   return "CaptureBlock"
         case NodeType.BodyValue:      return "BodyValue"
-        case: return "?"
+        case NodeType.RestPattern:    return "RestPattern"
+        case NodeType.ListPattern:    return "ListPattern"
         }
+        return "?"
     }
 }
 

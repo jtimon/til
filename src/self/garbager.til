@@ -876,7 +876,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 }
             case Option(ref Expr).None:
                 // Root blocks always carry a body (cfg_new_block).
-                UNREACHABLE()
+                UNREACHABLE("cfg block has no body")
             }
         }
     }
@@ -951,7 +951,7 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
                     }
                 case Option(ref Expr).None:
                     // Root blocks always carry a body (cfg_new_block).
-                    UNREACHABLE()
+                    UNREACHABLE("cfg block has no body")
                 }
             }
             return st == FLOW_OWNED

@@ -893,11 +893,11 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
                             push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
                         }
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected FuncDef, got ", nsfdef.node_type.head_str())
                     }
                 }
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
             }
         }
     }
@@ -1061,7 +1061,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
                 }
             } else {
                 collect_refs(decl.children[0], worklist)
@@ -1089,7 +1089,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("unexpected ", decl.children[0].node_type.head_str())
                 }
             } else {
                 collect_refs(decl.children[0], worklist)

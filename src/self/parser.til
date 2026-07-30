@@ -787,7 +787,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
                 sfd.captures = parse_capture_list(p)
             }
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
         }
         expect_token(p, TokenType.LBrace)
         def.add_child(own parse_block(p))
@@ -1078,7 +1078,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             case NodeType.StructDef(ns_sdd):
                 ns_sdd.interface_ns_marker = true
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
             }
             continue
         }
@@ -1116,7 +1116,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
         case NodeType.StructDef(sdd):
             sdd.push_member(own m_dd)
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
         }
     }
     expect_token(p, TokenType.RBrace)
@@ -1291,7 +1291,7 @@ priv set_fcall_throw := func(mut fcall: Expr) {
     case NodeType.FCall(fcd):
         fcd.does_throw = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -1300,7 +1300,7 @@ priv set_fcall_bang := func(mut fcall: Expr) {
     case NodeType.FCall(fcd):
         fcd.is_bang = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -1309,7 +1309,7 @@ priv set_fcall_splat := func(mut fcall: Expr) {
     case NodeType.FCall(fcd):
         fcd.is_splat = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -1411,7 +1411,7 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     mut rhs := parse_expression(p)
     switch callee.node_type {
     case NodeType.FieldAccess(fad2): fad2.name = "set"
-    case: UNREACHABLE()
+    case: UNREACHABLE("expected FieldAccess, got ", callee.node_type.head_str())
     }
     set_own_arg(lhs, lhs.children.len())
     lhs.add_child(own rhs)
@@ -1527,7 +1527,7 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     switch call.children[0].node_type {
     case NodeType.Ident(cn2):      name = Str.clone(cn2.ident_name())
     case NodeType.FieldAccess(fa2): name = Str.clone(fa2.name)
-    case: UNREACHABLE()
+    case: UNREACHABLE("unexpected ", call.children[0].node_type.head_str())
     }
     // Fold from the tail: c, then and(b, c), then and(a, and(b, c)). The
     // accumulator lives in `acc` rather than a plain binding: it is moved into
@@ -1953,7 +1953,7 @@ priv binop_method := func(tt: TokenType) returns Str {
     case TokenType.Pipe:      return "bor"
     case TokenType.AmpAmp:    return "and"
     case TokenType.PipePipe:  return "or"
-    case: UNREACHABLE()
+    case: UNREACHABLE("expected a binary operator token, got ", tt.to_str())
     }
     return ""
 }
@@ -2036,7 +2036,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     case NodeType.StructDef(sdd):
                         sdd.push_member(own ns_dd)
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
                     }
                 case:
                 }
@@ -2811,7 +2811,7 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.own_args = fcd.own_args.bor(bit)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -2822,7 +2822,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         for _ in 0..arg_index { bit = bit * 2 }
         return fcd.own_args.band(bit) > 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }
@@ -2836,7 +2836,7 @@ set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.ref_args = fcd.ref_args.bor(bit)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -2847,7 +2847,7 @@ get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         for _ in 0..arg_index { bit = bit * 2 }
         return fcd.ref_args.band(bit) > 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }
@@ -2857,7 +2857,7 @@ fcall_has_ref_args := func(fcall: Expr) returns Bool {
     case NodeType.FCall(fcd):
         return fcd.ref_args > 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }
@@ -2869,7 +2869,7 @@ set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -2880,7 +2880,7 @@ get_keep_outer_arg := func(fcall: Expr, arg_index: USize) returns Bool {
         for _ in 0..arg_index { bit = bit * 2 }
         return fcd.keep_outer_args.band(bit) > 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }

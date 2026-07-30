@@ -88,7 +88,7 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
         ctx.interp_type_defs.set(sname, own tdv)
         return 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return 0
     }
 }
@@ -165,7 +165,7 @@ priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32,
             func_body.add_child(own if_node)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 
     mut ret_zero := Expr.new(NodeType.Return, line, col)
@@ -191,7 +191,7 @@ priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32,
     case NodeType.StructDef(scmp_sdd):
         scmp_sdd.push_member(own Declaration(name = "cmp", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 }
 
@@ -222,7 +222,7 @@ priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, 
             func_body.add_child(own if_node)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 
     mut ret_true := Expr.new(NodeType.Return, line, col)
@@ -251,7 +251,7 @@ priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, 
     case NodeType.StructDef(sdd2):
         sdd2.push_member(own Declaration(name = "eq", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 }
 
@@ -288,7 +288,7 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
             idx++
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 
     mut suffix := Expr.new(NodeType.Literal(Literal.Str(")")), line, col)
@@ -313,7 +313,7 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
     case NodeType.StructDef(sdd2):
         sdd2.push_member(own Declaration(name = "to_str", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 }
 
@@ -326,7 +326,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
     case NodeType.Decl(sdecl):
         sname = sdecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     if is_dynamic_type(sname) { return }
@@ -600,7 +600,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
             generate_struct_to_str_method(sdef, sname, stmt.line, stmt.col)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", sdef.node_type.head_str())
     }
 }
 
@@ -637,7 +637,7 @@ priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope
         ctx.interp_type_defs.set(ename, own tdv)
         return 0
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return 0
     }
 }
@@ -651,7 +651,7 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut v
             variant_types.push(own vd.payload_type.clone())
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -704,7 +704,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
             evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = func_def))
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -739,7 +739,7 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
     case NodeType.EnumDef(eis_edd):
         eis_edd.push_member(own Declaration(name = "is", default_value = func_def))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -860,7 +860,7 @@ priv finish_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U
     case NodeType.EnumDef(eeq_edd):
         eeq_edd.push_member(own Declaration(name = "eq", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -947,7 +947,7 @@ priv generate_enum_cmp_method := func(enum_def: Expr, ename: Str, line: U32, col
     case NodeType.EnumDef(ecmp_edd):
         ecmp_edd.push_member(own Declaration(name = "cmp", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -1053,7 +1053,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     case NodeType.EnumDef(edel_edd):
         edel_edd.push_member(own Declaration(name = "delete", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -1157,7 +1157,7 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
     case NodeType.EnumDef(ets_edd):
         ets_edd.push_member(own Declaration(name = "to_str", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -1340,7 +1340,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
     case NodeType.EnumDef(ecl_edd2):
         ecl_edd2.push_member(own Declaration(name = "clone", default_value = fdef))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
     }
 }
 
@@ -1359,7 +1359,7 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     case NodeType.Decl(edecl):
         ename = edecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     line := stmt.line
@@ -1384,7 +1384,7 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
         has_to_str = ens_edd.ns_index.has("to_str")
         has_cmp = ens_edd.ns_index.has("cmp")
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", stmt.children[0].node_type.head_str())
     }
 
     if has_is.not() {
@@ -1414,7 +1414,7 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     case NodeType.Decl(edecl):
         ename = edecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     mut has_clone := false
@@ -1422,7 +1422,7 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     case NodeType.EnumDef(ecl_edd):
         has_clone = ecl_edd.ns_index.has("clone")
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", stmt.children[0].node_type.head_str())
     }
     if has_clone.not() {
         variant_names := Vec(Str).new()
@@ -1446,7 +1446,7 @@ register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeSco
         ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
         fb.is_func_decl = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -1512,7 +1512,7 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
             ab.alias_target = target_name
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -1549,7 +1549,7 @@ priv register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: 
         tlv_b.is_priv = sdecl.is_priv
         tlv_b.orig_name = sdecl.orig_name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -1620,10 +1620,10 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
                                 sdecl.explicit_type = ""
                                 sdecl.til_type = Type.Unknown
                             case:
-                                UNREACHABLE()
+                                UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
                             }
                         case:
-                            UNREACHABLE()
+                            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
                         }
                     }
                 }
@@ -1648,10 +1648,10 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
                 fb.is_builtin = true
             }
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -1664,7 +1664,7 @@ gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.n
     case NodeType.Decl(sdecl):
         sname = sdecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     if is_dynamic_type(sname) { return }
@@ -1691,7 +1691,7 @@ gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.n
 
         sz_sdd.push_member(own Declaration(name = "size", default_value = func_def))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
     }
 }
 
@@ -1705,7 +1705,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     case NodeType.Decl(sdecl):
         sname = sdecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     if is_dynamic_type(sname) { return }
@@ -1732,7 +1732,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     case NodeType.EnumDef(esz_edd):
         esz_edd.push_member(own Declaration(name = "size", default_value = func_def))
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", def.node_type.head_str())
     }
 }
 
@@ -1745,7 +1745,7 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
     case NodeType.Decl(sdecl):
         sname = sdecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     if is_dynamic_type(sname) { return }
@@ -1800,7 +1800,7 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(eu_edd):
             eu_edd.push_member(own Declaration(name = method.clone(), default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 }
@@ -1814,7 +1814,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
     case NodeType.Decl(sdecl):
         sname = sdecl.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return
     }
     if is_dynamic_type(sname) { return }
@@ -1856,7 +1856,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "eq", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 
@@ -1892,7 +1892,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "lt", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 
@@ -1925,7 +1925,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "gt", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 
@@ -1956,7 +1956,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "neq", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 
@@ -1987,7 +1987,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "lte", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 
@@ -2018,7 +2018,7 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         case NodeType.EnumDef(ec_edd):
             ec_edd.push_member(own Declaration(name = "gte", default_value = func_def))
         case:
-            UNREACHABLE()
+            UNREACHABLE("unexpected ", def.node_type.head_str())
         }
     }
 }
@@ -2274,7 +2274,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
         if sl.total_size == 0 { sl.total_size = 1 }
         ctx.struct_layouts.set(name, own sl)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
     }
 }
 
@@ -2378,7 +2378,7 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
         ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
         return total
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
         return 0
     }
 }
@@ -2718,7 +2718,7 @@ init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
             }
             top_level.push(own slot.clone())
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", slot.node_type.head_str())
         }
         mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
         body.children[idx] = empty_body
@@ -3904,7 +3904,7 @@ priv generic_subs_type_name := func(subs: Map(Str, Expr), pname: Str) returns St
     case NodeType.Ident(sn): return Str.clone(sn.ident_name())
     case:
     }
-    UNREACHABLE()
+    UNREACHABLE("expected Ident, got ", sub.node_type.head_str())
     return ""
 }
 
@@ -4007,7 +4007,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
         return mono
     case:
     }
-    UNREACHABLE()
+    UNREACHABLE("expected FuncDef, got ", gfd_expr.node_type.head_str())
     return ""
 }
 
@@ -4681,7 +4681,7 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         case NodeType.Decl(lift_dd):
             init_lift_in_body(lrhs.children[0], lift_dd.name, nested_lifted)
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", lstmt.node_type.head_str())
         }
     }
     for l : Expr in nested_lifted {

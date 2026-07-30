@@ -31,7 +31,7 @@ priv fa_is_ns_named := func(e: Expr, scope: TypeScope, sn: Str) returns Bool {
     case NodeType.FieldAssign(fad):
         return def_ns_has(sdef, fad.name)
     case:
-        UNREACHABLE()
+        UNREACHABLE("unexpected ", e.node_type.head_str())
         return false
     }
 }
@@ -154,7 +154,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
     case NodeType.FieldAssign(fad):
         fname = fad.name
     case:
-        UNREACHABLE()
+        UNREACHABLE("unexpected ", e.node_type.head_str())
         return OwnType.Shallow
     }
     switch sdef.node_type {
@@ -725,7 +725,7 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
                     e.set_til_type(Type.None)
                 }
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
             }
             return true
         }
@@ -850,7 +850,7 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind_o: O
     case NodeType.FuncDef(fdef_data):
         validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
     }
 }
 
@@ -1020,7 +1020,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
             case CtorArg.Filled(filled_arg):
                 new_ch.push(own filled_arg.clone())
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected CtorArg.Filled, got ", fv.to_str())
             }
         }
         e.children = new_ch
@@ -1054,7 +1054,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         e.set_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
         return true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected StructDef, got ", sdef.node_type.head_str())
         return false
     }
 }
@@ -1257,7 +1257,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
                     case NodeType.FCall(fcd_v):
                         is_splat = fcd_v.is_splat
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected FCall, got ", e.node_type.head_str())
                     }
                     if vptype_name.len().gt(0).and(is_splat.not()) {
                         vptype := type_from_name(vptype_name, scope, ctx)
@@ -1365,7 +1365,7 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
     case NodeType.FuncDef(fdef_data):
         infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
     }
 }
 
@@ -1433,7 +1433,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                             e.set_til_type(Type.None)
                         }
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected FuncDef, got ", cb_func_def_o.unwrap().node_type.head_str())
                     }
                 } else {
                     e.set_til_type(Type.Dynamic)
@@ -1475,7 +1475,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                             ai++
                         }
                     case:
-                        UNREACHABLE()
+                        UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
                     }
                 }
                 return
@@ -1594,7 +1594,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     case NodeType.FieldAccess(m):
         method = Str.clone(m.field_access_name())
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FieldAccess, got ", fa.node_type.head_str())
         return false
     }
     // `.clone()` on a literal receiver is always redundant: the literal
@@ -1797,7 +1797,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             }
             ufcs_fcd.own_args = new_own
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected FCall, got ", e.node_type.head_str())
         }
         mut new_children := Vec(Expr).new()
         new_children.push_take(e.children, 0)
@@ -1811,7 +1811,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         case NodeType.FieldAccess(m2):
             method = Str.clone(m2.field_access_name())
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected FieldAccess, got ", fa2.node_type.head_str())
         }
     }
 
@@ -1967,7 +1967,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
                 case NodeType.FCall(ufcs_fcd2):
                     ufcs_fcd2.own_args = ufcs_fcd2.own_args - 1
                 case:
-                    UNREACHABLE()
+                    UNREACHABLE("expected FCall, got ", e.node_type.head_str())
                 }
                 set_own_arg(e, 1)
             }
@@ -2039,7 +2039,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         e.children[0] = type_ident
         return infer_struct_constructor_fcall_impl(scope, ns_func2, e, method, in_func, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("unexpected ", ns_func2.node_type.head_str())
         return false
     }
     return true
@@ -2906,7 +2906,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
         infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx)
         validate_fcall_own_args_for_fdef(scope, e, cfd, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", cfd_o.unwrap().node_type.head_str())
     }
     resolve_fcall_return_type(scope, e, mono, scope.get_binding(mono), in_func, ctx)
 }
@@ -2948,7 +2948,7 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
             ok = generic_infer_subs(scope, e, gfd, subs, display_name, in_func, ctx)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", gfd_o.unwrap().node_type.head_str())
     }
     if ok.not() {
         e.set_til_type(Type.Unknown)
@@ -3230,7 +3230,7 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Ident, got ", expr.node_type.head_str())
     }
 }
 
@@ -3740,7 +3740,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
     expr.set_til_type(Type.FuncPtr)
 }
@@ -3770,7 +3770,7 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: 
         if fdef.return_own_type.is(OwnType.Ref).not() { return }
         throws_count = fdef.throw_types.len()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
         return
     }
     for stmt : Expr in expr.children[0].children {
@@ -3838,7 +3838,7 @@ priv check_returned_borrowed_closure_captures := proc(func_scope: TypeScope, exp
         if expr.children.len() == 0 { return }
         check_returned_borrowed_closure_captures_in(expr.children[0], func_scope, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
 }
 
@@ -4181,7 +4181,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             if fn_never_returns(expr.children[0]) { fdef.noreturn = true }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
     ctx.typing_namespace_member = ifd_in_ns
 }
@@ -4236,7 +4236,7 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
 }
 
@@ -4271,7 +4271,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
                 format("redundant 'mut' on parameter '", param.name, "': never written through; drop the 'mut'"), ctx)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
 }
 
@@ -4463,7 +4463,7 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
         case NodeType.Decl(td_decl):
             owner_name = td_decl.name.clone()
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         }
         // Field walk (StructDef only). Report at the field's
         // default_value location (every field has one -- the parser
@@ -4763,7 +4763,7 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
             case NodeType.FieldAccess(fn):
                 fname = Str.clone(fn.field_access_name())
             case:
-                UNREACHABLE()
+                UNREACHABLE("expected FieldAccess, got ", expr.node_type.head_str())
                 return
             }
             mut found := false
@@ -4850,7 +4850,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
     case NodeType.FieldAssign(fad):
         fname = fad.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FieldAssign, got ", stmt.node_type.head_str())
         return
     }
     // #164: walk to the root identifier of the obj chain and mark it
@@ -5101,7 +5101,7 @@ priv infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         b.orig_name = sdecl.orig_name.clone()
         return true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
 }
@@ -5159,11 +5159,11 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
             }
             return true
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected FuncDef, got ", stmt.children[0].node_type.head_str())
             return false
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
 }
@@ -5182,7 +5182,7 @@ priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr)
         }
         return false
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
 }
@@ -5200,7 +5200,7 @@ priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, ctx: Context) 
         }
         return declared
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return Type.Unknown
     }
 }
@@ -5346,7 +5346,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -5380,7 +5380,7 @@ priv infer_decl_untyped_value := proc(mut stmt: Expr, ctx: Context) {
         case NodeType.Decl(sdecl):
             stmt.type_error(format("cannot store Dynamic in '", sdecl.name, "'; add a type annotation like '", sdecl.name, " : Type = ...' to specify the concrete type"), ctx)
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         }
     }
 }
@@ -5616,7 +5616,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
 }
 
@@ -5638,7 +5638,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             infer_expr(scope, stmt.children[0], in_func, ctx)
             ctx.current_type_name = saved_type_name
         case:
-            UNREACHABLE()
+            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         }
     } else {
         // Issue #93 follow-up: when the decl's rhs is a FuncDef body
@@ -5712,7 +5712,7 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
             infer_decl_untyped_value(stmt, ctx)
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
     }
     check_ref_decl_owned_init(stmt, scope, ctx)
     check_ref_local_null_init(stmt, ctx)
@@ -5835,13 +5835,13 @@ priv infer_body_value_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Contex
         }
         captures = bd.captures.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected BodyValue, got ", expr.node_type.head_str())
     }
     validate_captures(scope, captures, expr, ctx)
     switch expr.node_type {
     case NodeType.BodyValue(bd): bd.captures = captures.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected BodyValue, got ", expr.node_type.head_str())
     }
     ref mut body : Expr = expr.children[0]
     body_value_check_no_return(body, ctx)
@@ -5928,7 +5928,7 @@ priv infer_capture_block := proc(scope: TypeScope, mut stmt: Expr,
     case NodeType.CaptureBlock(cbd):
         captures = cbd.captures.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected CaptureBlock, got ", stmt.node_type.head_str())
     }
     // Each captured name must exist in the enclosing scope; mark it used
     // (so listing it counts as a use) and validate the `mut` modifier.
@@ -6656,7 +6656,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     case NodeType.Assign(adata):
         aname = adata.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Assign, got ", stmt.node_type.head_str())
         return
     }
     // A write isn't a read. Don't flip `used = true` on the assign
@@ -9125,7 +9125,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         mut subj_match := sw_expr.clone()
         switch subj_match.node_type {
         case NodeType.Match(smd): smd.result_temp = result_temp.clone()
-        case: UNREACHABLE()
+        case: UNREACHABLE("expected Match, got ", subj_match.node_type.head_str())
         }
         block.add_child(own subj_match)
         sw_ref = Expr.new(ident_node(result_temp), sw_line, sw_col)
@@ -9422,7 +9422,7 @@ priv desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, stmt_id
         var_name = forin_data_r.name.clone()
         forin_is_mut = forin_data_r.is_mut
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str())
         return false
     }
     ref for_body : Expr = stmt.children[1]
@@ -9534,7 +9534,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         }
         idx_type = len_def.return_type.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", len_func.node_type.head_str())
         return false
     }
 
@@ -9609,7 +9609,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
             get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", get_func.node_type.head_str())
         return false
     }
 
@@ -9620,7 +9620,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         var_name = forin_data_c.name.clone()
         forin_is_mut = forin_data_c.is_mut
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str())
         return false
     }
     // A `for mut x in coll` mutates coll's elements through the element
@@ -9839,7 +9839,7 @@ priv desugar_for_in_kv_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: 
         forin_is_mut = fid.is_mut
         forin_is_mut2 = fid.is_mut2
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str())
         return false
     }
 

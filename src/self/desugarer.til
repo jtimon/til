@@ -140,7 +140,7 @@ desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, c
     case NodeType.FuncDef(fdef_data):
         _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
     }
 }
 
@@ -985,12 +985,12 @@ priv lower_catch_node := proc(ctx: Context, catch_node: Expr, type_to_tag_names:
     mut var_name := ""
     switch catch_node.children[0].node_type {
     case NodeType.Ident(n): var_name = Str.clone(n.ident_name())
-    case: UNREACHABLE()
+    case: UNREACHABLE("expected Ident, got ", catch_node.children[0].node_type.head_str())
     }
     mut type_name := ""
     switch catch_node.children[1].node_type {
     case NodeType.Ident(n): type_name = Str.clone(n.ident_name())
-    case: UNREACHABLE()
+    case: UNREACHABLE("expected Ident, got ", catch_node.children[1].node_type.head_str())
     }
     tag := tag_for_type(ctx, type_name, type_to_tag_names)
     mut new_body := Expr.new(NodeType.Body, line, col)
@@ -3624,7 +3624,7 @@ priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     case NodeType.Decl(dd):
         dd.name = kw_name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", kw_decl.node_type.head_str())
     }
     kw_decl.set_til_type(Type.Struct("KwargsMap"))
     kw_decl.add_child(own new_call)
@@ -3637,7 +3637,7 @@ priv build_kwargs_map_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, n
     case NodeType.NamedArg(kn):
         key_name = kn.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected NamedArg, got ", named_arg.node_type.head_str())
     }
     ref val : Expr = named_arg.children[0]
     mut set_call := make_ns_call("KwargsMap", "set", Type.None, fcall)
@@ -3689,7 +3689,7 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
         dd.name = va_name.clone()
         dd.own_type = OwnType.Own
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", va_decl.node_type.head_str())
     }
     va_decl.set_til_type(Type.Struct(array_type.clone()))
     va_decl.add_child(own new_call)
@@ -3726,7 +3726,7 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
         ek_dd.name = variadic_err_slot_name(va_name, "_ek")
         ek_dd.is_mut = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", ek.node_type.head_str())
     }
     ek.set_til_type(Type.Primitive(Primitive.I64))
     mut ek_init := Expr.new(literal_num_node("0"), line, col)
@@ -3828,7 +3828,7 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
         dd.own_type = OwnType.Own
         dd.is_mut = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", vec_decl.node_type.head_str())
     }
     vec_decl.set_til_type(Type.Struct(vec_type))
     vec_decl.add_child(own new_call)
@@ -3925,7 +3925,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
         }
         return false
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }
@@ -3940,7 +3940,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
 
@@ -3999,7 +3999,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
 
@@ -4040,7 +4040,7 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         dd.name = var_name.clone()
         dd.is_mut = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
     }
     decl.set_til_type(Type.Struct(set_type.clone()))
     decl.add_child(own new_call)
@@ -4071,7 +4071,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     case NodeType.Decl(stmt_decl):
         var_name = stmt_decl.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
     }
     n_pairs := map_lit.children.len() / 2
@@ -4134,7 +4134,7 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
         dd.name = var_name.clone()
         dd.is_mut = true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
     }
     decl.set_til_type(Type.Struct(map_type.clone()))
     decl.add_child(own new_call)
@@ -4744,7 +4744,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
     case NodeType.Assign(adata):
         a_name = adata.name.clone()
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Assign, got ", stmt.node_type.head_str())
     }
     sf := scope.find(a_name)
     switch sf {
@@ -4875,7 +4875,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         fcall.children.move_from(fcall_new_ch)
         fcall_data.own_args = new_own
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -5188,7 +5188,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         set_own_arg(fcall, vi.to_usize())
         return true
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
         return false
     }
 }
@@ -5249,7 +5249,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
         fcall.children.move_from(fcall_new_ch)
         fcd.own_args = new_own
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
     }
 }
 
@@ -5306,7 +5306,7 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
             if tb.is_null().not() { tb.own_type = OwnType.Own }
         }
     case:
-        UNREACHABLE()
+        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
     }
 
     hoisted.push(own decl)
