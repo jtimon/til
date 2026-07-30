@@ -977,3 +977,14 @@ g328_dep_throw := func(T: Type, v: T, fail: Bool) returns T throws T {
 g328_dep_throw_v : I64 = 5
 g328_dep_throw_result := g328_dep_throw(g328_dep_throw_v, false)?
 catch (e: I64) { }
+
+// #321/#147: a `ref`-payload variant ctor in return position must not borrow
+// an OWNED local -- the address escapes inside the returned enum and dangles,
+// and gcc cannot see it through the struct the way -Werror=return-local-addr
+// sees a bare `return local` from a `returns ref` function. Borrowing a param
+// stays legal (test/option.til pins that control).
+BorrowEscCell := struct { besc_n := 0 }
+borrow_esc_bad := func() returns Option(ref BorrowEscCell) {
+    borrow_esc_local := BorrowEscCell(besc_n = 7)
+    return Option(ref BorrowEscCell).Some(borrow_esc_local)
+}

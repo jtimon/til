@@ -2717,6 +2717,7 @@ Expr * make_ns_call(Str * sname, Str * method, Type ret_type, Expr * src);
 Str * variadic_array_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_typer_til__variadic_vec_type_name(TypeScope * scope, Str * elem_type);
 Bool priv___src_self_typer_til__is_enum_variant_ctor_with_payload(Expr * expr, TypeScope * scope);
+void priv___src_self_typer_til__check_enum_borrow_of_local_return(TypeScope * scope, Expr * stmt, Context * ctx);
 Option__ref_Str arg_addressed_ident(Expr * arg);
 Bool priv___src_self_typer_til__check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool priv___src_self_typer_til__fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);

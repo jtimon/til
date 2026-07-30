@@ -1342,6 +1342,31 @@ now, ones til constructs wait on #324.
 
 204/204, pass 1 == pass 2.
 
+**** Batch 32: the payload-aware borrow-source check
+
+The open safety item from the auto-shallow batch, closed. Returning
+~E.Variant(local)~ where the variant's payload is a BORROW stored the
+local's address inside the returned enum -- and where a bare
+~return local~ from a ~returns ref~ function is caught by gcc's
+-Werror=return-local-addr, the enum hides the escaping address inside a
+struct, so the caller silently read garbage instead of crashing.
+
+check_enum_borrow_of_local_return (typer.til, run from
+infer_return_stmt's by-value branch) rejects exactly the case that is
+CERTAIN to dangle: the payload argument names an OWNED local. Params
+stay legal -- fdef_return_carries_borrow keeps an Option(ref)-returning
+function's aggregate params by-pointer precisely so their borrows point
+at caller-owned data, and test_option_ref_return_param_not_shallowed
+pins it. Ref bindings and aliases stay legal too: they borrow storage
+the frame does not own, the same trust ~returns ref~ extends today (til
+has no origin checker; #147 tracks the general problem).
+
+Empirical false-positive check: the whole compiler self-compiles with
+the check live, so no site in src/ trips it. Fixture in
+test/typer_errors.til (expected count 179 -> 180).
+
+206/206, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

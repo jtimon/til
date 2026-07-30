@@ -4645,6 +4645,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
                 .and(fcall_has_injected_err_arg(ret_val).or(is_aggregate(stmt.til_type()))) {
                 stmt.type_error("cannot own result of ref-returning function; use 'ref' or Type.clone()", ctx)
             }
+            check_enum_borrow_of_local_return(scope, stmt, ctx)
             switch stmt.children[0].node_type {
             case NodeType.Ident(rn):
                 sf := scope.find(rn.ident_name())
@@ -7407,6 +7408,55 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     case: return false
     }
     return false
+}
+
+// #321/#147: `return E.Variant(x)` where the variant's payload is a BORROW
+// (`ref` payload) stores x's ADDRESS inside the returned enum value. When x
+// is a LOCAL this function owns, that storage dies with the frame -- and
+// unlike `return x` from a `returns ref` function, which gcc catches with
+// -Werror=return-local-addr, the escaping address hides inside a struct, so
+// the caller silently reads garbage instead of crashing. Reject it here.
+//
+// What stays legal, and why:
+//   - params: an Option(ref)-returning function's aggregate params are kept
+//     by-pointer exactly so their borrows point at caller-owned data
+//     (fdef_return_carries_borrow and its regression test);
+//   - ref bindings and aliases: they borrow storage this frame does not
+//     own -- the same trust `returns ref` extends today. til has no origin
+//     checker; #147 tracks that general problem.
+// Only an OWNED local is certain to dangle, and that is what this flags.
+priv check_enum_borrow_of_local_return := proc(scope: TypeScope, mut stmt: Expr, ctx: Context) {
+    ref ret_val : Expr = stmt.children[0]
+    if is_enum_variant_ctor_with_payload(ret_val, scope).not() { return }
+    ref ebl_callee : Expr = ret_val.children[0]
+    mut variant := ""
+    switch ebl_callee.node_type {
+    case NodeType.FieldAccess(fad): variant = Str.clone(fad.field_access_name())
+    case: return
+    }
+    ref ebl_base : Expr = ebl_callee.children[0]
+    mut tn := ""
+    switch ebl_base.node_type {
+    case NodeType.Ident(idd): tn = Str.clone(idd.ident_name())
+    case: return
+    }
+    // is_enum_variant_ctor_with_payload resolved this def a moment ago.
+    ref sdef : Expr = scope.get_struct(tn).unwrap()
+    vt_idx := enum_variant_index(sdef, variant)
+    if vt_idx < 0 { return }
+    if enum_variant_payload_ref(sdef, vt_idx).not() { return }
+    switch ret_val.children[1].node_type {
+    case NodeType.Ident(an):
+        sf := scope.find(an.ident_name())
+        switch sf {
+        case ScopeFind.Found(b):
+            if and(b.own_type.is(OwnType.Ref).not(), b.is_param.not(), b.is_alias.not(), b.is_builtin.not()) {
+                stmt.type_error(format("cannot return a borrow of local '", an.ident_name(), "' inside '", tn, "': the local dies with this call; borrow a param instead, or make the payload owned"), ctx)
+            }
+        case:
+        }
+    case:
+    }
 }
 
 // The binding an argument expression ADDRESSES, or NULL. Sees through
