@@ -1069,9 +1069,6 @@ priv MyInt328 := I64
 priv add328 := func(a: I64, b: I64) returns I64 { return a.add(b) }
 
 gid328 := func(T: Type, v: T) returns T { return v }
-// A FuncSig type argument is CONSUMED inside the generic rather than
-// returned: `returns T` under a FuncSig T is the separate funcptr-return
-// path, which has its own (pre-existing) interpreter behaviour.
 gapply328 := func(T: Type, op: T, a: I64, b: I64) returns I64 { return op(a, b) }
 
 test_generic_func_type_tokens := test() {
@@ -1080,9 +1077,24 @@ test_generic_func_type_tokens := test() {
     t := gid328(PrivTag328, PrivTag328.Two)
     assert_eq(Bool, t.is(PrivTag328.Two), true)
     assert_eq(I64, gapply328(PrivBin328, add328, 2, 5), 7)
+    // `returns T` under a FuncSig T: the interpreter's Return arm used to
+    // reframe the read-out fn pointer as if borrowed (its binding is a Ref
+    // param), cloning it and leaking the owned box -- 8 bytes per call.
+    f := gid328(PrivBin328, add328)
+    assert_eq(I64, f(2, 5), 7)
     // Alias and its target select the same concrete implementation.
     assert_eq(I64, gid328(MyInt328, 11), 11)
     assert_eq(I64, gid328(I64, 12), 12)
+}
+
+// The minimal non-generic shape of the same leak: return a FuncSig-typed
+// PARAMETER, bind the result, call it. Runs under the suite's ASAN, which
+// is what guards the Return arm's ref-ness rule from regressing.
+idf328 := func(v: PrivBin328) returns PrivBin328 { return v }
+
+test_funcptr_param_return := test() {
+    g := idf328(add328)
+    assert_eq(I64, g(2, 5), 7)
 }
 
 // #328 Task 2: one concrete-instantiation path. A generic reached through

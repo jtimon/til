@@ -2375,7 +2375,14 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     if return_hb_o.is_none() { panic("return binding not found: ", ret_ident.ident_name()) }
                     ref return_hb : HeapBinding = return_hb_o.unwrap()
                     return_source_type = hb_type(return_hb).clone()
-                    return_source_is_ref = return_hb.own_type.is(OwnType.Ref)
+                    // Same rule as expr_raw_is_ref: a callable-typed binding
+                    // never reads back as a borrow -- a static callable comes
+                    // out as a fresh OWNED box, a closure as a clone. Deriving
+                    // ref-ness from own_type alone made `return v` on a
+                    // FuncSig-typed Ref param reframe that owned box as if
+                    // borrowed: clone it and orphan the original, 8 leaked
+                    // bytes per call.
+                    return_source_is_ref = return_hb.own_type.is(OwnType.Ref).and(heap_type_is_callable(hb_type(return_hb)).not())
                     // A SHALLOW primitive return reads the scalar word; the
                     // binding keeps its block (nothing inner to move).
                     if scope_return_move_is_local(scope, ret_ident.ident_name()).and(raw_type_is_prim(hb_type(return_hb), ctx).and(return_hb.own_type.is(OwnType.Shallow)).not()) {
