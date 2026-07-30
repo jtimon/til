@@ -27,9 +27,14 @@ special-case"); this issue tracks actually doing it.
   - `name` is `is_stack_local(...)`, AND
   - the receiver's C type is `Str` or `is_pod_struct(ctype)`.
 
-In that case it emits `T_delete(&name, &(Bool){0})` regardless of the
-AST's `call_free` arg, and `(void)`s the hoisted call_free bool temp so
-`-Wunused-variable` doesn't trip.
+In that case it emits the delete with call_free forced to false (via
+`delete_call_free_lit`) regardless of the AST's `call_free` arg. Since
+#326/#302 there is no hoisted temp or `(void)` cast left around this:
+`make_delete_call` puts a literal Bool in the AST, and the #302 stage-1
+asserts (`assert_gc_stack`) fail loudly when the garbager's recorded
+storage and the builder's emitted shape drift on the twin-predicate
+paths. What remains -- and what this issue owns -- is the disagreement
+itself: the AST says one thing and the builder emits another.
 
 *** Why the disagreement exists
 

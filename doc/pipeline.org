@@ -124,8 +124,14 @@ Two modules sit underneath every phase below:
 
 - `scavenge(ast, mode, run_tests)`
 - Implemented in til: [[file:../src/self/scavenger.til][src/self/scavenger.til]]
-- Usually removes dead/unreachable declarations after earlier passes.
-- This is skipped in some library translate/build paths.
+- Removes declarations unreachable from the mode's roots, defined
+  centrally per mode in ~scavenge_visited_imported~ (#326). Libraries
+  are scavenged like every other mode, with their exported ABI as
+  roots.
+- Skipped where the open-world premise breaks static reachability:
+  REPL sessions (the next turn can name anything;
+  ~repl_finish_prepare_program~) and typed-AST-only paths like
+  ~til doc~.
 
 8. Back end
 

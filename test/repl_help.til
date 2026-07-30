@@ -5,10 +5,10 @@ import("../src/std/file")
 
 // REPL smoke test for #157: pipe several turns into bin/til, capture stdout,
 // and verify help(), expression output, and persisted declarations all work.
-// Invoked via
-// `make test_repl_help` rather than `make test` because the REPL still
-// runs the compiler pipeline for each turn, costing too much wall time
-// for the regular test suite.
+// Registered in the regular suite (src/tests.til, cli category) -- it used
+// to be only the hand-run `make test_repl_help` target, which let the suite
+// pass green while the REPL was broken. The Makefile target remains as a
+// shortcut for running just this test.
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
