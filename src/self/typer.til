@@ -8745,16 +8745,16 @@ priv make_type_size_call := func(tname: Str, src: Expr) returns Expr {
 priv make_niche_steal_block := func(param_name: Str, tname: Str, tmp: Str, src: Expr) returns Expr {
     mut blk := Expr.new(NodeType.Body, src.line, src.col)
 
-    // <tmp> : T = deref(get_payload(<param>))
+    // <tmp> : T = get_payload(<param>)
+    // No deref wrapper: get_payload LOADS a niche's slot itself, so the call
+    // already yields the payload box. The wrapper this block was born with
+    // predated that and double-dereffed -- reading the payload's first word
+    // as if it were the pointer (ASAN: heap-buffer-overflow in the caller's
+    // adopt, copying sizeof(T) from wherever that word pointed).
     mut self_id := Expr.new(ident_node(param_name), src.line, src.col)
     mut gp := make_get_payload_fcall(own self_id, til_type_from_explicit_type(tname), src.line, src.col)
-    mut deref_id := Expr.new(ident_node("deref"), src.line, src.col)
-    mut deref_call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
-    deref_call.add_child(own deref_id)
-    deref_call.add_child(own gp)
-    deref_call.set_til_type(til_type_from_explicit_type(tname))
     mut decl := Expr.new(NodeType.Decl(decl_typed(name = tmp, explicit_type = tname)), src.line, src.col)
-    decl.add_child(own deref_call)
+    decl.add_child(own gp)
     blk.add_child(own decl)
 
     // free(own <param>)
@@ -8904,9 +8904,17 @@ priv steal_own_param_payload_returns := proc(scope: TypeScope, sw_expr: Expr, mu
     // A BORROWED payload is a pointer the enum never owned, so there is
     // nothing to move and the by-value return must keep copying.
     if enum_variant_payload_ref(enum_def, vt_idx) { return false }
-    // An OWNED payload in a pointer slot is the box itself: hand it straight
-    // back, no copy. An inline one is copied out of the enum's own storage.
-    in_slot := enum_payload_is_pointer_slot(enum_def, vt_idx)
+    // An OWNED payload of a NICHE enum is the box itself: hand it straight
+    // back, no copy (make_niche_steal_block). An inline one is copied out of
+    // the enum's own storage (make_payload_steal_block, which then frees only
+    // the enum shell). NOT enum_payload_is_pointer_slot: that predicate now
+    // answers "does the caller still need a deref wrapper around get_payload"
+    // -- false for a niche, whose get_payload loads its own slot -- and using
+    // it here silently routed a niche take onto the inline block, which
+    // memcpys the pointee into a fresh box and LEAKS the original. The
+    // borrowed case already returned above, so niche-ness alone is the
+    // storage answer.
+    in_slot := enum_is_niche(enum_def)
     payload_type := enum_variant_type(enum_def, vt_idx)
     if payload_type.len() == 0 { return false }
     if payload_type != ctx.typer_return_type_name { return false }

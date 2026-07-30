@@ -442,6 +442,13 @@ VariantDef := struct {
     // payload stored as a bare pointer: the enum does not own the
     // pointee (clone copies the pointer, delete skips it).
     payload_ref := false
+    // #321: true when the payload's type resolves to a FuncPtr/FuncSig.
+    // The parser cannot know (a named alias like `BinaryOp` spells the
+    // pointer through a typedef), so the initer stamps it with the scope
+    // in hand. enum_is_niche consults it: funcptr payloads are a distinct
+    // C shape (TilClosure *) with their own delete/clone special cases,
+    // so they stay off the owned-payload niche.
+    payload_funcsig := false
 namespace:
     eq := func(a: VariantDef, b: VariantDef) returns Bool { return a.name == b.name }
     to_str := func(self: VariantDef) returns Str { return self.name }

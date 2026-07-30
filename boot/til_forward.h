@@ -552,6 +552,7 @@ typedef struct VariantDef {
     Bool payload_const;
     I64 tag_value;
     Bool payload_ref;
+    Bool payload_funcsig;
 } VariantDef;
 
 

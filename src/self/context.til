@@ -1796,7 +1796,13 @@ enum_is_niche := func(enum_def: Expr) returns Bool {
         for vi in 0..edd.variants.len() {
             ref vd : VariantDef = edd.variants[vi]
             if vd.payload_type.len() == 0 { payload_less++; continue }
-            if vd.payload_ref { ref_payloads++ }
+            if vd.payload_ref { ref_payloads++; continue }
+            // #321: a funcptr payload never joins the niche -- a distinct C
+            // shape (TilClosure *) with its own delete/clone special cases.
+            // Stamped by the initer, because the parser cannot see through a
+            // named FuncSig alias. Dead today (the owned-box arm below is not
+            // in yet); it exists so the flip cannot regress fn_ptr again.
+            if vd.payload_funcsig { continue }
         }
         return payload_less.eq(1).and(ref_payloads.eq(1))
     case:

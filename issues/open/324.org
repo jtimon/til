@@ -27,6 +27,17 @@ and the type system currently lets them.
 Each is allocated with ~scope_new_boxed~ and hand-freed with
 ~scope_free(own ...)~ while declared ~ref~.
 
+*** Correction (2026-07-30): the env relabel is no longer clean
+
+The finding below that InterpCallableBox.env "relabels cleanly" is
+STALE. Since #302 stage 4 landed, assigning to an `own` field drains the
+old value first (delete-old + adopt), so the relabel now hangs interp
+tests: `callable.env = env` at build time drains a zeroed slot
+(Scope_delete(NULL) territory), and callable_box_free's `b.env = NULL`
+poison write drains a just-freed value. env has joined the other 13
+sites: it needs the owning-optional shape (#321's niche) first. Verified
+by applying the relabel and watching test/closures.til hang.
+
 *** Findings from a first implementation attempt (2026-07-27)
 
 The typer half is a 6-line addition and works: in the ~pown~ arm of the

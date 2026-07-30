@@ -986,30 +986,20 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             self_arg.set_til_type(Type.Enum(ename.clone()))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
-            // #321 stage 2: an OWNED payload in a POINTER SLOT is its own heap
-            // box, not bytes inside the enum. Two things follow, and the ref
-            // payloads that also live in a slot never reach here -- they
-            // `continue`d above, because the enum does not own their pointee.
-            //   - the slot holds the pointer, so delete must LOAD it (deref),
-            //     exactly as the payload BINDING does; passing the slot's
-            //     ADDRESS would delete the pointer variable as if it were the
-            //     payload.
-            //   - that box has to be freed, so call_free is TRUE. An inline
-            //     payload keeps false: its storage IS the enum's, and freeing
-            //     it would free the enum out from under the caller.
-            payload_in_slot := enum_payload_is_pointer_slot(enum_def, j.to_i32())
-            if payload_in_slot {
-                mut deref_id := Expr.new(ident_node("deref"), line, col)
-                mut deref_call := Expr.new(NodeType.FCall(FCallData()), line, col)
-                deref_call.add_child(own deref_id)
-                deref_call.add_child(own gc)
-                deref_call.set_til_type(type_from_name_init(vtype, scope))
-                del_call.add_child(own deref_call)
-            } else {
-                del_call.add_child(own gc)
-            }
-
-            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(payload_in_slot)), line, col)
+            // #321 stage 2/3: get_payload LOADS a pointer slot itself now, so
+            // the old conditional deref wrapper here was a double-load waiting
+            // to go live; it is gone. call_free stays a literal false: every
+            // payload that reaches this point is stored INLINE today (borrowed
+            // payloads continue'd above, and the owned-payload niche has not
+            // flipped on), so its storage is the enum's own. The flip commit
+            // must revisit this literal -- a niche payload is its own box and
+            // needs TRUE -- and cannot use enum_payload_is_pointer_slot for
+            // it: that predicate answers the WRAPPER question and reads false
+            // for a niche, and this generator runs before the EnumDef's
+            // variants are populated besides. Decide from the variant lists
+            // passed in, mirroring enum_is_niche's rule exactly.
+            del_call.add_child(own gc)
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
@@ -1364,6 +1354,22 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     }
     line := stmt.line
     col := stmt.col
+
+    // #321: stamp payload_funcsig before any generator (or enum_is_niche)
+    // looks at the variants -- the parser cannot resolve a named FuncSig
+    // alias, and the niche rule must see through it.
+    switch stmt.children[0].node_type {
+    case NodeType.EnumDef(pfs_edd):
+        for pfs_i in 0..pfs_edd.variants.len() {
+            ref mut pfs_vd : VariantDef = pfs_edd.variants[pfs_i]
+            if pfs_vd.payload_type.len() > 0 {
+                if type_from_name_init(pfs_vd.payload_type, scope).is_funcptr() {
+                    pfs_vd.payload_funcsig = true
+                }
+            }
+        }
+    case:
+    }
 
     variant_names := Vec(Str).new()
     variant_types := Vec(Str).new()

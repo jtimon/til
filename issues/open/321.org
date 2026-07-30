@@ -1367,6 +1367,60 @@ test/typer_errors.til (expected count 179 -> 180).
 
 206/206, pass 1 == pass 2.
 
+**** Batch 33: the flip reaches zero leaks; one interp copy is all that is left
+
+Best attempt yet, and this commit ships everything from it that is safe
+without the flip. With the flip applied locally the full two-pass suite
+reached 205/206 with ZERO leaks -- every previous attempt leaked -- and
+the survivor is a single 24-byte interp-only leak with an 11-line repro.
+
+Three latent bugs found and fixed (all dead code until the flip, which
+is exactly why they ship now):
+
+1. The steal gate had inherited a MEANING CHANGE. When get_payload
+   learned to load a niche's slot, enum_payload_is_pointer_slot was
+   repurposed from "is the payload stored as a pointer" to "does the
+   caller still need a deref wrapper" -- false for a niche. Every
+   binding-site user wants the new meaning; the steal gate wanted the
+   old one and silently routed a niche take onto the INLINE steal block,
+   which memcpys the pointee into a fresh box and leaks the original --
+   the whole 57-leak class, one leak per Some. The gate now asks
+   enum_is_niche directly.
+2. make_niche_steal_block still wrapped get_payload in deref() -- written
+   before get_payload loaded, never live, so nothing caught it. Once
+   live it double-dereffed: ASAN heap-buffer-overflow in the caller's
+   adopt, copying sizeof(T) from wherever the payload's first word
+   pointed. Wrapper gone.
+3. A NAMED FuncSig alias (BinaryOp = TilClosure *) slipped past the
+   niche rule's textual _Fn_ exclusion, and past the struct-body
+   ends_with("*") guard, declaring `TilClosure **data` against a ctor
+   handing `TilClosure *` -- then segfaulting at runtime once it
+   compiled. The parser cannot see through the alias, so VariantDef
+   gains payload_funcsig, stamped by the initer (which has the scope),
+   and enum_is_niche consults it.
+
+Also held back with the flip: the delete generator's call_free literal
+must become variant-lists-computed TRUE for niche payloads (the
+enum_payload_is_pointer_slot predicate answers the wrapper question AND
+runs before the variants are populated -- both wrong for this); the dead
+deref wrapper there is removed now, the literal stays false until the
+flip.
+
+THE ONE REMAINING BUG, with repro (tmp-style, 11 lines): interp-only,
+24 bytes per constructed Some that is taken.
+
+: TakeBox := struct { name := "" n := 0 }
+: take_box := func(own self: Option(TakeBox)) returns TakeBox { ... take ... }
+: o := Option(TakeBox).Some(TakeBox(name = "payload", n = 7))
+: taken := take_box(own o)
+
+Compiled take is zero-copy. The INTERPRETER evaluates the same steal
+block by aliasing the payload box (get_payload) and then returning BY
+COPY -- the copy lands in the caller, the box is orphaned:
+dispatch_result_alloc <- eval_declaration in the ASAN stack. The interp
+needs its own notion of handing the box on, mirroring what write_enum_flat
+already does for construction. That is the last piece before the flip.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.
