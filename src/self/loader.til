@@ -836,6 +836,87 @@ priv seed_library_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
     }
 }
 
+// #326: the executable top-level statements of the user units are roots in
+// every non-library mode -- they ARE the program in script mode, and its
+// global initializers in cli/test mode. Defs are ordinary graph nodes, and
+// so are the value decls scav_value_decl_sweepable proves effect-free (the
+// BFS walks an initializer only once its name is reached; scavenge_filter
+// sweeps the rest).
+priv seed_executable_stmt_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl) {
+                if is_def(stmt) { continue }
+                if scav_value_decl_sweepable(stmt) { continue }
+            }
+            collect_refs(stmt, worklist)
+        }
+    }
+}
+
+// Test mode roots every selected test: top-level `test` funcs by name, and
+// namespace test() members as "Type.test_name" so emit_test_main's
+// Type_test_name() calls don't get scavenged out.
+priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
+    for u : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[u.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if stmt.children.len() == 0 { continue }
+            switch stmt.children[0].node_type {
+            case NodeType.FuncDef(fdef):
+                if fdef.func_type.is(FuncType.Test) {
+                    switch stmt.node_type {
+                    case NodeType.Decl(d):
+                        vec_push_str(worklist, d.name)
+                    case:
+                    }
+                }
+            case:
+            }
+            ref decl_value : Expr = stmt.children[0]
+            is_type_decl := decl_value.node_type.is(NodeType.StructDef)
+                .or(decl_value.node_type.is(NodeType.EnumDef))
+            if is_type_decl.not() { continue }
+            switch stmt.node_type {
+            case NodeType.Decl(sdecl):
+                ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
+                mut tvi : USize = 0
+                for nsd : Declaration in tvi_ns {
+                    cur_tvi := tvi
+                    tvi = tvi + 1
+                    ref nsfdef : Expr = nsd.default_value
+                    if nsfdef.is_null() { continue }
+                    if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                    switch nsfdef.node_type {
+                    case NodeType.FuncDef(nsfd):
+                        if nsfd.func_type.is(FuncType.Test) {
+                            push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
+                        }
+                    case:
+                        UNREACHABLE()
+                    }
+                }
+            case:
+                UNREACHABLE()
+            }
+        }
+    }
+}
+
+// #326 root policy, defined centrally per mode. Every mode roots `Str`,
+// the ext.c FFI boundary, and (when the program can be interpreted) the
+// `*.size` wildcard. On top of that:
+// - library: every exported (non-priv) top-level decl and exported member
+//   of an exported type, plus executable top-level statements
+//   (seed_library_roots) -- a consumer can call any of them and there is
+//   no main to reach them from.
+// - cli/gui:  main, the exact argv converters main's own signature needs
+//   (seed_cli_main_arg_roots), and the executable top-level statements.
+// - test:     every selected test func (seed_test_roots) and the
+//   executable top-level statements.
+// - script:   the executable top-level statements alone.
+// Core units root only their executable non-Decl statements; every core
+// decl, defs and values alike, is an ordinary graph node.
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
     mut is_library := false
@@ -907,84 +988,12 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // reachability prune, so the names never appear in the user stream
         // -- seed them here or the wrapper fails to link.
         seed_cli_main_arg_roots(lp, worklist)
-        for u : ProgramUnit in lp.units {
-            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
-                if stmt.node_type.is(NodeType.Decl) {
-                    if is_def(stmt) { continue }
-                    // #326: an effect-free value decl is a graph node, not
-                    // a root -- the BFS walks its initializer only if the
-                    // name is reached, and scavenge_filter sweeps it
-                    // otherwise.
-                    if scav_value_decl_sweepable(stmt) { continue }
-                }
-                collect_refs(stmt, worklist)
-            }
-        }
+        seed_executable_stmt_roots(lp, worklist)
     } else if lp.run_tests {
-        for u : ProgramUnit in lp.units {
-            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
-                if stmt.node_type.is(NodeType.Decl) {
-                    if stmt.children.len() > 0 {
-                        switch stmt.children[0].node_type {
-                        case NodeType.FuncDef(fdef):
-                            if fdef.func_type.is(FuncType.Test) {
-                                switch stmt.node_type {
-                                case NodeType.Decl(d):
-                                    vec_push_str(worklist, d.name)
-                                case:
-                                }
-                            }
-                        case:
-                        }
-                    }
-                    // Seed namespace test() decls so emit_test_main's
-                    // Type_test_name() calls don't get scavenged out.
-                    mut is_type_decl := false
-                    if stmt.children.len() > 0 {
-                        ref decl_value : Expr = stmt.children[0]
-                        is_type_decl = decl_value.node_type.is(NodeType.StructDef)
-                            .or(decl_value.node_type.is(NodeType.EnumDef))
-                    }
-                    if is_type_decl {
-                        switch stmt.node_type {
-                        case NodeType.Decl(sdecl):
-                            ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
-                            mut tvi : USize = 0
-                            for nsd : Declaration in tvi_ns {
-                                cur_tvi := tvi
-                                tvi = tvi + 1
-                                ref nsfdef : Expr = nsd.default_value
-                                if nsfdef.is_null() { continue }
-                                if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                                switch nsfdef.node_type {
-                                case NodeType.FuncDef(nsfd):
-                                    if nsfd.func_type.is(FuncType.Test) {
-                                        push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
-                                    }
-                                case:
-                                    UNREACHABLE()
-                                }
-                            }
-                        case:
-                            UNREACHABLE()
-                        }
-                    }
-                    if is_def(stmt) { continue }
-                    if scav_value_decl_sweepable(stmt) { continue }
-                }
-                collect_refs(stmt, worklist)
-            }
-        }
+        seed_test_roots(lp, worklist)
+        seed_executable_stmt_roots(lp, worklist)
     } else {
-        for u : ProgramUnit in lp.units {
-            for stmt : Expr in lp.ctx.imported[u.path].ast.children {
-                if stmt.node_type.is(NodeType.Decl) {
-                    if is_def(stmt) { continue }
-                    if scav_value_decl_sweepable(stmt) { continue }
-                }
-                collect_refs(stmt, worklist)
-            }
-        }
+        seed_executable_stmt_roots(lp, worklist)
     }
 
     // #326: core top-level VALUE decls used to be blanket roots -- every one

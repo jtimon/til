@@ -1,6 +1,66 @@
 # priority: high
 # category: cleanups
-** WIP #326 Make unused diagnostics honest and scavenge all unreachable code
+** FIXED #326 Make unused diagnostics honest and scavenge all unreachable code
+
+*** Post-mortem
+
+Root cause, in one sentence: the builder papered over liveness with
+blanket suppressors (~(void)hoisted__~ casts, ~__attribute__((unused))~,
+unconditional underscore casts) while the scavenger's roots were blanket
+too (every core value initializer, five lifecycle methods per reached
+type, macro signatures, whole generated helper families), so dead code
+neither failed the C build nor left the output.
+
+What changed, by layer.  Builder: casts only on ~_~-prefixed names and
+only when the body liveness scan finds them unread (name-keyed, with the
+declared-twice safe side); no attribute anywhere; generated ABI slots
+renamed ~_til_env~/~_argv~; pooled Str literals emit no placeholder; and
+the generated families consume the reachability result through builder-
+side inventories -- reflection (~builder_reflect_inventory~), dyn
+dispatch targets (~builder_collect_dyn_fn_targets~), variant constructor
+sites (~builder_collect_variant_ctor_sites~), inlined accessors.
+Desugarer: the three hoists that created dead temps (is_n tag width,
+swap_replace's swap_bytes size, malloc/calloc byte counts) no longer
+create them -- fixed at the source instead of teaching liveness to mop
+up.  Scavenger/loader: top-level values are graph nodes (core
+unconditionally, user units when ~scav_value_decl_sweepable~ proves the
+initializer effect-free); a reached type roots its layout, not five
+lifecycle methods; macro signatures and field defaults are not edges;
+libraries are scavenged with their exported ABI as roots; ns values
+sweep like ns funcs; and the roots are defined centrally per mode in
+~scavenge_visited_imported~ (FFI boundary = exactly the three symbols
+~nm -u~ reports on ext.o; interpreted programs add the ~*.size~
+wildcard; cli roots main plus its exact argv converters; test roots the
+selected tests; script/cli/test root executable top-level statements;
+libraries their exports).  Holes the sweep exposed got source-level
+fixes: ~collect_refs~ now records assignment targets, and REPL full-load
+turns no longer scavenge at all (~repl_finish_prepare_program~) -- a
+session is an open world.
+
+Numbers: ~test/constfold.c~ 9,390 -> 1,340 lines (961 -> 0
+~(void)hoisted__~, 260 -> 0 attributes/til_env casts); ~println~-only
+script 4,149 -> 249 lines; ~test/pure.til~ (mode pure) 21,264 -> 959;
+~boot/til.c~ ~382k -> ~263k; underscore casts ~17k -> 2,338.  chess, go
+and snake emit no never-called function at all.
+
+Regression tests: ~dead_temps_*~ (4), ~minimal_reach_no_ast_model~,
+~minimal_reach_no_dead_lifecycle~, ~minimal_reach_no_unread_global~,
+~cli_args_exact_argv_roots~, ~cli_args_no_inlined_accessors~,
+~first_class_no_unused_attrs~, ~first_class_no_dead_field_default~,
+~pure_lib_no_ast_model~, ~pure_no_unbuilt_variant_ctor~, plus the
+~both~ entries for the fixtures and ~test/constfold.c~ as the committed
+broad baseline.
+
+Deliberately out of scope, tracked elsewhere: #209 owns the stack-delete
+storage decision (the old ignored ~call_free~ temp is gone -- the AST
+carries a literal Bool and the #302 stage-1 asserts guard builder/
+garbager drift); #302 owns the ownership authority a binding-dropping
+rewrite of unread EFFECTFUL top-level initializers would need (they stay
+roots by the script-mode policy: executable statements are the
+program).  Scope-aware liveness became moot for the invariant: the dead
+temps it was meant to find are gone at their source, ~-Werror~ guards
+new ones, and the remaining name-keyed conservatism only adds casts #86
+explicitly allows on ~_~ names.
 
 The generated C still hides dead-code and liveness mistakes behind broad
 warning suppressors.  The visible example in ~test/constfold.c~ is:
@@ -496,15 +556,33 @@ Landed (suite green, `make test_two_pass`):
   same reasoning ~repl_init_cached_program~ already applied to the cached
   base; ~repl_help~ is the regression that caught it).
 
-Still open:
+- [X] Step 4's root policy is defined centrally per mode.
+  ~scavenge_visited_imported~ now reads as the policy table: the
+  unconditional roots (Str, the three-symbol ext.c FFI boundary, the
+  interpreter's ~*.size~ wildcard) followed by one seeding function per
+  mode -- ~seed_library_roots~, ~seed_cli_main_arg_roots~ +
+  ~seed_executable_stmt_roots~, ~seed_test_roots~ +
+  ~seed_executable_stmt_roots~, or ~seed_executable_stmt_roots~ alone --
+  with core units contributing only their executable non-Decl
+  statements.  Pure extraction: the output is byte-identical across the
+  corpus.
 
-- [ ] Step 4's root policy is not centralized per mode yet, and an
-  effectful user-unit top-level value initializer is still a blanket root
-  (sweeping one needs the effect-preserving rewrite of step 3 so a
-  dropped binding cannot drop an observable initializer).
-- [ ] Step 2's stack-delete ~call_free~ cast, which #209 owns.
-- [ ] Step 3's general scope-aware read/write liveness (the landed work
-  removed the temps at their source instead).
+Resolved by the close (see the post-mortem):
+
+- Step 2's stack-delete ~call_free~ cast no longer exists to remove:
+  ~make_delete_call~ puts a literal Bool in the AST, the builder shims
+  override it per storage under #302's stage-1 asserts, and zero
+  ~(void)hoisted__~ survive anywhere under ~-Werror~.  What remains is
+  the storage-decision architecture, which #209 owns.
+- Step 3's general scope-aware liveness became moot for this issue's
+  invariant: the dead temps it was meant to find were removed at their
+  source (the hoister), ~-Werror~ fails the build on any new one, and
+  the name-keyed approximation only affects casts #86 sanctions on ~_~
+  names.
+- An unread EFFECTFUL top-level initializer stays a root by the policy's
+  own definition (executable top-level statements ARE the program in
+  script mode); dropping just the binding while keeping effect and
+  cleanup needs #302's ownership authority and saves one global slot.
 
 *** Related issues
 
