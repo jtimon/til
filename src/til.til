@@ -201,10 +201,16 @@ repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
     return false
 }
 
-repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64) returns Expr {
+// parse_errors is not optional bookkeeping: parse REPORTS a syntax error and
+// hands back a PARTIAL ast. Dropping the count meant the partial body typed
+// cleanly, the turn was declared a success, and the offending line joined the
+// accumulated source -- where every later full load re-parsed it, reprinting
+// the error once per echo-ladder attempt and running nothing new ever again.
+// One `undefined_thing` bricked the prompt.
+repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32 = 0) returns Expr {
     tokens := tokenize(source, path)
     mut mode_out := ""
-    return parse(tokens, source, path, mode_out, anon_type_counter)
+    return parse(tokens, source, path, mode_out, anon_type_counter, parse_errors)
 }
 
 // Is there an assignment `=` at bracket depth 0? `==` is its own token
@@ -552,10 +558,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 delta_source = delta_source.format("mode ", mode_str, "\n")
                 delta_source = delta_source.format(doc_line)
                 delta_source = delta_source.format(block_eff)
-                mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter)
+                mut delta_parse_errs : I32 = 0
+                mut delta := repl_delta_from_source(tmp_path, delta_source, trial_counter, delta_parse_errs)
                 ref run_root : ProgramUnit = run_heap.units[run_heap.units.len() - 1]
                 ref run_iu : ImportUnit = run_heap.ctx.imported[run_root.path]
-                run_errs = repl_type_delta_program(run_heap, delta)
+                run_errs = delta_parse_errs
+                if run_errs == 0 { run_errs = repl_type_delta_program(run_heap, delta) }
                 if run_errs == 0 {
                     repl_prepare_delta_program(run_heap, delta)
                     run_tail_start = run_iu.ast.children.len()
@@ -618,10 +626,12 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
                 delta_source2 = delta_source2.format("mode ", mode_str, "\n")
                 delta_source2 = delta_source2.format(doc_line)
                 delta_source2 = delta_source2.format(block_eff)
-                mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2)
+                mut delta2_parse_errs : I32 = 0
+                mut delta2 := repl_delta_from_source(tmp_path, delta_source2, trial_counter2, delta2_parse_errs)
                 ref typed_root : ProgramUnit = typed_heap.units[typed_heap.units.len() - 1]
                 ref typed_iu : ImportUnit = typed_heap.ctx.imported[typed_root.path]
-                typer_errs = repl_type_delta_program(typed_heap, delta2)
+                typer_errs = delta2_parse_errs
+                if typer_errs == 0 { typer_errs = repl_type_delta_program(typed_heap, delta2) }
                 if typer_errs == 0 {
                     repl_prepare_delta_program(typed_heap, delta2)
                     typed_tail_start = typed_iu.ast.children.len()

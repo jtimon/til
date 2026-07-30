@@ -4071,7 +4071,7 @@ U32 repl_source_line_count(Str * s);
 Bool repl_ast_has_loader_directive(Expr * e);
 Bool repl_ast_has_lazy_def(Expr * e);
 Bool repl_ast_has_known_variadic_call(Expr * e);
-Expr * repl_delta_from_source(Str * path, Str * source, I64 * anon_type_counter);
+Expr * repl_delta_from_source(Str * path, Str * source, I64 * anon_type_counter, I32 * parse_errors);
 Bool priv__src_til_til__repl_tokens_assign_at_top(Vec__Token * tokens);
 Bool repl_peek_needs_expr_wrap(Str * block, Vec__Token * tokens);
 Bool repl_parse_allows_wrap(Expr * peek_ast);
