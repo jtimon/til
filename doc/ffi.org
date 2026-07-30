@@ -54,7 +54,8 @@ in the output and ask:
    touches the world outside the call's arguments.  If yes:
    change ~ext_func~ to ~ext_proc~.  Return type stays
    (~ext_proc~ may return a value -- the proc/func distinction
-   is purity, not arity).
+   is purity only; whether the function returns a value has
+   nothing to do with it).
 
 2. *Does the C function take a pointer arg that it stores or
    frees?*  By default the binder emits ~shallow~ for primitives
