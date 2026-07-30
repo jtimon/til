@@ -53,6 +53,13 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case NodeType.Ident(ident):
         vec_push_str(refs, ident.ident_name())
+    case NodeType.Assign(adata):
+        // An assignment TARGET names a binding the same way a read does --
+        // the name lives in the node data, not in an Ident child, so
+        // without this case a global written by a reached function (e.g.
+        // std/doc's __doc_init__ storing the registry blobs) is invisible
+        // to the walk and gets swept out from under it (#326).
+        vec_push_str(refs, adata.name)
     case NodeType.FCall:
         // Check for namespace method call: Type.method(args...)
         if e.children.len() > 0 {
@@ -346,6 +353,17 @@ priv scav_is_value_decl := func(stmt: Expr) returns Bool {
     return true
 }
 
+// #326: a user-unit top-level value can be swept only when dropping its
+// initializer cannot drop an observable effect: a literal, or a bare ident
+// (reading another global). Anything containing a call takes the
+// conservative side and stays a blanket root -- in script mode a top-level
+// `x := foo()` IS the program, whether or not x is ever read.
+scav_value_decl_sweepable := func(stmt: Expr) returns Bool {
+    if scav_is_value_decl(stmt).not() { return false }
+    ref rhs : Expr = stmt.children[0]
+    return rhs.node_type.is(NodeType.Literal).or(rhs.node_type.is(NodeType.Ident))
+}
+
 // The name a top-level cleanup statement reclaims: `T.delete(<Ident>, ...)`
 // or `free(<Ident>)`, the two shapes the garbager inserts for an owned
 // global. Returns "" for anything else. Sweeping a global's declaration
@@ -374,8 +392,11 @@ priv scav_cleanup_target := func(stmt: Expr) returns Str {
 // graph as the defs (#326). It is on for core units, whose top-level decls
 // are compiler-provided constants: a user unit's top-level statements are
 // the program itself in script mode (and its global initializers in
-// cli/test mode), so dropping one there would drop an observable effect,
-// not just an unread binding.
+// cli/test mode), so dropping one there could drop an observable effect,
+// not just an unread binding. User units still sweep the value decls
+// scav_value_decl_sweepable proves effect-free (literal/ident
+// initializers); the seeding in scavenge_visited_imported skips rooting
+// exactly those, so the two sides agree on which decls are graph nodes.
 scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
@@ -383,7 +404,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
     mut swept := Set(Str).new()
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
-        if sweep_values.and(is_def(stmt).not()).and(scav_is_value_decl(stmt)) {
+        if is_def(stmt).not().and(sweep_values.and(scav_is_value_decl(stmt)).or(scav_value_decl_sweepable(stmt))) {
             switch stmt.node_type {
             case NodeType.Decl(vd):
                 if visited.has(vd.name).not() {

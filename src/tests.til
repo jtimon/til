@@ -540,6 +540,15 @@ main := proc(args: ..Str) {
     // the old blanket rule emitted (ten of them, one per scalar) is gone.
     add_count(tests, "minimal_reach_no_dead_lifecycle", "build", "_hash", 0,
         format(til_bin, " translate -c gen/c/minimal_reach_lc.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_lc.c"))
+    // A user-unit top-level value used to be a blanket root: unread or not,
+    // its global, its initializer and everything the initializer referenced
+    // were emitted. Effect-free initializers (literal/ident) are ordinary
+    // graph nodes now -- the fixture's UNREAD_GLOBAL must vanish while the
+    // read KEPT_GLOBAL survives (the `both` entry proves the latter by
+    // printing it). std/raylib.til is where this bites for real programs:
+    // snake carried every unused SHADER_/TEXTURE_/KEY_ flag constant.
+    add_count(tests, "minimal_reach_no_unread_global", "build", "UNREAD_GLOBAL", 0,
+        format(til_bin, " translate -c gen/c/minimal_reach_ug.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ug.c"))
     // No generated helper exists only because __attribute__((unused)) lets
     // it compile: every emitted static has a real C reference. first_class
     // is the fixture with the most closure machinery -- lifted lambdas,

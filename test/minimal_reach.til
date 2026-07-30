@@ -16,4 +16,12 @@ mode script
 // minimal_reach_no_dead_lifecycle in src/tests.til) and runs the program
 // interpreted and compiled (the `both` entry), so the fixture proves both
 // that the dead declarations are gone and that what survives links and runs.
-println("minimal")
+
+// An unread top-level value with an effect-free initializer is swept, not
+// kept as a blanket root (minimal_reach_no_unread_global). KEPT_GLOBAL
+// proves the sweep is reachability, not a blanket rule: it is read below,
+// so it must survive.
+UNREAD_GLOBAL := 41
+KEPT_GLOBAL := 42
+
+println("minimal", KEPT_GLOBAL.to_str())

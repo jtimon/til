@@ -911,6 +911,11 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if is_def(stmt) { continue }
+                    // #326: an effect-free value decl is a graph node, not
+                    // a root -- the BFS walks its initializer only if the
+                    // name is reached, and scavenge_filter sweeps it
+                    // otherwise.
+                    if scav_value_decl_sweepable(stmt) { continue }
                 }
                 collect_refs(stmt, worklist)
             }
@@ -965,6 +970,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
                         }
                     }
                     if is_def(stmt) { continue }
+                    if scav_value_decl_sweepable(stmt) { continue }
                 }
                 collect_refs(stmt, worklist)
             }
@@ -974,6 +980,7 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
             for stmt : Expr in lp.ctx.imported[u.path].ast.children {
                 if stmt.node_type.is(NodeType.Decl) {
                     if is_def(stmt) { continue }
+                    if scav_value_decl_sweepable(stmt) { continue }
                 }
                 collect_refs(stmt, worklist)
             }
@@ -4937,6 +4944,19 @@ finish_prepare_program := proc(mut lp: LoadedProgram) {
     // from, so the public ABI is preserved exactly while priv declarations
     // and untouched core/std are swept.
     scavenge_imported(lp)
+}
+
+// #326: a REPL full-load turn must NOT scavenge. A session is an open
+// world -- the next turn can name anything -- and
+// interp_session_eval_imported_once runs an imported unit's top-level
+// exactly once per session, keyed by path: if the turn that first evals
+// std/doc is one with no help() in sight, scavenging would have swept the
+// (statically dead) __til_info_blob__/__til_docs_blob__ globals from its
+// AST, the once-only eval declares nothing, and the later help() turn's
+// __doc_init__ assignment finds no binding. Same reasoning as the cached
+// base in repl_init_cached_program.
+repl_finish_prepare_program := proc(mut lp: LoadedProgram) {
+    constfolder_imported(lp)
 }
 
 repl_init_cached_program := proc(mut lp: LoadedProgram) returns I32 {

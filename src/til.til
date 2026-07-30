@@ -566,7 +566,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             stdio_capture_end()
             if run_errs == 0 {
                 if use_full_load {
-                    finish_prepare_program(run_heap)
+                    repl_finish_prepare_program(run_heap)
                     turn_out = repl_capture_eval_current(session, run_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line, turn_aborted)
                 } else {
                     mut eval_start := run_tail_start
@@ -632,7 +632,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
             if typer_errs == 0 {
                 if use_full_load {
                     finish_init_and_type_program(typed_heap)
-                    finish_prepare_program(typed_heap)
+                    repl_finish_prepare_program(typed_heap)
                     turn_out = repl_capture_eval_current(session, typed_heap, out_path, block_start_line, init_docs_this_turn, doc_init_line, turn_aborted)
                 } else {
                     mut eval_start2 := typed_tail_start

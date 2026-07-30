@@ -466,12 +466,42 @@ Landed (suite green, `make test_two_pass`):
   ~examples/chess.til~ now emits 43 functions of which the only never-called
   one is ~main~.
 
+- [X] User-unit top-level values are no longer blanket roots.  A value
+  decl whose initializer is provably effect-free -- a literal, or a bare
+  ident -- is an ordinary graph node: the seeding skips it, the BFS walks
+  its initializer only if the name is reached, and ~scavenge_filter~
+  sweeps it otherwise (~scav_value_decl_sweepable~; the seeding and the
+  sweep share the one predicate so the two sides agree on which decls are
+  graph nodes).  Anything containing a call stays a blanket root -- in
+  script mode a top-level ~x := foo()~ IS the program whether or not ~x~
+  is read, so the conservative side needs no effect-preserving rewrite;
+  only sweeping THOSE would, and their effects have to run anyway.  The
+  win in real programs is std/raylib.til: every GUI program carried every
+  unused ~SHADER_~/~TEXTURE_~/~KEY_~/... flag constant
+  (~examples/snake.til~ 2,823 -> 2,203 lines of C, chess 7,786 -> 7,156).
+  ~minimal_reach_no_unread_global~ is the regression; the fixture's
+  ~both~ entry prints the surviving global to prove the sweep is
+  reachability, not a blanket rule.  Two real holes surfaced and were
+  fixed at their source rather than by narrowing the sweep: (1)
+  ~collect_refs~ never recorded ASSIGNMENT targets -- the name lives in
+  the Assign node's data, not an Ident child -- so a global only ever
+  written by a reached function (std/doc's ~__doc_init__~ storing the
+  registry blobs) was invisible to the reachability walk; and (2) the
+  REPL's full-load turns ran ~finish_prepare_program~ and therefore
+  scavenged, which is wrong by premise in a session: the next turn can
+  name anything, and ~interp_session_eval_imported_once~ runs an imported
+  unit's top-level once per session, so a turn with no ~help()~ in sight
+  swept std/doc's blob globals and poisoned every later ~help()~ turn
+  (~repl_finish_prepare_program~ now constfolds without scavenging, the
+  same reasoning ~repl_init_cached_program~ already applied to the cached
+  base; ~repl_help~ is the regression that caught it).
+
 Still open:
 
-- [ ] Step 4's root policy is not centralized per mode yet, and user-unit
-  top-level values are still blanket roots (sweeping them needs the
-  effect-preserving rewrite of step 3 so a dropped binding cannot drop an
-  observable initializer).
+- [ ] Step 4's root policy is not centralized per mode yet, and an
+  effectful user-unit top-level value initializer is still a blanket root
+  (sweeping one needs the effect-preserving rewrite of step 3 so a
+  dropped binding cannot drop an observable initializer).
 - [ ] Step 2's stack-delete ~call_free~ cast, which #209 owns.
 - [ ] Step 3's general scope-aware read/write liveness (the landed work
   removed the temps at their source instead).
