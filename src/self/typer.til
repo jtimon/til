@@ -3009,9 +3009,8 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
             return
         }
         if infer_funcptr_call_via_cast(scope, e, in_func, ctx) { return }
-        // Other non-Ident callees (e.g. ops[0](args) without cast) are
-        // not yet supported; the typer below will fall through to the
-        // UNREACHABLE branch with a more diagnostic-able shape.
+        // Other FCall callees (e.g. `pick()(5)` on a funcptr-returning
+        // call) are not supported yet; the switch below reports it.
     }
     mut name := ""
     switch callee.node_type {
@@ -3041,7 +3040,12 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
         }
         name = Str.clone(name0.ident_name())
     case:
-        UNREACHABLE()
+        // A callee that is neither a name, a field access, a Body value,
+        // nor a cast-to-FuncSig -- e.g. calling a call's result directly,
+        // `pick()(5)`. Not supported yet; this used to be UNREACHABLE()
+        // and crashed the COMPILER on ordinary-looking user code.
+        e.type_error("cannot call this expression directly; bind it to a local first (f := ..., then f(args))", ctx)
+        e.set_til_type(Type.Unknown)
         return
     }
     ref resolved_name : Str = resolve_type_alias(scope, name)

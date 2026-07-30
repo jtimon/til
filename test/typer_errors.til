@@ -988,3 +988,10 @@ borrow_esc_bad := func() returns Option(ref BorrowEscCell) {
     borrow_esc_local := BorrowEscCell(besc_n = 7)
     return Option(ref BorrowEscCell).Some(borrow_esc_local)
 }
+
+// Calling a call's result directly is not supported yet; it used to hit
+// UNREACHABLE() and crash the COMPILER instead of reporting an error.
+CallOp328 := func(I64) returns I64
+call_double328 := func(x: I64) returns I64 { return x.mul(2) }
+call_pick328 := func() returns CallOp328 { return call_double328 }
+call_result_direct := call_pick328()(5)
