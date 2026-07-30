@@ -1104,18 +1104,25 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
         // `fnv1a` gets pruned and the init `HashMap_hasher = (void
         // *)fnv1a` in main() references an undeclared symbol.
         // #326: follow a type alias before the namespace lookups below --
-        // `UPtr.size` has to reach `U64.size`. This replaces what the
-        // blanket lifecycle rooting used to cover, and unlike the
-        // hardcoded USize->U32 / UPtr->U64 pair in collect_refs's assert_eq
-        // branch it stays correct at any built USize width.
+        // `UPtr.size` has to reach `U64.size`, and the width aliases stay
+        // correct at any built USize width rather than through a hardcoded
+        // pair. BOTH maps are consulted, not the user's first: one name can
+        // denote two aliases at once, and the qualified name on the
+        // worklist does not say which scope it came from. test/aliases.til
+        // is the case -- it declares its own `USize := U64` while core's
+        // `USize := U32` is what the typer resolved `v.len()` through, so
+        // the monomorphized `assert_eq__USize` body emits `U32_to_str`.
+        // Rooting both targets costs at most one extra method; rooting the
+        // wrong one alone is a link error.
         alias_dot := name.find(".")
         if alias_dot >= 0 {
             alias_dot_u := alias_dot.to_usize()
             alias_base := name.substr(0, alias_dot_u)
             alias_member := name.substr(alias_dot_u + 1, name.len().sub(alias_dot_u) - 1)
-            mut alias_to := alias_target_imported(lp.ctx, top, alias_base)
-            if alias_to.len() == 0 { alias_to = alias_target_imported(lp.ctx, core_top, alias_base) }
-            if alias_to.len() > 0 { push_qn(worklist, alias_to, alias_member) }
+            user_alias_to := alias_target_imported(lp.ctx, top, alias_base)
+            if user_alias_to.len() > 0 { push_qn(worklist, user_alias_to, alias_member) }
+            core_alias_to := alias_target_imported(lp.ctx, core_top, alias_base)
+            if core_alias_to.len() > 0 { push_qn(worklist, core_alias_to, alias_member) }
         }
 
         ns_fdef_o := find_ns_decl_fdef_imported(lp.ctx, top, name)

@@ -393,7 +393,6 @@ static Str _til_str_lits[71] = {
     (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"?", .count = 1ULL, .cap = TIL_CAP_LIT},
 };
-#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + 71)) { fprintf(stderr, "panic: write through a shared string literal\n"); exit(1); } } while (0)
 
 U32 CAP_LIT;
 U32 CAP_VIEW;

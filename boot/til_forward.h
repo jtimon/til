@@ -1604,6 +1604,7 @@ typedef struct Context {
     Set__Str builder_reflect_inventory;
     Set__Str builder_dyn_fn_targets;
     Set__Str builder_variant_ctor_sites;
+    Bool builder_lit_guard_used;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
     Map__Str_Dynamic interp_type_defs;
@@ -2122,6 +2123,7 @@ Str * scope_target_uptr_pname(TypeScope * scope);
 Str * priv_c_name(Str * path, Str * name);
 USize align_up(USize offset, USize align);
 Bool is_scalar_type_name(Str * n);
+Str * resolved_type_name(Type * t);
 Str * unsigned_prim_name_for_width(USize w);
 USize unsigned_prim_width_for_name(Str * name);
 Str * host_usize_pname(void);
@@ -3400,6 +3402,7 @@ void priv___src_self_builder_til__builder_record_reflect_name(Str * n, Set__Str 
 void priv___src_self_builder_til__builder_collect_reflect_inventory(Expr * e, Set__Str * inv);
 void priv___src_self_builder_til__builder_collect_dyn_fn_targets(Expr * e, Set__Str * targets);
 Bool priv___src_self_builder_til__builder_dyn_fn_target_kept(Str * type_name, Str * member, Context * ctx);
+void priv___src_self_builder_til__builder_collect_lit_guard_use(Expr * e, Bool * used);
 void priv___src_self_builder_til__builder_fill_reflect_inventory(LoadedProgram * lp);
 Bool priv___src_self_builder_til__builder_needs_reflect(Str * name, Context * ctx);
 void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);

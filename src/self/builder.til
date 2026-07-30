@@ -1449,21 +1449,61 @@ priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Contex
     return ctx.builder_dyn_fn_targets.has(type_name.concat3(".", member))
 }
 
+// #326: the three emitters that call TIL_LIT_GUARD all write a Str THROUGH
+// a pointer. Recognize their AST shapes: an Assign whose type is Str (the
+// capture write-back) or whose RHS is a Str literal (the `ref mut p : Str`
+// write-through), and a swap_replace FCall whose target is a Str (#210).
+// The macro is defined at pool-emission time, long before any body, so this
+// answers from the AST; the checks are deliberately looser than the
+// emitters' own conditions because a false yes only leaves the `#define`
+// this gate exists to remove, while a false no is a build error.
+priv builder_collect_lit_guard_use := func(e: Expr, mut used: Bool) {
+    if used { return }
+    switch e.node_type {
+    case NodeType.Assign:
+        if til_type_name(e.til_type()).eq("Str") { used = true }
+        if e.children.len() > 0 {
+            if e.children[0].node_type.is_literal_str() { used = true }
+        }
+    case NodeType.FCall(blg_fcd):
+        if blg_fcd.swap_replace.and(e.children.len().gte(2)) {
+            if til_type_name(e.children[1].til_type()).eq("Str") { used = true }
+        }
+    case:
+    }
+    if used { return }
+    for blg_ch : Expr in e.children {
+        builder_collect_lit_guard_use(blg_ch, used)
+        if used { return }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref blg_ns : Vec(Declaration) = def_ns_decls(e)
+        for blg_d : Declaration in blg_ns {
+            if blg_d.default_value.is_null() { continue }
+            builder_collect_lit_guard_use(blg_d.default_value, used)
+            if used { return }
+        }
+    }
+}
+
 priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
     lp.ctx.builder_reflect_inventory = Set(Str).new()
     lp.ctx.builder_dyn_fn_targets = Set(Str).new()
     lp.ctx.builder_variant_ctor_sites = Set(Str).new()
+    lp.ctx.builder_lit_guard_used = false
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
             builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
             builder_collect_variant_ctor_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_variant_ctor_sites)
+            builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
         }
     }
     for u : ProgramUnit in lp.units {
         builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
         builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
         builder_collect_variant_ctor_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_variant_ctor_sites)
+        builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
     }
 }
 
@@ -2093,11 +2133,18 @@ priv builder_register_str_lits := proc(lp: LoadedProgram) {
 // guard is what turns "supposed to" into a hard failure at the exact write.
 // The comparison is on UPtr, not pointers, so it stays defined for a pointer
 // that is unrelated to the array.
+//
+// #326: the `#define` follows the same rule as every other generated helper
+// family -- it is emitted only when the AST holds a shape that writes a Str
+// through a pointer (builder_collect_lit_guard_use). The pool itself is
+// independent: it exists whenever some literal was pooled, guard or no.
 priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
     n := ctx.builder_str_lit_values.len()
     if n == 0 {
-        // No pool at all -- nothing can point into it.
-        f.write("#define TIL_LIT_GUARD(p) ((void)0)\n\n")
+        // No pool at all -- nothing can point into it. Even a program that
+        // writes Strs through pointers needs no test, so the no-op form is
+        // emitted only when something would call it.
+        if ctx.builder_lit_guard_used { f.write("#define TIL_LIT_GUARD(p) ((void)0)\n\n") }
         return
     }
     f.write("static Str _til_str_lits[")
@@ -2108,6 +2155,10 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         builder_emit_str_lit_elem(f, val)
     }
     f.write("};\n")
+    if ctx.builder_lit_guard_used.not() {
+        f.write("\n")
+        return
+    }
     f.write("#define TIL_LIT_GUARD(p) do { UPtr _g = (UPtr)(const void *)(p); ")
     f.write("if (_g >= (UPtr)(const void *)_til_str_lits && _g < (UPtr)(const void *)(_til_str_lits + ")
     emit_usize(f, n)

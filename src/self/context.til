@@ -916,6 +916,14 @@ Context := struct {
     // -- til_type_name of the RECEIVER, which is what turns
     // `Option(ref OptSrc).Some(x)` into `Option__ref_OptSrc_Some(x)`.
     builder_variant_ctor_sites := Set(Str).new()
+    // #326: does any emitted statement write a Str THROUGH a pointer? Only
+    // those three shapes call TIL_LIT_GUARD, and the pool -- with its
+    // `#define` -- is emitted long before any body, so the answer has to
+    // come from the AST rather than from what the bodies turned out to
+    // write. Over-answering costs one dead `#define` (what this replaces);
+    // under-answering is an undefined-macro build error, so the collector
+    // takes the conservative side on every shape it is unsure of.
+    builder_lit_guard_used := false
     // #321: None outside any function-body emission.
     current_fdef := Option(ref Expr).None
 
@@ -1075,6 +1083,30 @@ is_scalar_type_name := func(n: Str) returns Bool {
     for prim_n : Str in PRIM_NAMES { if prim_n == n { return true } }
     for alias_n : Str in WIDTH_ALIAS_NAMES { if alias_n == n { return true } }
     return false
+}
+
+// The name a RESOLVED type is spelled with, primitives included --
+// til_type_name only carries the struct/enum/custom payload and returns ""
+// for a Type.Primitive. #326's third consumer wants the concrete answer
+// rather than a source spelling: a generic body monomorphized on `T` emits
+// `<this name>_<method>`, and the source ident at the call site may be an
+// alias the typer already resolved (or one the file shadows).
+resolved_type_name := func(t: Type) returns Str {
+    name := til_type_name(t)
+    if name.len() > 0 { return name }
+    switch t {
+    case Type.Primitive(Primitive.I8): return "I8"
+    case Type.Primitive(Primitive.U8): return "U8"
+    case Type.Primitive(Primitive.I16): return "I16"
+    case Type.Primitive(Primitive.U16): return "U16"
+    case Type.Primitive(Primitive.I32): return "I32"
+    case Type.Primitive(Primitive.U32): return "U32"
+    case Type.Primitive(Primitive.I64): return "I64"
+    case Type.Primitive(Primitive.U64): return "U64"
+    case Type.Primitive(Primitive.F32): return "F32"
+    case Type.Primitive(Primitive.Bool): return "Bool"
+    case: return ""
+    }
 }
 
 unsigned_prim_name_for_width := func(w: USize) returns Str {
