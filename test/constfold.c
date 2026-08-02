@@ -208,11 +208,7 @@ void test_enum_payload_return_fold(void);
 void assert_eq__I64(I64 a, I64 b, Str * loc);
 void assert_eq__Str(Str * a, Str * b, Str * loc);
 Bool Color_eq(Color *, Color *);
-Color *Color_Red();
-Color *Color_Green();
-Color *Color_Blue();
 Token *Token_Num(I64 *);
-Token *Token_Eof();
 #include "ext.h"
 
 
@@ -271,8 +267,6 @@ void Color_delete(Color * self, Bool call_free);
 Color * Color_clone(Color * self);
 void test_enum_fold(void);
 Token * Token_Num(I64 * val);
-Token * Token_Name(Str * val);
-Token * Token_Eof(void);
 Bool Token_is(Token * self, Token * other);
 void Token_delete(Token * self, Bool call_free);
 void test_enum_payload_fold(void);
@@ -281,11 +275,7 @@ void test_enum_payload_return_fold(void);
 void assert_eq__I64(I64 a, I64 b, Str * loc);
 void assert_eq__Str(Str * a, Str * b, Str * loc);
 Bool Color_eq(Color *, Color *);
-Color *Color_Red();
-Color *Color_Green();
-Color *Color_Blue();
 Token *Token_Num(I64 *);
-Token *Token_Eof();
 
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
@@ -1031,21 +1021,6 @@ void test_struct_fold_f32(void) {
     CfVec3f_delete(&v, (Bool){0});
 }
 
-Color *Color_Red() {
-    Color *r = malloc(sizeof(Color));
-    *r = (Color){ .tag = Color_TAG_Red };
-    return r;
-}
-Color *Color_Green() {
-    Color *r = malloc(sizeof(Color));
-    *r = (Color){ .tag = Color_TAG_Green };
-    return r;
-}
-Color *Color_Blue() {
-    Color *r = malloc(sizeof(Color));
-    *r = (Color){ .tag = Color_TAG_Blue };
-    return r;
-}
 Bool Color_eq(Color * self, Color * other) {
     Bool hoisted__Bool_6801 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
     return hoisted__Bool_6801;
@@ -1102,11 +1077,6 @@ Token *Token_Num(I64 * val) {
     Token *r = malloc(sizeof(Token));
     r->tag = Token_TAG_Num;
     r->data.Num = *val;
-    return r;
-}
-Token *Token_Eof() {
-    Token *r = malloc(sizeof(Token));
-    r->tag = Token_TAG_Eof;
     return r;
 }
 void Token_delete(Token * self, Bool call_free) {

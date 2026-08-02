@@ -592,6 +592,16 @@ main := proc(args: ..Str) {
     // scavenger root for anything interpretable. `Color` is the witness: a
     // user enum whose size nothing asks for. The `both` entry runs the same
     // fixture interpreted, where that AST declaration still answers.
+    // A bare `Enum.Variant` expression never lowers to a call -- the
+    // builder splices the value in place as `(E){.tag = E_TAG_V}`,
+    // `&(E){...}` or an inline malloc-and-tag in return position -- so
+    // recording every field access as a construction site kept a
+    // constructor no C calls. test/match.til is the fixture that is
+    // nothing BUT bare variant expressions (match scrutinees and case
+    // labels), and `Color_Red` must not appear at all; the tags it really
+    // compiles to, `Color_TAG_Red`, are what the `both` entry exercises.
+    add_count(tests, "match_no_uncalled_variant_ctor", "build", "Color_Red", 0,
+        format(til_bin, " translate -c gen/c/match_ctor.c test/match.til '&&' cat gen/c/match_ctor.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,

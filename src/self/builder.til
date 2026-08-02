@@ -5494,9 +5494,33 @@ priv builder_fdef_auto_generated := func(fdef: Expr) returns Bool {
 // The one predicate every namespace-method emitter asks: definition and all
 // six forward-declaration loops share it, so a disagreement would be a link
 // error rather than a silent hole.
+// A variant constructor is an ns member too, so the ns-member forward
+// declaration loops reach it as well as the four `edd.variants` prototype
+// loops. Without this they declared what the definition gate had already
+// dropped -- the declared-never-defined shape this issue exists to remove.
+// The keep-logic itself lives in builder_variant_ctor_kept; here it is
+// keyed by name because the loop already holds the surviving member.
+priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    bvco_def_o := find_struct_def(type_name, ctx)
+    if bvco_def_o.is_none() { return false }
+    ref bvco_def : Expr = bvco_def_o.unwrap()
+    if bvco_def.node_type.is(NodeType.EnumDef).not() { return false }
+    mut is_variant := false
+    switch bvco_def.node_type {
+    case NodeType.EnumDef(bvco_edd):
+        for bvco_vd : VariantDef in bvco_edd.variants {
+            if bvco_vd.name == member { is_variant = true }
+        }
+    case:
+    }
+    if is_variant.not() { return false }
+    return builder_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
+}
+
 priv builder_ns_method_omitted := func(type_name: Str, member: Str, auto_generated: Bool, ctx: Context) returns Bool {
     if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
-    return builder_auto_size_omitted(type_name, member, auto_generated, ctx)
+    if builder_auto_size_omitted(type_name, member, auto_generated, ctx) { return true }
+    return builder_variant_ctor_omitted(type_name, member, ctx)
 }
 
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
@@ -5677,6 +5701,10 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
 priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns Bool {
     if def_ns_get(enum_def, vname).is_none() { return false }
     if ctx.builder_keep_all_exports { return true }
+    // The generated dispatch that calls the real constructor, asked per
+    // METHOD exactly as the auto-`size` gate asks it.
+    if builder_dyn_fn_target_kept(ename, vname, ctx) { return true }
+    if builder_needs_reflect("dyn_call_m".concat3(".", vname), ctx) { return true }
     return ctx.builder_ns_member_sites.has(ename.concat3(".", vname))
 }
 
@@ -5692,16 +5720,27 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
 // tag compare, and a Case node's pattern (child 0) in a C-like switch,
 // which becomes a case label.
 priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str)) {
-    switch e.node_type {
-    case NodeType.FieldAccess(bvs_f):
-        if e.children.len() > 0 {
-            recv_type := til_type_name(e.children[0].til_type())
-            if recv_type.len() > 0 {
-                key := recv_type.concat3(".", bvs_f.field_access_name())
-                if sites.has(key).not() { sites.add(own key.clone()) }
+    // CALLEE position only. A bare `Enum.Variant` expression never lowers
+    // to a call: the builder splices the value in place -- a compound
+    // literal `(E){.tag = E_TAG_V}`, `&(E){...}`, or an inline
+    // malloc-and-tag in return position -- so recording it kept a
+    // constructor with no caller (85 of them in test/first_class.til, 151
+    // in til's own output). `Enum.Variant(payload)` and every ordinary
+    // `T.method(...)` ARE calls, and both are an FCall whose child 0 is
+    // this field access.
+    if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
+        switch e.children[0].node_type {
+        case NodeType.FieldAccess(bvs_f):
+            ref bvs_fa : Expr = e.children[0]
+            if bvs_fa.children.len() > 0 {
+                recv_type := til_type_name(bvs_fa.children[0].til_type())
+                if recv_type.len() > 0 {
+                    key := recv_type.concat3(".", bvs_f.field_access_name())
+                    if sites.has(key).not() { sites.add(own key.clone()) }
+                }
             }
+        case:
         }
-    case:
     }
     mut skip_child : USize = 99
     if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
