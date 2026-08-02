@@ -1591,7 +1591,8 @@ typedef struct Context {
     Map__Str_Str builder_str_lit_ident_symbols;
     Set__Str builder_reflect_inventory;
     Set__Str builder_dyn_fn_targets;
-    Set__Str builder_variant_ctor_sites;
+    Set__Str builder_ns_member_sites;
+    Bool builder_keep_all_exports;
     Bool builder_lit_guard_used;
     Option__ref_Expr current_fdef;
     Str cached_str_name;
@@ -3465,12 +3466,15 @@ void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, Loa
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def, Set__Str * emitted_tags);
 Bool priv___src_self_builder_til__builder_ns_method_inlined_away(Str * type_name, Str * member, Context * ctx);
+Bool priv___src_self_builder_til__builder_auto_size_omitted(Str * type_name, Str * member, Bool auto_generated, Context * ctx);
+Bool priv___src_self_builder_til__builder_fdef_auto_generated(Expr * fdef);
+Bool priv___src_self_builder_til__builder_ns_method_omitted(Str * type_name, Str * member, Bool auto_generated, Context * ctx);
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_is_n_operand(File * f, Expr * e, USize idx, Str * enum_c, Bool is_niche, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__builder_variant_ctor_kept(Str * ename, Expr * enum_def, Str * vname, Context * ctx);
-void priv___src_self_builder_til__builder_collect_variant_ctor_sites(Expr * e, Set__Str * sites);
+void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);

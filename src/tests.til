@@ -583,6 +583,17 @@ main := proc(args: ..Str) {
     // reaches core's `Type` enum but never builds that variant.
     add_count(tests, "pure_no_unbuilt_variant_ctor", "build", "Type_Unknown", 0,
         format(til_bin, " translate -c gen/c/pure_variant.c test/pure.til '&&' cat gen/c/pure_variant.c"))
+    // The auto-generated `size` method is emitted from the namespace index,
+    // which says the member exists -- not that any C calls it. At a matching
+    // build width the constfolder folds every `T.size()` to a literal, so
+    // each one was a never-called `return sizeof(T);`: 55 of them in this
+    // fixture. It is dead only in the C -- the INTERPRETER resolves
+    // `T.size()` by runtime name off the AST, which is why `*.size` stays a
+    // scavenger root for anything interpretable. `Color` is the witness: a
+    // user enum whose size nothing asks for. The `both` entry runs the same
+    // fixture interpreted, where that AST declaration still answers.
+    add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
+        format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,
         format(til_bin, " translate -c gen/c/first_class_fd.c test/first_class.til '&&' cat gen/c/first_class_fd.c"))
     add_count(tests, "first_class_no_unused_attrs", "build", "__attribute__((unused))", 0,

@@ -911,11 +911,21 @@ Context := struct {
     // dyn_fn's dispatch table, so this is what decides which ones are
     // emitted; without it every surviving namespace method got one.
     builder_dyn_fn_targets := Set(Str).new()
-    // #326: the `Enum.Variant` pairs some emitted expression CONSTRUCTS,
-    // keyed exactly the way the namespace-call emitter names the C function
-    // -- til_type_name of the RECEIVER, which is what turns
+    // #326: every `Type.member` pair some surviving expression NAMES in a
+    // field access, keyed exactly the way the namespace-call emitter names
+    // the C function -- til_type_name of the RECEIVER, which is what turns
     // `Option(ref OptSrc).Some(x)` into `Option__ref_OptSrc_Some(x)`.
-    builder_variant_ctor_sites := Set(Str).new()
+    // Two gates read it, because both families are emitted from a list that
+    // is NOT the call graph: variant constructors come from `edd.variants`
+    // (which must keep every variant, it defines the tag ABI), and the
+    // auto-generated `size` method comes from the ns index whether or not
+    // any call to it survived the constfolder.
+    builder_ns_member_sites := Set(Str).new()
+    // #326: library output keeps its exported ABI whether or not anything
+    // internal uses it, so the two site-driven gates above stand down there
+    // -- a consumer can call any exported constructor or `size`, and no
+    // walk of THIS program can see that call.
+    builder_keep_all_exports := false
     // #326: does any emitted statement write a Str THROUGH a pointer? Only
     // those three shapes call TIL_LIT_GUARD, and the pool -- with its
     // `#define` -- is emitted long before any body, so the answer has to

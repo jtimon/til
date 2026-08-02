@@ -157,15 +157,12 @@ void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 Str * Str_to_str(Str * self);
 void Str_delete(Str * self, Bool call_free);
-USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
-USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
 void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
-USize Array__Str_size(void);
 void adopt__Str(void * dest, Str * src);
 USize Dynamic_size(void);
 USize U8_size(void);
@@ -179,13 +176,10 @@ void I64_delete(I64 * self, Bool call_free);
 USize I64_size(void);
 USize F32_size(void);
 USize Bool_size(void);
-USize Primitive_size(void);
-USize Type_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
 void println(Array__Str * parts);
-USize Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
 void test_deeply_nested(void);
@@ -197,22 +191,17 @@ void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
 void CfVec2_delete(CfVec2 * self, Bool call_free);
-USize CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
 void CfRect_delete(CfRect * self, Bool call_free);
-USize CfRect_size(void);
 void test_struct_fold_nested(void);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
-USize CfVec3f_size(void);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
 void Color_delete(Color * self, Bool call_free);
 Color * Color_clone(Color * self);
-USize Color_size(void);
 void test_enum_fold(void);
 void Token_delete(Token * self, Bool call_free);
-USize Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
@@ -237,15 +226,12 @@ void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 Str * Str_to_str(Str * self);
 void Str_delete(Str * self, Bool call_free);
-USize Str_size(void);
 Bool Str_neq(Str * a, Str * b);
-USize OutOfBounds_size(void);
 Array__Str * Array__Str_new(USize cap);
 void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
 void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
-USize Array__Str_size(void);
 void adopt__Str(void * dest, Str * src);
 USize Dynamic_size(void);
 USize U8_size(void);
@@ -259,13 +245,10 @@ void I64_delete(I64 * self, Bool call_free);
 USize I64_size(void);
 USize F32_size(void);
 USize Bool_size(void);
-USize Primitive_size(void);
-USize Type_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
 void println(Array__Str * parts);
-USize Range_size(void);
 void test_simple_add(void);
 void test_nested_arithmetic(void);
 void test_deeply_nested(void);
@@ -277,26 +260,21 @@ void test_fold_variable(void);
 void test_loc_folded(void);
 void test_fold_f32(void);
 void CfVec2_delete(CfVec2 * self, Bool call_free);
-USize CfVec2_size(void);
 void test_struct_fold_simple(void);
 void test_struct_fold_values(void);
 void CfRect_delete(CfRect * self, Bool call_free);
-USize CfRect_size(void);
 void test_struct_fold_nested(void);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
-USize CfVec3f_size(void);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
 void Color_delete(Color * self, Bool call_free);
 Color * Color_clone(Color * self);
-USize Color_size(void);
 void test_enum_fold(void);
 Token * Token_Num(I64 * val);
 Token * Token_Name(Str * val);
 Token * Token_Eof(void);
 Bool Token_is(Token * self, Token * other);
 void Token_delete(Token * self, Bool call_free);
-USize Token_size(void);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);
 void test_enum_payload_return_fold(void);
@@ -562,22 +540,10 @@ void Str_delete(Str * self, Bool call_free) {
     }
 }
 
-USize Str_size(void) {
-    U32 hoisted__U32_495 = 16;
-    return hoisted__U32_495;
-    __builtin_unreachable();
-}
-
 Bool Str_neq(Str * a, Str * b) {
     Bool hoisted__Bool_504 = Str_eq(a, b);
     Bool hoisted__Bool_505 = ((Bool)(!(hoisted__Bool_504)));
     return hoisted__Bool_505;
-    __builtin_unreachable();
-}
-
-USize OutOfBounds_size(void) {
-    U32 hoisted__U32_596 = 1;
-    return hoisted__U32_596;
     __builtin_unreachable();
 }
 
@@ -708,12 +674,6 @@ Array__Str * Array__Str_clone(Array__Str * self) {
     __builtin_unreachable();
 }
 
-USize Array__Str_size(void) {
-    U32 hoisted__U32_687 = 16;
-    return hoisted__U32_687;
-    __builtin_unreachable();
-}
-
 void adopt__Str(void * dest, Str * src) {
     U32 hoisted__U32_965 = 16;
     memcpy(dest, src, hoisted__U32_965);
@@ -812,18 +772,6 @@ USize Bool_size(void) {
     __builtin_unreachable();
 }
 
-USize Primitive_size(void) {
-    U32 hoisted__U32_2014 = 1;
-    return hoisted__U32_2014;
-    __builtin_unreachable();
-}
-
-
-USize Type_size(void) {
-    U32 hoisted__U32_2249 = 24;
-    return hoisted__U32_2249;
-    __builtin_unreachable();
-}
 
 
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
@@ -903,12 +851,6 @@ void println(Array__Str * parts) {
     }
     Array__Str_delete(parts, 1);
     print_flush();
-}
-
-USize Range_size(void) {
-    U32 hoisted__U32_5996 = 16;
-    return hoisted__U32_5996;
-    __builtin_unreachable();
 }
 
 void test_simple_add(void) {
@@ -1018,12 +960,6 @@ void CfVec2_delete(CfVec2 * self, Bool call_free) {
     }
 }
 
-USize CfVec2_size(void) {
-    U32 hoisted__U32_6655 = 16;
-    return hoisted__U32_6655;
-    __builtin_unreachable();
-}
-
 void test_struct_fold_simple(void) {
     CfVec2 v = (CfVec2){.x = 42, .y = 99};
     I64 hoisted__I64_6673 = 42;
@@ -1052,12 +988,6 @@ void CfRect_delete(CfRect * self, Bool call_free) {
     }
 }
 
-USize CfRect_size(void) {
-    U32 hoisted__U32_6712 = 32;
-    return hoisted__U32_6712;
-    __builtin_unreachable();
-}
-
 void test_struct_fold_nested(void) {
     CfRect r = (CfRect){.top_left = (CfVec2){.x = 5, .y = 10}, .bottom_right = (CfVec2){.x = 100, .y = 200}};
     I64 hoisted__I64_6730 = 5;
@@ -1079,12 +1009,6 @@ void CfVec3f_delete(CfVec3f * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-USize CfVec3f_size(void) {
-    U32 hoisted__U32_6771 = 12;
-    return hoisted__U32_6771;
-    __builtin_unreachable();
 }
 
 void test_struct_fold_f32(void) {
@@ -1162,12 +1086,6 @@ Color * Color_clone(Color * self) {
     __builtin_unreachable();
 }
 
-USize Color_size(void) {
-    U32 hoisted__U32_6833 = 1;
-    return hoisted__U32_6833;
-    __builtin_unreachable();
-}
-
 
 void test_enum_fold(void) {
     Color c = (Color){.tag = Color_TAG_Red};
@@ -1207,12 +1125,6 @@ void Token_delete(Token * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-USize Token_size(void) {
-    U32 hoisted__U32_6917 = 24;
-    return hoisted__U32_6917;
-    __builtin_unreachable();
 }
 
 
