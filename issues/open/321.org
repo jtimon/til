@@ -1450,6 +1450,48 @@ What this unblocks, in dependency order:
 - raylib.til's 29 nullable fields (the construction-contract question
   remains #324's, but the shape now exists).
 
+**** Batch 35: ns_fields is the first #324 field to become Option(Scope)
+
+The owning-optional shape the flip bought, cashed for the first of
+#324's NULL-sentinel fields. Context.ns_fields was
+~ref ns_fields : Scope = NULL~ -- an owned pointer wearing a borrow
+label, freed through the #324 hole -- with a separate ~ns_inited~ Bool
+as a second source of truth for "has it been built". It is now
+~ns_fields := Option(Scope).None~: one word (the niche), None IS the
+un-built state, ~ns_inited~ is gone (the redundancy #324's bonus note
+called out), and teardown moves the scope out (swap + take) before
+scope_free -- no free through a field, no reassignment over a dead
+value, field observably None the moment the free runs.
+
+Supporting pieces:
+- scope_new_owned: the OWNED sibling of scope_new_boxed for the
+  long-lived root scopes. malloc binds to an owned local (the
+  fcall_is_raw_alloc form), so ~Some(own ...)~ accepts it and ownership
+  is real from birth. The pool is skipped on purpose: pooled slots are
+  recycled REFS, which cannot be laundered into an owned return.
+- ns_scope(ctx): the borrow accessor, PANICS on None; used only by
+  post-init callers. The lookup-shaped callers, for which an un-built
+  table and a miss answer the same, switch on the field instead
+  (ns_get, interp_ns_field_type) -- absence stays real control flow
+  there, exactly as scope_lookup_heap_binding's null-arg tolerance
+  handled it before.
+
+Probed before migrating (tmp/rawopt*.til): malloc -> owned local ->
+Some(own) -> field assign -> switch read -> swap-out -> take ->
+delete, both modes, ASAN clean.
+
+FOUND on the way, not yet fixed (recorded so the next field migration
+does not trip it blind): a SWEEP HOLE for drain-conjured deletes. An
+overwrite of an aggregate field/local emits ~T_delete(_old, ...)~
+straight into the C -- no AST call exists -- so when a type's ONLY
+delete caller is a drain, the scavenger sweeps the method and the C
+fails with "implicit declaration of T_delete" (repro: tmp/rawopt2.til,
+compiled mode). Keeping all deletes unconditionally is NOT the fix: it
+exposed a second bug beneath (kept-but-unreferenced method bodies skip
+type stamping and emit malformed C -- ~(&Type->FuncPtrSig)~). ns_fields
+dodges both because Scope's delete has AST callers everywhere. The pair
+needs its own commit.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

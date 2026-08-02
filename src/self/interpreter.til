@@ -314,7 +314,7 @@ InterpSession := struct {
 
 // Return-value / control-flow state and namespace fields now live on
 // Context (has_return, has_break, has_continue, return_value,
-// ns_fields / ns_inited), reached in the eval functions via
+// ns_fields), reached in the eval functions via
 // `ref mut c : Context = ctx`. During has_return, return_value is a
 // non-owning pointer to the raw call result.
 // Cached struct defs for
@@ -2825,7 +2825,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
                 }
                 if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
-                    for qn, nsv_hb in c.ns_fields.heap_bindings {
+                    for qn, nsv_hb in ns_scope(c).heap_bindings {
                         if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
                         ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
                         ref nsv_fdef : Expr = callable_raw_func_def(nsv)
@@ -3614,7 +3614,7 @@ priv erased_elem_delete_type := func(struct_name: Str, data: Dynamic, ctx: Conte
     ref fl : FieldLayout = ctx_field_layout(struct_name, "elem_delete", ctx)
     ref stored : Dynamic = deref(ptr_add(data, fl.offset))
     delete_suffix := ".delete"
-    for qn, nsv_hb in ctx.ns_fields.heap_bindings {
+    for qn, nsv_hb in ns_scope(ctx).heap_bindings {
         ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
         if qn.ends_with(delete_suffix).not() { continue }
         ref expected : Expr = callable_raw_func_def(nsv)
@@ -4218,6 +4218,22 @@ scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
     b.moved_out = moved_out
 }
 
+// #324: the OWNED sibling of scope_new_boxed, for the scopes a field holds
+// as Option(Scope). The pool is skipped on purpose: these are the three
+// long-lived roots (constfolder_known, ns_fields, session global), not the
+// per-frame scopes the pool exists for, and an owned return cannot launder a
+// recycled ref out of the pool anyway. malloc binds the raw allocation to an
+// owned local (the fcall_is_raw_alloc form), so `Some(own ...)` accepts the
+// result and ownership is real from birth.
+scope_new_owned := func(parent: Option(ref Scope)) returns Scope {
+    mut raw : Scope = malloc(Scope.size())
+    memset(raw, 0, Scope.size())
+    raw.heap_bindings = Map(Str, HeapBinding).new()
+    raw.heap_aliases = Map(Str, Str).new()
+    raw.parent = parent
+    return raw
+}
+
 scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
     if scope_pool.len() > 0 {
         // Same steal-the-dead-slot recycle as scope_new above.
@@ -4562,9 +4578,8 @@ populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
 }
 
 interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
-    if ctx.ns_inited.not() {
-        ctx.ns_fields = scope_new_boxed(Option(ref Scope).None)
-        ctx.ns_inited = true
+    if ctx.ns_fields.is_none() {
+        ctx.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     }
     for stmt : Expr in program.children {
         switch stmt.node_type {
@@ -4627,10 +4642,25 @@ priv ns_qname := func(sname: Str, fname: Str) returns Str {
     return sname.concat3(".", fname)
 }
 
+// #324: the ns table, borrowed. PANICS on None: callers on this accessor
+// run only after interpreter_init_ns built the table, so an absent one is
+// a broken invariant. Callers for which absence is a REAL state (the
+// lookup-shaped ones -- a miss and an un-built table answer the same)
+// switch on the field instead.
+priv ns_scope := func(ctx: Context) returns ref Scope {
+    switch ctx.ns_fields {
+    case Option(Scope).Some(nsf): return nsf
+    case Option(Scope).None: panic(__LOC__, "ns_fields read before interpreter_init_ns")
+    }
+}
+
 ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dynamic) {
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
-    hb_o := scope_lookup_heap_binding(c.ns_fields, qn)
+    // An un-built table and a miss answer the same here: absence is a real
+    // state for lookups, so no ns_scope panic.
+    if c.ns_fields.is_none() { return Option(ref Dynamic).None }
+    hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     if hb_o.is_none() { return Option(ref Dynamic).None }
     ref hb : HeapBinding = hb_o.unwrap()
     ref slot : Dynamic = to_ptr(hb.ptr)
@@ -4639,17 +4669,17 @@ ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dyna
 
 
 priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type: Type, mut ctx: Context) {
-    ref mut c : Context = ctx
+    ref c : Context = ctx
     qn := ns_qname(sname, fname)
-    hb_o := scope_lookup_heap_binding(c.ns_fields, qn)
+    hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     // An existing binding's type is already canonical; a fresh one interns
     // the supplied type. scope_set_raw_owned panics on Unknown either way.
     if hb_o.is_some() {
-        scope_set_raw_owned(c.ns_fields, qn, raw, hb_o.unwrap().til_type_p, OwnType.Own, ctx)
+        scope_set_raw_owned(ns_scope(c), qn, raw, hb_o.unwrap().til_type_p, OwnType.Own, ctx)
         return
     }
     if supplied_type.is(Type.Unknown) { panic("namespace field type not found: ", qn) }
-    scope_set_raw_owned(c.ns_fields, qn, raw, interp_intern_type(supplied_type, ctx), OwnType.Own, ctx)
+    scope_set_raw_owned(ns_scope(c), qn, raw, interp_intern_type(supplied_type, ctx), OwnType.Own, ctx)
 }
 
 priv ns_decl_raw_type := func(decl: Declaration) returns Type {
@@ -4667,18 +4697,21 @@ priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
         }
     }
     qn := ns_qname(sname, fname)
-    hb_o := scope_lookup_heap_binding(ctx.ns_fields, qn)
+    if ctx.ns_fields.is_none() { panic("namespace field type not found: ", qn) }
+    hb_o := scope_lookup_heap_binding(ns_scope(ctx), qn)
     if hb_o.is_none() { panic("namespace field type not found: ", qn) }
     ref hb : HeapBinding = hb_o.unwrap()
     return hb_type(hb).clone()
 }
 
 interpreter_free_ns := func(mut ctx: Context) {
-    if ctx.ns_inited.not() { return }
-    scope_drop_owned_bindings(ctx.ns_fields)
-    scope_free(own ctx.ns_fields)
-    ctx.ns_fields = NULL
-    ctx.ns_inited = false
+    if ctx.ns_fields.is_none() { return }
+    scope_drop_owned_bindings(ns_scope(ctx))
+    // Move the table OUT of the field before freeing: the field is None the
+    // moment the free runs, and no later reassignment drains a dead value.
+    mut nsf_old := Option(Scope).None
+    swap(Option(Scope), ctx.ns_fields, nsf_old)
+    scope_free(own Option(Scope).take(own nsf_old))
 }
 
 // #192: write the count/cap USize fields of a freshly-malloc'd Str instance
@@ -6785,7 +6818,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
             ref other_hb : HeapBinding = other_hb_o.unwrap()
             ref other_raw : Dynamic = to_ptr(other_hb.ptr)
             ref other_def : Expr = callable_raw_func_def(other_raw)
-            for qn, candidate_hb in ctx.ns_fields.heap_bindings {
+            for qn, candidate_hb in ns_scope(ctx).heap_bindings {
                 if candidate_hb.is_static_callable.not() { continue }
                 ref candidate_raw : Dynamic = to_ptr(candidate_hb.ptr)
                 if callable_raw_func_def(candidate_raw).ptr_eq(other_def) {

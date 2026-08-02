@@ -701,8 +701,14 @@ Context := struct {
     // instead of terminating the process, so one panic does not end the
     // session. See h_exit.
     repl_session := false
-    ref ns_fields : Scope = NULL
-    ns_inited := false
+    // #321/#324: the namespace-fields table, OWNED. It was `ref ... = NULL`
+    // -- an owned pointer wearing a borrow label, freed through the #324
+    // hole -- with a separate ns_inited Bool as a second source of truth
+    // for "has it been built". The owned niche makes the honest spelling
+    // free: one word, None IS the un-built state (subsuming ns_inited), and
+    // teardown moves the scope out before scope_free instead of freeing
+    // through a ref field.
+    ns_fields := Option(Scope).None
 
     // Import tracking (rstil-style). Map path -> (mode, ast).
     imported := Map(Str, ImportUnit).new()

@@ -270,6 +270,11 @@ typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
+typedef enum {
+    Option__Scope_TAG_None,
+    Option__Scope_TAG_Some
+} Option__Scope_tag;
+typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
@@ -1513,6 +1518,25 @@ typedef struct TypeScope {
 } TypeScope;
 
 
+typedef struct GenericSources {
+    Map__Str_Dynamic defs;
+    Map__Str_GenericFuncSource sources;
+    Bool late;
+} GenericSources;
+
+
+typedef struct Scope {
+    Map__Str_HeapBinding heap_bindings;
+    Map__Str_Str heap_aliases;
+    Option__ref_Scope parent;
+    Bool is_call_scope;
+} Scope;
+
+
+struct Option__Scope {
+    Scope *data;
+};
+
 typedef struct Context {
     Mode mode;
     Str path;
@@ -1538,8 +1562,7 @@ typedef struct Context {
     Bool constfold_active;
     Bool eval_aborted;
     Bool repl_session;
-    Scope *ns_fields;
-    Bool ns_inited;
+    Option__Scope ns_fields;
     Map__Str_ImportUnit imported;
     Bool check_unused_imports;
     Set__Str import_use_edges;
@@ -1609,13 +1632,6 @@ typedef struct Context {
 } Context;
 
 
-typedef struct GenericSources {
-    Map__Str_Dynamic defs;
-    Map__Str_GenericFuncSource sources;
-    Bool late;
-} GenericSources;
-
-
 typedef struct LoadedProgram {
     Vec__ProgramUnit *core_units;
     Vec__ProgramUnit *units;
@@ -1634,14 +1650,6 @@ typedef struct LoadedProgram {
     I32 load_errors;
     I64 usize_override_bits;
 } LoadedProgram;
-
-
-typedef struct Scope {
-    Map__Str_HeapBinding heap_bindings;
-    Map__Str_Str heap_aliases;
-    Option__ref_Scope parent;
-    Bool is_call_scope;
-} Scope;
 
 
 Mode * Mode_clone(Mode * self);
@@ -2221,6 +2229,13 @@ FuncType * Map__Str_FuncType_get(Map__Str_FuncType * self, Str * key, I64 * _err
 void Map__Str_FuncType_set(Map__Str_FuncType * self, Str * key, FuncType * val);
 void Map__Str_FuncType_delete(Map__Str_FuncType * self, Bool call_free);
 Map__Str_FuncType * Map__Str_FuncType_clone(Map__Str_FuncType * self);
+Bool Option__Scope_is_some(Option__Scope self);
+Bool Option__Scope_is_none(Option__Scope self);
+Scope * Option__Scope_take(Option__Scope * self);
+Option__Scope Option__Scope_None(void);
+Option__Scope Option__Scope_Some(Scope * val);
+void Option__Scope_delete(Option__Scope * self, Bool call_free);
+Option__Scope Option__Scope_clone(Option__Scope self);
 Map__Str_ImportUnit * Map__Str_ImportUnit_new(void);
 Bool Map__Str_ImportUnit_has(Map__Str_ImportUnit * self, Str * key);
 ImportUnit * Map__Str_ImportUnit_get(Map__Str_ImportUnit * self, Str * key, I64 * _err_kind);
@@ -3809,6 +3824,7 @@ void * priv___src_self_interpreter_til__intern_slot(Vec__Dynamic * v, USize idx,
 void * interp_intern_type(Type t, Context * ctx);
 void priv___src_self_interpreter_til__scope_drop_existing_heap_slot(Scope * s, Str * name, Bool drop_nested);
 void scope_set_heap_owned(Scope * s, Str * name, void * ptr, void * til_type_w, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
+Scope * scope_new_owned(Option__ref_Scope parent);
 Scope * scope_new_boxed(Option__ref_Scope * parent);
 void scope_drop_owned_bindings(Scope * s);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, void * til_type_w, OwnType * own_type, Str * source_name, Scope * source_scope);
@@ -3829,6 +3845,7 @@ void * priv___src_self_interpreter_til__build_argv_array(Vec__Str * argv, USize 
 void populate_cached_aggregate_defs(Context * ctx, Expr * program);
 void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
+Scope * priv___src_self_interpreter_til__ns_scope(Context * ctx);
 Option__ref_Dynamic ns_get(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, void * raw, Type supplied_type, Context * ctx);
 Type * priv___src_self_interpreter_til__ns_decl_raw_type(Declaration * decl);
@@ -4026,6 +4043,7 @@ HeapBinding * Vec__HeapBinding_unsafe_get(Vec__HeapBinding * self, USize * i);
 void Vec__HeapBinding_unsafe_set(Vec__HeapBinding * self, USize i, HeapBinding * val);
 void Vec__HeapBinding_delete(Vec__HeapBinding * self, Bool call_free);
 Vec__HeapBinding * Vec__HeapBinding_clone(Vec__HeapBinding * self);
+void swap__Option__Scope(Option__Scope * a, Option__Scope * b);
 void adopt__HeapBinding(void * dest, HeapBinding * src);
 void adopt__priv___src_self_interpreter_til__DynPtrBox(void * dest, priv___src_self_interpreter_til__DynPtrBox * src);
 Bool priv___src_self_binder_til__bind_is_ws(I8 c);
