@@ -754,11 +754,7 @@ typedef struct TypeBinding {
 
 
 struct ScopeFind {
-    U8 tag;
-    union {
-        TypeBinding Found;
-        void *_til_payload_align;
-    } data;
+    TypeBinding *data;
 };
 
 typedef struct GenericFuncSource {
@@ -1444,11 +1440,7 @@ typedef struct Map__Str_GenericFuncSource {
 
 
 struct priv___src_self_typer_til__CtorArg {
-    U8 tag;
-    union {
-        Expr Filled;
-        void *_til_payload_align;
-    } data;
+    Expr *data;
 };
 
 typedef struct priv___src_self_typer_til__CoverageNode {
@@ -1459,11 +1451,7 @@ typedef struct priv___src_self_typer_til__CoverageNode {
 
 
 struct Option__Expr {
-    U8 tag;
-    union {
-        Expr Some;
-        void *_til_payload_align;
-    } data;
+    Expr *data;
 };
 
 typedef struct priv___src_self_garbager_til__GcCfgBlock {
@@ -2072,15 +2060,15 @@ void EvalHeap_delete(EvalHeap * self, Bool call_free);
 EvalHeap EvalHeap_clone(EvalHeap self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
-ScopeFind * ScopeFind_NotFound(void);
-ScopeFind * ScopeFind_Found(TypeBinding * val);
+ScopeFind ScopeFind_NotFound(void);
+ScopeFind ScopeFind_Found(TypeBinding * val);
 Bool ScopeFind_is(ScopeFind * self, ScopeFind * other);
 void ScopeFind_delete(ScopeFind * self, Bool call_free);
 Option__ref_Expr priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
 Option__ref_TypeBinding priv___src_self_context_til__bindings_lookup_one(Map__Str_TypeBinding * m, Str * name);
 Option__ref_TypeBinding TypeScope_get_binding(TypeScope * self, Str * name);
 Bool TypeScope_in_function(TypeScope * self);
-ScopeFind * TypeScope_find(TypeScope * self, Str * name);
+ScopeFind TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
 FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_get_struct(TypeScope * self, Str * name);
@@ -2167,6 +2155,8 @@ I64 enum_variant_tag_at(Expr * enum_def, I32 idx);
 I32 enum_variant_index(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 idx);
 Bool enum_variant_payload_const(Expr * enum_def, I32 idx);
+Bool niche_payload_is_owned_box(Str * vtype);
+Bool enum_variant_payload_funcsig(Expr * enum_def, I32 idx);
 Bool enum_is_niche(Expr * enum_def);
 I32 enum_niche_some_index(Expr * enum_def);
 Bool enum_variant_payload_ref(Expr * enum_def, I32 idx);
@@ -2548,12 +2538,12 @@ Bool priv___src_self_typer_til__fa_is_ns_named(Expr * e, TypeScope * scope, Str 
 Expr * make_til_type_expr(Expr * src, Type * t);
 void priv___src_self_typer_til__rewrite_til_type_arg(TypeScope * scope, Expr * parent, USize arg_idx, Type * ptype, I32 in_func, Context * ctx);
 OwnType fa_own_type(Expr * e, TypeScope * scope);
-priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Unfilled(void);
-priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_Filled(Expr * val);
+priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg_Unfilled(void);
+priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg_Filled(Expr * val);
 Bool priv___src_self_typer_til__CtorArg_is(priv___src_self_typer_til__CtorArg * self, priv___src_self_typer_til__CtorArg * other);
 void priv___src_self_typer_til__CtorArg_delete(priv___src_self_typer_til__CtorArg * self, Bool call_free);
-Str * priv___src_self_typer_til__CtorArg_to_str(priv___src_self_typer_til__CtorArg * self);
-priv___src_self_typer_til__CtorArg * priv___src_self_typer_til__CtorArg_clone(priv___src_self_typer_til__CtorArg * self);
+Str * priv___src_self_typer_til__CtorArg_to_str(priv___src_self_typer_til__CtorArg self);
+priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg_clone(priv___src_self_typer_til__CtorArg self);
 void type_error(Expr * e, Str * msg, Context * ctx);
 void type_error_at(Str * path, U32 line, U32 col, Str * msg, Context * ctx);
 Option__ref_Expr find_namespace_func(Expr * sdef, Str * method, TypeScope * scope);
@@ -2712,7 +2702,7 @@ Bool expr_contains_decl(Expr * e, Str * name);
 Str * type_prefix(Type * t);
 Str * type_to_name(Type * t);
 Expr * make_closure_delete_call(Str * var_name, Expr * src);
-Option__Expr * make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
+Option__Expr make_delete_call(Str * var_name, Type type, Bool arg_is_own, Bool call_free, Expr * src);
 Expr * priv___src_self_typer_til__named_arg_inner(Expr * arg);
 Bool transfer_is_shallow_field_value_copy(Expr * e, Str * var_name, TypeScope * scope);
 Expr * make_free_call(Str * var_name, Type type, Expr * src);
@@ -2779,11 +2769,11 @@ priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, USize
 void Vec__CtorArg_unsafe_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val);
 void Vec__CtorArg_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val, I64 * _err_kind);
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
-Bool Option__Expr_is_some(Option__Expr * self);
-Bool Option__Expr_is_none(Option__Expr * self);
+Bool Option__Expr_is_some(Option__Expr self);
+Bool Option__Expr_is_none(Option__Expr self);
 Expr * Option__Expr_take(Option__Expr * self);
-Option__Expr * Option__Expr_None(void);
-Option__Expr * Option__Expr_Some(Expr * val);
+Option__Expr Option__Expr_None(void);
+Option__Expr Option__Expr_Some(Expr * val);
 void Option__Expr_delete(Option__Expr * self, Bool call_free);
 Vec__CoverageNode * Vec__CoverageNode_new(void);
 void Vec__CoverageNode_clear(Vec__CoverageNode * self);
@@ -2925,7 +2915,7 @@ priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInf
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 Bool priv___src_self_garbager_til__heap_local_is_callable(priv___src_self_garbager_til__LocalInfo * local);
 Bool priv___src_self_garbager_til__gc_delete_is_noop(priv___src_self_garbager_til__LocalInfo * local);
-Option__Expr * priv___src_self_garbager_til__gc_make_delete(priv___src_self_garbager_til__LocalInfo * local, Expr * src);
+Option__Expr priv___src_self_garbager_til__gc_make_delete(priv___src_self_garbager_til__LocalInfo * local, Expr * src);
 Bool priv___src_self_garbager_til__transfer_is_destructor_call(Expr * stmt, Str * name);
 Str * priv___src_self_garbager_til__gc_audit_flag(Bool b);
 Str * priv___src_self_garbager_til__gc_audit_strip_counter(Str * name);
@@ -3069,7 +3059,7 @@ U8 priv___src_self_constfolder_til__hex_digit_value(I8 b);
 Str * priv___src_self_constfolder_til__from_source_form(Str * s);
 Bool priv___src_self_constfolder_til__needs_source_escape(Str * s);
 Str * priv___src_self_constfolder_til__str_to_source_form(Str * s);
-Option__Expr * priv___src_self_constfolder_til__raw_to_expr(void * raw, Type t, Expr * src, Context * ctx);
+Option__Expr priv___src_self_constfolder_til__raw_to_expr(void * raw, Type t, Expr * src, Context * ctx);
 void * priv___src_self_constfolder_til__expr_to_known_raw(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__result_type_can_fold_to_expr(Type * t, Context * ctx);
 Bool priv___src_self_constfolder_til__struct_result_can_fold_to_expr(Str * sname, Context * ctx);
@@ -3081,8 +3071,8 @@ Bool priv___src_self_constfolder_til__func_uses_unknown_globals(Expr * e, Expr *
 Option__ref_Expr priv___src_self_constfolder_til__extract_trivial_literal_return(Expr * fdef);
 Option__ref_Dynamic priv___src_self_constfolder_til__ns_lookup_flat(Str * name, Context * ctx);
 Str * priv___src_self_constfolder_til__fa_recv_type_name(Expr * callee, Context * ctx);
-Option__Expr * priv___src_self_constfolder_til__try_fast_fold_call(Scope * scope, Expr * fcall, Context * ctx);
-Option__Expr * priv___src_self_constfolder_til__try_eval_call(Scope * scope, Expr * fcall, Bool require_known, Context * ctx);
+Option__Expr priv___src_self_constfolder_til__try_fast_fold_call(Scope * scope, Expr * fcall, Context * ctx);
+Option__Expr priv___src_self_constfolder_til__try_eval_call(Scope * scope, Expr * fcall, Bool require_known, Context * ctx);
 void priv___src_self_constfolder_til__track_literal(Scope * scope, Str * name, Expr * rhs, Context * ctx);
 void priv___src_self_constfolder_til__track_literal_known_only(Str * name, Expr * rhs, Context * ctx);
 Bool is_macro_call(Expr * e, Context * ctx);
@@ -3208,10 +3198,10 @@ void priv___src_self_loader_til__ns_alias_rewrite_child(Expr * e, USize i, Set__
 void priv___src_self_loader_til__rewrite_ns_alias_uses(Expr * e, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed, Context * ctx);
 void priv___src_self_loader_til__desugar_namespace_imports(Str * path, ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
-Option__Expr * priv___src_self_loader_til__lazy_single_return_value(Expr * body);
+Option__Expr priv___src_self_loader_til__lazy_single_return_value(Expr * body);
 Expr * priv___src_self_loader_til__lazy_make_bool_match(Expr * cond, Expr * x, Expr * y, U32 line, U32 col);
 Expr * priv___src_self_loader_til__lazy_build_guard_chain(Expr * body, USize i, USize n);
-Option__Expr * priv___src_self_loader_til__lazy_body_as_expr(Expr * body);
+Option__Expr priv___src_self_loader_til__lazy_body_as_expr(Expr * body);
 Bool priv___src_self_loader_til__inline_lazy_call(Expr * parent, USize call_idx, Expr * fdef);
 Expr * priv___src_self_loader_til__lazy_eff_arg_clone(Expr * call, Bool is_method, USize k);
 Map__Str_Expr * priv___src_self_loader_til__lazy_variadic_subs(Expr * call, Bool is_method, Expr * fdef, USize nfixed, Str * loop_var, USize k);
@@ -3238,7 +3228,7 @@ Map__Str_Expr * priv___src_self_loader_til__lazy_build_subs(Expr * call, Expr * 
 Expr * priv___src_self_loader_til__lazy_make_temp_decl(Str * name, Str * type_name, Expr * init, U32 line, U32 col);
 Expr * priv___src_self_loader_til__lazy_make_assign(Str * name, Expr * rhs, U32 line, U32 col);
 Option__ref_Expr priv___src_self_loader_til__lazy_stmt_inlinable_call(Expr * call, TypeScope * scope, Context * ctx);
-Option__Expr * priv___src_self_loader_til__lazy_build_prelude(Expr * call, Expr * fdef, Vec__Expr * new);
+Option__Expr priv___src_self_loader_til__lazy_build_prelude(Expr * call, Expr * fdef, Vec__Expr * new);
 Option__ref_Expr priv___src_self_loader_til__lazy_stmt_value_slot(Expr * s);
 void priv___src_self_loader_til__lazy_stmt_inline_body(Expr * body, TypeScope * scope, Context * ctx);
 void priv___src_self_loader_til__lazy_stmt_inline_walk(Expr * e, TypeScope * scope, I32 depth, Context * ctx);

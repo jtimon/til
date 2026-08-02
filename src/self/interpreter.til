@@ -2033,6 +2033,19 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
                 // word, widen, and give the binding its own block.
                 prim_w : Dynamic = raw_widen_numeric(scalar_word_load(rhs_type, pointed, ctx), rhs_type, dd.explicit_type, ctx)
                 scope_set_raw_owned(scope, dd.name, scalar_block_from_word(decl_type, prim_w, ctx), bind_type_w, dd.own_type, ctx)
+            } else if dd.name.starts_with("_steal_") {
+                // #321: the typer's niche move-out temp is the one owned decl
+                // whose ref-returning RHS hands over an ORPHAN: get_payload
+                // loaded the payload box out of an enum the same block is
+                // about to shell-free, so nothing else owns it. The general
+                // rule below CLONES, which is value-correct but orphans the
+                // box -- a 24-byte leak per taken payload, interp-only,
+                // because the compiled backend hands the pointer on with zero
+                // copies. Adopting the box IS the interpreter's mirror of
+                // that hand-over. The gate is the same compiler-internal
+                // `_steal_` prefix the typer's own-result exemption uses, so
+                // no user-writable spelling reaches this arm.
+                scope_set_raw_owned(scope, dd.name, pointed, bind_type_w, dd.own_type, ctx)
             } else {
                 mut copied : Dynamic = heap_clone_by_type(rhs_type, pointed, ctx)
                 copied = raw_coerce_value(copied, rhs_type, decl_type, ctx, dd.own_type)

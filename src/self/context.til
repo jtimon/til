@@ -1819,6 +1819,51 @@ enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
 // The soundness argument is #321's: a `ref` points at something, so the
 // null bit pattern is free to mean "the other variant". That is what
 // makes Option(ref T) one word and ABI-identical to a nullable C pointer.
+// #321: is this payload type a heap BOX -- a value til represents as a
+// pointer, so it can never be null and can carry the niche, and someone has
+// to free the box itself? Each exclusion is a way that stops being true:
+// primitives live inline and 0 is a legal value; Dynamic is the quarantined
+// raw layer where null IS legal; a Str literal is a static Str rather than
+// a box. (Funcptr payloads are excluded by the stamped payload_funcsig
+// flag, not by name -- a named FuncSig alias hides the pointer.)
+niche_payload_is_owned_box := func(vtype: Str) returns Bool {
+    if vtype.len() == 0 { return false }
+    if vtype == "Dynamic" { return false }
+    if vtype == "Str" { return false }
+    if vtype.starts_with("_Fn_") { return false }
+    switch vtype {
+    case "I64": return false
+    case "U8": return false
+    case "I8": return false
+    case "I16": return false
+    case "U16": return false
+    case "I32": return false
+    case "U32": return false
+    case "U64": return false
+    case "USize": return false
+    case "UPtr": return false
+    case "F32": return false
+    case "Bool": return false
+    case: return true
+    }
+}
+
+// #321: payload_funcsig of a variant by declaration INDEX, for callers that
+// hold the def and an index rather than the VariantDef itself.
+enum_variant_payload_funcsig := func(enum_def: Expr, idx: I32) returns Bool {
+    switch enum_def.node_type {
+    case NodeType.EnumDef(edd):
+        idx_u := idx.to_usize()
+        if idx_u < edd.variants.len() {
+            ref vd : VariantDef = edd.variants[idx_u]
+            return vd.payload_funcsig
+        }
+    case:
+        UNREACHABLE()
+    }
+    return false
+}
+
 enum_is_niche := func(enum_def: Expr) returns Bool {
     switch enum_def.node_type {
     case NodeType.EnumDef(edd):
@@ -1832,9 +1877,9 @@ enum_is_niche := func(enum_def: Expr) returns Bool {
             // #321: a funcptr payload never joins the niche -- a distinct C
             // shape (TilClosure *) with its own delete/clone special cases.
             // Stamped by the initer, because the parser cannot see through a
-            // named FuncSig alias. Dead today (the owned-box arm below is not
-            // in yet); it exists so the flip cannot regress fn_ptr again.
+            // named FuncSig alias.
             if vd.payload_funcsig { continue }
+            if niche_payload_is_owned_box(vd.payload_type) { ref_payloads++ }
         }
         return payload_less.eq(1).and(ref_payloads.eq(1))
     case:

@@ -196,12 +196,14 @@ test_option_ref_str_payload := test() {
 }
 
 test_option_niche_layout := test() {
-    // #320 niche: Option(ref T) is ONE pointer wide -- None IS the null
-    // bit pattern, so there is no tag. The owned instantiation cannot use
-    // the niche (an owned payload has no spare bit pattern) and keeps the
-    // tagged layout.
+    // #320/#321 niche: Option(T) is ONE pointer wide -- None IS the null bit
+    // pattern, so there is no tag. BOTH instantiations qualify: a ref payload
+    // is a borrowed pointer, and an owned aggregate payload is a heap box,
+    // which is just as non-null. (#321 overturned the original ruling here,
+    // which assumed an owned payload had no spare bit pattern; it does,
+    // because til never stores an aggregate inline outside an enum.)
     assert_eq(USize, Option(ref OptSrc).size(), UPtr.size())
-    expect(Option(OptSrc).size().gt(UPtr.size()), "owned Option stays tagged")
+    assert_eq(USize, Option(OptSrc).size(), UPtr.size())
 }
 
 // #321: a function returning Option(ref T) hands a BORROW back, exactly

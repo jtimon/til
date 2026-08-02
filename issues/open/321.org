@@ -1421,6 +1421,35 @@ dispatch_result_alloc <- eval_declaration in the ASAN stack. The interp
 needs its own notion of handing the box on, mirroring what write_enum_flat
 already does for construction. That is the last piece before the flip.
 
+**** Batch 34: THE FLIP LANDS -- Option(T) is one word
+
+enum_is_niche accepts an owned aggregate payload. Full two-pass suite:
+206/206, ZERO leaks. Six attempts, each of which shipped its
+preparation; the last missing piece was the interpreter's mirror of the
+zero-copy take, and it was a five-line arm in eval_declaration: the
+`_steal_` temp is the one owned decl whose ref-returning RHS hands over
+an ORPHAN (get_payload loaded the box out of an enum the same block
+shell-frees), so the interp now ADOPTS the box there instead of cloning
+it -- the exact analogue of the compiled backend handing the pointer on.
+
+PERF, the reason this existed: self-translate 21.5-22.5s, vs 27.3/27.5s
+after the Option(Expr) migration and 26.3/26.8s BEFORE it. The niche
+did not just erase batch 20's ~3% regression -- it is ~18% faster than
+the NULL-era baseline, because every two-variant owned-payload enum in
+the compiler (CtorArg, ScopeFind, Option(Expr), ...) became a one-word
+value with no ctor malloc, no tag branch, and a zero-copy take.
+
+What this unblocks, in dependency order:
+- Declaration.default_value -> Option(Expr): the biggest remaining
+  NULL consumer (94 is_null + 271 other uses), no longer a memory
+  question -- the field stays 8 bytes.
+- #324's owning-optional fields (constfolder_known, ns_fields, global,
+  InterpCallableBox.env, FFIEntry buffers): owned Option(Scope) is one
+  word, absence is a real tag, and assigning Some over None cannot
+  Scope_delete(NULL).
+- raylib.til's 29 nullable fields (the construction-contract question
+  remains #324's, but the shape now exists).
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

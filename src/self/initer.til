@@ -986,20 +986,32 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
             self_arg.set_til_type(Type.Enum(ename.clone()))
             mut gc := make_get_payload_fcall(own self_arg, type_from_name_init(vtype, scope), line, col)
             set_own_arg(del_call, del_call.children.len())
-            // #321 stage 2/3: get_payload LOADS a pointer slot itself now, so
-            // the old conditional deref wrapper here was a double-load waiting
-            // to go live; it is gone. call_free stays a literal false: every
-            // payload that reaches this point is stored INLINE today (borrowed
-            // payloads continue'd above, and the owned-payload niche has not
-            // flipped on), so its storage is the enum's own. The flip commit
-            // must revisit this literal -- a niche payload is its own box and
-            // needs TRUE -- and cannot use enum_payload_is_pointer_slot for
-            // it: that predicate answers the WRAPPER question and reads false
-            // for a niche, and this generator runs before the EnumDef's
-            // variants are populated besides. Decide from the variant lists
-            // passed in, mirroring enum_is_niche's rule exactly.
+            // #321: a payload in a NICHE's pointer slot is its own heap box,
+            // so its delete must free the box: call_free TRUE. An inline
+            // payload keeps false -- its storage IS the enum's, and freeing
+            // it would free the enum out from under the caller. Borrowed
+            // payloads never reach here (they continue'd above).
+            //
+            // enum_payload_is_pointer_slot cannot answer this: it now answers
+            // the deref-WRAPPER question (false for a niche, whose
+            // get_payload loads its own slot), and this generator runs before
+            // the EnumDef's variants are populated besides. Decide from the
+            // variant lists passed in, mirroring enum_is_niche's rule
+            // exactly -- including the funcsig exclusion, via the def's
+            // stamped flag.
             del_call.add_child(own gc)
-            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
+            mut nfl_payload_less := 0
+            mut nfl_boxed := 0
+            for nk in 0..variant_types.len() {
+                ref nvt : Str = variant_types[nk]
+                if nvt.len() == 0 { nfl_payload_less = nfl_payload_less + 1; continue }
+                if enum_variant_payload_ref(enum_def, nk.to_i32()) { continue }
+                if enum_variant_payload_funcsig(enum_def, nk.to_i32()) { continue }
+                if niche_payload_is_owned_box(nvt) { nfl_boxed = nfl_boxed + 1 }
+            }
+            payload_in_slot := variant_types.len().eq(2).and(nfl_payload_less == 1).and(nfl_boxed == 1)
+
+            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(payload_in_slot)), line, col)
             del_call.add_child(own false_lit)
             then_body.add_child(own del_call)
 
