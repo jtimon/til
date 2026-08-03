@@ -4579,8 +4579,19 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
 
     mut fi : USize = 0
     for i in 1..expr.children.len() {
+        // #326: the TYPE NAME (child 1) is read at compile time exactly
+        // like the method name (child 2) -- collect_refs pairs the two
+        // string literals into the `Type.method` root, and
+        // builder_collect_dyn_fn_targets into the emit target. Only child 2
+        // was exempt, so a literal type name was hoisted into a pooled-Str
+        // temp and BOTH readers saw an Ident instead of a literal, falling
+        // back to the `*.method` wildcard: one `dyn_fn("I64", "to_str")`
+        // kept and emitted `to_str` on EVERY type, the compiler's own
+        // Expr/NodeType model included. A runtime type expression is
+        // unaffected -- it is already an Ident, nothing to hoist -- so the
+        // wildcard still fires exactly where it is meant to.
         if is_dyn_call {
-            if i.eq(2).or(i.eq(3)) { continue }
+            if i.eq(1).or(i.eq(2)).or(i.eq(3)) { continue }
         }
         if is_array_vec {
             if i == 1 { continue }

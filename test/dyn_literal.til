@@ -1,0 +1,29 @@
+mode script
+
+// Issue #326 reachability regression fixture: dyn dispatch on a LITERAL
+// type name.
+//
+// `dyn_fn("I64", "to_str")` names its target completely at compile time, so
+// the scavenger's root is the exact pair `I64.to_str` and the builder emits
+// exactly one `_dyn` wrapper. That exact-pair path existed but never ran:
+// only the METHOD argument was exempt from arg hoisting, so a literal TYPE
+// name was hoisted into a pooled-Str temp and both readers saw an Ident
+// instead of a literal, falling back to the `*.method` wildcard that keeps
+// `to_str` on EVERY type -- including the compiler's own Expr/NodeType
+// model, which is why this file used to emit 3,125 lines of C for four
+// statements.
+//
+// The other fixtures cannot catch this: test/dyn_vecs.til and friends reach
+// dyn dispatch through std/dyn_array, whose `dyn_fn(elem_type, "clone")`
+// takes a RUNTIME type and so needs the wildcard by construction. Only a
+// fully-literal call proves the exact pair works.
+//
+// dyn_literal_no_ast_model asserts the AST model is absent from the
+// generated C; the `both` entry proves what survives still dispatches, in
+// the interpreter (which resolves the pair by runtime name off the AST) as
+// well as compiled.
+
+to_str_fn : Dynamic = dyn_fn("I64", "to_str")
+
+n : I64 = 42
+println("dyn_literal ", n.to_str())

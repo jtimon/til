@@ -556,6 +556,17 @@ main := proc(args: ..Str) {
     // prints a number carried both struct definitions and both tag enums
     // with nothing referencing them. `Primitive_TAG` is the witness -- it
     // appears once per variant, so a partial regression still trips it.
+    // dyn dispatch on a LITERAL type name roots the exact `Type.method`
+    // pair, not the `*.method` wildcard. Only the METHOD argument was exempt
+    // from arg hoisting, so a literal TYPE name became a pooled-Str temp and
+    // both the scavenger and the builder inventory saw an Ident instead of a
+    // literal -- falling back to the wildcard, which keeps `to_str` on EVERY
+    // type, the compiler's own Expr/NodeType model included. The dyn-heavy
+    // fixtures cannot catch this: they reach dispatch through std/dyn_array,
+    // whose `dyn_fn(elem_type, "clone")` takes a RUNTIME type and needs the
+    // wildcard by construction. 3,130 -> 497 lines of C for this fixture.
+    add_count(tests, "dyn_literal_no_ast_model", "build", "NodeType", 0,
+        format(til_bin, " translate -c gen/c/dyn_literal.c test/dyn_literal.til '&&' cat gen/c/dyn_literal.c"))
     add_count(tests, "minimal_reach_no_comptime_type", "build", "Primitive_TAG", 0,
         format(til_bin, " translate -c gen/c/minimal_reach_ct.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ct.c"))
     add_count(tests, "minimal_reach_no_unread_global", "build", "UNREAD_GLOBAL", 0,
@@ -757,6 +768,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/bug315.til", flags)
     add_both(tests, "test/dead_temps.til", flags)
     add_both(tests, "test/minimal_reach.til", flags)
+    add_both(tests, "test/dyn_literal.til", flags)
     add_both(tests, "test/mut_arg_str_lit.til", flags)
     add_both(tests, "test/mut_capture_str_lit.til", flags)
     add_both(tests, "test/literal_field_access.til", flags)
