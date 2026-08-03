@@ -1124,6 +1124,16 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
         "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", 0,
         format(exp, "cli_scalars.out"), til_bin, asan_flag)
+    // #333 follow-up: the F64 primitive (64-bit float). Commit A surface:
+    // literals (1e100 proves real double width -- an F32 path prints inf),
+    // FFI calls through ffi_type_double, F64<->F32 conversion, parse and
+    // three-way compare, identical in both backends. Method ergonomics
+    // (clone/add/to_str core_funcs) land with the numbers.til follow-up.
+    File.writefile(format(exp, "f64.out"),
+        format("1.5", NL, "1e+100", NL, "0.125", NL, "1", NL, "2.5", NL, "1.5", NL))
+    add_cli_pair(tests, "f64", "test/f64.til",
+        "0.125", 0,
+        format(exp, "f64.out"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)

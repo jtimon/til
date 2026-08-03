@@ -24,6 +24,9 @@ Primitive := enum {
     I64,
     F32,
     Bool,
+    // #333: 64-bit float (C double). Appended after Bool so every
+    // pre-existing variant keeps its tag value.
+    F64,
 }
 
 // --- Type enum ---
@@ -642,6 +645,7 @@ TYPE_BODY : Type = Type.Body
 TYPE_BOOL : Type = Type.Primitive(Primitive.Bool)
 TYPE_I64 : Type = Type.Primitive(Primitive.I64)
 TYPE_F32 : Type = Type.Primitive(Primitive.F32)
+TYPE_F64 : Type = Type.Primitive(Primitive.F64)
 TYPE_STR : Type = Type.Struct("Str")
 TYPE_STRUCTDEF : Type = Type.Struct("StructDef")
 TYPE_ENUMDEF : Type = Type.Struct("EnumDef")

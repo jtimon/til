@@ -286,6 +286,47 @@ really is pure -- often the right fix is to flip *it* to
 *This destroys any hand-edits.*  Re-do the audit (see above)
 before committing the regenerated files.
 
+*libffi is generated from a BUILD ARTIFACT, not from tracked
+source.*  ~LIBFFI_BINDGEN_INCDIR~ points at
+~vendor/libffi/x86_64-pc-linux-gnu/include~, which
+~vendor/libffi/.gitignore~ ignores -- it appears only after
+libffi is configured and built locally, and ~vendor/libffi/.built~
+then short-circuits any rebuild.  A checkout whose build predates
+a libffi upgrade therefore still has the OLD ~ffi.h~ while the
+tracked source is already the new version, and regenerating there
+silently rewrites ~vendor/bindings/libffi.til~ against the older
+ABI: declarations that exist only in the newer release simply
+vanish.  Nothing fails -- no test calls them -- so the file just
+describes the wrong libffi until someone uses one of the missing
+APIs and gets "not registered".
+
+Before regenerating libffi, check that the header the regen will
+read matches the source the repo ships:
+
+#+begin_src sh
+grep -m1 'libffi [0-9]' vendor/bindings/libffi.til                       # what the binding was built from
+grep -m1 'libffi [0-9]' vendor/libffi/x86_64-pc-linux-gnu/include/ffi.h  # what the regen will read
+grep -m1 AC_INIT vendor/libffi/configure.ac                              # what the repo ships
+#+end_src
+
+~make clean~ deletes that build directory, so the middle path is
+simply missing on a freshly cleaned tree -- which is the safe
+state: the next ~make~ rebuilds it from the tracked source.  The
+dangerous state is a tree built BEFORE a libffi upgrade, where the
+directory exists and holds the older ~ffi.h~ while ~.built~
+suppresses the rebuild.
+
+If the built header is behind (or you are unsure), either force a
+rebuild first (~rm -rf vendor/libffi/x86_64-pc-linux-gnu
+vendor/libffi/.built~, then ~make~) or keep
+~vendor/bindings/libffi.til~ out of the regeneration -- restore it
+with ~git checkout HEAD -- vendor/bindings/libffi.til~ and re-apply
+the audit to the other three only.  This bit a real session: a
+container built before the 3.4.6 -> 3.7.1 upgrade regenerated
+against the old header and would have dropped ~ffi_call_plan~,
+~ffi_get_version~, ~FFI_TYPE_UINT128~ and friends from the
+committed binding, with a green test suite.
+
 nng has four hand-edits the generator cannot produce, all of
 which must be re-applied after regeneration:
 

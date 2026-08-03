@@ -132,6 +132,7 @@ builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool 
     if name == "U32"  { out = Primitive.U32; return true }
     if name == "U64"  { out = Primitive.U64; return true }
     if name == "F32"  { out = Primitive.F32; return true }
+    if name == "F64"  { out = Primitive.F64; return true }
     if name == "Bool" { out = Primitive.Bool; return true }
     return false
 }
@@ -147,6 +148,7 @@ builtin_primitive_size_align := func(prim: Primitive, mut sz: USize, mut al: USi
     case Primitive.U32:  sz = 4; al = 4
     case Primitive.U64:  sz = 8; al = 8
     case Primitive.F32:  sz = 4; al = 4
+    case Primitive.F64:  sz = 8; al = 8
     case Primitive.Bool: sz = 1; al = 1
     }
 }
@@ -2701,6 +2703,7 @@ til_type_name_c := func(t: Type) returns Str {
     case Type.Primitive(Primitive.U32):       return "U32"
     case Type.Primitive(Primitive.U64):       return "U64"
     case Type.Primitive(Primitive.F32):       return "F32"
+    case Type.Primitive(Primitive.F64):       return "F64"
     case Type.Primitive(Primitive.Bool):      return "Bool"
     case Type.Struct:    return "Struct"
     case Type.StructDef: return "StructDef"

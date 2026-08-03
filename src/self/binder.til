@@ -133,6 +133,22 @@ priv parse_c_int_literal := func(s: Str, from: USize, to: USize, mut success: Bo
 // verbatim, on the assumption it's a typedef declared elsewhere in the
 // same generated output (struct typedef, enum typedef, plain alias).
 
+// #333: C base types til cannot represent at all. There is no 64-bit
+// float primitive, so a `double` by value (parameter, return, or field)
+// cannot be bound at any width -- and narrowing it to F32 corrupts the
+// value silently. A binding that cannot be expressed must refuse to exist
+// rather than lie about its width, which is the downgrade the rest of this
+// generator already uses for shapes it cannot express. Pointers are
+// exempt: `double *` is a Dynamic like any other pointer, and the width
+// never crosses the boundary. Delete this once an F64 primitive exists
+// (then `double` maps to it and `long double` still refuses).
+priv c_base_unsupported := func(c: Str) returns Bool {
+    // `double` maps to F64 now; `long double` (16 bytes on x86-64) still
+    // has no til type, so declarations carrying one by value keep being
+    // refused rather than bound at a lying width.
+    return c.eq("long double")
+}
+
 priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     switch c {
     case "void": out.push_str("Dynamic"); return true
@@ -178,11 +194,11 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     case "bool":                   out.push_str("Bool"); return true
     case "_Bool":                  out.push_str("Bool"); return true
     case "float":                  out.push_str("F32"); return true
-    // til has no 64-bit float type; map `double` / `long double` onto F32
-    // (precision-truncation) so bindings still type-check. Functions that
-    // genuinely need 64-bit precision must be hand-edited.
-    case "double":                 out.push_str("F32"); return true
-    case "long double":            out.push_str("F32"); return true
+    // #333: `double` maps to the F64 primitive that closed it. The old
+    // mapping onto F32 was an ABI lie -- 4 bytes read where C wrote 8,
+    // silently, in both backends. `long double` has no til type and falls
+    // through; c_base_unsupported makes its by-value declarations refuse.
+    case "double":                 out.push_str("F64"); return true
     case:
     }
     // Unknown -- pass through. Typedefs from the same header land here and
@@ -409,6 +425,12 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     // The line's trailing comment describes the whole group ("Matrix first
     // row (4 components)"), so it rides on the first field of the group
     // rather than being repeated on each.
+    // #333: a by-value double field would mis-size the struct the same way
+    // a double parameter mis-sizes a call frame; refuse it here, where the
+    // caller can downgrade, rather than bind it at 4 bytes.
+    if ptrs.eq(0).and(c_base_unsupported(line.substr(base_off, prev_end - base_off))) {
+        return false
+    }
     bind_push_field(bs, out, line, base_off, prev_end, name_start, name_end, ptrs, comment)
 
     // Remaining declarators: `, m4, m8, m12`. Each contributes its own stars
@@ -431,6 +453,9 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         if q >= n { return false }
         dws := skip_word(line, q)
         if dws == q { return false }
+        if dptrs.eq(0).and(c_base_unsupported(line.substr(base_off, prev_end - base_off))) {
+            return false
+        }
         bind_push_field(bs, out, line, base_off, prev_end, q, dws, dptrs, "")
         q = skip_ws(line, dws)
         if q < n {
@@ -1173,6 +1198,9 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         // pointer-to-X) aren't scalar, so the typer rejects
                         // `shallow`. Drop the qualifier so the default Ref
                         // applies, matching the underlying C pointer.
+                        // #333: a by-value double has no til type; refuse
+                        // the declaration rather than bind it at 4 bytes.
+                        if c_base_unsupported(p_base_view) { failed = true; break }
                         if is_alias_to_dynamic(bs, p_base_view).not() {
                             params_buf.push_str("shallow ")
                         }
@@ -1209,6 +1237,11 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         pp = e + 1
     }
     if failed { return false }
+    // #333: same refusal for a by-value double RETURN (a `double *` return
+    // is a Dynamic and stays fine).
+    if ret_ptrs.eq(0).and(c_base_unsupported(sig.substr(ret_base_start, ret_base_len))) {
+        return false
+    }
 
     if ret_ptrs.eq(0).and(ret_is_void) {
         out.push_str(sig.substr(name_start, before_end - name_start))

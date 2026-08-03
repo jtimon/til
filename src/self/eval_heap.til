@@ -38,6 +38,19 @@ word_bits := ext_func(w: Dynamic) returns shallow U64 {}
 bits_word := ext_func(shallow b: U64) returns shallow Dynamic {}
 f32_word := ext_func(shallow f: F32) returns shallow U64 {}
 word_f32 := ext_func(shallow b: U64) returns shallow F32 {}
+// F64 values as U64 bit words (#333). These signatures mention only
+// U64/I64/Str on purpose: this file is part of the compiler's own import
+// graph, which the PREVIOUS bootstrap compiler -- no F64 type yet --
+// must still compile. The double math happens in ext.c.
+f64_bits_add := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+f64_bits_sub := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+f64_bits_mul := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+f64_bits_div := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+f64_bits_cmp := ext_func(shallow a: U64, shallow b: U64) returns shallow I64 {}
+str_parse_f64_bits := ext_func(s: Str) returns shallow U64 {}
+f64_bits_to_str := ext_func(shallow b: U64) returns Str {}
+f64_bits_to_repr := ext_func(shallow b: U64) returns Str {}
+f64_bits_from_i64 := ext_func(shallow v: I64) returns shallow U64 {}
 // Ownership sink for an inline-scalar word: consumes the own Dynamic
 // without freeing (the word holds value bits, not a heap pointer).
 word_drop := ext_func(own w: Dynamic) {}

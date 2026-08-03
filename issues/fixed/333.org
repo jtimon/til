@@ -1,27 +1,52 @@
 # priority: high
 # category: bugs
-** OPEN #333 C `double` is bound as F32, so every double-typed call returns garbage
+** FIXED #333 C `double` is bound as F32, so every double-typed call returns garbage
 
-The bindings generator maps C's ~double~ onto til's ~F32~
-(src/self/binder.til):
+*** Post-mortem (2026-07-27, amended same day)
 
-: // til has no 64-bit float type; map `double` / `long double` onto F32
-: // (precision-truncation) so bindings still type-check. Functions that
-: // genuinely need 64-bit precision must be hand-edited.
-: if c.eq("double").or(c.eq("long double")) { out.push_str("F32"); return true }
+Fixed for real: til gained an F64 primitive (64-bit float, C double) and
+the bindings generator now maps `double` -> F64, so double-typed C
+declarations bind at their true width. raylib's GetTime/WaitTime -- the
+two casualties -- are back in vendor/bindings/raylib.til as F64,
+verified LIVE: a gui program under xvfb reads a sane, monotonically
+advancing GetTime() in both backends, where both used to print unstable
+garbage (4 bytes read of C's 8).
 
-That is an arm of ~push_til_base~, which [[./331.org][#331]] lists for
-if-chain-to-switch conversion, so the arm may read as a ~case~ by the
-time you get here. The mapping is the defect, not the shape it is
-written in.
+Root cause was a comment wrong on both counts: the double->F32 mapping
+was called "precision-truncation", but nothing converted -- libffi was
+handed ffi_type_float for a double and the emitted C declared its own
+`F32 GetTime(void)` prototype -- and the "hand-edit" escape hatch did
+not exist because there was no F64 to hand-edit TO.
 
-The comment is wrong on both counts. This is not precision truncation
--- nothing converts -- it is an ABI mismatch: 4 bytes are read where C
-wrote 8. And the escape hatch does not exist: src/core/numbers.til's
-own header lists the scalar set as "(U8/U16/U32/U64, I8/I16/I32/I64),
-the 32-bit float (F32)", so there is no F64 to hand-edit a binding TO.
+What the close consists of:
 
-Both backends are affected, by different routes, and both are silent.
+1. The generator refuses what it cannot express: c_base_unsupported
+   keeps `long double` (no til type, 16 bytes on x86-64) refused at the
+   by-value parameter, return, and field sites -- the same downgrade the
+   generator already used for shapes it cannot express. Refusing
+   `double` the same way was the stopgap; mapping it to F64 replaced
+   that within the same close.
+2. The F64 primitive itself (preparation commit of the doc/self.org
+   split): Primitive.F64 and every name/size/C-type/ffi/reflection
+   table, the ext.c runtime family, interpreter F64 values as U64 bit
+   words (this compiler's own source is compiled by the previous
+   bootstrap, which has no F64 type -- the double math lives in ext.c
+   behind U64-only signatures, like the f32_word bridge), ffi_type_double
+   both directions, constfolder baking at 17 significant digits.
+3. vendor/bindings/raylib.til: GetTime/WaitTime restored by hand as F64
+   ext_procs. Deliberately NOT a full `make update_c_libs` here: the
+   current generator has moved to Option(ref T) field shapes (#320/#321)
+   that the committed, hand-audited bindings have not adopted yet, so a
+   full regen would bury this fix in an unrelated mass migration and
+   strip audited hand-comments. The generator's own double->F64 output
+   is locked by the bindgen_typechecks test instead.
+
+Still pending, part 2 of the split (once this commit is the bootstrap):
+the numbers.til core_func surface (clone/add/to_str/...), so F64 gets
+method ergonomics; until then `return <F64 param>` type-errors because
+the param-return clone has nothing to resolve to. The size_t -> USize
+sibling the report names is untouched and still wants its own issue.
+
 
 *** Interpreted: libffi is told ffi_type_float for a double
 

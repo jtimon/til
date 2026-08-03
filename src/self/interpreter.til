@@ -625,6 +625,7 @@ priv parse_cli_arg := func(s: Str, type_name: Str, ctx: Context) returns Dynamic
         else { write_u64(result, s.to_u64()) }
         return result
     case "F32": write_f32(result, s.to_f32()); return result
+    case "F64": write_u64(result, str_parse_f64_bits(s)); return result
     case "Bool":
         if s == "true" { write_bool(result, true); return result }
         if s == "false" { write_bool(result, false); return result }
@@ -1154,6 +1155,7 @@ priv raw_to_u64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns U64
         case Primitive.U32: return bits
         case Primitive.U64: return bits
         case Primitive.F32: panic("cannot convert F32 raw bits to U64")
+        case Primitive.F64: panic("cannot convert F64 raw bits to U64")
         case Primitive.Bool: return bits
         }
     case Type.Custom(name): return raw_to_u64(type_from_name_init(name, ctx.scope), raw, ctx)
@@ -1579,6 +1581,7 @@ priv write_runtime_type := func(result: Dynamic, shallow t: Type, ctx: Context) 
         case Primitive.U64: primitive_variant = "U64"
         case Primitive.I64: primitive_variant = "I64"
         case Primitive.F32: primitive_variant = "F32"
+        case Primitive.F64: primitive_variant = "F64"
         case Primitive.Bool: primitive_variant = "Bool"
         }
         write_i32(ptr_add(result, ENUM_PAYLOAD_OFFSET), enum_variant_tag(primitive_def, primitive_variant).to_i32())
@@ -1656,6 +1659,7 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         case Type.Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
         case Type.Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
         case Type.Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
+        case Type.Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(num_str.text))
         case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
         if destination.is_null() { return num_word }
@@ -4092,6 +4096,7 @@ priv intern_prim_index := func(p: Primitive) returns USize {
     case Primitive.I64: return 7
     case Primitive.F32: return 8
     case Primitive.Bool: return 9
+    case Primitive.F64: return 10
     }
 }
 
@@ -6412,6 +6417,7 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
             case enum_variant_tag(prim_def, "U64"):  dispatch_write_str(r, "U64".c_str, 3, ctx); return true
             case enum_variant_tag(prim_def, "I64"):  dispatch_write_str(r, "I64".c_str, 3, ctx); return true
             case enum_variant_tag(prim_def, "F32"):  dispatch_write_str(r, "F32".c_str, 3, ctx); return true
+            case enum_variant_tag(prim_def, "F64"):  dispatch_write_str(r, "F64".c_str, 3, ctx); return true
             case enum_variant_tag(prim_def, "Bool"): dispatch_write_str(r, "Bool".c_str, 4, ctx); return true
             case:
             }
@@ -6498,6 +6504,7 @@ priv known_ffi_type := func(type_name: Str, ctx: Context) returns Option(ref ffi
     case "USize": return Option(ref ffi_type).Some(usize_ffi_type(ctx))
     case "UPtr":  return Option(ref ffi_type).Some(uptr_ffi_type(ctx))
     case "F32":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_float"))
+    case "F64":   return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_double"))
     case "Bool":  return Option(ref ffi_type).Some(ffi_type_ref("ffi_type_uint8"))
     // Dynamic IS the opaque pointer type. Its reflection def in
     // src/core/dyn.til is a zero-field `Dynamic : StructDef = struct`,
@@ -7201,6 +7208,11 @@ priv ffi_decode_scalar := func(rtype: Str, p: Dynamic, result: Dynamic, ctx: Con
         memcpy(result, p, unsigned_prim_width_for_name(uptr_name))
         return true
     case "F32":  memcpy(result, p, F32.size()); return true
+    // U64.size(): F64 is 8 bytes, but `F64.size()` cannot be spelled here --
+    // this file is compiled by the previous bootstrap compiler, which does
+    // not know the F64 type yet. The bytes are the double's; only the width
+    // matters to memcpy.
+    case "F64":  memcpy(result, p, U64.size()); return true
     case "Bool": memcpy(result, p, Bool.size()); return true
     case:
     }
@@ -7234,6 +7246,7 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
     if atype.ptr_eq(ffi_type_ref("ffi_type_uint32")) { type_name = "U32"; size = 4; return true }
     if atype.ptr_eq(ffi_type_ref("ffi_type_uint64")) { type_name = "U64"; size = 8; return true }
     if atype.ptr_eq(ffi_type_ref("ffi_type_float"))  { type_name = "F32"; size = 4; return true }
+    if atype.ptr_eq(ffi_type_ref("ffi_type_double")) { type_name = "F64"; size = 8; return true }
     return false
 }
 
@@ -7258,6 +7271,10 @@ priv ffi_write_shallow_arg := func(scope: Scope, e: Expr, raw: Dynamic, atype: D
     if tn == "F32" {
         tmp : F32 = raw_to_f32(source_type, scalar_word_load(source_type, source, ctx), ctx)
         memcpy(dst, tmp, 4)
+    } else if tn == "F64" {
+        // The scalar word IS the double's bits; copy them out verbatim.
+        tmp : U64 = word_bits(scalar_word_load(source_type, source, ctx))
+        memcpy(dst, tmp, 8)
     } else {
         tmp : U64 = raw_to_u64(source_type, scalar_word_load(source_type, source, ctx), ctx)
         memcpy(dst, tmp, sz)
@@ -7503,6 +7520,7 @@ priv scalar_op_cat := func(t: Str) returns Str {
     case "I32": return "i"
     case "I64": return "i"
     case "F32": return "f"
+    case "F64": return "d"
     }
     return ""
 }
@@ -7559,6 +7577,19 @@ priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
     }
     panic(__LOC__, ": scalar_apply_i64: unhandled op ", op)
     return a
+}
+
+// F64 binop on U64 bit words (see the cat == "d" arms): dispatch the op
+// name to the ext.c f64_bits_* helper that does the double math.
+priv f64_bits_apply := func(op: Str, a: U64, b: U64) returns U64 {
+    switch op {
+    case "add": return f64_bits_add(a, b)
+    case "sub": return f64_bits_sub(a, b)
+    case "mul": return f64_bits_mul(a, b)
+    case "div": return f64_bits_div(a, b)
+    }
+    panic("f64_bits_apply: unsupported F64 op '", op, "'")
+    return 0
 }
 
 priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
@@ -7707,6 +7738,12 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
         mut cmp_result := false
         if cat == "u" { cmp_result = scalar_cmp_u64(op_str, raw_to_u64(scalar_type, av, ctx), raw_to_u64(scalar_type, bv, ctx)) }
         else if cat == "i" { cmp_result = scalar_cmp_i64(op_str, raw_to_i64(scalar_type, av, ctx), raw_to_i64(scalar_type, bv, ctx)) }
+        else if cat == "d" {
+            // F64 operands stay U64 bit words (this source predates the F64
+            // type in its own bootstrap); ext.c compares the doubles and
+            // returns the three-way sign, ordered like scalar_cmp_i64's input.
+            cmp_result = scalar_cmp_i64(op_str, f64_bits_cmp(word_bits(av), word_bits(bv)), 0)
+        }
         else { cmp_result = scalar_cmp_f32(op_str, raw_to_f32(scalar_type, av, ctx), raw_to_f32(scalar_type, bv, ctx)) }
         write_bool(result, cmp_result)
         return true
@@ -7740,6 +7777,15 @@ priv scalar_core_op_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynam
         if cat == "i" {
             scalar_write_raw(type_str, result, scalar_apply_i64(op_str, raw_to_i64(scalar_type, av, ctx), raw_to_i64(scalar_type, bv, ctx)))
             return true
+        }
+        if cat == "d" {
+            // F64: same four ops as F32, computed on the U64 bit words in
+            // ext.c; the result bits are written back at full width.
+            if (op_str == "add").or(op_str == "sub").or(op_str == "mul").or(op_str == "div") {
+                write_u64(result, f64_bits_apply(op_str, word_bits(av), word_bits(bv)))
+                return true
+            }
+            return false
         }
         // cat == "f": only add/sub/mul/div exist on F32 (no bitwise/shift/mod).
         if (op_str == "add").or(op_str == "sub").or(op_str == "mul").or(op_str == "div") {

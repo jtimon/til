@@ -485,6 +485,55 @@ F32 str_parse_f32(const Str *s) {
 // F32 clone
 F32 F32_clone(const F32 *v) { return *v; }
 
+// F64 comparisons
+I64 F64_cmp(F64 a, F64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
+
+// F64 conversions
+I64 F64_to_i64(F64 a) { return (I64)a; }
+F32 F64_to_f32(F64 a) { return (F32)a; }
+F64 F32_to_f64(F32 a) { return (F64)a; }
+F64 I64_to_f64(I64 a) { return (F64)a; }
+F64 U64_to_f64(U64 a) { return (F64)a; }
+F64 F64_from_i64_ext(const I64 *a) { return (F64)*a; }
+
+Str *F64_to_str(F64 v) {
+    char buf[40];
+    snprintf(buf, 40, "%g", v);
+    USize len = (USize)strlen(buf);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(len + 1);
+    memcpy(s->c_str, buf, len + 1);
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
+// Round-trippable F64 repr: 17 significant digits uniquely identify any
+// IEEE-754 double, so strtod(F64_to_repr(x)) == x. The constfolder bakes
+// folded F64 results as source literals through this (mirrors F32_to_repr).
+Str *F64_to_repr(F64 v) {
+    char buf[40];
+    snprintf(buf, 40, "%.17g", v);
+    USize len = (USize)strlen(buf);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(len + 1);
+    memcpy(s->c_str, buf, len + 1);
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
+// Faithful decimal/scientific parse (strtod), F64 twin of str_parse_f32.
+F64 str_parse_f64(const Str *s) {
+    char *p = dup_n((const char *)s->c_str, s->count);
+    double v = strtod(p, NULL);
+    free(p);
+    return (F64)v;
+}
+
+// F64 clone
+F64 F64_clone(const F64 *v) { return *v; }
+
 // U32 arithmetic
 
 // U32 comparisons
@@ -560,6 +609,7 @@ void write_i32(void *dest, I32 val) { *(I32 *)dest = val; }
 void write_u32(void *dest, U32 val) { *(U32 *)dest = val; }
 void write_u64(void *dest, U64 val) { *(U64 *)dest = val; }
 void write_f32(void *dest, F32 val) { *(F32 *)dest = val; }
+void write_f64(void *dest, F64 val) { *(F64 *)dest = val; }
 void write_bool(void *dest, Bool val) { *(Bool *)dest = val; }
 Bool ptr_eq(void *a, void *b) { return a == b; }
 // Inline-scalar value words (interpreter): reinterpret a pointer-sized
@@ -569,6 +619,21 @@ U64 word_bits(const void *w) { return (U64)(uintptr_t)w; }
 void *bits_word(U64 b) { return (void *)(uintptr_t)b; }
 U64 f32_word(F32 f) { union { F32 f; U32 u; } x; x.f = f; return (U64)x.u; }
 F32 word_f32(U64 b) { union { F32 f; U32 u; } x; x.u = (U32)b; return x.f; }
+/* F64 <-> U64 bit words and operate-on-bits helpers: the interpreter's
+ * F64 arithmetic. Its til source is compiled by the previous bootstrap
+ * compiler (no F64 type there yet), so values travel as U64 words and
+ * the actual double math happens here. */
+U64 f64_word(F64 f) { union { F64 f; U64 u; } x; x.f = f; return x.u; }
+F64 word_f64(U64 b) { union { F64 f; U64 u; } x; x.u = b; return x.f; }
+U64 f64_bits_add(U64 a, U64 b) { return f64_word(word_f64(a) + word_f64(b)); }
+U64 f64_bits_sub(U64 a, U64 b) { return f64_word(word_f64(a) - word_f64(b)); }
+U64 f64_bits_mul(U64 a, U64 b) { return f64_word(word_f64(a) * word_f64(b)); }
+U64 f64_bits_div(U64 a, U64 b) { return f64_word(word_f64(a) / word_f64(b)); }
+I64 f64_bits_cmp(U64 a, U64 b) { return F64_cmp(word_f64(a), word_f64(b)); }
+U64 str_parse_f64_bits(const Str *s) { return f64_word(str_parse_f64(s)); }
+Str *f64_bits_to_str(U64 b) { return F64_to_str(word_f64(b)); }
+Str *f64_bits_to_repr(U64 b) { return F64_to_repr(word_f64(b)); }
+U64 f64_bits_from_i64(I64 v) { return f64_word((F64)v); }
 // Ownership sink for inline-scalar words: consumes an own Dynamic that
 // holds VALUE BITS (not a heap pointer), so nothing must be freed.
 void word_drop(void *w) { (void)w; }

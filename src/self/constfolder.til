@@ -213,6 +213,13 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
             mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
             e.set_til_type(t)
             return Option(Expr).Some(own e)
+        case Primitive.F64:
+            // Bake the folded double as a round-trippable literal. The bits
+            // travel as a U64 word (this source predates F64 in its own
+            // bootstrap); ext.c renders them at 17 significant digits.
+            mut fe := Expr.new(literal_num_node(f64_bits_to_repr(word_bits(raw))), src.line, src.col)
+            fe.set_til_type(t)
+            return Option(Expr).Some(own fe)
         case Primitive.U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         case Primitive.U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         case Primitive.U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
@@ -356,6 +363,7 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         case Type.Primitive(Primitive.U32): write_u32(result, num.to_u32())
         case Type.Primitive(Primitive.U64): write_u64(result, num.to_u64())
         case Type.Primitive(Primitive.F32): write_f32(result, num.to_f32())
+        case Type.Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(num.text))
         case:
             panic("numeric known value has non-numeric type ", til_type_name_c(t))
         }

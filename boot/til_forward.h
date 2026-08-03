@@ -25,7 +25,8 @@ typedef enum {
     Primitive_TAG_U64,
     Primitive_TAG_I64,
     Primitive_TAG_F32,
-    Primitive_TAG_Bool
+    Primitive_TAG_Bool,
+    Primitive_TAG_F64
 } Primitive_tag;
 typedef struct Primitive Primitive;
 typedef enum {
@@ -3957,6 +3958,7 @@ Str * priv___src_self_interpreter_til__scalar_op_cat(Str * t);
 Bool priv___src_self_interpreter_til__scalar_is_binop(Str * op);
 U64 priv___src_self_interpreter_til__scalar_apply_u64(Str * op, U64 a, U64 b);
 I64 priv___src_self_interpreter_til__scalar_apply_i64(Str * op, I64 a, I64 b);
+U64 priv___src_self_interpreter_til__f64_bits_apply(Str * op, U64 a, U64 b);
 F32 priv___src_self_interpreter_til__scalar_apply_f32(Str * op, F32 a, F32 b);
 Bool priv___src_self_interpreter_til__scalar_is_cmp(Str * op);
 Bool priv___src_self_interpreter_til__scalar_cmp_u64(Str * op, U64 a, U64 b);
@@ -4004,6 +4006,7 @@ USize priv___src_self_binder_til__skip_word(Str * s, USize from);
 USize priv___src_self_binder_til__trim_right(Str * s, USize from, USize to);
 Bool priv___src_self_binder_til__range_eq_lit(Str * s, USize start, USize end, Str * lit);
 I64 priv___src_self_binder_til__parse_c_int_literal(Str * s, USize from, USize to, Bool * success);
+Bool priv___src_self_binder_til__c_base_unsupported(Str * c);
 Bool priv___src_self_binder_til__push_til_base(Str * out, Str * c);
 void priv___src_self_binder_til__BinderState_delete(priv___src_self_binder_til__BinderState * self, Bool call_free);
 void priv___src_self_binder_til__register_alias(priv___src_self_binder_til__BinderState * bs, Str * name);
@@ -4089,6 +4092,7 @@ extern Str I32Name;
 extern Str U32Name;
 extern Str U64Name;
 extern Str F32Name;
+extern Str F64Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
 extern U8 priv___src_self_garbager_til__FLOW_UNREACHED;

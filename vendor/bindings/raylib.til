@@ -271,7 +271,7 @@ Mesh := struct {
     ref normals : F32 = NULL  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
     ref tangents : F32 = NULL  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
     ref colors : U8 = NULL  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-    ref indices : I16 = NULL  // Vertex indices (in case vertex data comes indexed)
+    ref indices : U16 = NULL  // Vertex indices (in case vertex data comes indexed)
     // Skin data for animation
     boneCount : I32 = 0  // Number of bones (MAX: 256 bones)
     ref boneIndices : U8 = NULL  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
@@ -972,7 +972,10 @@ GetCameraMatrix2D := ext_func(shallow camera : Camera2D) returns shallow Matrix 
 SetTargetFPS := ext_proc(shallow fps : I32) {}
 // ext_proc: reads the frame-clock state maintained by raylib.
 GetFrameTime := ext_proc() returns shallow F32 {}
-GetTime := ext_proc() returns shallow F32 {}
+// ext_proc: reads the wall-clock state raylib keeps since InitWindow().
+// C signature: double GetTime(void) -- bound as F64 (#333); the old F32
+// binding read 4 of its 8 bytes and returned garbage.
+GetTime := ext_proc() returns shallow F64 {}
 GetFPS := ext_proc() returns shallow I32 {}
 
 // Custom frame control functions
@@ -981,7 +984,8 @@ GetFPS := ext_proc() returns shallow I32 {}
 // To avoid that behaviour and control frame processes manually, enable in config.h: SUPPORT_CUSTOM_FRAME_CONTROL
 SwapScreenBuffer := ext_proc() {}
 PollInputEvents := ext_proc() {}
-WaitTime := ext_proc(shallow seconds : F32) {}
+// C signature: void WaitTime(double) -- F64 for the same reason as GetTime.
+WaitTime := ext_proc(shallow seconds : F64) {}
 
 // Random values generation functions
 SetRandomSeed := ext_proc(shallow seed : U32) {}

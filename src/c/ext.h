@@ -27,6 +27,13 @@ typedef unsigned short U16;
 typedef char I8;
 typedef unsigned char U8;
 typedef float F32;
+// til's 64-bit float (C double). Introduced for #333: C `double`
+// signatures were unbindable. The compiler's own .til source cannot
+// mention F64 until a compiler that knows it is the bootstrap (the
+// preparation/use split in doc/self.org), so the interpreter handles
+// F64 values as U64 bit words through the f64_bits_* helpers below --
+// the same shape as f32_word/word_f32.
+typedef double F64;
 typedef bool Bool;
 // container sizes (count, cap, elem_size) and raw pointer/byte widths.
 // UPtr always follows the C pointer width (real pointer arithmetic needs
@@ -139,6 +146,23 @@ F32 str_parse_f32(const Str *s);
 // F32 clone
 F32 F32_clone(const F32 *v);
 
+// F64 comparisons
+I64 F64_cmp(F64 a, F64 b);
+
+// F64 conversions
+I64 F64_to_i64(F64 a);
+F32 F64_to_f32(F64 a);
+F64 F32_to_f64(F32 a);
+F64 I64_to_f64(I64 a);
+F64 U64_to_f64(U64 a);
+F64 F64_from_i64_ext(const I64 *a);
+Str *F64_to_str(F64 v);
+Str *F64_to_repr(F64 v);
+F64 str_parse_f64(const Str *s);
+
+// F64 clone
+F64 F64_clone(const F64 *v);
+
 // U32 comparisons
 I64 U32_cmp(U32 a, U32 b);
 
@@ -194,6 +218,7 @@ void write_i32(void *dest, I32 val);
 void write_u32(void *dest, U32 val);
 void write_u64(void *dest, U64 val);
 void write_f32(void *dest, F32 val);
+void write_f64(void *dest, F64 val);
 void write_bool(void *dest, Bool val);
 
 // System primitives
@@ -224,6 +249,21 @@ U64 word_bits(const void *w);
 void *bits_word(U64 b);
 U64 f32_word(F32 f);
 F32 word_f32(U64 b);
+/* F64 <-> U64 bit words, plus operate-on-bits helpers. The til-side
+ * interpreter binds THESE (U64-only signatures) rather than F64-typed
+ * functions: its own source is compiled by the previous bootstrap
+ * compiler, which does not know the F64 type yet. */
+U64 f64_word(F64 f);
+F64 word_f64(U64 b);
+U64 f64_bits_add(U64 a, U64 b);
+U64 f64_bits_sub(U64 a, U64 b);
+U64 f64_bits_mul(U64 a, U64 b);
+U64 f64_bits_div(U64 a, U64 b);
+I64 f64_bits_cmp(U64 a, U64 b);
+U64 str_parse_f64_bits(const Str *s);
+Str *f64_bits_to_str(U64 b);
+Str *f64_bits_to_repr(U64 b);
+U64 f64_bits_from_i64(I64 v);
 void word_drop(void *w);
 void *dispatch_scratch_base(void);
 void *word_ring_base(void);

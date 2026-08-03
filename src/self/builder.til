@@ -263,6 +263,7 @@ priv is_primitive_type := func(name: Str) returns Bool {
     case "USize": return true
     case "UPtr":  return true
     case "F32":   return true
+    case "F64":   return true
     case "Bool":  return true
     case:
     }
@@ -412,6 +413,7 @@ priv is_ext_h_type := func(name: Str) returns Bool {
     case "U16":  return true
     case "I32":  return true
     case "F32":  return true
+    case "F64":  return true
     case "U32":  return true
     case "U64":  return true
     case "I64":  return true
@@ -984,6 +986,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.Primitive(Primitive.U32):     return "U32"
     case Type.Primitive(Primitive.U64):     return "U64"
     case Type.Primitive(Primitive.F32):     return "F32"
+    case Type.Primitive(Primitive.F64):     return "F64"
     case Type.Primitive(Primitive.Bool):    return "Bool"
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
@@ -1074,6 +1077,7 @@ priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
     case "USize":   return "USize *"
     case "UPtr":    return "UPtr *"
     case "F32":     return "F32 *"
+    case "F64":     return "F64 *"
     case "Bool":    return "Bool *"
     case "Dynamic": return "void *"
     case "Fn":      return "TilClosure *"
@@ -1097,6 +1101,7 @@ priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
     case "USize":   return "USize"
     case "UPtr":    return "UPtr"
     case "F32":     return "F32"
+    case "F64":     return "F64"
     case "Bool":    return "Bool"
     case "Dynamic": return "void *"
     case "Fn":      return "TilClosure *"
@@ -6458,6 +6463,7 @@ priv type_name_to_ctypes := func(name: Str) returns Str {
     case "U32":     return "ctypes.c_uint"
     case "U64":     return "ctypes.c_ulonglong"
     case "F32":     return "ctypes.c_float"
+    case "F64":     return "ctypes.c_double"
     case "Bool":    return "ctypes.c_bool"
     case "Str":     return "Str"
     case "Dynamic": return "ctypes.c_void_p"
@@ -6559,6 +6565,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                         case Type.Primitive(Primitive.U32):  ct = "ctypes.POINTER(ctypes.c_uint)"
                         case Type.Primitive(Primitive.U64):  ct = "ctypes.POINTER(ctypes.c_ulonglong)"
                         case Type.Primitive(Primitive.F32):  ct = "ctypes.POINTER(ctypes.c_float)"
+                        case Type.Primitive(Primitive.F64):  ct = "ctypes.POINTER(ctypes.c_double)"
                         case Type.Primitive(Primitive.Bool): ct = "ctypes.POINTER(ctypes.c_bool)"
                         case:              ct = "ctypes.c_void_p"
                         }
