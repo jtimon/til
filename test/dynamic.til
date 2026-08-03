@@ -234,6 +234,15 @@ zero_give := func(fail: Bool) returns Dynamic {
     return to_ptr(1)
 }
 
+// #321: a PROC can declare `returns Dynamic` too -- the interpreter's own
+// evaluators do -- so its `return 0` gets the same rewrite (the typer
+// tracks the declared return type for that case as well).
+zero_give_proc := proc(fail: Bool) returns Dynamic {
+    print_flush()
+    if fail { return 0 }
+    return to_ptr(1)
+}
+
 zero_sink := func(probe: Dynamic = 0) returns Bool { return probe.is_null() }
 
 test_zero_is_dynamic_null := test() {
@@ -251,7 +260,14 @@ test_zero_is_dynamic_null := test() {
     d = 0
     assert(d.is_null())
     assert(zero_sink())
+    // the proc twin, and the param default filled at the CALL SITE (the
+    // fill clones the declaration's default, which the initer normalized)
+    pr : Dynamic = zero_give_proc(true)
+    assert(pr.is_null())
+    pr2 : Dynamic = zero_give_proc(false)
+    assert(pr2.is_null().not())
     buf : U8 = malloc(8)
     assert(to_ptr(buf).is_null().not())
     free(own buf)
 }
+

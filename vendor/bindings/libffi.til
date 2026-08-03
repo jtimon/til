@@ -205,10 +205,13 @@ FFI_BAD_ARGTYPE : I32 = 3
 ffi_cif := ext_struct {
     abi : ffi_abi = 0
     nargs : U32 = 0
-    ref arg_types : Dynamic = NULL
+    // Hand-audited (#321), keep across regens: NULL left the language; a
+    // Dynamic-typed 0 IS the null pointer (the typer rewrites the literal),
+    // which is exactly what this quarantine field wants.
+    ref arg_types : Dynamic = 0
     // Hand-audited (#321), keep across regens: rtype is non-null by C
     // contract on every cif til reads (ffi_prep_cif sets it before any
-    // use), so the retired `= NULL` default becomes a mandatory bare
+    // use), so the retired NULL default becomes a mandatory bare
     // ref -- cifs are raw-built (malloc + prep), never ctor'd, so the
     // mandatory-field rule costs nothing.
     ref rtype : ffi_type

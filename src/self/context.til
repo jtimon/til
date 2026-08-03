@@ -744,7 +744,7 @@ Context := struct {
     // out of a BORROWED payload -- `return result` off an unwrap is
     // rejected with "cannot return ref variable from non-ref function".
     // Same ownership question as the Scope-typed fields; #324 first.
-    ref return_value : Dynamic = NULL
+    ref return_value : Dynamic = 0
     // True while the interpreter runs the body of a `returns ref`
     // function (saved/restored per call in eval_user_func_call).
     // return propagation and the call boundary consult it:
@@ -753,7 +753,7 @@ Context := struct {
     // the caller's ref from the real payload and lose writes.
     interp_ret_is_ref := false
     // Non-owning destination supplied by the current function's caller.
-    ref interp_ret_dest : Dynamic = NULL
+    ref interp_ret_dest : Dynamic = 0
     // #321: the current function's declared return type, borrowed from
     // its FuncDef. None outside a call (saved/restored around each one).
     interp_ret_type := Option(ref Str).None

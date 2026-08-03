@@ -1681,10 +1681,6 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Bool(false)), t_line, t_col)
         e_set = true
-    case TokenType.KwNull:
-        advance(p)
-        e = Expr.new(NodeType.Literal(Literal.Null), t_line, t_col)
-        e_set = true
     case TokenType.Ident:
         advance(p)
         name := tok_text(p, t).clone()
@@ -2530,7 +2526,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     // Issue #244: `match` lands here too; the typer then reports its unused
     // value and points at `switch`.
     case TokenType.StringTok, TokenType.Number, TokenType.KwTrue, TokenType.KwFalse,
-         TokenType.KwNull, TokenType.LParen, TokenType.Minus, TokenType.KwMacro,
+         TokenType.LParen, TokenType.Minus, TokenType.KwMacro,
          TokenType.KwMatch: return parse_expression(p)
     case TokenType.LBrace:
         advance(p)

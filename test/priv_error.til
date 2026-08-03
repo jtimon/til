@@ -43,8 +43,11 @@ takes_secret := func(_s: Secret) returns I64 { return 0 }
 // priv struct as return type.
 makes_secret := func() returns Secret { return Secret(value = 1) }
 
-// priv struct as ref-decl explicit type.
-ref bad_ref : Secret = NULL
+// priv struct as ref-decl explicit type. (NULL left the language (#321),
+// so the RHS borrows a fresh instance -- whose ctor adds its own
+// cross-file-priv error beside the annotation's.)
+priv_src := Secret(value = 2)
+ref bad_ref : Secret = priv_src
 
 // priv enum as parameter type.
 takes_mood := func(_m: Mood) returns I64 { return 0 }

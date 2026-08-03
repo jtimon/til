@@ -343,8 +343,10 @@ DynA := Dynamic
 DynB := DynA
 
 DynAliasHolder := struct {
-    ref a : DynA = NULL
-    ref b : DynB = NULL
+    // #321: NULL left the language; a Dynamic-typed 0 IS the null pointer
+    // (resolved through the alias chain by the typer's rewrite).
+    ref a : DynA = 0
+    ref b : DynB = 0
 }
 
 test_dyn_alias_struct_field := test() {

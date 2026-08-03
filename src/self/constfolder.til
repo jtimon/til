@@ -379,7 +379,7 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         return result
     case:
         panic("expression is not a raw known literal")
-        return NULL
+        return bits_word(0)
     }
 }
 
@@ -431,9 +431,9 @@ priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
             if raw_type_is_prim(hb_type(known_hb), ctx) { return scalar_block_from_word(hb_type(known_hb), raw, ctx) }
             return raw
         }
-        return NULL
+        return bits_word(0)
     case:
-        return NULL
+        return bits_word(0)
     }
 }
 

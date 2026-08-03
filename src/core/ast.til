@@ -936,7 +936,11 @@ namespace:
         // Free other's source buffer before nulling: the bytes were
         // memcpy'd into self, but other's malloc'd buffer would leak.
         free(own other.children.data)
-        other.children.data = NULL
+        // #321: NULL left the language. core cannot reach the self/ raw
+        // layer's bits_word, so the null rides in through a Dynamic local
+        // (a Dynamic-typed 0 IS the null pointer -- the typer rewrites it).
+        nul : Dynamic = 0
+        other.children.data = nul
         // ...and drop the capacity with it. A holder that is REUSED after
         // a take (#328's per-unit pending queue) would otherwise see
         // count < cap over a NULL data pointer and push straight into it.

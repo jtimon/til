@@ -256,16 +256,10 @@ NoLen := struct {
 }
 for x in NoLen() { }
 
-// NULL: cannot assign to non-ref declaration
-nonnull_local : I64 = NULL
-
-// NULL: cannot pass to 'own' parameter
-take_own := proc(own _x: I64) {}
-take_own(own NULL)
-
-// NULL: cannot pass to 'shallow' parameter
-take_shallow := proc(_x: I64) {}
-take_shallow(NULL)
+// (The NULL fixtures that lived here -- non-ref decl init, own/shallow
+// params -- left with the keyword: #321 removed NULL from the language,
+// so the rules they pinned are unreachable from source. The checks
+// survive in the typer as guards over compiler-generated null nodes.)
 
 // #99: struct with new() -- literal outside namespace is an error
 HasNew := struct {
@@ -350,7 +344,6 @@ terr_step5_bad_ret := func(f: TerrCloneRefSrc) returns ref TerrCloneRefSrc {
 // error now; the nullable-borrow shape is an Option(ref T) field.
 TerrStep3 := struct {
     ref bad_field : TerrCloneRefSrc = TerrCloneRefSrc(field=3)
-    ref bad_field_null : TerrCloneRefSrc = NULL
 }
 
 // #168 step 2 follow-up: enum variant constructors are caught too,
@@ -377,24 +370,8 @@ terr_step4_assign := func() returns I64 {
 }
 terr_step4_assign()
 
-// #168 step 1b / #177: ref bindings cannot be initialized to NULL.
-// Func/proc/test/macro bodies AND module scope are uniformly
-// rejected; #321 step 2 closed the old field-default exception too
-// (see TerrStep3 above). The two is_null reads below each count as a
-// #321 step 3 error as well (typed receivers).
-terr_null_ref_local_fn := func() returns I64 {
-    ref leaked_null : I64 = NULL
-    ref mut leaked_null_mut : I64 = NULL
-    if is_null(leaked_null) { return 0 }
-    if is_null(leaked_null_mut) { return 0 }
-    return 1
-}
-terr_null_ref_local_fn()
-
-// #177: same rule applies at module scope (was the conservative
-// carve-out before the cached_*_def migration).
-ref terr_module_null : I64 = NULL
-ref mut terr_module_null_mut : I64 = NULL
+// (#168 step 1b / #177's ref-init-to-NULL fixtures left with the
+// keyword; #321 removed NULL from the language entirely.)
 
 // #191: macro argument must be known at compile time
 macro_test := macro(x: I64) returns I64 { return x }
@@ -1017,18 +994,6 @@ NullProbe321 := struct { np_n := 0 }
 probe_direct321 := func(p: NullProbe321) returns Bool { return is_null(p) }
 probe_ufcs321 := func(p: NullProbe321) returns Bool { return p.is_null() }
 
-// #321 step 4: NULL is quarantine-only (Dynamic / the U8-I8 raw labels).
-// A typed ref param, ctor field, field assign, plain assign, or return
-// cannot take it; a maybe-absent value is an Option.
-Null4Cell := struct { own n4buf : Str = "" }
-null4_takes_ref := func(c: Null4Cell) returns I64 { return c.n4buf.len().to_i64() }
-null4_pass := null4_takes_ref(NULL)
-Null4Holder := struct { cell : Null4Cell = Null4Cell() }
-null4_ctor := Null4Holder(cell = NULL)
-null4_assign := proc() {
-    mut h := Null4Holder()
-    h.cell = NULL
-}
-null4_ret := func() returns Null4Cell {
-    return NULL
-}
+// (#321 step 4's NULL-literal fixtures left with the keyword: nothing can
+// utter NULL from source anymore. The typer's four write-side checks stay
+// as guards over compiler-generated null nodes.)

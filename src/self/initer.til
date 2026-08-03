@@ -4365,6 +4365,10 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
     mut errors : I32 = 0
     register_body_type_token(ctx, scope)
 
+    // #321: normalize `Dynamic = 0` param defaults to the null node before
+    // any pass clones them (see the helper above).
+    init_normalize_dynamic_zero_defaults(program)
+
     // Issue #271: make public file-level declarations visible before
     // recursive imports run. This generalizes same-file forward
     // declarations to import cycles without pretending the file is fully
@@ -4454,10 +4458,48 @@ priv note_template_body_uses := func(program: Expr, scope: TypeScope, ctx: Conte
     }
 }
 
+// #321: `p: Dynamic = 0` -- the Dynamic null spelling -- normalized on the
+// DECLARATION, before any pass clones it. The typer rewrites literal 0 to
+// the internal null node in ordinary value positions, but a parameter
+// default is CLONED into each call site by the default fill
+// (resolve_default_value), and that fill runs off a copy the typer's
+// func-def hook has not visited: the emitted C passed `&hoisted__I64_0`
+// (the address of a zero word) where master passed NULL, so a
+// `destination.is_null()` guard read false and a struct-sized result was
+// memcpy'd into a one-word box. Doing it here -- syntactically, on
+// explicit_type, before desugar/type/fill -- makes every later copy carry
+// the null node.
+priv init_normalize_dynamic_zero_defaults := func(mut e: Expr) {
+    switch e.node_type {
+    case NodeType.FuncDef(nz_fd):
+        for mut pd : Declaration in nz_fd.params {
+            if pd.explicit_type.eq("Dynamic").not() { continue }
+            if pd.default_value.is_none() { continue }
+            mut is_zero := false
+            switch pd.default_expr().node_type {
+            case NodeType.Literal(Literal.Num(nz_n)):
+                if nz_n.literal_num_text().eq("0") { is_zero = true }
+            case:
+            }
+            if is_zero {
+                ref mut nz_dv : Expr = pd.default_expr()
+                nz_dv.node_type = NodeType.Literal(Literal.Null)
+                nz_dv.set_til_type(Type.Dynamic)
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children { init_normalize_dynamic_zero_defaults(c) }
+}
+
 priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Context) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
     register_body_type_token(ctx, scope)
+
+    // #321: normalize `Dynamic = 0` param defaults to the null node before
+    // any pass clones them (see the helper above).
+    init_normalize_dynamic_zero_defaults(program)
 
     // #154: credit template/generic bodies' symbol uses to this file
     // before the expansions below clone them into other units.

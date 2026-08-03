@@ -180,7 +180,7 @@ Rectangle := struct {
 
 // Image, pixel data stored in CPU memory (RAM)
 Image := struct {
-    ref data : Dynamic = NULL  // Image raw data
+    ref data : Dynamic = 0  // Image raw data
     width : I32 = 0  // Image base width
     height : I32 = 0  // Image base height
     mipmaps : I32 = 0  // Mipmap levels, 1 by default
@@ -236,8 +236,8 @@ GlyphInfo := struct {
 // Hand-audited (#321), keep across regens -- applies to every
 // `Option(ref T)` field in this file: nullable C pointer fields are
 // spelled `Option(ref T)` (niche layout: byte-identical to the bare
-// pointer, None == NULL), the shape ref fields with `= NULL` defaults
-// migrated to when that default was forbidden. `ref Dynamic = NULL`
+// pointer, None == 0), the shape ref fields with `= 0` defaults
+// migrated to when that default was forbidden. `ref Dynamic = 0`
 // fields stay: the Dynamic quarantine keeps raw null legal.
 Font := struct {
     baseSize : I32 = 0  // Base size (default chars height)
@@ -372,7 +372,7 @@ Wave := struct {
     sampleRate : U32 = 0  // Frequency (samples per second)
     sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
     channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
-    ref data : Dynamic = NULL  // Buffer data pointer
+    ref data : Dynamic = 0  // Buffer data pointer
 }
 
 // Opaque structs declaration
@@ -402,7 +402,7 @@ Music := struct {
     frameCount : U32 = 0  // Total number of frames (considering channels)
     looping : Bool = false  // Music looping enable
     ctxType : I32 = 0  // Type of music context (audio filetype)
-    ref ctxData : Dynamic = NULL  // Audio context data, depends on type
+    ref ctxData : Dynamic = 0  // Audio context data, depends on type
 }
 
 // VrDeviceInfo, Head-Mounted-Display device parameters
@@ -414,7 +414,7 @@ VrStereoConfig := ext_struct("VrStereoConfig") {}  // opaque: unsupported field 
 // File path list
 FilePathList := struct {
     count : U32 = 0  // Filepaths entries count
-    ref paths : Dynamic = NULL  // Filepaths entries
+    ref paths : Dynamic = 0  // Filepaths entries
 }
 
 // Automation event

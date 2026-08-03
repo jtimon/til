@@ -2451,6 +2451,7 @@ I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * p
 void priv___src_self_initer_til__note_template_decl_use(Declaration * d, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__note_template_uses_walk(Expr * e, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__note_template_body_uses(Expr * program, TypeScope * scope, Context * ctx);
+void priv___src_self_initer_til__init_normalize_dynamic_zero_defaults(Expr * e);
 I32 priv___src_self_initer_til__init_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__gen_interface_box_fields_for_stmt(Expr * stmt);
 Expr * priv___src_self_initer_til__iface_self_field(Expr * stmt, Str * fname);
