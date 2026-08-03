@@ -1492,6 +1492,29 @@ type stamping and emit malformed C -- ~(&Type->FuncPtrSig)~). ns_fields
 dodges both because Scope's delete has AST callers everywhere. The pair
 needs its own commit.
 
+**** Batch 36: InterpSession.global joins ns_fields
+
+Second of #324's fields off the NULL sentinel, by the batch-35 pattern:
+~global := Option(Scope).None~, a panic-on-None borrow accessor
+(session_global) for the reads -- all of which run between
+interp_session_start and interp_session_free, so absence is a broken
+invariant there -- and swap+take teardown so the field is None the
+moment scope_free runs.
+
+One behavior fix rode along, called out because it is a real change:
+interp_session_start on an already-started session used to silently
+LEAK the live global (the ref overwrite dropped the pointer). It now
+runs the real teardown first -- and it must be the real one: letting
+the Option assign's drain handle it would run the GENERATED deep
+delete, which is the wrong teardown for a raw-layer scope
+(scope_free's careful slot walk is the correct one).
+
+Remaining #324 fields: constfolder_known (needs its own pass -- the
+fold-nesting snapshot/restore swaps the field to a borrowed VIEW scope,
+which an owned field cannot hold honestly), InterpCallableBox.env
+(raw-built; needs the drain semantics thought through), and FFIEntry's
+raw buffers (Dynamic quarantine candidates).
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

@@ -291,7 +291,11 @@ Scope := struct {
 }
 
 InterpSession := struct {
-    ref global : Scope = NULL
+    // #321/#324: the session's root scope, OWNED. It was `ref ... = NULL`
+    // -- an owned pointer wearing a borrow label, freed through the #324
+    // hole. One word via the owned niche; None IS the not-started state,
+    // and teardown moves the scope out before scope_free.
+    global := Option(Scope).None
     core_evaluated := false
     // #192: USize, not U32 -- user_argc is a count compared/combined with
     // nparam/fixed (USize) and assigned from user_argv.len() (USize). At U32
@@ -5003,8 +5007,24 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
     }
 }
 
+// #324: the session's root scope, borrowed. PANICS on None: every caller
+// runs between interp_session_start and interp_session_free, so an absent
+// global is a broken invariant, not a state to absorb.
+priv session_global := func(session: InterpSession) returns ref Scope {
+    switch session.global {
+    case Option(Scope).Some(g): return g
+    case Option(Scope).None: panic(__LOC__, "session global read outside start/free")
+    }
+}
+
 interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
-    session.global = scope_new_boxed(Option(ref Scope).None)
+    if session.global.is_some() {
+        scope_drop_owned_bindings(session_global(session))
+        mut sg_stale := Option(Scope).None
+        swap(Option(Scope), session.global, sg_stale)
+        scope_free(own Option(Scope).take(own sg_stale))
+    }
+    session.global = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     session.core_evaluated = false
     session.user_argc = 0
     session.retained_programs = Vec(DynPtrBox).new()
@@ -5013,11 +5033,14 @@ interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
 }
 
 interp_session_free := func(mut session: InterpSession) {
-    if session.global.is_null().not() {
-        scope_drop_owned_bindings(session.global)
-        scope_free(own session.global)
+    if session.global.is_some() {
+        scope_drop_owned_bindings(session_global(session))
+        // Move the scope OUT of the field before freeing, so the field is
+        // None the moment the free runs.
+        mut sg_old := Option(Scope).None
+        swap(Option(Scope), session.global, sg_old)
+        scope_free(own Option(Scope).take(own sg_old))
     }
-    session.global = NULL
     for box : DynPtrBox in session.retained_programs {
         if box.p.is_null().not() {
             LoadedProgram.delete(own to_ptr(box.p), true)
@@ -5089,45 +5112,45 @@ interp_session_prepare_context := proc(session: InterpSession, mut lp: LoadedPro
     if lp.skip_core.not() {
         for u2 : ProgramUnit in lp.core_units {
             ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
-            interpret_register_defs(session.global, iu2.ast, lp.ctx)
+            interpret_register_defs(session_global(session), iu2.ast, lp.ctx)
         }
     }
     for u3 : ProgramUnit in lp.units {
         ref iu3 : ImportUnit = lp.ctx.imported[u3.path]
-        interpret_register_defs(session.global, iu3.ast, lp.ctx)
+        interpret_register_defs(session_global(session), iu3.ast, lp.ctx)
     }
 
     if lp.skip_core.not() {
         for u4 : ProgramUnit in lp.core_units {
             ref iu4 : ImportUnit = lp.ctx.imported[u4.path]
-            interpret_register_aliases(session.global, iu4.ast, lp.ctx)
+            interpret_register_aliases(session_global(session), iu4.ast, lp.ctx)
         }
     }
     for u5 : ProgramUnit in lp.units {
         ref iu5 : ImportUnit = lp.ctx.imported[u5.path]
-        interpret_register_aliases(session.global, iu5.ast, lp.ctx)
+        interpret_register_aliases(session_global(session), iu5.ast, lp.ctx)
     }
 
     if lp.skip_core.not() {
         for u6 : ProgramUnit in lp.core_units {
             ref iu6 : ImportUnit = lp.ctx.imported[u6.path]
-            interpreter_init_ns(lp.ctx, session.global, iu6.ast)
+            interpreter_init_ns(lp.ctx, session_global(session), iu6.ast)
         }
     }
     for u7 : ProgramUnit in lp.units {
         ref iu7 : ImportUnit = lp.ctx.imported[u7.path]
-        interpreter_init_ns(lp.ctx, session.global, iu7.ast)
+        interpreter_init_ns(lp.ctx, session_global(session), iu7.ast)
     }
 
     if lp.skip_core.not() {
         for u8 : ProgramUnit in lp.core_units {
             ref iu8 : ImportUnit = lp.ctx.imported[u8.path]
-            interpret_copy_alias_ns(iu8.ast, session.global, lp.ctx)
+            interpret_copy_alias_ns(iu8.ast, session_global(session), lp.ctx)
         }
     }
     for u9 : ProgramUnit in lp.units {
         ref iu9 : ImportUnit = lp.ctx.imported[u9.path]
-        interpret_copy_alias_ns(iu9.ast, session.global, lp.ctx)
+        interpret_copy_alias_ns(iu9.ast, session_global(session), lp.ctx)
     }
     return 0
 }
@@ -5143,7 +5166,7 @@ interp_session_eval_core_once := proc(mut session: InterpSession, mut lp: Loaded
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
             context_enter_file(lp.ctx, u.path)
-            eval_body(session.global, iu.ast, lp.ctx)
+            eval_body(session_global(session), iu.ast, lp.ctx)
         }
     }
     session.core_evaluated = true
@@ -5154,7 +5177,7 @@ interp_session_eval_user_units := proc(session: InterpSession, mut lp: LoadedPro
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
-        eval_body(session.global, iu.ast, lp.ctx)
+        eval_body(session_global(session), iu.ast, lp.ctx)
     }
     interp_reset_control_flow(lp.ctx)
 }
@@ -5174,7 +5197,7 @@ interp_session_eval_imported_once := proc(mut session: InterpSession, mut lp: Lo
         if session.evaluated_units.has(u.path) { continue }
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         context_enter_file(lp.ctx, u.path)
-        eval_body(session.global, iu.ast, lp.ctx)
+        eval_body(session_global(session), iu.ast, lp.ctx)
         session.evaluated_units.add(own u.path.clone())
     }
     interp_reset_control_flow(lp.ctx)
@@ -5197,7 +5220,7 @@ priv interp_eval_program_slice := proc(session: InterpSession, mut lp: LoadedPro
     if count == 0 { return }
     mut body := Expr.new(NodeType.Body, 0, 0)
     interp_body_slice(program, start_idx, count, body)
-    eval_body(session.global, body, lp.ctx)
+    eval_body(session_global(session), body, lp.ctx)
     interp_body_slice_clear(body)
 }
 
@@ -5313,7 +5336,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             switch stmt.node_type {
                             case NodeType.Decl(dd):
                                 test_count++
-                                test_scope := scope_new(Option(ref Scope).Some(session.global))
+                                test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                 context_enter_file(lp.ctx, u.path)
                                 eval_body(test_scope, stmt.children[0].children[0], lp.ctx)
                                 scope_free(own test_scope)
@@ -5343,7 +5366,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
-                                    test_scope := scope_new(Option(ref Scope).Some(session.global))
+                                    test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                     context_enter_file(lp.ctx, u.path)
                                     eval_body(test_scope, nsfdef.children[0], lp.ctx)
                                     scope_free(own test_scope)
@@ -5377,7 +5400,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
     if lp.run_tests.not() { if lp.cur_mode.is_null().not() { if lp.cur_mode.needs_main {
-        ref main_slot : Dynamic = scope_get(session.global, "main")!
+        ref main_slot : Dynamic = scope_get(session_global(session), "main")!
         if main_slot.is_null() {
             eprint_single(lp.path)
             eprint_single(": error: this mode requires a 'main' proc\n")
@@ -5390,7 +5413,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                 nparam := fd.params.len()
                 vi := fd.variadic_index
                 ref body : Expr = func_def.children[0]
-                main_scope := scope_new(Option(ref Scope).Some(session.global))
+                main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
 
                 if nparam > 0 {
                     mut fixed := nparam

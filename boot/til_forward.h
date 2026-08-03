@@ -1486,16 +1486,6 @@ typedef struct DocCatalog {
 } DocCatalog;
 
 
-typedef struct InterpSession {
-    Scope *global;
-    Bool core_evaluated;
-    USize user_argc;
-    Vec__DynPtrBox retained_programs;
-    Bool is_repl;
-    Set__Str evaluated_units;
-} InterpSession;
-
-
 typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
@@ -1536,6 +1526,16 @@ typedef struct Scope {
 struct Option__Scope {
     Scope *data;
 };
+
+typedef struct InterpSession {
+    Option__Scope global;
+    Bool core_evaluated;
+    USize user_argc;
+    Vec__DynPtrBox retained_programs;
+    Bool is_repl;
+    Set__Str evaluated_units;
+} InterpSession;
+
 
 typedef struct Context {
     Mode mode;
@@ -3840,6 +3840,7 @@ void priv___src_self_interpreter_til__write_field(void * inst_data, Declaration 
 void priv___src_self_interpreter_til__interpret_register_defs(Scope * global, Expr * prog, Context * ctx);
 void priv___src_self_interpreter_til__interpret_register_aliases(Scope * global, Expr * prog, Context * ctx);
 void priv___src_self_interpreter_til__interpret_copy_alias_ns(Expr * prog, Scope * global, Context * ctx);
+Scope * priv___src_self_interpreter_til__session_global(InterpSession * session);
 void interp_session_start(InterpSession * session, Vec__Str * user_argv);
 void interp_session_free(InterpSession * session);
 void * interp_program_to_heap(LoadedProgram * lp);
