@@ -1,0 +1,26 @@
+mode test
+
+# #334: patterns sharing a case must be pure comparisons. A payload binding
+# (or any non-range FCall pattern) can bind names or prepend per-pattern
+# statements, which has no meaning when several patterns pick one body, so
+# it must sit in a case of its own.
+
+Token := enum { Num: I64, Name: Str, Eof }
+
+test_binding_shares_case := test() {
+    mut r := 0
+    switch Token.Num(42) {
+    case Token.Num(n), Token.Eof: r = n
+    case Token.Name(_s): r = -1
+    }
+    println(r)
+}
+
+test_binding_shares_case_match := test() {
+    v := Token.Num(7)
+    r := match v {
+        case Token.Num(n), Token.Eof: n
+        case Token.Name(_s): 0 - 1
+    }
+    println(r)
+}

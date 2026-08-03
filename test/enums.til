@@ -246,6 +246,24 @@ test_switch_enum := test() {
     assert_eq(Str, result, "green")
 }
 
+// #334: bare variants sharing one body. This switch is exhaustive with two
+// arms, so it also exercises multi-pattern coverage counting (a `case:`
+// here would be rejected as unnecessary).
+test_switch_enum_multi_pattern := test() {
+    mut warm := false
+    switch Color.Blue {
+    case Color.Red, Color.Green: warm = true
+    case Color.Blue: warm = false
+    }
+    assert(warm.not())
+
+    switch Color.Green {
+    case Color.Red, Color.Green: warm = true
+    case Color.Blue: warm = false
+    }
+    assert(warm)
+}
+
 test_switch_payload := test() {
     mut result := 0
     switch Token.Num(42) {

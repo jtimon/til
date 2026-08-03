@@ -1539,8 +1539,12 @@ priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, 
 
 // take_expr: move the value out of `e`, leaving `e` an empty Body node, and
 // return the moved-out value. The postfix builders use this to reparent the
-// current expression under a new access/call node without aliasing it.
-priv take_expr := func(mut e: Expr) returns Expr {
+// current expression under a new access/call node without aliasing it --
+// `e = wrap(own take_expr(e))` is the safe spelling of a fold that would
+// otherwise delete the value it just moved (see make_nested_subject's
+// warning in desugarer.til). Public since #334: the typer's multi-pattern
+// or() fold needs the same move.
+take_expr := func(mut e: Expr) returns Expr {
     taken := e
     e.node_type = NodeType.Body
     e.children = Vec(Expr).new()
@@ -2332,21 +2336,22 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
     return stmt
 }
 
-// parse_case_head: consume `case <pattern> [if <guard>]:` and return the
-// Case node carrying the pattern (child 0) and optional guard (child 1).
-// Issue #199: the guard is stored as a third child of the Case so the typer
-// can distinguish `[pattern, body]` from `[pattern, guard, body]`; a bare
+// parse_case_head: consume `case <pattern> ("," <pattern>)* [if <guard>]:`
+// and return the Case node: children [pattern x N, guard?] with the pattern
+// count in the CaseData payload (#334); the caller appends the body child.
+// Issue #199: the guard rides as an extra child after the patterns; a bare
 // `case if <expr>:` is not allowed (KwIf only follows a pattern). Shared by
-// `switch` (statement-list body) and `match` (single value-expr body); the
-// caller appends the body child.
+// `switch` (statement-list body) and `match` (single value-expr body).
 priv parse_case_head := proc(mut p: Parser) returns Expr {
     expect_token(p, TokenType.KwCase)
-    mut cn := Expr.new(NodeType.Case, peek_line(p), peek_col(p))
+    mut cn := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), peek_line(p), peek_col(p))
+    mut pattern_count : USize = 0
     if check(p, TokenType.Colon).not() {
         // Issue #262: compile-time list pattern, `case []:` or
         // `case [x, ..tl]:`. Only meaningful on the variadic param of a
         // recursive variadic lazy body (the loader unrolls it away); the
-        // typer rejects any ListPattern that reaches it.
+        // typer rejects any ListPattern that reaches it. Stays single: no
+        // comma list after it (the commas inside the brackets are its own).
         if check(p, TokenType.LBracket) {
             lp_line := peek_line(p)
             lp_col := peek_col(p)
@@ -2362,13 +2367,25 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
             }
             expect_token(p, TokenType.RBracket)
             cn.add_child(own lp)
+            pattern_count = 1
         } else {
             cn.add_child(own parse_expression(p))
+            pattern_count = 1
+            // #334: `case a, b:` -- several patterns sharing one body.
+            while check(p, TokenType.Comma) {
+                advance(p)
+                cn.add_child(own parse_expression(p))
+                pattern_count++
+            }
         }
         if check(p, TokenType.KwIf) {
             advance(p)
             cn.add_child(own parse_expression(p))
         }
+    }
+    switch cn.node_type {
+    case NodeType.Case(cd): cd.pattern_count = pattern_count
+    case:
     }
     expect_token(p, TokenType.Colon)
     return cn

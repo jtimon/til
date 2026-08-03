@@ -1035,6 +1035,14 @@ main := proc(args: ..Str) {
     add_count(tests, "enum_switch_missing_case_build", "typer",
         "non-exhaustive switch on enum", 4,
         format(til_bin, " build", asan_flag, " test/enum_switch_missing_case.til"))
+    // #334: a binding pattern sharing a `case a, b:` list is rejected, on
+    // switch and match alike.
+    add_count(tests, "multi_pattern_binding_interp", "typer",
+        "cannot share a case with other patterns", 2,
+        format(til_bin, " interpret test/multi_pattern_binding_error.til"))
+    add_count(tests, "multi_pattern_binding_build", "typer",
+        "cannot share a case with other patterns", 2,
+        format(til_bin, " build", asan_flag, " test/multi_pattern_binding_error.til"))
     // A main() param whose type can't be parsed from a CLI argument is
     // rejected up front (validate_cli_main) on both backends.
     add_count(tests, "cli_unsupported_main_interp", "typer",

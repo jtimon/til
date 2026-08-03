@@ -646,6 +646,19 @@ namespace:
     to_str := func(_self: MatchData) returns Str { return "" }
 }
 
+/// Payload for NodeType.Case (issue #334): how many patterns precede the
+/// guard/body children. Child layout: [pattern x N, guard?, body]. The body
+/// is always the LAST child; pattern_count == 0 is the default `case:` arm
+/// ([body] alone); a guard exists iff children.len() > pattern_count + 1.
+/// Only pattern_count is stored -- everything else derives from it and the
+/// child count, so there is no second copy of the shape to drift.
+CaseData := struct {
+    pattern_count : USize = 1
+namespace:
+    eq := func(a: CaseData, b: CaseData) returns Bool { return a.pattern_count == b.pattern_count }
+    to_str := func(_self: CaseData) returns Str { return "" }
+}
+
 /// Payload for NodeType.CaptureBlock (issue #54): a bare `[a, mut b] { ... }`
 /// block carrying an explicit capture list. The captures restrict which
 /// outer-scope locals the block body may reference -- a compile-time
@@ -708,7 +721,7 @@ NodeType := enum {
     // common arm type, stored in MatchData). The typer lowers a Match to
     // a result temp + a synthetic Switch that assigns each arm's value.
     Match: MatchData,
-    Case,
+    Case: CaseData,
     NoDefaultArg,
     // Issue #198: error handling. Throw has 1 child (the thrown
     // expression). Catch has 3 children: Ident (var name), Ident
@@ -1119,4 +1132,27 @@ enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
     case:
         UNREACHABLE("expected EnumDef, got ", e.node_type.head_str(), loc = loc)
     }
+}
+
+case_of := func(e: Expr, loc: Str = __LOC__) returns ref CaseData {
+    switch e.node_type {
+    case NodeType.Case(d):
+        return d
+    case:
+        UNREACHABLE("expected Case, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+// --- Case-node shape readers (issue #334) ---
+// A Case's children are [pattern x N, guard?, body]; the payload records N.
+// Every reader must go through these instead of doing arithmetic on
+// children.len(): the count alone cannot tell a second pattern from a guard.
+// (The body needs no helper -- it is always the LAST child.)
+
+case_pattern_count := func(cn: Expr) returns USize {
+    return case_of(cn).pattern_count
+}
+
+case_has_guard := func(cn: Expr) returns Bool {
+    return cn.children.len() > case_pattern_count(cn) + 1
 }

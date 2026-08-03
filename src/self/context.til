@@ -2063,16 +2063,13 @@ stmt_always_diverges := func(e: Expr) returns Bool {
         return stmt_always_diverges(e.children[1]).and(stmt_always_diverges(e.children[2]))
     case NodeType.Switch:
         // Exhaustive (a `case:` wildcard -> C default) and every arm diverges.
-        // A pattern arm is [pattern, body]; the wildcard arm is [body].
+        // A pattern arm is [pattern x N, body]; the wildcard arm is [body].
+        // The body is always the last child.
         mut has_default := false
         for ci in 1..e.children.len() {
             ref cn : Expr = e.children[ci]
-            if cn.children.len() == 1 {
-                has_default = true
-                if stmt_always_diverges(cn.children[0]).not() { return false }
-            } else {
-                if stmt_always_diverges(cn.children[1]).not() { return false }
-            }
+            if cn.children.len() == 1 { has_default = true }
+            if stmt_always_diverges(cn.children[cn.children.len() - 1]).not() { return false }
         }
         return has_default
     case NodeType.While:

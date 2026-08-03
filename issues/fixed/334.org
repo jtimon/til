@@ -1,6 +1,74 @@
 # priority: medium
 # category: features
-** OPEN #334 One body, several case labels: multi-pattern cases or a fallthrough switch
+** FIXED #334 One body, several case labels: multi-pattern cases or a fallthrough switch
+
+*Post-mortem.*
+
+  Landed multi-pattern cases (~case a, b:~); the fallthrough switch was
+  not built. Both were viable, and the fallthrough form was the cheaper
+  one -- it keeps one pattern per case, so it would have touched none of
+  the AST work below -- but it makes ~break~ mean "leave the switch"
+  inside it while ~break~ in a plain ~switch~ targets the enclosing loop.
+  One keyword, one syntactic position, two meanings. That is the whole
+  reason it lost.
+
+  *Root of the work: the Case node had no payload.* A case's shape was
+  encoded in its CHILD COUNT -- 1 meant the default arm, 2 meant
+  ~[pattern, body]~, 3 meant ~[pattern, guard, body]~ -- and 19 sites
+  across 6 files read it that way. ~case a, b:~ is three children, so it
+  was indistinguishable from ~case a if cond:~. No amount of parser work
+  could have avoided this; the count had to stop carrying the meaning.
+
+  So ~NodeType.Case~ now carries ~CaseData(pattern_count)~ and the layout
+  is ~[pattern x N, guard?, body]~ with the body always LAST. Two readers
+  in ~core/ast.til~ -- ~case_pattern_count~ and ~case_has_guard~ -- are
+  the only sanctioned way to ask; nothing does arithmetic on
+  ~children.len()~ any more. The count encoding had already bent once
+  when #262 squeezed ~ListPattern~ into slot 0; it will not bend again.
+
+  Per stage: the parser loops on ~Comma~ and records N; ~switch_is_clike~
+  checks each pattern and stacks each as its own C label; the builder
+  emits N labels over one block (verified in the generated C -- ~case
+  Color_TAG_Red:~ / ~case Color_TAG_Green:~ share a body, and the integer
+  path stacks ~case 1: case 3: case 5:~); the interpreter matches if ANY
+  pattern does; the desugar path OR-chains one condition per pattern; and
+  coverage marks every pattern, so a two-arm switch over a three-variant
+  enum can now be exhaustive.
+
+  *The bug this uncovered, which was not mine.* ~infer_body_stmt~
+  decremented ~i~ unconditionally after calling ~infer_switch_stmt~ on a
+  Match, assuming the lowering always replaced the node. It does not: it
+  bails early on a rejected pattern. The Match then stayed in place and
+  the same index was retried forever, re-reporting its error -- 53
+  million copies, filling 38G of disk and hanging the suite for an hour
+  before I diagnosed it. The Switch caller had always guarded on the
+  return value; the Match caller never did. This was reachable before
+  #334 through a #262 list pattern inside a ~match~, which evidently
+  nobody had written. Fixed by guarding, and by marking the un-lowered
+  Match inert.
+
+  *Second thing worth remembering.* The OR-fold of per-pattern conditions
+  hit the exact use-after-free ~make_nested_subject~ documents: writing
+  ~condition = wrap(own condition)~ moves the value into the wrapper and
+  then the assignment deletes the old value the wrapper now owns. It
+  aborted with "double free or corruption" on the first build. The fix is
+  ~take_expr~, which the parser already had for precisely this; it is
+  public now.
+
+  *Rejected by design:* a payload binding, struct pattern, or non-range
+  call pattern cannot share a case. Those bind names or prepend
+  per-pattern statements to the body, which has no meaning when several
+  patterns select one body -- and Rust, which does allow ~A(x) | B(x)~,
+  only does so by requiring x's type to agree across alternatives. That
+  is a real feature, not this one; it can come later without changing
+  anything here.
+
+  Tests: ~test/flow.til~ (integer, ~Str~, char, range-mixed, guarded, and
+  a ~match~ arm), ~test/enums.til~
+  (~test_switch_enum_multi_pattern~ -- two arms over three variants, so
+  it doubles as the coverage check), and
+  ~test/multi_pattern_binding_error.til~ for the rejection, on both
+  backends.
 
    A ~case~ takes exactly ONE pattern (~parse_case_head~,
    src/self/parser.til:2375, accepts one pattern plus an optional ~if~
@@ -160,3 +228,12 @@
    place and the compiler is correct; this is about the next person who
    edits one of those eight ~push_til_base~ bodies and misses the other
    seven.
+
+*** Follow-up not done here
+
+   The #331 call sites that motivated this -- ~push_til_base~'s eight
+   spellings of a signed 64-bit int, ~binop_prec~'s six comparison
+   tokens, ~parse_statement_body~'s nine value-opening tokens, and the
+   rest -- are still written one case per label. Collapsing them is
+   mechanical now that the syntax exists, but it is a separate diff from
+   the feature and was left out deliberately.

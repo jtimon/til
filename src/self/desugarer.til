@@ -2156,8 +2156,8 @@ priv process_throw_catch_in_body := proc(
                     // #282: discover a bang guard's throw types so the
                     // function-level err slots get declared (the actual hoist
                     // runs at infer time).
-                    if cn.children.len() == 3 {
-                        register_bang_guard_throws(ctx, cn.children[1], root_body, types_to_declare, seen)
+                    if case_has_guard(cn) {
+                        register_bang_guard_throws(ctx, cn.children[case_pattern_count(cn)], root_body, types_to_declare, seen)
                     }
                     for mut ccn : Expr in cn.children {
                         if ccn.node_type.is(NodeType.Body) {
@@ -2248,9 +2248,10 @@ priv process_throw_catch_in_body := proc(
                     // #282: a bang call in a case guard is lowered at infer
                     // time, not here -- skip the guard child so validate
                     // doesn't flag the surviving '!'.
-                    guard_bang := cn.children.len().eq(3).and(subtree_has_bang(cn.children[1]))
+                    guard_idx := case_pattern_count(cn)
+                    guard_bang := case_has_guard(cn).and(subtree_has_bang(cn.children[guard_idx]))
                     for cci in 0..cn.children.len() {
-                        if guard_bang.and(cci.eq(1)) { continue }
+                        if guard_bang.and(cci.eq(guard_idx)) { continue }
                         ref mut ccn : Expr = cn.children[cci]
                         if ccn.node_type.is(NodeType.Body).not() {
                             validate_and_inject_expr_consolidated(ctx, ccn, root_body, pending, seen, types_to_declare, path)
@@ -3236,91 +3237,101 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
     for ci in 1..stmt.children.len() {
         ref cn : Expr = stmt.children[ci]
         if cn.node_type.is(NodeType.Case).not() { return false }
-        if cn.children.len() == 1 {
+        pc := case_pattern_count(cn)
+        if pc == 0 {
             if seen_default { return false }
             seen_default = true
             if expr_has_unguarded_break(cn.children[0]) { return false }
             continue
         }
         if seen_default { return false }
-        if cn.children.len() != 2 { return false }
-        ref pat : Expr = cn.children[0]
-        mut lit_text := ""
-        mut is_range := false
-        if is_enum {
-            // Accept a bare variant `Type.Variant` (FieldAccess) OR a single
-            // payload binding `Type.Variant(x)` (#276: FCall with a FieldAccess
-            // callee and one bare-Ident arg). The base must name the
-            // scrutinee's enum and the variant must exist; a payload binding
-            // additionally requires the variant to carry a payload. Guards,
-            // ranges, nested/struct patterns, and multi-arg payloads still fall
-            // back to the desugar.
-            mut vname := ""
-            mut base_ok := false
-            mut needs_payload := false
-            switch pat.node_type {
-            case NodeType.FieldAccess(fa):
-                vname = Str.clone(fa.field_access_name())
-                if pat.children.len() > 0 {
-                    switch pat.children[0].node_type {
-                    case NodeType.Ident(bn): base_ok = bn.ident_name() == sw_sname
+        // A guard can fail at runtime and fall to the next case, which a C
+        // switch cannot model; guarded cases stay on the desugar.
+        if case_has_guard(cn) { return false }
+        // #334: each of the case's patterns becomes one stacked C label, so
+        // every pattern must individually pass the same checks one did.
+        for pi in 0..pc {
+            ref pat : Expr = cn.children[pi]
+            mut lit_text := ""
+            mut is_range := false
+            if is_enum {
+                // Accept a bare variant `Type.Variant` (FieldAccess) OR a single
+                // payload binding `Type.Variant(x)` (#276: FCall with a FieldAccess
+                // callee and one bare-Ident arg). The base must name the
+                // scrutinee's enum and the variant must exist; a payload binding
+                // additionally requires the variant to carry a payload -- and is
+                // only accepted alone (the typer rejects a binding sharing a
+                // case before this runs). Guards, ranges, nested/struct
+                // patterns, and multi-arg payloads still fall back to the
+                // desugar.
+                mut vname := ""
+                mut base_ok := false
+                mut needs_payload := false
+                switch pat.node_type {
+                case NodeType.FieldAccess(fa):
+                    vname = Str.clone(fa.field_access_name())
+                    if pat.children.len() > 0 {
+                        switch pat.children[0].node_type {
+                        case NodeType.Ident(bn): base_ok = bn.ident_name() == sw_sname
+                        case:
+                        }
+                    }
+                case NodeType.FCall:
+                    if pc > 1 { return false }
+                    if pat.children.len() != 2 { return false }
+                    if pat.children[1].node_type.is(NodeType.Ident).not() { return false }
+                    ref callee : Expr = pat.children[0]
+                    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+                    switch callee.node_type {
+                    case NodeType.FieldAccess(fa2): vname = Str.clone(fa2.field_access_name())
                     case:
                     }
-                }
-            case NodeType.FCall:
-                if pat.children.len() != 2 { return false }
-                if pat.children[1].node_type.is(NodeType.Ident).not() { return false }
-                ref callee : Expr = pat.children[0]
-                if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-                switch callee.node_type {
-                case NodeType.FieldAccess(fa2): vname = Str.clone(fa2.field_access_name())
-                case:
-                }
-                if callee.children.len() > 0 {
-                    switch callee.children[0].node_type {
-                    case NodeType.Ident(bn2): base_ok = bn2.ident_name() == sw_sname
-                    case:
+                    if callee.children.len() > 0 {
+                        switch callee.children[0].node_type {
+                        case NodeType.Ident(bn2): base_ok = bn2.ident_name() == sw_sname
+                        case:
+                        }
                     }
+                    needs_payload = true
+                case: return false
                 }
-                needs_payload = true
-            case: return false
+                if base_ok.not() { return false }
+                // base_ok above proved the pattern names this very enum, so
+                // its def is registered; enum_variant_index derefs it anyway.
+                ref edef1 : Expr = scope.get_struct(sw_sname).unwrap()
+                vidx := enum_variant_index(edef1, vname)
+                if vidx < 0 { return false }
+                if needs_payload.and(enum_variant_type(edef1, vidx).len().eq(0)) { return false }
+                lit_text = vname.clone()
+            } else if is_bool {
+                switch pat.node_type {
+                case NodeType.Literal(Literal.Bool(bv)):
+                    if bv { lit_text = "true" } else { lit_text = "false" }
+                case: return false
+                }
+            } else {
+                // int/char: a constant literal, or a `lo..hi` range (Range.new
+                // FCall with int/char-literal bounds) emitted as a C case range.
+                switch pat.node_type {
+                case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
+                case NodeType.FCall:
+                    if is_range_new_call(pat).not() { return false }
+                    if pat.children[1].node_type.is_literal_num().not() { return false }
+                    if pat.children[2].node_type.is_literal_num().not() { return false }
+                    is_range = true
+                case: return false
+                }
             }
-            if base_ok.not() { return false }
-            // base_ok above proved the pattern names this very enum, so
-            // its def is registered; enum_variant_index derefs it anyway.
-            ref edef1 : Expr = scope.get_struct(sw_sname).unwrap()
-            vidx := enum_variant_index(edef1, vname)
-            if vidx < 0 { return false }
-            if needs_payload.and(enum_variant_type(edef1, vidx).len().eq(0)) { return false }
-            lit_text = vname.clone()
-        } else if is_bool {
-            switch pat.node_type {
-            case NodeType.Literal(Literal.Bool(bv)):
-                if bv { lit_text = "true" } else { lit_text = "false" }
-            case: return false
-            }
-        } else {
-            // int/char: a constant literal, or a `lo..hi` range (Range.new
-            // FCall with int/char-literal bounds) emitted as a C case range.
-            switch pat.node_type {
-            case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
-            case NodeType.FCall:
-                if is_range_new_call(pat).not() { return false }
-                if pat.children[1].node_type.is_literal_num().not() { return false }
-                if pat.children[2].node_type.is_literal_num().not() { return false }
-                is_range = true
-            case: return false
+            // Dedup constant labels (C rejects duplicates); ranges are left to the
+            // C compiler to reject on overlap.
+            if is_range.not() {
+                for lbl : Str in labels {
+                    if lbl == lit_text { return false }
+                }
+                labels.push(own lit_text.clone())
             }
         }
-        // Dedup constant labels (C rejects duplicates); ranges are left to the
-        // C compiler to reject on overlap.
-        if is_range.not() {
-            for lbl : Str in labels {
-                if lbl == lit_text { return false }
-            }
-            labels.push(own lit_text.clone())
-        }
-        if expr_has_unguarded_break(cn.children[1]) { return false }
+        if expr_has_unguarded_break(cn.children[cn.children.len() - 1]) { return false }
     }
     return true
 }

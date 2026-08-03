@@ -2621,7 +2621,7 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
         if has_default.not() {
             mut default_body := Expr.new(NodeType.Body, node.line, node.col)
             if add_delete_to_branch(default_body, local, node, scope, ctx) {
-                mut default_case := Expr.new(NodeType.Case, node.line, node.col)
+                mut default_case := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), node.line, node.col)
                 default_case.add_child(own default_body)
                 node.add_child(own default_case)
             }

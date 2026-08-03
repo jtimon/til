@@ -2396,12 +2396,17 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
             return
         }
     case NodeType.Case:
-        // [pattern, body]: payload binders in the pattern shadow the body.
-        if e.children.len() == 2 {
-            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+        // [pattern x N, body]: payload binders in the patterns shadow the
+        // body. Guarded cases keep falling through to the generic recursion
+        // below, exactly as they did before #334's pattern lists.
+        if case_has_guard(e).not().and(case_pattern_count(e).gte(1)) {
+            pc := case_pattern_count(e)
             mut case_shadow := shadowed.clone()
-            collect_case_pattern_binders(e.children[0], case_shadow)
-            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, case_shadow, ctx)
+            for pi in 0..pc {
+                ns_alias_rewrite_child(e, pi, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+                collect_case_pattern_binders(e.children[pi], case_shadow)
+            }
+            ns_alias_rewrite_child(e, pc, alias_names, alias_members, alias_paths, path, case_shadow, ctx)
             return
         }
     case NodeType.Catch:
@@ -2581,14 +2586,14 @@ priv lazy_make_bool_match := func(own cond: Expr, own x: Expr, own y: Expr, line
     mut m := Expr.new(NodeType.Match(MatchData()), line, col)
     m.add_child(own cond)                                    // subject
     // case true: x
-    mut c1 := Expr.new(NodeType.Case, line, col)
+    mut c1 := Expr.new(NodeType.Case(CaseData()), line, col)
     c1.add_child(own Expr.new(NodeType.Literal(Literal.Bool(true)), line, col))
     mut b1 := Expr.new(NodeType.Body, line, col)
     b1.add_child(own x)
     c1.add_child(own b1)
     m.add_child(own c1)
     // case: y  (default arm catches false)
-    mut c2 := Expr.new(NodeType.Case, line, col)
+    mut c2 := Expr.new(NodeType.Case(CaseData(pattern_count = 0)), line, col)
     mut b2 := Expr.new(NodeType.Body, line, col)
     b2.add_child(own y)
     c2.add_child(own b2)

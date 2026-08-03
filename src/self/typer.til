@@ -6004,8 +6004,18 @@ infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: USize, in_func:
             bare_match.set_til_type(Type.None)
             return
         }
-        infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx)
-        i--
+        // `i--` re-visits this index so the lowered replacement gets typed --
+        // but ONLY when the lowering actually ran. infer_switch_stmt bails
+        // early on a rejected pattern (a #262 list pattern, a #334 binding
+        // sharing a case), leaving the Match in place; decrementing then
+        // retries the same node forever, re-reporting its error until the
+        // disk fills. The Switch caller has always guarded on this; Match
+        // did not.
+        if infer_switch_stmt(scope, body, i, in_func, in_loop, returns_ref, ctx) {
+            i--
+        } else {
+            body.children[i].set_til_type(Type.None)
+        }
         return
     }
     // Issue #244: lower any match nested in this statement into a result temp
@@ -8581,19 +8591,13 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
 // switch helper, infers the bindings, then infers the value expression.
 priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, ctx: Context) returns Type {
     arm_scope := TypeScope(parent = Option(ref TypeScope).Some(scope))
-    mut body_idx : USize = 0
-    mut has_pattern := false
-    if case_node.children.len() == 1 {
-        body_idx = 0                 // default `case:` -- child(0) is the Body
-    } else if case_node.children.len() == 3 {
-        body_idx = 2                 // guarded -- [pattern, guard, Body]
-        has_pattern = true
-    } else {
-        body_idx = 1                 // [pattern, Body]
-        has_pattern = true
-    }
+    body_idx := case_node.children.len() - 1
+    has_pattern := case_pattern_count(case_node) > 0
     mut trial := case_node.children[body_idx].clone()
     if has_pattern {
+        // Bindings come only from a case's single pattern (a pattern that
+        // binds cannot share a case, #334), so prepending children[0] is
+        // enough to type the body under its bindings.
         sw_ref := subj.clone()
         make_switch_case_condition(arm_scope, trial, case_node.children[0], sw_ref, case_node.line, case_node.col)
     }
@@ -9064,19 +9068,27 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     mut has_last_case := false
     for ci in 1..stmt.children.len() {
         ref mut cn : Expr = stmt.children[ci]
-        mut body_idx : USize = 1
-        if cn.children.len() == 1 {
-            body_idx = 0
+        body_idx := cn.children.len() - 1
+        pc := case_pattern_count(cn)
+        if pc == 0 {
             has_default = true
             default_line = cn.line
             default_col = cn.col
         } else {
             if is_enum {
-                mark_pattern_coverage(scope, coverage, sw_sname, cn.children[0])
+                // #334: every pattern of the case counts toward coverage.
+                // Payload bindings only exist on single-pattern cases (a
+                // binding pattern sharing a case is rejected before the
+                // clike dispatch), so the binding prepend stays keyed to
+                // children[0].
+                for pi in 0..pc {
+                    mark_pattern_coverage(scope, coverage, sw_sname, cn.children[pi])
+                }
                 stole_box := steal_own_param_payload_returns(scope, sw_expr, cn, sw_sname, ctx)
                 prepend_clike_payload_binding(scope, sw_expr, cn, sw_sname, stole_box)
             }
-            if is_bool { bool_labels = bool_labels + 1 }
+            // A multi-pattern bool case can cover both labels on its own.
+            if is_bool { bool_labels = bool_labels + pc.to_i64() }
             last_case_idx = ci
             has_last_case = true
         }
@@ -9107,8 +9119,14 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         } else if has_last_case {
             ref mut last_cn : Expr = stmt.children[last_case_idx]
             mut bvec := Vec(Expr).new()
-            bvec.push_take(last_cn.children, 1)
+            bvec.push_take(last_cn.children, last_cn.children.len() - 1)
             last_cn.children.move_from(bvec)
+            // The case is [body] now; the payload must say so or every
+            // shape reader downstream miscounts (#334).
+            switch last_cn.node_type {
+            case NodeType.Case(last_cd): last_cd.pattern_count = 0
+            case:
+            }
         }
     } else if is_bool {
         // A bool switch covering both true and false with no `case:` is
@@ -9117,8 +9135,12 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
         if has_default.not().and(bool_labels.eq(2)).and(has_last_case) {
             ref mut last_cn : Expr = stmt.children[last_case_idx]
             mut bvec := Vec(Expr).new()
-            bvec.push_take(last_cn.children, 1)
+            bvec.push_take(last_cn.children, last_cn.children.len() - 1)
             last_cn.children.move_from(bvec)
+            switch last_cn.node_type {
+            case NodeType.Case(last_cd): last_cd.pattern_count = 0
+            case:
+            }
         }
     }
     stmt.set_til_type(Type.None)
@@ -9148,6 +9170,22 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
                 lp_case.type_error("list patterns ('[]', '[x, ..tl]') are only supported matching the variadic param of a recursive variadic lazy_func/lazy_proc body (issue #262)", ctx)
                 return false
             }
+            // #334: patterns sharing a case must be pure comparisons. An
+            // FCall pattern other than a range is a payload binding, a
+            // struct pattern, or a call -- shapes that can bind names or
+            // prepend per-pattern statements, which have no meaning when
+            // several patterns pick one body. Split those into their own
+            // cases.
+            mp_count := case_pattern_count(lp_case)
+            if mp_count > 1 {
+                for mp_pi in 0..mp_count {
+                    ref mp_pat : Expr = lp_case.children[mp_pi]
+                    if mp_pat.node_type.is(NodeType.FCall).and(is_range_new_call(mp_pat).not()) {
+                        lp_case.type_error("a payload binding, struct pattern, or call pattern cannot share a case with other patterns; give it its own case (issue #334)", ctx)
+                        return false
+                    }
+                }
+            }
         }
     }
     mut kind_word := "switch"
@@ -9160,9 +9198,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
         }
         for tci in 1..stmt.children.len() {
             ref tcase : Expr = stmt.children[tci]
-            mut tbody_idx : USize = 1
-            if tcase.children.len() == 1 { tbody_idx = 0 }
-            else if tcase.children.len() == 3 { tbody_idx = 2 }
+            tbody_idx := tcase.children.len() - 1
             ref tvbody : Expr = tcase.children[tbody_idx]
             mut tvalue : Expr = tvbody.children.pop()
             while match_is_bool_identity(tvalue) { tvalue = tvalue.children[0].clone() }
@@ -9269,7 +9305,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     mut any_guard := false
     for ag_ci in 1..stmt.children.len() {
         ref ag_cn : Expr = stmt.children[ag_ci]
-        if ag_cn.children.len() == 3 { any_guard = true }
+        if case_has_guard(ag_cn) { any_guard = true }
     }
 
     mut first_if := Expr.new(NodeType.Body, stmt.line, stmt.col)
@@ -9307,7 +9343,8 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
 
     for ci in 1..stmt.children.len() {
         ref case_node : Expr = stmt.children[ci]
-        if case_node.children.len() == 1 {
+        pat_count := case_pattern_count(case_node)
+        if pat_count == 0 {
             if saw_default {
                 case_node.type_error("unreachable default arm; an earlier `case:` already covers everything", ctx)
             }
@@ -9319,29 +9356,47 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
             default_col = case_node.col
             continue
         }
-        mut has_guard := false
-        mut body_idx : USize = 1
-        if case_node.children.len() == 3 {
-            has_guard = true
-            body_idx = 2
-        }
+        has_guard := case_has_guard(case_node)
+        body_idx := case_node.children.len() - 1
         ref match_expr : Expr = case_node.children[0]
         ref mut case_body : Expr = case_node.children[body_idx]
-        validate_struct_pattern_rest(scope, match_expr, ctx)
+        // #334: every pattern of the case is validated and coverage-marked;
+        // an arm matches when ANY of them does, so unreachability holds only
+        // if each pattern is already covered.
+        mut all_covered := true
+        for vp_i in 0..pat_count {
+            ref vp_pat : Expr = case_node.children[vp_i]
+            validate_struct_pattern_rest(scope, vp_pat, ctx)
+            if has_switch_enum_def.and(has_guard.not()) {
+                if is_pattern_covered(scope, coverage, sw_expr_sname, vp_pat).not() { all_covered = false }
+            }
+        }
         if saw_default {
             case_node.type_error("unreachable case; an earlier `case:` default already covers everything", ctx)
-        } else if has_switch_enum_def.and(has_guard.not()) {
-            if is_pattern_covered(scope, coverage, sw_expr_sname, match_expr) {
-                case_node.type_error("unreachable case; the variant is already fully covered by an earlier arm", ctx)
-            }
+        } else if has_switch_enum_def.and(has_guard.not()).and(all_covered) {
+            case_node.type_error("unreachable case; the variant is already fully covered by an earlier arm", ctx)
         }
         // Guards may fail at runtime, so they don't mark the pattern as
         // covered for exhaustiveness.
         if has_switch_enum_def.and(has_guard.not()) {
-            mark_pattern_coverage(scope, coverage, sw_expr_sname, match_expr)
+            for mc_i in 0..pat_count {
+                mark_pattern_coverage(scope, coverage, sw_expr_sname, case_node.children[mc_i])
+            }
         }
         user_stmt_count := case_body.children.len()
-        condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
+        // One condition per pattern, OR-chained left to right. Patterns past
+        // the first cannot bind (rejected up front), so the extra calls
+        // prepend nothing to case_body -- they only build comparisons.
+        // take_expr moves the accumulator out before the reassignment, so
+        // `condition = or_call` deletes an empty husk, not the subtree the
+        // or-call now owns (the make_nested_subject use-after-free).
+        mut condition := make_switch_case_condition(scope, case_body, match_expr, sw_ref, sw_line, sw_col)
+        for oc_i in 1..pat_count {
+            mut next_cond := make_switch_case_condition(scope, case_body, case_node.children[oc_i], sw_ref, sw_line, sw_col)
+            mut or_call := make_method_call_fcall(own take_expr(condition), "or", sw_line, sw_col)
+            or_call.add_child(own next_cond)
+            condition = or_call
+        }
 
         if any_guard {
             // Build the case_body for the flag-based desugar:
@@ -9367,7 +9422,7 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
             user_stmts.add_child(own matched_assign)
 
             if has_guard {
-                ref guard_expr : Expr = case_node.children[1]
+                ref guard_expr : Expr = case_node.children[pat_count]
                 mut guard_if := Expr.new(NodeType.If, case_node.line, case_node.col)
                 guard_if.add_child(own guard_expr.clone())
                 guard_if.add_child(own user_stmts)

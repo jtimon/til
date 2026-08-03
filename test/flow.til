@@ -386,6 +386,103 @@ test_switch_range_boundary := test() {
     assert(result)
 }
 
+// #334: several patterns sharing one body -- `case a, b:`
+test_switch_multi_pattern_i64 := test() {
+    mut result := ""
+    switch 3 {
+    case 1, 3, 5: result = "odd"
+    case 2, 4, 6: result = "even"
+    case: result = "big"
+    }
+    assert_eq(Str, result, "odd")
+
+    // A later pattern in the list matches too
+    switch 6 {
+    case 1, 3, 5: result = "odd"
+    case 2, 4, 6: result = "even"
+    case: result = "big"
+    }
+    assert_eq(Str, result, "even")
+
+    // No pattern matches -> default
+    switch 9 {
+    case 1, 3, 5: result = "odd"
+    case 2, 4, 6: result = "even"
+    case: result = "big"
+    }
+    assert_eq(Str, result, "big")
+}
+
+test_switch_multi_pattern_str := test() {
+    // Str switches lower to the eq/or chain, not a C switch
+    mut kind := ""
+    switch "signed long" {
+    case "long", "long int", "signed long", "signed long int": kind = "I64"
+    case "unsigned long", "unsigned long int": kind = "U64"
+    case: kind = "?"
+    }
+    assert_eq(Str, kind, "I64")
+}
+
+test_switch_multi_pattern_char := test() {
+    mut kind := ""
+    switch '+' {
+    case '+', '-': kind = "additive"
+    case '*', '/', '%': kind = "multiplicative"
+    case: kind = "other"
+    }
+    assert_eq(Str, kind, "additive")
+}
+
+test_switch_multi_pattern_range_mix := test() {
+    // A range and exact values sharing one arm
+    mut result := ""
+    switch 7 {
+    case 0, 2..4: result = "a"
+    case 5..8, 10: result = "b"
+    case: result = "c"
+    }
+    assert_eq(Str, result, "b")
+
+    switch 10 {
+    case 0, 2..4: result = "a"
+    case 5..8, 10: result = "b"
+    case: result = "c"
+    }
+    assert_eq(Str, result, "b")
+}
+
+test_switch_multi_pattern_guard := test() {
+    // The guard applies to the whole arm: any pattern AND the guard
+    mut r := 0
+    flag := true
+    switch 2 {
+    case 1, 2 if flag: r = 1
+    case 1, 2: r = 2
+    case: r = 3
+    }
+    assert_eq(I64, r, 1)
+
+    noflag := false
+    switch 2 {
+    case 1, 2 if noflag: r = 1
+    case 1, 2: r = 2
+    case: r = 3
+    }
+    assert_eq(I64, r, 2)
+}
+
+test_match_multi_pattern := test() {
+    // match arms share the same case machinery
+    v := 4
+    word := match v {
+        case 1, 3, 5: "odd"
+        case 2, 4, 6: "even"
+        case: "big"
+    }
+    assert_eq(Str, word, "even")
+}
+
 // `break` inside a switch case should exit the enclosing loop, not the
 // switch (til has no fallthrough, so cases don't need their own break)
 test_switch_break_in_loop := test() {

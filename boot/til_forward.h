@@ -100,6 +100,7 @@ enum {
 };
 typedef struct Literal Literal;
 typedef struct MatchData MatchData;
+typedef struct CaseData CaseData;
 typedef struct CaptureBlockData CaptureBlockData;
 enum {
     NodeType_TAG_Body,
@@ -608,6 +609,11 @@ typedef struct MatchData {
     Type til_type;
     Str result_temp;
 } MatchData;
+
+
+typedef struct CaseData {
+    USize pattern_count;
+} CaseData;
 
 
 struct Option__ref_Str {
@@ -1305,6 +1311,7 @@ struct NodeType {
         ForInData ForIn;
         Str NamedArg;
         MatchData Match;
+        CaseData Case;
         CaptureBlockData CaptureBlock;
         CaptureBlockData BodyValue;
         void *_til_payload_align;
@@ -1810,6 +1817,9 @@ FunctionDef * funcdef_of(Expr * e, Str * loc);
 FieldAccessData * fieldaccess_of(Expr * e, Str * loc);
 StructDef * structdef_of(Expr * e, Str * loc);
 EnumDef * enumdef_of(Expr * e, Str * loc);
+CaseData * case_of(Expr * e, Str * loc);
+USize case_pattern_count(Expr * cn);
+Bool case_has_guard(Expr * cn);
 Bool Option__ref_Str_is_some(Option__ref_Str self);
 Bool Option__ref_Str_is_none(Option__ref_Str self);
 Str * Option__ref_Str_unwrap(Option__ref_Str * self);
@@ -1980,7 +1990,7 @@ Expr * priv___src_self_parser_til__parse_subscript_assign(priv___src_self_parser
 Expr * priv___src_self_parser_til__parse_call(priv___src_self_parser_til__Parser * p, Expr * callee, U32 call_line, U32 call_col);
 Expr * priv___src_self_parser_til__nest_nary_and_or(Expr * call);
 Expr * priv___src_self_parser_til__make_binop_call(Expr * lhs, Str * method, U32 op_line, U32 op_col, Expr * rhs);
-Expr * priv___src_self_parser_til__take_expr(Expr * e);
+Expr * take_expr(Expr * e);
 Expr * priv___src_self_parser_til__parse_primary(priv___src_self_parser_til__Parser * p);
 I64 priv___src_self_parser_til__binop_prec(TokenType * tt);
 Str * priv___src_self_parser_til__binop_method(TokenType * tt);

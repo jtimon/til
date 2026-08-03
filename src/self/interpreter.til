@@ -1871,25 +1871,31 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
     mut default_idx : USize = 0
     for ci in 1..stmt.children.len() {
         ref cn : Expr = stmt.children[ci]
-        if cn.children.len() == 1 {
+        pc := case_pattern_count(cn)
+        if pc == 0 {
             has_default = true
             default_idx = ci
             continue
         }
+        // #334: the arm matches when ANY of its patterns does.
         mut matched := false
-        if is_enum_subj.and(enum_def_o.is_some()) {
-            matched = enum_variant_tag(enum_def_o.unwrap(), clike_case_variant_name(cn.children[0])) == subj_i
-        } else if is_range_new_call(cn.children[0]) {
-            // #254 range case `lo..hi`: match lo <= subj <= hi.
-            lo := raw_switch_key(scope, cn.children[0].children[1], ctx)
-            hi := raw_switch_key(scope, cn.children[0].children[2], ctx)
-            matched = subj_i.gte(lo).and(subj_i.lte(hi))
-        } else {
-            matched = raw_switch_key(scope, cn.children[0], ctx) == subj_i
+        for pi in 0..pc {
+            ref pat : Expr = cn.children[pi]
+            if is_enum_subj.and(enum_def_o.is_some()) {
+                matched = enum_variant_tag(enum_def_o.unwrap(), clike_case_variant_name(pat)) == subj_i
+            } else if is_range_new_call(pat) {
+                // #254 range case `lo..hi`: match lo <= subj <= hi.
+                lo := raw_switch_key(scope, pat.children[1], ctx)
+                hi := raw_switch_key(scope, pat.children[2], ctx)
+                matched = subj_i.gte(lo).and(subj_i.lte(hi))
+            } else {
+                matched = raw_switch_key(scope, pat, ctx) == subj_i
+            }
+            if matched { break }
         }
         if matched {
         case_scope := scope_new(Option(ref Scope).Some(scope))
-            eval_body(case_scope, cn.children[1], ctx)
+            eval_body(case_scope, cn.children[cn.children.len() - 1], ctx)
             scope_free(own case_scope)
             return
         }
