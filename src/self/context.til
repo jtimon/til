@@ -1124,6 +1124,7 @@ resolved_type_name := func(t: Type) returns Str {
     case Type.Primitive(Primitive.I64): return "I64"
     case Type.Primitive(Primitive.U64): return "U64"
     case Type.Primitive(Primitive.F32): return "F32"
+    case Type.Primitive(Primitive.F64): return "F64"
     case Type.Primitive(Primitive.Bool): return "Bool"
     case: return ""
     }
@@ -1834,6 +1835,7 @@ niche_payload_is_owned_box := func(vtype: Str) returns Bool {
     case "USize": return false
     case "UPtr": return false
     case "F32": return false
+    case "F64": return false
     case "Bool": return false
     case: return true
     }
