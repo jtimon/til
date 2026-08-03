@@ -651,6 +651,15 @@ main := proc(args: ..Str) {
     // delete rides the #302 gc_storage record through the collector;
     // ColorG's clone proves the payload-enum side (nothing clones one, so
     // the definition goes even though its variants carry payloads).
+    // POD structs join the lifecycle gate on the enums' terms: the clone
+    // splice mirror follows the argument's storage (#302 gc_storage) and
+    // the enclosing function's params. CmpPoint is cloned nowhere, so its
+    // generated clone goes. aliases.til's Point_clone stays for now -- its
+    // `p := Point2(...)` ctor Decl is one of #302's documented divergent
+    // paths (records HeapBox, emits stack), and the collector errs toward
+    // keeping until stages 4/6 align the record.
+    add_count(tests, "structs_no_uncalled_pod_clone", "build", "CmpPoint_clone", 0,
+        format(til_bin, " translate -c gen/c/structs_pc.c test/structs.til '&&' cat gen/c/structs_pc.c"))
     add_count(tests, "enums_no_uncalled_lifecycle", "build", "TagU8_delete", 0,
         format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
     add_count(tests, "enums_no_uncalled_payload_clone", "build", "ColorG_clone", 0,

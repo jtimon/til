@@ -1549,13 +1549,14 @@ priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
         mut inv_round_sites := Set(Str).new()
         inv_stack_names = Set(Str).new()
         inv_dup_names = Set(Str).new()
+        mut inv_param_names := Set(Str).new()
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
-                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, "", lp.ctx)
+                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", lp.ctx)
             }
         }
         for u : ProgramUnit in lp.units {
-            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, "", lp.ctx)
+            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", lp.ctx)
         }
         n_sites := inv_round_sites.len()
         lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
@@ -5596,12 +5597,17 @@ priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Con
     // Any ENUM, payload-carrying included: the site inventory is what
     // decides, and the splice predicates only ever fire for the POD
     // shapes, so a payload enum's sites always record and the definition
-    // stays whenever anything clones/deletes/compares one. Structs stay
-    // out: their clone splicing depends on the argument's storage, which
-    // is not decidable from the callee.
+    // stays whenever anything clones/deletes/compares one. POD STRUCTS
+    // join on the same terms: their clone splice depends on the
+    // argument's storage, which the collector mirrors through the #302
+    // gc_storage record and the enclosing function's params; their
+    // delete/eq are never spliced, so those sites always record.
     if_enum_o := find_struct_def(type_name, ctx)
     if if_enum_o.is_none() { return false }
-    if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() { return false }
+    if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() {
+        if if_enum_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+        if is_pod_struct(type_name, ctx).not() { return false }
+    }
     if ctx.builder_keep_all_exports { return false }
     if ctx.builder_collection_elem_types.has(type_name) { return false }
     if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
@@ -5809,7 +5815,7 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
 // stack-locals answer through the #302 gc_storage record; a name declared
 // twice in one unit walk cannot be told apart, so it takes the safe side
 // (recorded as a call, the definition stays).
-priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), ctx: Context) returns Bool {
+priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), param_names: Set(Str), ctx: Context) returns Bool {
     if member.eq("clone") {
         // Mirror the emitters' branch ORDER, not just their predicate: every
         // Decl/Assign/FieldAssign/ctor-field path checks shallow-return
@@ -5818,7 +5824,26 @@ priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str
         // is_pod_enum_clone_of alone would call spliceable -- is emitted as
         // a real call.
         if fcall_is_shallow_return(e, ctx) { return false }
-        return is_pod_enum_clone_call(e, ctx)
+        if is_pod_enum_clone_call(e, ctx) { return true }
+        // The POD-STRUCT twin, mirroring is_pod_struct_user_clone: the
+        // emitters splice a FieldAccess arg unconditionally and an Ident
+        // arg when it is a stack local or a parameter of the enclosing
+        // function -- which is what stack_names/param_names hold here.
+        if e.children.len() < 2 { return false }
+        ref bps_ca : Expr = e.children[1]
+        if bps_ca.til_type().is(Type.Struct).not() { return false }
+        if is_pod_struct(til_type_name(bps_ca.til_type()), ctx).not() { return false }
+        switch bps_ca.node_type {
+        case NodeType.Ident(bps_can):
+            ref bps_caname : Str = bps_can.ident_name()
+            if param_names.has(bps_caname) { return true }
+            if dup_names.has(bps_caname) { return false }
+            return stack_names.has(bps_caname)
+        case NodeType.FieldAccess:
+            return true
+        case:
+        }
+        return false
     }
     if member.eq("delete").not() { return false }
     if e.children.len() < 2 { return false }
@@ -5835,16 +5860,27 @@ priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str
     return stack_names.has(bps_name)
 }
 
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), owner: Str, ctx: Context) {
+priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, ctx: Context) {
     // A delete is body-local, so the storage tracking below is too: each
     // function body starts from fresh name sets, or the same short local
     // name (`c`, `r`) declared across sibling bodies would look like a
     // shadowing conflict and defeat the stack check in every one of them.
+    // Params seed their own set -- the struct-clone splice treats a param
+    // like a stack value, but a delete on one (an `own` param's scheduled
+    // cleanup) is a real call, so they must not feed the delete mirror.
     if e.node_type.is(NodeType.FuncDef) {
         mut bvs_fn_stack := Set(Str).new()
         mut bvs_fn_dup := Set(Str).new()
+        mut bvs_fn_params := Set(Str).new()
+        switch e.node_type {
+        case NodeType.FuncDef(bvs_fnd):
+            for bvs_fp : Declaration in bvs_fnd.params {
+                if bvs_fn_params.has(bvs_fp.name).not() { bvs_fn_params.add(own bvs_fp.name.clone()) }
+            }
+        case:
+        }
         for bvs_fn_ch : Expr in e.children {
-            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, "", ctx)
+            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", ctx)
         }
         return
     }
@@ -5881,7 +5917,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
             if bvs_fa.children.len() > 0 {
                 recv_type := til_type_name(bvs_fa.children[0].til_type())
                 if recv_type.len() > 0 {
-                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, ctx).not() {
+                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, param_names, ctx).not() {
                         key := recv_type.concat3(".", bvs_f.field_access_name())
                         if sites.has(key).not() { sites.add(own key.clone()) }
                     }
@@ -5909,7 +5945,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
         if cur_bvs == skip_child { continue }
-        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, bvs_owner, ctx)
+        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         // A site inside an OMITTED definition is not a call: the body that
@@ -5929,7 +5965,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
             if owner.len() > 0 {
                 if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
             }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, "", ctx)
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", ctx)
         }
     }
 }

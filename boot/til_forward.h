@@ -2023,8 +2023,6 @@ void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
 void adopt__Bool(void * dest, Bool * src);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);
-void EvalHeap_delete(EvalHeap * self, Bool call_free);
-EvalHeap EvalHeap_clone(EvalHeap self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 Option__ref_Expr priv___src_self_context_til__func_defs_lookup_one(Map__Str_Dynamic * m, Str * name);
@@ -2802,7 +2800,6 @@ Option__ref_Expr priv___src_self_desugarer_til__fcall_callee_fdef(Expr * fcall, 
 Bool priv___src_self_desugarer_til__fdef_is_variadic(Expr * fdef);
 I32 priv___src_self_desugarer_til__fdef_kwargs_index(Expr * fcall, Expr * fdef);
 Bool priv___src_self_desugarer_til__fcall_is_array_vec_builtin(Expr * e);
-void priv___src_self_desugarer_til__StmtDesugarNeeds_delete(priv___src_self_desugarer_til__StmtDesugarNeeds * self, Bool call_free);
 void priv___src_self_desugarer_til__scan_stmt_desugar_needs(Expr * e, TypeScope * scope, priv___src_self_desugarer_til__StmtDesugarNeeds * n, Bool av_on, Bool va_on, Bool kw_on);
 Str * priv___src_self_desugarer_til__set_literal_type_name(TypeScope * scope, Str * elem_type);
 Str * priv___src_self_desugarer_til__map_literal_type_name(Str * key_type, Str * val_type);
@@ -3403,8 +3400,8 @@ void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr *
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_is_n_operand(File * f, Expr * e, USize idx, Str * enum_c, Bool is_niche, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__builder_variant_ctor_kept(Str * ename, Expr * enum_def, Str * vname, Context * ctx);
-Bool priv___src_self_builder_til__builder_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Context * ctx);
-void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Str * owner, Context * ctx);
+Bool priv___src_self_builder_til__builder_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Context * ctx);
+void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Str * owner, Context * ctx);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);
