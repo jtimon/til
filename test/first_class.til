@@ -1097,6 +1097,36 @@ test_funcptr_param_return := test() {
     assert_eq(I64, g(2, 5), 7)
 }
 
+// Siblings of the same class (audit after 4119d99e: every flow of a
+// callable read out of a binding, since a callable reads back as a
+// FRESH OWNED box while non-callables read back as borrows). Each shape
+// pins one flow; all run under the suite's ASAN in both backends.
+cflow_local328 := func(v: PrivBin328) returns I64 {
+    w : PrivBin328 = v
+    return w(2, 5)
+}
+cflow_chain_inner328 := func(v: PrivBin328) returns I64 { return v(2, 5) }
+cflow_chain328 := func(v: PrivBin328) returns I64 { return cflow_chain_inner328(v) }
+cflow_overwrite328 := func(a: PrivBin328, b: PrivBin328) returns I64 {
+    mut w : PrivBin328 = a
+    w = b
+    return w(2, 5)
+}
+cflow_branch328 := func(v: PrivBin328, k: I64) returns PrivBin328 {
+    if k == 1 { return v }
+    return add328
+}
+
+test_callable_flow_shapes := test() {
+    assert_eq(I64, cflow_local328(add328), 7)
+    assert_eq(I64, cflow_chain328(add328), 7)
+    assert_eq(I64, cflow_overwrite328(add328, add328), 7)
+    fb1 := cflow_branch328(add328, 1)
+    assert_eq(I64, fb1(2, 5), 7)
+    fb2 := cflow_branch328(add328, 0)
+    assert_eq(I64, fb2(2, 5), 7)
+}
+
 // #328 Task 2: one concrete-instantiation path. A generic reached through
 // a user alias and through the alias's canonical primitive is ONE
 // implementation (`gcanon328__I64`), because the shared constructor
