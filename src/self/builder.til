@@ -1499,19 +1499,23 @@ priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
     // consumer will call.
     lp.ctx.builder_keep_all_exports = false
     if lp.cur_mode.is_null().not() { lp.ctx.builder_keep_all_exports = lp.cur_mode.is_library }
+    lp.ctx.builder_collection_elem_types = Set(Str).new()
+    mut inv_stack_names := Set(Str).new()
+    mut inv_dup_names := Set(Str).new()
+    mut inv_coll_infos := Vec(CollectionInfo).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
             builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_ns_member_sites)
             builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
+            collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
         }
     }
     for u : ProgramUnit in lp.units {
         builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
         builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-        builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, lp.ctx.builder_ns_member_sites)
         builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
+        collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
     }
     // Which METHODS the dyn_call/dyn_call_ret bodies dispatch, not just that
     // the family exists. Every `dyn_call_<m>` body calls the real
@@ -1534,6 +1538,33 @@ priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
         key := "dyn_call_m".concat3(".", inv_dm.method)
         if lp.ctx.builder_reflect_inventory.has(key).not() {
             lp.ctx.builder_reflect_inventory.add(own key.clone())
+        }
+    }
+    // Fixpoint over the site inventory: pass N+1 skips the bodies pass N's
+    // gate omits, because a site inside an unemitted body is not a call.
+    // Monotone -- skipping bodies only removes sites, fewer sites only add
+    // omissions -- so it terminates; two or three rounds in practice.
+    mut inv_prev_sites : USize = 99999999
+    while true {
+        mut inv_round_sites := Set(Str).new()
+        inv_stack_names = Set(Str).new()
+        inv_dup_names = Set(Str).new()
+        if lp.skip_core.not() {
+            for u : ProgramUnit in lp.core_units {
+                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, "", lp.ctx)
+            }
+        }
+        for u : ProgramUnit in lp.units {
+            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, "", lp.ctx)
+        }
+        n_sites := inv_round_sites.len()
+        lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
+        if n_sites == inv_prev_sites { break }
+        inv_prev_sites = n_sites
+    }
+    for inv_ci : CollectionInfo in inv_coll_infos {
+        if lp.ctx.builder_collection_elem_types.has(inv_ci.type_name).not() {
+            lp.ctx.builder_collection_elem_types.add(own inv_ci.type_name.clone())
         }
     }
 }
@@ -2484,6 +2515,20 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                     if is_global {
                         if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                             f.write(dd.name).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
+                        } else if rhs.node_type.is(NodeType.FCall).and(is_pod_enum_clone_call(rhs, ctx)) {
+                            // #326: the global-init twin of the local POD
+                            // splice -- a global is value storage, so the
+                            // clone is a plain compound-literal store. The
+                            // constfolder makes this shape common: a pure
+                            // `make_color(0)` initializer folds to
+                            // `Color.clone(Color.Red)`.
+                            f.write(dd.name).write(" = ")
+                            emit_pod_enum_clone_arg(f, rhs, depth, ctx)
+                            f.write(";\n")
+                        } else if rhs.node_type.is(NodeType.FCall).and(is_pod_struct_user_clone(rhs, ctx)) {
+                            f.write(dd.name).write(" = ")
+                            emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
+                            f.write(";\n")
                         } else if rhs.node_type.is(NodeType.FCall) {
                             mut htype := fcall_return_ctype(rhs, ctx)
                             if htype.len() == 0 { htype = ctype.clone() }
@@ -3107,6 +3152,17 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
         if is_hoisted {
             if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                 f.write(aname).write(" = "); emit_expr(f, rhs, depth, ctx); f.write(";\n")
+            } else if rhs.node_type.is(NodeType.FCall).and(is_pod_enum_clone_call(rhs, ctx)) {
+                // #326: same skip as the Decl / FieldAssign / ctor-field
+                // paths -- a POD-enum clone is a value copy, no wrapper,
+                // no call.
+                f.write(aname).write(" = ")
+                emit_pod_enum_clone_arg(f, rhs, depth, ctx)
+                f.write(";\n")
+            } else if rhs.node_type.is(NodeType.FCall).and(is_pod_struct_user_clone(rhs, ctx)) {
+                f.write(aname).write(" = ")
+                emit_pod_struct_user_clone_arg(f, rhs, depth, ctx)
+                f.write(";\n")
             } else if rhs.node_type.is(NodeType.FCall) {
                 ctype := c_type_name(e.til_type(), til_type_name(e.til_type()), ctx)
                 f.write("{ ").write(ctype).write(" *_hp = (").write(ctype).write(" *)")
@@ -4599,6 +4655,23 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                         f.write(" = ")
                         emit_expr(f, arg, depth, ctx)
                         f.write(";\n")
+                    } else if is_pod_enum_clone_call(arg, ctx) {
+                        // #326: same skip the Decl and FieldAssign paths
+                        // make -- a POD-enum clone is a struct value copy,
+                        // so the malloc-copy-free wrapper (and with it the
+                        // C call) buys nothing. This ctor-field path was
+                        // the one emitter left without the check, which
+                        // kept every POD enum's clone definition alive for
+                        // any struct holding one (Declaration.own_type).
+                        emit_field(f, var, fname, ctx)
+                        f.write(" = ")
+                        emit_pod_enum_clone_arg(f, arg, depth, ctx)
+                        f.write(";\n")
+                    } else if is_pod_struct_user_clone(arg, ctx) {
+                        emit_field(f, var, fname, ctx)
+                        f.write(" = ")
+                        emit_pod_struct_user_clone_arg(f, arg, depth, ctx)
+                        f.write(";\n")
                     } else {
                         ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
                         f.write("{ ")
@@ -4622,6 +4695,16 @@ priv emit_ctor_fields := proc(f: File, var: Str, ctor: Expr, depth: I32, ctx: Co
                     emit_field(f, var, fname, ctx)
                     f.write(" = ")
                     emit_expr(f, arg, depth, ctx)
+                    f.write(";\n")
+                } else if is_pod_enum_clone_call(arg, ctx) {
+                    emit_field(f, var, fname, ctx)
+                    f.write(" = ")
+                    emit_pod_enum_clone_arg(f, arg, depth, ctx)
+                    f.write(";\n")
+                } else if is_pod_struct_user_clone(arg, ctx) {
+                    emit_field(f, var, fname, ctx)
+                    f.write(" = ")
+                    emit_pod_struct_user_clone_arg(f, arg, depth, ctx)
                     f.write(";\n")
                 } else {
                     ftype := c_type_name(arg.til_type(), arg_sname2, ctx)
@@ -5500,9 +5583,36 @@ priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
         .or(bnmli_fd.func_type.is(FuncType.CoreLazyFunc))
 }
 
+// #326: a payload-less enum's clone/delete follow the same rule as the
+// variant constructors and the size method -- emitted only where a real
+// call survives. Clone is spliced as a value copy at every position, so a
+// clone SITE only lands in the inventory through a shape no emitter
+// intercepts; a delete site lands unless it is a stack local's elided
+// cleanup. The stand-downs are the callers outside the AST walk: dyn
+// dispatch per method, the raw array_of/vec_of element helpers, and a
+// library's exported ABI.
+priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
+    // Any ENUM, payload-carrying included: the site inventory is what
+    // decides, and the splice predicates only ever fire for the POD
+    // shapes, so a payload enum's sites always record and the definition
+    // stays whenever anything clones/deletes/compares one. Structs stay
+    // out: their clone splicing depends on the argument's storage, which
+    // is not decidable from the callee.
+    if_enum_o := find_struct_def(type_name, ctx)
+    if if_enum_o.is_none() { return false }
+    if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() { return false }
+    if ctx.builder_keep_all_exports { return false }
+    if ctx.builder_collection_elem_types.has(type_name) { return false }
+    if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
+    if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
+    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
+}
+
 priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
     if builder_size_method_omitted(type_name, member, ctx) { return true }
+    if builder_pod_lifecycle_omitted(type_name, member, ctx) { return true }
     return builder_variant_ctor_omitted(type_name, member, ctx)
 }
 
@@ -5690,7 +5800,72 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
 // call: `is_n`'s tag operand (child 2), which becomes a compound-literal
 // tag compare, and a Case node's pattern (child 0) in a C-like switch,
 // which becomes a case label.
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str)) {
+// The clone/delete sites on a payload-less enum that every emitter now
+// splices in place rather than calls: a POD-enum clone is a value copy at
+// EVERY position (Decl, Assign, FieldAssign, ctor field), and a POD-enum
+// delete of a stack local is elided whole (is_noop_delete_stmt). The site
+// collector must not record those as calls, or the definitions stay for
+// callers that do not exist. The delete side mirrors the emitter's
+// stack-locals answer through the #302 gc_storage record; a name declared
+// twice in one unit walk cannot be told apart, so it takes the safe side
+// (recorded as a call, the definition stays).
+priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), ctx: Context) returns Bool {
+    if member.eq("clone") {
+        // Mirror the emitters' branch ORDER, not just their predicate: every
+        // Decl/Assign/FieldAssign/ctor-field path checks shallow-return
+        // before the POD splice, and a NICHE enum's clone returns by value
+        // (#320, one word), so its payload-less-variant clone -- which
+        // is_pod_enum_clone_of alone would call spliceable -- is emitted as
+        // a real call.
+        if fcall_is_shallow_return(e, ctx) { return false }
+        return is_pod_enum_clone_call(e, ctx)
+    }
+    if member.eq("delete").not() { return false }
+    if e.children.len() < 2 { return false }
+    ref bps_arg : Expr = e.children[1]
+    if bps_arg.node_type.is(NodeType.Ident).not() { return false }
+    if bps_arg.til_type().is(Type.Enum).not() { return false }
+    if is_pod_enum(til_type_name(bps_arg.til_type()), ctx).not() { return false }
+    mut bps_name := ""
+    switch bps_arg.node_type {
+    case NodeType.Ident(bps_id): bps_name = Str.clone(bps_id.ident_name())
+    case:
+    }
+    if dup_names.has(bps_name) { return false }
+    return stack_names.has(bps_name)
+}
+
+priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), owner: Str, ctx: Context) {
+    // A delete is body-local, so the storage tracking below is too: each
+    // function body starts from fresh name sets, or the same short local
+    // name (`c`, `r`) declared across sibling bodies would look like a
+    // shadowing conflict and defeat the stack check in every one of them.
+    if e.node_type.is(NodeType.FuncDef) {
+        mut bvs_fn_stack := Set(Str).new()
+        mut bvs_fn_dup := Set(Str).new()
+        for bvs_fn_ch : Expr in e.children {
+            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, "", ctx)
+        }
+        return
+    }
+    // Track which bindings the garbager recorded as Stack storage -- the
+    // AST-visible mirror of the emitter's stack_locals set (#302's
+    // assert_gc_stack keeps the two honest). The known divergences record
+    // HeapBox while emitting stack, which errs toward keeping a delete
+    // definition, never toward dropping a called one.
+    switch e.node_type {
+    case NodeType.Decl(bvs_dd):
+        if stack_names.has(bvs_dd.name).or(dup_names.has(bvs_dd.name)) {
+            if dup_names.has(bvs_dd.name).not() { dup_names.add(own bvs_dd.name.clone()) }
+        } else if bvs_dd.gc_storage.is(GcStorage.Stack) {
+            stack_names.add(own bvs_dd.name.clone())
+        } else {
+            // Non-stack declaration of this name: any same-named stack
+            // entry can no longer be trusted.
+            if stack_names.has(bvs_dd.name) { dup_names.add(own bvs_dd.name.clone()) }
+        }
+    case:
+    }
     // CALLEE position only. A bare `Enum.Variant` expression never lowers
     // to a call: the builder splices the value in place -- a compound
     // literal `(E){.tag = E_TAG_V}`, `&(E){...}`, or an inline
@@ -5706,8 +5881,10 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str)) {
             if bvs_fa.children.len() > 0 {
                 recv_type := til_type_name(bvs_fa.children[0].til_type())
                 if recv_type.len() > 0 {
-                    key := recv_type.concat3(".", bvs_f.field_access_name())
-                    if sites.has(key).not() { sites.add(own key.clone()) }
+                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, ctx).not() {
+                        key := recv_type.concat3(".", bvs_f.field_access_name())
+                        if sites.has(key).not() { sites.add(own key.clone()) }
+                    }
                 }
             }
         case:
@@ -5722,18 +5899,37 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str)) {
         }
     }
     if e.node_type.is(NodeType.Case) { skip_child = 0 }
+    mut bvs_owner := ""
+    switch e.node_type {
+    case NodeType.Decl(bvs_od): bvs_owner = Str.clone(bvs_od.name)
+    case:
+    }
     mut bvs_i : USize = 0
     for bvs_ch : Expr in e.children {
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
         if cur_bvs == skip_child { continue }
-        builder_collect_ns_member_sites(bvs_ch, sites)
+        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, bvs_owner, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        // A site inside an OMITTED definition is not a call: the body that
+        // would contain it is never emitted. The generated clone/eq bodies
+        // chain -- FuncType_clone's body compares via FuncType.eq -- so a
+        // dead clone kept eq's definition alive, and this walk asks the
+        // gate itself, on the previous iteration's site set, to know which
+        // bodies to skip (see the fixpoint loop in
+        // builder_fill_reflect_inventory). The owner name comes down from
+        // the enclosing Decl statement; "" means unknown, walk everything.
         ref bvs_ns : Vec(Declaration) = def_ns_decls(e)
+        mut bvs_mi : USize = 0
         for bvs_d : Declaration in bvs_ns {
+            cur_bvs_mi := bvs_mi
+            bvs_mi = bvs_mi + 1
             if bvs_d.default_value.is_none() { continue }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites)
+            if owner.len() > 0 {
+                if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
+            }
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, "", ctx)
         }
     }
 }
@@ -6317,7 +6513,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for hdr_vd : VariantDef in hdr_edd.variants {
@@ -7422,7 +7618,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for hdr_vd : VariantDef in hdr_edd.variants {
@@ -7543,7 +7739,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 if stmt.children.len() == 0 { continue }
                 if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 ref dd : Declaration = decl_of(stmt)
-                emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
                 ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                 for shdr_vd : VariantDef in shdr_edd.variants {
@@ -7566,7 +7762,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            emit_enum_eq_ext_decl(f, dd.name, stmt.children[0])
+            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for shdr_vd : VariantDef in shdr_edd.variants {

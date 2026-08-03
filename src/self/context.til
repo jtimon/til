@@ -931,6 +931,11 @@ Context := struct {
     // auto-generated `size` method comes from the ns index whether or not
     // any call to it survived the constfolder.
     builder_ns_member_sites := Set(Str).new()
+    // #326: element types of array()/vec() builtin literals. The raw-C
+    // `array_of_<E>` / `vec_of_<E>` helpers clone and delete their elements
+    // by direct call, outside any AST walk, so a POD lifecycle gate must
+    // stand down for these types.
+    builder_collection_elem_types := Set(Str).new()
     // #326: library output keeps its exported ABI whether or not anything
     // internal uses it, so the two site-driven gates above stand down there
     // -- a consumer can call any exported constructor or `size`, and no

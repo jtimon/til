@@ -644,6 +644,17 @@ main := proc(args: ..Str) {
     // emit_func_forward_decl's own guard is gated on `top_level`, false for
     // a member. So each one got a prototype nothing defines and nothing
     // calls -- 61 in til's own output. `Color_is` is the witness.
+    // An enum's clone/delete/eq are emitted only where a real call
+    // survives, decided by the site inventory plus the splice predicates
+    // the emitters themselves consult (a POD-enum clone is a value copy at
+    // every position; a stack local's POD delete is elided whole). TagU8's
+    // delete rides the #302 gc_storage record through the collector;
+    // ColorG's clone proves the payload-enum side (nothing clones one, so
+    // the definition goes even though its variants carry payloads).
+    add_count(tests, "enums_no_uncalled_lifecycle", "build", "TagU8_delete", 0,
+        format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
+    add_count(tests, "enums_no_uncalled_payload_clone", "build", "ColorG_clone", 0,
+        format(til_bin, " translate -c gen/c/enums_pc.c test/enums.til '&&' cat gen/c/enums_pc.c"))
     add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
         format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,

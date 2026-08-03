@@ -5112,7 +5112,15 @@ priv enum_variant_is_payload_less := func(enum_def: Expr, variant_name: Str) ret
     return false
 }
 
-// Returns the receiver type name if `e` is `<Type>.clone(arg)`, else "".
+// Returns the receiver type name if `e` is a `clone` call, else "".
+// Two shapes reach here typed: the typer's ownership wrap
+// `<Type>.clone(arg)` (receiver is the type Ident) and user-written UFCS
+// `<expr>.clone()` left with the value receiver. For the second the
+// spelling carries no type, so take the RESOLVED type of the argument --
+// child 1 in both shapes, since the typer flattens UFCS to
+// `clone(<expr>)` with the receiver as first arg. #326: the spelling-only
+// answer made every POD predicate silently false on the UFCS shape, so
+// those sites kept the malloc-copy-free wrapper and the C call.
 clone_call_type_name := func(e: Expr) returns Str {
     if e.node_type.is(NodeType.FCall).not() { return "" }
     if e.children.len() < 2 { return "" }
@@ -5126,11 +5134,11 @@ clone_call_type_name := func(e: Expr) returns Str {
     if is_clone.not() { return "" }
     if callee.children.len() == 0 { return "" }
     ref recv : Expr = callee.children[0]
-    if recv.node_type.is(NodeType.Ident).not() { return "" }
     switch recv.node_type {
     case NodeType.Ident(n): return Str.clone(n.ident_name())
-    case: return ""
+    case:
     }
+    return til_type_name(e.children[1].til_type())
 }
 
 // AST-only half of is_pod_enum_clone_call / is_pod_enum_clone_wrap.

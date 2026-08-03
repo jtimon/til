@@ -144,8 +144,6 @@ void test_struct_fold_nested(void);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
-void Color_delete(Color * self, Bool call_free);
-Color * Color_clone(Color * self);
 void test_enum_fold(void);
 void Token_delete(Token * self, Bool call_free);
 void test_enum_payload_fold(void);
@@ -200,8 +198,6 @@ void test_struct_fold_nested(void);
 void CfVec3f_delete(CfVec3f * self, Bool call_free);
 void test_struct_fold_f32(void);
 Bool Color_eq(Color * self, Color * other);
-void Color_delete(Color * self, Bool call_free);
-Color * Color_clone(Color * self);
 void test_enum_fold(void);
 Token * Token_Num(I64 * val);
 void Token_delete(Token * self, Bool call_free);
@@ -886,40 +882,6 @@ void test_struct_fold_f32(void) {
 Bool Color_eq(Color * self, Color * other) {
     Bool hoisted__Bool_6912 = ((Bool)((((Color *)(self))->tag) == (((Color *)(other))->tag)));
     return hoisted__Bool_6912;
-    __builtin_unreachable();
-}
-
-void Color_delete(Color * self, Bool call_free) {
-    if (call_free) {
-        free(self);
-    }
-}
-
-Color * Color_clone(Color * self) {
-    Bool hoisted__Bool_6939 = Color_eq(self, &(Color){.tag = Color_TAG_Red});
-    if (hoisted__Bool_6939) {
-        { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
-        return _r; }
-    }
-    Bool hoisted__Bool_6940 = Color_eq(self, &(Color){.tag = Color_TAG_Green});
-    if (hoisted__Bool_6940) {
-        { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Green;
-        return _r; }
-    }
-    Bool hoisted__Bool_6941 = Color_eq(self, &(Color){.tag = Color_TAG_Blue});
-    if (hoisted__Bool_6941) {
-        { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Blue;
-        return _r; }
-    }
-    U32 hoisted__U32_6942 = 0;
-    Array__Str *_va_Array_203 = Array__Str_new(hoisted__U32_6942);
-    I64 _va_Array_203_ek = 0;
-    (void)_va_Array_203_ek;
-    static Str hoisted__Str_6943 = (Str){.c_str = (void *)"Color.clone:235:1", .count = 17ULL, .cap = TIL_CAP_LIT};
-    UNREACHABLE(_va_Array_203, &hoisted__Str_6943);
-    Str_delete(&hoisted__Str_6943, (Bool){0});
-    { Color *_r = malloc(sizeof(Color)); _r->tag = Color_TAG_Red;
-    return _r; }
     __builtin_unreachable();
 }
 
