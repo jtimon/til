@@ -164,18 +164,9 @@ void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 void adopt__Str(void * dest, Str * src);
-USize Dynamic_size(void);
-USize U8_size(void);
-USize U32_size(void);
 Str * U64_to_str(U64 val);
-USize U64_size(void);
-USize I8_size(void);
-USize I32_size(void);
 Str * I64_to_str(I64 val);
 void I64_delete(I64 * self, Bool call_free);
-USize I64_size(void);
-USize F32_size(void);
-USize Bool_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
@@ -229,18 +220,9 @@ void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
 void Array__Str_delete(Array__Str * self, Bool call_free);
 Array__Str * Array__Str_clone(Array__Str * self);
 void adopt__Str(void * dest, Str * src);
-USize Dynamic_size(void);
-USize U8_size(void);
-USize U32_size(void);
 Str * U64_to_str(U64 val);
-USize U64_size(void);
-USize I8_size(void);
-USize I32_size(void);
 Str * I64_to_str(I64 val);
 void I64_delete(I64 * self, Bool call_free);
-USize I64_size(void);
-USize F32_size(void);
-USize Bool_size(void);
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
 __attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
 void assert(Bool cond, Str * loc);
@@ -670,46 +652,10 @@ void adopt__Str(void * dest, Str * src) {
     if ((src)->cap != TIL_CAP_LIT) { free(src); };
 }
 
-USize Dynamic_size(void) {
-    U32 hoisted__U32_968 = 8;
-    return hoisted__U32_968;
-    __builtin_unreachable();
-}
-
-USize U8_size(void) {
-    U32 hoisted__U32_1078 = 1;
-    return hoisted__U32_1078;
-    __builtin_unreachable();
-}
-
-USize U32_size(void) {
-    U32 hoisted__U32_1232 = 4;
-    return hoisted__U32_1232;
-    __builtin_unreachable();
-}
-
 Str * U64_to_str(U64 val) {
     /* TODO: nested func U64_to_str_ext */
     Str *hoisted__Str_1301 = U64_to_str_ext(val);
     return hoisted__Str_1301;
-    __builtin_unreachable();
-}
-
-USize U64_size(void) {
-    U32 hoisted__U32_1306 = 8;
-    return hoisted__U32_1306;
-    __builtin_unreachable();
-}
-
-USize I8_size(void) {
-    U32 hoisted__U32_1391 = 1;
-    return hoisted__U32_1391;
-    __builtin_unreachable();
-}
-
-USize I32_size(void) {
-    U32 hoisted__U32_1540 = 4;
-    return hoisted__U32_1540;
     __builtin_unreachable();
 }
 
@@ -742,24 +688,6 @@ void I64_delete(I64 * self, Bool call_free) {
     if (call_free) {
         free(self);
     }
-}
-
-USize I64_size(void) {
-    U32 hoisted__U32_1679 = 8;
-    return hoisted__U32_1679;
-    __builtin_unreachable();
-}
-
-USize F32_size(void) {
-    U32 hoisted__U32_1808 = 4;
-    return hoisted__U32_1808;
-    __builtin_unreachable();
-}
-
-USize Bool_size(void) {
-    U32 hoisted__U32_1902 = 1;
-    return hoisted__U32_1902;
-    __builtin_unreachable();
 }
 
 

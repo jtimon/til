@@ -5390,9 +5390,14 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
 // whenever any dyn dispatch is requested.
 priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if builder_is_inline_accessor(member, type_name.concat3("_", member), ctx).not() { return false }
-    if builder_needs_reflect("dyn_fn", ctx) { return false }
-    if builder_needs_reflect("dyn_call", ctx) { return false }
-    return builder_needs_reflect("dyn_call_ret", ctx).not()
+    // Ask the generated dispatch per METHOD, as the auto-size and
+    // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
+    // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`
+    // registers `*.clone` and says nothing about `len`/`unsafe_get`; the
+    // coarse test kept every inline accessor in the two dyn-heaviest
+    // fixtures.
+    if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
+    return builder_needs_reflect("dyn_call_m".concat3(".", member), ctx).not()
 }
 
 // #326: the AUTO-GENERATED `size` method is emitted from the namespace
@@ -5408,8 +5413,11 @@ priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Co
 // width-mismatched target (size_intrinsics_use_sizeof) is every one of them
 // because the constfolder deliberately leaves those unfolded. dyn_size_of
 // is not a caller: it inlines `sizeof(T)` per arm.
-priv builder_auto_size_omitted := func(type_name: Str, member: Str, auto_generated: Bool, ctx: Context) returns Bool {
-    if auto_generated.not() { return false }
+priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    // Not restricted to the AUTO-GENERATED ones: core writes `size` by
+    // hand for the primitives (`func() returns USize { return 1 }`), and
+    // the argument is the same either way -- the constfolder folds every
+    // call to a literal, so the out-of-line definition has no caller.
     if member.eq("size").not() { return false }
     if ctx.builder_keep_all_exports { return false }
     // The generated C that could still call it. A `_dyn` wrapper does, so
@@ -5423,15 +5431,6 @@ priv builder_auto_size_omitted := func(type_name: Str, member: Str, auto_generat
     if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
     if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
     return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
-}
-
-// `auto_generated` off a FuncDef Expr, for the two forward-declaration
-// loops that test the node type without destructuring it.
-priv builder_fdef_auto_generated := func(fdef: Expr) returns Bool {
-    switch fdef.node_type {
-    case NodeType.FuncDef(bfag): return bfag.auto_generated
-    case: return false
-    }
 }
 
 // The one predicate every namespace-method emitter asks: definition and all
@@ -5460,23 +5459,21 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
     return builder_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
 }
 
-priv builder_ns_method_omitted := func(type_name: Str, member: Str, auto_generated: Bool, ctx: Context) returns Bool {
+priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
-    if builder_auto_size_omitted(type_name, member, auto_generated, ctx) { return true }
+    if builder_size_method_omitted(type_name, member, ctx) { return true }
     return builder_variant_ctor_omitted(type_name, member, ctx)
 }
 
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
     mut is_auto_size := false
-    mut is_auto_generated := false
     ref fd : FunctionDef = funcdef_of(fdef)
     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { return }
-    is_auto_generated = fd.auto_generated
     is_auto_size = dd_name.eq("size").and(fd.auto_generated)
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len() == 0 { return }
-    if builder_ns_method_omitted(name, dd_name, is_auto_generated, lp.ctx) { return }
+    if builder_ns_method_omitted(name, dd_name, lp.ctx) { return }
     full_name := name.concat3("_", dd_name)
     // Issue #309: on a width-mismatched target (`--usize=32` or a narrower
     // cross-compile target), emit the auto-generated size method as C
@@ -6203,7 +6200,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         case NodeType.FuncDef(fd):
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi))
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), fd.auto_generated, lp.ctx) { continue }
+                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
                         }
@@ -6238,7 +6235,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     fwi2 = fwi2 + 1
                     if fdd.default_value.is_null() { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), builder_fdef_auto_generated(fdd.default_value), lp.ctx) { continue }
+                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi2))
                     emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                 }
@@ -7284,7 +7281,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         switch fdd.default_value.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), fd.auto_generated, lp.ctx) { continue }
+                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw2i))
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
@@ -7329,7 +7326,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     switch fdd.default_value.node_type {
                     case NodeType.FuncDef(fd):
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                        if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), fd.auto_generated, lp.ctx) { continue }
+                        if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
                         full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw3i))
                         emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                     case:
@@ -7399,7 +7396,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         switch fdd.default_value.node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), fd.auto_generated, lp.ctx) { continue }
+                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af1i))
                             emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                         case:
@@ -7439,7 +7436,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     af2i = af2i + 1
                     if fdd.default_value.is_null() { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), builder_fdef_auto_generated(fdd.default_value), lp.ctx) { continue }
+                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af2i))
                     emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
                 }

@@ -600,6 +600,19 @@ main := proc(args: ..Str) {
     // nothing BUT bare variant expressions (match scrutinees and case
     // labels), and `Color_Red` must not appear at all; the tags it really
     // compiles to, `Color_TAG_Red`, are what the `both` entry exercises.
+    // The generated dispatch that could call an otherwise-omitted method is
+    // asked per METHOD, not per family. test/dyn_vecs.til is the fixture
+    // that proves it: it dispatches through std/dyn_array, whose
+    // `dyn_fn(elem_type, "clone")` registers `*.clone` and says nothing
+    // about `unsafe_get` -- which is spliced at every call site, so no
+    // out-of-line copy may survive. `U8_size` in the same output covers the
+    // other half: core writes `size` by hand for the primitives, the
+    // constfolder folds every call to a literal, and the definition is
+    // reachable only through the interpreter's `*.size` root.
+    add_count(tests, "dyn_vecs_no_uncalled_helpers", "build", "Array__Str_unsafe_get", 0,
+        format(til_bin, " translate -c gen/c/dyn_vecs_h.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_h.c"))
+    add_count(tests, "dyn_vecs_no_uncalled_size", "build", "U8_size", 0,
+        format(til_bin, " translate -c gen/c/dyn_vecs_sz.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_sz.c"))
     add_count(tests, "match_no_uncalled_variant_ctor", "build", "Color_Red", 0,
         format(til_bin, " translate -c gen/c/match_ctor.c test/match.til '&&' cat gen/c/match_ctor.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
