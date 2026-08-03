@@ -71,6 +71,33 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     case:
     }
 
+    // #302 stage 4: an overwrite of an owned aggregate slot DRAINS the old
+    // value, and the builder conjures `T_delete(_old, ...)` straight into
+    // the C -- no FCall exists in the AST for this walk to see. Root the
+    // method off the same flag the desugarer/garbager stamp, or a type
+    // whose ONLY delete caller is a drain gets swept (the builder's
+    // lifecycle gate then has nothing to emit and the C calls an
+    // undeclared symbol). Regression: test/drain_only_delete.til.
+    switch e.node_type {
+    case NodeType.Assign(dr_ad):
+        if dr_ad.save_old_delete.and(e.children.len().gt(0)) {
+            dr_tn := til_type_name(e.children[0].til_type())
+            if dr_tn.len() > 0 {
+                vec_push_str(refs, dr_tn)
+                push_qn(refs, dr_tn, "delete")
+            }
+        }
+    case NodeType.FieldAssign(dr_fad):
+        if dr_fad.save_old_delete.and(e.children.len().gt(1)) {
+            dr_tn2 := til_type_name(e.children[1].til_type())
+            if dr_tn2.len() > 0 {
+                vec_push_str(refs, dr_tn2)
+                push_qn(refs, dr_tn2, "delete")
+            }
+        }
+    case:
+    }
+
     switch e.node_type {
     case NodeType.Ident(ident):
         vec_push_str(refs, ident.ident_name())

@@ -5946,6 +5946,31 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     // in til's own output). `Enum.Variant(payload)` and every ordinary
     // `T.method(...)` ARE calls, and both are an FCall whose child 0 is
     // this field access.
+    // #302 stage 4: the DRAIN's delete is conjured into the C with no
+    // FCall in the AST (see the scavenger's matching root). The lifecycle
+    // gate below decides on this site inventory, so a drain-only delete
+    // needs its site recorded here too -- BOTH gates must know, or one of
+    // them drops the method. Regression: test/drain_only_delete.til.
+    switch e.node_type {
+    case NodeType.Assign(bvs_dad):
+        if bvs_dad.save_old_delete.and(e.children.len() > 0) {
+            bvs_dtn := til_type_name(e.children[0].til_type())
+            if bvs_dtn.len() > 0 {
+                bvs_dkey := bvs_dtn.concat3(".", "delete")
+                if sites.has(bvs_dkey).not() { sites.add(own bvs_dkey.clone()) }
+            }
+        }
+    case NodeType.FieldAssign(bvs_dfad):
+        if bvs_dfad.save_old_delete.and(e.children.len() > 1) {
+            bvs_dtn2 := til_type_name(e.children[1].til_type())
+            if bvs_dtn2.len() > 0 {
+                bvs_dkey2 := bvs_dtn2.concat3(".", "delete")
+                if sites.has(bvs_dkey2).not() { sites.add(own bvs_dkey2.clone()) }
+            }
+        }
+    case:
+    }
+
     if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
         switch e.children[0].node_type {
         case NodeType.FieldAccess(bvs_f):

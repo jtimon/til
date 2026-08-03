@@ -1,0 +1,51 @@
+mode script
+
+// #302 stage 4 / #326 regression: a type whose ONLY delete caller is a
+// DRAIN -- the `T_delete(_old, ...)` the builder conjures when an owned
+// aggregate slot is overwritten. No FCall for it exists in the AST, so
+// the scavenger swept the method AND the builder's lifecycle gate
+// omitted its definition, and the emitted C called an undeclared symbol
+// ("implicit declaration of Option__DrainCell_delete"). Both gates
+// record the drain site now.
+//
+// mode script on purpose: `mode test` stands the lifecycle gate down
+// (tests root conservatively), so a test() body cannot reproduce this.
+// The Option field is overwritten below and never deleted BY NAME.
+
+DrainCell := struct {
+    dc_name := ""
+    dc_n := 0
+}
+
+DrainHolder := struct { dh_slot := Option(DrainCell).None }
+
+drain_make := func(k: I64) returns Option(DrainCell) {
+    return Option(DrainCell).Some(own DrainCell(dc_name = "cell", dc_n = k))
+}
+
+// Self-checking: the exit code is the signal, so the suite entry needs
+// no expected-output file. The COMPILE is what this pins, but the
+// values are checked too, so a drain that frees the wrong thing shows
+// up as a wrong answer rather than passing quietly.
+mut h := DrainHolder()
+h.dh_slot = drain_make(7)
+switch h.dh_slot {
+case Option(DrainCell).Some(v):
+    if v.dc_n != 7 { println("bad first") exit(1) }
+case Option(DrainCell).None: println("missing first") exit(1)
+}
+// the overwrite whose drain is the only Option__DrainCell_delete caller
+h.dh_slot = drain_make(9)
+switch h.dh_slot {
+case Option(DrainCell).Some(v2):
+    if v2.dc_n != 9 { println("bad second") exit(1) }
+case Option(DrainCell).None: println("missing second") exit(1)
+}
+// swap-out + take leaves the field honestly None
+mut old := Option(DrainCell).None
+swap(Option(DrainCell), h.dh_slot, old)
+c := Option(DrainCell).take(own old)
+if c.dc_n != 9 { println("bad taken") exit(1) }
+DrainCell.delete(own c, true)
+if h.dh_slot.is_none().not() { println("field not drained") exit(1) }
+println("drain_only_delete ok")

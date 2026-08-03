@@ -684,6 +684,12 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
     add_count(tests, "enums_no_uncalled_payload_clone", "build", "ColorG_clone", 0,
         format(til_bin, " translate -c gen/c/enums_pc.c test/enums.til '&&' cat gen/c/enums_pc.c"))
+    // #302 stage 4 / #326: a drain-only delete must still be emitted --
+    // both the scavenger's reachability walk and the builder's lifecycle
+    // gate have to see the conjured `T_delete(_old, ...)` site. Fails to
+    // COMPILE without either root ("implicit declaration").
+    add_single(tests, "drain_only_delete", "build", 0, "",
+        format(til_bin, " run test/drain_only_delete.til"))
     add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
         format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
