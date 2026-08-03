@@ -4944,6 +4944,7 @@ priv cli_box_expr := func(ttype: Str, arg: Str, by_value: Bool) returns Str {
     case "USize": return cli_view_scalar(by_value, "USize", "Str_to_u64(_cv)", arg)
     case "UPtr":  return cli_view_scalar(by_value, "UPtr", "Str_to_u64(_cv)", arg)
     case "F32":   return cli_view_scalar(by_value, "F32", "Str_to_f32(_cv)", arg)
+    case "F64":   return cli_view_scalar(by_value, "F64", "Str_to_f64(_cv)", arg)
     case "Bool":
         true_lit := "&(Str){.c_str = (void *)\"true\", .count = 4ULL, .cap = TIL_CAP_LIT}"
         false_lit := "&(Str){.c_str = (void *)\"false\", .count = 5ULL, .cap = TIL_CAP_LIT}"

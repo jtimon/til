@@ -6547,6 +6547,19 @@ priv h_file_mtime := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns B
     return true
 }
 
+priv h_str_parse_f64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    arg : Str = eval_str_owned(s, e.children[1], ctx)
+    // r takes the raw double bits (this source has no F64 type; see the
+    // f64_bits_* bridge in eval_heap.til).
+    write_u64(r, str_parse_f64_bits(arg))
+    return true
+}
+
+priv h_F64_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    write_u64(r, f64_bits_from_i64(eval_i64_arg(s, e.children[1], ctx)))
+    return true
+}
+
 priv h_str_parse_f32 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     arg := eval_str_owned(s, e.children[1], ctx)
     write_f32(r, str_parse_f32(arg))
@@ -7076,6 +7089,9 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("sleep", h_sleep, ctx)
     reg_dispatch("file_mtime", h_file_mtime, ctx)
     reg_dispatch("str_parse_f32", h_str_parse_f32, ctx)
+    reg_dispatch("str_parse_f64", h_str_parse_f64, ctx)
+    reg_dispatch("F64_from_i64", h_F64_from_i64, ctx)
+    reg_dispatch("F64_from_i64_ext", h_F64_from_i64, ctx)
     reg_dispatch("clock_ms", h_clock_ms, ctx)
     reg_dispatch("get_thread_count", h_get_thread_count, ctx)
     reg_dispatch("cfile_open", h_cfile_open, ctx)

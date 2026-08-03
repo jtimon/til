@@ -1132,19 +1132,21 @@ main := proc(args: ..Str) {
     // both backends. Locks in the builder's cli_box_expr and the interpreter's
     // parse_cli_arg staying in lockstep.
     File.writefile(format(exp, "cli_scalars.out"),
-        format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", NL))
+        format("-8 200 -300 600 -70000 90000 12345678901 42 99 3.5 1e+150", NL))
     add_cli_pair(tests, "cli_scalars", "examples/cli_scalars.til",
-        "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5", 0,
+        "-8 200 -300 600 -70000 90000 12345678901 42 99 3.5 1e150", 0,
         format(exp, "cli_scalars.out"), til_bin, asan_flag)
-    // #333 follow-up: the F64 primitive (64-bit float). Commit A surface:
-    // literals (1e100 proves real double width -- an F32 path prints inf),
-    // FFI calls through ffi_type_double, F64<->F32 conversion, parse and
-    // three-way compare, identical in both backends. Method ergonomics
-    // (clone/add/to_str core_funcs) land with the numbers.til follow-up.
+    // #333: the F64 primitive (64-bit float), full surface. Literals (1e100
+    // proves real double width -- an F32 path prints inf), the numbers.til
+    // method set (operators, cmp, clone via param-return, conversions,
+    // 17-digit repr round-trip), Str.to_f64, an F64 CLI main arg, identical
+    // in both backends.
     File.writefile(format(exp, "f64.out"),
-        format("1.5", NL, "1e+100", NL, "0.125", NL, "1", NL, "2.5", NL, "1.5", NL))
+        format("1.5", NL, "1e+100", NL, "0.125", NL, "2.75", NL, "3.25", NL,
+               "6.5", NL, "true", NL, "1", NL, "2.5", NL, "1.5", NL, "1", NL,
+               "7", NL, "true", NL))
     add_cli_pair(tests, "f64", "test/f64.til",
-        "0.125", 0,
+        "0.125 2.75", 0,
         format(exp, "f64.out"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)

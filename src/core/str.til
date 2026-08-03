@@ -492,6 +492,14 @@ namespace:
         return str_parse_f32(self)
     }
 
+    /// F64 twin of to_f32: faithful strtod parse, '_' separators stripped.
+    to_f64 := func(self: Str) returns F64 {
+        if self.contains("_") {
+            return str_parse_f64(self.replace("_", ""))
+        }
+        return str_parse_f64(self)
+    }
+
     /// Split the string on `delim`, returning a Vec of Str clones.
     split := func(self: Str, delim: Str) returns Vec(Str) {
         parts := Vec(Str).new()
@@ -557,6 +565,7 @@ digit_value := func(ch: I8) returns I64 {
 // Faithful float parse (C strtof). Top-level so the interpreter's dispatch
 // handler can reach it; Str.to_f32 delegates here.
 str_parse_f32 := ext_func(s: Str) returns shallow F32 {}
+str_parse_f64 := ext_func(s: Str) returns shallow F64 {}
 
 c_str_len := func(s: Dynamic) returns USize {
     mut n : USize = 0

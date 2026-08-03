@@ -1,26 +1,31 @@
 mode cli
 
-// Direct ext bindings: the F64 method surface (numbers.til core_funcs:
-// clone/add/to_str/...) arrives in the follow-up commit once a bootstrap
-// compiler that knows F64 exists; the C functions are already in ext.c.
-F64_to_str := ext_func(shallow v: F64) returns Str {}
-str_parse_f64 := ext_func(s: Str) returns shallow F64 {}
-F64_cmp := ext_func(shallow a: F64, shallow b: F64) returns shallow I64 {}
-F64_to_f32 := ext_func(shallow v: F64) returns shallow F32 {}
-F32_to_f64 := ext_func(shallow v: F32) returns shallow F64 {}
+// The part-1 gap: returning a borrowed param inserts T.clone, which now
+// resolves to F64.clone.
+id64 := func(w: F64) returns F64 { return w }
 
-show := func(w: F64) returns Str { return F64_to_str(w) }
-
-main := proc(s: Str) {
+main := proc(s: Str, d: F64) {
     x : F64 = 1.5
-    println(show(x))
+    println(id64(x).to_str())
     // precision beyond F32: 1e100 overflows a float to inf
     big : F64 = 1.0e100
-    println(show(big))
-    parsed : F64 = str_parse_f64(s)
-    println(show(parsed))
-    println(F64_cmp(big, x).to_str())
+    println(big.to_str())
+    println(s.to_f64().to_str())
+    println(d.to_str())
+    // operators desugar to the F64.add/mul/div/lt core_funcs
+    y := x * 2.0 + 0.25
+    println(y.to_str())
+    println((y / 0.5).to_str())
+    println((x < y).to_str())
+    println(F64.cmp(big, x).to_str())
+    // conversions, both directions, and int sources
     f : F32 = 2.5
-    println(show(F32_to_f64(f)))
-    println(F64_to_f32(x).to_str())
+    println(f.to_f64().to_str())
+    println(x.to_f32().to_str())
+    println(x.to_i64().to_str())
+    seven := 7
+    println(seven.to_f64().to_str())
+    // round-trip repr at full double precision
+    third : F64 = 1.0 / 3.0
+    println(third.to_repr().to_f64().eq(third).to_str())
 }

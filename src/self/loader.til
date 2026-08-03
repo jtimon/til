@@ -762,6 +762,7 @@ priv seed_cli_arg_helpers := func(tname: Str, mut worklist: Vec(Str)) {
     if tname == "I32" { push_qn(worklist, "Str", "to_i32") return }
     if tname == "U32" { push_qn(worklist, "Str", "to_u32") return }
     if tname == "F32" { push_qn(worklist, "Str", "to_f32") return }
+    if tname == "F64" { push_qn(worklist, "Str", "to_f64") return }
     // The narrow signed/unsigned widths go through I64 first.
     if tname == "I8" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i8") return }
     if tname == "I16" { push_qn(worklist, "Str", "to_i64") push_qn(worklist, "I64", "to_i16") return }
@@ -1179,10 +1180,11 @@ priv validate_cli_main := func(lp: LoadedProgram) {
                           p.explicit_type.eq("USize"),
                           p.explicit_type.eq("UPtr"),
                           p.explicit_type.eq("Bool"),
-                          p.explicit_type.eq("F32")).not() {
+                          p.explicit_type.eq("F32"),
+                          p.explicit_type.eq("F64")).not() {
                         loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
                         panic("main parameter '", p.name, "': type '", p.explicit_type,
-                            "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)", loc = loc)
+                            "' cannot be parsed from a CLI argument (supported: Str, Bool, F32, F64, I8/U8/I16/U16/I32/U32/I64/U64/USize/UPtr)", loc = loc)
                     }
                 }
             case:

@@ -3922,6 +3922,8 @@ Bool priv___src_self_interpreter_til__h_dyn_type_to_str(Scope * s, Expr * e, voi
 Bool priv___src_self_interpreter_til__h_check_cmd_status(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_sleep(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_file_mtime(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_str_parse_f64(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_F64_from_i64(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_str_parse_f32(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_clock_ms(Scope * _s, Expr * _e, void * r, Context * _ctx);
 Bool priv___src_self_interpreter_til__h_get_thread_count(Scope * _s, Expr * _e, void * r, Context * _ctx);

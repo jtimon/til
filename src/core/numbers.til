@@ -275,6 +275,7 @@ namespace:
     to_u64 := ext_func(shallow val: U64) returns shallow U64 {}
     to_usize := ext_func(shallow val: U64) returns shallow USize {}
     to_f32 := ext_func(shallow val: U64) returns shallow F32 {}
+    to_f64 := ext_func(shallow val: U64) returns shallow F64 {}
     /// Convert to decimal string representation.
     to_str := func(val: U64) returns Str {
         U64_to_str_ext := ext_func(shallow val: U64) returns Str {}
@@ -640,6 +641,7 @@ namespace:
     /// becomes target-driven on 64-bit; see issue #192.
     to_usize := ext_func(shallow val: I64) returns shallow USize {}
     to_f32 := ext_func(shallow val: I64) returns shallow F32 {}
+    to_f64 := ext_func(shallow val: I64) returns shallow F64 {}
     add := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     sub := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mul := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
@@ -748,6 +750,7 @@ namespace:
 F32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: F32) returns shallow I64 {}
+    to_f64 := ext_func(shallow val: F32) returns shallow F64 {}
     to_str := ext_func(shallow val: F32) returns Str {}
     /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
     to_repr := ext_func(shallow val: F32) returns Str {}
@@ -786,6 +789,51 @@ namespace:
     MIN : F32 = -3.4028235e38
     /// Maximum representable value.
     MAX : F32 = 3.4028235e38
+}
+
+/// 64-bit floating-point number (C double). #333 part 2: the method
+/// surface, declarable now that the bootstrap compiler knows the type.
+F64 := struct {
+namespace:
+    to_i64 := ext_func(shallow val: F64) returns shallow I64 {}
+    to_f32 := ext_func(shallow val: F64) returns shallow F32 {}
+    to_str := ext_func(shallow val: F64) returns Str {}
+    /// Round-trippable repr (17 sig digits): str.to_f64(x.to_repr()) == x.
+    to_repr := ext_func(shallow val: F64) returns Str {}
+    /// Convert from I64 to F64.
+    from_i64 := func(val: I64) returns F64 {
+        F64_from_i64_ext := ext_func(val: I64) returns shallow F64 {}
+        return F64_from_i64_ext(val)
+    }
+    add := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
+    sub := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
+    mul := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
+    div := core_func(shallow a: F64, shallow b: F64) returns shallow F64 {}
+    eq := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    neq := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    lt := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    gt := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    lte := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    gte := core_func(shallow a: F64, shallow b: F64) returns shallow Bool {}
+    cmp := ext_func(shallow a: F64, shallow b: F64) returns shallow I64 {}
+    clone := ext_func(val: F64) returns shallow F64 {}
+    delete := func(own self: F64, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
+    size := func() returns USize { return 8 }
+
+    /// Division that throws DivideByZero when dividing by zero.
+    /// Use F64.div for the silent (NaN/Inf) variant.
+    safe_div := func(a: F64, b: F64, loc: Str = __LOC__) returns F64 throws DivideByZero {
+        if b == F64.from_i64(0) {
+            throw DivideByZero(msg = format(loc, ":F64.safe_div: divide by zero"))
+        }
+        return a / b
+    }
+    /// Minimum representable value.
+    MIN : F64 = -1.7976931348623157e308
+    /// Maximum representable value.
+    MAX : F64 = 1.7976931348623157e308
 }
 
 /// Error thrown by I64.safe_div / F32.safe_div when dividing by zero.
