@@ -547,6 +547,17 @@ main := proc(args: ..Str) {
     // read KEPT_GLOBAL survives (the `both` entry proves the latter by
     // printing it). std/raylib.til is where this bites for real programs:
     // snake carried every unused SHADER_/TEXTURE_/KEY_ flag constant.
+    // `cast` is declared `ext_func(e: Dynamic, T: Type)` but no such symbol
+    // exists: the builder reads the target type name off the call and emits
+    // a bare C cast. Its `T: Type` slot is a comptime type argument, the
+    // same shape the macro-signature rule excludes, so walking the
+    // signature rooted the `Type` enum and, through its payload,
+    // `Primitive`. `I64.to_str` casts, which meant every program that
+    // prints a number carried both struct definitions and both tag enums
+    // with nothing referencing them. `Primitive_TAG` is the witness -- it
+    // appears once per variant, so a partial regression still trips it.
+    add_count(tests, "minimal_reach_no_comptime_type", "build", "Primitive_TAG", 0,
+        format(til_bin, " translate -c gen/c/minimal_reach_ct.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ct.c"))
     add_count(tests, "minimal_reach_no_unread_global", "build", "UNREAD_GLOBAL", 0,
         format(til_bin, " translate -c gen/c/minimal_reach_ug.c test/minimal_reach.til '&&' cat gen/c/minimal_reach_ug.c"))
     // No generated helper exists only because __attribute__((unused)) lets

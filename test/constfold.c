@@ -18,35 +18,6 @@ typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct Array__Str Array__Str;
 typedef struct Dynamic Dynamic;
-typedef enum {
-    Primitive_TAG_I16,
-    Primitive_TAG_U16,
-    Primitive_TAG_I8,
-    Primitive_TAG_U8,
-    Primitive_TAG_U32,
-    Primitive_TAG_I32,
-    Primitive_TAG_U64,
-    Primitive_TAG_I64,
-    Primitive_TAG_F32,
-    Primitive_TAG_Bool
-} Primitive_tag;
-typedef struct Primitive Primitive;
-typedef enum {
-    Type_TAG_Unknown,
-    Type_TAG_None,
-    Type_TAG_Struct,
-    Type_TAG_StructDef,
-    Type_TAG_Enum,
-    Type_TAG_EnumDef,
-    Type_TAG_FuncDef,
-    Type_TAG_FuncPtr,
-    Type_TAG_Dynamic,
-    Type_TAG_Custom,
-    Type_TAG_Primitive,
-    Type_TAG_FuncPtrSig,
-    Type_TAG_Body
-} Type_tag;
-typedef struct Type Type;
 typedef struct Range Range;
 typedef struct CfVec2 CfVec2;
 typedef struct CfRect CfRect;
@@ -95,22 +66,6 @@ typedef struct Dynamic {
 
 
 
-
-struct Primitive {
-    U8 tag;
-};
-
-struct Type {
-    U8 tag;
-    union {
-        Str Struct;
-        Str Enum;
-        Str Custom;
-        Primitive Primitive;
-        Str FuncPtrSig;
-        void *_til_payload_align;
-    } data;
-};
 
 typedef struct Range {
     U64 start;
@@ -270,7 +225,7 @@ void print_flush() {
     putchar('\n');
 }
 
-static Str _til_str_lits[71] = {
+static Str _til_str_lits[53] = {
     (Str){.c_str = (void *)": panic: ", .count = 9ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"unreachable", .count = 11ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"unreachable: ", .count = 13ULL, .cap = TIL_CAP_LIT},
@@ -324,24 +279,6 @@ static Str _til_str_lits[71] = {
     (Str){.c_str = (void *)"assert_eq failed: expected '", .count = 28ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"', found '", .count = 10ULL, .cap = TIL_CAP_LIT},
     (Str){.c_str = (void *)"'", .count = 1ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"", .count = 0ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"StructDef", .count = 9ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"EnumDef", .count = 7ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"FunctionDef", .count = 11ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"Fn", .count = 2ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"Dynamic", .count = 7ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"I16", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"U16", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"I8", .count = 2ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"U8", .count = 2ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"U32", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"I32", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"U64", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"I64", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"F32", .count = 3ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"Bool", .count = 4ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"Body", .count = 4ULL, .cap = TIL_CAP_LIT},
-    (Str){.c_str = (void *)"?", .count = 1ULL, .cap = TIL_CAP_LIT},
 };
 
 U32 CAP_LIT;
@@ -689,8 +626,6 @@ void I64_delete(I64 * self, Bool call_free) {
         free(self);
     }
 }
-
-
 
 __attribute__((noreturn)) void panic(Array__Str * parts, Str * loc) {
     U32 hoisted__U32_5952 = 3;
