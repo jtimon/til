@@ -1174,6 +1174,10 @@ priv raw_to_f32 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns F32
 }
 
 priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) returns Dynamic {
+    // #321: a null-literal argument IS the null pointer -- its raw is
+    // the null word (see the Literal.Null eval arm), not a block to
+    // deref.
+    if e.node_type.is_literal_null() { return NULL }
     if expr_raw_is_ref(scope, e, ctx) {
         switch e.node_type {
         case NodeType.Ident(id):
@@ -1181,6 +1185,10 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
             if hb_o.is_none() { panic("argument binding not found: ", id.ident_name()) }
             ref hb : HeapBinding = hb_o.unwrap()
             if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
+                // A ref Dynamic binding legitimately holds the null
+                // pointer (quarantine); its slot address is null then,
+                // and the value IS null -- nothing to deref.
+                if raw.is_null() { return NULL }
                 ref dynamic_value_ref : Dynamic = deref(raw)
                 dynamic_value : Dynamic = dynamic_value_ref
                 return dynamic_value
@@ -1666,11 +1674,13 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         if b { return bits_word(1) }
         return bits_word(0)
     case NodeType.Literal(Literal.Null):
-        // A primitive-typed null is the zero word; other classes keep a
-        // zeroed block of the type's size (a Dynamic null slot, a zeroed
-        // aggregate).
+        // A primitive-typed null is the zero word -- and so is a
+        // DYNAMIC-typed one (#321: the typer rewrites literal 0 to this
+        // node for Dynamic targets; the null IS the word, allocating a
+        // block for it leaked 8 bytes per evaluation). Other classes
+        // keep a zeroed block of the type's size (a zeroed aggregate).
         if destination.is_null().not() { return destination }
-        if raw_type_is_prim(e.til_type(), ctx) { return bits_word(0) }
+        if raw_type_is_prim(e.til_type(), ctx).or(e.til_type().is(Type.Dynamic)) { return bits_word(0) }
         return raw_unit_result(e.til_type(), ctx)
     case NodeType.Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())

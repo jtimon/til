@@ -217,3 +217,41 @@ test_dyn_type_to_str := test() {
     assert_eq(Str, type_name_passthrough(Str), "Str")
     assert_eq(Str, type_name_passthrough(TypeNameStruct), "TypeNameStruct")
 }
+
+# #321: the integer literal 0 IS the Dynamic null spelling (the typer
+# rewrites it to the internal null node wherever the target type is
+# Dynamic), replacing the retired NULL keyword. Value positions only:
+# field/param defaults, returns, assignments. Call ARGUMENTS keep 0 as
+# the boxed number (DynSet.has(0)); a null argument goes through a null
+# Dynamic local (`nul : Dynamic = 0` below).
+ZeroHolder := struct {
+    ref zr : Dynamic = 0
+    zn := 0
+}
+
+zero_give := func(fail: Bool) returns Dynamic {
+    if fail { return 0 }
+    return to_ptr(1)
+}
+
+zero_sink := func(probe: Dynamic = 0) returns Bool { return probe.is_null() }
+
+test_zero_is_dynamic_null := test() {
+    h := ZeroHolder(zn = 3)
+    assert(h.zr.is_null())
+    r : Dynamic = zero_give(true)
+    assert(r.is_null())
+    nul : Dynamic = 0
+    slot : U8 = malloc(8)
+    write_ptr(slot, nul)
+    ref pv : Dynamic = deref(slot)
+    assert(pv.is_null())
+    free(own slot)
+    mut d : Dynamic = zero_give(true)
+    d = 0
+    assert(d.is_null())
+    assert(zero_sink())
+    buf : U8 = malloc(8)
+    assert(to_ptr(buf).is_null().not())
+    free(own buf)
+}
