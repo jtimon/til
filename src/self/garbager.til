@@ -1047,36 +1047,45 @@ priv aliased_by_returned_ref := func(body: Expr, name: Str) returns Bool {
 // that prefix, so widening it to the whole body would defer deletes the
 // pass has no reason to defer yet.
 //
-// A statement's uses set differs from its initializer's only by the
+// A statement's uses row differs from its initializer's only by the
 // Decl/Assign target name itself, which both skips below already
-// exclude (def_name == target; already-tainted), so probing stmt-level
-// uses is exact -- and it is why this needs no Expr at all, which is
-// what lets the insertion loop call it after move_from.
-priv collect_hoist_taint := func(target: Str, facts: Vec(StmtFacts), limit: USize) returns Vec(Str) {
+// exclude (def_bit == target_bit; already-tainted), so probing
+// stmt-level uses is exact -- and it is why this needs no Expr at all,
+// which is what lets the insertion loop call it after move_from.
+//
+// target_bit is the target's universe bit (fact_bit_req). tainted_mask
+// is a caller-provided zeroed single row (zeroed_words(facts.words));
+// on return it holds the tainted names as bits, so extend_hoist_view_
+// lifetimes' per-statement probe is one row intersection instead of a
+// per-tainted-name search. The returned names still matter to
+// rhs_depends_on_var, whose expr_uses_var walk needs bytes.
+priv collect_hoist_taint := func(target_bit: I64, facts: BodyFacts, limit: USize, mut tainted_mask: Vec(U64)) returns Vec(Str) {
     mut tainted := Vec(Str).new()
     mut changed := true
     while changed {
         changed = false
         for pi in 0..limit {
-            ref fp : StmtFacts = facts.unsafe_get(pi)
-            if fp.def_name.len() == 0 { continue }
-            if fp.def_name == target { continue }
-            mut already := false
-            for t : Str in tainted { if t == fp.def_name { already = true } }
-            if already { continue }
-            mut dep := fp.uses.has(target)
-            if dep.not() {
-                for t : Str in tainted { if fp.uses.has(t) { dep = true } }
+            ref def_bit : I64 = facts.def_bits.unsafe_get(pi)
+            if def_bit < 0 { continue }
+            if def_bit == target_bit { continue }
+            if fact_bit_test(tainted_mask, 0, def_bit.to_usize()) { continue }
+            base := pi.mul(facts.words)
+            mut dep := fact_bit_test(facts.uses, base, target_bit.to_usize())
+            if dep.not() { dep = fact_row_intersects(facts.uses, base, tainted_mask, facts.words) }
+            if dep {
+                fact_bit_record(tainted_mask, 0, def_bit.to_usize())
+                tainted.push(own facts.def_names.unsafe_get(pi).clone())
+                changed = true
             }
-            if dep { tainted.push(own fp.def_name.clone()); changed = true }
         }
     }
     return tainted
 }
 
-priv rhs_depends_on_var := func(rhs: Expr, vname: Str, facts: Vec(StmtFacts), limit: USize) returns Bool {
+priv rhs_depends_on_var := func(rhs: Expr, vname: Str, target_bit: I64, facts: BodyFacts, limit: USize) returns Bool {
     if expr_uses_var(rhs, vname) { return true }
-    tainted := collect_hoist_taint(vname, facts, limit)
+    mut tmask := zeroed_words(facts.words)
+    tainted := collect_hoist_taint(target_bit, facts, limit, tmask)
     for t : Str in tainted {
         if expr_uses_var(rhs, t) { return true }
     }
@@ -1207,57 +1216,147 @@ is_pod_enum_clone_wrap := func(e: Expr, scope: TypeScope) returns Bool {
     return is_pod_enum_clone_of(e, scope.get_struct(tname))
 }
 
-// Per-statement name facts for one body (perf): each set is built in a
-// single walk (the expr_collect_* mirrors in typer.til) and probed by
-// the per-local loops below, which previously rescanned every statement
-// subtree once per (statement, local-name) query -- the top cost of a
-// self-translate profile. scope may be NULL when with_transfers=false
-// (the transfers walk is the only scope consumer).
-priv StmtFacts := struct {
-    // uses is the only one of these five that reliably fills: it takes
-    // every Ident and Assign name in the statement, while decls/nested/
-    // transfers/escapes are empty for most statements. Pre-size just
-    // this one -- pre-sizing all five would eagerly allocate for the
-    // majority that stay empty, undoing Set's lazy-empty default. 4 is
-    // measured, not guessed: see the commit that introduced it.
-    uses := Set(Str).with_capacity(4)
-    decls := Set(Str).new()
-    nested := Set(Str).new()
-    transfers := Set(Str).new()
-    // Names whose pointer this statement stores into raw memory
+// Per-statement name facts for one body (perf): five U64 bitmask rows
+// per statement, filled in a single walk (the expr_collect_* mirrors in
+// typer.til) and probed by the per-local loops below, which previously
+// rescanned every statement subtree once per (statement, local-name)
+// query -- the top cost of a self-translate profile. The rows replaced
+// per-statement Set(Str)s: a probe was a string binary search per
+// (binding, statement) pair; now each consumer resolves its name to a
+// universe bit once and every per-statement question is a word AND.
+// scope may be NULL when with_transfers=false (the transfers walk is
+// the only scope consumer).
+priv BodyFacts := struct {
+    // U64 words per statement row: ceil(universe size / 64). Rows are
+    // stored row-major in each fact vec (statement i's row starts at
+    // word i * words).
+    words : USize = 0
+    n_stmts : USize = 0
+    uses := Vec(U64).new()
+    decls := Vec(U64).new()
+    nested := Vec(U64).new()
+    transfers := Vec(U64).new()
+    // Names whose pointer a statement stores into raw memory
     // (write_ptr): reachable afterwards through storage the pass cannot
     // see, so their cleanup stands down.
-    escapes := Set(Str).new()
-    // The binding this statement DEFINES from an initializer -- a Decl's
-    // or an Assign's target, empty for anything else (and for a Decl
-    // with no initializer, which defines nothing to taint). Recorded so
-    // the taint walk needs no Expr access at all: the insertion loop
-    // queries it after move_from has emptied body.children and
-    // push_take has zeroed the statements it consumed.
-    def_name := ""
+    escapes := Vec(U64).new()
+    // Per statement, the binding it DEFINES from an initializer -- a
+    // Decl's or an Assign's target, "" / -1 for anything else (and for
+    // a Decl with no initializer, which defines nothing to taint).
+    // Recorded so the taint walk needs no Expr access at all: the
+    // insertion loop queries it after move_from has emptied
+    // body.children and push_take has zeroed the statements it
+    // consumed. Names AND bits: the fixpoint compares bits, while
+    // rhs_depends_on_var hands names to expr_uses_var.
+    def_names := Vec(Str).new()
+    def_bits := Vec(I64).new()
 }
 
-priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool) returns Vec(StmtFacts) {
-    mut facts := Vec(StmtFacts).new()
+// The probe universe for one body: every name a fact consumer below can
+// ever query -- this scope's own bindings (collect_scope_locals probes,
+// borrow-edge Decl targets, hoist-taint targets from locals) plus the
+// body's top-level Assign targets (taint def_names and
+// rhs_depends_on_var targets may be outer-scope locals). The collectors
+// drop any recorded name outside this map, which is exactly the filter
+// that keeps rows narrow. Bit values are insertion positions.
+priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
+    mut fi := FactIndex()
+    for b in scope.bindings.values {
+        if fi.idx.has(b.name).not() {
+            fi.idx.set(b.name, own fi.idx.len())
+            fi.filt = fi.filt.bor(fact_fingerprint(b.name))
+        }
+    }
     for stmt : Expr in body.children {
-        mut f := StmtFacts()
-        // One traversal fills all five sets. It replaced five separate
+        switch stmt.node_type {
+        case NodeType.Assign(ad):
+            if fi.idx.has(ad.name).not() {
+                fi.idx.set(ad.name, own fi.idx.len())
+                fi.filt = fi.filt.bor(fact_fingerprint(ad.name))
+            }
+        case:
+        }
+    }
+    return fi
+}
+
+// fact_bit_of for a name the universe MUST contain: every consumer
+// probe below is for a binding or a top-level Assign target, both
+// seeded by fact_universe, so a miss is a broken invariant -- fail at
+// the source instead of probing false and silently mis-scheduling a
+// delete.
+priv fact_bit_req := func(fi: FactIndex, name: Str) returns USize {
+    // Straight to the search: a required name is in the universe, so
+    // the fingerprint prefilter could only waste an AND here.
+    bit := fact_bit_search(fi.idx, name)
+    if bit < 0 { panic(__LOC__, ": fact universe is missing probed name '", name, "'") }
+    return bit.to_usize()
+}
+
+priv fact_bit_test := func(mask: Vec(U64), base: USize, bit: USize) returns Bool {
+    mut one : U64 = 1
+    return mask.unsafe_get(base.add(bit / 64)).band(one.shl(bit.mod(64).to_u64())) > 0
+}
+
+// True when the row at `base` in `mask` shares any bit with the
+// single row `other` (both `words` wide).
+priv fact_row_intersects := func(mask: Vec(U64), base: USize, other: Vec(U64), words: USize) returns Bool {
+    for w in 0..words {
+        if mask.unsafe_get(base.add(w)).band(other.unsafe_get(w)) > 0 { return true }
+    }
+    return false
+}
+
+priv zeroed_words := func(total: USize) returns Vec(U64) {
+    mut v := Vec(U64).with_capacity(total)
+    for _ in 0..total { v.push(own 0) }
+    return v
+}
+
+priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool, fi: FactIndex) returns BodyFacts {
+    mut bf := BodyFacts()
+    bf.words = fi.idx.len().add(63) / 64
+    bf.n_stmts = body.children.len()
+    total := bf.n_stmts.mul(bf.words)
+    bf.uses = zeroed_words(total)
+    bf.decls = zeroed_words(total)
+    bf.nested = zeroed_words(total)
+    bf.transfers = zeroed_words(total)
+    bf.escapes = zeroed_words(total)
+    mut i : USize = 0
+    for stmt : Expr in body.children {
+        base := i.mul(bf.words)
+        i = i + 1
+        // One traversal fills all five rows. It replaced five separate
         // walks over the same subtree -- 1.8M collector calls per
         // maps.til compile where one walk needs 411K.
-        expr_collect_stmt_facts(stmt, scope, with_transfers, true, f.uses, f.decls, f.nested, f.escapes, f.transfers)
+        expr_collect_stmt_facts(stmt, scope, with_transfers, true, fi, base, bf.uses, bf.decls, bf.nested, bf.escapes, bf.transfers)
+        mut dname := ""
         if stmt.children.len() >= 1 {
             switch stmt.node_type {
-            case NodeType.Decl(dd): f.def_name = dd.name.clone()
-            case NodeType.Assign(ad): f.def_name = ad.name.clone()
+            case NodeType.Decl(dd): dname = dd.name.clone()
+            case NodeType.Assign(ad): dname = ad.name.clone()
             case:
             }
         }
-        facts.push(own f)
+        if dname.len() > 0 {
+            bf.def_bits.push(own fact_bit_req(fi, dname).to_i64())
+            bf.def_names.push(own dname)
+        } else {
+            bf.def_bits.push(own -1)
+            // Not `own dname`: that empty is the "" LITERAL, and the
+            // own-arg box wrapping a CAP_LIT value is exempt from
+            // adopt's box free (the exemption exists for true static
+            // literal objects), so pushing it leaks the box -- ASAN
+            // caught 8K of them. A default-constructed Str is an owned
+            // buffer-less empty: same bytes, freeable box.
+            bf.def_names.push(own Str())
+        }
     }
-    return facts
+    return bf
 }
 
-priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: Vec(StmtFacts), mut locals_vec: Vec(LocalInfo)) {
+priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is_program_scope: Bool, facts: BodyFacts, fi: FactIndex, mut locals_vec: Vec(LocalInfo)) {
     for b in scope.bindings.values {
         // main()'s non-Own params are heap-allocated by the builder's CLI
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
@@ -1266,6 +1365,10 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
         if scope.struct_def_of(b.name).is_some() { continue }
         if scope.lookup_func(b.name).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
+
+        // One name->bit resolution per binding; every per-statement
+        // question below is then a bit test.
+        bbit := fact_bit_req(fi, b.name)
 
         mut decl_idx : I32 = -1
         for j in 0..body.children.len() {
@@ -1281,8 +1384,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         }
         if decl_idx == -1 {
             for j in 0..body.children.len() {
-                ref fjd : StmtFacts = facts.unsafe_get(j)
-                if fjd.decls.has(b.name) {
+                if fact_bit_test(facts.decls, j.mul(facts.words), bbit) {
                     decl_idx = j.to_i32()
                     break
                 }
@@ -1298,12 +1400,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         for j in scan_from..body.children.len() {
             ref stmt : Expr = body.children[j]
             if is_compile_directive(stmt) { continue }
-            ref fju : StmtFacts = facts.unsafe_get(j)
-            if fju.uses.has(b.name) {
+            fbase := j.mul(facts.words)
+            if fact_bit_test(facts.uses, fbase, bbit) {
                 last_use = j.to_i32()
             }
             if own_transfer == -1 {
-                if fju.transfers.has(b.name) {
+                if fact_bit_test(facts.transfers, fbase, bbit) {
                     own_transfer = j.to_i32()
                 }
             }
@@ -1332,12 +1434,12 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
                 if is_compile_directive(body.children[j]) { continue }
-                ref fjn : StmtFacts = facts.unsafe_get(j)
+                fbase := j.mul(facts.words)
                 // A closure body use, or a write_ptr that stored this
                 // binding's pointer into raw memory: in both cases it stays
                 // reachable past its last textual mention, so the pass must
                 // not schedule a delete for it.
-                if fjn.nested.has(b.name).or(fjn.escapes.has(b.name)) {
+                if fact_bit_test(facts.nested, fbase, bbit).or(fact_bit_test(facts.escapes, fbase, bbit)) {
                     skip_scope_delete = true
                     break
                 }
@@ -1560,7 +1662,7 @@ priv collect_enum_ref_payload_edges := func(e: Expr, body_last: I32, mut edges: 
     }
 }
 
-priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: Vec(StmtFacts)) returns Vec(GcBorrowEdge) {
+priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts, fi: FactIndex) returns Vec(GcBorrowEdge) {
     mut edges := Vec(GcBorrowEdge).new()
     body_last := body.children.len().sub(1).to_i32()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
@@ -1619,9 +1721,9 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: Vec(StmtF
         // (at least the decl itself); the borrower term joins the ref's
         // own extended last_use during propagation.
         mut ref_last : I32 = -1
+        ddbit := fact_bit_req(fi, dd_name)
         for j in i.add(1)..body.children.len() {
-            ref fjr : StmtFacts = facts.unsafe_get(j)
-            if fjr.uses.has(dd_name) {
+            if fact_bit_test(facts.uses, j.mul(facts.words), ddbit) {
                 ref_last = j.to_i32()
             }
         }
@@ -1684,8 +1786,8 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), locals: Vec(LocalI
     }
 }
 
-priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, facts: Vec(StmtFacts)) {
-    edges := collect_borrow_edges(body, scope, facts)
+priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex) {
+    edges := collect_borrow_edges(body, scope, facts, fi)
     propagate_borrow_edges(edges, locals)
 }
 
@@ -1707,7 +1809,7 @@ priv extend_ref_local_lifetimes := func(body: Expr, locals: Vec(LocalInfo), scop
 // such temp. Deferring an owned local's delete is always memory-safe, so the
 // (slightly over-eager) transitive taint -- which also follows clone results
 // that no longer alias the buffer -- only pushes the delete a touch later.
-priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), facts: Vec(StmtFacts)) {
+priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), facts: BodyFacts, fi: FactIndex) {
     // #302 stage 3: the taint rule expressed as borrow edges on the
     // same machinery as rules 1-3 (collect_borrow_edges). Discovery is
     // unchanged (collect_hoist_taint's transitive initializer-read
@@ -1719,15 +1821,15 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), fac
     mut edges := Vec(GcBorrowEdge).new()
     for local : LocalInfo in locals {
         if local.name.starts_with("hoisted__") { continue }
-        tainted := collect_hoist_taint(local.name, facts, facts.len())
+        mut tmask := zeroed_words(facts.words)
+        tainted := collect_hoist_taint(fact_bit_req(fi, local.name).to_i64(), facts, facts.n_stmts, tmask)
         if tainted.len() == 0 { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
             if is_compile_directive(body.children[j]) { continue }
-            ref fjv : StmtFacts = facts.unsafe_get(j)
-            for t : Str in tainted {
-                if fjv.uses.has(t) { view_last = j.to_i32() }
-            }
+            // Any tainted binding used here? One row intersection
+            // replaces the per-tainted-name probes.
+            if fact_row_intersects(facts.uses, j.mul(facts.words), tmask, facts.words) { view_last = j.to_i32() }
         }
         if view_last >= 0 { gc_add_borrow_edge(edges, local.name, "", view_last) }
     }
@@ -2335,7 +2437,7 @@ priv flag_outer_assign_rebinds := func(mut body: Expr, locals: Vec(LocalInfo), m
     }
 }
 
-priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: Vec(StmtFacts), stmt_idx: USize) {
+priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut new_ch: Vec(Expr), facts: BodyFacts, fi: FactIndex, stmt_idx: USize) {
     switch stmt.node_type {
     case NodeType.Assign(ad):
         vname := ad.name
@@ -2344,7 +2446,7 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
             if local.name.eq(vname).not() { continue }
             is_body_local = true
             if is_aggregate(local.type) {
-                if rhs_depends_on_var(stmt.children[0], vname, facts, stmt_idx) {
+                if rhs_depends_on_var(stmt.children[0], vname, fact_bit_req(fi, vname).to_i64(), facts, stmt_idx) {
                     ad.save_old_delete = true
                     stmt.set_til_type(local.type.clone())
                 } else {
@@ -2838,14 +2940,20 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // locals, collect_borrow_edges, extend_hoist_view_lifetimes and the
     // taint walk below -- so a body's statements were walked four times
     // over. `with_transfers` is the superset (only collect_scope_locals
-    // reads that set, and it is the only part that consults scope), so
+    // reads that row, and it is the only part that consults scope), so
     // computing it once here serves all of them.
     //
+    // The name->bit index is shared by both fact computations and every
+    // consumer: sink below moves deletes (FCall statements) around but
+    // adds no bindings and no top-level Assign targets, so the universe
+    // built from the pre-restructure body stays exact.
+    //
     // The recompute after sink_conditional_transfer_deletes is not
-    // optional: StmtFacts are positional, and sink can grow branch
+    // optional: fact rows are positional, and sink can grow branch
     // bodies, so facts taken before it would index the wrong statements.
-    pre_facts := body_stmt_facts(body, scope, true)
-    collect_scope_locals(ctx, body, scope, is_program_scope, pre_facts, locals_vec)
+    fidx := fact_universe(body, scope)
+    pre_facts := body_stmt_facts(body, scope, true, fidx)
+    collect_scope_locals(ctx, body, scope, is_program_scope, pre_facts, fidx, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -2855,7 +2963,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec, scope, pre_facts)
+    extend_ref_local_lifetimes(body, locals_vec, scope, pre_facts, fidx)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
     record_storage_decisions(body, locals_vec)
@@ -2866,8 +2974,8 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // Recomputed: sink above may have restructured the body, and facts
     // are positional. Shared with the taint walk below, which needs the
     // same post-sink view.
-    post_facts := body_stmt_facts(body, scope, false)
-    extend_hoist_view_lifetimes(body, locals_vec, post_facts)
+    post_facts := body_stmt_facts(body, scope, false, fidx)
+    extend_hoist_view_lifetimes(body, locals_vec, post_facts, fidx)
 
     // #302 stage 0: decision audit. The analysis above has settled every
     // per-binding decision; the dump itself runs after the insertion loop
@@ -2911,10 +3019,10 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // the already-emitted statement list on every (statement, name)
     // question -- and needed the Exprs to do it, which is why a second
     // Expr-free copy of the same walk existed for the extend pass.
-    // StmtFacts.def_name closes that gap: one walk, one implementation,
-    // and it keeps answering after the move_from below empties
-    // body.children.
-    ref taint_facts : Vec(StmtFacts) = post_facts
+    // BodyFacts' def_names/def_bits close that gap: one walk, one
+    // implementation, and it keeps answering after the move_from below
+    // empties body.children.
+    ref taint_facts : BodyFacts = post_facts
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
@@ -2925,7 +3033,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
         if is_compile_directive(stmt) { continue }
         insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch)
         insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
-        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, i)
+        insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
         new_ch.push_take(old, i)

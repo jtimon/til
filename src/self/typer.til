@@ -7611,29 +7611,88 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope, ctx: Contex
     return false
 }
 
-// --- Set-building mirrors of the per-name scanners above (perf) ---
+// --- Bitmask-building mirrors of the per-name scanners above (perf) ---
 // The garbager's per-local loops asked expr_uses_var / expr_contains_decl
 // / expr_used_in_nested_func / expr_transfers_own once per (statement,
 // name): O(locals x stmts x subtree), the single largest cost in a
 // self-translate profile. The mirrors record, in one walk, every name the
-// predicate would answer true for, so those loops became set probes.
+// predicate would answer true for, so those loops became bit probes.
 // expr_collect_stmt_facts below is the single walk that fills all five
-// sets; the helpers here are the pieces it does not inline (the
+// fact rows; the helpers here are the pieces it does not inline (the
 // param/capture-shadowing walk for nested uses, the own-arg scan, and the
 // escapes-only descent it hands nested function bodies to). Each must
 // stay in lockstep with its predicate above; the recursion cuts (FuncDef
 // opacity) are identical.
 
-// The fact sets below hold BORROWED names (Str.borrowed_view): the names
-// live in AST node payloads (IdentData / AssignData / Declaration), and
-// every set is built and consumed inside one pass over one body, so the
-// Exprs holding those bytes outlive the sets by a wide margin. That saves
-// a malloc per recorded name. Anything that must OUTLIVE the walk still
-// clones.
+// A fact row is a U64 bitmask over a per-body name->bit index (the
+// probe universe: garbager.til's fact_universe -- this scope's bindings
+// plus the body's top-level Assign targets, the only names any fact
+// consumer ever queries). Recording a name costs at most one binary
+// search of that index instead of a per-statement Set(Str) insert,
+// names outside the universe are dropped at record time, and every
+// consumer probe is a word AND instead of a string search. The rows
+// replaced Set(Str) fields that stored borrowed Str views; now nothing
+// is stored at all.
+
+// The name->bit index plus a 64-bit membership fingerprint of its
+// names. Most record-time lookups are for names OUTSIDE the universe
+// (callee idents, outer-scope names): an unset fingerprint bit proves
+// such a miss with one AND instead of a binary search. A set bit still
+// searches, so the resolved bits are identical either way.
+FactIndex := struct {
+    filt : U64 = 0
+    idx := Map(Str, USize).new()
+}
+
+fact_fingerprint := func(name: Str) returns U64 {
+    mut one : U64 = 1
+    return one.shl(name.len().to_u64().mul(31).add(name.unsafe_get(0).to_u64()).mod(64))
+}
+
+// One binary search over the index Map's storage. Map.get throws on
+// a miss, so going through it would need a has() probe first --
+// doubling the searches on the collectors' hottest path.
+fact_bit_search := func(idx: Map(Str, USize), name: Str) returns I64 {
+    mut lo : USize = 0
+    mut hi : USize = idx.keys.count
+    while lo < hi {
+        mid : USize = lo.add(hi.sub(lo) / 2)
+        c : I64 = Str.cmp(idx.keys.unsafe_get(mid), name)
+        if c < 0 { lo = mid + 1 }
+        else {
+            if c > 0 { hi = mid }
+            else { return idx.values.unsafe_get(mid).to_i64() }
+        }
+    }
+    return -1
+}
+
+fact_bit_of := func(fi: FactIndex, name: Str) returns I64 {
+    if fi.filt.band(fact_fingerprint(name)) == 0 { return -1 }
+    return fact_bit_search(fi.idx, name)
+}
+
+// OR bit `bit` into the mask row starting at word `base`. The caller
+// guarantees bit < 64 * row words (every bit comes from the index the
+// row was sized for).
+fact_bit_record := func(mut mask: Vec(U64), base: USize, bit: USize) {
+    w := base.add(bit / 64)
+    mut one : U64 = 1
+    mask.unsafe_set(w, own mask.unsafe_get(w).bor(one.shl(bit.mod(64).to_u64())))
+}
+
+// Record `name` in the mask row at `base`. A name outside the probe
+// universe is never queried by any fact consumer, so it is dropped --
+// that filter is what keeps rows one or two words wide.
+fact_record_name := func(fi: FactIndex, name: Str, base: USize, mut mask: Vec(U64)) {
+    bit := fact_bit_of(fi, name)
+    if bit < 0 { return }
+    fact_bit_record(mask, base, bit.to_usize())
+}
 
 // expr_used_in_nested_func's shadow rule, applied at add time so the
 // FuncDef body's uses never need materializing separately.
-priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
+priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Declaration), fi: FactIndex, base: USize, mut out: Vec(U64)) {
     for p : Declaration in params { if p.name == name { return } }
     // A REF capture is a TRACKED borrow, not an opaque nested use: the
     // garbager's borrow-edge rule 2 already ties the captured local's
@@ -7646,19 +7705,19 @@ priv nested_uses_add := func(name: Str, params: Vec(Declaration), caps: Vec(Decl
     for c : Declaration in caps {
         if c.name == name { if c.own_type.is(OwnType.Ref) { return } }
     }
-    out.add(own name.borrowed_view())
+    fact_record_name(fi, name, base, out)
 }
 
-priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps: Vec(Declaration), mut out: Set(Str)) {
+priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps: Vec(Declaration), fi: FactIndex, base: USize, mut out: Vec(U64)) {
     if e.node_type.is(NodeType.FuncDef) { return }
     switch e.node_type {
     case NodeType.Ident(id):
-        nested_uses_add(id.ident_name(), params, caps, out)
+        nested_uses_add(id.ident_name(), params, caps, fi, base, out)
     case NodeType.Assign(asgn):
-        nested_uses_add(asgn.name, params, caps, out)
+        nested_uses_add(asgn.name, params, caps, fi, base, out)
     case:
     }
-    for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, caps, out) }
+    for e_i : Expr in e.children { expr_collect_uses_excluding(e_i, params, caps, fi, base, out) }
 }
 
 // Names whose POINTER is stored into raw memory by write_ptr, the one
@@ -7669,7 +7728,7 @@ priv expr_collect_uses_excluding := func(e: Expr, params: Vec(Declaration), caps
 // through the raw slot is a use-after-free (ASAN confirms;
 // test/raw_escape.til pins it). Deferring or skipping a delete is always
 // memory-safe -- the same bias the hoist-view taint rule takes.
-expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
+expr_collect_ptr_escapes := func(e: Expr, fi: FactIndex, base: USize, mut out: Vec(U64)) {
     if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
         mut is_write_ptr := false
         switch e.children[0].node_type {
@@ -7680,16 +7739,16 @@ expr_collect_ptr_escapes := func(e: Expr, mut out: Set(Str)) {
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                out.add(own vn.ident_name().borrowed_view())
+                fact_record_name(fi, vn.ident_name(), base, out)
             case:
             }
         }
     }
-    for e_i : Expr in e.children { expr_collect_ptr_escapes(e_i, out) }
+    for e_i : Expr in e.children { expr_collect_ptr_escapes(e_i, fi, base, out) }
 }
 
 // Mirrors check_own_args: every arg name in an own param position.
-priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
+priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, fi: FactIndex, base: USize, mut out: Vec(U64)) {
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len() == 0 { return }
@@ -7701,7 +7760,7 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
                 an_o := arg_addressed_ident(arg)
                 if an_o.is_some() {
                     ref an : Str = an_o.unwrap()
-                    out.add(own an.borrowed_view())
+                    fact_record_name(fi, an, base, out)
                 }
             }
         }
@@ -7711,7 +7770,7 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, mut out: Set(Str)) {
 
 // Mirrors fcall_has_own_arg: one signature/ctor-field derivation per call
 // SITE (with its scope lookups) instead of one per (site, name) query.
-priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out: Set(Str)) {
+priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: FactIndex, base: USize, mut out: Vec(U64)) {
     if fcall.node_type.is(NodeType.FCall).not() { return }
     if fcall.children.len() < 2 { return }
     // Struct constructor
@@ -7726,17 +7785,17 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                     ref sdef : Expr = sdef_o.unwrap()
                     switch sdef.node_type {
                     case NodeType.StructDef(fcoa_sdd):
-                        mut fi : USize = 0
+                        mut fld_i : USize = 0
                         for fld_decl : Declaration in fcoa_sdd.fields {
-                            arg_idx := fi + 1
-                            fi = fi + 1
+                            arg_idx := fld_i + 1
+                            fld_i = fld_i + 1
                             if arg_idx < fcall.children.len() {
                                 ref arg : Expr = fcall.children[arg_idx]
                                 an_o := arg_addressed_ident(arg)
                                 if an_o.is_some().and(fld_decl.own_type.is(OwnType.Ref).not()) {
                                     ref an : Str = an_o.unwrap()
                                     if fld_decl.own_type.is(OwnType.Own).or(type_ctor_consumes(fld_decl.til_type)) {
-                                        out.add(own an.borrowed_view())
+                                        fact_record_name(fi, an, base, out)
                                     }
                                 }
                             }
@@ -7756,7 +7815,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
             ref fb : TypeBinding = fb_o.unwrap()
             fb_fd_o := scope.lookup_func(fb.name)
             if fb_fd_o.is_none() { return }
-            collect_own_arg_names(fb_fd_o.unwrap(), fcall, out)
+            collect_own_arg_names(fb_fd_o.unwrap(), fcall, fi, base, out)
         }
         return
     case NodeType.FieldAccess(method):
@@ -7772,7 +7831,7 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                 if fd_o.is_some() {
                     ref fd : Declaration = fd_o.unwrap()
                     if fd.default_value.is_some().and(fd.default_expr().node_type.is(NodeType.FuncDef)) {
-                        collect_own_arg_names(fd.default_expr(), fcall, out)
+                        collect_own_arg_names(fd.default_expr(), fcall, fi, base, out)
                     }
                 }
             case:
@@ -7782,10 +7841,10 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
     }
 }
 
-// All five per-statement fact sets in ONE traversal. The collectors above
+// All five per-statement fact rows in ONE traversal. The collectors above
 // each walked the whole statement subtree separately -- five passes over
 // the same nodes, ~1.6M collector invocations per maps.til compile where
-// one walk needs ~430K. Each set's rules are copied verbatim from its
+// one walk needs ~430K. Each row's rules are copied verbatim from its
 // own collector above; keep them in lockstep the same way those stay in
 // lockstep with their predicates.
 //
@@ -7793,21 +7852,19 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
 // transfers all stop at a FuncDef (transfers after recording its own
 // captures, nested after collecting the body's uses through the
 // param/capture-shadowing walk), so the fused walk stops there once and
-// hands the body to expr_collect_ptr_escapes -- the one set that does
+// hands the body to expr_collect_ptr_escapes -- the one row that does
 // descend into nested function bodies. A BodyValue stops transfers only,
 // which is what transfers_on carries down.
 //
 // want_transfers=false skips the transfer work entirely: it is the only
 // part that consults scope (fcall_collect_own_arg_names, fa_own_type),
 // and most callers do not ask for it.
-// Name-fact collection adds unconditionally: Set.add already drops a
-// duplicate, so the `if out.has(x).not()` guard these sites used to carry
-// bought a second binary search to save a clone -- and at -O0 the search
-// costs more than the clone. Set__Str_has was 3.9G of Str_cmp per
-// self-translate on top of add's own search.
+// Name-fact collection records unconditionally: ORing an already-set bit
+// is free, so no site carries a has-style dup guard.
 expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool,
-        mut uses: Set(Str), mut decls: Set(Str), mut nested: Set(Str),
-        mut escapes: Set(Str), mut transfers: Set(Str)) {
+        fi: FactIndex, base: USize,
+        mut uses: Vec(U64), mut decls: Vec(U64), mut nested: Vec(U64),
+        mut escapes: Vec(U64), mut transfers: Vec(U64)) {
     // --- ptr escapes: every node, nested function bodies included ---
     if e.node_type.is(NodeType.FCall).and(e.children.len() >= 3) {
         mut is_write_ptr := false
@@ -7819,7 +7876,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
         if is_write_ptr {
             switch e.children[2].node_type {
             case NodeType.Ident(vn):
-                escapes.add(own vn.ident_name().borrowed_view())
+                fact_record_name(fi, vn.ident_name(), base, escapes)
             case:
             }
         }
@@ -7828,45 +7885,45 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     mut sub_transfers_on := transfers_on
     switch e.node_type {
     case NodeType.FuncDef(fdef):
-        // The shared cut. Record what each set takes from the def itself,
+        // The shared cut. Record what each row takes from the def itself,
         // then leave the body to the escapes-only walk.
         if want_transfers.and(transfers_on) {
             for cap : Declaration in fdef.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.borrowed_view()) }
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, transfers) }
             }
         }
         if e.children.len() > 0 {
-            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, nested)
+            expr_collect_uses_excluding(e.children[0], fdef.params, fdef.captures, fi, base, nested)
         }
-        for fd_c : Expr in e.children { expr_collect_ptr_escapes(fd_c, escapes) }
+        for fd_c : Expr in e.children { expr_collect_ptr_escapes(fd_c, fi, base, escapes) }
         return
     case NodeType.BodyValue(bvd):
         if want_transfers.and(transfers_on) {
             for cap : Declaration in bvd.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.borrowed_view()) }
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, transfers) }
             }
         }
-        // expr_collect_transfers returns here; the other sets keep going,
+        // expr_collect_transfers returns here; the other rows keep going,
         // so only the transfer collection stands down below this node.
         sub_transfers_on = false
     case NodeType.CaptureBlock(cbd):
         if want_transfers.and(transfers_on) {
             for cap : Declaration in cbd.captures {
-                if cap.own_type.is(OwnType.Own).and(transfers.has(cap.name).not()) { transfers.add(own cap.name.borrowed_view()) }
+                if cap.own_type.is(OwnType.Own) { fact_record_name(fi, cap.name, base, transfers) }
             }
         }
     case NodeType.Ident(id):
-        uses.add(own id.ident_name().borrowed_view())
+        fact_record_name(fi, id.ident_name(), base, uses)
     case NodeType.Assign(asgn):
-        uses.add(own asgn.name.borrowed_view())
+        fact_record_name(fi, asgn.name, base, uses)
     case NodeType.Decl(dd):
-        decls.add(own dd.name.borrowed_view())
+        fact_record_name(fi, dd.name, base, decls)
     case NodeType.FCall(fcd):
         if want_transfers.and(transfers_on) {
             if fcd.swap_replace.and(e.children.len().gte(3)) {
                 switch e.children[2].node_type {
                 case NodeType.Ident(src):
-                    transfers.add(own src.ident_name().borrowed_view())
+                    fact_record_name(fi, src.ident_name(), base, transfers)
                 case:
                 }
             }
@@ -7875,12 +7932,12 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     }
 
     if want_transfers.and(sub_transfers_on) {
-        fcall_collect_own_arg_names(e, scope, transfers)
+        fcall_collect_own_arg_names(e, scope, fi, base, transfers)
         if e.node_type.is(NodeType.FieldAssign).and(e.fa_own_type(scope).is(OwnType.Own)) {
             if e.children.len() > 1 {
                 switch e.children[1].node_type {
                 case NodeType.Ident(ei):
-                    transfers.add(own ei.ident_name().borrowed_view())
+                    fact_record_name(fi, ei.ident_name(), base, transfers)
                 case:
                 }
             }
@@ -7888,7 +7945,7 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
     }
 
     for e_i : Expr in e.children {
-        expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, uses, decls, nested, escapes, transfers)
+        expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, fi, base, uses, decls, nested, escapes, transfers)
     }
 }
 

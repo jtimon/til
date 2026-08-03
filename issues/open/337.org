@@ -1,0 +1,45 @@
+# priority: medium
+# category: optimizations
+** OPEN #337 Name interning: compare interned ids instead of string bytes
+
+  NOT DECIDED YET: Jorge still has to decide whether to do this at all.
+  Filed so the analysis is not lost; do not start it without his go.
+
+  ~Str_cmp~ is the compiler's #1 self-time cost: ~5.3M calls per
+  test/maps.til compile (~320ms of ~2.6s profiled self time), and it has
+  survived every redundancy fix -- after the walk fusions and lookup
+  reductions of the #307-era work, what remains is genuine lookup
+  volume, not repeated work:
+
+  - ~TypeScope.get_binding~ / ~get_struct~ / ~lookup_func~: every scope
+    probe binary-searches Str-keyed Maps (~1.1M probes/compile combined)
+  - ~Map(Str, ...)~ across Context (TypeBinding, Dynamic, HeapBinding,
+    USize indexes from #307), each probe ~log n full Str.cmp calls
+  - Set(Str) membership in the garbager facts and scavenger worklists
+
+  The idea: intern every identifier/type/method name ONCE in a
+  Context-owned table (name -> U32 id, Vec(Str) id -> name). Then:
+
+  - name maps become id-keyed (Map(U32, ...) or direct Vec indexing);
+    a probe is integer compares, no byte walks
+  - name equality everywhere becomes one integer compare
+  - the ~548K Str_clone of names that survive the borrow-view work
+    disappear: an id is copied, never cloned or deleted
+
+  Where it must NOT reach: emitted C and user-facing diagnostics still
+  need the bytes (id -> name lookup), and FFI/dyn introspection tables
+  key on real strings at runtime.
+
+  Cost/risk, and why it needs the explicit decision:
+
+  - it is a REPRESENTATION change through TypeScope, Context and the
+    AST name fields -- the widest-blast-radius change proposed so far
+  - partial interning (only TypeScope keys, say) gets partial wins but
+    adds a second representation of names, and mixing interned and raw
+    names is exactly the two-spellings disease #335/#307 fixed twice
+  - the win is bounded by the measured ~30% string/map/set share of
+    self time; realistic recovery is some fraction of that
+
+  Verification plan if approved: the byte-identical-C corpus check used
+  for the garbager/desugarer fusions, plus --prof counter deltas
+  (Str_cmp should collapse by whatever fraction of probes moved to ids).
