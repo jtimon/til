@@ -3817,6 +3817,15 @@ priv closure_borrowed_capture_name := func(e: Expr, scope: TypeScope) returns St
     return ""
 }
 
+// #54: true when `name` denotes a GLOBAL -- a binding that lives in the
+// program root scope and is not shadowed by anything in this function. A
+// closure stored there outlives the call that built it.
+priv assign_target_is_global := func(name: Str, func_scope: TypeScope) returns Bool {
+    if func_scope.bindings.has(name) { return false }
+    ref root : TypeScope = scope_root_ref(func_scope)
+    return root.bindings.has(name)
+}
+
 priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, ctx: Context) {
     switch e.node_type {
     case NodeType.Return:
@@ -3828,6 +3837,21 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
                 "' if the closure escapes"), ctx)
         }
         return
+    case NodeType.Assign(gad):
+        // #54: storing a borrowed-capture closure in a GLOBAL is the same
+        // escape as returning one -- the global outlives the call, so the
+        // captured stack local dangles the moment the function returns
+        // (ASAN: stack-use-after-return). Same diagnostic and same fix.
+        if e.children.len() > 0 {
+            if assign_target_is_global(gad.name, func_scope) {
+                gcap := closure_borrowed_capture_name(e.children[0], func_scope)
+                if gcap.len() > 0 {
+                    e.type_error(format("closure stored in global '", gad.name,
+                        "' borrows captured local '", gcap, "'; capture it as 'own ", gcap,
+                        "' or 'shallow ", gcap, "' if the closure escapes"), ctx)
+                }
+            }
+        }
     case NodeType.FuncDef:
         return
     case:

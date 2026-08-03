@@ -1,0 +1,21 @@
+mode test
+
+// Negative test (issue #54): storing a closure that BORROWS a captured local
+// into a GLOBAL is the same escape as returning one -- the global outlives the
+// call, so the captured stack slot dangles as soon as the function returns
+// (ASAN reports stack-use-after-return). Rejected with the same fix advice:
+// capture it `own` or `shallow` instead.
+
+Thunk := func() returns I64
+zero := func() returns I64 { return 0 }
+mut g_slot : Thunk = zero
+
+set_global := func() {
+    local := 42
+    g_slot = func() returns I64 [local] { return local }
+}
+
+test_escape := test() {
+    set_global()
+    assert_eq(I64, g_slot(), 42)
+}

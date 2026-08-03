@@ -60,8 +60,18 @@
        mode via callable storage boxes / closure slot cleanup. Tests:
        test/closures_interp.til::test_closure_stored_in_struct_field and
        test_closure_stored_in_dyn_vec.
-       Remaining: broader stored-closure escape paths not covered by return,
-       struct fields, DynVec(Fn), or own-arg checks.
+       A closure stored in a GLOBAL is now rejected too (2026-08-03): the
+       global outlives the call, so a borrowed capture dangles the moment the
+       function returns -- proved with ASAN (stack-use-after-return) before
+       the check existed. check_returned_borrowed_closure_captures_in gained
+       an Assign arm beside its Return one, firing when the target resolves
+       to a root-scope binding not shadowed locally (assign_target_is_global).
+       Same diagnostic and same fix advice as the return case; `shallow` /
+       `own` captures still store fine. Test:
+       test/capture_global_escape_error.til.
+       Remaining: stores through paths this still does not see -- assigning
+       into a global's FIELD, into a container element, or handing the
+       closure to a callee that stores it.
    - [X] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
      Functions already had them; blocks rejected `own`/`shallow` at parse
      time and now accept the full modifier set, so every capture site

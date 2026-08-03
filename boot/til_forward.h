@@ -2577,6 +2577,7 @@ Bool priv___src_self_typer_til__fdef_return_carries_borrow(FunctionDef * fdef, T
 void priv___src_self_typer_til__check_ref_function_returns(TypeScope * func_scope, Expr * expr, Context * ctx);
 Str * priv___src_self_typer_til__first_borrowed_capture_name(Expr * e);
 Str * priv___src_self_typer_til__closure_borrowed_capture_name(Expr * e, TypeScope * scope);
+Bool priv___src_self_typer_til__assign_target_is_global(Str * name, TypeScope * func_scope);
 void priv___src_self_typer_til__check_returned_borrowed_closure_captures_in(Expr * e, TypeScope * func_scope, Context * ctx);
 void priv___src_self_typer_til__check_returned_borrowed_closure_captures(TypeScope * func_scope, Expr * expr, Context * ctx);
 void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Expr * expr, Context * ctx);
