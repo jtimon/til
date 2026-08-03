@@ -272,6 +272,22 @@ namespace:
         if call_free { free(own self) }
     }
 
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    to_str := func(self: Vec(T)) returns Str {
+        mut out := "Vec("
+        for i in 0..self.count {
+            if i > 0 { out = out.format(", ") }
+            ref e : T = ptr_add(self.data, i.mul(T.size()))
+            elem_str := T.to_str(e)
+            out = out.format(elem_str)
+        }
+        return out.format(")")
+    }
+
     /// Deep-copy the Vec and all its elements via elem_clone.
     clone := func(self: Vec(T)) returns Vec(T) {
         // A lazy-empty source clones to another lazy-empty Vec (no malloc(0)).

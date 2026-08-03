@@ -159,3 +159,12 @@ test_str_vec_literal := test() {
     assert_eq(Str, svec[1], "bar")
     assert_eq(Str, svec[2], "baz")
 }
+
+// Every slot, including the zero-initialized ones; see test_vec_to_str for
+// why the containers carry a hand-written to_str at all.
+test_array_to_str := test() {
+    mut a := Array(I64).new(3)
+    assert_eq(Str, a.to_str(), "Array(0, 0, 0)")
+    a[1] = 7
+    assert_eq(Str, a.to_str(), "Array(0, 7, 0)")
+}

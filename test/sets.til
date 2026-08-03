@@ -104,3 +104,13 @@ test_set_with_capacity_zero_is_lazy := test() {
     assert(s.has("x"))
     assert_eq(USize, s.len(), 1)
 }
+
+// Members in order; see test_vec_to_str for why the containers carry a
+// hand-written to_str at all.
+test_set_to_str := test() {
+    mut s := Set(Str).new()
+    assert_eq(Str, s.to_str(), "Set()")
+    s.add(own "y")
+    s.add(own "x")
+    assert_eq(Str, s.to_str(), "Set(x, y)")
+}

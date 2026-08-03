@@ -74,6 +74,15 @@ Token := struct {
     const len : USize = 0
     const line : U32 = 0
     const col : U32 = 0
+
+namespace:
+    /// Hand-written so a Vec(Token) can render: `const` fields do not reach
+    /// the generated to_str. Position first, since that is what a token dump
+    /// is read for.
+    to_str := func(self: Token) returns Str {
+        return format("Token(", self.type.to_str(), " at ", self.line.to_str(), ":",
+                      self.col.to_str(), " +", self.len.to_str(), ")")
+    }
 }
 
 // --- Character helpers ---

@@ -17,6 +17,11 @@ namespace:
     delete := func(own self: Dynamic, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// An opaque slot: the pointer value itself would differ between runs,
+    /// so a container of Dynamics renders a fixed placeholder. Exists at all
+    /// because Vec/Map/Set/Array.to_str call T.to_str for every element type,
+    /// and Vec(Dynamic) is instantiated.
+    to_str := func(_self: Dynamic) returns Str { return "<dyn>" }
 }
 
 // builtin functions and procs

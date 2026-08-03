@@ -95,6 +95,12 @@ ProgramUnit := struct {
     path := ""
     mode := Mode()
     imports := Vec(Str).new()
+
+namespace:
+    to_str := func(self: ProgramUnit) returns Str {
+        return format("ProgramUnit(path=", self.path,
+                      ", imports=", self.imports.to_str(), ")")
+    }
 }
 
 // Resolve a file's direct import paths to display paths.

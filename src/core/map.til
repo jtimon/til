@@ -130,6 +130,21 @@ namespace:
         return false
     }
 
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    to_str := func(self: Map(K, V)) returns Str {
+        mut out := "Map("
+        for i in 0..self.keys.count {
+            if i > 0 { out = out.format(", ") }
+            out = out.format(K.to_str(self.keys.unsafe_get(i)), "=",
+                             V.to_str(self.values.unsafe_get(i)))
+        }
+        return out.format(")")
+    }
+
     delete := func(own self: Map(K, V), call_free: Bool = true) {
         own self.keys.delete(false)
         own self.values.delete(false)

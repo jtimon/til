@@ -363,3 +363,21 @@ test_vec_take_prefix_append_roundtrip := test() {
     assert_eq(I64, prefix[2], 7)
     assert_eq(I64, prefix[3], 8)
 }
+
+// A container had NO to_str at all: `own data` disqualifies it from the
+// generated one, so `v` at the REPL prompt printed nothing. Hand-written now,
+// in the same `Name(a, b)` shape a struct's generated to_str uses. The Str
+// case is the reason T.to_str is called in its NAMESPACE form: `e.to_str()`
+// on a value already of type Str is rejected as a redundant self-conversion.
+test_vec_to_str := test() {
+    mut v := Vec(I64).new()
+    assert_eq(Str, v.to_str(), "Vec()")
+    v.push(own 3)
+    v.push(own 4)
+    assert_eq(Str, v.to_str(), "Vec(3, 4)")
+
+    mut s := Vec(Str).new()
+    s.push(own "a")
+    s.push(own "b")
+    assert_eq(Str, s.to_str(), "Vec(a, b)")
+}

@@ -584,6 +584,16 @@ ImportUnit := struct {
     mode := Mode()
     own ast := Expr.new(NodeType.Body, 0, 0)
     imports := Vec(Str).new()
+
+namespace:
+    /// The `own ast` is a whole program body -- summarised by its statement
+    /// count, not dumped. That own field is also why this is hand-written:
+    /// the generated to_str refuses a struct with one.
+    to_str := func(self: ImportUnit) returns Str {
+        return format("ImportUnit(mode_str=", self.mode_str,
+                      ", ast=", self.ast.children.len().to_str(), " stmts",
+                      ", imports=", self.imports.to_str(), ")")
+    }
 }
 
 BuilderFuncScratch := struct {

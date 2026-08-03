@@ -9,12 +9,25 @@ import("../std/file")
 priv CollectionInfo := struct {
     ref type_name : Str
     is_vec : I32 = 0
+
+namespace:
+    to_str := func(self: CollectionInfo) returns Str {
+        return format("CollectionInfo(type_name=", self.type_name,
+                      ", is_vec=", self.is_vec.to_str(), ")")
+    }
 }
 
 priv DynCallInfo := struct {
     ref method : Str
     nargs : I32 = 1
     has_return := false
+
+namespace:
+    to_str := func(self: DynCallInfo) returns Str {
+        return format("DynCallInfo(method=", self.method,
+                      ", nargs=", self.nargs.to_str(),
+                      ", has_return=", self.has_return.to_str(), ")")
+    }
 }
 
 closure_call_name := func(name: Str) returns Str {

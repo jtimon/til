@@ -241,6 +241,12 @@ Test := struct {
     // both config flags
     has_interp := 0
     has_run := 0
+
+namespace:
+    to_str := func(self: Test) returns Str {
+        return format("Test(label=", self.label, ", category=", self.category,
+                      ", ok=", self.ok.to_str(), ", ms=", self.ms.to_str(), ")")
+    }
 }
 
 Slot := struct {

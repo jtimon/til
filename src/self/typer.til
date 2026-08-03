@@ -1848,7 +1848,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     mut nf2o := Option(ref Expr).None
     if sdef2_o.is_some() { nf2o = find_namespace_func(sdef2_o.unwrap(), method, scope) }
     if nf2o.is_none() {
-        e.type_error(format("no namespace function '", method, "'"), ctx)
+        e.type_error(format("no namespace function '", method, "' on '", obj3_sname, "'"), ctx)
         e.set_til_type(Type.Unknown)
         return true
     }
@@ -8367,6 +8367,15 @@ priv CoverageNode := struct {
     fully_covered := false
     sub_names := Vec(Str).new()
     sub_nodes := Vec(CoverageNode).new()
+
+namespace:
+    /// Hand-written because the tree is RECURSIVE -- Vec(CoverageNode)
+    /// inside CoverageNode -- and the generated to_str would need itself
+    /// to already exist to be generated.
+    to_str := func(self: CoverageNode) returns Str {
+        return format("CoverageNode(fully_covered=", self.fully_covered.to_str(),
+                      ", sub_names=", self.sub_names.to_str(), ")")
+    }
 }
 
 // Seed a node with empty per-variant sub-coverage for an enum_def.
