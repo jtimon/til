@@ -1721,6 +1721,46 @@ Stage 7. Interpreter compensation removal -- rides #286.
     behavior changes are visible in review rather than only as ASAN
     outcomes.
 
+*** Naming precedents for the ownership primitives (2026-07-28)
+
+Recorded in case we rename later. til's move() matches what every
+language calls move (destroy dest's old value, take src): Rust move
+assignment / mem::replace, C++ std::move + assignment. The
+into-uninitialized operation (til adopt) has NO agreed name; each
+language keeps it as an unsafe pointer-layer primitive, distinct from
+move-assign:
+
+  - Mojo: UnsafePointer.init_pointee_move(value) -- adopt's exact
+    semantics (minus the box free; Mojo values live in place); and
+    init_pointee_move_from(src_ptr) -- pointee-to-pointee, source left
+    uninitialized: til's adopt_from. Also destroy_pointee (drop in
+    place) and take_pointee (move OUT; the read half of Vec.pop).
+  - Rust: ptr::write(dst, value) = adopt; ptr::read(src) = the
+    move-out half; MaybeUninit::write.
+  - C++: std::construct_at / placement new = adopt;
+    std::uninitialized_move / uninitialized_copy for ranges.
+
+Rename candidates if we ever want to match precedent: adopt ->
+init_pointee_move (Mojo, verbose) or write / write_from (Rust flavor).
+Kept adopt/adopt_from: short, and the pair reads as what it does.
+
+*** Interpreter reclamation re-audit (2026-08-03)
+
+The stage-7 audit counted 36 explicit reclamation calls on 2026-07-16;
+the FFI and raw-storage work that landed after grew the population to
+89. Re-audited: ALL 89 classify into the sanctioned homes, zero
+misfits. By home: typed drop-by-layout machinery ~15 (str/tuple/enum
+payload/struct/container/callable-box droppers), the interpreter's own
+result-temporary lifecycle ~35 (raw_block_free and friends across
+eval_*, init_field_raw, coerce/move helpers), scope teardown and
+session bookkeeping ~14 (including write_field's drop_old, which is
+save_old_delete executing), the h_free / h_til_closure_delete handlers
+executing til-level frees 5, and the FFI boundary ~14 (dispatch
+scratch, register/cif tables). Spot-checked the three sites that do
+not classify on sight (the Dynamic-unboxing pair in
+eval_user_func_call, the ptr_eq-guarded ext result free); each is a
+temporary the interpreter itself created.
+
 *** Non-goals
 
   - No runtime GC, no refcounting: the ASAP single-owner model stays

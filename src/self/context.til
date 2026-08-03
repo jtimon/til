@@ -823,14 +823,12 @@ Context := struct {
     // `Type.method(...)` form.
     lowering_param_types := Map(Str, Str).new()
 
-    // Two typer-scope flags shared with garbager: typer_in_main_func is
-    // set while infer_func_def_expr is checking main(), so the garbager
-    // helpers can give main()'s non-Own params a scope-end delete (no
-    // caller frees them); typer_in_shallow_return is set when the
-    // current function returns `shallow T`, so the garbager keeps a
-    // would-be-moved struct local Shallow for the codegen.
+    // Typer-scope flag shared with garbager: typer_in_shallow_return is
+    // set when the current function returns `shallow T`, so the garbager
+    // keeps a would-be-moved struct local Shallow for the codegen. (Its
+    // old twin typer_in_main_func died with #302's normalization: main's
+    // non-shallow params are simply marked Own at inference time.)
     typer_in_shallow_return : Bool = false
-    typer_in_main_func : Bool = false
 
     // Resolved declared return type name of the function currently being
     // type-checked (empty when none / not in a func). infer_return_stmt

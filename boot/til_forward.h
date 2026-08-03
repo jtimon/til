@@ -1559,7 +1559,6 @@ typedef struct Context {
     I64 bang_counter;
     Map__Str_Str lowering_param_types;
     Bool typer_in_shallow_return;
-    Bool typer_in_main_func;
     Str typer_return_type_name;
     I32 ctor_seq;
     Bool in_func_def;

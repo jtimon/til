@@ -199,7 +199,7 @@ fa_own_type := func(e: Expr, scope: TypeScope) returns shallow OwnType {
 // check ignores reads inside these so genuinely-unused priv fields
 // and ns methods are not masked by boilerplate references.
 // auto_gen_depth / throw_used_local_names now live on Context.
-// typer_in_shallow_return / typer_in_main_func previously lived as
+// typer_in_shallow_return (and the late typer_in_main_func) lived as
 // module-level mut here. They moved to Context (see initer.til) since
 // garbager.til reads them and the garbager entry points already thread
 // ctx. infer_func_def_expr writes ctx.typer_in_* while typing each
@@ -3970,6 +3970,15 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 if is_auto_shallow_type(rt, resolved_return_type, scope, ctx) { fdef.return_own_type = OwnType.Shallow }
             }
         }
+        // #302: main is never called from til code -- the builder's argv
+        // prologue IS its params' constructor and no caller frees them --
+        // so a main param still borrowed AFTER auto-shallow (an aggregate:
+        // Str, Array) is OWNED by main. Recorded on the Declaration, just
+        // before the binding below inherits own_type, instead of the old
+        // ctx.typer_in_main_func flag the garbager special-cased at a
+        // distance. Shallow params (scalars, auto or explicit) stay: they
+        // parse straight into C stack values, no heap box.
+        in_main_def := ctx.current_top_func_name.eq("main").and(scope.parent.is_none())
         for i in 0..fdef.params.len() {
             ref mut param : Declaration = fdef.params[i]
             ptype_name := param.explicit_type.clone()
@@ -4043,6 +4052,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 if auto_shallow_ok.and(fdef_return_carries_borrow(fdef, scope).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
                     param.own_type = OwnType.Shallow
                 }
+                if in_main_def.and(param.own_type.is(OwnType.Ref)) { param.own_type = OwnType.Own }
                 func_scope.set(param.name, pt, pmut, ctx.path, expr.line, expr.col, true, param.own_type)
                 if pt.is_funcptr() {
                     sf_fsb := scope.find(ptn)
@@ -4084,8 +4094,6 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         }
         saved_in_shallow_ret := ctx.typer_in_shallow_return
         ctx.typer_in_shallow_return = fdef.return_own_type.is(OwnType.Shallow)
-        saved_in_main_func := ctx.typer_in_main_func
-        ctx.typer_in_main_func = ctx.current_top_func_name.eq("main").and(scope.parent.is_none())
         saved_return_type_name := ctx.typer_return_type_name.clone()
         if is_func { ctx.typer_return_type_name = fdef.return_type.clone() } else { ctx.typer_return_type_name = "" }
         // Issue #198: lower throw/catch BEFORE infer_body so the
@@ -4137,7 +4145,6 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             }
         }
         ctx.typer_in_shallow_return = saved_in_shallow_ret
-        ctx.typer_in_main_func = saved_in_main_func
         ctx.typer_return_type_name = saved_return_type_name
         if fdef.auto_generated {
             ctx.auto_gen_depth = ctx.auto_gen_depth - 1

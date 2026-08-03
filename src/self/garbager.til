@@ -18,8 +18,7 @@ import("context")
 // fa_own_type, transfer_is_shallow_field_value_copy, is_compile_directive,
 // expr_uses_var, expr_transfers_own, expr_used_in_nested_func,
 // expr_contains_decl, fcall_returns_shallow, rhs_is_clone_fcall)
-// and two typer state flags (typer_in_main_func,
-// typer_in_shallow_return). The loader imports garbager.til right after
+// and a typer state flag (typer_in_shallow_return). The loader imports garbager.til right after
 // typer.til so those names are in scope.
 
 priv LocalInfo := struct {
@@ -1264,7 +1263,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // arg parsing (Str_clone / inline Str_from_c_str + box) and owned by
         // main itself; skip the usual is_param filter so they get a
         // scope-end delete.
-        if b.is_param.and(b.own_type.is(OwnType.Own).not()).and(ctx.typer_in_main_func.not()) { continue }
+        if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
         if scope.struct_def_of(b.name).is_some() { continue }
         if scope.lookup_func(b.name).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
@@ -1356,9 +1355,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // for a stack value, which emit_as_ptr could only satisfy by
         // boxing it first -- a malloc, a copy and a free per scalar
         // param, to run `if (call_free) free(self);` on the copy.
-        main_cli_param := ctx.typer_in_main_func.and(b.is_param)
-            .and(b.own_type.is(OwnType.Shallow).not())
-        if b.own_type.is(OwnType.Ref).and(main_cli_param.not()) { skip_scope_delete = true }
+        if b.own_type.is(OwnType.Ref) { skip_scope_delete = true }
         if skip_scope_delete.not() {
             if aliased_by_returned_ref(body, b.name) { skip_scope_delete = true }
         }
@@ -1374,7 +1371,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             li.dtor_transfer = transfer_is_destructor_call(body.children[own_transfer.to_usize()], b.name)
             li.shallow_copy_transfer = transfer_is_shallow_field_value_copy(body.children[own_transfer.to_usize()], b.name, scope)
         }
-        li.is_heap = b.own_type.is(OwnType.Own).or(main_cli_param)
+        li.is_heap = b.own_type.is(OwnType.Own)
         if b.type.is_funcptr().or(b.type.is(Type.Body)).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
         // Decls whose RHS the builder will stack-allocate must use
         // call_free=false in their cleanup or `free()` would touch a
@@ -2972,15 +2969,12 @@ garbager_destroy_body := proc(ctx: Context, mut body: Expr, mut scope: TypeScope
 // or an on-the-fly scope rebuild in garbager.
 garbager_destroy := proc(mut ctx: Context) {
     saved_path := ctx.path.clone()
-    saved_in_main := ctx.typer_in_main_func
     saved_in_shallow := ctx.typer_in_shallow_return
-    ctx.typer_in_main_func = false
     ctx.typer_in_shallow_return = false
     for path, iu in ctx.imported {
         ctx.path = path.clone()
         insert_free_calls(ctx, iu.ast, ctx.scope, 1)
     }
     ctx.path = saved_path
-    ctx.typer_in_main_func = saved_in_main
     ctx.typer_in_shallow_return = saved_in_shallow
 }
