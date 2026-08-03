@@ -943,3 +943,48 @@ test_generic_dependent_throw_explicit := test() {
     catch (e: ParamThrowErr) { caught = true }
     assert(caught)
 }
+
+// A PRIMITIVE throw type. Its struct def exists only to carry namespace
+// methods, so it has zero fields -- and throw_type_has_payload read "no
+// fields" as "marker error": the payload was dropped and the bare thrown
+// expression was pushed as a statement, which no backend could evaluate
+// ("unexpected statement type ... this is a bug in the language").
+prim_throw_param := func(v: I64, fail: Bool) returns I64 throws I64 {
+    if fail { throw v }
+    return v
+}
+
+prim_throw_lit := func(fail: Bool) returns I64 throws I64 {
+    if fail { throw 42 }
+    return 1
+}
+
+gdep_prim328 := func(T: Type, v: T, fail: Bool) returns I64 throws T {
+    if fail { throw v }
+    return 3
+}
+
+test_throw_primitive_param := test() {
+    ok := prim_throw_param(5, false)!
+    assert_eq(I64, ok, 5)
+    mut payload : I64 = 0
+    prim_throw_param(7, true)?
+    catch (e: I64) { payload = e }
+    assert_eq(I64, payload, 7)
+}
+
+test_throw_primitive_literal := test() {
+    mut payload : I64 = 0
+    prim_throw_lit(true)?
+    catch (e: I64) { payload = e }
+    assert_eq(I64, payload, 42)
+}
+
+// #328: a dependent `throws T` generic under EXPLICIT application now
+// also works when T is a primitive, not only a struct.
+test_generic_dependent_throw_primitive := test() {
+    mut payload : I64 = 0
+    gdep_prim328(I64, 9, true)?
+    catch (e: I64) { payload = e }
+    assert_eq(I64, payload, 9)
+}

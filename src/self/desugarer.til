@@ -832,6 +832,15 @@ priv err_slot_name := func(t: Str) returns Str {
 // non-struct and unresolved types payload-bearing: only a resolved empty
 // StructDef may use the tag-only ABI.
 throw_type_has_payload := func(ctx: Context, type_name: Str) returns Bool {
+    // A PRIMITIVE throw type (`throws I64`) has no fields -- its struct def
+    // exists only to carry the namespace methods -- but its VALUE is the
+    // payload. "No fields" means "marker error" only for real structs;
+    // without this, `throw v` dropped the payload and pushed the bare `v`
+    // as a statement, which no backend can evaluate.
+    mut bt := Type.Unknown
+    if builtin_type_from_name(type_name, bt) {
+        if is_primitive(bt) { return true }
+    }
     type_def_o := ctx.scope.get_struct(type_name)
     if type_def_o.is_none() { return true }
     ref type_def : Expr = type_def_o.unwrap()
