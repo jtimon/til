@@ -1,0 +1,2 @@
+mode cli
+main := proc(nums: ..F64) { for n : F64 in nums { println(n.to_str()) } }

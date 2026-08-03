@@ -586,6 +586,7 @@ priv elem_size_for_type := func(type_name: Str, ctx: Context) returns USize {
     // variadic elems were written at stride 8 but read at stride 4:
     // every element after the first came back as garbage under interpret.
     case "F32":  return F32.size()
+    case "F64":  return F64.size()
     case "Bool": return Bool.size()
     // #192: Str's size is target-dependent (its count/cap are USize); read it
     // from ctx so a U32-built til_boot folding U64 core uses the source width.

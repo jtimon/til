@@ -1157,6 +1157,14 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "f64", "test/f64.til",
         "0.125 2.75", 0,
         format(exp, "f64.out"), til_bin, asan_flag)
+    // ..F64 variadic main args: elem_size_for_type under interpret panicked
+    // on F64 (hand-listed switch missed the new primitive; the loud panic
+    // caught it) while compiled worked -- lock both backends.
+    File.writefile(format(exp, "f64_variadic.out"),
+        format("1.5", NL, "2.5e+10", NL))
+    add_cli_pair(tests, "f64_variadic", "test/f64_variadic.til",
+        "1.5 2.5e10", 0,
+        format(exp, "f64_variadic.out"), til_bin, asan_flag)
 
     // Error cases (exit=1, no output check)
     add_cli_pair(tests, "cli_typed_err1", "examples/cli_typed.til", "alice", 1, "", til_bin, asan_flag)
