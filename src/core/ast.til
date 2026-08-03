@@ -1000,3 +1000,88 @@ namespace:
         return self.to_str_indent(0)
     }
 }
+
+// --- Payload accessors (issue #253) ---
+
+// Borrow the payload of an Expr whose NodeType variant the caller ALREADY
+// knows, so a site that means "extract this payload" reads as one binding:
+//
+//     ref fd : FunctionDef = funcdef_of(e)
+//
+// instead of a whole switch whose default can never run. The borrow aliases
+// the node, so writes through it land in the AST (the parser builds struct
+// and enum bodies exactly this way).
+//
+// A mismatch is a broken invariant, not a case to handle, so these die
+// loudly. `loc` defaults to the CALL SITE -- see the __LOC__ note at the top
+// of core/exit.til -- so the panic points at the code that made the wrong
+// assumption rather than at this file. Where the variant is genuinely in
+// question, switch on it (or use an Option-returning lookup) instead: an
+// accessor is for "extract or die", never for "check whether".
+//
+// No trailing `return` after UNREACHABLE: it is noreturn, so the body
+// diverges on that path and the builder closes it with
+// __builtin_unreachable() (see stmt_always_diverges in self/context.til).
+
+ident_of := func(e: Expr, loc: Str = __LOC__) returns ref IdentData {
+    switch e.node_type {
+    case NodeType.Ident(d):
+        return d
+    case:
+        UNREACHABLE("expected Ident, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+decl_of := func(e: Expr, loc: Str = __LOC__) returns ref Declaration {
+    switch e.node_type {
+    case NodeType.Decl(d):
+        return d
+    case:
+        UNREACHABLE("expected Decl, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
+    switch e.node_type {
+    case NodeType.FCall(d):
+        return d
+    case:
+        UNREACHABLE("expected FCall, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+funcdef_of := func(e: Expr, loc: Str = __LOC__) returns ref FunctionDef {
+    switch e.node_type {
+    case NodeType.FuncDef(d):
+        return d
+    case:
+        UNREACHABLE("expected FuncDef, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+fieldaccess_of := func(e: Expr, loc: Str = __LOC__) returns ref FieldAccessData {
+    switch e.node_type {
+    case NodeType.FieldAccess(d):
+        return d
+    case:
+        UNREACHABLE("expected FieldAccess, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+structdef_of := func(e: Expr, loc: Str = __LOC__) returns ref StructDef {
+    switch e.node_type {
+    case NodeType.StructDef(d):
+        return d
+    case:
+        UNREACHABLE("expected StructDef, got ", e.node_type.head_str(), loc = loc)
+    }
+}
+
+enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
+    switch e.node_type {
+    case NodeType.EnumDef(d):
+        return d
+    case:
+        UNREACHABLE("expected EnumDef, got ", e.node_type.head_str(), loc = loc)
+    }
+}

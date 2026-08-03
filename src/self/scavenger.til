@@ -66,36 +66,26 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
             if e.children[0].node_type.is(NodeType.FieldAccess) {
                 if scav_fa_is_ns(e.children[0]) {
                     ref fa : Expr = e.children[0]
-                    switch fa.children[0].node_type {
-                    case NodeType.Ident(type_name):
-                        switch fa.node_type {
-                        case NodeType.FieldAccess(method):
-                            vec_push_str(refs, type_name.ident_name())
-                            push_qn(refs, type_name.ident_name(), method.field_access_name())
-                            // Issue #56/#57: when the typer rewrites a Type-typed
-                            // arg (e.g. count_variants(Color3) where T: Type) into
-                            // Type.Enum("Color3") / Type.Struct(...) / Type.Custom(...),
-                            // the underlying type name only survives as the string
-                            // literal arg. Without recording it here the scavenger
-                            // would prune the enum/struct decl as unused.
-                            if type_name.ident_name() == "Type" {
-                                ref mn : Str = method.field_access_name()
-                                is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
-                                if is_named_type_ctor.and(e.children.len().gte(2)) {
-                                    switch e.children[1].node_type {
-                                    case NodeType.Literal(Literal.Str(tname)):
-                                        vec_push_str(refs, tname)
-                                    case:
-                                    }
-                                }
+                    ref type_name : IdentData = ident_of(fa.children[0])
+                    ref method : FieldAccessData = fieldaccess_of(fa)
+                    vec_push_str(refs, type_name.ident_name())
+                    push_qn(refs, type_name.ident_name(), method.field_access_name())
+                    // Issue #56/#57: when the typer rewrites a Type-typed
+                    // arg (e.g. count_variants(Color3) where T: Type) into
+                    // Type.Enum("Color3") / Type.Struct(...) / Type.Custom(...),
+                    // the underlying type name only survives as the string
+                    // literal arg. Without recording it here the scavenger
+                    // would prune the enum/struct decl as unused.
+                    if type_name.ident_name() == "Type" {
+                        ref mn : Str = method.field_access_name()
+                        is_named_type_ctor := mn.eq("Enum").or(mn.eq("Struct")).or(mn.eq("Custom"))
+                        if is_named_type_ctor.and(e.children.len().gte(2)) {
+                            switch e.children[1].node_type {
+                            case NodeType.Literal(Literal.Str(tname)):
+                                vec_push_str(refs, tname)
+                            case:
                             }
-                        case:
-                            UNREACHABLE("expected FieldAccess, got ", fa.node_type.head_str())
-                            return
                         }
-                    case:
-                        UNREACHABLE("expected Ident, got ", fa.children[0].node_type.head_str())
-                        return
                     }
                     // Recurse into args (skip callee -- already handled)
                     for i in 1..e.children.len() {
@@ -108,87 +98,83 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         // array()/vec() builtins need Array/Vec constructor methods
         if e.children.len() >= 2 {
             if e.children[0].node_type.is(NodeType.Ident) {
-                switch e.children[0].node_type {
-                case NodeType.Ident(cn):
-                    if cn.ident_name() == "array" {
-                        push_builtin_methods(refs, "Array", "new", "set", "delete")
-                    } else if cn.ident_name() == "vec" {
-                        push_builtin_methods(refs, "Vec", "new", "push", "delete")
-                    } else if cn.ident_name().eq("assert_eq").or(cn.ident_name().starts_with("assert_eq__")) {
-                        // assert_eq's generic body emits T.to_str after this
-                        // reachability walk. The concrete type argument is at
-                        // the call site for a direct generic call, or the
-                        // monomorphized callee suffix by this phase. Retain
-                        // just that method rather than every generated to_str.
-                        mut assert_type_name := ""
-                        if cn.ident_name() == "assert_eq" {
-                            // #326: take the name from the RESOLVED type of
-                            // the compared value, not from the type
-                            // argument's source spelling. The generic body
-                            // emits `<resolved>_to_str`, and the two differ
-                            // whenever the spelling is an alias: the old
-                            // hardcoded USize->U32 / UPtr->U64 pair papered
-                            // over the common case but is only right at the
-                            // default build width, and it still missed
-                            // test/aliases.til, where the file's own
-                            // `USize := U64` shadows the core alias the
-                            // typer actually resolved `v.len()` through.
-                            if e.children.len() >= 3 {
-                                assert_type_name = resolved_type_name(e.children[2].til_type())
-                            }
-                            if assert_type_name.len() == 0 {
-                                switch e.children[1].node_type {
-                                case NodeType.Ident(assert_type):
-                                    assert_type_name = Str.clone(assert_type.ident_name())
-                                case:
-                                }
-                            }
-                        } else {
-                            assert_type_name = cn.ident_name().substr(11, cn.ident_name().len() - 11)
-                        }
-                        if assert_type_name.len() > 0 {
-                            vec_push_str(refs, assert_type_name)
-                            push_qn(refs, assert_type_name, "to_str")
-                        }
-                    } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
-                        // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
-                        // builds a runtime StructDef/EnumDef value by querying
-                        // the introspection primitives for type X. Pull X out
-                        // of the string-literal arg so the underlying decl
-                        // isn't scavenged as unused.
-                        switch e.children[1].node_type {
-                        case NodeType.Literal(Literal.Str(tname2)):
-                            vec_push_str(refs, tname2)
-                        case:
-                        }
-                    } else if cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret")).or(cn.ident_name().eq("dyn_fn")).or(cn.ident_name().eq("dyn_has_method")) {
-                        // #269: a method reached only through the dyn machinery
-                        // has no static Type.method callsite, so the walk above
-                        // never records it and the scavenger would prune it --
-                        // leaving the runtime dispatch pointing at a freed
-                        // FuncDef. The method name is a string literal at
-                        // child(2). When the type name (child(1)) is a literal
-                        // too, keep exactly Type.method; when it is a runtime
-                        // expression (interface dispatch reads the box's
-                        // iface_type_name field), keep `method` on every type
-                        // via the "*.method" wildcard the reachability walk
-                        // expands (see scavenge_visited_imported).
+                ref cn : IdentData = ident_of(e.children[0])
+                if cn.ident_name() == "array" {
+                    push_builtin_methods(refs, "Array", "new", "set", "delete")
+                } else if cn.ident_name() == "vec" {
+                    push_builtin_methods(refs, "Vec", "new", "push", "delete")
+                } else if cn.ident_name().eq("assert_eq").or(cn.ident_name().starts_with("assert_eq__")) {
+                    // assert_eq's generic body emits T.to_str after this
+                    // reachability walk. The concrete type argument is at
+                    // the call site for a direct generic call, or the
+                    // monomorphized callee suffix by this phase. Retain
+                    // just that method rather than every generated to_str.
+                    mut assert_type_name := ""
+                    if cn.ident_name() == "assert_eq" {
+                        // #326: take the name from the RESOLVED type of
+                        // the compared value, not from the type
+                        // argument's source spelling. The generic body
+                        // emits `<resolved>_to_str`, and the two differ
+                        // whenever the spelling is an alias: the old
+                        // hardcoded USize->U32 / UPtr->U64 pair papered
+                        // over the common case but is only right at the
+                        // default build width, and it still missed
+                        // test/aliases.til, where the file's own
+                        // `USize := U64` shadows the core alias the
+                        // typer actually resolved `v.len()` through.
                         if e.children.len() >= 3 {
-                            switch e.children[2].node_type {
-                            case NodeType.Literal(Literal.Str(dyn_mname)):
-                                switch e.children[1].node_type {
-                                case NodeType.Literal(Literal.Str(dyn_tname)):
-                                    vec_push_str(refs, dyn_tname)
-                                    push_qn(refs, dyn_tname, dyn_mname)
-                                case:
-                                    vec_push_str(refs, format("*.", dyn_mname))
-                                }
+                            assert_type_name = resolved_type_name(e.children[2].til_type())
+                        }
+                        if assert_type_name.len() == 0 {
+                            switch e.children[1].node_type {
+                            case NodeType.Ident(assert_type):
+                                assert_type_name = Str.clone(assert_type.ident_name())
                             case:
                             }
                         }
+                    } else {
+                        assert_type_name = cn.ident_name().substr(11, cn.ident_name().len() - 11)
                     }
-                case:
-                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
+                    if assert_type_name.len() > 0 {
+                        vec_push_str(refs, assert_type_name)
+                        push_qn(refs, assert_type_name, "to_str")
+                    }
+                } else if cn.ident_name().eq("struct_def_of").or(cn.ident_name().eq("enum_def_of")) {
+                    // Issue #56/#57: struct_def_of("X") / enum_def_of("X")
+                    // builds a runtime StructDef/EnumDef value by querying
+                    // the introspection primitives for type X. Pull X out
+                    // of the string-literal arg so the underlying decl
+                    // isn't scavenged as unused.
+                    switch e.children[1].node_type {
+                    case NodeType.Literal(Literal.Str(tname2)):
+                        vec_push_str(refs, tname2)
+                    case:
+                    }
+                } else if cn.ident_name().eq("dyn_call").or(cn.ident_name().eq("dyn_call_ret")).or(cn.ident_name().eq("dyn_fn")).or(cn.ident_name().eq("dyn_has_method")) {
+                    // #269: a method reached only through the dyn machinery
+                    // has no static Type.method callsite, so the walk above
+                    // never records it and the scavenger would prune it --
+                    // leaving the runtime dispatch pointing at a freed
+                    // FuncDef. The method name is a string literal at
+                    // child(2). When the type name (child(1)) is a literal
+                    // too, keep exactly Type.method; when it is a runtime
+                    // expression (interface dispatch reads the box's
+                    // iface_type_name field), keep `method` on every type
+                    // via the "*.method" wildcard the reachability walk
+                    // expands (see scavenge_visited_imported).
+                    if e.children.len() >= 3 {
+                        switch e.children[2].node_type {
+                        case NodeType.Literal(Literal.Str(dyn_mname)):
+                            switch e.children[1].node_type {
+                            case NodeType.Literal(Literal.Str(dyn_tname)):
+                                vec_push_str(refs, dyn_tname)
+                                push_qn(refs, dyn_tname, dyn_mname)
+                            case:
+                                vec_push_str(refs, format("*.", dyn_mname))
+                            }
+                        case:
+                        }
+                    }
                 }
             }
         }
@@ -231,25 +217,17 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     case NodeType.FieldAccess(field_name):
         if scav_fa_is_ns(e) {
             if e.children[0].node_type.is(NodeType.Ident) {
-                switch e.children[0].node_type {
-                case NodeType.Ident(type_name):
-                    vec_push_str(refs, type_name.ident_name())
-                    push_qn(refs, type_name.ident_name(), field_name.field_access_name())
-                case:
-                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
-                }
+                ref type_name : IdentData = ident_of(e.children[0])
+                vec_push_str(refs, type_name.ident_name())
+                push_qn(refs, type_name.ident_name(), field_name.field_access_name())
             }
         }
     case NodeType.FieldAssign(fad):
         if scav_fa_is_ns(e) {
             if e.children[0].node_type.is(NodeType.Ident) {
-                switch e.children[0].node_type {
-                case NodeType.Ident(type_name):
-                    vec_push_str(refs, type_name.ident_name())
-                    push_qn(refs, type_name.ident_name(), fad.name)
-                case:
-                    UNREACHABLE("expected Ident, got ", e.children[0].node_type.head_str())
-                }
+                ref type_name : IdentData = ident_of(e.children[0])
+                vec_push_str(refs, type_name.ident_name())
+                push_qn(refs, type_name.ident_name(), fad.name)
             }
         }
     case NodeType.Decl(decl):
@@ -419,33 +397,25 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
     for i in 0..pn {
         ref stmt : Expr = program.children[i]
         if is_def(stmt).not().and(sweep_values.and(scav_is_value_decl(stmt)).or(scav_value_decl_sweepable(stmt))) {
-            switch stmt.node_type {
-            case NodeType.Decl(vd):
-                if visited.has(vd.name).not() {
-                    memset(ptr_add(pm, i), 1, 1)
-                    swept.add(own vd.name.clone())
-                }
-            case:
-                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+            ref vd : Declaration = decl_of(stmt)
+            if visited.has(vd.name).not() {
+                memset(ptr_add(pm, i), 1, 1)
+                swept.add(own vd.name.clone())
             }
         }
         if is_def(stmt) {
-            switch stmt.node_type {
-            case NodeType.Decl(d):
-                // Issue #56/#57: synthetic anon-lifted decls (AnonStructN /
-                // AnonEnumN) are emitted by the parser only when there's a
-                // matching user site, so they're always reachable in spirit.
-                // The scavenger's reachability walk can lose track of them
-                // when the typer rewrites a Type-ident into a constructor
-                // call and the hoister moves the type-name string into a
-                // hoisted Str temp; keep them unconditionally rather than
-                // duplicating that indirection here.
-                is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
-                if visited.has(d.name).not().and(is_anon_lifted.not()) {
-                    memset(ptr_add(pm, i), 1, 1)
-                }
-            case:
-                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+            ref d : Declaration = decl_of(stmt)
+            // Issue #56/#57: synthetic anon-lifted decls (AnonStructN /
+            // AnonEnumN) are emitted by the parser only when there's a
+            // matching user site, so they're always reachable in spirit.
+            // The scavenger's reachability walk can lose track of them
+            // when the typer rewrites a Type-ident into a constructor
+            // call and the hoister moves the type-name string into a
+            // hoisted Str temp; keep them unconditionally rather than
+            // duplicating that indirection here.
+            is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
+            if visited.has(d.name).not().and(is_anon_lifted.not()) {
+                memset(ptr_add(pm, i), 1, 1)
             }
         }
     }
@@ -459,19 +429,15 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
 
     for stmt : Expr in program.children {
         if is_struct_or_enum(stmt).not() { continue }
-        switch stmt.node_type {
-        case NodeType.Decl(sdecl):
-            ref sdef : Expr = stmt.children[0]
-            switch sdef.node_type {
-            case NodeType.StructDef(scv_sdd):
-                scavenge_members_in_place(scv_sdd.ns_decls, scv_sdd.ns_index, sdecl.name, visited)
-            case NodeType.EnumDef(scv_edd):
-                scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_index, sdecl.name, visited)
-            case:
-                UNREACHABLE("unexpected ", sdef.node_type.head_str())
-            }
+        ref sdecl : Declaration = decl_of(stmt)
+        ref sdef : Expr = stmt.children[0]
+        switch sdef.node_type {
+        case NodeType.StructDef(scv_sdd):
+            scavenge_members_in_place(scv_sdd.ns_decls, scv_sdd.ns_index, sdecl.name, visited)
+        case NodeType.EnumDef(scv_edd):
+            scavenge_members_in_place(scv_edd.ns_decls, scv_edd.ns_index, sdecl.name, visited)
         case:
-            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+            UNREACHABLE("unexpected ", sdef.node_type.head_str())
         }
     }
 }

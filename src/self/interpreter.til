@@ -116,120 +116,115 @@ priv clone_str_storage_into := func(dst: Dynamic, src: Dynamic, ctx: Context) {
 priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns Dynamic {
     // Look the def up by name while the interpreted AST is live.
     ref struct_def : Expr = lookup_interp_type_def(struct_name, ctx).unwrap()
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdef_data):
-        sz := ctx_total_size(struct_name, ctx)
-        dst_data : Dynamic = EvalHeap.heap_alloc(sz)
-        memcpy(dst_data, data, sz)
-        if struct_name == "Str" {
-            clone_str_storage_into(dst_data, data, ctx)
-        } else if struct_name == "DynVec" {
-            clone_dyn_vec_buffer(data, dst_data, ctx)
-        } else if struct_name == "DynArray" {
-            clone_dyn_array_buffer(data, dst_data, ctx)
-        } else if struct_name == "DynSet" {
-            clone_dyn_set_buffer(data, dst_data, ctx)
-        } else if container_elem_type(struct_name, ctx).len() > 0 {
-            clone_container_buffer(struct_name, data, dst_data, ctx)
-        } else if struct_def_shallow_safe(sdef_data, ctx) {
-        } else {
-            // sl.fields is positionally parallel to sdef_data.fields
-            // (compute_struct_layout walks the same vec in the same order),
-            // so the layout row comes straight from the field's position --
-            // no per-field name probe.
-            ref hc_sl : StructLayout = ctx.struct_layouts[struct_name]
-            mut cfi : USize = 0
-            for dd : Declaration in sdef_data.fields {
-                ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
-                foff := hc_fl.offset
-                cfi = cfi + 1
-                ref ftype : Str = dd.explicit_type
-                nested_def_o := field_nested_def(dd, ctx)
-                if dd.own_type.is(OwnType.Own) {
-                    if decl_is_funcsig(dd, ctx) {
-                        ref src_callable : Dynamic = deref(ptr_add(data, foff))
-                        if src_callable.is_null().not() {
-                            write_ptr(ptr_add(dst_data, foff), callable_storage_clone(src_callable))
+    ref sdef_data : StructDef = structdef_of(struct_def)
+    sz := ctx_total_size(struct_name, ctx)
+    dst_data : Dynamic = EvalHeap.heap_alloc(sz)
+    memcpy(dst_data, data, sz)
+    if struct_name == "Str" {
+        clone_str_storage_into(dst_data, data, ctx)
+    } else if struct_name == "DynVec" {
+        clone_dyn_vec_buffer(data, dst_data, ctx)
+    } else if struct_name == "DynArray" {
+        clone_dyn_array_buffer(data, dst_data, ctx)
+    } else if struct_name == "DynSet" {
+        clone_dyn_set_buffer(data, dst_data, ctx)
+    } else if container_elem_type(struct_name, ctx).len() > 0 {
+        clone_container_buffer(struct_name, data, dst_data, ctx)
+    } else if struct_def_shallow_safe(sdef_data, ctx) {
+    } else {
+        // sl.fields is positionally parallel to sdef_data.fields
+        // (compute_struct_layout walks the same vec in the same order),
+        // so the layout row comes straight from the field's position --
+        // no per-field name probe.
+        ref hc_sl : StructLayout = ctx.struct_layouts[struct_name]
+        mut cfi : USize = 0
+        for dd : Declaration in sdef_data.fields {
+            ref hc_fl : FieldLayout = hc_sl.fields.unsafe_get(cfi)
+            foff := hc_fl.offset
+            cfi = cfi + 1
+            ref ftype : Str = dd.explicit_type
+            nested_def_o := field_nested_def(dd, ctx)
+            if dd.own_type.is(OwnType.Own) {
+                if decl_is_funcsig(dd, ctx) {
+                    ref src_callable : Dynamic = deref(ptr_add(data, foff))
+                    if src_callable.is_null().not() {
+                        write_ptr(ptr_add(dst_data, foff), callable_storage_clone(src_callable))
+                    }
+                    continue
+                }
+                ref src_ptr : Dynamic = deref(ptr_add(data, foff))
+                if src_ptr.is_null().not() {
+                    if nested_def_o.is_some() {
+                        ref nested_def : Expr = nested_def_o.unwrap()
+                        ref stable_ftype : Str = stable_type_name(ftype, ctx)
+                        if nested_def.node_type.is(NodeType.EnumDef) {
+                            cloned_enum : Dynamic = heap_clone_enum(stable_ftype, to_ptr(src_ptr), ctx_total_size(stable_ftype, ctx), ctx)
+                            write_ptr(ptr_add(dst_data, foff), cloned_enum)
+                        } else {
+                            cloned_struct : Dynamic = heap_clone(stable_ftype, to_ptr(src_ptr), ctx)
+                            write_ptr(ptr_add(dst_data, foff), cloned_struct)
                         }
+                    }
+                }
+                continue
+            }
+            if dd.own_type.is(OwnType.Ref) { continue }
+            if decl_is_funcsig(dd, ctx) {
+                ref src_callable2 : Dynamic = deref(ptr_add(data, foff))
+                if src_callable2.is_null().not() {
+                    write_ptr(ptr_add(dst_data, foff), callable_storage_clone(src_callable2))
+                }
+                continue
+            }
+            if ftype == "Str" {
+                clone_str_storage_into(ptr_add(dst_data, foff), ptr_add(data, foff), ctx)
+                continue
+            }
+            if nested_def_o.is_some() {
+                ref nested_def : Expr = nested_def_o.unwrap()
+                if nested_def.node_type.is(NodeType.EnumDef) {
+                    if enum_has_payloads(nested_def) {
+                        ref stable_enum_name : Str = stable_type_name(ftype, ctx)
+                        enum_payload_deep_clone(stable_enum_name, ptr_add(dst_data, foff), ctx)
                         continue
                     }
-                    ref src_ptr : Dynamic = deref(ptr_add(data, foff))
-                    if src_ptr.is_null().not() {
-                        if nested_def_o.is_some() {
-                            ref nested_def : Expr = nested_def_o.unwrap()
-                            ref stable_ftype : Str = stable_type_name(ftype, ctx)
-                            if nested_def.node_type.is(NodeType.EnumDef) {
-                                cloned_enum : Dynamic = heap_clone_enum(stable_ftype, to_ptr(src_ptr), ctx_total_size(stable_ftype, ctx), ctx)
-                                write_ptr(ptr_add(dst_data, foff), cloned_enum)
-                            } else {
-                                cloned_struct : Dynamic = heap_clone(stable_ftype, to_ptr(src_ptr), ctx)
-                                write_ptr(ptr_add(dst_data, foff), cloned_struct)
-                            }
-                        }
-                    }
-                    continue
                 }
-                if dd.own_type.is(OwnType.Ref) { continue }
-                if decl_is_funcsig(dd, ctx) {
-                    ref src_callable2 : Dynamic = deref(ptr_add(data, foff))
-                    if src_callable2.is_null().not() {
-                        write_ptr(ptr_add(dst_data, foff), callable_storage_clone(src_callable2))
-                    }
-                    continue
-                }
-                if ftype == "Str" {
-                    clone_str_storage_into(ptr_add(dst_data, foff), ptr_add(data, foff), ctx)
-                    continue
-                }
-                if nested_def_o.is_some() {
-                    ref nested_def : Expr = nested_def_o.unwrap()
-                    if nested_def.node_type.is(NodeType.EnumDef) {
-                        if enum_has_payloads(nested_def) {
-                            ref stable_enum_name : Str = stable_type_name(ftype, ctx)
-                            enum_payload_deep_clone(stable_enum_name, ptr_add(dst_data, foff), ctx)
-                            continue
-                        }
-                    }
-                }
-                if nested_def_o.is_some() {
-                    ref nested_def : Expr = nested_def_o.unwrap()
-                    if nested_def.node_type.is(NodeType.EnumDef).not() {
-                        switch nested_def.node_type {
-                        case NodeType.StructDef:
-                            ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
-                            cloned_ptr2 : Dynamic = heap_clone(stable_ftype2, ptr_add(data, foff), ctx)
-                            memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
-                            EvalHeap.heap_free(own cloned_ptr2)
-                        case:
-                            UNREACHABLE("expected StructDef, got ", nested_def.node_type.head_str())
-                        }
+            }
+            if nested_def_o.is_some() {
+                ref nested_def : Expr = nested_def_o.unwrap()
+                if nested_def.node_type.is(NodeType.EnumDef).not() {
+                    switch nested_def.node_type {
+                    case NodeType.StructDef:
+                        ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
+                        cloned_ptr2 : Dynamic = heap_clone(stable_ftype2, ptr_add(data, foff), ctx)
+                        memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
+                        EvalHeap.heap_free(own cloned_ptr2)
+                    case:
+                        UNREACHABLE("expected StructDef, got ", nested_def.node_type.head_str())
                     }
                 }
             }
         }
-        if sdef_data.is_interface {
-            ref owned_fl : FieldLayout = ctx_field_layout(struct_name, "iface_owned", ctx)
-            ref owned : Bool = ptr_add(data, owned_fl.offset)
-            if owned {
-                ref type_fl : FieldLayout = ctx_field_layout(struct_name, "iface_type_name", ctx)
-                ref type_name : Str = ptr_add(data, type_fl.offset)
-                ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
-                ref src_val : Dynamic = deref(ptr_add(data, val_fl.offset))
-                cloned_val : Dynamic = heap_clone_by_type(type_from_name_init(type_name, ctx.scope), src_val, ctx)
-                write_ptr(ptr_add(dst_data, val_fl.offset), cloned_val)
-            }
-        }
-        if struct_name == "Tuple" {
-            // The field walk above cloned type_names/type_sizes but left the
-            // packed `own data: U8` element buffer aliased to src. Give dst its
-            // own deep copy so free_tuple_data can reclaim it independently.
-            clone_tuple_buffer(data, dst_data, ctx)
-        }
-        return dst_data
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
-        return NULL
     }
+    if sdef_data.is_interface {
+        ref owned_fl : FieldLayout = ctx_field_layout(struct_name, "iface_owned", ctx)
+        ref owned : Bool = ptr_add(data, owned_fl.offset)
+        if owned {
+            ref type_fl : FieldLayout = ctx_field_layout(struct_name, "iface_type_name", ctx)
+            ref type_name : Str = ptr_add(data, type_fl.offset)
+            ref val_fl : FieldLayout = ctx_field_layout(struct_name, "iface_val", ctx)
+            ref src_val : Dynamic = deref(ptr_add(data, val_fl.offset))
+            cloned_val : Dynamic = heap_clone_by_type(type_from_name_init(type_name, ctx.scope), src_val, ctx)
+            write_ptr(ptr_add(dst_data, val_fl.offset), cloned_val)
+        }
+    }
+    if struct_name == "Tuple" {
+        // The field walk above cloned type_names/type_sizes but left the
+        // packed `own data: U8` element buffer aliased to src. Give dst its
+        // own deep copy so free_tuple_data can reclaim it independently.
+        clone_tuple_buffer(data, dst_data, ctx)
+    }
+    return dst_data
 }
 
 CALLABLE_BOX_MAGIC : U64 = 1414745932
@@ -2510,165 +2505,161 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     call_scope := scope_new(Option(ref Scope).Some(parent_scope))
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
-    switch func_def.node_type {
-    case NodeType.FuncDef(fdef_params):
-        for pi in 0..fdef_params.params.len() {
-            ref param : Declaration = fdef_params.params[pi]
-            ref arg_expr : Expr = e.children[pi + 1]
-            arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
-            is_variadic_param := fdef_params.variadic_index == pi.to_i32()
-            switch arg_expr.node_type {
-            case NodeType.Ident(arg_ident):
-                source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
-                if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name()) }
-                ref source_hb : HeapBinding = source_hb_o.unwrap()
-                if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
-                ref source_raw : Dynamic = to_ptr(source_hb.ptr)
-                if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(hb_type(source_hb).is(Type.Dynamic).not()) {
-                    mut dynamic_data : Dynamic = source_raw
-                    if arg_transfers {
-                        if source_hb.is_borrowed {
-                            scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
-                            continue
-                        } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
-                            dynamic_data = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
-                        } else {
-                            source_hb.ptr = NULL
-                            source_hb.moved_out = true
-                        }
-                        if raw_type_is_prim(hb_type(source_hb), ctx) {
-                            // The moved/cloned prim BLOCK is already the value
-                            // storage: the Dynamic slot points AT it. The
-                            // word-based prim->Dynamic coerce would box the
-                            // block ADDRESS as the scalar.
-                            prim_dyn_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-                            write_ptr(prim_dyn_slot, dynamic_data)
-                            dynamic_data = prim_dyn_slot
-                        } else {
-                            dynamic_data = raw_coerce_value(dynamic_data, hb_type(source_hb), Type.Dynamic, ctx, param.own_type)
-                        }
-                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, true)
-                    } else if param.own_type.is(OwnType.Ref) {
-                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
-                    } else {
-                        dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-                        write_ptr(dynamic_slot, dynamic_data)
-                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
-                    }
-                } else if arg_transfers {
-                    mut owned_raw : Dynamic = source_raw
-                    bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
-                    ref bind_type : Type = to_ptr(bind_type_w)
+    ref fdef_params : FunctionDef = funcdef_of(func_def)
+    for pi in 0..fdef_params.params.len() {
+        ref param : Declaration = fdef_params.params[pi]
+        ref arg_expr : Expr = e.children[pi + 1]
+        arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
+        is_variadic_param := fdef_params.variadic_index == pi.to_i32()
+        switch arg_expr.node_type {
+        case NodeType.Ident(arg_ident):
+            source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
+            if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name()) }
+            ref source_hb : HeapBinding = source_hb_o.unwrap()
+            if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name()) }
+            ref source_raw : Dynamic = to_ptr(source_hb.ptr)
+            if is_variadic_param.not().and(param.explicit_type.eq("Dynamic")).and(hb_type(source_hb).is(Type.Dynamic).not()) {
+                mut dynamic_data : Dynamic = source_raw
+                if arg_transfers {
                     if source_hb.is_borrowed {
-                        scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, source_hb.ctx, false, true, source_hb.is_erased_dynamic)
+                        scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
                         continue
                     } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
-                        owned_raw = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
+                        dynamic_data = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
                     } else {
                         source_hb.ptr = NULL
                         source_hb.moved_out = true
                     }
-                    if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.is_raw_alloc.not()).and(til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type)) {
-                        // Width-converting prim move: re-box at the param
-                        // width (a narrow block bound under a wider type
-                        // over-reads on the word load).
-                        own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
-                        EvalHeap.heap_free(own owned_raw)
-                        owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.explicit_type, ctx), ctx)
-                    } else {
-                        owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
-                    }
-                    scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, ctx)
-                } else {
-                    bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
-                    ref bind_type : Type = to_ptr(bind_type_w)
-                    if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
-                        mut pointed : Dynamic = source_raw
-                        if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
-                        scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
-                    } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
-                        ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                        scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
-                    } else if til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type) {
-                        if raw_type_is_prim(hb_type(source_hb), ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
-                            // Width-converting prim copy: load the scalar at
-                            // the SOURCE width, widen, and box at the param
-                            // width (a narrow clone bound under a wider type
-                            // over-reads on the word load).
-                            src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
-                            widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.explicit_type, ctx)
-                            scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
-                        } else {
-                            mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
-                            converted = raw_coerce_value(converted, hb_type(source_hb), bind_type, ctx, param.own_type)
-                            scope_set_raw_owned(call_scope, param.name, converted, bind_type_w, param.own_type, ctx)
-                        }
-                    } else {
-                        ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
-                        scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
-                    }
-                }
-            case:
-                mut arg_raw : Dynamic = eval_expr_raw(caller_scope, arg_expr, ctx)
-                arg_is_ref := expr_raw_is_ref(caller_scope, arg_expr, ctx)
-                if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
-                    if arg_expr.til_type().is(Type.Dynamic) {
-                        if param.own_type.is(OwnType.Ref) {
-                            scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, false, true, true)
-                        } else {
-                            scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, true)
-                        }
-                    } else if param.own_type.is(OwnType.Ref) {
-                        mut pointed : Dynamic = arg_raw
-                        if arg_is_ref.not().and(expr_word_shaped(caller_scope, arg_expr, ctx)) {
-                            // A scalar word has no storage: box it so the
-                            // borrowed Dynamic view has bytes to point at.
-                            pointed = scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx)
-                        }
-                        scope_set_heap_owned(call_scope, param.name, pointed, dynamic_type_w, param.own_type, ctx, false, true, true)
-                    } else {
-                        dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-                        if arg_is_ref { write_ptr(dynamic_slot, arg_raw) }
-                        else if expr_word_shaped(caller_scope, arg_expr, ctx) {
-                            // Box the scalar word: the Dynamic slot points at
-                            // real bytes (C's &x), as the block model did.
-                            write_ptr(dynamic_slot, scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx))
-                        }
-                        else { write_ptr(dynamic_slot, arg_raw) }
-                        scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
-                    }
-                } else {
-                    bind_type_w : Dynamic = interp_param_bind_type(param, interp_intern_type(param.til_type, ctx), is_variadic_param, ctx)
-                    ref bind_type : Type = to_ptr(bind_type_w)
-                    mut borrowed := false
-                    if arg_is_ref {
-                        borrowed = true
-                    } else {
-                        arg_raw = raw_coerce_value(arg_raw, arg_expr.til_type(), bind_type, ctx, param.own_type)
-                        if param.own_type.is(OwnType.Ref) {
-                            switch arg_expr.node_type {
-                            case NodeType.Literal(Literal.Null): borrowed = true
-                            case:
-                            }
-                        }
-                        // A scalar word needs real storage to become a
-                        // binding slot. The Dynamic-source own/ref-target
-                        // coercion transfers a pointer (#302) and stays.
-                        mut arg_word := raw_type_is_prim(bind_type, ctx).and(borrowed.not())
-                        if arg_expr.til_type().is(Type.Dynamic).and(param.own_type.is(OwnType.Shallow).not()) { arg_word = false }
-                        // A prim-stamped eval can still be a BLOCK (an Own-prim
-                        // binding read: a #302 raw-alloc pointer datum). That is
-                        // already storage-shaped; boxing it would store the
+                    if raw_type_is_prim(hb_type(source_hb), ctx) {
+                        // The moved/cloned prim BLOCK is already the value
+                        // storage: the Dynamic slot points AT it. The
+                        // word-based prim->Dynamic coerce would box the
                         // block ADDRESS as the scalar.
-                        if raw_type_is_prim(arg_expr.til_type(), ctx).and(expr_word_shaped(caller_scope, arg_expr, ctx).not()) { arg_word = false }
-                        if arg_word { arg_raw = scalar_block_from_word(bind_type, arg_raw, ctx) }
+                        prim_dyn_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                        write_ptr(prim_dyn_slot, dynamic_data)
+                        dynamic_data = prim_dyn_slot
+                    } else {
+                        dynamic_data = raw_coerce_value(dynamic_data, hb_type(source_hb), Type.Dynamic, ctx, param.own_type)
                     }
-                    scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type_w, param.own_type, ctx, borrowed)
+                    scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, true)
+                } else if param.own_type.is(OwnType.Ref) {
+                    scope_set_heap_owned(call_scope, param.name, dynamic_data, dynamic_type_w, param.own_type, ctx, false, true, true)
+                } else {
+                    dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                    write_ptr(dynamic_slot, dynamic_data)
+                    scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
+                }
+            } else if arg_transfers {
+                mut owned_raw : Dynamic = source_raw
+                bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
+                ref bind_type : Type = to_ptr(bind_type_w)
+                if source_hb.is_borrowed {
+                    scope_set_heap_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, source_hb.ctx, false, true, source_hb.is_erased_dynamic)
+                    continue
+                } else if heap_slot_is_static_callable(hb_type(source_hb), source_raw) {
+                    owned_raw = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
+                } else {
+                    source_hb.ptr = NULL
+                    source_hb.moved_out = true
+                }
+                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.is_raw_alloc.not()).and(til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type)) {
+                    // Width-converting prim move: re-box at the param
+                    // width (a narrow block bound under a wider type
+                    // over-reads on the word load).
+                    own_src_w : Dynamic = scalar_word_load(hb_type(source_hb), owned_raw, ctx)
+                    EvalHeap.heap_free(own owned_raw)
+                    owned_raw = scalar_block_from_word(bind_type, raw_widen_numeric(own_src_w, hb_type(source_hb), param.explicit_type, ctx), ctx)
+                } else {
+                    owned_raw = raw_coerce_value(owned_raw, hb_type(source_hb), bind_type, ctx, param.own_type)
+                }
+                scope_set_raw_owned(call_scope, param.name, owned_raw, bind_type_w, param.own_type, ctx)
+            } else {
+                bind_type_w : Dynamic = interp_param_bind_type(param, source_hb.til_type_p, is_variadic_param, ctx)
+                ref bind_type : Type = to_ptr(bind_type_w)
+                if hb_type(source_hb).is(Type.Dynamic).and(bind_type.is(Type.Dynamic).not()) {
+                    mut pointed : Dynamic = source_raw
+                    if source_hb.is_erased_dynamic.not() { pointed = deref(source_raw) }
+                    scope_set_heap_owned(call_scope, param.name, pointed, bind_type_w, param.own_type, source_hb.ctx, false, true)
+                } else if heap_type_is_callable(hb_type(source_hb)).and(heap_type_is_callable(bind_type)) {
+                    ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
+                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
+                } else if til_type_name_c(hb_type(source_hb)) != til_type_name_c(bind_type) {
+                    if raw_type_is_prim(hb_type(source_hb), ctx).and(raw_type_is_prim(bind_type, ctx)).and(source_hb.is_raw_alloc.not()) {
+                        // Width-converting prim copy: load the scalar at
+                        // the SOURCE width, widen, and box at the param
+                        // width (a narrow clone bound under a wider type
+                        // over-reads on the word load).
+                        src_w : Dynamic = scalar_word_load(hb_type(source_hb), source_raw, ctx)
+                        widened_w : Dynamic = raw_widen_numeric(src_w, hb_type(source_hb), param.explicit_type, ctx)
+                        scope_set_raw_owned(call_scope, param.name, scalar_block_from_word(bind_type, widened_w, ctx), bind_type_w, param.own_type, ctx)
+                    } else {
+                        mut converted : Dynamic = heap_clone_by_type(hb_type(source_hb), source_raw, source_hb.ctx)
+                        converted = raw_coerce_value(converted, hb_type(source_hb), bind_type, ctx, param.own_type)
+                        scope_set_raw_owned(call_scope, param.name, converted, bind_type_w, param.own_type, ctx)
+                    }
+                } else {
+                    ref arg_source_scope : Scope = scope_get_binding_scope(caller_scope, arg_ident.ident_name())
+                    scope_set_borrowed(call_scope, param.name, bind_type_w, param.own_type, arg_ident.ident_name(), arg_source_scope)
                 }
             }
+        case:
+            mut arg_raw : Dynamic = eval_expr_raw(caller_scope, arg_expr, ctx)
+            arg_is_ref := expr_raw_is_ref(caller_scope, arg_expr, ctx)
+            if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
+                if arg_expr.til_type().is(Type.Dynamic) {
+                    if param.own_type.is(OwnType.Ref) {
+                        scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, false, true, true)
+                    } else {
+                        scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, true)
+                    }
+                } else if param.own_type.is(OwnType.Ref) {
+                    mut pointed : Dynamic = arg_raw
+                    if arg_is_ref.not().and(expr_word_shaped(caller_scope, arg_expr, ctx)) {
+                        // A scalar word has no storage: box it so the
+                        // borrowed Dynamic view has bytes to point at.
+                        pointed = scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx)
+                    }
+                    scope_set_heap_owned(call_scope, param.name, pointed, dynamic_type_w, param.own_type, ctx, false, true, true)
+                } else {
+                    dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                    if arg_is_ref { write_ptr(dynamic_slot, arg_raw) }
+                    else if expr_word_shaped(caller_scope, arg_expr, ctx) {
+                        // Box the scalar word: the Dynamic slot points at
+                        // real bytes (C's &x), as the block model did.
+                        write_ptr(dynamic_slot, scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx))
+                    }
+                    else { write_ptr(dynamic_slot, arg_raw) }
+                    scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
+                }
+            } else {
+                bind_type_w : Dynamic = interp_param_bind_type(param, interp_intern_type(param.til_type, ctx), is_variadic_param, ctx)
+                ref bind_type : Type = to_ptr(bind_type_w)
+                mut borrowed := false
+                if arg_is_ref {
+                    borrowed = true
+                } else {
+                    arg_raw = raw_coerce_value(arg_raw, arg_expr.til_type(), bind_type, ctx, param.own_type)
+                    if param.own_type.is(OwnType.Ref) {
+                        switch arg_expr.node_type {
+                        case NodeType.Literal(Literal.Null): borrowed = true
+                        case:
+                        }
+                    }
+                    // A scalar word needs real storage to become a
+                    // binding slot. The Dynamic-source own/ref-target
+                    // coercion transfers a pointer (#302) and stays.
+                    mut arg_word := raw_type_is_prim(bind_type, ctx).and(borrowed.not())
+                    if arg_expr.til_type().is(Type.Dynamic).and(param.own_type.is(OwnType.Shallow).not()) { arg_word = false }
+                    // A prim-stamped eval can still be a BLOCK (an Own-prim
+                    // binding read: a #302 raw-alloc pointer datum). That is
+                    // already storage-shaped; boxing it would store the
+                    // block ADDRESS as the scalar.
+                    if raw_type_is_prim(arg_expr.til_type(), ctx).and(expr_word_shaped(caller_scope, arg_expr, ctx).not()) { arg_word = false }
+                    if arg_word { arg_raw = scalar_block_from_word(bind_type, arg_raw, ctx) }
+                }
+                scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type_w, param.own_type, ctx, borrowed)
+            }
         }
-    case:
-        UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
     }
     c.has_return = false
     c.return_value = NULL
@@ -2822,12 +2813,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             // FuncPtr field: stored function may be ext_func from another type
             if callee_expr.til_type().is_funcptr() {
                 mut fp_func_type := FuncType.Func
-                switch func_def.node_type {
-                case NodeType.FuncDef(fp_fdef):
-                    fp_func_type = fp_fdef.func_type
-                case:
-                    UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
-                }
+                ref fp_fdef : FunctionDef = funcdef_of(func_def)
+                fp_func_type = fp_fdef.func_type
                 if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
                     for qn, nsv_hb in ns_scope(c).heap_bindings {
                         if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
@@ -2839,13 +2826,9 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                             orig_result_type := e.til_type().clone()
                             mut concrete_result_type := Type.None
                             mut concrete_return_own_type := OwnType.Shallow
-                            switch nsv_fdef.node_type {
-                            case NodeType.FuncDef(concrete_fd):
-                                concrete_return_own_type = concrete_fd.return_own_type
-                                if concrete_fd.return_type.len() > 0 { concrete_result_type = type_from_name_init(concrete_fd.return_type, ctx.scope) }
-                            case:
-                                UNREACHABLE("expected FuncDef, got ", nsv_fdef.node_type.head_str())
-                            }
+                            ref concrete_fd : FunctionDef = funcdef_of(nsv_fdef)
+                            concrete_return_own_type = concrete_fd.return_own_type
+                            if concrete_fd.return_type.len() > 0 { concrete_result_type = type_from_name_init(concrete_fd.return_type, ctx.scope) }
                             mut flat_ident := callee_expr.clone()
                             flat_ident.node_type = ident_node(fp_flat)
                             e.children[0] = flat_ident
@@ -2869,14 +2852,10 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             mut fdef_func_type := FuncType.Func
             mut direct_result_type := Type.None
             mut direct_return_own_type := OwnType.Shallow
-            switch func_def.node_type {
-            case NodeType.FuncDef(fdef_ns):
-                fdef_func_type = fdef_ns.func_type
-                direct_return_own_type = fdef_ns.return_own_type
-                if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
-            case:
-                UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
-            }
+            ref fdef_ns : FunctionDef = funcdef_of(func_def)
+            fdef_func_type = fdef_ns.func_type
+            direct_return_own_type = fdef_ns.return_own_type
+            if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
             if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
                 parent_sname := til_type_name(callee_expr.children[0].til_type())
                 ref tc : Dynamic = scope_get(scope, parent_sname)? catch (e: KeyNotFound) {
@@ -2889,25 +2868,21 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                     ref tc_raw : Dynamic = tc
                     ref tc_edef : Expr = callable_raw_func_def(tc_raw)
                         if tc_edef.node_type.is(NodeType.EnumDef) {
-                            switch callee_expr.node_type {
-                            case NodeType.FieldAccess(callee_ident):
-                                mut enum_raw : Dynamic = destination
-                                if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
-                                if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
-                                    callable_raw_free(fn_raw, ctx)
-                                    // A prim-stamped result (is() -> Bool)
-                                    // collapses to an inline word.
-                                    if raw_type_is_prim(e.til_type(), ctx) {
-                                        prim_w2 : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
-                                        EvalHeap.heap_free(own enum_raw)
-                                        return prim_w2
-                                    }
-                                    return enum_raw
+                            ref callee_ident : FieldAccessData = fieldaccess_of(callee_expr)
+                            mut enum_raw : Dynamic = destination
+                            if enum_raw.is_null() { enum_raw = dispatch_result_alloc(e.til_type(), ctx) }
+                            if enum_method_dispatch(callee_ident.field_access_name(), scope, tc_edef, parent_sname, e, enum_raw, ctx) {
+                                callable_raw_free(fn_raw, ctx)
+                                // A prim-stamped result (is() -> Bool)
+                                // collapses to an inline word.
+                                if raw_type_is_prim(e.til_type(), ctx) {
+                                    prim_w2 : Dynamic = scalar_word_load(e.til_type(), enum_raw, ctx)
+                                    EvalHeap.heap_free(own enum_raw)
+                                    return prim_w2
                                 }
-                                if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
-                            case:
-                                UNREACHABLE("expected FieldAccess, got ", callee_expr.node_type.head_str())
+                                return enum_raw
                             }
+                            if destination.is_null() { EvalHeap.heap_free(own enum_raw) }
                         }
                 }
                 mut sn := til_type_name(callee_expr.children[0].til_type())
@@ -2920,34 +2895,30 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                         sn = tn
                     }
                 }
-                switch callee_expr.node_type {
-                case NodeType.FieldAccess(fn_name):
-                    // If the receiver type is unknown (eg Dynamic), fall back to
-                    // the unqualified top-level name. Required for and/or/not.
-                    mut flat_str := Str.clone(fn_name.field_access_name())
-                    if sn.len() > 0 {
-                        flat_str = sn.concat3("_", fn_name.field_access_name())
-                    }
-                    orig_callee_val := callee_expr.clone()
-                    orig_direct_result_type := e.til_type().clone()
-                    mut flat_ident2 := callee_expr.clone()
-                    flat_ident2.node_type = ident_node(flat_str)
-                    e.children[0] = flat_ident2
-                    e.set_til_type(direct_result_type)
-                    mut direct_destination : Dynamic = 0
-                    if til_type_name_c(direct_result_type) == til_type_name_c(orig_direct_result_type) { direct_destination = destination }
-                    mut result : Dynamic = eval_call(scope, e, ctx, direct_destination)
-                    e.set_til_type(orig_direct_result_type)
-                    e.children[0] = orig_callee_val
-                    callable_raw_free(fn_raw, ctx)
-                    if direct_return_own_type.is(OwnType.Ref).not() {
-                        result = raw_coerce_value(result, direct_result_type, orig_direct_result_type, ctx, direct_return_own_type)
-                        result = raw_result_finish(orig_direct_result_type, result, destination, false, ctx)
-                    }
-                    return result
-                case:
-                    UNREACHABLE("expected FieldAccess, got ", callee_expr.node_type.head_str())
+                ref fn_name : FieldAccessData = fieldaccess_of(callee_expr)
+                // If the receiver type is unknown (eg Dynamic), fall back to
+                // the unqualified top-level name. Required for and/or/not.
+                mut flat_str := Str.clone(fn_name.field_access_name())
+                if sn.len() > 0 {
+                    flat_str = sn.concat3("_", fn_name.field_access_name())
                 }
+                orig_callee_val := callee_expr.clone()
+                orig_direct_result_type := e.til_type().clone()
+                mut flat_ident2 := callee_expr.clone()
+                flat_ident2.node_type = ident_node(flat_str)
+                e.children[0] = flat_ident2
+                e.set_til_type(direct_result_type)
+                mut direct_destination : Dynamic = 0
+                if til_type_name_c(direct_result_type) == til_type_name_c(orig_direct_result_type) { direct_destination = destination }
+                mut result : Dynamic = eval_call(scope, e, ctx, direct_destination)
+                e.set_til_type(orig_direct_result_type)
+                e.children[0] = orig_callee_val
+                callable_raw_free(fn_raw, ctx)
+                if direct_return_own_type.is(OwnType.Ref).not() {
+                    result = raw_coerce_value(result, direct_result_type, orig_direct_result_type, ctx, direct_return_own_type)
+                    result = raw_result_finish(orig_direct_result_type, result, destination, false, ctx)
+                }
+                return result
             }
 
         result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
@@ -3090,155 +3061,151 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
 
         // Struct instantiation
         if fn_def.node_type.is(NodeType.StructDef) {
-                switch fn_def.node_type {
-                case NodeType.StructDef(sdd):
-                    mut inst_data : Dynamic = destination
-                    if inst_data.is_null() { inst_data = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx)) }
-                        // sl.fields is positionally parallel to sdd.fields, so
-                        // each arg's layout row comes from its position -- no
-                        // per-field name probe. Interface ctors also locate
-                        // iface_val/iface_owned once, up front, by index probe.
-                        ref ctor_sl : StructLayout = ctx.struct_layouts[name.ident_name()]
-                        mut iface_val_pos : USize = sdd.fields.len()
-                        mut iface_owned_pos : USize = sdd.fields.len()
-                        if sdd.is_interface {
-                            if sdd.fields_index.has("iface_val") { iface_val_pos = sdd.fields_index["iface_val"] }
-                            if sdd.fields_index.has("iface_owned") { iface_owned_pos = sdd.fields_index["iface_owned"] }
-                        }
-                        mut arg_idx : USize = 1
-                        mut ctr : USize = 0
-                        for fdd : Declaration in sdd.fields {
-                            cur_fpos := ctr
-                            ctr = ctr + 1
-                            cur_idx := arg_idx
-                            ref arg : Expr = e.children[cur_idx]
-                            arg_idx++
-                            mut arg_raw : Dynamic = 0
-                            mut arg_is_ref := false
-                            mut arg_is_place := false
-                            switch arg.node_type {
-                            case NodeType.Ident(arg_ident):
-                                ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
-                                mut move_iface_val := false
-                                if cur_fpos == iface_val_pos {
-                                    if iface_owned_pos < sdd.fields.len() {
-                                        switch e.children[iface_owned_pos + 1].node_type {
-                                        case NodeType.Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
-                                        case NodeType.Ident(owned_id):
-                                            ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name()).unwrap()
-                                            ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
-                                            ref owned_flag2 : Bool = owned_raw
-                                            move_iface_val = owned_flag2
-                                        case:
-                                        }
+                ref sdd : StructDef = structdef_of(fn_def)
+                mut inst_data : Dynamic = destination
+                if inst_data.is_null() { inst_data = EvalHeap.heap_alloc(ctx_total_size(name.ident_name(), ctx)) }
+                    // sl.fields is positionally parallel to sdd.fields, so
+                    // each arg's layout row comes from its position -- no
+                    // per-field name probe. Interface ctors also locate
+                    // iface_val/iface_owned once, up front, by index probe.
+                    ref ctor_sl : StructLayout = ctx.struct_layouts[name.ident_name()]
+                    mut iface_val_pos : USize = sdd.fields.len()
+                    mut iface_owned_pos : USize = sdd.fields.len()
+                    if sdd.is_interface {
+                        if sdd.fields_index.has("iface_val") { iface_val_pos = sdd.fields_index["iface_val"] }
+                        if sdd.fields_index.has("iface_owned") { iface_owned_pos = sdd.fields_index["iface_owned"] }
+                    }
+                    mut arg_idx : USize = 1
+                    mut ctr : USize = 0
+                    for fdd : Declaration in sdd.fields {
+                        cur_fpos := ctr
+                        ctr = ctr + 1
+                        cur_idx := arg_idx
+                        ref arg : Expr = e.children[cur_idx]
+                        arg_idx++
+                        mut arg_raw : Dynamic = 0
+                        mut arg_is_ref := false
+                        mut arg_is_place := false
+                        switch arg.node_type {
+                        case NodeType.Ident(arg_ident):
+                            ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
+                            mut move_iface_val := false
+                            if cur_fpos == iface_val_pos {
+                                if iface_owned_pos < sdd.fields.len() {
+                                    switch e.children[iface_owned_pos + 1].node_type {
+                                    case NodeType.Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
+                                    case NodeType.Ident(owned_id):
+                                        ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name()).unwrap()
+                                        ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
+                                        ref owned_flag2 : Bool = owned_raw
+                                        move_iface_val = owned_flag2
+                                    case:
                                     }
                                 }
-                                if get_own_arg(e, cur_idx).or(move_iface_val) {
-                                    if source_hb.moved_out { panic("struct init from moved heap binding: ", arg_ident.ident_name()) }
-                                    ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
-                                    mut preserve_outer := get_keep_outer_arg(e, cur_idx)
-                                    if fdd.own_type.is(OwnType.Shallow) {
-                                        switch hb_type(source_hb) {
-                                        case Type.Struct: preserve_outer = true
-                                        case Type.Enum: preserve_outer = true
-                                        case:
-                                        }
+                            }
+                            if get_own_arg(e, cur_idx).or(move_iface_val) {
+                                if source_hb.moved_out { panic("struct init from moved heap binding: ", arg_ident.ident_name()) }
+                                ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
+                                mut preserve_outer := get_keep_outer_arg(e, cur_idx)
+                                if fdd.own_type.is(OwnType.Shallow) {
+                                    switch hb_type(source_hb) {
+                                    case Type.Struct: preserve_outer = true
+                                    case Type.Enum: preserve_outer = true
+                                    case:
                                     }
-                                    if preserve_outer {
-                                        arg_raw = EvalHeap.heap_alloc(raw_type_size(hb_type(source_hb), ctx))
-                                        memcpy(arg_raw, source_ptr, raw_type_size(hb_type(source_hb), ctx))
-                                    } else if source_hb.is_borrowed.and(source_hb.is_erased_dynamic) {
-                                        arg_raw = EvalHeap.heap_alloc(Dynamic.size())
-                                        write_ptr(arg_raw, source_ptr)
-                                    } else {
-                                        mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(hb_type(source_hb), source_ptr))
-                                        mut promote_str_view := false
-                                        switch hb_type(source_hb) {
-                                        case Type.Struct(source_name):
-                                            if (source_name == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
-                                                clone_source = true
-                                                promote_str_view = true
-                                            }
-                                        case:
-                                        }
-                                        if clone_source {
-                                            arg_raw = heap_clone_by_type(hb_type(source_hb), source_ptr, source_hb.ctx)
-                                            switch hb_type(source_hb) {
-                                            case Type.Struct(source_name2):
-                                                if (source_name2 == "Str").and(promote_str_view) {
-                                                    cnt := str_count_at(source_ptr, ctx)
-                                                    if cnt == 0 {
-                                                        str_write_count_cap(arg_raw, 0, CAP_VIEW, ctx)
-                                                    } else {
-                                                        ref source_str : Str = to_ptr(source_ptr)
-                                                        copy : I8 = malloc(cnt.add(1).cast(U64))
-                                                        memcpy(copy, source_str.c_str, cnt.cast(U64))
-                                                        memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
-                                                        write_ptr(arg_raw, copy)
-                                                        str_write_count_cap(arg_raw, cnt, cnt, ctx)
-                                                    }
-                                                }
-                                            case:
-                                            }
-                                        } else {
-                                            arg_raw = source_ptr
-                                            source_hb.ptr = NULL
-                                            source_hb.moved_out = true
-                                        }
-                                    }
-                                    // An own-prim VALUE binding's moved/cloned
-                                    // block collapses to its inline word; the
-                                    // field writer would store the block
-                                    // ADDRESS as the scalar. #302 raw-alloc
-                                    // pointer bindings keep the bare pointer.
-                                    if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
-                                        ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
-                                        EvalHeap.heap_free(own arg_raw)
-                                        arg_raw = ctor_prim_word
-                                    }
-                                } else if fdd.own_type.is(OwnType.Ref) {
-                                    ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
-                                    arg_raw = source_ptr
-                                    arg_is_ref = true
-                                    arg_is_place = true
+                                }
+                                if preserve_outer {
+                                    arg_raw = EvalHeap.heap_alloc(raw_type_size(hb_type(source_hb), ctx))
+                                    memcpy(arg_raw, source_ptr, raw_type_size(hb_type(source_hb), ctx))
+                                } else if source_hb.is_borrowed.and(source_hb.is_erased_dynamic) {
+                                    arg_raw = EvalHeap.heap_alloc(Dynamic.size())
+                                    write_ptr(arg_raw, source_ptr)
                                 } else {
-                                    arg_raw = eval_expr_raw(scope, arg, ctx)
-                                    arg_is_ref = source_hb.own_type.is(OwnType.Ref)
-                                    arg_is_place = heap_type_is_callable(hb_type(source_hb)).not()
+                                    mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(hb_type(source_hb), source_ptr))
+                                    mut promote_str_view := false
+                                    switch hb_type(source_hb) {
+                                    case Type.Struct(source_name):
+                                        if (source_name == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
+                                            clone_source = true
+                                            promote_str_view = true
+                                        }
+                                    case:
+                                    }
+                                    if clone_source {
+                                        arg_raw = heap_clone_by_type(hb_type(source_hb), source_ptr, source_hb.ctx)
+                                        switch hb_type(source_hb) {
+                                        case Type.Struct(source_name2):
+                                            if (source_name2 == "Str").and(promote_str_view) {
+                                                cnt := str_count_at(source_ptr, ctx)
+                                                if cnt == 0 {
+                                                    str_write_count_cap(arg_raw, 0, CAP_VIEW, ctx)
+                                                } else {
+                                                    ref source_str : Str = to_ptr(source_ptr)
+                                                    copy : I8 = malloc(cnt.add(1).cast(U64))
+                                                    memcpy(copy, source_str.c_str, cnt.cast(U64))
+                                                    memset(ptr_add(copy, cnt.cast(U64)), 0, 1)
+                                                    write_ptr(arg_raw, copy)
+                                                    str_write_count_cap(arg_raw, cnt, cnt, ctx)
+                                                }
+                                            }
+                                        case:
+                                        }
+                                    } else {
+                                        arg_raw = source_ptr
+                                        source_hb.ptr = NULL
+                                        source_hb.moved_out = true
+                                    }
                                 }
-                            case:
+                                // An own-prim VALUE binding's moved/cloned
+                                // block collapses to its inline word; the
+                                // field writer would store the block
+                                // ADDRESS as the scalar. #302 raw-alloc
+                                // pointer bindings keep the bare pointer.
+                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Shallow).not()).and(source_hb.is_raw_alloc.not()).and(arg_is_ref.not()) {
+                                    ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
+                                    EvalHeap.heap_free(own arg_raw)
+                                    arg_raw = ctor_prim_word
+                                }
+                            } else if fdd.own_type.is(OwnType.Ref) {
+                                ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
+                                arg_raw = source_ptr
+                                arg_is_ref = true
+                                arg_is_place = true
+                            } else {
                                 arg_raw = eval_expr_raw(scope, arg, ctx)
-                                arg_is_ref = expr_raw_is_ref(scope, arg, ctx)
-                                arg_is_place = arg_is_ref
+                                arg_is_ref = source_hb.own_type.is(OwnType.Ref)
+                                arg_is_place = heap_type_is_callable(hb_type(source_hb)).not()
                             }
-                            // A SHALLOW prim field takes a value WORD: a
-                            // ref/place arg is a bare source address, so load
-                            // the scalar out first (the source keeps its
-                            // storage), then widen like any value word.
-                            if raw_type_is_prim(fdd.til_type, ctx).and(fdd.own_type.is(OwnType.Shallow)).and(arg_is_ref.or(arg_is_place)) {
-                                arg_raw = scalar_word_load(arg.til_type(), arg_raw, ctx)
-                                arg_is_ref = false
-                                arg_is_place = false
-                            }
-                            arg_raw = raw_widen_numeric(arg_raw, arg.til_type(), fdd.explicit_type, ctx)
-                            ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
-                            mut arg_is_null := false
-                            switch arg.node_type {
-                            case NodeType.Literal(Literal.Null): arg_is_null = true
-                            case:
-                            }
-                            if fdd.own_type.is(OwnType.Ref).and(arg_is_null) {
-                                raw_block_free(arg_raw)
-                                write_ptr(ptr_add(inst_data, ctor_fl.offset), NULL)
-                                continue
-                            }
-                            init_field_raw(inst_data, fdd, ctor_fl.offset, ctor_fl.size, arg_raw, arg.til_type(), arg_is_ref, arg_is_place, ctx)
+                        case:
+                            arg_raw = eval_expr_raw(scope, arg, ctx)
+                            arg_is_ref = expr_raw_is_ref(scope, arg, ctx)
+                            arg_is_place = arg_is_ref
                         }
-                    callable_raw_free(fn_raw, ctx)
-                    return inst_data
-                case:
-                    UNREACHABLE("expected StructDef, got ", fn_def.node_type.head_str())
-                }
+                        // A SHALLOW prim field takes a value WORD: a
+                        // ref/place arg is a bare source address, so load
+                        // the scalar out first (the source keeps its
+                        // storage), then widen like any value word.
+                        if raw_type_is_prim(fdd.til_type, ctx).and(fdd.own_type.is(OwnType.Shallow)).and(arg_is_ref.or(arg_is_place)) {
+                            arg_raw = scalar_word_load(arg.til_type(), arg_raw, ctx)
+                            arg_is_ref = false
+                            arg_is_place = false
+                        }
+                        arg_raw = raw_widen_numeric(arg_raw, arg.til_type(), fdd.explicit_type, ctx)
+                        ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
+                        mut arg_is_null := false
+                        switch arg.node_type {
+                        case NodeType.Literal(Literal.Null): arg_is_null = true
+                        case:
+                        }
+                        if fdd.own_type.is(OwnType.Ref).and(arg_is_null) {
+                            raw_block_free(arg_raw)
+                            write_ptr(ptr_add(inst_data, ctor_fl.offset), NULL)
+                            continue
+                        }
+                        init_field_raw(inst_data, fdd, ctor_fl.offset, ctor_fl.size, arg_raw, arg.til_type(), arg_is_ref, arg_is_place, ctx)
+                    }
+                callable_raw_free(fn_raw, ctx)
+                return inst_data
         }
 
         result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
@@ -5408,72 +5375,68 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
         }
         ref main_raw : Dynamic = main_slot
         ref func_def : Expr = callable_raw_func_def(main_raw)
-            switch func_def.node_type {
-            case NodeType.FuncDef(fd):
-                nparam := fd.params.len()
-                vi := fd.variadic_index
-                ref body : Expr = func_def.children[0]
-                main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
+            ref fd : FunctionDef = funcdef_of(func_def)
+            nparam := fd.params.len()
+            vi := fd.variadic_index
+            ref body : Expr = func_def.children[0]
+            main_scope := scope_new(Option(ref Scope).Some(session_global(session)))
 
-                if nparam > 0 {
-                    mut fixed := nparam
-                    if vi >= 0 {
-                        fixed = nparam - 1
-                        if session.user_argc < fixed {
-                            eprint_single("error: main expects at least ")
-                            eprint_single(fixed.to_str())
-                            eprint_single(" argument(s), got ")
-                            eprint_single(session.user_argc.to_str())
-                            eprint_single("\n")
-                            exit(1)
-                        }
-                    } else {
-                        if session.user_argc.eq(nparam).not() {
-                            eprint_single("error: main expects ")
-                            eprint_single(nparam.to_str())
-                            eprint_single(" argument(s), got ")
-                            eprint_single(session.user_argc.to_str())
-                            eprint_single("\n")
-                            exit(1)
-                        }
+            if nparam > 0 {
+                mut fixed := nparam
+                if vi >= 0 {
+                    fixed = nparam - 1
+                    if session.user_argc < fixed {
+                        eprint_single("error: main expects at least ")
+                        eprint_single(fixed.to_str())
+                        eprint_single(" argument(s), got ")
+                        eprint_single(session.user_argc.to_str())
+                        eprint_single("\n")
+                        exit(1)
                     }
-                    mut argi : I32 = 0
-                    for pi in 0..nparam {
-                        ref param : Declaration = fd.params[pi]
-                        if pi.to_i64() == vi.cast(I64) {
-                            va_count := session.user_argc - fixed
-                            // Instance names keep width aliases
-                            // (resolve_type_alias_for_name): the Array__<elem>
-                            // binding below and inside build_argv_array is
-                            // keyed on the alias spelling, while the element
-                            // stride and CLI parsing resolve the width
-                            // themselves (elem_size_for_type/parse_cli_arg
-                            // both handle USize/UPtr).
-                            va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].explicit_type).clone()
-                            arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
-                            va_array_binding_o := lp.ctx.scope.get_binding(format("Array__", va_elem))
-                            if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
-                            ref va_array_binding : TypeBinding = va_array_binding_o.unwrap()
-                            scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
-                            argi = argi + va_count.to_i32()
-                        } else {
-                            raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
-                            scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(param.til_type, lp.ctx), param.own_type, lp.ctx)
-                            argi++
-                        }
+                } else {
+                    if session.user_argc.eq(nparam).not() {
+                        eprint_single("error: main expects ")
+                        eprint_single(nparam.to_str())
+                        eprint_single(" argument(s), got ")
+                        eprint_single(session.user_argc.to_str())
+                        eprint_single("\n")
+                        exit(1)
                     }
-                } else if session.user_argc > 0 {
-                    eprint_single("error: main expects no arguments, got ")
-                    eprint_single(session.user_argc.to_str())
-                    eprint_single("\n")
-                    exit(1)
                 }
-
-                eval_body(main_scope, body, lp.ctx)
-                scope_free(own main_scope)
-            case:
-                UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str())
+                mut argi : I32 = 0
+                for pi in 0..nparam {
+                    ref param : Declaration = fd.params[pi]
+                    if pi.to_i64() == vi.cast(I64) {
+                        va_count := session.user_argc - fixed
+                        // Instance names keep width aliases
+                        // (resolve_type_alias_for_name): the Array__<elem>
+                        // binding below and inside build_argv_array is
+                        // keyed on the alias spelling, while the element
+                        // stride and CLI parsing resolve the width
+                        // themselves (elem_size_for_type/parse_cli_arg
+                        // both handle USize/UPtr).
+                        va_elem := resolve_type_alias_for_name(lp.ctx.scope, fd.params[vi.to_usize()].explicit_type).clone()
+                        arr : Dynamic = build_argv_array(user_argv, argi.to_usize(), va_count, va_elem, lp.ctx)
+                        va_array_binding_o := lp.ctx.scope.get_binding(format("Array__", va_elem))
+                        if va_array_binding_o.is_none() { panic("missing variadic Array type for ", va_elem) }
+                        ref va_array_binding : TypeBinding = va_array_binding_o.unwrap()
+                        scope_set_raw_owned(main_scope, param.name, arr, interp_intern_type(Type.Struct(va_array_binding.name.clone()), lp.ctx), param.own_type, lp.ctx)
+                        argi = argi + va_count.to_i32()
+                    } else {
+                        raw : Dynamic = parse_cli_arg(user_argv[argi.to_usize()], param.explicit_type, lp.ctx)
+                        scope_set_raw_owned(main_scope, param.name, raw, interp_intern_type(param.til_type, lp.ctx), param.own_type, lp.ctx)
+                        argi++
+                    }
+                }
+            } else if session.user_argc > 0 {
+                eprint_single("error: main expects no arguments, got ")
+                eprint_single(session.user_argc.to_str())
+                eprint_single("\n")
+                exit(1)
             }
+
+            eval_body(main_scope, body, lp.ctx)
+            scope_free(own main_scope)
     } } }
 
     interp_session_finish_context(lp)
@@ -6095,12 +6058,8 @@ priv interp_lookup_struct := proc(s: Scope, e: Expr, type_name: Str, who: Str, c
 priv h_struct_field_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_count", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        write_i64(r, sd.fields.len().to_i64())
-    case:
-        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
-    }
+    ref sd : StructDef = structdef_of(node)
+    write_i64(r, sd.fields.len().to_i64())
     return true
 }
 
@@ -6116,16 +6075,12 @@ priv h_struct_field_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_name", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
-            interp_error(e, "struct_field_name: index out of bounds", ctx)
-            exit(1)
-        }
-        str_copy_into(r, sd.field_name_at(idx), ctx)
-    case:
-        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
+    ref sd : StructDef = structdef_of(node)
+    if idx >= sd.fields.len() {
+        interp_error(e, "struct_field_name: index out of bounds", ctx)
+        exit(1)
     }
+    str_copy_into(r, sd.field_name_at(idx), ctx)
     return true
 }
 
@@ -6133,17 +6088,13 @@ priv h_struct_field_is_mut := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_is_mut", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
-            interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
-            exit(1)
-        }
-        ref fd : Declaration = sd.field_at(idx)
-        if fd.is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
-    case:
-        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
+    ref sd : StructDef = structdef_of(node)
+    if idx >= sd.fields.len() {
+        interp_error(e, "struct_field_is_mut: index out of bounds", ctx)
+        exit(1)
     }
+    ref fd : Declaration = sd.field_at(idx)
+    if fd.is_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6151,17 +6102,13 @@ priv h_struct_field_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_struct(s, e, type_name, "struct_field_type", ctx)
-    switch node.node_type {
-    case NodeType.StructDef(sd):
-        if idx >= sd.fields.len() {
-            interp_error(e, "struct_field_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref fd : Declaration = sd.field_at(idx)
-        str_copy_into(r, fd.explicit_type, ctx)
-    case:
-        UNREACHABLE("expected StructDef, got ", node.node_type.head_str())
+    ref sd : StructDef = structdef_of(node)
+    if idx >= sd.fields.len() {
+        interp_error(e, "struct_field_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref fd : Declaration = sd.field_at(idx)
+    str_copy_into(r, fd.explicit_type, ctx)
     return true
 }
 
@@ -6189,12 +6136,8 @@ priv interp_lookup_enum := proc(s: Scope, e: Expr, type_name: Str, who: Str, ctx
 priv h_enum_variant_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_count", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        write_i64(r, ed.variants.len().to_i64())
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
-    }
+    ref ed : EnumDef = enumdef_of(node)
+    write_i64(r, ed.variants.len().to_i64())
     return true
 }
 
@@ -6202,17 +6145,13 @@ priv h_enum_variant_name := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) re
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_name", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_name: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        str_copy_into(r, vd.name, ctx)
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_name: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    str_copy_into(r, vd.name, ctx)
     return true
 }
 
@@ -6220,17 +6159,13 @@ priv h_enum_variant_has_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Cont
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_has_payload", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        if vd.payload_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_has_payload: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    if vd.payload_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6238,17 +6173,13 @@ priv h_enum_variant_payload_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Con
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_type", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        str_copy_into(r, vd.payload_type, ctx)
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_payload_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    str_copy_into(r, vd.payload_type, ctx)
     return true
 }
 
@@ -6256,17 +6187,13 @@ priv h_enum_variant_tag_value := proc(s: Scope, e: Expr, r: Dynamic, ctx: Contex
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_tag_value", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_tag_value: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        write_i64(r, vd.tag_value)
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_tag_value: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    write_i64(r, vd.tag_value)
     return true
 }
 
@@ -6274,17 +6201,13 @@ priv h_enum_variant_payload_is_const := proc(s: Scope, e: Expr, r: Dynamic, ctx:
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_const", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_payload_is_const: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        if vd.payload_const { write_i64(r, 1) } else { write_i64(r, 0) }
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_payload_is_const: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    if vd.payload_const { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6292,17 +6215,13 @@ priv h_enum_variant_payload_is_ref := proc(s: Scope, e: Expr, r: Dynamic, ctx: C
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_enum(s, e, type_name, "enum_variant_payload_is_ref", ctx)
-    switch node.node_type {
-    case NodeType.EnumDef(ed):
-        if idx >= ed.variants.len() {
-            interp_error(e, "enum_variant_payload_is_ref: index out of bounds", ctx)
-            exit(1)
-        }
-        ref vd : VariantDef = ed.variants[idx]
-        if vd.payload_ref { write_i64(r, 1) } else { write_i64(r, 0) }
-    case:
-        UNREACHABLE("expected EnumDef, got ", node.node_type.head_str())
+    ref ed : EnumDef = enumdef_of(node)
+    if idx >= ed.variants.len() {
+        interp_error(e, "enum_variant_payload_is_ref: index out of bounds", ctx)
+        exit(1)
     }
+    ref vd : VariantDef = ed.variants[idx]
+    if vd.payload_ref { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6330,12 +6249,8 @@ priv interp_lookup_funcsig := proc(s: Scope, e: Expr, type_name: Str, who: Str, 
 priv h_func_sig_param_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        write_i64(r, fd.params.len().to_i64())
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, fd.params.len().to_i64())
     return true
 }
 
@@ -6343,29 +6258,21 @@ priv h_func_sig_param_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_param_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx >= fd.params.len() {
-            interp_error(e, "func_sig_param_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref pd : Declaration = fd.params[idx]
-        str_copy_into(r, pd.explicit_type, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx >= fd.params.len() {
+        interp_error(e, "func_sig_param_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref pd : Declaration = fd.params[idx]
+    str_copy_into(r, pd.explicit_type, ctx)
     return true
 }
 
 priv h_func_sig_return_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if fd.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    if fd.return_type.len() > 0 { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -6373,28 +6280,20 @@ priv h_func_sig_return_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context)
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_return_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx.neq(0).or(fd.return_type.len().eq(0)) {
-            interp_error(e, "func_sig_return_type: index out of bounds", ctx)
-            exit(1)
-        }
-        str_copy_into(r, fd.return_type, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx.neq(0).or(fd.return_type.len().eq(0)) {
+        interp_error(e, "func_sig_return_type: index out of bounds", ctx)
+        exit(1)
     }
+    str_copy_into(r, fd.return_type, ctx)
     return true
 }
 
 priv h_func_sig_throw_count := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        write_i64(r, fd.throw_types.len().to_i64())
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
-    }
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, fd.throw_types.len().to_i64())
     return true
 }
 
@@ -6402,17 +6301,13 @@ priv h_func_sig_throw_type := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) 
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
     ref node : Expr = interp_lookup_funcsig(s, e, type_name, "func_sig_throw_type", ctx)
-    switch node.node_type {
-    case NodeType.FuncDef(fd):
-        if idx >= fd.throw_types.len() {
-            interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
-            exit(1)
-        }
-        ref tt : Str = fd.throw_types[idx]
-        str_copy_into(r, tt, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", node.node_type.head_str())
+    ref fd : FunctionDef = funcdef_of(node)
+    if idx >= fd.throw_types.len() {
+        interp_error(e, "func_sig_throw_type: index out of bounds", ctx)
+        exit(1)
     }
+    ref tt : Str = fd.throw_types[idx]
+    str_copy_into(r, tt, ctx)
     return true
 }
 
@@ -7890,106 +7785,102 @@ priv ext_function_dispatch := proc(name: Str, scope: Scope, e: Expr, result: Dyn
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        np := fd.params.len()
-        mut alloc_np := np
-        if alloc_np == 0 { alloc_np = 1 }
-        // Build ffi_type* array (each element is a pointer = 8 bytes)
-        atypes : Dynamic = malloc(alloc_np.mul(8))
-        pdynamics : Dynamic = calloc(alloc_np, 1)
-        mut pshallows : Dynamic = 0
-        mut has_shallow := false
+    ref fd : FunctionDef = funcdef_of(fdef)
+    np := fd.params.len()
+    mut alloc_np := np
+    if alloc_np == 0 { alloc_np = 1 }
+    // Build ffi_type* array (each element is a pointer = 8 bytes)
+    atypes : Dynamic = malloc(alloc_np.mul(8))
+    pdynamics : Dynamic = calloc(alloc_np, 1)
+    mut pshallows : Dynamic = 0
+    mut has_shallow := false
+    for k in 0..np {
+        ref pk : Declaration = fd.params[k]
+        ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
+        dynamic_slot = type_from_name_init(pk.explicit_type, ctx.scope).is(Type.Dynamic)
+        if pk.own_type.is(OwnType.Shallow) {
+            write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
+            has_shallow = true
+        } else {
+            write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
+        }
+    }
+    if has_shallow {
+        pshallows = malloc(np)
         for k in 0..np {
             ref pk : Declaration = fd.params[k]
-            ref mut dynamic_slot : Bool = ptr_add(pdynamics, k)
-            dynamic_slot = type_from_name_init(pk.explicit_type, ctx.scope).is(Type.Dynamic)
-            if pk.own_type.is(OwnType.Shallow) {
-                write_ptr(ptr_add(atypes, k.mul(8)), shallow_ffi_type(pk.explicit_type, ctx))
-                has_shallow = true
-            } else {
-                write_ptr(ptr_add(atypes, k.mul(8)), ffi_type_ref("ffi_type_pointer"))
-            }
+            ref mut slot : Bool = ptr_add(pshallows, k)
+            slot = pk.own_type.is(OwnType.Shallow)
         }
-        if has_shallow {
-            pshallows = malloc(np)
-            for k in 0..np {
-                ref pk : Declaration = fd.params[k]
-                ref mut slot : Bool = ptr_add(pshallows, k)
-                slot = pk.own_type.is(OwnType.Shallow)
-            }
-        }
-        ret_shallow := fd.return_own_type.is(OwnType.Shallow)
-        cif : Dynamic = ffi_alloc_cif()
-
-        // Build FFIEntry
-        mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes)
-        if fd.return_type.len() > 0 { entry.return_type = Option(ref Str).Some(fd.return_type) }
-        entry.nparam = np
-        entry.param_shallows = pshallows
-        entry.param_dynamics = pdynamics
-        entry.return_is_shallow = ret_shallow
-        entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
-
-        // Resolve return ffi_type
-        ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
-        if entry.return_type.is_some() {
-            if ret_shallow {
-                rtype = to_ptr(shallow_ffi_type(entry.return_type.unwrap(), ctx))
-            } else {
-                rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
-            }
-        }
-        prep_status := ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
-        if prep_status.eq(FFI_OK).not() {
-            // A failed prep leaves the cif garbage, so this entry must never
-            // reach ffi_call -- but it must NOT take the program down either.
-            // Registration walks EVERY ext decl a program imports, and libffi
-            // rejects any signature passing a struct by value (no ffi_type
-            // descriptor is built for those yet), which is 266 of raylib's 588
-            // bindings. Panicking here meant merely importing the bindings --
-            // what `mode gui` does -- killed the process on whichever
-            // unsupported function came first, regardless of what the program
-            // actually called.
-            //
-            // Drop the entry instead and leave the name unregistered. Calling
-            // it then fails loudly at the call site (see ext_dispatch_ffi's
-            // caller), naming the function the program actually used.
-            // Same four allocations ffi_cleanup reclaims for a live entry.
-            free(own pshallows)
-            free(own pdynamics)
-            free(own atypes)
-            free(own cif)
-            return
-        }
-
-        // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
-        // internally (ELEM_BOXED), so `name` can be passed directly; the
-        // old clone+box dance here leaked both the box and the cloned Str.
-        // The value box is a transient that Map.set consumes.
-        // Re-registering a name overwrites its FFIEntry, but the entry's cif /
-        // arg_types / parameter flags are `ref` raw C pointers Map.set's delete
-        // does NOT reclaim. ffi_init_scan_program scans every import unit in a
-        // loop and also descends into nested function bodies, so a name seen
-        // twice orphaned the previous entry's libffi cif + arg-type array --
-        // a translate-time leak ffi_cleanup never saw (the stale pointers had
-        // already left ffi_map). Free them first, exactly as ffi_cleanup does
-        // for each live entry.
-        if ctx.ffi_map.has(name) {
-            ref old_fe : FFIEntry = ctx.ffi_map[name]
-            free(own old_fe.param_shallows)
-            free(own old_fe.param_dynamics)
-            free(own old_fe.arg_types)
-            free(own old_fe.cif)
-        }
-        val : FFIEntry = malloc(FFIEntry.size())
-        // Manual island byte-move (#286): erased slot, sized copy.
-        memcpy(val, entry, FFIEntry.size())
-        memset(entry, 0, FFIEntry.size())
-        ctx.ffi_map.set(name, own val)
-    case:
-        UNREACHABLE("expected FuncDef, got ", fdef.node_type.head_str())
     }
+    ret_shallow := fd.return_own_type.is(OwnType.Shallow)
+    cif : Dynamic = ffi_alloc_cif()
+
+    // Build FFIEntry
+    mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes)
+    if fd.return_type.len() > 0 { entry.return_type = Option(ref Str).Some(fd.return_type) }
+    entry.nparam = np
+    entry.param_shallows = pshallows
+    entry.param_dynamics = pdynamics
+    entry.return_is_shallow = ret_shallow
+    entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
+
+    // Resolve return ffi_type
+    ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
+    if entry.return_type.is_some() {
+        if ret_shallow {
+            rtype = to_ptr(shallow_ffi_type(entry.return_type.unwrap(), ctx))
+        } else {
+            rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
+        }
+    }
+    prep_status := ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
+    if prep_status.eq(FFI_OK).not() {
+        // A failed prep leaves the cif garbage, so this entry must never
+        // reach ffi_call -- but it must NOT take the program down either.
+        // Registration walks EVERY ext decl a program imports, and libffi
+        // rejects any signature passing a struct by value (no ffi_type
+        // descriptor is built for those yet), which is 266 of raylib's 588
+        // bindings. Panicking here meant merely importing the bindings --
+        // what `mode gui` does -- killed the process on whichever
+        // unsupported function came first, regardless of what the program
+        // actually called.
+        //
+        // Drop the entry instead and leave the name unregistered. Calling
+        // it then fails loudly at the call site (see ext_dispatch_ffi's
+        // caller), naming the function the program actually used.
+        // Same four allocations ffi_cleanup reclaims for a live entry.
+        free(own pshallows)
+        free(own pdynamics)
+        free(own atypes)
+        free(own cif)
+        return
+    }
+
+    // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
+    // internally (ELEM_BOXED), so `name` can be passed directly; the
+    // old clone+box dance here leaked both the box and the cloned Str.
+    // The value box is a transient that Map.set consumes.
+    // Re-registering a name overwrites its FFIEntry, but the entry's cif /
+    // arg_types / parameter flags are `ref` raw C pointers Map.set's delete
+    // does NOT reclaim. ffi_init_scan_program scans every import unit in a
+    // loop and also descends into nested function bodies, so a name seen
+    // twice orphaned the previous entry's libffi cif + arg-type array --
+    // a translate-time leak ffi_cleanup never saw (the stale pointers had
+    // already left ffi_map). Free them first, exactly as ffi_cleanup does
+    // for each live entry.
+    if ctx.ffi_map.has(name) {
+        ref old_fe : FFIEntry = ctx.ffi_map[name]
+        free(own old_fe.param_shallows)
+        free(own old_fe.param_dynamics)
+        free(own old_fe.arg_types)
+        free(own old_fe.cif)
+    }
+    val : FFIEntry = malloc(FFIEntry.size())
+    // Manual island byte-move (#286): erased slot, sized copy.
+    memcpy(val, entry, FFIEntry.size())
+    memset(entry, 0, FFIEntry.size())
+    ctx.ffi_map.set(name, own val)
 }
 
 
@@ -8022,62 +7913,50 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
             }
             // Struct namespace ext_func/ext_proc
             if stmt.children[0].node_type.is(NodeType.StructDef) {
-                switch stmt.node_type {
-                case NodeType.Decl(sdd):
-                    switch stmt.children[0].node_type {
-                    case NodeType.StructDef(sdd_data):
-                        mut fni : USize = 0
-                        for fdd : Declaration in sdd_data.ns_decls {
-                            cur_ni := fni
-                            fni = fni + 1
-                            ref fdef : Expr = fdd.default_value
-                            if fdef.is_null() { continue }
-                            mut fd_func_type := FuncType.Func
-                            switch fdef.node_type {
-                            case NodeType.FuncDef(fd):
-                                fd_func_type = fd.func_type
-                            case:
-                                continue
-                            }
-                            if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
-                                flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
-                                ref fn_ptr : U8 = ffi_dlsym(flat_name)
-                                if fn_ptr.is_null().not() {
-                                    ffi_register(flat_name, fn_ptr, fdef, ctx)
-                                }
-                            } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
-                                // Scan function body for nested ext_func/ext_proc.
-                                // A bodyless namespace signature (interface
-                                // method, issue #251) has no body to scan.
-                                if fdef.children.len() == 0 { continue }
-                                ref fbody : Expr = fdef.children[0]
-                                for inner : Expr in fbody.children {
-                                    if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
-                                        ref idef : Expr = inner.children[0]
-                                        switch idef.node_type {
-                                        case NodeType.FuncDef(ifd):
-                                            if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
-                                                switch inner.node_type {
-                                                case NodeType.Decl(iname):
-                                                    ref ifn : U8 = ffi_dlsym(iname.name)
-                                                    if ifn.is_null().not() {
-                                                        ffi_register(iname.name, ifn, idef, ctx)
-                                                    }
-                                                case:
-                                                    UNREACHABLE("expected Decl, got ", inner.node_type.head_str())
-                                                }
-                                            }
-                                        case:
+                ref sdd : Declaration = decl_of(stmt)
+                ref sdd_data : StructDef = structdef_of(stmt.children[0])
+                mut fni : USize = 0
+                for fdd : Declaration in sdd_data.ns_decls {
+                    cur_ni := fni
+                    fni = fni + 1
+                    ref fdef : Expr = fdd.default_value
+                    if fdef.is_null() { continue }
+                    mut fd_func_type := FuncType.Func
+                    switch fdef.node_type {
+                    case NodeType.FuncDef(fd):
+                        fd_func_type = fd.func_type
+                    case:
+                        continue
+                    }
+                    if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
+                        flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
+                        ref fn_ptr : U8 = ffi_dlsym(flat_name)
+                        if fn_ptr.is_null().not() {
+                            ffi_register(flat_name, fn_ptr, fdef, ctx)
+                        }
+                    } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
+                        // Scan function body for nested ext_func/ext_proc.
+                        // A bodyless namespace signature (interface
+                        // method, issue #251) has no body to scan.
+                        if fdef.children.len() == 0 { continue }
+                        ref fbody : Expr = fdef.children[0]
+                        for inner : Expr in fbody.children {
+                            if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
+                                ref idef : Expr = inner.children[0]
+                                switch idef.node_type {
+                                case NodeType.FuncDef(ifd):
+                                    if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
+                                        ref iname : Declaration = decl_of(inner)
+                                        ref ifn : U8 = ffi_dlsym(iname.name)
+                                        if ifn.is_null().not() {
+                                            ffi_register(iname.name, ifn, idef, ctx)
                                         }
                                     }
+                                case:
                                 }
                             }
                         }
-                    case:
-                        UNREACHABLE("expected StructDef, got ", stmt.children[0].node_type.head_str())
                     }
-                case:
-                    UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
                 }
             }
         }

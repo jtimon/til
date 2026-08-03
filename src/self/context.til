@@ -1713,28 +1713,19 @@ priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec
 }
 
 enum_has_payloads := func(enum_def: Expr) returns Bool {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        for vd : VariantDef in edd.variants {
-            if vd.payload_type.len() > 0 { return true }
-        }
-        return false
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-        return false
+    ref edd : EnumDef = enumdef_of(enum_def)
+    for vd : VariantDef in edd.variants {
+        if vd.payload_type.len() > 0 { return true }
     }
+    return false
 }
 
 // #264: the enum's discriminant (tag) type. Empty tag_type means the
 // declaration omitted `(Type)`, defaulting to U8 (a 1-byte tag) for
 // compactness; `enum(Type)` overrides the width.
 enum_tag_type := func(enum_def: Expr) returns Str {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        if edd.tag_type.len() > 0 { return edd.tag_type.clone() }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref edd : EnumDef = enumdef_of(enum_def)
+    if edd.tag_type.len() > 0 { return edd.tag_type.clone() }
     return "U8"
 }
 
@@ -1747,13 +1738,9 @@ enum_tag_size := func(enum_def: Expr) returns USize {
 // assigned value; otherwise the declaration index (enum_def_of fills
 // tag_value with the index for FFI-built defs).
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        for vd : VariantDef in edd.variants {
-            if vd.name == variant_name { return vd.tag_value.clone() }
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    for vd : VariantDef in edd.variants {
+        if vd.name == variant_name { return vd.tag_value.clone() }
     }
     return -1
 }
@@ -1762,15 +1749,11 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
 // twin of enum_variant_tag, for callers that already hold a position --
 // e.g. the niche layout's derived discriminant).
 enum_variant_tag_at := func(enum_def: Expr, idx: I32) returns I64 {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        idx_u := idx.to_usize()
-        if idx_u < edd.variants.len() {
-            ref vd : VariantDef = edd.variants[idx_u]
-            return vd.tag_value.clone()
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    idx_u := idx.to_usize()
+    if idx_u < edd.variants.len() {
+        ref vd : VariantDef = edd.variants[idx_u]
+        return vd.tag_value.clone()
     }
     return -1
 }
@@ -1779,14 +1762,10 @@ enum_variant_tag_at := func(enum_def: Expr, idx: I32) returns I64 {
 // once explicit tags are used. Payload lookups by position must use this,
 // NOT enum_variant_tag.
 enum_variant_index := func(enum_def: Expr, variant_name: Str) returns I32 {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        for i in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[i]
-            if vd.name == variant_name { return i.to_i32() }
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    for i in 0..edd.variants.len() {
+        ref vd : VariantDef = edd.variants[i]
+        if vd.name == variant_name { return i.to_i32() }
     }
     return -1
 }
@@ -1794,15 +1773,11 @@ enum_variant_index := func(enum_def: Expr, variant_name: Str) returns I32 {
 // Payload type of a variant by its declaration INDEX. Callers holding a tag
 // VALUE must convert via enum_variant_index -- do NOT pass a tag here.
 enum_variant_type := func(enum_def: Expr, idx: I32) returns Str {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        idx_u := idx.to_usize()
-        if idx_u < edd.variants.len() {
-            ref vd : VariantDef = edd.variants[idx_u]
-            return vd.payload_type.clone()
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    idx_u := idx.to_usize()
+    if idx_u < edd.variants.len() {
+        ref vd : VariantDef = edd.variants[idx_u]
+        return vd.payload_type.clone()
     }
     return ""
 }
@@ -1811,15 +1786,11 @@ enum_variant_type := func(enum_def: Expr, idx: I32) returns Str {
 // enum_variant_type, callers with a tag VALUE convert via
 // enum_variant_index first.
 enum_variant_payload_const := func(enum_def: Expr, idx: I32) returns Bool {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        idx_u := idx.to_usize()
-        if idx_u < edd.variants.len() {
-            ref vd : VariantDef = edd.variants[idx_u]
-            return vd.payload_const
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    idx_u := idx.to_usize()
+    if idx_u < edd.variants.len() {
+        ref vd : VariantDef = edd.variants[idx_u]
+        return vd.payload_const
     }
     return false
 }
@@ -1881,40 +1852,31 @@ enum_variant_payload_funcsig := func(enum_def: Expr, idx: I32) returns Bool {
 }
 
 enum_is_niche := func(enum_def: Expr) returns Bool {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        if edd.variants.len() != 2 { return false }
-        mut payload_less := 0
-        mut ref_payloads := 0
-        for vi in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[vi]
-            if vd.payload_type.len() == 0 { payload_less++; continue }
-            if vd.payload_ref { ref_payloads++; continue }
-            // #321: a funcptr payload never joins the niche -- a distinct C
-            // shape (TilClosure *) with its own delete/clone special cases.
-            // Stamped by the initer, because the parser cannot see through a
-            // named FuncSig alias.
-            if vd.payload_funcsig { continue }
-            if niche_payload_is_owned_box(vd.payload_type) { ref_payloads++ }
-        }
-        return payload_less.eq(1).and(ref_payloads.eq(1))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-        return false
+    ref edd : EnumDef = enumdef_of(enum_def)
+    if edd.variants.len() != 2 { return false }
+    mut payload_less := 0
+    mut ref_payloads := 0
+    for vi in 0..edd.variants.len() {
+        ref vd : VariantDef = edd.variants[vi]
+        if vd.payload_type.len() == 0 { payload_less++; continue }
+        if vd.payload_ref { ref_payloads++; continue }
+        // #321: a funcptr payload never joins the niche -- a distinct C
+        // shape (TilClosure *) with its own delete/clone special cases.
+        // Stamped by the initer, because the parser cannot see through a
+        // named FuncSig alias.
+        if vd.payload_funcsig { continue }
+        if niche_payload_is_owned_box(vd.payload_type) { ref_payloads++ }
     }
+    return payload_less.eq(1).and(ref_payloads.eq(1))
 }
 
 // The index of the payload-carrying variant of a niche enum (the other
 // one IS null). Callers must have checked enum_is_niche first.
 enum_niche_some_index := func(enum_def: Expr) returns I32 {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        for vi in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[vi]
-            if vd.payload_type.len() > 0 { return vi.to_i32() }
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    for vi in 0..edd.variants.len() {
+        ref vd : VariantDef = edd.variants[vi]
+        if vd.payload_type.len() > 0 { return vi.to_i32() }
     }
     panic(__LOC__, "niche enum without a payload variant")
     return -1
@@ -1924,15 +1886,11 @@ enum_niche_some_index := func(enum_def: Expr) returns I32 {
 // the variant's payload was declared `ref Type` -- a borrowed payload
 // stored as a bare pointer the enum does not own.
 enum_variant_payload_ref := func(enum_def: Expr, idx: I32) returns Bool {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        idx_u := idx.to_usize()
-        if idx_u < edd.variants.len() {
-            ref vd : VariantDef = edd.variants[idx_u]
-            return vd.payload_ref
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    idx_u := idx.to_usize()
+    if idx_u < edd.variants.len() {
+        ref vd : VariantDef = edd.variants[idx_u]
+        return vd.payload_ref
     }
     return false
 }

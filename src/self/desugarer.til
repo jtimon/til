@@ -136,12 +136,8 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
 
 desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
     fdef_o := scope.lookup_func(callee_bind.name)
-    switch fdef_o.unwrap().node_type {
-    case NodeType.FuncDef(fdef_data):
-        _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
-    }
+    ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
+    _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
 }
 
 priv typer_is_lambda_target := func(e: Expr) returns Bool {
@@ -3620,12 +3616,8 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope) {
 priv build_kwargs_map_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     mut new_call := make_ns_call("KwargsMap", "new", Type.Struct("KwargsMap"), fcall)
     mut kw_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    switch kw_decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = kw_name.clone()
-    case:
-        UNREACHABLE("expected Decl, got ", kw_decl.node_type.head_str())
-    }
+    ref dd : Declaration = decl_of(kw_decl)
+    dd.name = kw_name.clone()
     kw_decl.set_til_type(Type.Struct("KwargsMap"))
     kw_decl.add_child(own new_call)
     return kw_decl
@@ -3684,13 +3676,9 @@ priv build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type:
     new_call.add_child(own cap)
 
     mut va_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    switch va_decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = va_name.clone()
-        dd.own_type = OwnType.Own
-    case:
-        UNREACHABLE("expected Decl, got ", va_decl.node_type.head_str())
-    }
+    ref dd : Declaration = decl_of(va_decl)
+    dd.name = va_name.clone()
+    dd.own_type = OwnType.Own
     va_decl.set_til_type(Type.Struct(array_type.clone()))
     va_decl.add_child(own new_call)
     return va_decl
@@ -3721,13 +3709,9 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     // _ek : I64 = 0  -- receives the throwing set's `_err_kind` out-arg
     // (a value out-param, so the builder passes it as `&<va>_ek`).
     mut ek := Expr.new(NodeType.Decl(Declaration()), line, col)
-    switch ek.node_type {
-    case NodeType.Decl(ek_dd):
-        ek_dd.name = variadic_err_slot_name(va_name, "_ek")
-        ek_dd.is_mut = true
-    case:
-        UNREACHABLE("expected Decl, got ", ek.node_type.head_str())
-    }
+    ref ek_dd : Declaration = decl_of(ek)
+    ek_dd.name = variadic_err_slot_name(va_name, "_ek")
+    ek_dd.is_mut = true
     ek.set_til_type(Type.Primitive(Primitive.I64))
     mut ek_init := Expr.new(literal_num_node("0"), line, col)
     ek_init.set_til_type(Type.Primitive(Primitive.I64))
@@ -3822,14 +3806,10 @@ priv build_builtin_vec_decl := func(fcall: Expr, elem_type: Str, vec_name: Str) 
     mut new_call := make_ns_call(vec_type, "new", Type.Struct(vec_type.clone()), fcall)
 
     mut vec_decl := Expr.new(NodeType.Decl(Declaration()), fcall.line, fcall.col)
-    switch vec_decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = vec_name.clone()
-        dd.own_type = OwnType.Own
-        dd.is_mut = true
-    case:
-        UNREACHABLE("expected Decl, got ", vec_decl.node_type.head_str())
-    }
+    ref dd : Declaration = decl_of(vec_decl)
+    dd.name = vec_name.clone()
+    dd.own_type = OwnType.Own
+    dd.is_mut = true
     vec_decl.set_til_type(Type.Struct(vec_type))
     vec_decl.add_child(own new_call)
     return vec_decl
@@ -3936,13 +3916,8 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
     if rhs.node_type.is(NodeType.FCall).not() { return false }
 
     mut var_name := ""
-    switch stmt.node_type {
-    case NodeType.Decl(stmt_decl):
-        var_name = stmt_decl.name.clone()
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return false
-    }
+    ref stmt_decl : Declaration = decl_of(stmt)
+    var_name = stmt_decl.name.clone()
 
     ref callee : Expr = rhs.children[0]
     switch callee.node_type {
@@ -3995,13 +3970,8 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
 priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
     ref set_lit : Expr = stmt.children[0]
     mut var_name := ""
-    switch stmt.node_type {
-    case NodeType.Decl(stmt_decl):
-        var_name = stmt_decl.name.clone()
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return false
-    }
+    ref stmt_decl : Declaration = decl_of(stmt)
+    var_name = stmt_decl.name.clone()
 
     if set_lit.children.len() == 0 {
         set_lit.type_error("set literal must have at least one element", ctx)
@@ -4035,13 +4005,9 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
-    switch decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = var_name.clone()
-        dd.is_mut = true
-    case:
-        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
-    }
+    ref dd : Declaration = decl_of(decl)
+    dd.name = var_name.clone()
+    dd.is_mut = true
     decl.set_til_type(Type.Struct(set_type.clone()))
     decl.add_child(own new_call)
 
@@ -4067,13 +4033,8 @@ priv desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
     ref map_lit : Expr = stmt.children[0]
     mut var_name := ""
-    switch stmt.node_type {
-    case NodeType.Decl(stmt_decl):
-        var_name = stmt_decl.name.clone()
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return false
-    }
+    ref stmt_decl : Declaration = decl_of(stmt)
+    var_name = stmt_decl.name.clone()
     n_pairs := map_lit.children.len() / 2
 
     if map_lit.children.len() == 0 {
@@ -4129,13 +4090,9 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
     }
 
     mut decl := Expr.new(NodeType.Decl(Declaration()), stmt.line, stmt.col)
-    switch decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = var_name.clone()
-        dd.is_mut = true
-    case:
-        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
-    }
+    ref dd : Declaration = decl_of(decl)
+    dd.name = var_name.clone()
+    dd.is_mut = true
     decl.set_til_type(Type.Struct(map_type.clone()))
     decl.add_child(own new_call)
 
@@ -5292,21 +5249,17 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     ident.set_til_type(val.til_type())
     scope.set(tname, val.til_type(), false, ctx.path, val.line, val.col, false, OwnType.Shallow)
     ref mut tb : TypeBinding = scope.get_binding(tname).unwrap()
-    switch decl.node_type {
-    case NodeType.Decl(dd):
-        dd.name = tname.clone()
-        dd.is_mut = false
-        if val_is_ref {
-            dd.own_type = OwnType.Ref
-            tb.own_type = OwnType.Ref
-        } else if is_literal_str {
-            // leave as Shallow -- builder emits a stack value
-        } else if is_own.or(is_compound) {
-            dd.own_type = OwnType.Own
-            if tb.is_null().not() { tb.own_type = OwnType.Own }
-        }
-    case:
-        UNREACHABLE("expected Decl, got ", decl.node_type.head_str())
+    ref dd : Declaration = decl_of(decl)
+    dd.name = tname.clone()
+    dd.is_mut = false
+    if val_is_ref {
+        dd.own_type = OwnType.Ref
+        tb.own_type = OwnType.Ref
+    } else if is_literal_str {
+        // leave as Shallow -- builder emits a stack value
+    } else if is_own.or(is_compound) {
+        dd.own_type = OwnType.Own
+        if tb.is_null().not() { tb.own_type = OwnType.Own }
     }
 
     hoisted.push(own decl)

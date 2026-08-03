@@ -764,30 +764,26 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
-        switch def.node_type {
-        case NodeType.FuncDef(sfd):
-            mut pi : USize = 0
-            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                pn := expect_text(p, TokenType.Ident)
-                if pi >= sfd.params.len() {
-                    parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
-                }
-                ref pp : Declaration = sfd.params[pi]
-                pp.name = pn.clone()
-                pi++
-                if check(p, TokenType.Comma) { advance(p) }
+        ref sfd : FunctionDef = funcdef_of(def)
+        mut pi : USize = 0
+        while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+            pn := expect_text(p, TokenType.Ident)
+            if pi >= sfd.params.len() {
+                parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.params.len().to_str(), ")")
             }
-            expect_token(p, TokenType.RParen)
-            if pi < sfd.params.len() {
-                parse_fail(p, peek_line(p), peek_col(p), "FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
-            }
-            // Issue #54: optional capture list (FuncSig form), after the
-            // param names and before the body: `= (a) [scale] { ... }`.
-            if check(p, TokenType.LBracket) {
-                sfd.captures = parse_capture_list(p)
-            }
-        case:
-            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
+            ref pp : Declaration = sfd.params[pi]
+            pp.name = pn.clone()
+            pi++
+            if check(p, TokenType.Comma) { advance(p) }
+        }
+        expect_token(p, TokenType.RParen)
+        if pi < sfd.params.len() {
+            parse_fail(p, peek_line(p), peek_col(p), "FuncSig form expects ", sfd.params.len().to_str(), " param names, got ", pi.to_str())
+        }
+        // Issue #54: optional capture list (FuncSig form), after the
+        // param names and before the body: `= (a) [scale] { ... }`.
+        if check(p, TokenType.LBracket) {
+            sfd.captures = parse_capture_list(p)
         }
         expect_token(p, TokenType.LBrace)
         def.add_child(own parse_block(p))
@@ -848,29 +844,6 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     return ns_decl
 }
 
-// structdef_of / enumdef_of: borrow the StructDef / EnumDef payload of a
-// StructDef / EnumDef Expr, so the body parsers can push fields, variants
-// and ns_decls through one binding instead of repeating
-// `switch def.node_type { case ...(d): ... case: UNREACHABLE }` at every
-// mutation site.
-priv structdef_of := func(def: Expr) returns Option(ref StructDef) {
-    switch def.node_type {
-    case NodeType.StructDef(sdd):
-        return Option(ref StructDef).Some(sdd)
-    case:
-        return Option(ref StructDef).None
-    }
-}
-
-priv enumdef_of := func(def: Expr) returns Option(ref EnumDef) {
-    switch def.node_type {
-    case NodeType.EnumDef(edd):
-        return Option(ref EnumDef).Some(edd)
-    case:
-        return Option(ref EnumDef).None
-    }
-}
-
 // Issue #267 (caveat 1): `Name := struct<T: Type, ...> { BODY }` is sugar
 // for `Name := macro(T: Type, ...) returns StructDef { return struct { BODY } }`.
 // parse_struct_def collects the optional `<...>` params right after the
@@ -929,7 +902,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
     def := Expr.new(NodeType.StructDef(StructDef()), kw_line, kw_col)
     // The caller just built this node as a StructDef.
-    ref sdd : StructDef = structdef_of(def).unwrap()
+    ref sdd : StructDef = structdef_of(def)
     if is_ext {
         sdd.c_tag = c_tag.clone()
     }
@@ -1074,12 +1047,8 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             advance(p)
             expect_token(p, TokenType.Colon)
             p.pending_doc = ""
-            switch def.node_type {
-            case NodeType.StructDef(ns_sdd):
-                ns_sdd.interface_ns_marker = true
-            case:
-                UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
-            }
+            ref ns_sdd : StructDef = structdef_of(def)
+            ns_sdd.interface_ns_marker = true
             continue
         }
         mut member_priv := false
@@ -1112,12 +1081,8 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             doc = m_doc,
             is_priv = member_priv,
             default_value = m_value)
-        switch def.node_type {
-        case NodeType.StructDef(sdd):
-            sdd.push_member(own m_dd)
-        case:
-            UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
-        }
+        ref sdd : StructDef = structdef_of(def)
+        sdd.push_member(own m_dd)
     }
     expect_token(p, TokenType.RBrace)
     p.pending_doc = saved_doc.clone()
@@ -1132,7 +1097,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 
     def := Expr.new(NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     // The caller just built this node as an EnumDef.
-    ref edd : EnumDef = enumdef_of(def).unwrap()
+    ref edd : EnumDef = enumdef_of(def)
 
     // #264: optional discriminant type, `enum(Type) { ... }`. Only the
     // paren form is accepted (symmetry with ext_struct("tag") and an
@@ -2032,12 +1997,8 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     if stmt.children.len() > 0 {
                         ns_dd.default_value = stmt.children[0].clone()
                     }
-                    switch def.node_type {
-                    case NodeType.StructDef(sdd):
-                        sdd.push_member(own ns_dd)
-                    case:
-                        UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
-                    }
+                    ref sdd : StructDef = structdef_of(def)
+                    sdd.push_member(own ns_dd)
                 case:
                 }
             }
@@ -2816,15 +2777,10 @@ set_own_arg := func(mut fcall: Expr, arg_index: USize) {
 }
 
 get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        return fcd.own_args.band(bit) > 0
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-        return false
-    }
+    ref fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    return fcd.own_args.band(bit) > 0
 }
 
 // #320: ref-qualified TYPE argument markers (`make_opt(ref T)`), same
@@ -2841,25 +2797,15 @@ set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
 }
 
 get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        return fcd.ref_args.band(bit) > 0
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-        return false
-    }
+    ref fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    return fcd.ref_args.band(bit) > 0
 }
 
 fcall_has_ref_args := func(fcall: Expr) returns Bool {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        return fcd.ref_args > 0
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-        return false
-    }
+    ref fcd : FCallData = fcall_of(fcall)
+    return fcd.ref_args > 0
 }
 
 set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
@@ -2874,15 +2820,10 @@ set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
 }
 
 get_keep_outer_arg := func(fcall: Expr, arg_index: USize) returns Bool {
-    switch fcall.node_type {
-    case NodeType.FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..arg_index { bit = bit * 2 }
-        return fcd.keep_outer_args.band(bit) > 0
-    case:
-        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
-        return false
-    }
+    ref fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    return fcd.keep_outer_args.band(bit) > 0
 }
 
 // The til keyword form of a FuncType (lowercase/snake_case), as written in

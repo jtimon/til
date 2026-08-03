@@ -36,61 +36,56 @@ priv register_struct_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeS
     if stmt.node_type.is(NodeType.Decl).not() { return 0 }
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return 0 }
 
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname := sdecl.name
+    ref sdecl : Declaration = decl_of(stmt)
+    sname := sdecl.name
 
-        existing_find := scope.find(sname)
-        switch existing_find {
-        case ScopeFind.Found(existing):
-            if scope.struct_def_of(existing.name).is_some() {
-                if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
-                    println(
-                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                        ": error: struct '", sname, "' already declared at ",
-                        existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                    )
-                    return 1
-                }
+    existing_find := scope.find(sname)
+    switch existing_find {
+    case ScopeFind.Found(existing):
+        if scope.struct_def_of(existing.name).is_some() {
+            if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
+                println(
+                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ": error: struct '", sname, "' already declared at ",
+                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                )
+                return 1
             }
-        case:
         }
-
-        mut builtin_type := Type.Struct(sname.clone())
-        mut is_builtin := false
-        mut prim : Primitive = Primitive.I64
-        mut sz : USize = 0
-        mut al : USize = 0
-        mut prim_builtin : Bool = false
-        if primitive_type_info(sname, scope, prim, sz, al, prim_builtin) {
-            builtin_type = Type.Primitive(prim)
-            is_builtin = prim_builtin
-        } else if sname == "Str" {
-            is_builtin = false
-        } else if sname == "StructDef" {
-            is_builtin = false
-        } else if sname == "FunctionDef" {
-            is_builtin = false
-        }
-
-        scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        scope.set_struct_def(sname, stmt.children[0])
-        ref mut b : TypeBinding = scope.get_binding(sname).unwrap()
-        b.is_builtin = is_builtin
-        b.is_priv = sdecl.is_priv
-        b.orig_name = sdecl.orig_name.clone()
-        // Issue #147 step 4: pre-populate ctx.interp_type_defs at init so
-        // constfolder eval (which clones typed raw bytes and looks up nested struct/enum
-        // defs by name) sees a populated registry; interpret_units later
-        // re-registers with the same value, which is idempotent.
-        tdv : UPtr = malloc(UPtr.size())
-        write_ptr(tdv, stmt.children[0])
-        ctx.interp_type_defs.set(sname, own tdv)
-        return 0
     case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return 0
     }
+
+    mut builtin_type := Type.Struct(sname.clone())
+    mut is_builtin := false
+    mut prim : Primitive = Primitive.I64
+    mut sz : USize = 0
+    mut al : USize = 0
+    mut prim_builtin : Bool = false
+    if primitive_type_info(sname, scope, prim, sz, al, prim_builtin) {
+        builtin_type = Type.Primitive(prim)
+        is_builtin = prim_builtin
+    } else if sname == "Str" {
+        is_builtin = false
+    } else if sname == "StructDef" {
+        is_builtin = false
+    } else if sname == "FunctionDef" {
+        is_builtin = false
+    }
+
+    scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set_struct_def(sname, stmt.children[0])
+    ref mut b : TypeBinding = scope.get_binding(sname).unwrap()
+    b.is_builtin = is_builtin
+    b.is_priv = sdecl.is_priv
+    b.orig_name = sdecl.orig_name.clone()
+    // Issue #147 step 4: pre-populate ctx.interp_type_defs at init so
+    // constfolder eval (which clones typed raw bytes and looks up nested struct/enum
+    // defs by name) sees a populated registry; interpret_units later
+    // re-registers with the same value, which is idempotent.
+    tdv : UPtr = malloc(UPtr.size())
+    write_ptr(tdv, stmt.children[0])
+    ctx.interp_type_defs.set(sname, own tdv)
+    return 0
 }
 
 priv struct_field_supports_generated_method := func(fd: Declaration, method: Str, scope: TypeScope) returns Bool {
@@ -133,39 +128,35 @@ priv make_struct_field_access := func(receiver_name: Str, field_name: Str, line:
 priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut field_count : USize = 0
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdd):
-        field_count = sdd.fields.len()
-        mut cfi : USize = 0
-        for _ : Declaration in sdd.fields {
-            ref cmp_fname : Str = sdd.field_name_at(cfi)
-            tmp_name := format("_c", cfi.to_str())
-            cfi = cfi + 1
+    ref sdd : StructDef = structdef_of(struct_def)
+    field_count = sdd.fields.len()
+    mut cfi : USize = 0
+    for _ : Declaration in sdd.fields {
+        ref cmp_fname : Str = sdd.field_name_at(cfi)
+        tmp_name := format("_c", cfi.to_str())
+        cfi = cfi + 1
 
-            // _cN := a.<field>.cmp(b.<field>)
-            mut a_field := make_struct_field_access("a", cmp_fname, line, col)
-            mut cmp_call := make_method_call_fcall(own a_field, "cmp", line, col)
-            mut b_field := make_struct_field_access("b", cmp_fname, line, col)
-            cmp_call.add_child(own b_field)
-            mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), explicit_type = "I64")), line, col)
-            tmp_decl.add_child(own cmp_call)
-            func_body.add_child(own tmp_decl)
+        // _cN := a.<field>.cmp(b.<field>)
+        mut a_field := make_struct_field_access("a", cmp_fname, line, col)
+        mut cmp_call := make_method_call_fcall(own a_field, "cmp", line, col)
+        mut b_field := make_struct_field_access("b", cmp_fname, line, col)
+        cmp_call.add_child(own b_field)
+        mut tmp_decl := Expr.new(NodeType.Decl(Declaration(name = tmp_name.clone(), explicit_type = "I64")), line, col)
+        tmp_decl.add_child(own cmp_call)
+        func_body.add_child(own tmp_decl)
 
-            // if _cN.neq(0) { return _cN }
-            mut tmp_id := Expr.new(ident_node(tmp_name), line, col)
-            mut neq_call := make_method_call_fcall(own tmp_id, "neq", line, col)
-            neq_call.add_child(own Expr.new(literal_num_node("0"), line, col))
-            mut ret_tmp := Expr.new(NodeType.Return, line, col)
-            ret_tmp.add_child(own Expr.new(ident_node(tmp_name), line, col))
-            mut then_body := Expr.new(NodeType.Body, line, col)
-            then_body.add_child(own ret_tmp)
-            mut if_node := Expr.new(NodeType.If, line, col)
-            if_node.add_child(own neq_call)
-            if_node.add_child(own then_body)
-            func_body.add_child(own if_node)
-        }
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
+        // if _cN.neq(0) { return _cN }
+        mut tmp_id := Expr.new(ident_node(tmp_name), line, col)
+        mut neq_call := make_method_call_fcall(own tmp_id, "neq", line, col)
+        neq_call.add_child(own Expr.new(literal_num_node("0"), line, col))
+        mut ret_tmp := Expr.new(NodeType.Return, line, col)
+        ret_tmp.add_child(own Expr.new(ident_node(tmp_name), line, col))
+        mut then_body := Expr.new(NodeType.Body, line, col)
+        then_body.add_child(own ret_tmp)
+        mut if_node := Expr.new(NodeType.If, line, col)
+        if_node.add_child(own neq_call)
+        if_node.add_child(own then_body)
+        func_body.add_child(own if_node)
     }
 
     mut ret_zero := Expr.new(NodeType.Return, line, col)
@@ -187,42 +178,34 @@ priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32,
     fdecl.kwargs_index = -1
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
-    switch struct_def.node_type {
-    case NodeType.StructDef(scmp_sdd):
-        scmp_sdd.push_member(own Declaration(name = "cmp", default_value = fdef))
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
-    }
+    ref scmp_sdd : StructDef = structdef_of(struct_def)
+    scmp_sdd.push_member(own Declaration(name = "cmp", default_value = fdef))
 }
 
 priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     mut field_count : USize = 0
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdd):
-        field_count = sdd.fields.len()
-        mut eqr : USize = 0
-        for _ : Declaration in sdd.fields {
-            ref eq_fname : Str = sdd.field_name_at(eqr)
-            eqr = eqr + 1
-            mut self_field := make_struct_field_access("self", eq_fname, line, col)
-            mut eq_call := make_method_call_fcall(own self_field, "eq", line, col)
-            mut other_field := make_struct_field_access("other", eq_fname, line, col)
-            eq_call.add_child(own other_field)
-            mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
+    ref sdd : StructDef = structdef_of(struct_def)
+    field_count = sdd.fields.len()
+    mut eqr : USize = 0
+    for _ : Declaration in sdd.fields {
+        ref eq_fname : Str = sdd.field_name_at(eqr)
+        eqr = eqr + 1
+        mut self_field := make_struct_field_access("self", eq_fname, line, col)
+        mut eq_call := make_method_call_fcall(own self_field, "eq", line, col)
+        mut other_field := make_struct_field_access("other", eq_fname, line, col)
+        eq_call.add_child(own other_field)
+        mut not_call := make_method_call_fcall(own eq_call, "not", line, col)
 
-            mut ret_false := Expr.new(NodeType.Return, line, col)
-            mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
-            ret_false.add_child(own false_lit)
-            mut then_body := Expr.new(NodeType.Body, line, col)
-            then_body.add_child(own ret_false)
-            mut if_node := Expr.new(NodeType.If, line, col)
-            if_node.add_child(own not_call)
-            if_node.add_child(own then_body)
-            func_body.add_child(own if_node)
-        }
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
+        mut ret_false := Expr.new(NodeType.Return, line, col)
+        mut false_lit := Expr.new(NodeType.Literal(Literal.Bool(false)), line, col)
+        ret_false.add_child(own false_lit)
+        mut then_body := Expr.new(NodeType.Body, line, col)
+        then_body.add_child(own ret_false)
+        mut if_node := Expr.new(NodeType.If, line, col)
+        if_node.add_child(own not_call)
+        if_node.add_child(own then_body)
+        func_body.add_child(own if_node)
     }
 
     mut ret_true := Expr.new(NodeType.Return, line, col)
@@ -247,12 +230,8 @@ priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdd2):
-        sdd2.push_member(own Declaration(name = "eq", default_value = fdef))
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
-    }
+    ref sdd2 : StructDef = structdef_of(struct_def)
+    sdd2.push_member(own Declaration(name = "eq", default_value = fdef))
 }
 
 priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
@@ -265,30 +244,26 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
     mut prefix := Expr.new(NodeType.Literal(Literal.Str(format(sname, "("))), line, col)
     fmt_call.add_child(own prefix)
 
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdd):
-        field_count = sdd.fields.len()
-        mut idx : USize = 0
-        for fd : Declaration in sdd.fields {
-            ref ts_fname : Str = sdd.field_name_at(idx)
-            if idx > 0 {
-                mut sep := Expr.new(NodeType.Literal(Literal.Str(", ")), line, col)
-                fmt_call.add_child(own sep)
-            }
-            mut name_part := Expr.new(NodeType.Literal(Literal.Str(format(ts_fname, "="))), line, col)
-            fmt_call.add_child(own name_part)
-            mut field := make_struct_field_access("self", ts_fname, line, col)
-            type_name := field_inferred_type_name(fd)
-            if type_name == "Str" {
-                fmt_call.add_child(own field)
-            } else {
-                mut to_str_call := make_method_call_fcall(own field, "to_str", line, col)
-                fmt_call.add_child(own to_str_call)
-            }
-            idx++
+    ref sdd : StructDef = structdef_of(struct_def)
+    field_count = sdd.fields.len()
+    mut idx : USize = 0
+    for fd : Declaration in sdd.fields {
+        ref ts_fname : Str = sdd.field_name_at(idx)
+        if idx > 0 {
+            mut sep := Expr.new(NodeType.Literal(Literal.Str(", ")), line, col)
+            fmt_call.add_child(own sep)
         }
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
+        mut name_part := Expr.new(NodeType.Literal(Literal.Str(format(ts_fname, "="))), line, col)
+        fmt_call.add_child(own name_part)
+        mut field := make_struct_field_access("self", ts_fname, line, col)
+        type_name := field_inferred_type_name(fd)
+        if type_name == "Str" {
+            fmt_call.add_child(own field)
+        } else {
+            mut to_str_call := make_method_call_fcall(own field, "to_str", line, col)
+            fmt_call.add_child(own to_str_call)
+        }
+        idx++
     }
 
     mut suffix := Expr.new(NodeType.Literal(Literal.Str(")")), line, col)
@@ -309,12 +284,8 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    switch struct_def.node_type {
-    case NodeType.StructDef(sdd2):
-        sdd2.push_member(own Declaration(name = "to_str", default_value = fdef))
-    case:
-        UNREACHABLE("expected StructDef, got ", struct_def.node_type.head_str())
-    }
+    ref sdd2 : StructDef = structdef_of(struct_def)
+    sdd2.push_member(own Declaration(name = "to_str", default_value = fdef))
 }
 
 priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Context) {
@@ -322,389 +293,367 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
 
     mut sname := ""
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname = sdecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    sname = sdecl.name
     if is_dynamic_type(sname) { return }
 
     ref sdef : Expr = stmt.children[0]
-    switch sdef.node_type {
-    case NodeType.StructDef(sdd):
-        has_clone := sdd.ns_index.has("clone")
-        has_delete := sdd.ns_index.has("delete")
-        has_hash := sdd.ns_index.has("hash")
-        has_eq := sdd.ns_index.has("eq")
-        has_to_str := sdd.ns_index.has("to_str")
+    ref sdd : StructDef = structdef_of(sdef)
+    has_clone := sdd.ns_index.has("clone")
+    has_delete := sdd.ns_index.has("delete")
+    has_hash := sdd.ns_index.has("hash")
+    has_eq := sdd.ns_index.has("eq")
+    has_to_str := sdd.ns_index.has("to_str")
 
-        if has_clone.not() {
-            // #307: build the generated clone directly off sdd.fields (the
-            // field_names/field_refs gather vecs were a porting artifact
-            // rstil does not have).
-            mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            if sdd.fields.len() == 0 {
-                mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
-                ctor.add_child(own ctor_name)
+    if has_clone.not() {
+        // #307: build the generated clone directly off sdd.fields (the
+        // field_names/field_refs gather vecs were a porting artifact
+        // rstil does not have).
+        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        if sdd.fields.len() == 0 {
+            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
+            ctor.add_child(own ctor_name)
 
-                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-                ret.add_child(own ctor)
-                func_body.add_child(own ret)
-            } else {
-                mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
-                ctor.add_child(own ctor_name)
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+            ret.add_child(own ctor)
+            func_body.add_child(own ret)
+        } else {
+            mut ctor := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            mut ctor_name := Expr.new(ident_node(sname), stmt.line, stmt.col)
+            ctor.add_child(own ctor_name)
 
-                mut clr : USize = 0
-                for fd : Declaration in sdd.fields {
-                    ref cl_fname : Str = sdd.field_name_at(clr)
-                    clr = clr + 1
-                    mut pass_directly := false
-                    if fd.own_type.is(OwnType.Ref) {
-                        pass_directly = true
-                    } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd), scope)) {
-                        // POD field: value-copy is the clone, so pass
-                        // directly and skip the wasteful `.clone()` wrap.
-                        // Uses field_inferred_type_name so that
-                        // `mut x := 0` (no explicit annotation) also
-                        // benefits -- inference picks I64 from the
-                        // LiteralNum default value.  Own-typed fields are
-                        // excluded: their value-copy aliases the heap
-                        // payload.  FuncPtr fields fall under is_pod
-                        // (a function pointer is just a pointer value).
-                        pass_directly = true
-                    }
-
-                    mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
-                    // NodeType.FieldAccess/NamedArg's constructors Str_clone their
-                    // payload internally, so an outer clone at the call site is
-                    // a redundant alloc whose wrapper Str leaks if the asap
-                    // delete misses it. Pass the borrowed key directly.
-                    mut field_acc := Expr.new(field_access_node(cl_fname), stmt.line, stmt.col)
-                    field_acc.add_child(own self_id)
-
-                    mut named := Expr.new(NodeType.NamedArg(cl_fname.clone()), stmt.line, stmt.col)
-                    if pass_directly {
-                        named.add_child(own field_acc)
-                    } else {
-                        mut clone_call := make_method_call_fcall(own field_acc, "clone", stmt.line, stmt.col)
-                        named.add_child(own clone_call)
-                    }
-                    ctor.add_child(own named)
+            mut clr : USize = 0
+            for fd : Declaration in sdd.fields {
+                ref cl_fname : Str = sdd.field_name_at(clr)
+                clr = clr + 1
+                mut pass_directly := false
+                if fd.own_type.is(OwnType.Ref) {
+                    pass_directly = true
+                } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd), scope)) {
+                    // POD field: value-copy is the clone, so pass
+                    // directly and skip the wasteful `.clone()` wrap.
+                    // Uses field_inferred_type_name so that
+                    // `mut x := 0` (no explicit annotation) also
+                    // benefits -- inference picks I64 from the
+                    // LiteralNum default value.  Own-typed fields are
+                    // excluded: their value-copy aliases the heap
+                    // payload.  FuncPtr fields fall under is_pod
+                    // (a function pointer is just a pointer value).
+                    pass_directly = true
                 }
 
-                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-                ret.add_child(own ctor)
-                func_body.add_child(own ret)
+                mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
+                // NodeType.FieldAccess/NamedArg's constructors Str_clone their
+                // payload internally, so an outer clone at the call site is
+                // a redundant alloc whose wrapper Str leaks if the asap
+                // delete misses it. Pass the borrowed key directly.
+                mut field_acc := Expr.new(field_access_node(cl_fname), stmt.line, stmt.col)
+                field_acc.add_child(own self_id)
+
+                mut named := Expr.new(NodeType.NamedArg(cl_fname.clone()), stmt.line, stmt.col)
+                if pass_directly {
+                    named.add_child(own field_acc)
+                } else {
+                    mut clone_call := make_method_call_fcall(own field_acc, "clone", stmt.line, stmt.col)
+                    named.add_child(own clone_call)
+                }
+                ctor.add_child(own named)
             }
 
-            mut func_decl := FunctionDef(auto_generated = true)
-            func_decl.func_type = FuncType.Func
-            mut self_pname := "self"
-            if sdd.fields.len() == 0 { self_pname = "_self" }
-            func_decl.params.push(own decl_typed(name = self_pname, explicit_type = sname, own_type = OwnType.Ref))
-            func_decl.return_type = sname.clone()
-            func_decl.variadic_index = -1
-            func_decl.kwargs_index = -1
-
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
-            func_def.add_child(own func_body)
-
-            sdd.push_member(own Declaration(name = "clone", default_value = func_def))
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+            ret.add_child(own ctor)
+            func_body.add_child(own ret)
         }
 
-        if has_delete.not() {
-            // POD shortcut: when every field is value-copy-safe per
-            // is_pod_type_for_clone, no field needs deep cleanup --
-            // the per-field `.delete(false)` calls would all bottom
-            // out in no-ops -- so emit just the `if call_free: free`
-            // tail and skip the field loop entirely.  Saves both
-            // compile-time codegen and runtime call frames per POD
-            // struct destruction.
-            mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
-            for d_pod : Declaration in sdd.fields {
-                if d_pod.own_type.is(OwnType.Ref) { continue }
-                if d_pod.explicit_type.len().gt(0).and(type_from_name_init(d_pod.explicit_type, scope).is_funcptr().or(type_from_name_init(d_pod.explicit_type, scope).is(Type.Body))) {
-                    pod_no_field_deletes = false
+        mut func_decl := FunctionDef(auto_generated = true)
+        func_decl.func_type = FuncType.Func
+        mut self_pname := "self"
+        if sdd.fields.len() == 0 { self_pname = "_self" }
+        func_decl.params.push(own decl_typed(name = self_pname, explicit_type = sname, own_type = OwnType.Ref))
+        func_decl.return_type = sname.clone()
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
+
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
+        func_def.add_child(own func_body)
+
+        sdd.push_member(own Declaration(name = "clone", default_value = func_def))
+    }
+
+    if has_delete.not() {
+        // POD shortcut: when every field is value-copy-safe per
+        // is_pod_type_for_clone, no field needs deep cleanup --
+        // the per-field `.delete(false)` calls would all bottom
+        // out in no-ops -- so emit just the `if call_free: free`
+        // tail and skip the field loop entirely.  Saves both
+        // compile-time codegen and runtime call frames per POD
+        // struct destruction.
+        mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
+        for d_pod : Declaration in sdd.fields {
+            if d_pod.own_type.is(OwnType.Ref) { continue }
+            if d_pod.explicit_type.len().gt(0).and(type_from_name_init(d_pod.explicit_type, scope).is_funcptr().or(type_from_name_init(d_pod.explicit_type, scope).is(Type.Body))) {
+                pod_no_field_deletes = false
+            }
+        }
+        // #307: emit the per-field cleanup directly off sdd.fields (the
+        // del_field_* gather vecs were a porting artifact).
+        mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        if pod_no_field_deletes.not() {
+            mut dlr : USize = 0
+            for fd : Declaration in sdd.fields {
+                ref dl_fname : Str = sdd.field_name_at(dlr)
+                dlr = dlr + 1
+                if fd.own_type.is(OwnType.Ref) { continue }
+
+                mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
+                mut field_acc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
+                field_acc.add_child(own self_id)
+
+                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is_funcptr().or(type_from_name_init(fd.explicit_type, scope).is(Type.Body))) {
+                    mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                    mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
+                    closure_del.add_child(own closure_del_id)
+                    closure_del.add_child(own field_acc.clone())
+                    proc_body.add_child(own closure_del)
+                    continue
+                }
+
+                mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
+                del_acc.add_child(own field_acc)
+                mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+                set_own_arg(del_call, 0) // signal UFCS own for self arg
+                del_call.add_child(own del_acc)
+
+                mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(fd.own_type.is(OwnType.Own))), stmt.line, stmt.col)
+                del_call.add_child(own cf_lit)
+                if fd.own_type.is(OwnType.Own) {
+                    // Moved-out sources are zeroed (the push/move idiom
+                    // relies on delete being a no-op on them); a zeroed
+                    // own field is a NULL pointer, so guard the delete
+                    // or a generated container delete derefs NULL.
+                    mut g_self := Expr.new(ident_node("self"), stmt.line, stmt.col)
+                    mut g_facc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
+                    g_facc.add_child(own g_self)
+                    mut g_null := make_method_call_fcall(own g_facc, "is_null", stmt.line, stmt.col)
+                    mut g_not := make_method_call_fcall(own g_null, "not", stmt.line, stmt.col)
+                    mut g_then := Expr.new(NodeType.Body, stmt.line, stmt.col)
+                    g_then.add_child(own del_call)
+                    mut g_if := Expr.new(NodeType.If, stmt.line, stmt.col)
+                    g_if.add_child(own g_not)
+                    g_if.add_child(own g_then)
+                    proc_body.add_child(own g_if)
+                } else {
+                    proc_body.add_child(own del_call)
                 }
             }
-            // #307: emit the per-field cleanup directly off sdd.fields (the
-            // del_field_* gather vecs were a porting artifact).
-            mut proc_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            if pod_no_field_deletes.not() {
-                mut dlr : USize = 0
-                for fd : Declaration in sdd.fields {
-                    ref dl_fname : Str = sdd.field_name_at(dlr)
-                    dlr = dlr + 1
-                    if fd.own_type.is(OwnType.Ref) { continue }
+        }
 
-                    mut self_id := Expr.new(ident_node("self"), stmt.line, stmt.col)
-                    mut field_acc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
-                    field_acc.add_child(own self_id)
+        mut cond := Expr.new(ident_node("call_free"), stmt.line, stmt.col)
+        mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+        mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+        mut free_id := Expr.new(ident_node("free"), stmt.line, stmt.col)
+        free_call.add_child(own free_id)
+        mut self_arg := Expr.new(ident_node("self"), stmt.line, stmt.col)
+        set_own_arg(free_call, free_call.children.len())
+        free_call.add_child(own self_arg)
+        then_body.add_child(own free_call)
+        mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
+        if_node.add_child(own cond)
+        if_node.add_child(own then_body)
+        proc_body.add_child(own if_node)
 
-                    if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is_funcptr().or(type_from_name_init(fd.explicit_type, scope).is(Type.Body))) {
-                        mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                        mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
-                        closure_del.add_child(own closure_del_id)
-                        closure_del.add_child(own field_acc.clone())
-                        proc_body.add_child(own closure_del)
-                        continue
-                    }
+        mut proc_decl := FunctionDef(auto_generated = true)
+        proc_decl.func_type = FuncType.Func
+        proc_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
+        // Issue #223: call_free is a primitive (Bool), so emit it as a
+        // plain borrowed param (Ref) and let step-1 auto-shallow normalize
+        // it to value -- same as a hand-written delete. (An explicit Shallow
+        // here would trip the step-2 redundant-shallow check.)
+        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+        proc_decl.variadic_index = -1
+        proc_decl.kwargs_index = -1
 
-                    mut del_acc := Expr.new(field_access_node("delete"), stmt.line, stmt.col)
-                    del_acc.add_child(own field_acc)
-                    mut del_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                    set_own_arg(del_call, 0) // signal UFCS own for self arg
-                    del_call.add_child(own del_acc)
+        mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
+        proc_def.add_child(own proc_body)
 
-                    mut cf_lit := Expr.new(NodeType.Literal(Literal.Bool(fd.own_type.is(OwnType.Own))), stmt.line, stmt.col)
-                    del_call.add_child(own cf_lit)
-                    if fd.own_type.is(OwnType.Own) {
-                        // Moved-out sources are zeroed (the push/move idiom
-                        // relies on delete being a no-op on them); a zeroed
-                        // own field is a NULL pointer, so guard the delete
-                        // or a generated container delete derefs NULL.
-                        mut g_self := Expr.new(ident_node("self"), stmt.line, stmt.col)
-                        mut g_facc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
-                        g_facc.add_child(own g_self)
-                        mut g_null := make_method_call_fcall(own g_facc, "is_null", stmt.line, stmt.col)
-                        mut g_not := make_method_call_fcall(own g_null, "not", stmt.line, stmt.col)
-                        mut g_then := Expr.new(NodeType.Body, stmt.line, stmt.col)
-                        g_then.add_child(own del_call)
-                        mut g_if := Expr.new(NodeType.If, stmt.line, stmt.col)
-                        g_if.add_child(own g_not)
-                        g_if.add_child(own g_then)
-                        proc_body.add_child(own g_if)
-                    } else {
-                        proc_body.add_child(own del_call)
-                    }
+        sdd.push_member(own Declaration(name = "delete", default_value = proc_def))
+    }
+
+    // Issue #214 follow-up: auto-generate `hash(self, hasher)` ONLY
+    // when every field is shallow (no own / no ref). Any field that
+    // owns or borrows heap data means the in-struct bytes lie about
+    // identity -- a bytewise hash of the struct would key on
+    // pointer addresses rather than content -- so we leave the
+    // method out and let the type's author write a content-aware
+    // one (Str.hash is the canonical example). HashMap.new will
+    // then panic on dyn_has_method when the type is used as a key.
+    if has_hash.not() {
+        mut autogen_hash := true
+        for d_j : Declaration in sdd.fields {
+            if d_j.own_type.is(OwnType.Own).or(d_j.own_type.is(OwnType.Ref)) {
+                autogen_hash = false
+            }
+        }
+        if autogen_hash {
+            // Body: return hasher(self, <total_struct_size>)
+            // Emit the size as a literal because <sname>.size()
+            // would resolve through the namespace and the call's
+            // return type can come back as U64 instead of USize
+            // when the size method isn't visible yet at this
+            // initer pass; and self.size() trips UFCS into trying
+            // to pass self where the no-arg size() expects none.
+            // sdd.total_struct_size is already set by the earlier
+            // layout-computation pass.
+            mut hash_sz : USize = ctx_total_size(sname, ctx)
+            // Builtin primitives are declared as FIELDLESS structs
+            // (numbers.til's `I64 : StructDef = struct {...}`), so
+            // their layout size is 0 -- but the key bytes are the
+            // primitive's width. Hashing 0 bytes made every integer
+            // key return the hasher's seed, collapsing HashMap into
+            // one bucket chain: O(n^2), ~56s for 100k I64 inserts
+            // where Str keys took 94ms (examples/bench_hashmap.til).
+            if hash_sz == 0 {
+                mut hs_prim : Primitive = Primitive.I64
+                mut hs_sz : USize = 0
+                mut hs_al : USize = 0
+                mut hs_builtin : Bool = false
+                if primitive_type_info(sname, scope, hs_prim, hs_sz, hs_al, hs_builtin) {
+                    hash_sz = hs_sz
                 }
             }
+            sz_text := hash_sz.to_str()
 
-            mut cond := Expr.new(ident_node("call_free"), stmt.line, stmt.col)
-            mut then_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-            mut free_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-            mut free_id := Expr.new(ident_node("free"), stmt.line, stmt.col)
-            free_call.add_child(own free_id)
+            mut hash_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+            mut size_lit := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
+
+            mut hasher_id := Expr.new(ident_node("hasher"), stmt.line, stmt.col)
             mut self_arg := Expr.new(ident_node("self"), stmt.line, stmt.col)
-            set_own_arg(free_call, free_call.children.len())
-            free_call.add_child(own self_arg)
-            then_body.add_child(own free_call)
-            mut if_node := Expr.new(NodeType.If, stmt.line, stmt.col)
-            if_node.add_child(own cond)
-            if_node.add_child(own then_body)
-            proc_body.add_child(own if_node)
+            mut hasher_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
+            hasher_call.add_child(own hasher_id)
+            hasher_call.add_child(own self_arg)
+            hasher_call.add_child(own size_lit)
 
-            mut proc_decl := FunctionDef(auto_generated = true)
-            proc_decl.func_type = FuncType.Func
-            proc_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
-            // Issue #223: call_free is a primitive (Bool), so emit it as a
-            // plain borrowed param (Ref) and let step-1 auto-shallow normalize
-            // it to value -- same as a hand-written delete. (An explicit Shallow
-            // here would trip the step-2 redundant-shallow check.)
-            proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
-            proc_decl.variadic_index = -1
-            proc_decl.kwargs_index = -1
+            mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+            ret.add_child(own hasher_call)
+            hash_body.add_child(own ret)
 
-            mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
-            proc_def.add_child(own proc_body)
+            mut hash_decl := FunctionDef(auto_generated = true)
+            hash_decl.func_type = FuncType.Func
+            hash_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
+            hash_decl.params.push(own Declaration(name = "hasher", explicit_type = "HashFn", til_type = Type.FuncPtrSig("HashFn"), own_type = OwnType.Ref))
+            hash_decl.return_type = "U64"
+            hash_decl.variadic_index = -1
+            hash_decl.kwargs_index = -1
 
-            sdd.push_member(own Declaration(name = "delete", default_value = proc_def))
+            mut hash_def := Expr.new(NodeType.FuncDef(hash_decl), stmt.line, stmt.col)
+            hash_def.add_child(own hash_body)
+
+            sdd.push_member(own Declaration(name = "hash", default_value = hash_def))
         }
+    }
 
-        // Issue #214 follow-up: auto-generate `hash(self, hasher)` ONLY
-        // when every field is shallow (no own / no ref). Any field that
-        // owns or borrows heap data means the in-struct bytes lie about
-        // identity -- a bytewise hash of the struct would key on
-        // pointer addresses rather than content -- so we leave the
-        // method out and let the type's author write a content-aware
-        // one (Str.hash is the canonical example). HashMap.new will
-        // then panic on dyn_has_method when the type is used as a key.
-        if has_hash.not() {
-            mut autogen_hash := true
-            for d_j : Declaration in sdd.fields {
-                if d_j.own_type.is(OwnType.Own).or(d_j.own_type.is(OwnType.Ref)) {
-                    autogen_hash = false
-                }
-            }
-            if autogen_hash {
-                // Body: return hasher(self, <total_struct_size>)
-                // Emit the size as a literal because <sname>.size()
-                // would resolve through the namespace and the call's
-                // return type can come back as U64 instead of USize
-                // when the size method isn't visible yet at this
-                // initer pass; and self.size() trips UFCS into trying
-                // to pass self where the no-arg size() expects none.
-                // sdd.total_struct_size is already set by the earlier
-                // layout-computation pass.
-                mut hash_sz : USize = ctx_total_size(sname, ctx)
-                // Builtin primitives are declared as FIELDLESS structs
-                // (numbers.til's `I64 : StructDef = struct {...}`), so
-                // their layout size is 0 -- but the key bytes are the
-                // primitive's width. Hashing 0 bytes made every integer
-                // key return the hasher's seed, collapsing HashMap into
-                // one bucket chain: O(n^2), ~56s for 100k I64 inserts
-                // where Str keys took 94ms (examples/bench_hashmap.til).
-                if hash_sz == 0 {
-                    mut hs_prim : Primitive = Primitive.I64
-                    mut hs_sz : USize = 0
-                    mut hs_al : USize = 0
-                    mut hs_builtin : Bool = false
-                    if primitive_type_info(sname, scope, hs_prim, hs_sz, hs_al, hs_builtin) {
-                        hash_sz = hs_sz
-                    }
-                }
-                sz_text := hash_sz.to_str()
+    if init_ns_has_func(sdef, "cmp").not().and(struct_fields_support_generated_method(sdd, "cmp", scope)) {
+        generate_struct_cmp_method(sdef, sname, stmt.line, stmt.col)
+    }
 
-                mut hash_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-                mut size_lit := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
+    if has_eq.not().and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "eq", scope)) {
+        generate_struct_eq_method(sdef, sname, stmt.line, stmt.col)
+    }
 
-                mut hasher_id := Expr.new(ident_node("hasher"), stmt.line, stmt.col)
-                mut self_arg := Expr.new(ident_node("self"), stmt.line, stmt.col)
-                mut hasher_call := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
-                hasher_call.add_child(own hasher_id)
-                hasher_call.add_child(own self_arg)
-                hasher_call.add_child(own size_lit)
-
-                mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-                ret.add_child(own hasher_call)
-                hash_body.add_child(own ret)
-
-                mut hash_decl := FunctionDef(auto_generated = true)
-                hash_decl.func_type = FuncType.Func
-                hash_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Ref))
-                hash_decl.params.push(own Declaration(name = "hasher", explicit_type = "HashFn", til_type = Type.FuncPtrSig("HashFn"), own_type = OwnType.Ref))
-                hash_decl.return_type = "U64"
-                hash_decl.variadic_index = -1
-                hash_decl.kwargs_index = -1
-
-                mut hash_def := Expr.new(NodeType.FuncDef(hash_decl), stmt.line, stmt.col)
-                hash_def.add_child(own hash_body)
-
-                sdd.push_member(own Declaration(name = "hash", default_value = hash_def))
-            }
-        }
-
-        if init_ns_has_func(sdef, "cmp").not().and(struct_fields_support_generated_method(sdd, "cmp", scope)) {
-            generate_struct_cmp_method(sdef, sname, stmt.line, stmt.col)
-        }
-
-        if has_eq.not().and(init_ns_has_func(sdef, "cmp").not()).and(struct_fields_support_generated_method(sdd, "eq", scope)) {
-            generate_struct_eq_method(sdef, sname, stmt.line, stmt.col)
-        }
-
-        if has_to_str.not().and(struct_fields_support_generated_method(sdd, "to_str", scope)) {
-            generate_struct_to_str_method(sdef, sname, stmt.line, stmt.col)
-        }
-    case:
-        UNREACHABLE("expected StructDef, got ", sdef.node_type.head_str())
+    if has_to_str.not().and(struct_fields_support_generated_method(sdd, "to_str", scope)) {
+        generate_struct_to_str_method(sdef, sname, stmt.line, stmt.col)
     }
 }
 
 priv register_enum_definition := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
-    switch stmt.node_type {
-    case NodeType.Decl(edecl):
-        ename := edecl.name
+    ref edecl : Declaration = decl_of(stmt)
+    ename := edecl.name
 
-        existing_find := scope.find(ename)
-        switch existing_find {
-        case ScopeFind.Found(existing):
-            if scope.struct_def_of(existing.name).is_some() {
-                if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
-                    println(
-                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                        ": error: enum '", ename, "' already declared at ",
-                        existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
-                    )
-                    return 1
-                }
+    existing_find := scope.find(ename)
+    switch existing_find {
+    case ScopeFind.Found(existing):
+        if scope.struct_def_of(existing.name).is_some() {
+            if existing.path.eq(ctx.path).and(existing.line.eq(stmt.line)).and(existing.col.eq(stmt.col)).not() {
+                println(
+                    ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ": error: enum '", ename, "' already declared at ",
+                    existing.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                )
+                return 1
             }
-        case:
         }
-
-        scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        scope.set_struct_def(ename, stmt.children[0])
-        ref mut b : TypeBinding = scope.get_binding(ename).unwrap()
-        b.is_priv = edecl.is_priv
-        b.orig_name = edecl.orig_name.clone()
-        // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
-        // register_struct_def_for_stmt for rationale).
-        tdv : UPtr = malloc(UPtr.size())
-        write_ptr(tdv, stmt.children[0])
-        ctx.interp_type_defs.set(ename, own tdv)
-        return 0
     case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return 0
     }
+
+    scope.set(ename, Type.Enum(ename.clone()), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set_struct_def(ename, stmt.children[0])
+    ref mut b : TypeBinding = scope.get_binding(ename).unwrap()
+    b.is_priv = edecl.is_priv
+    b.orig_name = edecl.orig_name.clone()
+    // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
+    // register_struct_def_for_stmt for rationale).
+    tdv : UPtr = malloc(UPtr.size())
+    write_ptr(tdv, stmt.children[0])
+    ctx.interp_type_defs.set(ename, own tdv)
+    return 0
 }
 
 collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut variant_types: Vec(Str), mut has_payloads: Bool) {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        has_payloads = enum_has_payloads(enum_def)
-        for vd : VariantDef in edd.variants {
-            variant_names.push(own vd.name.clone())
-            variant_types.push(own vd.payload_type.clone())
-        }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+    ref edd : EnumDef = enumdef_of(enum_def)
+    has_payloads = enum_has_payloads(enum_def)
+    for vd : VariantDef in edd.variants {
+        variant_names.push(own vd.name.clone())
+        variant_types.push(own vd.payload_type.clone())
     }
 }
 
 priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(evc_edd):
-        if has_payloads.not() {
-            for j in 0..variant_names.len() {
-                lit := Expr.new(literal_num_node(j.to_str()), line, col)
-                evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = lit))
-            }
-            return
-        }
-
+    ref evc_edd : EnumDef = enumdef_of(enum_def)
+    if has_payloads.not() {
         for j in 0..variant_names.len() {
-            mut func_decl := FunctionDef(auto_generated = true, is_enum_variant_ctor = true)
-            func_decl.func_type = FuncType.ExtFunc
-            ref vtype : Str = variant_types[j]
-            if vtype.len() > 0 {
-                mut payload_own_type := OwnType.Own
-                resolved := type_from_name_init(vtype, scope)
-                if is_primitive(resolved) { payload_own_type = OwnType.Ref }
-                if vtype == "Dynamic" { payload_own_type = OwnType.Ref }
-                if resolved.is_funcptr().or(resolved.is(Type.Body)) { payload_own_type = OwnType.Ref }
-                if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
-                // #320: a `ref Type` payload is a borrow -- the ctor takes
-                // the arg borrowed (no ownership transfer at call sites).
-                if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
-                param := decl_typed(name = "val", explicit_type = vtype, own_type = payload_own_type)
-                func_decl.params.push(own param)
-            }
-            func_decl.return_type = ename.clone()
-            // #321 perf: a NICHE enum IS one pointer, and auto-shallow
-            // already passes and returns it by value everywhere else, so
-            // its constructor must hand back the VALUE too. Returning a
-            // heap box made every construction a malloc the caller
-            // immediately DEREFed and freed -- 13M
-            // Option__ref_Expr_Some allocations per self-translate once
-            // #321's lookups started returning Option(ref T). The
-            // constructor is the ONLY remaining shape that allocated,
-            // which is why the niche saved space but not time.
-            if enum_is_niche(enum_def) { func_decl.return_own_type = OwnType.Shallow }
-            func_decl.variadic_index = -1
-            func_decl.kwargs_index = -1
-
-            mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
-            mut func_body := Expr.new(NodeType.Body, line, col)
-            func_def.add_child(own func_body)
-
-            evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = func_def))
+            lit := Expr.new(literal_num_node(j.to_str()), line, col)
+            evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = lit))
         }
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
+        return
+    }
+
+    for j in 0..variant_names.len() {
+        mut func_decl := FunctionDef(auto_generated = true, is_enum_variant_ctor = true)
+        func_decl.func_type = FuncType.ExtFunc
+        ref vtype : Str = variant_types[j]
+        if vtype.len() > 0 {
+            mut payload_own_type := OwnType.Own
+            resolved := type_from_name_init(vtype, scope)
+            if is_primitive(resolved) { payload_own_type = OwnType.Ref }
+            if vtype == "Dynamic" { payload_own_type = OwnType.Ref }
+            if resolved.is_funcptr().or(resolved.is(Type.Body)) { payload_own_type = OwnType.Ref }
+            if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
+            // #320: a `ref Type` payload is a borrow -- the ctor takes
+            // the arg borrowed (no ownership transfer at call sites).
+            if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
+            param := decl_typed(name = "val", explicit_type = vtype, own_type = payload_own_type)
+            func_decl.params.push(own param)
+        }
+        func_decl.return_type = ename.clone()
+        // #321 perf: a NICHE enum IS one pointer, and auto-shallow
+        // already passes and returns it by value everywhere else, so
+        // its constructor must hand back the VALUE too. Returning a
+        // heap box made every construction a malloc the caller
+        // immediately DEREFed and freed -- 13M
+        // Option__ref_Expr_Some allocations per self-translate once
+        // #321's lookups started returning Option(ref T). The
+        // constructor is the ONLY remaining shape that allocated,
+        // which is why the niche saved space but not time.
+        if enum_is_niche(enum_def) { func_decl.return_own_type = OwnType.Shallow }
+        func_decl.variadic_index = -1
+        func_decl.kwargs_index = -1
+
+        mut func_def := Expr.new(NodeType.FuncDef(func_decl), line, col)
+        mut func_body := Expr.new(NodeType.Body, line, col)
+        func_def.add_child(own func_body)
+
+        evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = func_def))
     }
 }
 
@@ -735,12 +684,8 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
     mut func_body := Expr.new(NodeType.Body, line, col)
     func_def.add_child(own func_body)
 
-    switch enum_def.node_type {
-    case NodeType.EnumDef(eis_edd):
-        eis_edd.push_member(own Declaration(name = "is", default_value = func_def))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref eis_edd : EnumDef = enumdef_of(enum_def)
+    eis_edd.push_member(own Declaration(name = "is", default_value = func_def))
 }
 
 priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope) {
@@ -856,12 +801,8 @@ priv finish_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    switch enum_def.node_type {
-    case NodeType.EnumDef(eeq_edd):
-        eeq_edd.push_member(own Declaration(name = "eq", default_value = fdef))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref eeq_edd : EnumDef = enumdef_of(enum_def)
+    eeq_edd.push_member(own Declaration(name = "eq", default_value = fdef))
 }
 
 // #335: cmp for enums, so a user enum can be a Set element, a Map key
@@ -943,12 +884,8 @@ priv generate_enum_cmp_method := func(enum_def: Expr, ename: Str, line: U32, col
     fdecl.kwargs_index = -1
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
-    switch enum_def.node_type {
-    case NodeType.EnumDef(ecmp_edd):
-        ecmp_edd.push_member(own Declaration(name = "cmp", default_value = fdef))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref ecmp_edd : EnumDef = enumdef_of(enum_def)
+    ecmp_edd.push_member(own Declaration(name = "cmp", default_value = fdef))
 }
 
 priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
@@ -1051,12 +988,8 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own proc_body)
 
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edel_edd):
-        edel_edd.push_member(own Declaration(name = "delete", default_value = fdef))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref edel_edd : EnumDef = enumdef_of(enum_def)
+    edel_edd.push_member(own Declaration(name = "delete", default_value = fdef))
 }
 
 priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
@@ -1155,12 +1088,8 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    switch enum_def.node_type {
-    case NodeType.EnumDef(ets_edd):
-        ets_edd.push_member(own Declaration(name = "to_str", default_value = fdef))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref ets_edd : EnumDef = enumdef_of(enum_def)
+    ets_edd.push_member(own Declaration(name = "to_str", default_value = fdef))
 }
 
 priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
@@ -1338,12 +1267,8 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
 
-    switch enum_def.node_type {
-    case NodeType.EnumDef(ecl_edd2):
-        ecl_edd2.push_member(own Declaration(name = "clone", default_value = fdef))
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-    }
+    ref ecl_edd2 : EnumDef = enumdef_of(enum_def)
+    ecl_edd2.push_member(own Declaration(name = "clone", default_value = fdef))
 }
 
 priv register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
@@ -1357,13 +1282,8 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
 
     mut ename := ""
-    switch stmt.node_type {
-    case NodeType.Decl(edecl):
-        ename = edecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref edecl : Declaration = decl_of(stmt)
+    ename = edecl.name
     line := stmt.line
     col := stmt.col
 
@@ -1394,16 +1314,12 @@ priv gen_enum_nonclone_methods_for_stmt := func(stmt: Expr, scope: TypeScope) {
     mut has_delete := false
     mut has_to_str := false
     mut has_cmp := false
-    switch stmt.children[0].node_type {
-    case NodeType.EnumDef(ens_edd):
-        has_is = ens_edd.ns_index.has("is")
-        has_eq = ens_edd.ns_index.has("eq")
-        has_delete = ens_edd.ns_index.has("delete")
-        has_to_str = ens_edd.ns_index.has("to_str")
-        has_cmp = ens_edd.ns_index.has("cmp")
-    case:
-        UNREACHABLE("expected EnumDef, got ", stmt.children[0].node_type.head_str())
-    }
+    ref ens_edd : EnumDef = enumdef_of(stmt.children[0])
+    has_is = ens_edd.ns_index.has("is")
+    has_eq = ens_edd.ns_index.has("eq")
+    has_delete = ens_edd.ns_index.has("delete")
+    has_to_str = ens_edd.ns_index.has("to_str")
+    has_cmp = ens_edd.ns_index.has("cmp")
 
     if has_is.not() {
         generate_enum_is_method(stmt.children[0], ename, line, col)
@@ -1428,20 +1344,11 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
     if stmt.children[0].node_type.is(NodeType.EnumDef).not() { return }
 
     mut ename := ""
-    switch stmt.node_type {
-    case NodeType.Decl(edecl):
-        ename = edecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref edecl : Declaration = decl_of(stmt)
+    ename = edecl.name
     mut has_clone := false
-    switch stmt.children[0].node_type {
-    case NodeType.EnumDef(ecl_edd):
-        has_clone = ecl_edd.ns_index.has("clone")
-    case:
-        UNREACHABLE("expected EnumDef, got ", stmt.children[0].node_type.head_str())
-    }
+    ref ecl_edd : EnumDef = enumdef_of(stmt.children[0])
+    has_clone = ecl_edd.ns_index.has("clone")
     if has_clone.not() {
         variant_names := Vec(Str).new()
         variant_types := Vec(Str).new()
@@ -1457,15 +1364,11 @@ priv gen_missing_enum_clone_for_stmt := func(stmt: Expr, scope: TypeScope) {
 register_funcsig_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
     if is_func_decl(stmt).not() { return }
     if stmt.children[0].children.len() != 0 { return }
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        scope.set_func_def(sdecl.name, stmt.children[0])
-        ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-        fb.is_func_decl = true
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set_func_def(sdecl.name, stmt.children[0])
+    ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+    fb.is_func_decl = true
 }
 
 priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScope) {
@@ -1477,60 +1380,56 @@ priv register_type_alias_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeS
     case:
         return
     }
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        if scope.find(sdecl.name).is(ScopeFind.Found) { return }
-        // #192: USize/UPtr are target-dependent. Bind them to the per-target
-        // primitive registered on the root TypeScope at creation, not the
-        // source-alias RHS, so code that reads the binding directly
-        // (binding.type / alias_target, e.g. before the loader retargets it)
-        // is authoritative and agrees with the type/name resolvers.
-        if sdecl.name == "USize" { target_name = scope_target_usize_pname(scope).clone() }
-        if sdecl.name == "UPtr" { target_name = scope_target_uptr_pname(scope).clone() }
-        find := scope.find(target_name)
-        switch find {
-        case ScopeFind.Found(target):
-            tgt_fd_o := scope.lookup_func(target.name)
-            if scope.struct_def_of(target.name).is_none().and(target.is_builtin.not()) {
-                if tgt_fd_o.is_none() {
-                    return
-                }
-                if tgt_fd_o.unwrap().children.len() != 0 {
-                    return
-                }
+    ref sdecl : Declaration = decl_of(stmt)
+    if scope.find(sdecl.name).is(ScopeFind.Found) { return }
+    // #192: USize/UPtr are target-dependent. Bind them to the per-target
+    // primitive registered on the root TypeScope at creation, not the
+    // source-alias RHS, so code that reads the binding directly
+    // (binding.type / alias_target, e.g. before the loader retargets it)
+    // is authoritative and agrees with the type/name resolvers.
+    if sdecl.name == "USize" { target_name = scope_target_usize_pname(scope).clone() }
+    if sdecl.name == "UPtr" { target_name = scope_target_uptr_pname(scope).clone() }
+    find := scope.find(target_name)
+    switch find {
+    case ScopeFind.Found(target):
+        tgt_fd_o := scope.lookup_func(target.name)
+        if scope.struct_def_of(target.name).is_none().and(target.is_builtin.not()) {
+            if tgt_fd_o.is_none() {
+                return
             }
-            scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            if tgt_fd_o.is_some() { scope.set_func_def(sdecl.name, tgt_fd_o.unwrap()) }
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-            tgt_sd_o := scope.struct_def_of(target.name)
-            if tgt_sd_o.is_some() { scope.set_struct_def(sdecl.name, tgt_sd_o.unwrap()) }
-            ab.is_func_decl = target.is_func_decl
-            ab.is_builtin = target.is_builtin
-            ab.is_type_alias = true
-            if target.alias_target.is_empty() {
-                ab.alias_target = target_name.clone()
-            } else {
-                ab.alias_target = target.alias_target.clone()
+            if tgt_fd_o.unwrap().children.len() != 0 {
+                return
             }
-        case:
-            // Target not in scope yet. Only register when the target name
-            // is a builtin primitive (e.g. `USize := U32` declared above
-            // u32.til's import). Extending this to user-defined types
-            // (Custom) is unsafe because we cannot tell at this point
-            // whether the target is a type, a value, or an ALL_CAPS
-            // constant (CamelCase heuristic doesn't work). The Found
-            // arm above handles user-defined types when the target file
-            // was already init'd. #165.
-            til_type := til_type_from_explicit_type(target_name)
-            if til_type.is(Type.Unknown) { return }
-            if til_type.is(Type.Custom) { return }
-            scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-            ab.is_type_alias = true
-            ab.alias_target = target_name
+        }
+        scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        if tgt_fd_o.is_some() { scope.set_func_def(sdecl.name, tgt_fd_o.unwrap()) }
+        ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+        tgt_sd_o := scope.struct_def_of(target.name)
+        if tgt_sd_o.is_some() { scope.set_struct_def(sdecl.name, tgt_sd_o.unwrap()) }
+        ab.is_func_decl = target.is_func_decl
+        ab.is_builtin = target.is_builtin
+        ab.is_type_alias = true
+        if target.alias_target.is_empty() {
+            ab.alias_target = target_name.clone()
+        } else {
+            ab.alias_target = target.alias_target.clone()
         }
     case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+        // Target not in scope yet. Only register when the target name
+        // is a builtin primitive (e.g. `USize := U32` declared above
+        // u32.til's import). Extending this to user-defined types
+        // (Custom) is unsafe because we cannot tell at this point
+        // whether the target is a type, a value, or an ALL_CAPS
+        // constant (CamelCase heuristic doesn't work). The Found
+        // arm above handles user-defined types when the target file
+        // was already init'd. #165.
+        til_type := til_type_from_explicit_type(target_name)
+        if til_type.is(Type.Unknown) { return }
+        if til_type.is(Type.Custom) { return }
+        scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        ref mut ab : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+        ab.is_type_alias = true
+        ab.alias_target = target_name
     }
 }
 
@@ -1560,15 +1459,11 @@ priv register_top_level_value_for_stmt := func(ctx: Context, stmt: Expr, scope: 
     if infer_top_level_decl_type(stmt, scope, t).not() { return }
     if t.is(Type.Unknown) { return }
 
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        scope.set(sdecl.name, t, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-        ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-        tlv_b.is_priv = sdecl.is_priv
-        tlv_b.orig_name = sdecl.orig_name.clone()
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    scope.set(sdecl.name, t, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    ref mut tlv_b : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+    tlv_b.is_priv = sdecl.is_priv
+    tlv_b.orig_name = sdecl.orig_name.clone()
 }
 
 // #328: exposed so the typer can register a late-synthesized concrete
@@ -1591,85 +1486,69 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     case NodeType.FuncDef(fd_cap): if fd_cap.captures.len() > 0 { return }
     case:
     }
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        if def.children.len() == 0 {
-            scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            scope.set_func_def(sdecl.name, stmt.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-            fb.is_func_decl = true
-            fb.is_priv = sdecl.is_priv
-            fb.orig_name = sdecl.orig_name.clone()
-            return
-        }
+    ref sdecl : Declaration = decl_of(stmt)
+    if def.children.len() == 0 {
+        scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_func_def(sdecl.name, stmt.children[0])
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+        fb.is_func_decl = true
+        fb.is_priv = sdecl.is_priv
+        fb.orig_name = sdecl.orig_name.clone()
+        return
+    }
 
-        if sdecl.explicit_type.len() > 0 {
-            fs_find := scope.find(sdecl.explicit_type)
-            switch fs_find {
-            case ScopeFind.Found(fsb):
-                fsb_fd_o := scope.lookup_func(fsb.name)
-                if fsb_fd_o.is_some() {
-                    ref fsb_fd : Expr = fsb_fd_o.unwrap()
-                    if fsb_fd.children.len() == 0 {
-                        ref sig : Expr = fsb_fd
-                        switch def.node_type {
-                        case NodeType.FuncDef(fdef):
-                            switch sig.node_type {
-                            case NodeType.FuncDef(sigdef):
-                                if fdef.params.len() != sigdef.params.len() {
-                                    panic(
-                                        __LOC__,
-                                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                                        ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
-                                        " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
-                                    )
-                                }
-                                fdef.func_type = sigdef.func_type
-                                for j in 0..sigdef.params.len() {
-                                    ref mut dp : Declaration = fdef.params[j]
-                                    ref sp : Declaration = sigdef.params[j]
-                                    dp.explicit_type = sp.explicit_type
-                                    dp.til_type = sp.til_type.clone()
-                                    dp.is_mut = sp.is_mut
-                                    dp.own_type = sp.own_type
-                                }
-                                fdef.return_type = sigdef.return_type
-                                fdef.return_own_type = sigdef.return_own_type
-                                sdecl.explicit_type = ""
-                                sdecl.til_type = Type.Unknown
-                            case:
-                                UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
-                            }
-                        case:
-                            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
-                        }
+    if sdecl.explicit_type.len() > 0 {
+        fs_find := scope.find(sdecl.explicit_type)
+        switch fs_find {
+        case ScopeFind.Found(fsb):
+            fsb_fd_o := scope.lookup_func(fsb.name)
+            if fsb_fd_o.is_some() {
+                ref fsb_fd : Expr = fsb_fd_o.unwrap()
+                if fsb_fd.children.len() == 0 {
+                    ref sig : Expr = fsb_fd
+                    ref fdef : FunctionDef = funcdef_of(def)
+                    ref sigdef : FunctionDef = funcdef_of(sig)
+                    if fdef.params.len() != sigdef.params.len() {
+                        panic(
+                            __LOC__,
+                            ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                            ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
+                            " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
+                        )
                     }
+                    fdef.func_type = sigdef.func_type
+                    for j in 0..sigdef.params.len() {
+                        ref mut dp : Declaration = fdef.params[j]
+                        ref sp : Declaration = sigdef.params[j]
+                        dp.explicit_type = sp.explicit_type
+                        dp.til_type = sp.til_type.clone()
+                        dp.is_mut = sp.is_mut
+                        dp.own_type = sp.own_type
+                    }
+                    fdef.return_type = sigdef.return_type
+                    fdef.return_own_type = sigdef.return_own_type
+                    sdecl.explicit_type = ""
+                    sdecl.til_type = Type.Unknown
                 }
-            case:
-            }
-        }
-
-        switch def.node_type {
-        case NodeType.FuncDef(fdef):
-            ft := fdef.func_type
-            mut rt := Type.None
-            if fdef.return_type.len() > 0 {
-                rt = init_type_from_explicit_type(fdef.return_type, scope)
-            }
-            scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            scope.set_func_def(sdecl.name, stmt.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-            fb.is_func_decl = true
-            fb.is_priv = sdecl.is_priv
-            fb.orig_name = sdecl.orig_name.clone()
-            if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
-                fb.is_builtin = true
             }
         case:
-            UNREACHABLE("expected FuncDef, got ", def.node_type.head_str())
         }
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
+    }
+
+    ref fdef : FunctionDef = funcdef_of(def)
+    ft := fdef.func_type
+    mut rt := Type.None
+    if fdef.return_type.len() > 0 {
+        rt = init_type_from_explicit_type(fdef.return_type, scope)
+    }
+    scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+    scope.set_func_def(sdecl.name, stmt.children[0])
+    ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+    fb.is_func_decl = true
+    fb.is_priv = sdecl.is_priv
+    fb.orig_name = sdecl.orig_name.clone()
+    if ft.is(FuncType.ExtFunc).or(ft.is(FuncType.ExtProc)).or(ft.is(FuncType.CoreFunc)).or(ft.is(FuncType.CoreProc)) {
+        fb.is_builtin = true
     }
 }
 
@@ -1678,39 +1557,30 @@ gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.n
     if def.node_type.is(NodeType.StructDef).not() { return }
 
     mut sname := ""
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname = sdecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    sname = sdecl.name
     if is_dynamic_type(sname) { return }
-    switch def.node_type {
-    case NodeType.StructDef(sz_sdd):
-        if sz_sdd.ns_index.has("size") { return }
+    ref sz_sdd : StructDef = structdef_of(def)
+    if sz_sdd.ns_index.has("size") { return }
 
-        sz_text := ctx_total_size(sname, ctx).to_str()
+    sz_text := ctx_total_size(sname, ctx).to_str()
 
-        mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
-        mut size_expr := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
-        mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
-        ret.add_child(own size_expr)
-        func_body.add_child(own ret)
+    mut func_body := Expr.new(NodeType.Body, stmt.line, stmt.col)
+    mut size_expr := Expr.new(literal_num_node(sz_text), stmt.line, stmt.col)
+    mut ret := Expr.new(NodeType.Return, stmt.line, stmt.col)
+    ret.add_child(own size_expr)
+    func_body.add_child(own ret)
 
-        mut func_decl := FunctionDef(auto_generated = true)
-        func_decl.func_type = FuncType.Func
-        func_decl.return_type = "USize"
-        func_decl.variadic_index = -1
-        func_decl.kwargs_index = -1
+    mut func_decl := FunctionDef(auto_generated = true)
+    func_decl.func_type = FuncType.Func
+    func_decl.return_type = "USize"
+    func_decl.variadic_index = -1
+    func_decl.kwargs_index = -1
 
-        mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
-        func_def.add_child(own func_body)
+    mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
+    func_def.add_child(own func_body)
 
-        sz_sdd.push_member(own Declaration(name = "size", default_value = func_def))
-    case:
-        UNREACHABLE("expected StructDef, got ", def.node_type.head_str())
-    }
+    sz_sdd.push_member(own Declaration(name = "size", default_value = func_def))
 }
 
 gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context) {
@@ -1719,13 +1589,8 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     if def.node_type.is(NodeType.EnumDef).not() { return }
 
     mut sname := ""
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname = sdecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    sname = sdecl.name
     if is_dynamic_type(sname) { return }
     if def_ns_has(def, "size") { return }
 
@@ -1746,12 +1611,8 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
     func_def.add_child(own func_body)
 
-    switch def.node_type {
-    case NodeType.EnumDef(esz_edd):
-        esz_edd.push_member(own Declaration(name = "size", default_value = func_def))
-    case:
-        UNREACHABLE("expected EnumDef, got ", def.node_type.head_str())
-    }
+    ref esz_edd : EnumDef = enumdef_of(def)
+    esz_edd.push_member(own Declaration(name = "size", default_value = func_def))
 }
 
 gen_unity_derived_for_stmt := func(stmt: Expr) {
@@ -1759,13 +1620,8 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
     ref def : Expr = stmt.children[0]
 
     mut sname := ""
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname = sdecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    sname = sdecl.name
     if is_dynamic_type(sname) { return }
 
     has_add := def_ns_has(def, "add")
@@ -1828,13 +1684,8 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
     ref def : Expr = stmt.children[0]
 
     mut sname := ""
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        sname = sdecl.name
-    case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return
-    }
+    ref sdecl : Declaration = decl_of(stmt)
+    sname = sdecl.name
     if is_dynamic_type(sname) { return }
 
     has_eq := def_ns_has(def, "eq")
@@ -2355,50 +2206,45 @@ compute_enum_layout := proc(name: Str, enum_def: Expr, scope: TypeScope, ctx: Co
     }
     // Set sentinel before recursing to break self-referential cycles.
     ctx.struct_layouts.set(name, own StructLayout(total_size = 4, align = 4))
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        // #264: the tag width is chosen by `enum(Type)`; default U32 (4).
-        tag_size := enum_tag_size(enum_def)
-        mut max_payload_size : USize = 0
-        mut max_payload_align : USize = tag_size
-        for vi in 0..edd.variants.len() {
-            vt := enum_variant_type(enum_def, vi.to_i32())
-            if vt.len() == 0 { continue }
-            mut psz : USize = 0
-            mut palign : USize = 0
-            // #320: a ref payload stores a bare pointer, not the pointee.
-            if enum_variant_payload_ref(enum_def, vi.to_i32()) {
-                psz = UPtr.size()
-                palign = UPtr.size()
-            } else {
-                type_size_align(vt, scope, ctx, psz, palign)
-            }
-            if psz > max_payload_size { max_payload_size = psz }
-            if palign > max_payload_align { max_payload_align = palign }
+    ref edd : EnumDef = enumdef_of(enum_def)
+    // #264: the tag width is chosen by `enum(Type)`; default U32 (4).
+    tag_size := enum_tag_size(enum_def)
+    mut max_payload_size : USize = 0
+    mut max_payload_align : USize = tag_size
+    for vi in 0..edd.variants.len() {
+        vt := enum_variant_type(enum_def, vi.to_i32())
+        if vt.len() == 0 { continue }
+        mut psz : USize = 0
+        mut palign : USize = 0
+        // #320: a ref payload stores a bare pointer, not the pointee.
+        if enum_variant_payload_ref(enum_def, vi.to_i32()) {
+            psz = UPtr.size()
+            palign = UPtr.size()
+        } else {
+            type_size_align(vt, scope, ctx, psz, palign)
         }
-        mut total : USize = tag_size
-        if max_payload_size > 0 {
-            // Size payload-carrying enums against the interpreter's flat
-            // format: payload at the shared ENUM_PAYLOAD_OFFSET (see
-            // context.til for the invariants), slot at least pointer-sized
-            // (emit_enum_struct_body's void* union sentinel), so
-            // ctx.struct_layouts / a folded X.size() match both the flat
-            // interpreter buffers and the emitted host C sizeof. Deriving
-            // the offset independently here (the old UPtr.size()) let the
-            // two drift; use the one constant.
-            ptr_w := UPtr.size()
-            mut payload_slot := max_payload_size
-            if payload_slot < ptr_w { payload_slot = ptr_w }
-            total = ENUM_PAYLOAD_OFFSET + payload_slot
-            max_payload_align = ptr_w
-        }
-        total = align_up(total, max_payload_align)
-        ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
-        return total
-    case:
-        UNREACHABLE("expected EnumDef, got ", enum_def.node_type.head_str())
-        return 0
+        if psz > max_payload_size { max_payload_size = psz }
+        if palign > max_payload_align { max_payload_align = palign }
     }
+    mut total : USize = tag_size
+    if max_payload_size > 0 {
+        // Size payload-carrying enums against the interpreter's flat
+        // format: payload at the shared ENUM_PAYLOAD_OFFSET (see
+        // context.til for the invariants), slot at least pointer-sized
+        // (emit_enum_struct_body's void* union sentinel), so
+        // ctx.struct_layouts / a folded X.size() match both the flat
+        // interpreter buffers and the emitted host C sizeof. Deriving
+        // the offset independently here (the old UPtr.size()) let the
+        // two drift; use the one constant.
+        ptr_w := UPtr.size()
+        mut payload_slot := max_payload_size
+        if payload_slot < ptr_w { payload_slot = ptr_w }
+        total = ENUM_PAYLOAD_OFFSET + payload_slot
+        max_payload_align = ptr_w
+    }
+    total = align_up(total, max_payload_align)
+    ctx.struct_layouts.set(name, own StructLayout(total_size = total, align = max_payload_align))
+    return total
 }
 
 // Issue #147 step 4: lookup helper for the struct/enum total size out of
@@ -2723,21 +2569,17 @@ init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
 
     for idx : USize in lifted_indices {
         ref mut slot : Expr = body.children[idx]
-        switch slot.node_type {
-        case NodeType.Decl(slot_dd):
-            ref mut slot_rhs : Expr = slot.children[0]
-            if slot_rhs.node_type.is(NodeType.FuncDef) {
-                if slot_rhs.children.len() > 0 {
-                    ref mut fbody : Expr = slot_rhs.children[0]
-                    init_lift_in_body(fbody, slot_dd.name, top_level)
-                }
-            } else if slot_rhs.node_type.is(NodeType.StructDef).or(slot_rhs.node_type.is(NodeType.EnumDef)) {
-                init_lift_in_ns_decls(slot_rhs, slot_dd.name, top_level)
+        ref slot_dd : Declaration = decl_of(slot)
+        ref mut slot_rhs : Expr = slot.children[0]
+        if slot_rhs.node_type.is(NodeType.FuncDef) {
+            if slot_rhs.children.len() > 0 {
+                ref mut fbody : Expr = slot_rhs.children[0]
+                init_lift_in_body(fbody, slot_dd.name, top_level)
             }
-            top_level.push(own slot.clone())
-        case:
-            UNREACHABLE("expected Decl, got ", slot.node_type.head_str())
+        } else if slot_rhs.node_type.is(NodeType.StructDef).or(slot_rhs.node_type.is(NodeType.EnumDef)) {
+            init_lift_in_ns_decls(slot_rhs, slot_dd.name, top_level)
         }
+        top_level.push(own slot.clone())
         mut empty_body := Expr.new(NodeType.Body, slot.line, slot.col)
         body.children[idx] = empty_body
     }
@@ -4695,12 +4537,8 @@ priv init_declarations_unit := proc(path: Str, program: Expr, scope: TypeScope, 
         case:
             continue
         }
-        switch lstmt.node_type {
-        case NodeType.Decl(lift_dd):
-            init_lift_in_body(lrhs.children[0], lift_dd.name, nested_lifted)
-        case:
-            UNREACHABLE("expected Decl, got ", lstmt.node_type.head_str())
-        }
+        ref lift_dd : Declaration = decl_of(lstmt)
+        init_lift_in_body(lrhs.children[0], lift_dd.name, nested_lifted)
     }
     for l : Expr in nested_lifted {
         program.children.push(own l.clone())

@@ -877,27 +877,19 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
             is_type_decl := decl_value.node_type.is(NodeType.StructDef)
                 .or(decl_value.node_type.is(NodeType.EnumDef))
             if is_type_decl.not() { continue }
-            switch stmt.node_type {
-            case NodeType.Decl(sdecl):
-                ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
-                mut tvi : USize = 0
-                for nsd : Declaration in tvi_ns {
-                    cur_tvi := tvi
-                    tvi = tvi + 1
-                    ref nsfdef : Expr = nsd.default_value
-                    if nsfdef.is_null() { continue }
-                    if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
-                    switch nsfdef.node_type {
-                    case NodeType.FuncDef(nsfd):
-                        if nsfd.func_type.is(FuncType.Test) {
-                            push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
-                        }
-                    case:
-                        UNREACHABLE("expected FuncDef, got ", nsfdef.node_type.head_str())
-                    }
+            ref sdecl : Declaration = decl_of(stmt)
+            ref tvi_ns : Vec(Declaration) = def_ns_decls(stmt.children[0])
+            mut tvi : USize = 0
+            for nsd : Declaration in tvi_ns {
+                cur_tvi := tvi
+                tvi = tvi + 1
+                ref nsfdef : Expr = nsd.default_value
+                if nsfdef.is_null() { continue }
+                if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
+                ref nsfd : FunctionDef = funcdef_of(nsfdef)
+                if nsfd.func_type.is(FuncType.Test) {
+                    push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
                 }
-            case:
-                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
             }
         }
     }

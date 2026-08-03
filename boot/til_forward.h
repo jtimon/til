@@ -238,16 +238,6 @@ typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Pa
 typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
 typedef struct Vec__Bool Vec__Bool;
-typedef enum {
-    Option__ref_StructDef_TAG_None,
-    Option__ref_StructDef_TAG_Some
-} Option__ref_StructDef_tag;
-typedef struct Option__ref_StructDef Option__ref_StructDef;
-typedef enum {
-    Option__ref_EnumDef_TAG_None,
-    Option__ref_EnumDef_TAG_Some
-} Option__ref_EnumDef_tag;
-typedef struct Option__ref_EnumDef Option__ref_EnumDef;
 typedef struct EvalHeap EvalHeap;
 typedef struct TypeBinding TypeBinding;
 typedef enum {
@@ -719,14 +709,6 @@ typedef struct Vec__Bool {
     USize cap;
 } Vec__Bool;
 
-
-struct Option__ref_StructDef {
-    StructDef *data;
-};
-
-struct Option__ref_EnumDef {
-    EnumDef *data;
-};
 
 typedef struct EvalHeap {
     U8 unused;
@@ -1827,6 +1809,13 @@ void Expr_set_til_type(Expr * self, Type t);
 Str * Expr_to_str_indent(Expr * self, U32 indent);
 Str * Expr_to_str(Expr * self);
 Expr * Expr_clone(Expr * self);
+IdentData * ident_of(Expr * e, Str * loc);
+Declaration * decl_of(Expr * e, Str * loc);
+FCallData * fcall_of(Expr * e, Str * loc);
+FunctionDef * funcdef_of(Expr * e, Str * loc);
+FieldAccessData * fieldaccess_of(Expr * e, Str * loc);
+StructDef * structdef_of(Expr * e, Str * loc);
+EnumDef * enumdef_of(Expr * e, Str * loc);
 Bool Option__ref_Str_is_some(Option__ref_Str self);
 Bool Option__ref_Str_is_none(Option__ref_Str self);
 Str * Option__ref_Str_unwrap(Option__ref_Str * self);
@@ -1988,8 +1977,6 @@ Expr * priv___src_self_parser_til__parse_expr_for_decl_type(priv___src_self_pars
 Vec__Declaration * priv___src_self_parser_til__parse_generic_params(priv___src_self_parser_til__Parser * p);
 Expr * priv___src_self_parser_til__parse_func_def(priv___src_self_parser_til__Parser * p);
 Declaration * priv___src_self_parser_til__parse_ns_decl(priv___src_self_parser_til__Parser * p, Bool member_priv);
-Option__ref_StructDef priv___src_self_parser_til__structdef_of(Expr * def);
-Option__ref_EnumDef priv___src_self_parser_til__enumdef_of(Expr * def);
 Expr * priv___src_self_parser_til__wrap_struct_def_in_macro(Expr * sdef, Vec__Declaration * gparams, U32 line, U32 col);
 Expr * priv___src_self_parser_til__wrap_func_def_in_macro(Expr * fdef, Vec__Declaration * gparams, U32 line, U32 col);
 Expr * priv___src_self_parser_til__parse_struct_def(priv___src_self_parser_til__Parser * p, Str * c_tag);
@@ -2054,10 +2041,6 @@ void Vec__Bool_push(Vec__Bool * self, Bool * val);
 Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
 Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
 void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
-StructDef * Option__ref_StructDef_unwrap(Option__ref_StructDef * self);
-void Option__ref_StructDef_delete(Option__ref_StructDef * self, Bool call_free);
-EnumDef * Option__ref_EnumDef_unwrap(Option__ref_EnumDef * self);
-void Option__ref_EnumDef_delete(Option__ref_EnumDef * self, Bool call_free);
 void adopt__Bool(void * dest, Bool * src);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);

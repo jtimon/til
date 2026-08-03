@@ -1,6 +1,63 @@
 # priority: low
 # category: cleanups
-** OPEN #253 Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
+** FIXED #253 Compiler-wide payload accessors (ref X_of(e)) to collapse extraction switches
+
+  POST-MORTEM
+  Root cause: not a bug -- the same single-case "extract this payload or
+  die" switch was written out at hundreds of sites across the self layer,
+  five lines each to bind one payload the caller already knew was there.
+
+  Fix: seven accessors in ~src/core/ast.til~ (~ident_of~, ~decl_of~,
+  ~fcall_of~, ~funcdef_of~, ~fieldaccess_of~, ~structdef_of~,
+  ~enumdef_of~), and 202 switches collapsed to ~ref d : T = X_of(e)~.
+  Source shrinks ~780 lines; the generated C shrinks ~4200, because each
+  converted default arm also dropped its ~head_str~ message-building
+  block. ~structdef_of~/~enumdef_of~ were promoted out of ~parser.til~ as
+  the plan asked, changing shape from ~Option(ref X)~ to bare ~ref X~:
+  both call sites were ~structdef_of(def).unwrap()~, so the Option had no
+  conditional users and the die-on-mismatch contract is what they wanted.
+
+  Each accessor takes ~loc: Str = __LOC__~ and forwards it to
+  ~UNREACHABLE~. Without that, all 202 sites would report ast.til's line
+  instead of their own, throwing away the per-site diagnostics added the
+  commit before. The default resolves to the CALL SITE, so
+  ~funcdef_of(e)~ still names the code that made the wrong assumption.
+
+  Deviations from the plan:
+
+  - The plan said to keep ~return NULL~ after ~UNREACHABLE~ for C
+    -Werror=return-type. Not needed any more: ~UNREACHABLE~ is inferred
+    noreturn (#303), so the builder closes the body with
+    ~__builtin_unreachable()~. ~def_ns_decls~, cited by the plan as the
+    template, has already dropped its trailing return.
+  - The plan named ~dispatch.til~ as the safe place to start. That file
+    no longer exists; its contents were absorbed elsewhere.
+  - Sites whose switch subject is a ~mut~ PARAMETER are deliberately NOT
+    converted (~25 of them: the ~set_fcall_*~ / ~set_own_arg~ family,
+    ~compute_struct_layout~, and the typer/desugarer passes that rewrite
+    the node they are given). An accessor launders the write out of the
+    typer's view: it returns a borrow through a non-mut parameter, so the
+    typer stops seeing the parameter as written and demands the ~mut~ be
+    dropped -- from signatures whose whole purpose is to mutate. That
+    would delete a checked contract and let callers pass a non-mut Expr
+    and silently write through it. The switch is cheaper than the hole.
+    ~compute_struct_layout~ is the reason the rule is "mut param", not
+    "assigns through the payload": it writes via ~for mut fd : Declaration
+    in struct_meta.fields~, which no direct-assignment check would catch.
+
+  Not converted, per the issue's own "Do NOT convert" list: switches whose
+  default is empty or does real work (conditional extraction), genuine
+  multi-variant dispatch, and switches on anything other than ~node_type~.
+  The long tail of one-off payload types (ForIn, Assign, FieldAssign,
+  NamedArg, CaptureBlock, BodyValue, Literal) keeps its switches too --
+  the plan enumerated seven accessors and each of those would serve one or
+  two call sites.
+
+  Regression coverage: none added; behaviour-preserving throughout, and no
+  observable output change. The existing suite (206/206) rebuilds the self
+  compiler from this source, so every converted site is exercised by every
+  test that compiles anything.
+
 
   Follow-up from #249. The parser now uses ~structdef_of~/~enumdef_of~
   (returns ~ref StructDef~/~ref EnumDef~, ~NULL~ after ~UNREACHABLE~)

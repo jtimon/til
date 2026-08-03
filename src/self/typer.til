@@ -708,24 +708,20 @@ priv infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Ex
             ref sig : Expr = ftb_fd
             mut nargs : USize = e.children.len()
             nargs--
-            switch sig.node_type {
-            case NodeType.FuncDef(sig_fdef):
-                if nargs != sig_fdef.params.len() {
-                    e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
-                }
-                mut ai : USize = 0
-                while ai < nargs {
-                    if ai >= sig_fdef.params.len() { break }
-                    infer_expr(scope, e.children[ai + 1], in_func, ctx)
-                    ai++
-                }
-                if sig_fdef.return_type.len() > 0 {
-                    e.set_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
-                } else {
-                    e.set_til_type(Type.None)
-                }
-            case:
-                UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
+            ref sig_fdef : FunctionDef = funcdef_of(sig)
+            if nargs != sig_fdef.params.len() {
+                e.type_error(format("function pointer field '", method, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
+            }
+            mut ai : USize = 0
+            while ai < nargs {
+                if ai >= sig_fdef.params.len() { break }
+                infer_expr(scope, e.children[ai + 1], in_func, ctx)
+                ai++
+            }
+            if sig_fdef.return_type.len() > 0 {
+                e.set_til_type(type_from_name(sig_fdef.return_type, scope, ctx))
+            } else {
+                e.set_til_type(Type.None)
             }
             return true
         }
@@ -846,12 +842,8 @@ priv validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind_o: O
     ref callee_bind : TypeBinding = callee_bind_o.unwrap()
     fdef_o := scope.lookup_func(callee_bind.name)
     if fdef_o.is_none() { return }
-    switch fdef_o.unwrap().node_type {
-    case NodeType.FuncDef(fdef_data):
-        validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
-    }
+    ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
+    validate_fcall_own_args_for_fdef(scope, e, fdef_data, ctx)
 }
 
 priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionDef) {
@@ -933,130 +925,125 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
         }
     }
 
-    switch sdef.node_type {
-    case NodeType.StructDef(ctor_sdd):
-        nfields := ctor_sdd.fields.len()
-        mut field_vals := Vec(CtorArg).new()
-        for _ in 0..nfields {
-            field_vals.push(own CtorArg.Unfilled())
-        }
-        for i in 1..e.children.len() {
-            ref arg : Expr = e.children[i]
-            switch arg.node_type {
-            case NodeType.NamedArg(aname):
-                // #307: the fields_index maps the arg name straight to its
-                // declaration position -- one probe, no name scan.
-                mut slot : I32 = -1
-                if ctor_sdd.fields_index.has(aname) {
-                    slot = ctor_sdd.fields_index[aname].to_i32()
-                }
-                if slot < 0 {
-                    msg := format("struct '", name, "' has no field '", aname, "'")
+    ref ctor_sdd : StructDef = structdef_of(sdef)
+    nfields := ctor_sdd.fields.len()
+    mut field_vals := Vec(CtorArg).new()
+    for _ in 0..nfields {
+        field_vals.push(own CtorArg.Unfilled())
+    }
+    for i in 1..e.children.len() {
+        ref arg : Expr = e.children[i]
+        switch arg.node_type {
+        case NodeType.NamedArg(aname):
+            // #307: the fields_index maps the arg name straight to its
+            // declaration position -- one probe, no name scan.
+            mut slot : I32 = -1
+            if ctor_sdd.fields_index.has(aname) {
+                slot = ctor_sdd.fields_index[aname].to_i32()
+            }
+            if slot < 0 {
+                msg := format("struct '", name, "' has no field '", aname, "'")
+                arg.type_error(msg, ctx)
+            }
+            if slot >= 0 {
+                ref mut ctor_fld : Declaration = ctor_sdd.field_at(slot.to_usize())
+                check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
+                if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
+                ref slot_arg : CtorArg = field_vals[slot.to_usize()]
+                if slot_arg.is(CtorArg.Filled) {
+                    msg := format("duplicate argument for field '", aname, "'")
                     arg.type_error(msg, ctx)
                 }
-                if slot >= 0 {
-                    ref mut ctor_fld : Declaration = ctor_sdd.field_at(slot.to_usize())
-                    check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
-                    if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
-                    ref slot_arg : CtorArg = field_vals[slot.to_usize()]
-                    if slot_arg.is(CtorArg.Filled) {
-                        msg := format("duplicate argument for field '", aname, "'")
-                        arg.type_error(msg, ctx)
-                    }
-                    if slot_arg.is(CtorArg.Filled).not() {
-                        // #251 follow-up: a conforming concrete given for an
-                        // interface-typed field coerces to an OWNED box -- the
-                        // field outlives the ctor call, so a borrow would
-                        // dangle. Snapshot before inference desugars a struct
-                        // ctor's named args (the box re-infers the snapshot);
-                        // box if conforming, else store the value as usual.
-                        ref fld_tn : Str = ctor_fld.explicit_type
-                        if name_is_interface(fld_tn, scope) {
-                            mut fld_snap := arg.children[0].clone()
-                            infer_expr(scope, arg.children[0], in_func, ctx)
-                            fld_cname := til_type_name(arg.children[0].til_type())
-                            if fld_cname.len().gt(0).and(fld_cname.eq(fld_tn).not()).and(type_implements_iface(fld_cname, fld_tn, scope)) {
-                                mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col)
-                                infer_expr(scope, fld_box, in_func, ctx)
-                                field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
-                            } else {
-                                field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
-                            }
+                if slot_arg.is(CtorArg.Filled).not() {
+                    // #251 follow-up: a conforming concrete given for an
+                    // interface-typed field coerces to an OWNED box -- the
+                    // field outlives the ctor call, so a borrow would
+                    // dangle. Snapshot before inference desugars a struct
+                    // ctor's named args (the box re-infers the snapshot);
+                    // box if conforming, else store the value as usual.
+                    ref fld_tn : Str = ctor_fld.explicit_type
+                    if name_is_interface(fld_tn, scope) {
+                        mut fld_snap := arg.children[0].clone()
+                        infer_expr(scope, arg.children[0], in_func, ctx)
+                        fld_cname := til_type_name(arg.children[0].til_type())
+                        if fld_cname.len().gt(0).and(fld_cname.eq(fld_tn).not()).and(type_implements_iface(fld_cname, fld_tn, scope)) {
+                            mut fld_box := make_owned_iface_box(fld_tn, fld_cname, own fld_snap, arg.children[0].line, arg.children[0].col)
+                            infer_expr(scope, fld_box, in_func, ctx)
+                            field_vals[slot.to_usize()] = CtorArg.Filled(fld_box)
                         } else {
                             field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
                         }
+                    } else {
+                        field_vals[slot.to_usize()] = CtorArg.Filled(arg.children[0].clone())
                     }
                 }
-            case:
-                arg.type_error("struct instantiation requires named arguments", ctx)
-                continue
+            }
+        case:
+            arg.type_error("struct instantiation requires named arguments", ctx)
+            continue
+        }
+    }
+    mut missing_required := false
+    for i in 0..nfields {
+        if field_vals[i].is(CtorArg.Filled).not() {
+            ref fld_d : Declaration = ctor_sdd.field_at(i)
+            if fld_d.default_value.node_type.is(NodeType.NoDefaultArg) {
+                // #242: a field with no default is required at
+                // instantiation; it must be supplied by name.
+                e.type_error(format("missing required field '", ctor_sdd.field_name_at(i), "' in '", name, "(...)'"), ctx)
+                missing_required = true
+            } else {
+                field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_value, e, ctx))
             }
         }
-        mut missing_required := false
-        for i in 0..nfields {
-            if field_vals[i].is(CtorArg.Filled).not() {
-                ref fld_d : Declaration = ctor_sdd.field_at(i)
-                if fld_d.default_value.node_type.is(NodeType.NoDefaultArg) {
-                    // #242: a field with no default is required at
-                    // instantiation; it must be supplied by name.
-                    e.type_error(format("missing required field '", ctor_sdd.field_name_at(i), "' in '", name, "(...)'"), ctx)
-                    missing_required = true
-                } else {
-                    field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_value, e, ctx))
-                }
-            }
-        }
-        if missing_required {
-            // Diagnostic(s) already emitted. Bail before the desugar so the
-            // build loop below doesn't trip over the unfilled slot(s); set a
-            // sensible type so the typer keeps reporting later errors.
-            e.set_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
-            return true
-        }
-        mut new_ch := Vec(Expr).new()
-        new_ch.push_take(e.children, 0)
-        for fv : CtorArg in field_vals {
-            switch fv {
-            case CtorArg.Filled(filled_arg):
-                new_ch.push(own filled_arg.clone())
-            case:
-                UNREACHABLE("expected CtorArg.Filled, got ", fv.to_str())
-            }
-        }
-        e.children = new_ch
-        for i in 1..e.children.len() {
-            // Issue #295: a FuncDef's til_type is FuncPtr (not Unknown),
-            // so a capturing-closure arg would skip inference and its body
-            // would never be typed against this (enclosing) scope -- losing the
-            // captured variables' types in codegen. Infer capturing closures
-            // here too so `n.add(1)` etc. resolve against the live scope.
-            ref ci : Expr = e.children[i]
-            mut needs_infer := ci.til_type().is(Type.Unknown)
-            switch ci.node_type {
-            case NodeType.FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
-            case NodeType.BodyValue: needs_infer = true
-            case:
-            }
-            if needs_infer {
-                infer_expr(scope, ci, in_func, ctx)
-            }
-        }
-        for fi in 0..nfields {
-            if fi >= e.children.len() - 1 { break }
-            ref fld_decl : Declaration = ctor_sdd.field_at(fi)
-            ai := fi + 1
-            if fld_decl.own_type.is(OwnType.Ref) { continue }
-            if fld_decl.own_type.is(OwnType.Own).not() {
-                if type_ctor_consumes(fld_decl.til_type).not() { continue }
-            }
-            set_own_arg(e, ai)
-        }
+    }
+    if missing_required {
+        // Diagnostic(s) already emitted. Bail before the desugar so the
+        // build loop below doesn't trip over the unfilled slot(s); set a
+        // sensible type so the typer keeps reporting later errors.
         e.set_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
         return true
-    case:
-        UNREACHABLE("expected StructDef, got ", sdef.node_type.head_str())
-        return false
     }
+    mut new_ch := Vec(Expr).new()
+    new_ch.push_take(e.children, 0)
+    for fv : CtorArg in field_vals {
+        switch fv {
+        case CtorArg.Filled(filled_arg):
+            new_ch.push(own filled_arg.clone())
+        case:
+            UNREACHABLE("expected CtorArg.Filled, got ", fv.to_str())
+        }
+    }
+    e.children = new_ch
+    for i in 1..e.children.len() {
+        // Issue #295: a FuncDef's til_type is FuncPtr (not Unknown),
+        // so a capturing-closure arg would skip inference and its body
+        // would never be typed against this (enclosing) scope -- losing the
+        // captured variables' types in codegen. Infer capturing closures
+        // here too so `n.add(1)` etc. resolve against the live scope.
+        ref ci : Expr = e.children[i]
+        mut needs_infer := ci.til_type().is(Type.Unknown)
+        switch ci.node_type {
+        case NodeType.FuncDef(ci_fd): if ci_fd.captures.len() > 0 { needs_infer = true }
+        case NodeType.BodyValue: needs_infer = true
+        case:
+        }
+        if needs_infer {
+            infer_expr(scope, ci, in_func, ctx)
+        }
+    }
+    for fi in 0..nfields {
+        if fi >= e.children.len() - 1 { break }
+        ref fld_decl : Declaration = ctor_sdd.field_at(fi)
+        ai := fi + 1
+        if fld_decl.own_type.is(OwnType.Ref) { continue }
+        if fld_decl.own_type.is(OwnType.Own).not() {
+            if type_ctor_consumes(fld_decl.til_type).not() { continue }
+        }
+        set_own_arg(e, ai)
+    }
+    e.set_til_type(Type.Struct(resolve_type_alias(scope, name).clone()))
+    return true
 }
 
 // Issue #281: materialize one parameter/field default value for a call/ctor
@@ -1361,12 +1348,8 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
     if callee_bind_o.is_none() { return }
     fdef_o := scope.lookup_func(cb_name)
     if fdef_o.is_none() { return }
-    switch fdef_o.unwrap().node_type {
-    case NodeType.FuncDef(fdef_data):
-        infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", fdef_o.unwrap().node_type.head_str())
-    }
+    ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
+    infer_and_validate_fcall_args_for_fdef(scope, e, fdef_data, in_func, ctx)
 }
 
 priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind_o: Option(ref TypeBinding), in_func: I32, ctx: Context) {
@@ -1423,59 +1406,51 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
                 e.children[0].set_til_type(Type.FuncPtr)
                 cb_func_def_o := scope.lookup_func(callee_bind.name)
                 if cb_func_def_o.is_some() {
-                    switch cb_func_def_o.unwrap().node_type {
-                    case NodeType.FuncDef(cb_fdef):
-                        if cb_fdef.return_type.len() > 0 {
-                            ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.return_type)
-                            rt := type_from_name(resolved_return_type, scope, ctx)
-                            e.set_til_type(rt)
-                        } else {
-                            e.set_til_type(Type.None)
-                        }
-                    case:
-                        UNREACHABLE("expected FuncDef, got ", cb_func_def_o.unwrap().node_type.head_str())
+                    ref cb_fdef : FunctionDef = funcdef_of(cb_func_def_o.unwrap())
+                    if cb_fdef.return_type.len() > 0 {
+                        ref resolved_return_type : Str = resolve_type_alias(scope, cb_fdef.return_type)
+                        rt := type_from_name(resolved_return_type, scope, ctx)
+                        e.set_til_type(rt)
+                    } else {
+                        e.set_til_type(Type.None)
                     }
                 } else {
                     e.set_til_type(Type.Dynamic)
                 }
                 if cb_func_def_o.is_some() {
                     ref sig : Expr = cb_func_def_o.unwrap()
-                    switch sig.node_type {
-                    case NodeType.FuncDef(sig_fdef):
-                        mut nargs : USize = e.children.len()
-                        nargs--
-                        if nargs != sig_fdef.params.len() {
-                            e.type_error(format("function pointer '", name, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
-                        }
-                        mut ai : USize = 0
-                        while ai < nargs {
-                            if ai >= sig_fdef.params.len() { break }
-                            ref arg : Expr = e.children[ai + 1]
-                            ref expected_name : Str = sig_fdef.params[ai].explicit_type
-                            if expected_name.len() == 0 {
-                                ai++
-                                continue
-                            }
-                            expected := type_from_name(expected_name, scope, ctx)
-                            if expected.is(Type.Unknown).or(expected.is(Type.Dynamic)) {
-                                ai++
-                                continue
-                            }
-                            if arg.til_type().is(Type.Dynamic) {
-                                ai++
-                                continue
-                            }
-                            // #58 / #147: use the same wildcard-aware funcptr
-                            // comparison validate_fcall_arg uses -- a bare
-                            // FuncPtr (e.g. a thunk wrapping a first-class lazy
-                            // arg, #262) matches any named FuncPtrSig param.
-                            if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected).not()) {
-                                e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type())), ctx)
-                            }
+                    ref sig_fdef : FunctionDef = funcdef_of(sig)
+                    mut nargs : USize = e.children.len()
+                    nargs--
+                    if nargs != sig_fdef.params.len() {
+                        e.type_error(format("function pointer '", name, "' expects ", sig_fdef.params.len().to_str(), " args, got ", nargs.to_str()), ctx)
+                    }
+                    mut ai : USize = 0
+                    while ai < nargs {
+                        if ai >= sig_fdef.params.len() { break }
+                        ref arg : Expr = e.children[ai + 1]
+                        ref expected_name : Str = sig_fdef.params[ai].explicit_type
+                        if expected_name.len() == 0 {
                             ai++
+                            continue
                         }
-                    case:
-                        UNREACHABLE("expected FuncDef, got ", sig.node_type.head_str())
+                        expected := type_from_name(expected_name, scope, ctx)
+                        if expected.is(Type.Unknown).or(expected.is(Type.Dynamic)) {
+                            ai++
+                            continue
+                        }
+                        if arg.til_type().is(Type.Dynamic) {
+                            ai++
+                            continue
+                        }
+                        // #58 / #147: use the same wildcard-aware funcptr
+                        // comparison validate_fcall_arg uses -- a bare
+                        // FuncPtr (e.g. a thunk wrapping a first-class lazy
+                        // arg, #262) matches any named FuncPtrSig param.
+                        if arg.til_type().is(expected).not().and(funcptr_eq(arg.til_type(), expected).not()) {
+                            e.type_error(format("function pointer '", name, "' param ", ai.add(1).to_str(), ": expected ", expected_name, ", got ", type_to_name(arg.til_type())), ctx)
+                        }
+                        ai++
                     }
                 }
                 return
@@ -1590,13 +1565,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     ref mut fa : Expr = e.children[0]
     ref mut obj : Expr = fa.children[0]
     mut method := ""
-    switch fa.node_type {
-    case NodeType.FieldAccess(m):
-        method = Str.clone(m.field_access_name())
-    case:
-        UNREACHABLE("expected FieldAccess, got ", fa.node_type.head_str())
-        return false
-    }
+    ref m : FieldAccessData = fieldaccess_of(fa)
+    method = Str.clone(m.field_access_name())
     // `.clone()` on a literal receiver is always redundant: the literal
     // itself is a fresh value, so the clone allocates a copy that the
     // surrounding code would have produced anyway. Reject at the typer
@@ -1807,12 +1777,8 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         }
         e.children = new_children
         ref fa2 : Expr = e.children[0]
-        switch fa2.node_type {
-        case NodeType.FieldAccess(m2):
-            method = Str.clone(m2.field_access_name())
-        case:
-            UNREACHABLE("expected FieldAccess, got ", fa2.node_type.head_str())
-        }
+        ref m2 : FieldAccessData = fieldaccess_of(fa2)
+        method = Str.clone(m2.field_access_name())
     }
 
     ref mut fa3 : Expr = e.children[0]
@@ -2892,22 +2858,18 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
         ref mut cbu : TypeBinding = cb_used.unwrap()
         cbu.used = true
     }
-    switch cfd_o.unwrap().node_type {
-    case NodeType.FuncDef(cfd):
-        if explicit {
-            if desugar_fcall_args_for_fdef(e, mono, cfd, ctx).not() {
-                e.set_til_type(Type.Unknown)
-                return
-            }
-            for ai in 1..e.children.len() {
-                infer_expr(scope, e.children[ai], in_func, ctx)
-            }
+    ref cfd : FunctionDef = funcdef_of(cfd_o.unwrap())
+    if explicit {
+        if desugar_fcall_args_for_fdef(e, mono, cfd, ctx).not() {
+            e.set_til_type(Type.Unknown)
+            return
         }
-        infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx)
-        validate_fcall_own_args_for_fdef(scope, e, cfd, ctx)
-    case:
-        UNREACHABLE("expected FuncDef, got ", cfd_o.unwrap().node_type.head_str())
+        for ai in 1..e.children.len() {
+            infer_expr(scope, e.children[ai], in_func, ctx)
+        }
     }
+    infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx)
+    validate_fcall_own_args_for_fdef(scope, e, cfd, ctx)
     resolve_fcall_return_type(scope, e, mono, scope.get_binding(mono), in_func, ctx)
 }
 
@@ -2928,27 +2890,23 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     mut ref_params := Set(Str).new()
     mut ok := false
     mut explicit := false
-    switch gfd_o.unwrap().node_type {
-    case NodeType.FuncDef(gfd):
-        explicit = generic_call_is_explicit(scope, e, gfd)
-        if explicit.not() {
-            // #328 task 11: a `throws T` (or `throws Err__T`) source is
-            // deliberately not lowered before this point, so there is
-            // nothing to infer against -- the caller must spell it.
-            if generic_source_throws_depend_on_type(gfd_o.unwrap()) {
-                e.type_error(format("cannot infer type arguments for '", display_name,
-                    "': its 'throws' clause names a type parameter; pass them explicitly"), ctx)
-                e.set_til_type(Type.Unknown)
-                return
-            }
+    ref gfd : FunctionDef = funcdef_of(gfd_o.unwrap())
+    explicit = generic_call_is_explicit(scope, e, gfd)
+    if explicit.not() {
+        // #328 task 11: a `throws T` (or `throws Err__T`) source is
+        // deliberately not lowered before this point, so there is
+        // nothing to infer against -- the caller must spell it.
+        if generic_source_throws_depend_on_type(gfd_o.unwrap()) {
+            e.type_error(format("cannot infer type arguments for '", display_name,
+                "': its 'throws' clause names a type parameter; pass them explicitly"), ctx)
+            e.set_til_type(Type.Unknown)
+            return
         }
-        if explicit {
-            ok = generic_explicit_subs(scope, e, gfd, subs, ref_params, display_name, ctx)
-        } else {
-            ok = generic_infer_subs(scope, e, gfd, subs, display_name, in_func, ctx)
-        }
-    case:
-        UNREACHABLE("expected FuncDef, got ", gfd_o.unwrap().node_type.head_str())
+    }
+    if explicit {
+        ok = generic_explicit_subs(scope, e, gfd, subs, ref_params, display_name, ctx)
+    } else {
+        ok = generic_infer_subs(scope, e, gfd, subs, display_name, in_func, ctx)
     }
     if ok.not() {
         e.set_til_type(Type.Unknown)
@@ -3765,14 +3723,9 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope) ret
 
 priv check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
     mut throws_count : USize = 0
-    switch expr.node_type {
-    case NodeType.FuncDef(fdef):
-        if fdef.return_own_type.is(OwnType.Ref).not() { return }
-        throws_count = fdef.throw_types.len()
-    case:
-        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
-        return
-    }
+    ref fdef : FunctionDef = funcdef_of(expr)
+    if fdef.return_own_type.is(OwnType.Ref).not() { return }
+    throws_count = fdef.throw_types.len()
     for stmt : Expr in expr.children[0].children {
         if stmt.node_type.is(NodeType.Return).not() { continue }
         if stmt.children.len() == 0 { continue }
@@ -4218,25 +4171,21 @@ priv check_all_paths_return := proc(expr: Expr, ctx: Context) {
 }
 
 priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context) {
-    switch expr.node_type {
-    case NodeType.FuncDef(fdef):
-        if fdef.func_type.is(FuncType.ExtFunc) { return }
-        if fdef.func_type.is(FuncType.ExtProc) { return }
-        if fdef.func_type.is(FuncType.CoreFunc) { return }
-        if fdef.func_type.is(FuncType.CoreProc) { return }
-        if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
-        for param : Declaration in fdef.params {
-            if param.name.len() == 0 { continue }
-            if param.name.starts_with("_") { continue }
-            pb_o := func_scope.get_binding(param.name)
-            if pb_o.is_none() { continue }
-            ref pb : TypeBinding = pb_o.unwrap()
-            if pb.used.not() {
-                expr.type_error(format("unused parameter '", param.name, "'"), ctx)
-            }
+    ref fdef : FunctionDef = funcdef_of(expr)
+    if fdef.func_type.is(FuncType.ExtFunc) { return }
+    if fdef.func_type.is(FuncType.ExtProc) { return }
+    if fdef.func_type.is(FuncType.CoreFunc) { return }
+    if fdef.func_type.is(FuncType.CoreProc) { return }
+    if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
+    for param : Declaration in fdef.params {
+        if param.name.len() == 0 { continue }
+        if param.name.starts_with("_") { continue }
+        pb_o := func_scope.get_binding(param.name)
+        if pb_o.is_none() { continue }
+        ref pb : TypeBinding = pb_o.unwrap()
+        if pb.used.not() {
+            expr.type_error(format("unused parameter '", param.name, "'"), ctx)
         }
-    case:
-        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
     }
 }
 
@@ -4248,30 +4197,26 @@ priv check_unused_params := proc(func_scope: TypeScope, expr: Expr, ctx: Context
 // two passes don't overlap). Called once per function -- params live on
 // the func_scope only, not on the if/while/block inner scopes.
 priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: Str, ctx: Context) {
-    switch expr.node_type {
-    case NodeType.FuncDef(fdef):
-        if fdef.func_type.is(FuncType.ExtFunc) { return }
-        if fdef.func_type.is(FuncType.ExtProc) { return }
-        if fdef.func_type.is(FuncType.CoreFunc) { return }
-        if fdef.func_type.is(FuncType.CoreProc) { return }
-        if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
-        // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
-        // typer-emitted; the user cannot edit their signatures, so a
-        // redundant `mut` there is not actionable.
-        if fdef.auto_generated { return }
-        for param : Declaration in fdef.params {
-            if param.is_mut.not() { continue }
-            if param.name.len() == 0 { continue }
-            if param.name.starts_with("_") { continue }
-            pb_o := func_scope.get_binding(param.name)
-            if pb_o.is_none() { continue }
-            ref pb : TypeBinding = pb_o.unwrap()
-            if pb.written { continue }
-            type_error_at(path, pb.line, pb.col,
-                format("redundant 'mut' on parameter '", param.name, "': never written through; drop the 'mut'"), ctx)
-        }
-    case:
-        UNREACHABLE("expected FuncDef, got ", expr.node_type.head_str())
+    ref fdef : FunctionDef = funcdef_of(expr)
+    if fdef.func_type.is(FuncType.ExtFunc) { return }
+    if fdef.func_type.is(FuncType.ExtProc) { return }
+    if fdef.func_type.is(FuncType.CoreFunc) { return }
+    if fdef.func_type.is(FuncType.CoreProc) { return }
+    if fdef.func_type.is(FuncType.CoreLazyFunc) { return }
+    // Auto-generated bodies (clone/delete/size/enum eq/to_str/...) are
+    // typer-emitted; the user cannot edit their signatures, so a
+    // redundant `mut` there is not actionable.
+    if fdef.auto_generated { return }
+    for param : Declaration in fdef.params {
+        if param.is_mut.not() { continue }
+        if param.name.len() == 0 { continue }
+        if param.name.starts_with("_") { continue }
+        pb_o := func_scope.get_binding(param.name)
+        if pb_o.is_none() { continue }
+        ref pb : TypeBinding = pb_o.unwrap()
+        if pb.written { continue }
+        type_error_at(path, pb.line, pb.col,
+            format("redundant 'mut' on parameter '", param.name, "': never written through; drop the 'mut'"), ctx)
     }
 }
 
@@ -4459,12 +4404,8 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
         if tdef.node_type.is(NodeType.StructDef).not()
             .and(tdef.node_type.is(NodeType.EnumDef).not()) { continue }
         mut owner_name := ""
-        switch stmt.node_type {
-        case NodeType.Decl(td_decl):
-            owner_name = td_decl.name.clone()
-        case:
-            UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        }
+        ref td_decl : Declaration = decl_of(stmt)
+        owner_name = td_decl.name.clone()
         // Field walk (StructDef only). Report at the field's
         // default_value location (every field has one -- the parser
         // requires `name := value` or `name : Type = value`) so the
@@ -5133,35 +5074,30 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         if sdecl.explicit_type.len().gt(0).and(annot_is_funcdef.not()) {
             stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is FunctionDef"), ctx)
         }
-        switch stmt.children[0].node_type {
-        case NodeType.FuncDef(fdef):
-            mut rt := Type.None
-            if fdef.return_type.len() > 0 {
-                ref resolved_return_type : Str = resolve_type_alias(scope, fdef.return_type)
-                rt = type_from_name(resolved_return_type, scope, ctx)
-            }
-            stmt.set_til_type(rt)
-            // Bodyless FuncDef is a FuncSig type-alias declaration:
-            // bind the name to Type.FuncPtr so dyn_type_to_str and Vec.new
-            // round-trip the name through Type.FuncPtr ("Fn") instead of
-            // the function's return type. Issue #58.
-            is_bodyless := stmt.children[0].children.len() == 0
-            mut binding_type := rt
-            if is_bodyless { binding_type = Type.FuncPtr }
-            scope.set(sdecl.name, binding_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
-            scope.set_func_def(sdecl.name, stmt.children[0])
-            ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
-            fb.is_func_decl = true
-            fb.is_priv = sdecl.is_priv
-            fb.orig_name = sdecl.orig_name.clone()
-            if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc)) {
-                fb.is_builtin = true
-            }
-            return true
-        case:
-            UNREACHABLE("expected FuncDef, got ", stmt.children[0].node_type.head_str())
-            return false
+        ref fdef : FunctionDef = funcdef_of(stmt.children[0])
+        mut rt := Type.None
+        if fdef.return_type.len() > 0 {
+            ref resolved_return_type : Str = resolve_type_alias(scope, fdef.return_type)
+            rt = type_from_name(resolved_return_type, scope, ctx)
         }
+        stmt.set_til_type(rt)
+        // Bodyless FuncDef is a FuncSig type-alias declaration:
+        // bind the name to Type.FuncPtr so dyn_type_to_str and Vec.new
+        // round-trip the name through Type.FuncPtr ("Fn") instead of
+        // the function's return type. Issue #58.
+        is_bodyless := stmt.children[0].children.len() == 0
+        mut binding_type := rt
+        if is_bodyless { binding_type = Type.FuncPtr }
+        scope.set(sdecl.name, binding_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
+        scope.set_func_def(sdecl.name, stmt.children[0])
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name).unwrap()
+        fb.is_func_decl = true
+        fb.is_priv = sdecl.is_priv
+        fb.orig_name = sdecl.orig_name.clone()
+        if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc)) {
+            fb.is_builtin = true
+        }
+        return true
     case:
         UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
         return false
@@ -5188,21 +5124,16 @@ priv infer_decl_type_alias_passthrough := func(scope: TypeScope, mut stmt: Expr)
 }
 
 priv declared_type_for_decl := func(scope: TypeScope, stmt: Expr, ctx: Context) returns Type {
-    switch stmt.node_type {
-    case NodeType.Decl(sdecl):
-        mut declared := stmt.til_type().clone()
-        switch declared {
-        case Type.Unknown:
-            declared = type_from_name(sdecl.explicit_type, scope, ctx)
-        case Type.Custom(cname):
-            declared = type_from_name(cname, scope, ctx)
-        case:
-        }
-        return declared
+    ref sdecl : Declaration = decl_of(stmt)
+    mut declared := stmt.til_type().clone()
+    switch declared {
+    case Type.Unknown:
+        declared = type_from_name(sdecl.explicit_type, scope, ctx)
+    case Type.Custom(cname):
+        declared = type_from_name(cname, scope, ctx)
     case:
-        UNREACHABLE("expected Decl, got ", stmt.node_type.head_str())
-        return Type.Unknown
     }
+    return declared
 }
 
 // Typed declarations can steer numeric method resolution (for example,
@@ -9534,17 +9465,12 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     }
     ref len_func : Expr = len_funco.unwrap()
     mut idx_type := ""
-    switch len_func.node_type {
-    case NodeType.FuncDef(len_def):
-        if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
-            stmt.type_error(format("type '", type_name, "' len() must take 1 param and return a scalar for for-in"), ctx)
-            return false
-        }
-        idx_type = len_def.return_type.clone()
-    case:
-        UNREACHABLE("expected FuncDef, got ", len_func.node_type.head_str())
+    ref len_def : FunctionDef = funcdef_of(len_func)
+    if len_def.params.len().neq(1).or(len_def.return_type.len().eq(0)) {
+        stmt.type_error(format("type '", type_name, "' len() must take 1 param and return a scalar for for-in"), ctx)
         return false
     }
+    idx_type = len_def.return_type.clone()
 
     if get_funco.is_none() {
         stmt.type_error(format("type '", type_name, "' has no 'get' method (required for for-in)"), ctx)
@@ -9560,65 +9486,60 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
     // must fill those itself; capture their default expressions here while
     // get_def is in scope. Empty (no-op) for the common get(self, i) shape.
     mut get_trailing_defaults := Vec(Expr).new()
-    switch get_func.node_type {
-    case NodeType.FuncDef(get_def):
-        // A throwing get gets its signature extended in place with
-        // synthetic _err_kind/payload params below. Allow either
-        // the original (self, idx) shape or the already-extended one
-        // -- the original 2-param form is what user code wrote, and
-        // any subsequent for-in over the same type sees the extended
-        // shape because we mutated its FuncDef.
-        if get_def.params.len() < 2 {
-            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
-            return false
-        }
-        ref get_idx_param : Declaration = get_def.params[1]
-        if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
-            stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
-            return false
-        }
-        if elem_type.len() == 0 {
-            if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
-                stmt.type_error(format("cannot infer element type for '", type_name, "', use explicit type: for x : Type in ..."), ctx)
-                return false
-            }
-            elem_type = get_def.return_type.clone()
-        }
-        get_returns_ref = get_def.return_own_type.is(OwnType.Ref)
-        get_throws = get_def.throw_types.len() > 0
-        if get_throws {
-            for gtn : Str in get_def.throw_types {
-                get_throw_types.push(own gtn.clone())
-            }
-            // Extend the get FuncDef in place with the synthetic
-            // _err_kind plus payload-bearing out-params so the call we emit
-            // below matches the
-            // callee's arity. Idempotent: only extends once.
-            mut already_extended := false
-            for p : Declaration in get_def.params {
-                if p.name == "_err_kind" { already_extended = true }
-            }
-            if already_extended.not() {
-                append_err_out_params(get_def.params, get_def.throw_types, ctx)
-            }
-        }
-        // Issue #281: capture any params beyond self + idx (+ the err out-args
-        // for a throwing get) -- the trailing defaulted params (e.g. a
-        // `loc: Str = __LOC__`) the hand-built call below must fill itself.
-        mut forin_filled : USize = 1
-        if get_throws {
-            // _err_kind is always present; fieldless throws carry no slot.
-            forin_filled++
-            for gtn : Str in get_throw_types {
-                if throw_type_has_payload(ctx, gtn) { forin_filled++ }
-            }
-        }
-        for tp_i in forin_filled.add(1)..get_def.params.len() {
-            get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
-        }
-    case:
-        UNREACHABLE("expected FuncDef, got ", get_func.node_type.head_str())
+    ref get_def : FunctionDef = funcdef_of(get_func)
+    // A throwing get gets its signature extended in place with
+    // synthetic _err_kind/payload params below. Allow either
+    // the original (self, idx) shape or the already-extended one
+    // -- the original 2-param form is what user code wrote, and
+    // any subsequent for-in over the same type sees the extended
+    // shape because we mutated its FuncDef.
+    if get_def.params.len() < 2 {
+        stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
         return false
+    }
+    ref get_idx_param : Declaration = get_def.params[1]
+    if get_idx_param.explicit_type.len().eq(0).or(get_idx_param.explicit_type.eq(idx_type).not()) {
+        stmt.type_error(format("type '", type_name, "' get() second param must match len() return type for for-in"), ctx)
+        return false
+    }
+    if elem_type.len() == 0 {
+        if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
+            stmt.type_error(format("cannot infer element type for '", type_name, "', use explicit type: for x : Type in ..."), ctx)
+            return false
+        }
+        elem_type = get_def.return_type.clone()
+    }
+    get_returns_ref = get_def.return_own_type.is(OwnType.Ref)
+    get_throws = get_def.throw_types.len() > 0
+    if get_throws {
+        for gtn : Str in get_def.throw_types {
+            get_throw_types.push(own gtn.clone())
+        }
+        // Extend the get FuncDef in place with the synthetic
+        // _err_kind plus payload-bearing out-params so the call we emit
+        // below matches the
+        // callee's arity. Idempotent: only extends once.
+        mut already_extended := false
+        for p : Declaration in get_def.params {
+            if p.name == "_err_kind" { already_extended = true }
+        }
+        if already_extended.not() {
+            append_err_out_params(get_def.params, get_def.throw_types, ctx)
+        }
+    }
+    // Issue #281: capture any params beyond self + idx (+ the err out-args
+    // for a throwing get) -- the trailing defaulted params (e.g. a
+    // `loc: Str = __LOC__`) the hand-built call below must fill itself.
+    mut forin_filled : USize = 1
+    if get_throws {
+        // _err_kind is always present; fieldless throws carry no slot.
+        forin_filled++
+        for gtn : Str in get_throw_types {
+            if throw_type_has_payload(ctx, gtn) { forin_filled++ }
+        }
+    }
+    for tp_i in forin_filled.add(1)..get_def.params.len() {
+        get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
     }
 
     mut var_name := ""
