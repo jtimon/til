@@ -1580,6 +1580,37 @@ design.
 
 208/208, pass 1 == pass 2.
 
+**** Batch 39: step 2 lands -- a ref field can no longer default to NULL
+
+check_ref_field_owned_default's forced NULL exception is closed: a
+literal-NULL default on a ref field is an error unless the field's
+type resolves (through aliases -- test/aliases.til's DynA/DynB pin
+this) to Dynamic, the quarantine. The owned-default diagnostic also
+stops suggesting NULL.
+
+The conversions the flip forced, all mechanical:
+
+- vendor/bindings/raylib.til: the 24 typed nullable pointer fields
+  (Font.recs/glyphs, Mesh's eleven vertex/skin arrays + vboId,
+  Shader.locs, Model/ModelAnimation's six arrays,
+  AudioStream.buffer/processor, AutomationEventList.events) become
+  ~field : Option(ref T) = Option(ref T).None~ -- the shape the
+  binder already generates, byte-identical layout via the niche. The
+  four ~ref ... : Dynamic = NULL~ fields stay (quarantine). The 2026-07
+  revert of this same migration was about USE sites; there are none
+  in-tree (the fields are declaration-only surface), so it lands
+  clean now. Hand-audit note at the Font struct; ffi.org updated.
+- vendor/bindings/libffi.til: ffi_cif.rtype becomes a mandatory
+  ~ref rtype : ffi_type~ -- non-null by C contract on every cif til
+  reads (prep sets it), and cifs are raw-built, never ctor'd.
+- test/ref.til: RefNode's linked-node field becomes
+  ~next := Option(ref RefNode).None~ -- the self-referential
+  Option(ref T) field works out of the box.
+- test/typer_errors.til: TerrStep3's ok_field control flips to a
+  counted error (182 -> 183); TerrStep4Field.data becomes mandatory.
+
+215/215, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.
@@ -1588,9 +1619,9 @@ design.
 1. DONE (batches 35-38): #324 is fixed and closed -- all 14 ref-labeled
    owning fields relabeled (Scope trio + env as Option(Scope); the FFI
    island as ~own~ buffers) and the FieldAccess own-arg check landed.
-2. Flip check_ref_field_owned_default: reject ~= NULL~ on a ref field
-   whose type is not Dynamic (the quarantine exemption above), and
-   convert the test fixtures in the same commit.
+2. DONE (batch 39): check_ref_field_owned_default rejects ~= NULL~ on
+   ref fields (Dynamic quarantine excepted, resolved through aliases);
+   fixtures, raylib and libffi bindings converted in the same commit.
 3. Step 2 is DONE (batch 13). Steps 3-4 remain: remove ~is_null()~ on
    refs, then the ~NULL~ keyword itself. Their own prerequisites:
    - the nullable ref PARAMS the batches kept flagging (a null scope

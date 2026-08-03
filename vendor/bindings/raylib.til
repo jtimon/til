@@ -232,13 +232,20 @@ GlyphInfo := struct {
 }
 
 // Font, font texture and GlyphInfo array data
+//
+// Hand-audited (#321), keep across regens -- applies to every
+// `Option(ref T)` field in this file: nullable C pointer fields are
+// spelled `Option(ref T)` (niche layout: byte-identical to the bare
+// pointer, None == NULL), the shape ref fields with `= NULL` defaults
+// migrated to when that default was forbidden. `ref Dynamic = NULL`
+// fields stay: the Dynamic quarantine keeps raw null legal.
 Font := struct {
     baseSize : I32 = 0  // Base size (default chars height)
     glyphCount : I32 = 0  // Number of glyph characters
     glyphPadding : I32 = 0  // Padding around the glyph characters
     texture : Texture2D = Texture2D()  // Texture atlas containing the glyphs
-    ref recs : Rectangle = NULL  // Rectangles in texture for the glyphs
-    ref glyphs : GlyphInfo = NULL  // Glyphs info data
+    recs : Option(ref Rectangle) = Option(ref Rectangle).None  // Rectangles in texture for the glyphs
+    glyphs : Option(ref GlyphInfo) = Option(ref GlyphInfo).None  // Glyphs info data
 }
 
 // Camera, defines position/orientation in 3d space
@@ -265,30 +272,30 @@ Mesh := struct {
     vertexCount : I32 = 0  // Number of vertices stored in arrays
     triangleCount : I32 = 0  // Number of triangles stored (indexed or not)
     // Vertex attributes data
-    ref vertices : F32 = NULL  // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
-    ref texcoords : F32 = NULL  // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
-    ref texcoords2 : F32 = NULL  // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
-    ref normals : F32 = NULL  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
-    ref tangents : F32 = NULL  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
-    ref colors : U8 = NULL  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
-    ref indices : U16 = NULL  // Vertex indices (in case vertex data comes indexed)
+    vertices : Option(ref F32) = Option(ref F32).None  // Vertex position (XYZ - 3 components per vertex) (shader-location = 0)
+    texcoords : Option(ref F32) = Option(ref F32).None  // Vertex texture coordinates (UV - 2 components per vertex) (shader-location = 1)
+    texcoords2 : Option(ref F32) = Option(ref F32).None  // Vertex texture second coordinates (UV - 2 components per vertex) (shader-location = 5)
+    normals : Option(ref F32) = Option(ref F32).None  // Vertex normals (XYZ - 3 components per vertex) (shader-location = 2)
+    tangents : Option(ref F32) = Option(ref F32).None  // Vertex tangents (XYZW - 4 components per vertex) (shader-location = 4)
+    colors : Option(ref U8) = Option(ref U8).None  // Vertex colors (RGBA - 4 components per vertex) (shader-location = 3)
+    indices : Option(ref U16) = Option(ref U16).None  // Vertex indices (in case vertex data comes indexed)
     // Skin data for animation
     boneCount : I32 = 0  // Number of bones (MAX: 256 bones)
-    ref boneIndices : U8 = NULL  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
-    ref boneWeights : F32 = NULL  // Vertex bone weight, up to 4 bones influence by vertex (skinning) (shader-location = 7)
+    boneIndices : Option(ref U8) = Option(ref U8).None  // Vertex bone indices, up to 4 bones influence by vertex (skinning) (shader-location = 6)
+    boneWeights : Option(ref F32) = Option(ref F32).None  // Vertex bone weight, up to 4 bones influence by vertex (skinning) (shader-location = 7)
     // Runtime animation vertex data (CPU skinning)
     // NOTE: In case of GPU skinning, not used, pointers are NULL
-    ref animVertices : F32 = NULL  // Animated vertex positions (after bones transformations)
-    ref animNormals : F32 = NULL  // Animated normals (after bones transformations)
+    animVertices : Option(ref F32) = Option(ref F32).None  // Animated vertex positions (after bones transformations)
+    animNormals : Option(ref F32) = Option(ref F32).None  // Animated normals (after bones transformations)
     // OpenGL identifiers
     vaoId : U32 = 0  // OpenGL Vertex Array Object id
-    ref vboId : U32 = NULL  // OpenGL Vertex Buffer Objects id (default vertex data)
+    vboId : Option(ref U32) = Option(ref U32).None  // OpenGL Vertex Buffer Objects id (default vertex data)
 }
 
 // Shader
 Shader := struct {
     id : U32 = 0  // Shader program id
-    ref locs : I32 = NULL  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
+    locs : Option(ref I32) = Option(ref I32).None  // Shader locations array (RL_MAX_SHADER_LOCATIONS)
 }
 
 // MaterialMap
@@ -317,8 +324,8 @@ BoneInfo := ext_struct("BoneInfo") {}  // opaque: unsupported field shape
 // Skeleton, animation bones hierarchy
 ModelSkeleton := struct {
     boneCount : I32 = 0  // Number of bones
-    ref bones : BoneInfo = NULL  // Bones information (skeleton)
-    ref bindPose : ModelAnimPose = NULL  // Bones base transformation (Transform[])
+    bones : Option(ref BoneInfo) = Option(ref BoneInfo).None  // Bones information (skeleton)
+    bindPose : Option(ref ModelAnimPose) = Option(ref ModelAnimPose).None  // Bones base transformation (Transform[])
 }
 
 // Model, meshes, materials and animation data
@@ -326,14 +333,14 @@ Model := struct {
     transform : Matrix = Matrix()  // Local transform matrix
     meshCount : I32 = 0  // Number of meshes
     materialCount : I32 = 0  // Number of materials
-    ref meshes : Mesh = NULL  // Meshes array
-    ref materials : Material = NULL  // Materials array
-    ref meshMaterial : I32 = NULL  // Mesh material number
+    meshes : Option(ref Mesh) = Option(ref Mesh).None  // Meshes array
+    materials : Option(ref Material) = Option(ref Material).None  // Materials array
+    meshMaterial : Option(ref I32) = Option(ref I32).None  // Mesh material number
     // Animation data
     skeleton : ModelSkeleton = ModelSkeleton()  // Skeleton for animation
     // Runtime animation data (CPU/GPU skinning)
-    ref currentPose : ModelAnimPose = NULL  // Current animation pose (Transform[])
-    ref boneMatrices : Matrix = NULL  // Bones animated transformation matrices
+    currentPose : Option(ref ModelAnimPose) = Option(ref ModelAnimPose).None  // Current animation pose (Transform[])
+    boneMatrices : Option(ref Matrix) = Option(ref Matrix).None  // Bones animated transformation matrices
 }
 
 // ModelAnimation, contains a full animation sequence
@@ -376,8 +383,8 @@ rAudioProcessor := ext_struct("rAudioProcessor") {}
 
 // AudioStream, custom audio stream
 AudioStream := struct {
-    ref buffer : rAudioBuffer = NULL  // Pointer to internal data used by the audio system
-    ref processor : rAudioProcessor = NULL  // Pointer to internal data processor, useful for audio effects
+    buffer : Option(ref rAudioBuffer) = Option(ref rAudioBuffer).None  // Pointer to internal data used by the audio system
+    processor : Option(ref rAudioProcessor) = Option(ref rAudioProcessor).None  // Pointer to internal data processor, useful for audio effects
     sampleRate : U32 = 0  // Frequency (samples per second)
     sampleSize : U32 = 0  // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
     channels : U32 = 0  // Number of channels (1-mono, 2-stereo, ...)
@@ -417,7 +424,7 @@ AutomationEvent := ext_struct("AutomationEvent") {}  // opaque: unsupported fiel
 AutomationEventList := struct {
     capacity : U32 = 0  // Events max entries (MAX_AUTOMATION_EVENTS)
     count : U32 = 0  // Events entries count
-    ref events : AutomationEvent = NULL  // Events entries
+    events : Option(ref AutomationEvent) = Option(ref AutomationEvent).None  // Events entries
 }
 
 //----------------------------------------------------------------------------------

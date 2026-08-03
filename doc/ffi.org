@@ -368,7 +368,19 @@ plain ~Dynamic~ / ~I8~ params and ~returns ref I8~ there
 (checklist item 4's ~shallow~ note applies: without it the ABI is
 wrong).
 
-libffi has three hand-edits, marked "Hand-audited" / "keep across
+raylib nullability (checklist item 4, marked "Hand-audited (#321)"
+at the ~Font~ struct): every typed nullable pointer field in the
+struct mirrors (~Font.recs~, the ~Mesh~ vertex arrays,
+~Shader.locs~, the ~Model~/~ModelAnimation~ arrays,
+~AudioStream.buffer~/~processor~,
+~AutomationEventList.events~) is spelled
+~field : Option(ref T) = Option(ref T).None~ -- ref fields cannot
+default to NULL since #321 step 2, and the niche keeps the struct
+layout byte-identical to C's. The ~ref ... : Dynamic = NULL~
+fields (~Image.data~, ~AudioBuffer.data~, ~ctxData~, ~paths~)
+stay as generated: the Dynamic quarantine keeps raw null legal.
+
+libffi has four hand-edits, marked "Hand-audited" / "keep across
 regens" in ~vendor/bindings/libffi.til~:
 
 0. *The mutating calls are ext_proc.*  ~ffi_prep_cif(_var)~, the
@@ -387,6 +399,12 @@ regens" in ~vendor/bindings/libffi.til~:
 2. *The ~ffi_abi~ constants carry a warning comment*: their values
    are x86-64-only; abi selection goes through
    ~ffi_host_default_abi()~ in ~src/self/interpreter.til~.
+3. *~ffi_cif.rtype~ is a mandatory ~ref rtype : ffi_type~* (no
+   default): non-null by C contract on every cif til reads
+   (~ffi_prep_cif~ sets it before any use), and cifs are raw-built
+   (malloc + prep), never ctor'd. ~ffi_type.elements~ stays ~own~
+   (its own hand-audit note) and ~arg_types~ stays
+   ~ref Dynamic = NULL~ (quarantine).
 
 Useful workflow:
 

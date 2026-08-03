@@ -626,17 +626,28 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Contex
 }
 
 // #168 step 3: struct field defaults follow the same predicate -- a
-// `ref` field cannot have an owned-RHS default. NULL is still allowed
-// (forced exception for ref fields, since the type doesn't yet have
-// an instance to borrow from at default-value time).
+// `ref` field cannot have an owned-RHS default. #321 step 2 retires
+// the old forced exception for `= NULL`: a nullable borrow is an
+// Option(ref T) field now that the niche makes it pointer-sized, so a
+// NULL default is rejected too -- the field either becomes mandatory
+// (no default; an instance to borrow from exists at ctor time) or an
+// Option with a real None state. The one exemption is the Dynamic
+// quarantine, resolved through aliases: a `ref Dynamic` field is a raw
+// pointer whose null IS a legal value by design (doc/ownership.org's
+// manual-memory island).
 priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: TypeScope, ctx: Context) {
     if fd.own_type.is(OwnType.Ref).not() { return }
     if fd.default_value.is_null() { return }
     if fd.default_value.node_type.is(NodeType.NoDefaultArg) { return }
-    if fd.default_value.node_type.is_literal_null() { return }
+    if fd.default_value.node_type.is_literal_null() {
+        if fd.explicit_type.len().gt(0)
+            .and(type_from_name(fd.explicit_type, scope, ctx).is(Type.Dynamic)) { return }
+        fd.default_value.type_error(format("ref field '", fname, "' cannot default to NULL -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
+        return
+    }
     if fd.default_value.node_type.is(NodeType.FCall).not() { return }
     if fcall_returns_own(fd.default_value, scope).not() { return }
-    fd.default_value.type_error(format("ref field '", fname, "' default cannot be an owned value (.clone() / constructor / function returning own) -- use NULL or change the field to 'own'"), ctx)
+    fd.default_value.type_error(format("ref field '", fname, "' default cannot be an owned value (.clone() / constructor / function returning own) -- use Option(ref T), drop the default, or change the field to 'own'"), ctx)
 }
 
 // #168 step 4: assignments to ref-typed lvalues follow the same
@@ -657,8 +668,10 @@ priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr,
 // point you actually have it, as a sentinel value, or as a Context
 // field on a longer-lived owner.
 //
-// Allowed exception: struct/namespace field defaults (where the
-// parent type doesn't yet have an instance to point at).
+// Struct field defaults used to be the allowed exception (no
+// instance to point at yet); #321 step 2 closed it --
+// check_ref_field_owned_default rejects `= NULL` there too, Dynamic
+// quarantine fields excepted.
 //
 // Module-scope globals were the original conservative carve-out; the
 // 8 remaining sites flagged in #177 (interpreter cached_*_def/_name,

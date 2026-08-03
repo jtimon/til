@@ -101,22 +101,25 @@ test_null_borrowed_arg := test() {
     accept_null(NULL)
 }
 
+// #321 step 2: a ref field can no longer default to NULL; the
+// maybe-absent borrow is an Option(ref T) field (niche layout keeps it
+// pointer-sized), the linked-node pattern's new spelling.
 RefNode := struct {
     const value := 0
-    ref next : RefNode = NULL
+    next := Option(ref RefNode).None
 }
 
 test_ref_struct_field := test() {
-    a := RefNode(value = 10)
+    mut a := RefNode(value = 10)
     b := RefNode(value = 20)
-    a.next = b
+    a.next = Option(ref RefNode).Some(b)
     assert_eq(I64, a.value, 10)
-    assert_eq(I64, a.next.value, 20)
+    assert_eq(I64, a.next.unwrap().value, 20)
 
     // clone copies the pointer (not deep clone)
     c := a.clone()
     assert_eq(I64, c.value, 10)
-    assert_eq(I64, c.next.value, 20)
+    assert_eq(I64, c.next.unwrap().value, 20)
 }
 
 # --- Issue #226 / #227: ref mut primitive must deref-write ---

@@ -346,10 +346,11 @@ terr_step5_bad_ret := func(f: TerrCloneRefSrc) returns ref TerrCloneRefSrc {
 }
 
 // #168 step 3: ref struct field default cannot be an owned value.
-// NULL stays allowed (forced exception for ref fields).
+// #321 step 2: the old NULL exception is closed too -- both lines
+// error now; the nullable-borrow shape is an Option(ref T) field.
 TerrStep3 := struct {
     ref bad_field : TerrCloneRefSrc = TerrCloneRefSrc(field=3)
-    ref ok_field : TerrCloneRefSrc = NULL
+    ref bad_field_null : TerrCloneRefSrc = NULL
 }
 
 // #168 step 2 follow-up: enum variant constructors are caught too,
@@ -359,9 +360,10 @@ TerrStep2Enum := enum { TerrPayload: I64, TerrEmpty }
 ref terr_step2_enum : TerrStep2Enum = TerrStep2Enum.TerrPayload(5)
 
 // #168 step 4: assignment to a ref-typed lvalue cannot accept an owned
-// RHS. Catches both plain Assign and FieldAssign shapes.
+// RHS. Catches both plain Assign and FieldAssign shapes. (data is
+// mandatory -- no default -- since #321 step 2 retired `= NULL`.)
 TerrStep4Field := struct {
-    ref data : Str = NULL
+    ref data : Str
 namespace:
     set_clone := func(mut self: TerrStep4Field, src: Str) returns I64 {
         self.data = src.clone()
@@ -376,9 +378,9 @@ terr_step4_assign := func() returns I64 {
 terr_step4_assign()
 
 // #168 step 1b / #177: ref bindings cannot be initialized to NULL.
-// Field defaults remain allowed (the parent type doesn't yet have an
-// instance to point at). Func/proc/test/macro bodies AND module scope
-// are now uniformly rejected.
+// Func/proc/test/macro bodies AND module scope are uniformly
+// rejected; #321 step 2 closed the old field-default exception too
+// (see TerrStep3 above).
 terr_null_ref_local_fn := func() returns I64 {
     ref leaked_null : I64 = NULL
     ref mut leaked_null_mut : I64 = NULL
