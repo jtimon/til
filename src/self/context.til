@@ -1842,15 +1842,11 @@ niche_payload_is_owned_box := func(vtype: Str) returns Bool {
 // #321: payload_funcsig of a variant by declaration INDEX, for callers that
 // hold the def and an index rather than the VariantDef itself.
 enum_variant_payload_funcsig := func(enum_def: Expr, idx: I32) returns Bool {
-    switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
-        idx_u := idx.to_usize()
-        if idx_u < edd.variants.len() {
-            ref vd : VariantDef = edd.variants[idx_u]
-            return vd.payload_funcsig
-        }
-    case:
-        UNREACHABLE()
+    ref edd : EnumDef = enumdef_of(enum_def)
+    idx_u := idx.to_usize()
+    if idx_u < edd.variants.len() {
+        ref vd : VariantDef = edd.variants[idx_u]
+        return vd.payload_funcsig
     }
     return false
 }
