@@ -1515,6 +1515,30 @@ which an owned field cannot hold honestly), InterpCallableBox.env
 (raw-built; needs the drain semantics thought through), and FFIEntry's
 raw buffers (Dynamic quarantine candidates).
 
+**** Batch 37: constfolder_known completes the #324 Scope trio
+
+The third and trickiest of the trio, because of the fold-nesting
+save/restore: folding a nested FuncDef parks a VIEW scope in the field
+(body-local knowns shadow an immutable parent snapshot; copying the map
+made nested folding quadratic). An owned field cannot hold a borrowed
+view -- so the view is now OWNED too: the dance moves the real scope out
+(swap into a local), builds an owned view via scope_new_owned whose
+parent BORROWS the moved-out scope (the box address is stable across a
+swap; only the pointer moves), folds, clears the view with the standard
+drop+swap+take+scope_free, and swaps the real scope back. The dead
+constfolder_known_borrow_view helper went with it.
+
+With ns_fields and the session global, all three Scope-typed #324 fields
+now own what they free. The remaining ~ref ... = NULL~ fields in src/
+are exactly FOUR, all quarantine-class: Context.return_value and
+Context.interp_ret_dest (ref Dynamic -- the raw layer the Decisions
+section keeps nullable by design) and FFIEntry's two U8 buffers (raw
+malloc'd blocks, same island). Plus InterpCallableBox.env (no default,
+raw-built) -- the next commit's target, after which the #324 typer
+check itself can land.
+
+208/208, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

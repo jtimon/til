@@ -4,22 +4,36 @@ import("context")
 
 // Constfolder: constant folding for macros and pure functions
 constfolder_clear_known := func(mut ctx: Context) {
-    if ctx.constfolder_known.is_null().not() {
-        scope_drop_owned_bindings(ctx.constfolder_known)
-        scope_free(own ctx.constfolder_known)
-        ctx.constfolder_known = NULL
+    if ctx.constfolder_known.is_some() {
+        scope_drop_owned_bindings(known_scope(ctx))
+        // Move the scope OUT of the field before freeing, so the field is
+        // None the moment the free runs (same discipline as ns_fields and
+        // the session global).
+        mut cfk_old := Option(Scope).None
+        swap(Option(Scope), ctx.constfolder_known, cfk_old)
+        scope_free(own Option(Scope).take(own cfk_old))
     }
 }
 
 constfolder_reset_state := func(mut ctx: Context) {
     constfolder_clear_known(ctx)
-    ctx.constfolder_known = scope_new_boxed(Option(ref Scope).None)
+    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     ctx.constfolder_foldables = Map(Str, FuncType).new()
     ctx.constfolder_assigned = Set(Str).new()
 }
 
+// The known scope, borrowed. PANICS on None: every caller runs between
+// constfolder_reset_state and the clear, so an absent scope is a broken
+// invariant, not a state to absorb.
+priv known_scope := func(ctx: Context) returns ref Scope {
+    switch ctx.constfolder_known {
+    case Option(Scope).Some(ks): return ks
+    case Option(Scope).None: panic(__LOC__, "constfolder_known read outside reset/clear")
+    }
+}
+
 priv constfolder_known_has := func(ctx: Context, name: Str) returns Bool {
-    return scope_lookup_heap_binding(ctx.constfolder_known, name).is_some()
+    return scope_lookup_heap_binding(known_scope(ctx), name).is_some()
 }
 
 // A comptime-known VALUE with a primitive type binds Shallow: reads then
@@ -30,12 +44,6 @@ priv constfolder_known_has := func(ctx: Context, name: Str) returns Bool {
 priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType {
     if raw_type_is_prim(t, ctx) { return OwnType.Shallow }
     return OwnType.Own
-}
-
-priv constfolder_known_borrow_view := func(ctx: Context) returns ref Scope {
-    // Body-local known values shadow an immutable parent snapshot; copying the
-    // full known map here made nested-function folding quadratic.
-    return scope_new_boxed(Option(ref Scope).Some(ctx.constfolder_known))
 }
 
 // Collect every variable name that is the target of an assignment in the
@@ -410,8 +418,8 @@ priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
     case NodeType.Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
             // is_known gated this branch, so the binding is there.
-            ref known_hb : HeapBinding = scope_lookup_heap_binding(ctx.constfolder_known, id.ident_name()).unwrap()
-            raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            ref known_hb : HeapBinding = scope_lookup_heap_binding(known_scope(ctx), id.ident_name()).unwrap()
+            raw : Dynamic = scope_read_bound_raw(known_scope(ctx), id.ident_name(), ctx)
             // is_known's contract is an OWNED BLOCK: box a scalar word so
             // every consumer can bind or free it uniformly.
             if raw_type_is_prim(hb_type(known_hb), ctx) { return scalar_block_from_word(hb_type(known_hb), raw, ctx) }
@@ -943,8 +951,8 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
         bt_w : Dynamic = interp_intern_type(rhs.til_type(), ctx)
-        scope_set_raw_owned(ctx.constfolder_known, name, raw, bt_w, known_bind_own_type(rhs.til_type(), ctx), ctx)
-        mut scope_raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, name, ctx)
+        scope_set_raw_owned(known_scope(ctx), name, raw, bt_w, known_bind_own_type(rhs.til_type(), ctx), ctx)
+        mut scope_raw : Dynamic = scope_read_bound_raw(known_scope(ctx), name, ctx)
         if raw_type_is_prim(rhs.til_type(), ctx) { scope_raw = scalar_block_from_word(rhs.til_type(), scope_raw, ctx) }
         scope_set_raw_owned(scope, name, scope_raw, bt_w, known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
@@ -959,7 +967,7 @@ priv track_literal := func(scope: Scope, name: Str, rhs: Expr, ctx: Context) {
 priv track_literal_known_only := func(name: Str, rhs: Expr, ctx: Context) {
     raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().not() {
-        scope_set_raw_owned(ctx.constfolder_known, name, raw, interp_intern_type(rhs.til_type(), ctx), known_bind_own_type(rhs.til_type(), ctx), ctx)
+        scope_set_raw_owned(known_scope(ctx), name, raw, interp_intern_type(rhs.til_type(), ctx), known_bind_own_type(rhs.til_type(), ctx), ctx)
     }
 }
 
@@ -1076,8 +1084,8 @@ priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
     switch e.node_type {
     case NodeType.Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
-            ref hb : HeapBinding = scope_lookup_heap_binding(ctx.constfolder_known, id.ident_name()).unwrap()
-            mut raw : Dynamic = scope_read_bound_raw(ctx.constfolder_known, id.ident_name(), ctx)
+            ref hb : HeapBinding = scope_lookup_heap_binding(known_scope(ctx), id.ident_name()).unwrap()
+            mut raw : Dynamic = scope_read_bound_raw(known_scope(ctx), id.ident_name(), ctx)
             if raw_type_is_prim(hb_type(hb), ctx) { raw = scalar_block_from_word(hb_type(hb), raw, ctx) }
             scope_set_raw_owned(scope, id.ident_name(), raw, hb.til_type_p, known_bind_own_type(hb_type(hb), ctx), hb.ctx)
         }
@@ -1304,11 +1312,22 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // Save+restore `known` around any nested FuncDef body so user-named
         // locals tracked inside one func body don't pollute siblings.
         if child.node_type.is(NodeType.FuncDef) {
-            ref snapshot_fd : Scope = ctx.constfolder_known
-            ctx.constfolder_known = constfolder_known_borrow_view(ctx)
+            // Move the real known out and park an owned VIEW in the field:
+            // body-local knowns shadow an immutable parent snapshot (copying
+            // the full map here made nested folding quadratic). The view's
+            // parent borrows the moved-out scope -- the box address is
+            // stable across the swap; only the pointer moved.
+            mut snapshot_fd := Option(Scope).None
+            swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
+            switch snapshot_fd {
+            case Option(Scope).Some(real_known):
+                ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).Some(real_known)))
+            case Option(Scope).None:
+                ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+            }
             fold_subtree(scope, child, ctx)
             constfolder_clear_known(ctx)
-            ctx.constfolder_known = snapshot_fd
+            swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
             continue
         }
         fold_subtree(scope, child, ctx)

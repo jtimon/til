@@ -396,7 +396,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // (constfolder_foldables) was populated upstream by the typer
     // (constfolder_classify_stmt) and must survive into this phase.
     constfolder_clear_known(lp.ctx)
-    lp.ctx.constfolder_known = scope_new_boxed(Option(ref Scope).None)
+    lp.ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     // Issue #109: populate ctx.cached_str_name BEFORE
     // constfolder_register_fold_scope, so the raw Str path inside the
     // fold-scope walk has the field layout needed to clone and drop strings.
@@ -523,7 +523,7 @@ priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
 
 priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     constfolder_clear_known(lp.ctx)
-    lp.ctx.constfolder_known = scope_new_boxed(Option(ref Scope).None)
+    lp.ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)

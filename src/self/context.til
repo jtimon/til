@@ -663,7 +663,11 @@ Context := struct {
     // Raw-owning runtime tables must delete before imported ASTs: aggregate
     // payloads carry type/layout refs into those ASTs.
     constfolder_foldables := Map(Str, FuncType).new()
-    ref constfolder_known : Scope = NULL
+    // #321/#324: the comptime-known scope, OWNED (see ns_fields above for
+    // the pattern). None IS the between-resets state; the fold-nesting
+    // save/restore moves the real scope out and parks an owned VIEW scope
+    // (parented at the moved-out real one) in the field meanwhile.
+    constfolder_known := Option(Scope).None
     constfolder_assigned := Set(Str).new()
     has_return := false
     has_break := false
