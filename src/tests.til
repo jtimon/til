@@ -637,6 +637,15 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/dyn_vecs_sz.c test/dyn_vecs.til '&&' cat gen/c/dyn_vecs_sz.c"))
     add_count(tests, "match_no_uncalled_variant_ctor", "build", "Color_Red", 0,
         format(til_bin, " translate -c gen/c/match_ctor.c test/match.til '&&' cat gen/c/match_ctor.c"))
+    // A core_func/ext_func namespace method has no emitted body -- an
+    // enum's auto-generated `is` is lowered to a typed tag compare, an
+    // ext_func's symbol lives in ext.c. Four of the six ns
+    // forward-declaration loops skipped those; two did not, and
+    // emit_func_forward_decl's own guard is gated on `top_level`, false for
+    // a member. So each one got a prototype nothing defines and nothing
+    // calls -- 61 in til's own output. `Color_is` is the witness.
+    add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
+        format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,

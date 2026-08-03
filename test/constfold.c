@@ -204,7 +204,6 @@ void Color_delete(Color * self, Bool call_free);
 Color * Color_clone(Color * self);
 void test_enum_fold(void);
 Token * Token_Num(I64 * val);
-Bool Token_is(Token * self, Token * other);
 void Token_delete(Token * self, Bool call_free);
 void test_enum_payload_fold(void);
 void test_enum_return_fold(void);

@@ -5465,6 +5465,21 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
     return builder_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
 }
 
+// True for a namespace method the builder lowers INLINE, so no C function
+// of that name exists anywhere: the core families only. An enum's
+// auto-generated `is` is the common one -- it becomes a typed tag compare.
+// ext_func/ext_proc members are deliberately NOT included: their symbol is
+// real and defined outside this translation unit (a linked C module's
+// `Pair_sum`), so the prototype is exactly what lets the emitted C call
+// it -- dropping it is an implicit-declaration build error, which is how
+// test/ffi_module caught the first version of this.
+priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
+    ref bnmli_fd : FunctionDef = funcdef_of(fdef)
+    return bnmli_fd.func_type.is(FuncType.CoreFunc)
+        .or(bnmli_fd.func_type.is(FuncType.CoreProc))
+        .or(bnmli_fd.func_type.is(FuncType.CoreLazyFunc))
+}
+
 priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
     if builder_size_method_omitted(type_name, member, ctx) { return true }
@@ -6241,6 +6256,16 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     fwi2 = fwi2 + 1
                     if fdd.default_value.is_null() { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    // #326: a core_func/ext_func namespace method has no
+                    // emitted body -- the builder lowers it inline (an enum's
+                    // auto-generated `is` becomes a typed tag compare) or the
+                    // symbol lives in ext.c. The other four ns
+                    // forward-declaration loops already skip those; these two
+                    // did not, and emit_func_forward_decl's own guard is
+                    // gated on `top_level`, which is false for a member. So
+                    // every such method got a prototype that nothing defines
+                    // and nothing calls -- 61 in til's own output.
+                    if builder_ns_method_lowered_inline(fdd.default_value) { continue }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi2))
                     emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
@@ -7444,6 +7469,16 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     af2i = af2i + 1
                     if fdd.default_value.is_null() { continue }
                     if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    // #326: a core_func/ext_func namespace method has no
+                    // emitted body -- the builder lowers it inline (an enum's
+                    // auto-generated `is` becomes a typed tag compare) or the
+                    // symbol lives in ext.c. The other four ns
+                    // forward-declaration loops already skip those; these two
+                    // did not, and emit_func_forward_decl's own guard is
+                    // gated on `top_level`, which is false for a member. So
+                    // every such method got a prototype that nothing defines
+                    // and nothing calls -- 61 in til's own output.
+                    if builder_ns_method_lowered_inline(fdd.default_value) { continue }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af2i))
                     emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
