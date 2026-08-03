@@ -22,17 +22,17 @@ typedef struct Range Range;
 typedef struct CfVec2 CfVec2;
 typedef struct CfRect CfRect;
 typedef struct CfVec3f CfVec3f;
-typedef enum {
+enum {
     Color_TAG_Red,
     Color_TAG_Green,
     Color_TAG_Blue
-} Color_tag;
+};
 typedef struct Color Color;
-typedef enum {
+enum {
     Token_TAG_Num,
     Token_TAG_Name,
     Token_TAG_Eof
-} Token_tag;
+};
 typedef struct Token Token;
 
 

@@ -15,7 +15,7 @@ typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
 typedef struct Dynamic Dynamic;
-typedef enum {
+enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
     Primitive_TAG_I8,
@@ -27,9 +27,9 @@ typedef enum {
     Primitive_TAG_F32,
     Primitive_TAG_Bool,
     Primitive_TAG_F64
-} Primitive_tag;
+};
 typedef struct Primitive Primitive;
-typedef enum {
+enum {
     Type_TAG_Unknown,
     Type_TAG_None,
     Type_TAG_Struct,
@@ -43,9 +43,9 @@ typedef enum {
     Type_TAG_Primitive,
     Type_TAG_FuncPtrSig,
     Type_TAG_Body
-} Type_tag;
+};
 typedef struct Type Type;
-typedef enum {
+enum {
     FuncType_TAG_Func,
     FuncType_TAG_Proc,
     FuncType_TAG_Test,
@@ -57,24 +57,24 @@ typedef enum {
     FuncType_TAG_CoreFunc,
     FuncType_TAG_CoreProc,
     FuncType_TAG_CoreLazyFunc
-} FuncType_tag;
+};
 typedef struct FuncType FuncType;
-typedef enum {
+enum {
     OwnType_TAG_Own,
     OwnType_TAG_Ref,
     OwnType_TAG_Shallow
-} OwnType_tag;
+};
 typedef struct OwnType OwnType;
-typedef enum {
+enum {
     GcStorage_TAG_Unset,
     GcStorage_TAG_Stack,
     GcStorage_TAG_HeapBox
-} GcStorage_tag;
+};
 typedef struct GcStorage GcStorage;
-typedef enum {
+enum {
     Option__Expr_TAG_None,
     Option__Expr_TAG_Some
-} Option__Expr_tag;
+};
 typedef struct Option__Expr Option__Expr;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
@@ -90,18 +90,18 @@ typedef struct StructLayout StructLayout;
 typedef struct AssignData AssignData;
 typedef struct FieldAssignData FieldAssignData;
 typedef struct ForInData ForInData;
-typedef enum {
+enum {
     Literal_TAG_Str,
     Literal_TAG_Num,
     Literal_TAG_Bool,
     Literal_TAG_Null,
     Literal_TAG_MapLit,
     Literal_TAG_SetLit
-} Literal_tag;
+};
 typedef struct Literal Literal;
 typedef struct MatchData MatchData;
 typedef struct CaptureBlockData CaptureBlockData;
-typedef enum {
+enum {
     NodeType_TAG_Body,
     NodeType_TAG_Literal,
     NodeType_TAG_Ident,
@@ -131,13 +131,13 @@ typedef enum {
     NodeType_TAG_Loc,
     NodeType_TAG_BodyValue,
     NodeType_TAG_ListPattern
-} NodeType_tag;
+};
 typedef struct NodeType NodeType;
 typedef struct Expr Expr;
-typedef enum {
+enum {
     Option__ref_Str_TAG_None,
     Option__ref_Str_TAG_Some
-} Option__ref_Str_tag;
+};
 typedef struct Option__ref_Str Option__ref_Str;
 typedef struct Map__Str_USize Map__Str_USize;
 typedef struct Vec__VariantDef Vec__VariantDef;
@@ -150,7 +150,7 @@ typedef struct Map__Str_Tuple Map__Str_Tuple;
 typedef struct Vec__Tuple Vec__Tuple;
 typedef struct Range Range;
 typedef struct File File;
-typedef enum {
+enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
     TokenType_TAG_RParen,
@@ -234,7 +234,7 @@ typedef enum {
     TokenType_TAG_KwNull,
     TokenType_TAG_KwPriv,
     TokenType_TAG_Error
-} TokenType_tag;
+};
 typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Map__Str_TokenType Map__Str_TokenType;
@@ -246,10 +246,10 @@ typedef struct Map__Str_Str Map__Str_Str;
 typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
 typedef struct TypeBinding TypeBinding;
-typedef enum {
+enum {
     ScopeFind_TAG_NotFound,
     ScopeFind_TAG_Found
-} ScopeFind_tag;
+};
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct GenericFuncSource GenericFuncSource;
@@ -258,41 +258,41 @@ typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
-typedef enum {
+enum {
     Option__ref_TypeBinding_TAG_None,
     Option__ref_TypeBinding_TAG_Some
-} Option__ref_TypeBinding_tag;
+};
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
-typedef enum {
+enum {
     Option__Scope_TAG_None,
     Option__Scope_TAG_Some
-} Option__Scope_tag;
+};
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
-typedef enum {
+enum {
     Option__ref_Expr_TAG_None,
     Option__ref_Expr_TAG_Some
-} Option__ref_Expr_tag;
+};
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
-typedef enum {
+enum {
     Option__ref_TypeScope_TAG_None,
     Option__ref_TypeScope_TAG_Some
-} Option__ref_TypeScope_tag;
+};
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
-typedef enum {
+enum {
     Option__ref_Declaration_TAG_None,
     Option__ref_Declaration_TAG_Some
-} Option__ref_Declaration_tag;
+};
 typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
@@ -303,22 +303,22 @@ typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
 typedef struct Vec__FFIEntry Vec__FFIEntry;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
-typedef enum {
+enum {
     Option__ref_Mode_TAG_None,
     Option__ref_Mode_TAG_Some
-} Option__ref_Mode_tag;
+};
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
 typedef struct Map__Str_I64 Map__Str_I64;
 typedef struct Map__Str_GenericFuncSource Map__Str_GenericFuncSource;
 typedef struct Vec__GenericFuncSource Vec__GenericFuncSource;
-typedef enum {
+enum {
     Lang_TAG_C,
     Lang_TAG_HolyC,
     Lang_TAG_TIL
-} Lang_tag;
+};
 typedef struct Lang Lang;
-typedef enum {
+enum {
     Target_TAG_LinuxX64,
     Target_TAG_LinuxArm64,
     Target_TAG_LinuxRiscv64,
@@ -331,12 +331,12 @@ typedef enum {
     Target_TAG_MacosArm64,
     Target_TAG_Wasm32,
     Target_TAG_TempleosX86
-} Target_tag;
+};
 typedef struct Target Target;
-typedef enum {
+enum {
     priv___src_self_typer_til__CtorArg_TAG_Unfilled,
     priv___src_self_typer_til__CtorArg_TAG_Filled
-} priv___src_self_typer_til__CtorArg_tag;
+};
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct FactIndex FactIndex;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
@@ -355,15 +355,15 @@ typedef struct Array__U8 Array__U8;
 typedef struct Vec__GcBorrowEdge Vec__GcBorrowEdge;
 typedef struct Vec__LocalInfo Vec__LocalInfo;
 typedef struct Vec__GcCfgBlock Vec__GcCfgBlock;
-typedef enum {
+enum {
     Option__ref_Dynamic_TAG_None,
     Option__ref_Dynamic_TAG_Some
-} Option__ref_Dynamic_tag;
+};
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
-typedef enum {
+enum {
     Option__ref_Scope_TAG_None,
     Option__ref_Scope_TAG_Some
-} Option__ref_Scope_tag;
+};
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
@@ -392,17 +392,17 @@ typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpret
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
-typedef enum {
+enum {
     Option__ref_HeapBinding_TAG_None,
     Option__ref_HeapBinding_TAG_Some
-} Option__ref_HeapBinding_tag;
+};
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
-typedef enum {
+enum {
     Option__ref_ffi_type_TAG_None,
     Option__ref_ffi_type_TAG_Some
-} Option__ref_ffi_type_tag;
+};
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;

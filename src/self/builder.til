@@ -6333,7 +6333,12 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                         f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                     }
                 case NodeType.EnumDef(fwd_edd):
-                    f.write("typedef enum {\n")
+                    // #326: an ANONYMOUS enum -- only the E_TAG_* enumerator
+                    // constants are ever referenced (the tag field is typed
+                    // by its explicit width, `U8 tag;`), so the old
+                    // `typedef enum {...} E_tag;` left a never-used typedef
+                    // name per enum, one more dead declaration per type.
+                    f.write("enum {\n")
                     for j in 0..fwd_edd.variants.len() {
                         ref vd : VariantDef = fwd_edd.variants[j]
                         if j > 0 { f.write(",\n") }
@@ -6343,7 +6348,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                         // enum's underlying type for >int values (no -Wpedantic).
                         if vd.tag_value != j.to_i64() { f.write(" = ").write(vd.tag_value.to_str()) }
                     }
-                    f.fwrite("\n} ", dd.name, "_tag;\n")
+                    f.write("\n};\n")
                     f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                 case:
                 }
@@ -6367,14 +6372,14 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
                 }
             case NodeType.EnumDef(fwd_edd):
-                f.write("typedef enum {\n")
+                f.write("enum {\n")
                 for j in 0..fwd_edd.variants.len() {
                     ref vd : VariantDef = fwd_edd.variants[j]
                     if j > 0 { f.write(",\n") }
                     f.fwrite("    ", dd.name, "_TAG_", vd.name)
                     if vd.tag_value != j.to_i64() { f.write(" = ").write(vd.tag_value.to_str()) }
                 }
-                f.fwrite("\n} ", dd.name, "_tag;\n")
+                f.write("\n};\n")
                 f.fwrite("typedef struct ", dd.name, " ", dd.name, ";\n")
             case:
             }
