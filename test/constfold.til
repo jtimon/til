@@ -271,3 +271,21 @@ test_enum_payload_return_fold := test() {
     assert(t.is(Token.Num))
     assert(t.is(Token.Eof).not())
 }
+
+// #280: an `and`/`or` whose operands are ALL Bool literals folds to a single
+// literal at compile time, leaving no runtime branch -- for the binary form,
+// the n-ary spelling `and(a, b, c)`, and the UFCS method form. The fold runs
+// in the parser (nest_nary_and_or's sibling), because the loader later splices
+// these calls into a `match` and the constfolder handles neither Match nor If.
+test_const_and_or_fold := test() {
+    expect(and(true, true), "and(T,T)")
+    expect(and(true, false).not(), "and(T,F)")
+    expect(and(true, true, true), "and x3 T")
+    expect(and(true, true, false).not(), "and x3 with F")
+    expect(or(false, true), "or(F,T)")
+    expect(or(false, false).not(), "or(F,F)")
+    expect(or(false, false, true), "or x3 with T")
+    expect(or(false, false, false).not(), "or x3 F")
+    expect(true.and(true), "T.and(T)")
+    expect(false.or(true), "F.or(T)")
+}

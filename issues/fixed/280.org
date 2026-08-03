@@ -1,6 +1,34 @@
 # priority: medium
 # category: features
-** OPEN #280 Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+** FIXED #280 Variadic (N-ary) and/or folding (short-circuit, const-foldable)
+
+*** Post-mortem
+
+Landed in two parts. The N-ary spelling and its short-circuit came first:
+the parser right-nests `and(a, b, c, ...)` into ordinary binary calls
+(nest_nary_and_or, src/self/parser.til), so nothing downstream ever sees an
+n-ary form and the existing binary lazy lowering supplies short-circuit for
+free -- no Array of operands is ever built.
+
+This commit adds the const-foldability half, which was NOT met: measured on
+the merged n-ary work, `and(true, true, false)` emitted the full nested
+if-chain, and so did the plain binary `and(true, false)`. The issue's note
+that "the binary form already does this" was stale -- the constfolder
+handles neither Match nor If, so once the loader splices an and/or into a
+`match`, nothing downstream can collapse it.
+
+Fix: fold it BEFORE that splice. fold_const_and_or (src/self/parser.til)
+runs beside nest_nary_and_or and rewrites an and/or whose operands are all
+Bool literals into a single Bool literal -- binary, n-ary and UFCS method
+forms alike. Non-literal operands, splat/own/ref/named args are left
+untouched.
+
+Out of acceptance by design: `&&` / `||` do not route through parse_call,
+so they keep their current unfolded lowering (the issue asks only that they
+keep current behaviour).
+
+Regression test: test_const_and_or_fold in test/constfold.til; short-circuit
+across N operands is covered by test/lazy.til.
 
    Make ~and~ / ~or~ N-ary (Lisp-style): ~and(p, q, r, ...)~ short-circuits
    across all N operands, evaluating only up to the first ~false~ (dually,

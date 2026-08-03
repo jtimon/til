@@ -1442,7 +1442,7 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     }
     expect_token(p, TokenType.RParen)
     parse_throw_bang_suffix(p, call)
-    return nest_nary_and_or(own call)
+    return nest_nary_and_or(own fold_const_and_or(own call))
 }
 
 // `and`/`or` are strictly binary primitives, but the Lisp/Clojure spelling
@@ -1458,6 +1458,61 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
 // another one reuses its result temp, while one in the SUBJECT has to be
 // hoisted into a temp of its own first. Right-nesting is a whole chain in one
 // temp; left-nesting is one temp per operand.
+// #280: constant-fold an `and`/`or` whose operands are all Bool literals to a
+// single literal, so `and(true, true, false)` leaves no runtime branch. This
+// has to happen HERE, before the loader splices the call into a `match`: the
+// constfolder handles neither Match nor If, so once the lazy inliner has run
+// the nested if-chain is no longer foldable by anything downstream. Applies to
+// the binary form and the n-ary spelling alike (nest_nary_and_or below runs
+// after, on whatever is left).
+priv fold_const_and_or := func(own call: Expr) returns Expr {
+    if call.children.len() < 3 { return call }
+    mut name := ""
+    mut first : USize = 1
+    switch call.children[0].node_type {
+    case NodeType.Ident(cn): name = Str.clone(cn.ident_name())
+    case NodeType.FieldAccess(fa):
+        // Method form `a.and(b)`: the receiver is the first operand.
+        if call.children[0].children.len() == 1 {
+            name = Str.clone(fa.name)
+            first = 0
+        }
+    case:
+    }
+    is_and := name.eq("and")
+    if is_and.or(name.eq("or")).not() { return call }
+    switch call.node_type {
+    case NodeType.FCall(fcd):
+        if fcd.is_splat.or(fcd.own_args.neq(0)).or(fcd.ref_args.neq(0)) { return call }
+    case:
+    }
+    // Collect every operand; bail unless all of them are Bool literals.
+    mut acc := is_and          // and: identity true; or: identity false
+    mut n : USize = 0
+    if first == 0 {
+        ref recv : Expr = call.children[0].children[0]
+        if recv.node_type.is_literal_bool().not() { return call }
+        switch recv.node_type {
+        case NodeType.Literal(Literal.Bool(rb)):
+            if is_and { acc = acc.and(rb) } else { acc = acc.or(rb) }
+        case:
+        }
+        n++
+    }
+    for i in 1..call.children.len() {
+        ref a : Expr = call.children[i]
+        if a.node_type.is_literal_bool().not() { return call }
+        switch a.node_type {
+        case NodeType.Literal(Literal.Bool(ab)):
+            if is_and { acc = acc.and(ab) } else { acc = acc.or(ab) }
+        case:
+        }
+        n++
+    }
+    if n < 2 { return call }
+    return Expr.new(NodeType.Literal(Literal.Bool(acc)), call.line, call.col)
+}
+
 priv nest_nary_and_or := func(own call: Expr) returns Expr {
     if call.children.len() < 3 { return call }
     // Every call with two or more arguments reaches here, so decide on the
