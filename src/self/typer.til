@@ -7796,11 +7796,6 @@ FactIndex := struct {
     idx := Map(Str, USize).new()
 }
 
-fact_fingerprint := func(name: Str) returns U64 {
-    mut one : U64 = 1
-    return one.shl(name.len().to_u64().mul(31).add(name.unsafe_get(0).to_u64()).mod(64))
-}
-
 // One binary search over the index Map's storage. Map.get throws on
 // a miss, so going through it would need a has() probe first --
 // doubling the searches on the collectors' hottest path.
@@ -7820,7 +7815,7 @@ fact_bit_search := func(idx: Map(Str, USize), name: Str) returns I64 {
 }
 
 fact_bit_of := func(fi: FactIndex, name: Str) returns I64 {
-    if fi.filt.band(fact_fingerprint(name)) == 0 { return -1 }
+    if fi.filt.band(name_fingerprint(name)) == 0 { return -1 }
     return fact_bit_search(fi.idx, name)
 }
 

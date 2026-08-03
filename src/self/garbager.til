@@ -1264,7 +1264,7 @@ priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
     for b in scope.bindings.values {
         if fi.idx.has(b.name).not() {
             fi.idx.set(b.name, own fi.idx.len())
-            fi.filt = fi.filt.bor(fact_fingerprint(b.name))
+            fi.filt = fi.filt.bor(name_fingerprint(b.name))
         }
     }
     for stmt : Expr in body.children {
@@ -1272,7 +1272,7 @@ priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
         case NodeType.Assign(ad):
             if fi.idx.has(ad.name).not() {
                 fi.idx.set(ad.name, own fi.idx.len())
-                fi.filt = fi.filt.bor(fact_fingerprint(ad.name))
+                fi.filt = fi.filt.bor(name_fingerprint(ad.name))
             }
         case:
         }

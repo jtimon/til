@@ -77,12 +77,29 @@ namespace:
 
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
+// One bit of a 64-bit set fingerprint, picked from a name's length and
+// first byte. TypeScope's registry filters below are the OR of their
+// keys' bits, so a CLEAR bit proves the name is absent and the lookup
+// can skip that level's binary search; a set bit means "maybe" and the
+// search decides. Also used for the garbager's per-body fact index
+// (typer.til), which filters the same way.
+// Written for the emitted C, not for looks: this runs once per scope
+// lookup (600K+ per maps.til compile), and at -O0 every intermediate is
+// a store plus a load. band(63) instead of mod(64) drops the emitted
+// divide-by-zero guard, and the byte goes through cast(U8) so the
+// widening is a C cast rather than the sign-extending I8_to_u64 call.
+name_fingerprint := func(name: Str) returns U64 {
+    mut one : U64 = 1
+    return one.shl(name.len().mul(31).add(name.unsafe_get(0).cast(U8).to_usize()).band(63).to_u64())
+}
+
 // Issue #147: leaf cell-deref for TypeScope.func_defs. Same shape as
 // interpreter.til:lookup_interp_type_def (Map.get(name)? -> deref).
 // Kept as a standalone leaf so the catch/?-unwrap is the function's
 // whole body -- inlining it into lookup_func's parent-walk produced a
 // multi-branch CFG that GCC rejected with -Werror=return-type.
-priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
+priv func_defs_lookup_one := func(filt: U64, fp: U64, m: Map(Str, Dynamic), name: Str) returns Option(ref Expr) {
+    if filt.band(fp) == 0 { return Option(ref Expr).None }
     ref slot : Dynamic = m.get(name)?
     catch (e: KeyNotFound) { return Option(ref Expr).None }
     ref fd : Expr = deref(slot)
@@ -95,7 +112,8 @@ priv func_defs_lookup_one := func(m: Map(Str, Dynamic), name: Str) returns Optio
 // scope per lookup, ~850K has() calls per self-host translate); one
 // get()?+catch does it in one probe, mirroring the interpreter's
 // scope-chain collapse.
-priv bindings_lookup_one := func(m: Map(Str, TypeBinding), name: Str) returns Option(ref TypeBinding) {
+priv bindings_lookup_one := func(filt: U64, fp: U64, m: Map(Str, TypeBinding), name: Str) returns Option(ref TypeBinding) {
+    if filt.band(fp) == 0 { return Option(ref TypeBinding).None }
     ref b : TypeBinding = m.get(name)?
     catch (e: KeyNotFound) { return Option(ref TypeBinding).None }
     return Option(ref TypeBinding).Some(b)
@@ -123,17 +141,39 @@ TypeScope := struct {
     // check must consider, without reaching enclosing/global bindings (a
     // local legitimately shadows a global, and codegen handles that).
     is_func_root := false
+    // Membership fingerprints (name_fingerprint) of the three registries'
+    // key sets: the OR of every key's bit. A clear bit PROVES the name is
+    // not in that map, so the chain walk skips the binary search and the
+    // KeyNotFound catch at this level -- and skipping is the common case,
+    // because a lookup resolves at some outer scope while every level
+    // below it pays a full search first. Str-keyed Map searches are the
+    // compiler's largest CPU cost (Map__Str_TypeBinding_get and
+    // Map__Str_Dynamic_get together are ~57% of all Str_cmp).
+    //
+    // Erasing a name leaves its bit set: a stale bit only costs the
+    // search it could have skipped, never a wrong answer. The filters
+    // saturate on big scopes (the global one), which is exactly where
+    // lookups tend to HIT anyway.
+    bindings_filt : U64 = 0
+    func_defs_filt : U64 = 0
+    struct_defs_filt : U64 = 0
 namespace:
     // Iterative single-probe walk (the interpreter's scope_get shape):
     // one call frame per lookup, one binary search per level -- the
     // recursive has()+[] version paid a call and up to two searches per
     // level (417K lookups per self-host translate).
+    // The name's fingerprint is computed ONCE here and threaded down the
+    // walk (same for every _fp worker below): recomputing it per level
+    // would spend on arithmetic what the filter saves on searching.
     get_binding := func(self: TypeScope, name: Str) returns Option(ref TypeBinding) {
-        // Same empty-level skip as get_struct: intermediate block scopes
-        // frequently bind nothing.
-        if self.bindings.len() == 0 {
+        return self.get_binding_fp(name, name_fingerprint(name))
+    }
+    get_binding_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref TypeBinding) {
+        // Filter miss: this level cannot hold the name (it subsumes the
+        // empty-level skip -- an empty registry filters everything).
+        if self.bindings_filt.band(fp) == 0 {
             switch self.parent {
-            case Option(ref TypeScope).Some(pe): return pe.get_binding(name)
+            case Option(ref TypeScope).Some(pe): return pe.get_binding_fp(name, fp)
             case Option(ref TypeScope).None: return Option(ref TypeBinding).None
             }
         }
@@ -141,7 +181,7 @@ namespace:
         catch (e: KeyNotFound) {
             switch self.parent {
             case Option(ref TypeScope).Some(p):
-                return p.get_binding(name)
+                return p.get_binding_fp(name, fp)
             case Option(ref TypeScope).None:
                 return Option(ref TypeBinding).None
             }
@@ -164,10 +204,13 @@ namespace:
         return false
     }
     bound_in_this_func := func(self: TypeScope, name: Str) returns Bool {
-        if self.bindings.has(name) { return true }
+        return self.bound_in_this_func_fp(name, name_fingerprint(name))
+    }
+    bound_in_this_func_fp := func(self: TypeScope, name: Str, fp: U64) returns Bool {
+        if self.bindings_filt.band(fp).neq(0).and(self.bindings.has(name)) { return true }
         if self.is_func_root { return false }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.bound_in_this_func(name)
+        case Option(ref TypeScope).Some(p): return p.bound_in_this_func_fp(name, fp)
         case Option(ref TypeScope).None: return false
         }
         return false
@@ -202,22 +245,25 @@ namespace:
     // the recursive has()+lookup version paid a call frame and up to two
     // binary searches per scope level.
     get_struct := func(self: TypeScope, name: Str) returns Option(ref Expr) {
+        return self.get_struct_fp(name, name_fingerprint(name))
+    }
+    get_struct_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
         // Type defs live in the outer scopes, so a lookup from inside a
         // function body walks the whole chain and probes a map that is
         // EMPTY at nearly every level -- 14.3M probes per self-translate,
-        // the bulk of them on empty maps. A count check is two field
-        // reads; the probe below is a call plus a search plus the
-        // KeyNotFound catch.
-        if self.struct_defs.len() == 0 {
+        // the bulk of them on empty maps. The filter answers both of
+        // those (empty, and non-empty-but-absent) with one AND; the probe
+        // below is a call plus a search plus the KeyNotFound catch.
+        if self.struct_defs_filt.band(fp) == 0 {
             switch self.parent {
-            case Option(ref TypeScope).Some(pe): return pe.get_struct(name)
+            case Option(ref TypeScope).Some(pe): return pe.get_struct_fp(name, fp)
             case Option(ref TypeScope).None: return Option(ref Expr).None
             }
         }
         ref slot : Dynamic = self.struct_defs.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
-            case Option(ref TypeScope).Some(p): return p.get_struct(name)
+            case Option(ref TypeScope).Some(p): return p.get_struct_fp(name, fp)
             case Option(ref TypeScope).None: return Option(ref Expr).None
             }
         }
@@ -232,11 +278,14 @@ namespace:
     // struct def or None -- it must NOT fall through to a parent type of
     // the same name, or a shadowing local var would be misread as a type.
     struct_def_of := func(self: TypeScope, name: Str) returns Option(ref Expr) {
-        if bindings_lookup_one(self.bindings, name).is_some() {
-            return func_defs_lookup_one(self.struct_defs, name)
+        return self.struct_def_of_fp(name, name_fingerprint(name))
+    }
+    struct_def_of_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
+        if bindings_lookup_one(self.bindings_filt, fp, self.bindings, name).is_some() {
+            return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
         }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.struct_def_of(name)
+        case Option(ref TypeScope).Some(p): return p.struct_def_of_fp(name, fp)
         case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
@@ -256,26 +305,32 @@ namespace:
         // function's def -- the bug that broke this migration. Mirrors
         // how the old per-binding `func_def` field (no parent walk)
         // behaved.
-        if bindings_lookup_one(self.bindings, name).is_some() {
-            return func_defs_lookup_one(self.func_defs, name)
+        return self.lookup_func_fp(name, name_fingerprint(name))
+    }
+    lookup_func_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
+        if bindings_lookup_one(self.bindings_filt, fp, self.bindings, name).is_some() {
+            return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.lookup_func(name)
+        case Option(ref TypeScope).Some(p): return p.lookup_func_fp(name, fp)
         case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
     lookup_func_symbol := func(self: TypeScope, name: Str) returns Option(ref Expr) {
-        bo := bindings_lookup_one(self.bindings, name)
+        return self.lookup_func_symbol_fp(name, name_fingerprint(name))
+    }
+    lookup_func_symbol_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
+        bo := bindings_lookup_one(self.bindings_filt, fp, self.bindings, name)
         if bo.is_some() {
             if bo.unwrap().is_func_decl {
-                return func_defs_lookup_one(self.func_defs, name)
+                return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
             }
             return Option(ref Expr).None
         }
-        local := func_defs_lookup_one(self.func_defs, name)
+        local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         if local.is_some() { return local }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.lookup_func_symbol(name)
+        case Option(ref TypeScope).Some(p): return p.lookup_func_symbol_fp(name, fp)
         case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
@@ -303,12 +358,14 @@ namespace:
         cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
+        self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
     }
     set_func_symbol := func(mut self: TypeScope, name: Str, fdef: Expr) {
         if self.bindings.has(name) { return }
         cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, fdef)
         self.func_defs.set(name, own cell)
+        self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(name))
     }
     // Issue #147: register a binding's StructDef/EnumDef Expr in the
     // scope-side struct_defs map (the replacement for the removed
@@ -318,6 +375,7 @@ namespace:
         cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
+        self.struct_defs_filt = self.struct_defs_filt.bor(name_fingerprint(name))
     }
     is_mut := func(self: TypeScope, name: Str) returns Bool {
         bo := self.get_binding(name)
@@ -364,6 +422,7 @@ namespace:
                 line = line, col = col,
                 is_param = is_param, own_type = own_type)
             self.bindings.set(name, own nb)
+            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(name))
         }
 }
 
