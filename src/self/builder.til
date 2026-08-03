@@ -3080,13 +3080,22 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, ctx: Context) {
                 // after running the old destructor.
                 if rhs.node_type.is_literal_str() {
                     f.write("{ ").write(ctype).write("_delete(&").write(aname).write(", ").write(delete_call_free_lit(ctype, false, ctx)).write("); ")
-                    f.write(aname).write(" = (Str){.c_str = (void *)\"")
+                    f.write(aname).write(" = ")
+                    // #326: the pool element IS this CAP_LIT value; the
+                    // assignment is a plain struct copy either way, so read
+                    // the pool instead of restating the compound literal.
                     switch rhs.node_type {
                     case NodeType.Literal(Literal.Str(lit_s)):
-                        f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
+                        if ctx.builder_str_lit_symbols.has(lit_s) {
+                            f.write(ctx.builder_str_lit_symbols[lit_s])
+                        } else {
+                            f.write("(Str){.c_str = (void *)\"")
+                            f.write(lit_s).write("\", .count = ").emit_usize(c_lit_byte_count(lit_s))
+                            f.write("ULL, .cap = TIL_CAP_LIT}")
+                        }
                     case:
                     }
-                    f.write("ULL, .cap = TIL_CAP_LIT}; }\n")
+                    f.write("; }\n")
                 } else if rhs.node_type.is(NodeType.FCall).and(fcall_is_shallow_return(rhs, ctx)) {
                     // Issue #223 step 3: a shallow-returning call yields a value,
                     // not a heap pointer -- run the old destructor, then assign
