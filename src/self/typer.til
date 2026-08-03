@@ -859,6 +859,18 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
                     arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                 }
             }
+            // #321 step 4: NULL is the quarantine's literal. A borrowed
+            // param of any other type cannot receive it -- the maybe-absent
+            // argument is an Option(ref T). (own/shallow params error above
+            // on ownership grounds; this closes the remaining ref/plain
+            // params.)
+            if pp2.own_type.is(OwnType.Own).not().and(pp2.own_type.is(OwnType.Shallow).not()) {
+                if arg.node_type.is_literal_null() {
+                    if type_is_null_quarantine(type_from_name(pp2.explicit_type, scope, ctx)).not() {
+                        arg.type_error(format("cannot pass NULL to typed parameter '", pp2.name, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- pass an Option(ref T) instead (#321)"), ctx)
+                    }
+                }
+            }
             ci++
             pi++
         }
@@ -976,6 +988,12 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 ref mut ctor_fld : Declaration = ctor_sdd.field_at(slot.to_usize())
                 check_member_priv(arg, name, aname, ctor_fld.is_priv, ctx)
                 if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
+                // #321 step 4: NULL only fills quarantine-labeled fields.
+                if arg.children.len().gt(0).and(arg.children[0].node_type.is_literal_null()) {
+                    if type_is_null_quarantine(type_from_name(ctor_fld.explicit_type, scope, ctx)).not() {
+                        arg.type_error(format("cannot initialize field '", aname, "' with NULL; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option field for a real absent state (#321)"), ctx)
+                    }
+                }
                 ref slot_arg : CtorArg = field_vals[slot.to_usize()]
                 if slot_arg.is(CtorArg.Filled) {
                     msg := format("duplicate argument for field '", aname, "'")
@@ -4611,6 +4629,19 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
             narrow_return_literal(scope, stmt.children[0], ctx)
         }
         stmt.set_til_type(stmt.children[0].til_type())
+        // #321 step 4: a typed function cannot return NULL; the
+        // maybe-absent return is an Option. Quarantine returns
+        // (returns Dynamic) keep it. Exempt: generated members
+        // (auto_gen_depth -- niche variant ctors legitimately return the
+        // null pointer) and ref returns (the throw-lowering appends an
+        // unreachable `return null` fallback there; the dedicated
+        // check_ref_function_returns rules own that shape).
+        if stmt.children[0].node_type.is_literal_null().and(ctx.typer_return_type_name.len().gt(0))
+            .and(ctx.auto_gen_depth == 0).and(returns_ref == 0) {
+            if type_is_null_quarantine(type_from_name(ctx.typer_return_type_name, scope, ctx)).not() {
+                stmt.type_error("cannot return NULL from a typed function; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- return an Option for a real absent state (#321)", ctx)
+            }
+        }
         if returns_ref == 0 {
             // #282 follow-up: a by-value `return v.get(i)?` (ref-returning,
             // THROWING call) compiled, then DEREF'd a null ref on the throw
@@ -4870,6 +4901,10 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         if resolved_fld_type.is(Type.Unknown).not() {
                             fld_type = resolved_fld_type
                         }
+                    }
+                    // #321 step 4: NULL only overwrites quarantine slots.
+                    if rhs.node_type.is_literal_null().and(type_is_null_quarantine(fld_type).not()) {
+                        rhs.type_error(format("cannot assign NULL to field '", fname, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option field for a real absent state (#321)"), ctx)
                     }
                     mut handled_lit := false
                     switch rhs.node_type {
@@ -6650,6 +6685,12 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         if ub.is_param.or(ub.own_type.is(OwnType.Ref)) { ub.used = true }
     }
     existing := scope.get_type(aname)
+    // #321 step 4: NULL only overwrites quarantine-labeled slots.
+    if rhs.node_type.is_literal_null().and(existing.is(Type.Unknown).not()) {
+        if type_is_null_quarantine(existing).not() {
+            rhs.type_error(format("cannot assign NULL to '", aname, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option for a real absent state (#321)"), ctx)
+        }
+    }
     if existing.is(Type.Unknown) {
         stmt.type_error(format("undefined symbol '", aname, "'"), ctx)
     } else if scope.is_mut(aname).not() {
@@ -7396,6 +7437,21 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
 // #302 drain contract zeroes moved-out slots) spells it
 // `to_ptr(self).is_null()`, which makes the quarantine explicit and
 // greppable instead of an invisible exemption here.
+// The types where null is a LEGAL value -- the quarantine's spellings:
+// Dynamic (the type-erased raw pointer), U8 (the raw-buffer label, the
+// Vec.data `own data : U8 = 0` form where integer zero is a legal
+// lazily-absent state) and I8 (the C-string pointer, Str.c_str). Both
+// the is_null read rule (step 3) and the NULL literal write rule
+// (step 4) gate on this set.
+priv type_is_null_quarantine := func(shallow t: Type) returns Bool {
+    if t.is(Type.Dynamic) { return true }
+    switch t {
+    case Type.Primitive(Primitive.U8): return true
+    case Type.Primitive(Primitive.I8): return true
+    case: return false
+    }
+}
+
 priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) {
     if e.children.len() < 2 { return }
     ref arg : Expr = e.children[1]
@@ -7404,17 +7460,7 @@ priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) 
     case Type.Custom(ind_cn): t = type_from_name(ind_cn, scope, ctx)
     case:
     }
-    if t.is(Type.Dynamic) { return }
-    // The quarantine's TYPED spellings: U8 is the raw-buffer label (the
-    // Vec.data `own data : U8 = 0` form, where integer zero is a legal
-    // lazily-absent state) and I8 is the C-string pointer (Str.c_str).
-    // Raw-alloc locals and raw fields of these labels hold addresses,
-    // and probing them for null is ordinary island code.
-    switch t {
-    case Type.Primitive(Primitive.U8): return
-    case Type.Primitive(Primitive.I8): return
-    case:
-    }
+    if type_is_null_quarantine(t) { return }
     arg.type_error("is_null on a typed value; only raw pointers (Dynamic / the U8-I8 buffer labels) can be null (#321) -- switch on the Option instead, or to_ptr(x) for a deliberate raw-address probe", ctx)
 }
 

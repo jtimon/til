@@ -290,7 +290,7 @@ main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "guitar".c_str)
     SetTargetFPS(FPS)
     InitAudioDevice()
-    fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, NULL, 0)
+    fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, Option(ref I32).None, 0)
 
     mut display_mode : I32 = DISPLAY_MODE_SOLFEGE
     mut all_fourths := false

@@ -1422,7 +1422,10 @@ GetPixelDataSize := ext_func(shallow width : I32, shallow height : I32, shallow 
 // Font loading/unloading functions
 GetFontDefault := ext_proc() returns shallow Font {}
 LoadFont := ext_proc(fileName : I8) returns shallow Font {}
-LoadFontEx := ext_proc(fileName : I8, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
+// Hand-audited (#321), keep across regens: codepoints is a nullable C
+// pointer (NULL = default glyph set), so it takes shallow Option(ref I32)
+// -- one pointer in a register via the niche, the tinyfd pattern.
+LoadFontEx := ext_proc(fileName : I8, shallow fontSize : I32, shallow codepoints : Option(ref I32), shallow codepointCount : I32) returns shallow Font {}
 LoadFontFromImage := ext_proc(shallow image : Image, shallow key : Color, shallow firstChar : I32) returns shallow Font {}
 LoadFontFromMemory := ext_proc(fileType : I8, fileData : U8, shallow dataSize : I32, shallow fontSize : I32, codepoints : I32, shallow codepointCount : I32) returns shallow Font {}
 /* Functions defined as 'extern' by default (implicit specifiers)*/ 

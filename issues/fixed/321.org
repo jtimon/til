@@ -1,6 +1,47 @@
 # priority: medium
 # category: features
-** WIP #321 Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
+** FIXED #321 Forbid NULL: no-default ref fields, Option(ref T), then remove NULL
+
+*** Post-mortem (2026-08-03)
+
+NULL is out of the typed language. The arc, over 43 batches:
+
+- Root cause of the original hole: "maybe absent" had no type-level
+  spelling, so ~ref ... = NULL~ fields, NULL-returning lookups and
+  ~is_null~ guards encoded it ad hoc -- ~840 occurrences, each a place
+  where the type system could not tell a legal absence from a bug.
+- The enabling work was #320's niche layout, extended here to owned
+  aggregate payloads (batch 34's flip): a two-variant enum with one
+  pointer-shaped payload IS one pointer, None == C's NULL. That made
+  Option(ref T) / Option(T) free of cost -- and ~18% FASTER than the
+  NULL-era baseline for the compiler's own enums (no ctor malloc, no
+  tag branch, zero-copy take) -- so every migration after it was pure
+  win: fields (the Scope trio, env, the FFI island -- closing #324 on
+  the way), Declaration.default_value (the biggest single consumer,
+  96 is_null + ~270 uses), lookups, returns, bindings (nng, tinyfd,
+  raylib, libffi), and params.
+- The end state, spelled out in doc/ownership.org's "Null and is_null:
+  the quarantine rule": nothing TYPED is legitimately null. The
+  quarantine -- Dynamic, plus the U8 raw-buffer and I8 C-string labels
+  -- keeps raw null as a VALUE, per this issue's own 2026-07-21
+  decisions ("ref Dynamic keeps NULL by design"); deliberate raw
+  probes launder through to_ptr. The typer enforces both halves:
+  step 3 (is_null only on quarantine labels) and step 4 (the NULL
+  literal only at quarantine-labeled targets: params, fields, ctor
+  args, assignments, returns). The keyword survives ONLY as the
+  quarantine's literal; everywhere else the answer is an Option.
+- Regression tests: typer error count grew 179 -> 192 across the
+  campaign (borrow-escape, ref-field-to-own, ref-field NULL default,
+  is_null-on-typed both spellings, and the five step-4 shapes);
+  positive coverage pins the niche layout sizes (test/option.til),
+  the linked-node Option(ref RefNode) shape (test/ref.til), the
+  Dynamic-alias exemption (test/aliases.til) and take/steal semantics.
+
+Follow-ups this issue leaves on the table (the human may want them
+filed separately): the scavenger sweep-hole pair recorded in the
+batch-35 notes (drain-conjured deletes invisible to the mark pass),
+and the Option.eq/to_str pointer-vs-pointee design question from the
+batch notes.
 
 Depends on #320 (ownership qualifiers in template type args and enum
 variant payloads -- needed for ~Option(ref T)~).
@@ -1728,6 +1769,29 @@ What the check forced, each a real cleanup:
 
 Fixture NullProbe321 pins both spellings; the #177 leaked_null lines
 now each count a step-3 error too (183 -> 187).
+
+**** Batch 43: step 4 lands -- NULL is quarantine-only; the issue closes
+
+Four typer checks share type_is_null_quarantine with step 3: a NULL
+literal cannot be passed to a typed borrowed param (own/shallow were
+already covered), cannot fill a ctor field, cannot overwrite a local or
+field, and cannot be returned from a typed function. Exempt: generated
+members (a niche variant ctor returns the null pointer for the
+payload-less variant, auto_gen_depth) and ref returns (the
+throw-lowering's unreachable fallback, owned by
+check_ref_function_returns). The keyword stays as the quarantine's raw
+literal per the Decisions section -- `= 0` cannot replace it for ref
+Dynamic fields (the emitter hoists an int literal and takes its
+address; probed before choosing this design).
+
+What the checks flagged in-tree, each fixed at the root: the six
+scope_set_raw_owned callers passing a literal NULL Context (all had the
+real ctx in scope; HeapBinding.ctx is READ by the clone paths, so the
+null was a latent crash); LoadFontEx's nullable codepoints pointer
+(hand-audited to shallow Option(ref I32), the tinyfd pattern; piano and
+music_modes pass None); and enums_lifecycle's dead
+UNREACHABLE-then-return-NULL pacifier (noreturn seeding makes it
+unnecessary). Fixtures for all five shapes (192).
 
 *** What is left before the forbid can land
 

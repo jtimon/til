@@ -325,6 +325,17 @@ and greppable, instead of an invisible typer exemption. The initer's
 generated deletes emit the same laundered probe for owned aggregate
 fields.
 
+The WRITE half is gated the same way (#321 step 4): the ~NULL~
+literal only initializes, fills, overwrites, is passed to, or is
+returned from quarantine-labeled positions. A typed param, field,
+assignment target or return gets a type error pointing at Option.
+(Generated code is exempt where its nulls are correct by
+construction: a niche variant ctor returns the null pointer for the
+payload-less variant, and the throw-lowering's unreachable ref-return
+fallback stays under check_ref_function_returns' own rules.) C's NULL
+in EMITTED code is unaffected -- the niche spells None as C null by
+design.
+
 *** Smell (a garbager gap, or a wrong manual implementation)
 
   - A manual ~delete~/~free~ on a NORMALLY-TYPED owned local or field that the

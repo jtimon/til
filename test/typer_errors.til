@@ -1016,3 +1016,19 @@ pass_ref_field324 := proc(h: RefField324) {
 NullProbe321 := struct { np_n := 0 }
 probe_direct321 := func(p: NullProbe321) returns Bool { return is_null(p) }
 probe_ufcs321 := func(p: NullProbe321) returns Bool { return p.is_null() }
+
+// #321 step 4: NULL is quarantine-only (Dynamic / the U8-I8 raw labels).
+// A typed ref param, ctor field, field assign, plain assign, or return
+// cannot take it; a maybe-absent value is an Option.
+Null4Cell := struct { own n4buf : Str = "" }
+null4_takes_ref := func(c: Null4Cell) returns I64 { return c.n4buf.len().to_i64() }
+null4_pass := null4_takes_ref(NULL)
+Null4Holder := struct { cell : Null4Cell = Null4Cell() }
+null4_ctor := Null4Holder(cell = NULL)
+null4_assign := proc() {
+    mut h := Null4Holder()
+    h.cell = NULL
+}
+null4_ret := func() returns Null4Cell {
+    return NULL
+}

@@ -4928,7 +4928,7 @@ priv interpret_register_defs := func(global: Scope, prog: Expr, mut ctx: Context
                 case NodeType.Decl(dd):
                     raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(raw, stmt.children[0])
-                    scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, NULL)
+                    scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
                 case:
                 }
             }
@@ -4952,7 +4952,7 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
                             case NodeType.Decl(dd):
                                 raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                                 write_ptr(raw, sdef)
-                                scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, NULL)
+                                scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
                             case:
                             }
                         }

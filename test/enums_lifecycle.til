@@ -108,7 +108,6 @@ priv bag_of := func(bh: BagHolder) returns ref WordBag {
         return bag
     case:
         UNREACHABLE()
-        return NULL
     }
 }
 
