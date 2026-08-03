@@ -71,6 +71,11 @@ typedef enum {
     GcStorage_TAG_HeapBox
 } GcStorage_tag;
 typedef struct GcStorage GcStorage;
+typedef enum {
+    Option__Expr_TAG_None,
+    Option__Expr_TAG_Some
+} Option__Expr_tag;
+typedef struct Option__Expr Option__Expr;
 typedef struct Declaration Declaration;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
@@ -335,11 +340,6 @@ typedef enum {
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__CtorArg Vec__CtorArg;
-typedef enum {
-    Option__Expr_TAG_None,
-    Option__Expr_TAG_Some
-} Option__Expr_tag;
-typedef struct Option__Expr Option__Expr;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
@@ -482,6 +482,10 @@ struct GcStorage {
     U8 tag;
 };
 
+struct Option__Expr {
+    Expr *data;
+};
+
 typedef struct Declaration {
     Str name;
     Str doc;
@@ -492,7 +496,7 @@ typedef struct Declaration {
     Bool used;
     OwnType own_type;
     Type til_type;
-    Expr *default_value;
+    Option__Expr default_value;
     Str orig_name;
     GcStorage gc_storage;
 } Declaration;
@@ -763,6 +767,10 @@ typedef struct Vec__Dynamic {
 } Vec__Dynamic;
 
 
+struct Option__Scope {
+    Scope *data;
+};
+
 typedef struct Map__Str_Expr {
     Vec__Str keys;
     Vec__Expr values;
@@ -880,6 +888,10 @@ struct Lang {
 
 struct Target {
     U8 tag;
+};
+
+struct priv___src_self_typer_til__CtorArg {
+    Expr *data;
 };
 
 typedef struct Vec__CtorArg {
@@ -1118,6 +1130,13 @@ typedef struct {
     U32 flags;
     U32 extra_cif_fields;
 } ffi_cif;
+
+
+typedef struct InterpCallableBox {
+    U64 magic;
+    Expr *func_def;
+    Option__Scope env;
+} InterpCallableBox;
 
 
 typedef struct HeapBinding {
@@ -1420,20 +1439,12 @@ typedef struct Map__Str_GenericFuncSource {
 } Map__Str_GenericFuncSource;
 
 
-struct priv___src_self_typer_til__CtorArg {
-    Expr *data;
-};
-
 typedef struct priv___src_self_typer_til__CoverageNode {
     Bool fully_covered;
     Vec__Str sub_names;
     Vec__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
 
-
-struct Option__Expr {
-    Expr *data;
-};
 
 typedef struct priv___src_self_garbager_til__GcCfgBlock {
     Option__ref_Expr body;
@@ -1462,6 +1473,16 @@ typedef struct DocCatalog {
 } DocCatalog;
 
 
+typedef struct InterpSession {
+    Option__Scope global;
+    Bool core_evaluated;
+    USize user_argc;
+    Vec__DynPtrBox retained_programs;
+    Bool is_repl;
+    Set__Str evaluated_units;
+} InterpSession;
+
+
 typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
@@ -1482,42 +1503,6 @@ typedef struct TypeScope {
     Option__ref_TypeScope parent;
     Bool is_func_root;
 } TypeScope;
-
-
-typedef struct GenericSources {
-    Map__Str_Dynamic defs;
-    Map__Str_GenericFuncSource sources;
-    Bool late;
-} GenericSources;
-
-
-typedef struct Scope {
-    Map__Str_HeapBinding heap_bindings;
-    Map__Str_Str heap_aliases;
-    Option__ref_Scope parent;
-    Bool is_call_scope;
-} Scope;
-
-
-struct Option__Scope {
-    Scope *data;
-};
-
-typedef struct InterpCallableBox {
-    U64 magic;
-    Expr *func_def;
-    Option__Scope env;
-} InterpCallableBox;
-
-
-typedef struct InterpSession {
-    Option__Scope global;
-    Bool core_evaluated;
-    USize user_argc;
-    Vec__DynPtrBox retained_programs;
-    Bool is_repl;
-    Set__Str evaluated_units;
-} InterpSession;
 
 
 typedef struct Context {
@@ -1615,6 +1600,13 @@ typedef struct Context {
 } Context;
 
 
+typedef struct GenericSources {
+    Map__Str_Dynamic defs;
+    Map__Str_GenericFuncSource sources;
+    Bool late;
+} GenericSources;
+
+
 typedef struct LoadedProgram {
     Vec__ProgramUnit *core_units;
     Vec__ProgramUnit *units;
@@ -1633,6 +1625,14 @@ typedef struct LoadedProgram {
     I32 load_errors;
     I64 usize_override_bits;
 } LoadedProgram;
+
+
+typedef struct Scope {
+    Map__Str_HeapBinding heap_bindings;
+    Map__Str_Str heap_aliases;
+    Option__ref_Scope parent;
+    Bool is_call_scope;
+} Scope;
 
 
 Mode * Mode_clone(Mode * self);
@@ -1729,6 +1729,12 @@ OwnType * OwnType_clone(OwnType * self);
 Bool GcStorage_eq(GcStorage * self, GcStorage * other);
 void GcStorage_delete(GcStorage * self, Bool call_free);
 GcStorage * GcStorage_clone(GcStorage * self);
+Bool Option__Expr_is_some(Option__Expr self);
+Bool Option__Expr_is_none(Option__Expr self);
+Expr * Option__Expr_take(Option__Expr * self);
+void Option__Expr_delete(Option__Expr * self, Bool call_free);
+Option__Expr Option__Expr_clone(Option__Expr self);
+Expr * Declaration_default_expr(Declaration * self);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool call_free);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
@@ -2746,10 +2752,6 @@ priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, USize
 void Vec__CtorArg_unsafe_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val);
 void Vec__CtorArg_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val, I64 * _err_kind);
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
-Bool Option__Expr_is_some(Option__Expr self);
-Bool Option__Expr_is_none(Option__Expr self);
-Expr * Option__Expr_take(Option__Expr * self);
-void Option__Expr_delete(Option__Expr * self, Bool call_free);
 Vec__CoverageNode * Vec__CoverageNode_new(void);
 void Vec__CoverageNode_clear(Vec__CoverageNode * self);
 void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);

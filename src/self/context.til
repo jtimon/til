@@ -1222,7 +1222,8 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
             for fdd : Declaration in sdd_data.ns_decls {
                 ref mname : Str = sdd_data.member_name_at(mi)
                 mi = mi + 1
-                switch fdd.default_value.node_type {
+                if fdd.default_value.is_none() { continue }
+                switch fdd.default_expr().node_type {
                 case NodeType.FuncDef(ffd):
                     if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated size method on a
@@ -1249,8 +1250,8 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
             for nsd : Declaration in pc_edd.ns_decls {
                 ref mname : Str = pc_edd.member_name_at(mi)
                 mi = mi + 1
-                if nsd.default_value.is_null() { continue }
-                switch nsd.default_value.node_type {
+                if nsd.default_value.is_none() { continue }
+                switch nsd.default_expr().node_type {
                 case NodeType.FuncDef(ffd):
                     if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated enum size method on
@@ -1470,8 +1471,8 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
 
 field_inferred_type_name := func(fd: Declaration) returns Str {
     if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
-    if fd.default_value.is_null() { return "" }
-    ref def_val : Expr = fd.default_value
+    if fd.default_value.is_none() { return "" }
+    ref def_val : Expr = fd.default_expr()
     switch def_val.node_type {
     case NodeType.Literal(Literal.Num):  return "I64"
     case NodeType.Literal(Literal.Bool): return "Bool"
@@ -1649,9 +1650,8 @@ def_ns_pos := func(sdef: Expr, name: Str) returns I64 {
 // A namespace member that is a CONSTANT (has an initializer that is not
 // a FuncDef) -- the population ns_const_eval_order sequences.
 priv ns_decl_is_const := func(d: Declaration) returns Bool {
-    if d.default_value.is_null() { return false }
-    if d.default_value.node_type.is(NodeType.NoDefaultArg) { return false }
-    return d.default_value.node_type.is(NodeType.FuncDef).not()
+    if d.default_value.is_none() { return false }
+    return d.default_expr().node_type.is(NodeType.FuncDef).not()
 }
 
 // #307 follow-up (the known-latent sibling-order class): evaluation
@@ -1689,7 +1689,7 @@ priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state:
             tname, ".", def_ns_name_at(sdef, pos), "'")
     }
     state.unsafe_set(pos, own 1)
-    ns_const_order_deps(tname, sdef, d.default_value, state, order)
+    ns_const_order_deps(tname, sdef, d.default_expr(), state, order)
     state.unsafe_set(pos, own 2)
     order.push(own pos.to_i64())
 }

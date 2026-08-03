@@ -2810,7 +2810,7 @@ priv temp_check_body := proc(ctx: Context, body: Expr, scope: TypeScope) {
             // The Decl RHS IS the hoisted/bound form; its nested args
             // still need the walk.
             if stmt.children.len() > 0 { temp_check_expr(stmt.children[0], true, ctx, scope) }
-            if tc_dd.default_value.is_null().not() { temp_check_expr(tc_dd.default_value, true, ctx, scope) }
+            if tc_dd.default_value.is_some() { temp_check_expr(tc_dd.default_expr(), true, ctx, scope) }
         case NodeType.Assign(tc_ad):
             if tc_ad.name.len().gt(0).and(stmt.children.len().gt(0)) {
                 temp_check_expr(stmt.children[0], true, ctx, scope)

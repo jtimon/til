@@ -244,7 +244,8 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns O
     fd_o := def_ns_get(sdef, method)
     if fd_o.is_none() { return Option(ref Expr).None }
     ref fd : Declaration = fd_o.unwrap()
-    ref e : Expr = fd.default_value
+    if fd.default_value.is_none() { return Option(ref Expr).None }
+    ref e : Expr = fd.default_expr()
     if scope.is_null().not() {
         if e.node_type.is(NodeType.Ident) {
             switch e.node_type {
@@ -637,17 +638,16 @@ priv check_ref_decl_owned_init := proc(stmt: Expr, scope: TypeScope, ctx: Contex
 // manual-memory island).
 priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: TypeScope, ctx: Context) {
     if fd.own_type.is(OwnType.Ref).not() { return }
-    if fd.default_value.is_null() { return }
-    if fd.default_value.node_type.is(NodeType.NoDefaultArg) { return }
-    if fd.default_value.node_type.is_literal_null() {
+    if fd.default_value.is_none() { return }
+    if fd.default_expr().node_type.is_literal_null() {
         if fd.explicit_type.len().gt(0)
             .and(type_from_name(fd.explicit_type, scope, ctx).is(Type.Dynamic)) { return }
-        fd.default_value.type_error(format("ref field '", fname, "' cannot default to NULL -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
+        fd.default_expr().type_error(format("ref field '", fname, "' cannot default to NULL -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
         return
     }
-    if fd.default_value.node_type.is(NodeType.FCall).not() { return }
-    if fcall_returns_own(fd.default_value, scope).not() { return }
-    fd.default_value.type_error(format("ref field '", fname, "' default cannot be an owned value (.clone() / constructor / function returning own) -- use Option(ref T), drop the default, or change the field to 'own'"), ctx)
+    if fd.default_expr().node_type.is(NodeType.FCall).not() { return }
+    if fcall_returns_own(fd.default_expr(), scope).not() { return }
+    fd.default_expr().type_error(format("ref field '", fname, "' default cannot be an owned value (.clone() / constructor / function returning own) -- use Option(ref T), drop the default, or change the field to 'own'"), ctx)
 }
 
 // #168 step 4: assignments to ref-typed lvalues follow the same
@@ -1016,13 +1016,13 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
     for i in 0..nfields {
         if field_vals[i].is(CtorArg.Filled).not() {
             ref fld_d : Declaration = ctor_sdd.field_at(i)
-            if fld_d.default_value.node_type.is(NodeType.NoDefaultArg) {
+            if fld_d.default_value.is_none() {
                 // #242: a field with no default is required at
                 // instantiation; it must be supplied by name.
                 e.type_error(format("missing required field '", ctor_sdd.field_name_at(i), "' in '", name, "(...)'"), ctx)
                 missing_required = true
             } else {
-                field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_value, e, ctx))
+                field_vals[i] = CtorArg.Filled(resolve_default_value(fld_d.default_expr(), e, ctx))
             }
         }
     }
@@ -3109,12 +3109,14 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
                     switch find_ns_decl(dyn_tdef, dyn_meth) {
                     case Option(ref Declaration).None:
                     case Option(ref Declaration).Some(dyn_md):
-                        switch dyn_md.default_value.node_type {
-                        case NodeType.FuncDef(dyn_mfd):
-                            if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)).or(dyn_mfd.func_type.is(FuncType.CoreLazyFunc)) {
-                                e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
+                        if dyn_md.default_value.is_some() {
+                            switch dyn_md.default_expr().node_type {
+                            case NodeType.FuncDef(dyn_mfd):
+                                if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)).or(dyn_mfd.func_type.is(FuncType.CoreLazyFunc)) {
+                                    e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
+                                }
+                            case:
                             }
-                        case:
                         }
                     }
                 case:
@@ -3290,12 +3292,12 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
         cdnd_o := def_ns_get(sdef, "delete")
         if cdnd_o.is_none() { return }
         ref cdnd : Declaration = cdnd_o.unwrap()
-        if cdnd.default_value.is_null() { return }
-        switch cdnd.default_value.node_type {
+        if cdnd.default_value.is_none() { return }
+        switch cdnd.default_expr().node_type {
         case NodeType.FuncDef(cdfd):
             if cdfd.auto_generated { return }
-            if cdnd.default_value.children.len() == 0 { return }
-            ref cdbody : Expr = cdnd.default_value.children[0]
+            if cdnd.default_expr().children.len() == 0 { return }
+            ref cdbody : Expr = cdnd.default_expr().children[0]
             mut cdfi : USize = 0
             for fd : Declaration in cdsdd.fields {
                 cur_cdfi := cdfi
@@ -3303,7 +3305,7 @@ priv check_user_delete_frees_own_fields := proc(struct_name: Str, sdef: Expr, ct
                 if fd.own_type.is(OwnType.Own).not() { continue }
                 ref cd_fname : Str = cdsdd.field_name_at(cur_cdfi)
                 if expr_uses_self_field(cdbody, cd_fname).not() {
-                    cdnd.default_value.type_error(
+                    cdnd.default_expr().type_error(
                         format("delete on '", struct_name, "' never references 'own' field 'self.", cd_fname, "' -- declaring the field 'own' announces a heap allocation; the destructor must free it (e.g. `free(own self.", cd_fname, ")`) or transfer its ownership."), ctx)
                 }
             }
@@ -3363,45 +3365,49 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             ref tc_fname : Str = tc_sdd.field_name_at(tcfi)
             tcfi = tcfi + 1
             if fd.redundant_mut {
-                fd.default_value.type_error(format("redundant 'mut' on struct field '", tc_fname, "': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
+                // A mandatory mut field has no default expr to anchor the
+                // error; report it on the type definition node instead.
+                mut rm_at : Option(ref Expr) = Option(ref Expr).Some(expr)
+                if fd.default_value.is_some() { rm_at = Option(ref Expr).Some(fd.default_expr()) }
+                rm_at.unwrap().type_error(format("redundant 'mut' on struct field '", tc_fname, "': fields are mutable by default; drop the 'mut' (use 'const' to make the field immutable)"), ctx)
             }
             // Issue #281: a `loc: Str = __LOC__` field default must stay the
             // Loc sentinel here -- inferring it now would resolve it to this
             // definition site. It is resolved per-constructor-call by the
             // default-fill (resolve_default_value) to the CALLER's location.
-            if fd.default_value.is_null().not()
-                .and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not())
-                .and(fd.default_value.node_type.is(NodeType.Loc).not()) {
-                infer_expr(inner, fd.default_value, 0, ctx)
+            if fd.default_value.is_some()
+                .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
+                infer_expr(inner, fd.default_expr(), 0, ctx)
                 check_ref_field_owned_default(tc_fname, fd, inner, ctx)
             }
             if fd.explicit_type.len() > 0 {
                 fd.til_type =type_from_name(fd.explicit_type, inner, ctx)
                 if fd.til_type.is(Type.Unknown).not() {
-                    if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
-                        if fd.default_value.node_type.is_literal_num().and(is_numeric_type(fd.til_type)) {
-                            fd.default_value.set_til_type(fd.til_type)
+                    if fd.default_value.is_some() {
+                        if fd.default_expr().node_type.is_literal_num().and(is_numeric_type(fd.til_type)) {
+                            fd.default_expr().set_til_type(fd.til_type)
                         }
-                        if fd.default_value.node_type.is_literal_null().not() {
-                            narrow_dynamic(fd.default_value, fd.til_type)
+                        if fd.default_expr().node_type.is_literal_null().not() {
+                            narrow_dynamic(fd.default_expr(), fd.til_type)
                         }
                     }
                 }
             } else {
-                if fd.default_value.node_type.is(NodeType.NoDefaultArg) {
+                if fd.default_value.is_none() {
                     // #242: no default means there is no expression to infer
                     // the field type from, so an explicit `: Type` is required.
-                    fd.default_value.type_error(format("field '", tc_fname, "' has no default value, so it needs an explicit type: '", tc_fname, " : Type'"), ctx)
-                } else if fd.default_value.is_null().not() {
-                    fd.til_type =fd.default_value.til_type().clone()
+                    // (No default expr to anchor the error; use the def node.)
+                    expr.type_error(format("field '", tc_fname, "' has no default value, so it needs an explicit type: '", tc_fname, " : Type'"), ctx)
+                } else if fd.default_value.is_some() {
+                    fd.til_type =fd.default_expr().til_type().clone()
                 }
             }
             inner.set(tc_fname, fd.til_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type)
             if fd.til_type.is_funcptr() {
                 // Registered by the inner.set on the line above.
                 ref fb : TypeBinding = inner.get_binding(tc_fname).unwrap()
-                if fd.default_value.is_null().not() {
-                    switch fd.default_value.node_type {
+                if fd.default_value.is_some() {
+                    switch fd.default_expr().node_type {
                     case NodeType.Ident(dv_id):
                         src_o := inner.get_binding(dv_id.ident_name())
                         if src_o.is_some() {
@@ -3456,8 +3462,8 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             for if_nd : Declaration in if_sdd.ns_decls {
                 ref if_name : Str = if_sdd.member_name_at(ifni)
                 ifni = ifni + 1
-                if if_nd.default_value.is_null() { continue }
-                switch if_nd.default_value.node_type {
+                if if_nd.default_value.is_none() { continue }
+                switch if_nd.default_expr().node_type {
                 case NodeType.FuncDef(if_fd):
                     // Skip clone/delete/size/hash etc. that the initer
                     // auto-generates for the (empty) interface struct --
@@ -3467,10 +3473,10 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     ok_kind := ift.is(FuncType.Func).or(ift.is(FuncType.Proc))
                         .or(ift.is(FuncType.ExtFunc)).or(ift.is(FuncType.ExtProc))
                     if ok_kind.not() {
-                        if_nd.default_value.type_error(format("interface member '", if_name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
+                        if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
                     }
                 case:
-                    if_nd.default_value.type_error(format("interface member '", if_name, "' must be a method: an interface cannot have fields"), ctx)
+                    if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a method: an interface cannot have fields"), ctx)
                 }
             }
         }
@@ -3511,8 +3517,8 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             for am : Declaration in ami_ns {
                 ref am_name : Str = def_ns_name_at(iface_def, ami)
                 ami = ami + 1
-                if am.default_value.is_null() { continue }
-                switch am.default_value.node_type {
+                if am.default_value.is_none() { continue }
+                switch am.default_expr().node_type {
                 case NodeType.FuncDef(am_fd):
                     if am_fd.auto_generated { continue }
                     // Only abstract (ext_func/ext_proc) methods must be
@@ -3522,8 +3528,8 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     case Option(ref Declaration).None:
                         expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
                     case Option(ref Declaration).Some(impl_m):
-                        if interface_method_conforms(impl_iface_name, impl_self_name, am.default_value, impl_m.default_value).not() {
-                            impl_m.default_value.type_error(format("'", impl_self_name, ".", am_name, "' does not match the signature of '", impl_iface_name, ".", am_name, "' declared in the interface"), ctx)
+                        if interface_method_conforms(impl_iface_name, impl_self_name, am.default_expr(), impl_m.default_expr()).not() {
+                            impl_m.default_expr().type_error(format("'", impl_self_name, ".", am_name, "' does not match the signature of '", impl_iface_name, ".", am_name, "' declared in the interface"), ctx)
                         }
                     }
                 case:
@@ -3551,8 +3557,8 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
     for tc_nd : Declaration in tc_ns {
         ref tc_name : Str = def_ns_name_at(expr, tcni)
         tcni = tcni + 1
-        if tc_nd.default_value.is_null() { continue }
-        switch tc_nd.default_value.node_type {
+        if tc_nd.default_value.is_none() { continue }
+        switch tc_nd.default_expr().node_type {
         case NodeType.FuncDef(tc_fd):
             mut tc_rt := Type.None
             if tc_fd.return_type.len() > 0 {
@@ -3560,7 +3566,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             }
             tc_nd.til_type =tc_rt.clone()
             inner.set(tc_name, tc_rt, false, ctx.path, 0, 0, false, OwnType.Shallow)
-            inner.set_func_def(tc_name, tc_nd.default_value)
+            inner.set_func_def(tc_name, tc_nd.default_expr())
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_name).unwrap()
             tc_fb.is_func_decl = true
             if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)).or(tc_fd.func_type.is(FuncType.CoreLazyFunc)) {
@@ -3580,16 +3586,16 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
         if tc_cd.explicit_type.len() > 0 {
             ns_declared := type_from_name(tc_cd.explicit_type, inner, ctx)
             if is_numeric_type(ns_declared) {
-                pre_coerce_decl_numeric_literals(tc_cd.default_value, ns_declared)
+                pre_coerce_decl_numeric_literals(tc_cd.default_expr(), ns_declared)
             }
         }
-        infer_expr(inner, tc_cd.default_value, 0, ctx)
-        tc_cd.til_type =tc_cd.default_value.til_type().clone()
+        infer_expr(inner, tc_cd.default_expr(), 0, ctx)
+        tc_cd.til_type =tc_cd.default_expr().til_type().clone()
     }
     for tc_bd : Declaration in tc_ns {
-        if tc_bd.default_value.is_null() { continue }
-        if tc_bd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-        infer_func_def_expr(inner, tc_bd.default_value, ctx)
+        if tc_bd.default_value.is_none() { continue }
+        if tc_bd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        infer_func_def_expr(inner, tc_bd.default_expr(), ctx)
     }
     ctx.typing_namespace_member = saved_in_ns
     // Static check: a hand-written `delete` must free (or transfer) every
@@ -4455,10 +4461,9 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
                 if wf_name.starts_with("_") { continue }
                 mut fl_line : U32 = tdef.line
                 mut fl_col : U32 = tdef.col
-                if fld.default_value.is_null().not()
-                    .and(fld.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
-                    fl_line = fld.default_value.line
-                    fl_col = fld.default_value.col
+                if fld.default_value.is_some() {
+                    fl_line = fld.default_expr().line
+                    fl_col = fld.default_expr().col
                 }
                 type_error_at(path, fl_line, fl_col,
                     format("unused priv field '", owner_name, ".", wf_name, "'; remove 'priv' to expose it"), ctx)
@@ -4480,10 +4485,9 @@ check_unused_priv_members_in_program := proc(program: Expr, path: Str, ctx: Cont
             if wn_name.starts_with("_") { continue }
             mut ns_line : U32 = tdef.line
             mut ns_col : U32 = tdef.col
-            if nsd.default_value.is_null().not()
-                .and(nsd.default_value.node_type.is(NodeType.NoDefaultArg).not()) {
-                ns_line = nsd.default_value.line
-                ns_col = nsd.default_value.col
+            if nsd.default_value.is_some() {
+                ns_line = nsd.default_expr().line
+                ns_col = nsd.default_expr().col
             }
             type_error_at(path, ns_line, ns_col,
                 format("unused priv ns member '", owner_name, ".", wn_name, "'; remove 'priv' to expose it"), ctx)
@@ -4764,8 +4768,8 @@ priv infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, in_func: 
                 if nsd_o.is_some() {
                     ref nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(nsd.til_type.clone())
-                    if sdef.node_type.is(NodeType.EnumDef).and(nsd.default_value.is_null().not()) {
-                        switch nsd.default_value.node_type {
+                    if sdef.node_type.is(NodeType.EnumDef).and(nsd.default_value.is_some()) {
+                        switch nsd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).and(fd.return_type.len().gt(0)).and(fd.return_type.eq(obj_sname)) {
                                 expr.set_til_type(Type.Enum(obj_sname.clone()))
@@ -7370,8 +7374,8 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     fd_o := def_ns_get(sdef, variant)
     if fd_o.is_none() { return false }
     ref fd : Declaration = fd_o.unwrap()
-    if fd.default_value.is_null() { return false }
-    switch fd.default_value.node_type {
+    if fd.default_value.is_none() { return false }
+    switch fd.default_expr().node_type {
     case NodeType.FuncDef(vfd):
         return vfd.is_enum_variant_ctor
     case: return false
@@ -7534,8 +7538,8 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) ret
                 fd_o := def_ns_get(sdef, method.field_access_name())
                 if fd_o.is_some() {
                     ref fd : Declaration = fd_o.unwrap()
-                    if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
-                        return check_own_args(fd.default_value, fcall, var_name)
+                    if fd.default_value.is_some().and(fd.default_expr().node_type.is(NodeType.FuncDef)) {
+                        return check_own_args(fd.default_expr(), fcall, var_name)
                     }
                 }
             case:
@@ -7760,8 +7764,8 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, mut out:
                 fd_o := def_ns_get(ns_sdef, method.field_access_name())
                 if fd_o.is_some() {
                     ref fd : Declaration = fd_o.unwrap()
-                    if fd.default_value.is_null().not().and(fd.default_value.node_type.is(NodeType.FuncDef)) {
-                        collect_own_arg_names(fd.default_value, fcall, out)
+                    if fd.default_value.is_some().and(fd.default_expr().node_type.is(NodeType.FuncDef)) {
+                        collect_own_arg_names(fd.default_expr(), fcall, out)
                     }
                 }
             case:
@@ -8023,8 +8027,8 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
                 fd_o := def_ns_get(sdef, cfa.field_access_name())
                 if fd_o.is_some() {
                     ref fd : Declaration = fd_o.unwrap()
-                    if fd.default_value.is_null().not() {
-                        switch fd.default_value.node_type {
+                    if fd.default_value.is_some() {
+                        switch fd.default_expr().node_type {
                         case NodeType.FuncDef(ffd):
                             return ffd.return_own_type.is(OwnType.Ref)
                         case:
@@ -8112,8 +8116,8 @@ fcall_returns_shallow := func(fcall: Expr, scope: TypeScope, ctx: Context) retur
                 fd_o := def_ns_get(sdef, cfa.field_access_name())
                 if fd_o.is_some() {
                     ref fd : Declaration = fd_o.unwrap()
-                    if fd.default_value.is_null().not() {
-                        switch fd.default_value.node_type {
+                    if fd.default_value.is_some() {
+                        switch fd.default_expr().node_type {
                         case NodeType.FuncDef(ffd):
                             return fdef_returns_shallow_settled(ffd, scope, ctx)
                         case:
@@ -9573,7 +9577,7 @@ priv desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, st
         }
     }
     for tp_i in forin_filled.add(1)..get_def.params.len() {
-        get_trailing_defaults.push(own get_def.params[tp_i].default_value.clone())
+        get_trailing_defaults.push(own get_def.params[tp_i].default_expr().clone())
     }
 
     mut var_name := ""

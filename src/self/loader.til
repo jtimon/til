@@ -633,8 +633,8 @@ priv find_ns_decl_fdef_imported := func(ctx: Context, top: Map(Str, DeclRef), na
     nsd_o := def_ns_get(tdecl.children[0], method_part)
     if nsd_o.is_some() {
         ref nsd : Declaration = nsd_o.unwrap()
-        if nsd.default_value.is_null().not() {
-            return Option(ref Expr).Some(nsd.default_value)
+        if nsd.default_value.is_some() {
+            return Option(ref Expr).Some(nsd.default_expr())
         }
     }
     return Option(ref Expr).None
@@ -884,8 +884,8 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
             for nsd : Declaration in tvi_ns {
                 cur_tvi := tvi
                 tvi = tvi + 1
-                ref nsfdef : Expr = nsd.default_value
-                if nsfdef.is_null() { continue }
+                if nsd.default_value.is_none() { continue }
+                ref nsfdef : Expr = nsd.default_expr()
                 if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
                 ref nsfd : FunctionDef = funcdef_of(nsfdef)
                 if nsfd.func_type.is(FuncType.Test) {
@@ -1868,8 +1868,8 @@ priv append_ns_method_indented := func(mut out: Str, dname: Str, d: Declaration)
     append_doc_lines_indented(out, d.doc, "    ")
     out.push_str("    ")
     mut handled := false
-    if d.default_value.is_null().not() {
-        switch d.default_value.node_type {
+    if d.default_value.is_some() {
+        switch d.default_expr().node_type {
         case NodeType.FuncDef(fd):
             out.push_str(func_kind(fd.func_type))
             out.push_str(" ")
@@ -1925,8 +1925,8 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     for d : Declaration in sdef.ns_decls {
         cap = cap.add(sdef.member_name_at(cni).len()).add(d.doc.len() * 2) + 192
         cni = cni + 1
-        if d.default_value.is_null().not() {
-            switch d.default_value.node_type {
+        if d.default_value.is_some() {
+            switch d.default_expr().node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()) + 48
                 for p : Declaration in fd.params {
@@ -1969,8 +1969,8 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     for d : Declaration in edef.ns_decls {
         cap = cap.add(edef.member_name_at(eni).len()).add(d.doc.len() * 2) + 192
         eni = eni + 1
-        if d.default_value.is_null().not() {
-            switch d.default_value.node_type {
+        if d.default_value.is_some() {
+            switch d.default_expr().node_type {
             case NodeType.FuncDef(fd):
                 cap = cap.add(fd.return_type.len()) + 48
                 for p : Declaration in fd.params {
@@ -2032,8 +2032,8 @@ priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declara
     qual := type_name.format(".", dname)
     mut info_cap : USize = qual.len() + 64
     mut is_func := false
-    if d.default_value.is_null().not() {
-        switch d.default_value.node_type {
+    if d.default_value.is_some() {
+        switch d.default_expr().node_type {
         case NodeType.FuncDef(fd):
             is_func = true
             info_cap = info_cap.add(fd.return_type.len()) + 48
@@ -2048,7 +2048,7 @@ priv collect_member_method_packed := func(type_name: Str, dname: Str, d: Declara
     }
     mut method_info := Str.with_capacity(info_cap)
     if is_func {
-        switch d.default_value.node_type {
+        switch d.default_expr().node_type {
         case NodeType.FuncDef(fd):
             method_info.push_str(func_kind(fd.func_type))
             method_info.push_str(" ")
@@ -2345,27 +2345,27 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
     switch e.node_type {
     case NodeType.StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
-            if fd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(fd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+            if fd.default_value.is_some() {
+                rewrite_ns_alias_uses(fd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
-            if nd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+            if nd.default_value.is_some() {
+                rewrite_ns_alias_uses(nd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         return
     case NodeType.EnumDef(edd):
         for mut nd2 : Declaration in edd.ns_decls {
-            if nd2.default_value.is_null().not() {
-                rewrite_ns_alias_uses(nd2.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+            if nd2.default_value.is_some() {
+                rewrite_ns_alias_uses(nd2.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         return
     case NodeType.FuncDef(fdd):
         for mut pd : Declaration in fdd.params {
-            if pd.default_value.is_null().not() {
-                rewrite_ns_alias_uses(pd.default_value, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+            if pd.default_value.is_some() {
+                rewrite_ns_alias_uses(pd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
             }
         }
         mut fn_shadow := shadowed.clone()

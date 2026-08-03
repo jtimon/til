@@ -1396,8 +1396,8 @@ priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cri_ns : Vec(Declaration) = def_ns_decls(e)
         for cri_d : Declaration in cri_ns {
-            if cri_d.default_value.is_null() { continue }
-            builder_collect_reflect_inventory(cri_d.default_value, inv)
+            if cri_d.default_value.is_none() { continue }
+            builder_collect_reflect_inventory(cri_d.default_expr(), inv)
         }
     }
     for cri_c : Expr in e.children {
@@ -1433,8 +1433,8 @@ priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cdt_ns : Vec(Declaration) = def_ns_decls(e)
         for cdt_d : Declaration in cdt_ns {
-            if cdt_d.default_value.is_null() { continue }
-            builder_collect_dyn_fn_targets(cdt_d.default_value, targets)
+            if cdt_d.default_value.is_none() { continue }
+            builder_collect_dyn_fn_targets(cdt_d.default_expr(), targets)
         }
     }
     for cdt_c : Expr in e.children {
@@ -1481,8 +1481,8 @@ priv builder_collect_lit_guard_use := func(e: Expr, mut used: Bool) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref blg_ns : Vec(Declaration) = def_ns_decls(e)
         for blg_d : Declaration in blg_ns {
-            if blg_d.default_value.is_null() { continue }
-            builder_collect_lit_guard_use(blg_d.default_value, used)
+            if blg_d.default_value.is_none() { continue }
+            builder_collect_lit_guard_use(blg_d.default_expr(), used)
             if used { return }
         }
     }
@@ -1579,8 +1579,8 @@ priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cdm_ns : Vec(Declaration) = def_ns_decls(e)
         for cdm_d : Declaration in cdm_ns {
-            if cdm_d.default_value.is_null().not() {
-                collect_dyn_methods(cdm_d.default_value, methods)
+            if cdm_d.default_value.is_some() {
+                collect_dyn_methods(cdm_d.default_expr(), methods)
             }
         }
     }
@@ -1619,8 +1619,8 @@ priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref ccb_ns : Vec(Declaration) = def_ns_decls(e)
         for ccb_d : Declaration in ccb_ns {
-            if ccb_d.default_value.is_null().not() {
-                collect_collection_builtins(ccb_d.default_value, infos)
+            if ccb_d.default_value.is_some() {
+                collect_collection_builtins(ccb_d.default_expr(), infos)
             }
         }
     }
@@ -2217,8 +2217,8 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cdh_ns : Vec(Declaration) = def_ns_decls(e)
         for cdh_d : Declaration in cdh_ns {
-            if cdh_d.default_value.is_null().not() {
-                collect_dyn_has_methods(cdh_d.default_value, methods)
+            if cdh_d.default_value.is_some() {
+                collect_dyn_has_methods(cdh_d.default_expr(), methods)
             }
         }
     }
@@ -4663,13 +4663,13 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                     for nii_pos : I64 in nii_order {
                         cur_nii := nii_pos.to_usize()
                         ref dd : Declaration = nii_ns.unsafe_get(cur_nii)
-                        if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
+                        if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
                         emit_indent(f, depth)
                         f.write(sdecl.name)
                         f.write("_")
                         f.write(def_ns_name_at(edef, cur_nii))
                         f.write(" = ")
-                        emit_deref(f, dd.default_value, depth, lp.ctx)
+                        emit_deref(f, dd.default_expr(), depth, lp.ctx)
                         f.write(";\n")
                     }
                 }
@@ -4688,13 +4688,13 @@ priv emit_ns_inits := proc(f: File, depth: I32, lp: LoadedProgram) {
                 for nii2_pos : I64 in nii2_order {
                     cur_nii2 := nii2_pos.to_usize()
                     ref dd : Declaration = nii2_ns.unsafe_get(cur_nii2)
-                    if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
+                    if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
                     emit_indent(f, depth)
                     f.write(sdecl.name)
                     f.write("_")
                     f.write(def_ns_name_at(edef, cur_nii2))
                     f.write(" = ")
-                    emit_deref(f, dd.default_value, depth, lp.ctx)
+                    emit_deref(f, dd.default_expr(), depth, lp.ctx)
                     f.write(";\n")
                 }
             }
@@ -5323,11 +5323,17 @@ emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str),
     emit_capturing_closure_func(f, e, emitted, lp)
     switch e.node_type {
     case NodeType.FuncDef(fd):
-        for p : Declaration in fd.params { emit_capturing_closures_in_expr(f, p.default_value, emitted, lp) }
+        for p : Declaration in fd.params {
+            if p.default_value.is_some() { emit_capturing_closures_in_expr(f, p.default_expr(), emitted, lp) }
+        }
     case NodeType.StructDef(sdd):
-        for cn_d : Declaration in sdd.ns_decls { emit_capturing_closures_in_expr(f, cn_d.default_value, emitted, lp) }
+        for cn_d : Declaration in sdd.ns_decls {
+            if cn_d.default_value.is_some() { emit_capturing_closures_in_expr(f, cn_d.default_expr(), emitted, lp) }
+        }
     case NodeType.EnumDef(edd):
-        for en_d : Declaration in edd.ns_decls { emit_capturing_closures_in_expr(f, en_d.default_value, emitted, lp) }
+        for en_d : Declaration in edd.ns_decls {
+            if en_d.default_value.is_some() { emit_capturing_closures_in_expr(f, en_d.default_expr(), emitted, lp) }
+        }
     case:
     }
     for c : Expr in e.children { emit_capturing_closures_in_expr(f, c, emitted, lp) }
@@ -5534,10 +5540,9 @@ priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, lp: LoadedP
     for dd : Declaration in smi_ns {
         cur_smi := smi
         smi = smi + 1
-        if dd.default_value.is_null() { continue }
-        if dd.default_value.node_type.is(NodeType.NoDefaultArg) { continue }
-        if dd.default_value.node_type.is(NodeType.FuncDef) {
-            emit_ns_method(f, name, def_ns_name_at(struct_def, cur_smi), dd.default_value, lp)
+        if dd.default_value.is_none() { continue }
+        if dd.default_expr().node_type.is(NodeType.FuncDef) {
+            emit_ns_method(f, name, def_ns_name_at(struct_def, cur_smi), dd.default_expr(), lp)
         }
     }
 }
@@ -5613,9 +5618,9 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
     for dd : Declaration in emi_ns {
         cur_emi := emi
         emi = emi + 1
-        if dd.default_value.is_null() { continue }
-        if dd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-        emit_ns_method(f, name, def_ns_name_at(enum_def, cur_emi), dd.default_value, lp)
+        if dd.default_value.is_none() { continue }
+        if dd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        emit_ns_method(f, name, def_ns_name_at(enum_def, cur_emi), dd.default_expr(), lp)
     }
 }
 
@@ -5727,8 +5732,8 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref bvs_ns : Vec(Declaration) = def_ns_decls(e)
         for bvs_d : Declaration in bvs_ns {
-            if bvs_d.default_value.is_null() { continue }
-            builder_collect_ns_member_sites(bvs_d.default_value, sites)
+            if bvs_d.default_value.is_none() { continue }
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites)
         }
     }
 }
@@ -5855,6 +5860,15 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                     }
                 }
             case NodeType.EnumDef(dep_edd):
+                // #321: a niche'd enum IS one bare pointer (its boxed
+                // payload is stored as Expr*-style, never inline), so
+                // its payload type needs only the forward typedef --
+                // no layout dependency at all. Without this skip,
+                // Option(Expr) inline in Declaration deadlocks the
+                // sort through the Expr -> NodeType -> Declaration ->
+                // Option__Expr cycle and the fallback emits Declaration
+                // with an incomplete Option__Expr field.
+                if enum_is_niche(def).not() {
                 for fi in 0..dep_edd.variants.len() {
                     // #320: a `ref` payload is a bare pointer, so the
                     // payload type needs only its forward typedef --
@@ -5871,6 +5885,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
                             if emitted.has(dep_vt).not() { deps_ok = false }
                         }
                     }
+                }
                 }
             case:
                 UNREACHABLE("unexpected ", def.node_type.head_str())
@@ -6152,16 +6167,16 @@ priv builder_ns_has_func := func(def: Expr, method: Str) returns Bool {
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
-    if nsd.default_value.is_null() { return false }
-    return nsd.default_value.node_type.is(NodeType.FuncDef)
+    if nsd.default_value.is_none() { return false }
+    return nsd.default_expr().node_type.is(NodeType.FuncDef)
 }
 
 priv builder_ns_func_returns_shallow := func(def: Expr, method: Str) returns Bool {
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
-    if nsd.default_value.is_null().not() {
-        switch nsd.default_value.node_type {
+    if nsd.default_value.is_some() {
+        switch nsd.default_expr().node_type {
         case NodeType.FuncDef(fd): return fd.return_own_type.is(OwnType.Shallow)
         case:
         }
@@ -6181,8 +6196,8 @@ priv builder_ns_func_param_shallow := func(def: Expr, method: Str) returns Bool 
     nsd_o := def_ns_get(def, method)
     if nsd_o.is_none() { return false }
     ref nsd : Declaration = nsd_o.unwrap()
-    if nsd.default_value.is_null() { return false }
-    switch nsd.default_value.node_type {
+    if nsd.default_value.is_none() { return false }
+    switch nsd.default_expr().node_type {
     case NodeType.FuncDef(fd):
         if fd.params.len() == 0 { return false }
         ref p0 : Declaration = fd.params[0]
@@ -6230,13 +6245,13 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     for fdd : Declaration in fwi_ns {
                         cur_fwi := fwi
                         fwi = fwi + 1
-                        if fdd.default_value.is_null() { continue }
-                        switch fdd.default_value.node_type {
+                        if fdd.default_value.is_none() { continue }
+                        switch fdd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi))
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
-                            emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                            emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
                         }
                     }
@@ -6268,8 +6283,8 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                 for fdd : Declaration in fwi2_ns {
                     cur_fwi2 := fwi2
                     fwi2 = fwi2 + 1
-                    if fdd.default_value.is_null() { continue }
-                    if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    if fdd.default_value.is_none() { continue }
+                    if fdd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                     // #326: a core_func/ext_func namespace method has no
                     // emitted body -- the builder lowers it inline (an enum's
                     // auto-generated `is` becomes a typed tag compare) or the
@@ -6279,10 +6294,10 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     // gated on `top_level`, which is false for a member. So
                     // every such method got a prototype that nothing defines
                     // and nothing calls -- 61 in til's own output.
-                    if builder_ns_method_lowered_inline(fdd.default_value) { continue }
+                    if builder_ns_method_lowered_inline(fdd.default_expr()) { continue }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi2))
-                    emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                    emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                 }
             } else if rhs.node_type.is(NodeType.FuncDef) {
                 if builder_is_type_gen_macro_def(rhs) { continue }
@@ -6406,8 +6421,8 @@ priv emit_binding_ns_methods := proc(f: File, def: Expr) {
     for nsd : Declaration in ebi_ns {
         cur_ebi := ebi
         ebi = ebi + 1
-        if nsd.default_value.is_null() { continue }
-        switch nsd.default_value.node_type {
+        if nsd.default_value.is_none() { continue }
+        switch nsd.default_expr().node_type {
         case NodeType.FuncDef(fd):
             has_ns = emit_binding_ns_method(f, def_ns_name_at(def, cur_ebi), fd, has_ns)
         case:
@@ -6441,7 +6456,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     btbr = btbr + 1
                     if fdd.explicit_type.len() > 0 { f.write(" : ").write(fdd.explicit_type) }
                     f.write(" := ")
-                    if fdd.default_value.is_null().not() { emit_til_default(f, fdd.til_type) }
+                    if fdd.default_value.is_some() { emit_til_default(f, fdd.til_type) }
                     else { f.write("0") }
                     f.write("\n")
                 }
@@ -6674,8 +6689,8 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
                 for nsd : Declaration in pybi_ns {
                     cur_pybi := pybi
                     pybi = pybi + 1
-                    if nsd.default_value.is_null() { continue }
-                    switch nsd.default_value.node_type {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
                     case NodeType.FuncDef(fd):
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                     f.write("_lib.").write(dd.name).write("_").write(def_ns_name_at(rhs, cur_pybi))
@@ -7221,12 +7236,12 @@ priv register_type_func_symbols := func(type_name: Str, def: Expr, ctx: Context)
     for nd : Declaration in rsi_ns {
         cur_rsi := rsi
         rsi = rsi + 1
-        if nd.default_value.is_null() { continue }
-        if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+        if nd.default_value.is_none() { continue }
+        if nd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         key := type_name.concat3("_", def_ns_name_at(def, cur_rsi))
-        ctx.scope.set_func_symbol(key, nd.default_value)
-        if nd.default_value.children.len() > 0 {
-            register_body_func_symbols(nd.default_value.children[0], ctx)
+        ctx.scope.set_func_symbol(key, nd.default_expr())
+        if nd.default_expr().children.len() > 0 {
+            register_body_func_symbols(nd.default_expr().children[0], ctx)
         }
     }
 }
@@ -7263,7 +7278,7 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
         }
     case NodeType.FuncDef(fd):
         for p : Declaration in fd.params {
-            collect_closure_value_names(p.default_value, names, ctx)
+            if p.default_value.is_some() { collect_closure_value_names(p.default_expr(), names, ctx) }
         }
     case NodeType.StructDef(sdd):
         // #326: field defaults are substituted into the construction sites
@@ -7271,11 +7286,11 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
         // copy there is what needs the closure value. Counting the
         // ORIGINAL emitted a value nothing referenced.
         for cvnd : Declaration in sdd.ns_decls {
-            collect_closure_value_names(cvnd.default_value, names, ctx)
+            if cvnd.default_value.is_some() { collect_closure_value_names(cvnd.default_expr(), names, ctx) }
         }
     case NodeType.EnumDef(edd):
         for cved : Declaration in edd.ns_decls {
-            collect_closure_value_names(cved.default_value, names, ctx)
+            if cved.default_value.is_some() { collect_closure_value_names(cved.default_expr(), names, ctx) }
         }
     case:
     }
@@ -7324,13 +7339,13 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     for fdd : Declaration in fw2i_ns {
                         cur_fw2i := fw2i
                         fw2i = fw2i + 1
-                        if fdd.default_value.is_null() { continue }
-                        switch fdd.default_value.node_type {
+                        if fdd.default_value.is_none() { continue }
+                        switch fdd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw2i))
-                            emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                            emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
                         }
                     }
@@ -7369,13 +7384,13 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 for fdd : Declaration in fw3i_ns {
                     cur_fw3i := fw3i
                     fw3i = fw3i + 1
-                    if fdd.default_value.is_null() { continue }
-                    switch fdd.default_value.node_type {
+                    if fdd.default_value.is_none() { continue }
+                    switch fdd.default_expr().node_type {
                     case NodeType.FuncDef(fd):
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                         if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
                         full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw3i))
-                        emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                        emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                     case:
                     }
                 }
@@ -7439,13 +7454,13 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     for fdd : Declaration in af1i_ns {
                         cur_af1i := af1i
                         af1i = af1i + 1
-                        if fdd.default_value.is_null() { continue }
-                        switch fdd.default_value.node_type {
+                        if fdd.default_value.is_none() { continue }
+                        switch fdd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
                             if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af1i))
-                            emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                            emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
                         }
                     }
@@ -7481,8 +7496,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 for fdd : Declaration in af2i_ns {
                     cur_af2i := af2i
                     af2i = af2i + 1
-                    if fdd.default_value.is_null() { continue }
-                    if fdd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
+                    if fdd.default_value.is_none() { continue }
+                    if fdd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                     // #326: a core_func/ext_func namespace method has no
                     // emitted body -- the builder lowers it inline (an enum's
                     // auto-generated `is` becomes a typed tag compare) or the
@@ -7492,10 +7507,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     // gated on `top_level`, which is false for a member. So
                     // every such method got a prototype that nothing defines
                     // and nothing calls -- 61 in til's own output.
-                    if builder_ns_method_lowered_inline(fdd.default_value) { continue }
+                    if builder_ns_method_lowered_inline(fdd.default_expr()) { continue }
                     if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af2i))
-                    emit_func_forward_decl(f, full_name, fdd.default_value, false, lp.ctx)
+                    emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                 }
             } else {
                 switch rhs.node_type {
@@ -7840,8 +7855,8 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                 for nsd : Declaration in dfw0_ns {
                     cur_dfw0i := dfw0i
                     dfw0i = dfw0i + 1
-                    if nsd.default_value.is_null() { continue }
-                    switch nsd.default_value.node_type {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
                     case NodeType.FuncDef(fd):
                         // #269: no wrapper for abstract interface
                         // methods -- there is no C function behind them.
@@ -7867,8 +7882,8 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             for nsd : Declaration in dfw1_ns {
                 cur_dfw1i := dfw1i
                 dfw1i = dfw1i + 1
-                if nsd.default_value.is_null() { continue }
-                switch nsd.default_value.node_type {
+                if nsd.default_value.is_none() { continue }
+                switch nsd.default_expr().node_type {
                 case NodeType.FuncDef(fd):
                     // #269: no wrapper for abstract interface methods --
                     // there is no C function behind them. ext_funcs on
@@ -7896,8 +7911,8 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                 for nsd : Declaration in dfn0_ns {
                     ref nsd_name : Str = def_ns_name_at(def, dfn0i)
                     dfn0i = dfn0i + 1
-                    if nsd.default_value.is_null() { continue }
-                    switch nsd.default_value.node_type {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
                     case NodeType.FuncDef(dfn_fd):
                         // #269: abstract interface methods have no
                         // _dyn wrapper closure to point at. ext_funcs
@@ -7924,8 +7939,8 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
             for nsd : Declaration in dfn2_ns {
                 ref nsd2_name : Str = def_ns_name_at(def, dfn2i)
                 dfn2i = dfn2i + 1
-                if nsd.default_value.is_null() { continue }
-                switch nsd.default_value.node_type {
+                if nsd.default_value.is_none() { continue }
+                switch nsd.default_expr().node_type {
                 case NodeType.FuncDef(dfn_fd2):
                     // #269: abstract interface methods have no _dyn
                     // wrapper closure to point at. ext_funcs on
@@ -8785,11 +8800,11 @@ priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr) {
         for dd : Declaration in ngi_ns {
             ref ng_name : Str = def_ns_name_at(edef, ngi)
             ngi = ngi + 1
-            if dd.default_value.is_null() { continue }
-            if dd.default_value.node_type.is(NodeType.FuncDef) { continue }
-            if dd.default_value.node_type.is(NodeType.StructDef).or(dd.default_value.node_type.is(NodeType.EnumDef)) { continue }
+            if dd.default_value.is_none() { continue }
+            if dd.default_expr().node_type.is(NodeType.FuncDef) { continue }
+            if dd.default_expr().node_type.is(NodeType.StructDef).or(dd.default_expr().node_type.is(NodeType.EnumDef)) { continue }
             if dd.til_type.is(Type.Struct).or(dd.til_type.is(Type.Enum)) {
-                ng_sname := til_type_name(dd.default_value.til_type())
+                ng_sname := til_type_name(dd.default_expr().til_type())
                 if ng_sname.len() > 0 {
                     f.write(ng_sname).write(" ").write(sdecl.name).write("_").write(ng_name).write(";\n")
                 } else {
@@ -8846,8 +8861,8 @@ priv emit_test_main := proc(f: File, lp: LoadedProgram) {
                 for nsd : Declaration in bti_ns {
                     cur_bti := bti
                     bti = bti + 1
-                    ref nsfdef : Expr = nsd.default_value
-                    if nsfdef.is_null() { continue }
+                    if nsd.default_value.is_none() { continue }
+                    ref nsfdef : Expr = nsd.default_expr()
                     switch nsfdef.node_type {
                     case NodeType.FuncDef(nsfd):
                         if nsfd.func_type.is(FuncType.Test).not() { continue }

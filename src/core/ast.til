@@ -122,6 +122,18 @@ OwnType := enum {
 // locals, bodies the garbager never processed).
 GcStorage := enum { Unset, Stack, HeapBox }
 
+// #321: explicit early instantiation. Declaration embeds Option(Expr)
+// BY VALUE below, so the C emitter must define Option__Expr before
+// Declaration -- but auto-synthesized instances are appended to the END
+// of the unit, and the Expr -> NodeType -> Declaration -> Option__Expr
+// dependency cycle forces the topo sort's scan-order fallback (the
+// niche skip in topo_emit_struct_enum_defs_lp breaks the cycle, but the
+// BOOT compiler building pass 1 predates it). A decl named exactly the
+// genname is kept in place by init_normalize_direct_type_gen_aliases,
+// so the instance sits here, ahead of its first consumer, under both
+// emitters.
+Option__Expr := Option(Expr)
+
 /// Variable/field/parameter declaration node.
 Declaration := struct {
     name := ""
@@ -136,7 +148,14 @@ Declaration := struct {
     used := false
     own_type := OwnType.Shallow
     til_type := Type.Unknown
-    own default_value : Expr = Expr.new(NodeType.NoDefaultArg, 0, 0)
+    // #321: None = no default/initializer expression. This used to be an
+    // owned Expr whose absence had TWO spellings -- a NULL that predated
+    // the ctor default, and the NoDefaultArg sentinel node -- guarded by
+    // is_null()-then-node_type checks at every consumer. The niche makes
+    // Option(Expr) the same one word, and absence one honest tag.
+    // (NodeType.NoDefaultArg itself survives in its OTHER role: the
+    // desugarer's unfilled call-arg slot placeholder.)
+    default_value := Option__Expr.None
     // Issue #93: when init_declarations_unit hoists a nested struct/enum/
     // func from inside a function body to file scope, it stores the
     // original unmangled identifier here so unused-priv diagnostics can
@@ -151,6 +170,16 @@ Declaration := struct {
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
+    /// The default-value expression, borrowed. PANICS on None: callers
+    /// either sit under an is_some() guard or know absence is impossible
+    /// for their decl kind (e.g. an initer-built member whose default IS
+    /// the definition). Prefer a switch when the None arm does real work.
+    default_expr := func(self: Declaration) returns ref Expr {
+        switch self.default_value {
+        case Option__Expr.Some(dv): return dv
+        case Option__Expr.None: panic(__LOC__, "default_expr on a Declaration with no default: ", self.name)
+        }
+    }
 }
 
 // --- FunctionDef struct ---

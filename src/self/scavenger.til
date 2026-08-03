@@ -262,8 +262,8 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref cr_ns : Vec(Declaration) = def_ns_decls(e)
         for cr_d : Declaration in cr_ns {
-            if cr_d.default_value.is_null().not() {
-                collect_refs(cr_d.default_value, refs)
+            if cr_d.default_value.is_some() {
+                collect_refs(cr_d.default_expr(), refs)
             }
         }
     }
@@ -806,10 +806,10 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool) {
 priv body_dce_ns := proc(rhs: Expr) {
     ref dce_ns : Vec(Declaration) = def_ns_decls(rhs)
     for nsd : Declaration in dce_ns {
-        if nsd.default_value.is_null() { continue }
-        if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-        if nsd.default_value.children.len() == 0 { continue }
-        body_dce_walk(nsd.default_value.children[0], false)
+        if nsd.default_value.is_none() { continue }
+        if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        if nsd.default_expr().children.len() == 0 { continue }
+        body_dce_walk(nsd.default_expr().children[0], false)
     }
 }
 

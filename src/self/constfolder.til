@@ -1450,10 +1450,10 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
             // not in the AST children tree -- walk them here.
             ref pb_ns : Vec(Declaration) = def_ns_decls(rhs)
             for nsd : Declaration in pb_ns {
-                if nsd.default_value.is_null() { continue }
-                if nsd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                if nsd.default_value.children.len() == 0 { continue }
-                fold_subtree(scope, nsd.default_value.children[0], ctx)
+                if nsd.default_value.is_none() { continue }
+                if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                if nsd.default_expr().children.len() == 0 { continue }
+                fold_subtree(scope, nsd.default_expr().children[0], ctx)
             }
             continue
         }

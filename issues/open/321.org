@@ -1611,6 +1611,48 @@ The conversions the flip forced, all mechanical:
 
 215/215, pass 1 == pass 2.
 
+**** Batch 40: Declaration.default_value becomes Option(Expr)
+
+The biggest remaining NULL consumer (96 is_null checks + ~270 other
+uses across 11 compiler files) is now `default_value := Option(Expr).None`
+-- one word via the niche, absence one honest tag. Absence used to have
+TWO spellings (a NULL that predated the ctor default, plus the
+NoDefaultArg sentinel node), guarded by is_null-then-node_type checks at
+every consumer; both collapse into None. NodeType.NoDefaultArg survives
+only in its other role, the desugarer's unfilled call-arg slot
+placeholder. Reads go through the new `Declaration.default_expr()`
+panic-on-None borrow accessor (the known_scope pattern) under is_some
+guards, or switches where the None arm does real work; the probe that
+green-lit the design: a switch payload binding on an owned-Option field
+is a true in-place borrow (mutation through it sticks).
+
+Two emitter findings, both landed here:
+
+- topo_emit_struct_enum_defs_lp treated a niche'd enum's boxed payload
+  as a layout dependency. A niche'd enum is ONE POINTER -- its payload
+  needs only the forward typedef -- so Option(Expr) inline in
+  Declaration deadlocked the sort through the Expr -> NodeType ->
+  Declaration -> Option__Expr cycle, and the scan-order fallback emitted
+  an incomplete field. The fix skips the variant dep loop for niche
+  enums, mirroring #320's ref-payload skip. This changes emitted C
+  ordering -> the commit is Two-pass.
+- The boot compiler building pass 1 predates that fix, so ast.til also
+  carries an explicit early instantiation (`Option__Expr := Option(Expr)`
+  before Declaration): a decl named exactly the genname is kept in
+  place, putting the instance ahead of its first consumer under BOTH
+  emitters. Trap found on the way: later same-unit parser-synthesized
+  direct decls would win the init_dedup_direct_type_gen_decls
+  keep-the-last rule, so ast.til's own later mentions spell the
+  instance name (Option__Expr.None / .Some) rather than Option(Expr).
+
+The fail-loud accessor caught every stale guard the mechanical rewrite
+missed (repl smoke panics on "parts"), and the audit converted ~15
+unguarded sentinel-walk sites into explicit is_some gates. Perf:
+self-translate 27.9s vs master's 27.6s on the same host (contended;
+both binaries identical within noise -- no regression).
+
+216/216 plain suite AND 216/216 two-pass; boot == self-applied output.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.

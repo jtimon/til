@@ -179,7 +179,7 @@ priv generate_struct_cmp_method := func(struct_def: Expr, sname: Str, line: U32,
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
     ref scmp_sdd : StructDef = structdef_of(struct_def)
-    scmp_sdd.push_member(own Declaration(name = "cmp", default_value = fdef))
+    scmp_sdd.push_member(own Declaration(name = "cmp", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
@@ -231,7 +231,7 @@ priv generate_struct_eq_method := func(struct_def: Expr, sname: Str, line: U32, 
     fdef.add_child(own func_body)
 
     ref sdd2 : StructDef = structdef_of(struct_def)
-    sdd2.push_member(own Declaration(name = "eq", default_value = fdef))
+    sdd2.push_member(own Declaration(name = "eq", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U32, col: U32) {
@@ -285,7 +285,7 @@ priv generate_struct_to_str_method := func(struct_def: Expr, sname: Str, line: U
     fdef.add_child(own func_body)
 
     ref sdd2 : StructDef = structdef_of(struct_def)
-    sdd2.push_member(own Declaration(name = "to_str", default_value = fdef))
+    sdd2.push_member(own Declaration(name = "to_str", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx: Context) {
@@ -378,7 +378,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
         func_def.add_child(own func_body)
 
-        sdd.push_member(own Declaration(name = "clone", default_value = func_def))
+        sdd.push_member(own Declaration(name = "clone", default_value = Option(Expr).Some(own func_def)))
     }
 
     if has_delete.not() {
@@ -470,14 +470,14 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         // plain borrowed param (Ref) and let step-1 auto-shallow normalize
         // it to value -- same as a hand-written delete. (An explicit Shallow
         // here would trip the step-2 redundant-shallow check.)
-        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+        proc_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
         proc_decl.variadic_index = -1
         proc_decl.kwargs_index = -1
 
         mut proc_def := Expr.new(NodeType.FuncDef(proc_decl), stmt.line, stmt.col)
         proc_def.add_child(own proc_body)
 
-        sdd.push_member(own Declaration(name = "delete", default_value = proc_def))
+        sdd.push_member(own Declaration(name = "delete", default_value = Option(Expr).Some(own proc_def)))
     }
 
     // Issue #214 follow-up: auto-generate `hash(self, hasher)` ONLY
@@ -549,7 +549,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
             mut hash_def := Expr.new(NodeType.FuncDef(hash_decl), stmt.line, stmt.col)
             hash_def.add_child(own hash_body)
 
-            sdd.push_member(own Declaration(name = "hash", default_value = hash_def))
+            sdd.push_member(own Declaration(name = "hash", default_value = Option(Expr).Some(own hash_def)))
         }
     }
 
@@ -613,7 +613,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
     if has_payloads.not() {
         for j in 0..variant_names.len() {
             lit := Expr.new(literal_num_node(j.to_str()), line, col)
-            evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = lit))
+            evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = Option(Expr).Some(own lit)))
         }
         return
     }
@@ -653,7 +653,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
         mut func_body := Expr.new(NodeType.Body, line, col)
         func_def.add_child(own func_body)
 
-        evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = func_def))
+        evc_edd.push_member(own Declaration(name = variant_names[j].clone(), default_value = Option(Expr).Some(own func_def)))
     }
 }
 
@@ -685,7 +685,7 @@ priv generate_enum_is_method := func(enum_def: Expr, ename: Str, line: U32, col:
     func_def.add_child(own func_body)
 
     ref eis_edd : EnumDef = enumdef_of(enum_def)
-    eis_edd.push_member(own Declaration(name = "is", default_value = func_def))
+    eis_edd.push_member(own Declaration(name = "is", default_value = Option(Expr).Some(own func_def)))
 }
 
 priv generate_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope) {
@@ -802,7 +802,7 @@ priv finish_enum_eq_method := func(enum_def: Expr, ename: Str, line: U32, col: U
     fdef.add_child(own func_body)
 
     ref eeq_edd : EnumDef = enumdef_of(enum_def)
-    eeq_edd.push_member(own Declaration(name = "eq", default_value = fdef))
+    eeq_edd.push_member(own Declaration(name = "eq", default_value = Option(Expr).Some(own fdef)))
 }
 
 // #335: cmp for enums, so a user enum can be a Set element, a Map key
@@ -885,7 +885,7 @@ priv generate_enum_cmp_method := func(enum_def: Expr, ename: Str, line: U32, col
     mut fdef := Expr.new(NodeType.FuncDef(fdecl), line, col)
     fdef.add_child(own func_body)
     ref ecmp_edd : EnumDef = enumdef_of(enum_def)
-    ecmp_edd.push_member(own Declaration(name = "cmp", default_value = fdef))
+    ecmp_edd.push_member(own Declaration(name = "cmp", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
@@ -981,7 +981,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     // Issue #223: call_free is a primitive (Bool) -> emit a plain borrowed
     // param (Ref) and let step-1 auto-shallow normalize it to value, matching
     // a hand-written delete. (An explicit Shallow trips the step-2 check.)
-    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = default_true.clone()))
+    fdecl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own default_true.clone())))
     fdecl.variadic_index = -1
     fdecl.kwargs_index = -1
 
@@ -989,7 +989,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     fdef.add_child(own proc_body)
 
     ref edel_edd : EnumDef = enumdef_of(enum_def)
-    edel_edd.push_member(own Declaration(name = "delete", default_value = fdef))
+    edel_edd.push_member(own Declaration(name = "delete", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
@@ -1089,15 +1089,15 @@ priv generate_enum_to_str_method := func(enum_def: Expr, ename: Str, line: U32, 
     fdef.add_child(own func_body)
 
     ref ets_edd : EnumDef = enumdef_of(enum_def)
-    ets_edd.push_member(own Declaration(name = "to_str", default_value = fdef))
+    ets_edd.push_member(own Declaration(name = "to_str", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv init_ns_has_func := func(def: Expr, method: Str) returns Bool {
     d_o := def_ns_get(def, method)
     if d_o.is_none() { return false }
     ref d : Declaration = d_o.unwrap()
-    if d.default_value.is_null() { return false }
-    return d.default_value.node_type.is(NodeType.FuncDef)
+    if d.default_value.is_none() { return false }
+    return d.default_expr().node_type.is(NodeType.FuncDef)
 }
 
 priv init_type_supports_generated_method := func(type_name: Str, method: Str, scope: TypeScope) returns Bool {
@@ -1268,7 +1268,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
     fdef.add_child(own func_body)
 
     ref ecl_edd2 : EnumDef = enumdef_of(enum_def)
-    ecl_edd2.push_member(own Declaration(name = "clone", default_value = fdef))
+    ecl_edd2.push_member(own Declaration(name = "clone", default_value = Option(Expr).Some(own fdef)))
 }
 
 priv register_enum_def_for_stmt := proc(ctx: Context, stmt: Expr, scope: TypeScope) returns I32 {
@@ -1580,7 +1580,7 @@ gen_struct_size_method_for_stmt := func(stmt: Expr, ctx: Context) {    if stmt.n
     mut func_def := Expr.new(NodeType.FuncDef(func_decl), stmt.line, stmt.col)
     func_def.add_child(own func_body)
 
-    sz_sdd.push_member(own Declaration(name = "size", default_value = func_def))
+    sz_sdd.push_member(own Declaration(name = "size", default_value = Option(Expr).Some(own func_def)))
 }
 
 gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context) {
@@ -1612,7 +1612,7 @@ gen_enum_size_method_for_stmt := proc(stmt: Expr, scope: TypeScope, ctx: Context
     func_def.add_child(own func_body)
 
     ref esz_edd : EnumDef = enumdef_of(def)
-    esz_edd.push_member(own Declaration(name = "size", default_value = func_def))
+    esz_edd.push_member(own Declaration(name = "size", default_value = Option(Expr).Some(own func_def)))
 }
 
 gen_unity_derived_for_stmt := func(stmt: Expr) {
@@ -1670,9 +1670,9 @@ gen_unity_derived_for_stmt := func(stmt: Expr) {
 
         switch def.node_type {
         case NodeType.StructDef(un_sdd):
-            un_sdd.push_member(own Declaration(name = method.clone(), default_value = func_def))
+            un_sdd.push_member(own Declaration(name = method.clone(), default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(eu_edd):
-            eu_edd.push_member(own Declaration(name = method.clone(), default_value = func_def))
+            eu_edd.push_member(own Declaration(name = method.clone(), default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1721,9 +1721,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "eq", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "eq", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "eq", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "eq", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1757,9 +1757,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "lt", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "lt", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "lt", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "lt", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1790,9 +1790,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "gt", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "gt", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "gt", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "gt", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1821,9 +1821,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "neq", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "neq", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "neq", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "neq", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1852,9 +1852,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "lte", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "lte", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "lte", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "lte", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1883,9 +1883,9 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
         func_def.add_child(own func_body)
         switch def.node_type {
         case NodeType.StructDef(cmp_sdd):
-            cmp_sdd.push_member(own Declaration(name = "gte", default_value = func_def))
+            cmp_sdd.push_member(own Declaration(name = "gte", default_value = Option(Expr).Some(own func_def)))
         case NodeType.EnumDef(ec_edd):
-            ec_edd.push_member(own Declaration(name = "gte", default_value = func_def))
+            ec_edd.push_member(own Declaration(name = "gte", default_value = Option(Expr).Some(own func_def)))
         case:
             UNREACHABLE("unexpected ", def.node_type.head_str())
         }
@@ -1920,8 +1920,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
 
                 mut ftype := fd.explicit_type
                 if ftype.len() == 0 {
-                    if fd.default_value.is_null().not() {
-                        ref def_val : Expr = fd.default_value
+                    if fd.default_value.is_some() {
+                        ref def_val : Expr = fd.default_expr()
                         if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
                             if def_val.children.len() > 0 {
@@ -2001,8 +2001,8 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
             } else {
                 mut ftype := fd.explicit_type
                 if ftype.len() == 0 {
-                    if fd.default_value.is_null().not() {
-                        ref def_val : Expr = fd.default_value
+                    if fd.default_value.is_some() {
+                        ref def_val : Expr = fd.default_expr()
                         if def_val.node_type.is_literal_num() {
                             // Same rule for a struct field with no explicit
                             // type: `x := 1.5` is an F32 field, not an I64 one.
@@ -2499,21 +2499,21 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
         }
         for mut pd : Declaration in fd.params {
             init_rename_decl_in_place(pd, renamings)
-            if pd.default_value.is_null().not() {
-                init_rewrite_refs(pd.default_value, renamings)
+            if pd.default_value.is_some() {
+                init_rewrite_refs(pd.default_expr(), renamings)
             }
         }
     case NodeType.StructDef(sdd):
         for mut sf : Declaration in sdd.fields {
             init_rename_decl_in_place(sf, renamings)
-            if sf.default_value.is_null().not() {
-                init_rewrite_refs(sf.default_value, renamings)
+            if sf.default_value.is_some() {
+                init_rewrite_refs(sf.default_expr(), renamings)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
             init_rename_decl_in_place(nd, renamings)
-            if nd.default_value.is_null().not() {
-                init_rewrite_refs(nd.default_value, renamings)
+            if nd.default_value.is_some() {
+                init_rewrite_refs(nd.default_expr(), renamings)
             }
         }
     case NodeType.EnumDef(edd):
@@ -2526,8 +2526,8 @@ priv init_rewrite_refs := proc(mut e: Expr, renamings: Map(Str, Str)) {
         }
         for mut nd : Declaration in edd.ns_decls {
             init_rename_decl_in_place(nd, renamings)
-            if nd.default_value.is_null().not() {
-                init_rewrite_refs(nd.default_value, renamings)
+            if nd.default_value.is_some() {
+                init_rewrite_refs(nd.default_expr(), renamings)
             }
         }
     case:
@@ -2591,18 +2591,18 @@ priv init_lift_in_ns_decls := proc(mut def: Expr, parent_prefix: Str, mut top_le
     switch def.node_type {
     case NodeType.StructDef(ld_sdd):
         for mut nd : Declaration in ld_sdd.ns_decls {
-            if nd.default_value.is_null() { continue }
-            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-            if nd.default_value.children.len() == 0 { continue }
-            ref mut nbody : Expr = nd.default_value.children[0]
+            if nd.default_value.is_none() { continue }
+            if nd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_expr().children.len() == 0 { continue }
+            ref mut nbody : Expr = nd.default_expr().children[0]
             init_lift_in_body(nbody, parent_prefix, top_level)
         }
     case NodeType.EnumDef(ld_edd):
         for mut nd : Declaration in ld_edd.ns_decls {
-            if nd.default_value.is_null() { continue }
-            if nd.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-            if nd.default_value.children.len() == 0 { continue }
-            ref mut nbody : Expr = nd.default_value.children[0]
+            if nd.default_value.is_none() { continue }
+            if nd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+            if nd.default_expr().children.len() == 0 { continue }
+            ref mut nbody : Expr = nd.default_expr().children[0]
             init_lift_in_body(nbody, parent_prefix, top_level)
         }
     case:
@@ -2773,14 +2773,14 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
 // reclaimed by the FieldAssign's own delete (issue #272).
 priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Set(Str)) {
     mut nm := ""
-    switch holder.default_value.node_type {
+    switch holder.default_expr().node_type {
     case NodeType.Ident(idn): nm = Str.clone(idn.ident_name())
     case:
     }
     if nm.len().gt(0).and(subs.has(nm)) {
-        holder.default_value = subs[nm].clone()
+        holder.default_value = Option(Expr).Some(own subs[nm].clone())
     } else {
-        init_substitute_idents(holder.default_value, subs, ref_params)
+        init_substitute_idents(holder.default_expr(), subs, ref_params)
     }
 }
 
@@ -2796,7 +2796,7 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr), ref
             fd.explicit_type = new_type.clone()
             fd.til_type = til_type_from_explicit_type(fd.explicit_type)
         }
-        if fd.default_value.is_null().not() {
+        if fd.default_value.is_some() {
             init_subst_default_slot(fd, subs, ref_params)
         }
     }
@@ -2806,13 +2806,13 @@ priv init_subst_struct_params := func(sdef: StructDef, subs: Map(Str, Expr), ref
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
-        if nd.default_value.is_null().not() {
+        if nd.default_value.is_some() {
             // Issue #243: a namespace method's value is a FuncDef. Recurse
             // with the full type-param substitution (param/return types AND
             // body) so `T` resolves inside methods, not just in struct fields.
             // Non-FuncDef ns defaults (constants) only need Ident substitution.
-            if nd.default_value.node_type.is(NodeType.FuncDef) {
-                init_substitute_type_params(nd.default_value, subs, ref_params)
+            if nd.default_expr().node_type.is(NodeType.FuncDef) {
+                init_substitute_type_params(nd.default_expr(), subs, ref_params)
             } else {
                 init_subst_default_slot(nd, subs, ref_params)
             }
@@ -2839,15 +2839,15 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
             nd.explicit_type = new_type.clone()
             nd.til_type = til_type_from_explicit_type(nd.explicit_type)
         }
-        if nd.default_value.is_null().not() {
+        if nd.default_value.is_some() {
             // Issue #243 follow-up: same FuncDef dispatch as
             // init_subst_struct_params -- a namespace method's param
             // types and return type live in the FunctionDef payload,
             // not Expr.children, so init_substitute_idents alone would
             // miss them. Non-FuncDef ns defaults (constants) only need
             // Ident substitution.
-            if nd.default_value.node_type.is(NodeType.FuncDef) {
-                init_substitute_type_params(nd.default_value, subs, ref_params)
+            if nd.default_expr().node_type.is(NodeType.FuncDef) {
+                init_substitute_type_params(nd.default_expr(), subs, ref_params)
             } else {
                 init_subst_default_slot(nd, subs, ref_params)
             }
@@ -2862,7 +2862,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
             pd.explicit_type = new_type.clone()
             pd.til_type = til_type_from_explicit_type(pd.explicit_type)
         }
-        if pd.default_value.is_null().not() {
+        if pd.default_value.is_some() {
             init_subst_default_slot(pd, subs, ref_params)
         }
     }
@@ -3248,25 +3248,25 @@ priv init_hoist_walk := func(mut e: Expr, macros: Map(Str, Expr), scope: TypeSco
     switch e.node_type {
     case NodeType.StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
-            if fd.default_value.is_null().not() {
-                init_hoist_walk(fd.default_value, macros, scope, ctx, synthesized, mark_ctx)
+            if fd.default_value.is_some() {
+                init_hoist_walk(fd.default_expr(), macros, scope, ctx, synthesized, mark_ctx)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
-            if nd.default_value.is_null().not() {
-                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized, mark_ctx)
+            if nd.default_value.is_some() {
+                init_hoist_walk(nd.default_expr(), macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case NodeType.EnumDef(edd):
         for mut nd : Declaration in edd.ns_decls {
-            if nd.default_value.is_null().not() {
-                init_hoist_walk(nd.default_value, macros, scope, ctx, synthesized, mark_ctx)
+            if nd.default_value.is_some() {
+                init_hoist_walk(nd.default_expr(), macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case NodeType.FuncDef(fdd):
         for mut pd : Declaration in fdd.params {
-            if pd.default_value.is_null().not() {
-                init_hoist_walk(pd.default_value, macros, scope, ctx, synthesized, mark_ctx)
+            if pd.default_value.is_some() {
+                init_hoist_walk(pd.default_expr(), macros, scope, ctx, synthesized, mark_ctx)
             }
         }
     case:
@@ -3496,11 +3496,15 @@ priv init_collect_variadic_arrays := func(scope: TypeScope, e: Expr, mut synthes
         }
     case NodeType.StructDef(sdd):
         for vasd : Declaration in sdd.ns_decls {
-            init_collect_variadic_arrays(scope, vasd.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            if vasd.default_value.is_some() {
+                init_collect_variadic_arrays(scope, vasd.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            }
         }
     case NodeType.EnumDef(edd):
         for vaed : Declaration in edd.ns_decls {
-            init_collect_variadic_arrays(scope, vaed.default_value, synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            if vaed.default_value.is_some() {
+                init_collect_variadic_arrays(scope, vaed.default_expr(), synthesized, seen, synth_array, synth_vec, synth_set, synth_map)
+            }
         }
     case:
     }
@@ -4012,14 +4016,14 @@ priv init_generic_walk := func(mut e: Expr, gs: GenericSources, local_types: Map
     switch e.node_type {
     case NodeType.StructDef(sdd_g):
         for mut nd : Declaration in sdd_g.ns_decls {
-            if nd.default_value.is_null().not() {
-                init_generic_walk(nd.default_value, gs, local_types, seen, destination, scope, ctx)
+            if nd.default_value.is_some() {
+                init_generic_walk(nd.default_expr(), gs, local_types, seen, destination, scope, ctx)
             }
         }
     case NodeType.EnumDef(edd_g):
         for mut nd : Declaration in edd_g.ns_decls {
-            if nd.default_value.is_null().not() {
-                init_generic_walk(nd.default_value, gs, local_types, seen, destination, scope, ctx)
+            if nd.default_value.is_some() {
+                init_generic_walk(nd.default_expr(), gs, local_types, seen, destination, scope, ctx)
             }
         }
     case:
@@ -4155,11 +4159,11 @@ priv init_scan_generic_calls_in := proc(e: Expr, scope: TypeScope, ctx: Context)
     switch e.node_type {
     case NodeType.StructDef(ssd):
         for nd : Declaration in ssd.ns_decls {
-            if nd.default_value.is_null().not() { init_scan_generic_calls_in(nd.default_value, scope, ctx) }
+            if nd.default_value.is_some() { init_scan_generic_calls_in(nd.default_expr(), scope, ctx) }
         }
     case NodeType.EnumDef(sed):
         for nd2 : Declaration in sed.ns_decls {
-            if nd2.default_value.is_null().not() { init_scan_generic_calls_in(nd2.default_value, scope, ctx) }
+            if nd2.default_value.is_some() { init_scan_generic_calls_in(nd2.default_expr(), scope, ctx) }
         }
     case:
     }
@@ -4409,8 +4413,8 @@ priv init_seed_declarations_unit := proc(path: Str, program: Expr, scope: TypeSc
 // uses), which only makes the unused-import check quieter, never wrong.
 priv note_template_decl_use := func(d: Declaration, scope: TypeScope, ctx: Context) {
     note_cross_file_type_use(scope, ctx, d.explicit_type)
-    if d.default_value.is_null().not() {
-        note_template_uses_walk(d.default_value, scope, ctx)
+    if d.default_value.is_some() {
+        note_template_uses_walk(d.default_expr(), scope, ctx)
     }
 }
 
@@ -4659,11 +4663,11 @@ priv gen_interface_box_fields_for_stmt := func(stmt: Expr) {
         if sdd.fields_index.has("iface_type_name") { return }
         mut tag_decl := Declaration(name = "iface_type_name", explicit_type = "Str",
             is_mut = true, own_type = OwnType.Shallow,
-            default_value = Expr.new(NodeType.Literal(Literal.Str("")), stmt.line, stmt.col))
+            default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Str("")), stmt.line, stmt.col)))
         sdd.push_field(own tag_decl)
         mut val_decl := Declaration(name = "iface_val", explicit_type = "Dynamic",
             is_mut = true, own_type = OwnType.Ref,
-            default_value = Expr.new(NodeType.Literal(Literal.Null), stmt.line, stmt.col))
+            default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Null), stmt.line, stmt.col)))
         sdd.push_field(own val_decl)
         // #269 follow-up: discriminate a borrowed box (the concrete outlives
         // it -- arguments, same-scope locals) from an OWNED box (the concrete
@@ -4673,7 +4677,7 @@ priv gen_interface_box_fields_for_stmt := func(stmt: Expr) {
         // leave it alone, exactly as before.
         mut owned_decl := Declaration(name = "iface_owned", explicit_type = "Bool",
             is_mut = true, own_type = OwnType.Shallow,
-            default_value = Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col))
+            default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(false)), stmt.line, stmt.col)))
         sdd.push_field(own owned_decl)
     case:
     }
@@ -4780,7 +4784,7 @@ priv gen_interface_clone_delete_for_stmt := func(stmt: Expr) {
             clone_decl.kwargs_index = -1
             mut clone_def := Expr.new(NodeType.FuncDef(clone_decl), stmt.line, stmt.col)
             clone_def.add_child(own clone_body)
-            sdd.push_member(own Declaration(name = "clone", default_value = clone_def))
+            sdd.push_member(own Declaration(name = "clone", default_value = Option(Expr).Some(own clone_def)))
         }
 
         if has_delete.not() {
@@ -4818,12 +4822,12 @@ priv gen_interface_clone_delete_for_stmt := func(stmt: Expr) {
             mut del_decl := FunctionDef(auto_generated = true)
             del_decl.func_type = FuncType.Func
             del_decl.params.push(own decl_typed(name = "self", explicit_type = sname, own_type = OwnType.Own))
-            del_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col)))
+            del_decl.params.push(own Declaration(name = "call_free", explicit_type = "Bool", til_type = Type.Primitive(Primitive.Bool), own_type = OwnType.Ref, default_value = Option(Expr).Some(own Expr.new(NodeType.Literal(Literal.Bool(true)), stmt.line, stmt.col))))
             del_decl.variadic_index = -1
             del_decl.kwargs_index = -1
             mut del_def := Expr.new(NodeType.FuncDef(del_decl), stmt.line, stmt.col)
             del_def.add_child(own del_body)
-            sdd.push_member(own Declaration(name = "delete", default_value = del_def))
+            sdd.push_member(own Declaration(name = "delete", default_value = Option(Expr).Some(own del_def)))
         }
     case:
     }
@@ -4867,11 +4871,11 @@ priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
     for am : Declaration in iface_ns {
         ref am_name : Str = def_ns_name_at(iface_def, idfi)
         idfi = idfi + 1
-        if am.default_value.is_null() { continue }
+        if am.default_value.is_none() { continue }
         // A concrete default is a func/proc WITH a body, not abstract and not
         // an auto-generated helper (clone/delete/...).
         mut is_default := false
-        switch am.default_value.node_type {
+        switch am.default_expr().node_type {
         case NodeType.FuncDef(am_fd):
             if am_fd.auto_generated.not().and(am_fd.func_type.is(FuncType.Func).or(am_fd.func_type.is(FuncType.Proc))) {
                 is_default = true
@@ -4881,13 +4885,13 @@ priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
         if is_default.not() { continue }
         // Override: the implementing type already provides this method.
         if def_ns_has(tdef, am_name) { continue }
-        mut copy := am.default_value.clone()
+        mut copy := am.default_expr().clone()
         gen_substitute_self_type(copy, iface_name, impl_name)
         switch tdef.node_type {
         case NodeType.StructDef(sdd):
-            sdd.push_member(own Declaration(name = am_name.clone(), default_value = copy))
+            sdd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
         case NodeType.EnumDef(edd):
-            edd.push_member(own Declaration(name = am_name.clone(), default_value = copy))
+            edd.push_member(own Declaration(name = am_name.clone(), default_value = Option(Expr).Some(own copy)))
         case:
         }
     }

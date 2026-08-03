@@ -4601,9 +4601,9 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             for nsf : Declaration in reg_ns {
                 cur_nfi := nfi
                 nfi = nfi + 1
-                if nsf.default_value.is_null() { continue }
-                if nsf.default_value.node_type.is(NodeType.FuncDef).not() { continue }
-                fraw : Dynamic = eval_expr_raw(global, nsf.default_value, ctx)
+                if nsf.default_value.is_none() { continue }
+                if nsf.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+                fraw : Dynamic = eval_expr_raw(global, nsf.default_expr(), ctx)
                 ns_set(dd.name, def_ns_name_at(sdef, cur_nfi), fraw, Type.Body, ctx)
             }
             // #307 follow-up: constants evaluate in sibling-dependency
@@ -4614,11 +4614,11 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
                 ref nsd : Declaration = reg_ns.unsafe_get(cur_nci)
-                mut raw : Dynamic = eval_expr_raw(global, nsd.default_value, ctx)
-                if expr_raw_is_ref(global, nsd.default_value, ctx) {
+                mut raw : Dynamic = eval_expr_raw(global, nsd.default_expr(), ctx)
+                if expr_raw_is_ref(global, nsd.default_expr(), ctx) {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
                     raw = owned
-                } else if expr_word_shaped(global, nsd.default_value, ctx) {
+                } else if expr_word_shaped(global, nsd.default_expr(), ctx) {
                     // ns storage is a binding: a scalar word needs a block.
                     raw = scalar_block_from_word(ns_decl_raw_type(nsd), raw, ctx)
                 }
@@ -4674,8 +4674,8 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
 }
 
 priv ns_decl_raw_type := func(decl: Declaration) returns Type {
-    if decl.default_value.node_type.is(NodeType.FuncDef) { return Type.Body }
-    return decl.default_value.til_type().clone()
+    if decl.default_expr().node_type.is(NodeType.FuncDef) { return Type.Body }
+    return decl.default_expr().til_type().clone()
 }
 
 priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
@@ -5347,8 +5347,8 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                             for nsd : Declaration in tni_ns {
                                 cur_tni := tni
                                 tni = tni + 1
-                                ref nsfdef : Expr = nsd.default_value
-                                if nsfdef.is_null() { continue }
+                                if nsd.default_value.is_none() { continue }
+                                ref nsfdef : Expr = nsd.default_expr()
                                 switch nsfdef.node_type {
                                 case NodeType.FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
@@ -8080,8 +8080,8 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                 for fdd : Declaration in sdd_data.ns_decls {
                     cur_ni := fni
                     fni = fni + 1
-                    ref fdef : Expr = fdd.default_value
-                    if fdef.is_null() { continue }
+                    if fdd.default_value.is_none() { continue }
+                    ref fdef : Expr = fdd.default_expr()
                     mut fd_func_type := FuncType.Func
                     switch fdef.node_type {
                     case NodeType.FuncDef(fd):
