@@ -2412,7 +2412,7 @@ Bool priv___src_self_initer_til__init_is_type_gen_macro_def(Expr * fdef);
 Option__ref_Expr priv___src_self_initer_til__init_lookup_type_gen_macro(Str * name, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_is_macro_inst_call(Expr * e, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 Bool priv___src_self_initer_til__init_is_direct_macro_inst_decl(Expr * stmt, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
-Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef);
+Bool priv___src_self_initer_til__init_macro_inst_uses_own_type_param(Expr * rhs, Expr * macro_fdef, TypeScope * scope);
 Str * priv___src_self_initer_til__init_macro_inst_name_byte(I8 b);
 Str * priv___src_self_initer_til__init_macro_inst_text_name(Str * prefix, Str * text);
 Str * priv___src_self_initer_til__init_type_arg_name(TypeScope * scope, Str * name);

@@ -329,13 +329,27 @@ priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
 }
 
 // Emit the POD-struct user-clone arg as a struct value: dereference
-// pointer-typed FieldAccesses, otherwise emit as-is (Idents map to
-// stack-locals, params, or globals which emit_expr renders as values).
+// pointer-typed FieldAccesses and pointer-shaped params, otherwise emit
+// as-is (stack-locals and shallow params render as values).
 priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ref arg : Expr = e.children[1]
     if arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ptr(arg, ctx)) {
         f.write("*"); emit_expr(f, arg, depth, ctx)
         return
+    }
+    // A POD struct wider than a word is NOT auto-shallow, so as a param it
+    // is a POINTER in C (K *key). The elided clone must copy the pointee:
+    // emitting the bare Ident produced `K cloned_key = key;`, which cc
+    // rejects -- hit the first time a struct key monomorphized Map.set
+    // (#335 made that reachable; the K.clone(key) inside it is this path).
+    switch arg.node_type {
+    case NodeType.Ident(an):
+        ref aname : Str = an.ident_name()
+        if is_current_func_param(aname, ctx).and(is_shallow_param(aname, ctx).not()) {
+            f.write("*"); emit_expr(f, arg, depth, ctx)
+            return
+        }
+    case:
     }
     emit_expr(f, arg, depth, ctx)
 }

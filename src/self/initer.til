@@ -3079,7 +3079,15 @@ priv init_is_direct_macro_inst_decl := func(stmt: Expr, macros: Map(Str, Expr), 
     return init_is_macro_inst_call(stmt.children[0], macros, scope, ctx)
 }
 
-priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) returns Bool {
+// True when a direct decl `Name__A := Name(A)` is the macro's own
+// UNINSTANTIATED self-reference -- its type arg names one of the macro's
+// formal params (`Map(K, V)` inside map.til's own body). Such placeholders
+// are dropped by the dedup pass. An arg that RESOLVES to a real type in
+// scope is not a placeholder even if the user named their type after a
+// formal (a struct called K used as `Map(K, I64)` is a genuine
+// instantiation; dropping it left every use referencing an undefined
+// Map__K_I64).
+priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr, scope: TypeScope) returns Bool {
     if rhs.node_type.is(NodeType.FCall).not() { return false }
     if macro_fdef.node_type.is(NodeType.FuncDef).not() { return false }
     switch macro_fdef.node_type {
@@ -3093,7 +3101,9 @@ priv init_macro_inst_uses_own_type_param := func(rhs: Expr, macro_fdef: Expr) re
             case:
             }
             for p : Declaration in mfd.params {
-                if p.explicit_type.eq("Type").and(p.name.eq(arg_name)) { return true }
+                if p.explicit_type.eq("Type").and(p.name.eq(arg_name)) {
+                    if scope.get_struct(arg_name).is_none() { return true }
+                }
             }
         }
     case:
@@ -3555,7 +3565,7 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
                     switch rhs.children[0].node_type {
                     case NodeType.Ident(cn):
                         mf_o := init_lookup_type_gen_macro(cn.ident_name(), macros, scope, ctx)
-                        if mf_o.is_some().and(init_macro_inst_uses_own_type_param(rhs, mf_o.unwrap())) {
+                        if mf_o.is_some().and(init_macro_inst_uses_own_type_param(rhs, mf_o.unwrap(), scope)) {
                             drop_placeholder = true
                         }
                     case:

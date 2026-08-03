@@ -554,8 +554,43 @@ test_struct_in_set := test() {
     assert(s.has(CmpPoint(x = 9, y = 9)).not())
 }
 
-// A struct as a MAP key is not covered here: Map.set monomorphized over a
-// struct key emits `CmpPoint cloned_key = key;` where key is a pointer,
-// which cc rejects. Deriving cmp is what first makes such a key
-// reachable, but the defect is in Map's codegen, not in the derivation --
-// see issues/open/335.org.
+test_struct_as_map_key := test() {
+    // Monomorphizing Map.set over a struct key used to emit
+    // `CmpPoint cloned_key = key;` -- the elided POD clone forgot that a
+    // wider-than-a-word struct param is a POINTER in C.
+    mut m := Map(CmpPoint, Str).new()
+    m.set(CmpPoint(x = 1, y = 1), own "one")
+    m.set(CmpPoint(x = 2, y = 2), own "two")
+    assert_eq(USize, m.len(), 2)
+    assert_eq(Str, m[CmpPoint(x = 2, y = 2)], "two")
+}
+
+// A user type named after a template FORMAL param is still a real type:
+// `Map(K, I64)` where K is the user's struct is a genuine instantiation,
+// not map.til's own `Map(K, V)` placeholder. The placeholder dropper used
+// to match on the NAME alone and delete the instance, leaving every use
+// referencing an undefined Map__K_I64.
+K := struct {
+    n := 0
+}
+
+V := struct {
+    n := 0
+}
+
+test_template_formal_name_collision := test() {
+    mut m := Map(K, I64).new()
+    m.set(K(n = 1), own 10)
+    m.set(K(n = 2), own 20)
+    assert_eq(USize, m.len(), 2)
+    assert_eq(I64, m[K(n = 2)], 20)
+
+    mut mv := Map(Str, V).new()
+    mv.set("a", own V(n = 5))
+    assert_eq(USize, mv.len(), 1)
+
+    mut sv := Set(K).new()
+    sv.add(own K(n = 1))
+    sv.add(own K(n = 1))
+    assert_eq(USize, sv.len(), 1)
+}

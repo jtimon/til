@@ -1,6 +1,38 @@
 # priority: medium
 # category: features
-** WIP #335 No user type can be a Set element or Map key: cmp is never derived
+** FIXED #335 No user type can be a Set element or Map key: cmp is never derived
+
+*** Post-mortem
+
+  Root cause: cmp was the one comparison the initer never generated, so
+  no user struct or enum could enter an ordered container (Set element,
+  Map key) or be a range bound. Fixed across three commits:
+  generate_enum_cmp_method (declaration order, then payload; pointer-slot
+  payloads compare pointees, which is what makes Option(ref T)
+  orderable), generate_struct_cmp_method (lexicographic by field in
+  declaration order), both reusing the eq/to_str support gate so an
+  own/ref or incomparable component leaves the type unordered --
+  containers stay out via that same gate.
+
+  Closing the last box surfaced two pre-existing bugs the derivation
+  made reachable, fixed in the closing commit:
+
+  - Map.set monomorphized over a POD struct key emitted
+    `K cloned_key = key;` -- the elided POD clone
+    (emit_pod_struct_user_clone_arg) assumed params emit as values, but
+    a wider-than-a-word POD struct param is a POINTER in C. It now
+    derefs non-shallow params.
+  - A user type named after a template FORMAL (a struct called K used as
+    Map(K, I64)) had its instantiation deleted as the macro's own
+    placeholder: init_macro_inst_uses_own_type_param matched on the
+    name alone. It now also requires the name NOT to resolve to a real
+    type in scope.
+
+  Regression tests: test/enums.til (derived enum cmp, Option(T),
+  Option(ref T) in a Set), test/structs.til (derived struct cmp, struct
+  in a Set, struct as a Map key, K/V formal-name collision),
+  test/typer_errors.til (NoCmp fixture with an own field keeps the
+  unordered-type errors covered).
 
   ~Set(T)~ binary-searches, so it needs ~T.cmp~; ~Map(K, V)~ needs
   ~K.cmp~ for the same reason. Every user type is rejected there,
