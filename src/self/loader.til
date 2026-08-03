@@ -1195,13 +1195,28 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     validate_cli_main(lp)
     visited := scavenge_visited_imported(lp)
 
+    mut swept_names := Vec(Str).new()
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
-            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true)
+            scavenge_filter(lp.ctx.imported[u.path].ast, visited, true, swept_names)
         }
     }
     for u : ProgramUnit in lp.units {
-        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false)
+        scavenge_filter(lp.ctx.imported[u.path].ast, visited, false, swept_names)
+    }
+    // #326: the sweep freed those declarations' AST nodes, and the
+    // func_defs / struct_defs registries hold pointers INTO them. Erase
+    // the swept names so a later by-name lookup misses instead of reading
+    // a freed Expr -- the builder's check_fcall_mut_args resolving a
+    // spliced swap_replace callee was the ASAN-proven case, and #328 fixed
+    // the identical hazard for retired generic templates. BINDINGS stay:
+    // a TypeBinding is type data, not an AST pointer (#147 moved the
+    // func_def pointer out into func_defs), and the interpreter still
+    // resolves types through them at runtime -- erasing them broke
+    // test/hashes.til's funcptr-typed global.
+    for swept_n : Str in swept_names {
+        lp.ctx.scope.erase_func_def(swept_n)
+        lp.ctx.scope.erase_struct_def(swept_n)
     }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by

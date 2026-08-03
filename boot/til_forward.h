@@ -2061,6 +2061,7 @@ void TypeScope_set_struct_def(TypeScope * self, Str * name, Expr * sdef);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
 void TypeScope_erase_func_def(TypeScope * self, Str * name);
 void TypeScope_erase_binding(TypeScope * self, Str * name);
+void TypeScope_erase_struct_def(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
@@ -3073,7 +3074,7 @@ void priv___src_self_scavenger_til__scavenge_members_in_place(Vec__Declaration *
 Bool priv___src_self_scavenger_til__scav_is_value_decl(Expr * stmt);
 Bool scav_value_decl_sweepable(Expr * stmt);
 Str * priv___src_self_scavenger_til__scav_cleanup_target(Expr * stmt);
-void scavenge_filter(Expr * program, Set__Str * visited, Bool sweep_values);
+void scavenge_filter(Expr * program, Set__Str * visited, Bool sweep_values, Vec__Str * swept_names);
 USize priv___src_self_scavenger_til__dyn_call_real_arg_count(Expr * e);
 void priv___src_self_scavenger_til__collect_body_refs(Expr * e, Set__Str * refs, Set__Str * candidates);
 Str * priv___src_self_scavenger_til__match_trivial_delete(Expr * stmt);

@@ -50,6 +50,27 @@ priv push_builtin_methods := func(mut v: Vec(Str), builtin_name: Str, m1: Str, m
 
 collect_refs := func(e: Expr, mut refs: Vec(Str)) {
 
+    // #210/#326: a swap_replace call on a Str target never emits its
+    // callee -- the builder writes the explicit delete-copy-free sequence
+    // instead (the `arg_tname == "Str"` branch in emit_stmt) -- so the
+    // callee must not root `swap_bytes`. Sweeping it is safe now that
+    // scavenge_imported erases swept names from the scope registries;
+    // the first attempt left check_fcall_mut_args resolving the name
+    // into a freed Expr. Non-Str targets keep the real call and fall
+    // through to the normal walk.
+    switch e.node_type {
+    case NodeType.FCall(cr_fcd):
+        if cr_fcd.swap_replace.and(e.children.len().gte(2)) {
+            if til_type_name(e.children[1].til_type()).eq("Str") {
+                for cr_swi in 1..e.children.len() {
+                    collect_refs(e.children[cr_swi], refs)
+                }
+                return
+            }
+        }
+    case:
+    }
+
     switch e.node_type {
     case NodeType.Ident(ident):
         vec_push_str(refs, ident.ident_name())
@@ -389,7 +410,14 @@ priv scav_cleanup_target := func(stmt: Expr) returns Str {
 // scav_value_decl_sweepable proves effect-free (literal/ident
 // initializers); the seeding in scavenge_visited_imported skips rooting
 // exactly those, so the two sides agree on which decls are graph nodes.
-scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool) {
+// `swept_names` reports every top-level declaration this sweep FREED, so
+// the caller can erase them from the scope registries. The registries hold
+// pointers INTO the AST (func_defs/struct_defs/bindings), and a post-sweep
+// pass that resolves a swept name by string -- the builder's
+// check_fcall_mut_args on a spliced swap_replace callee was the proven case
+// -- would otherwise read a freed Expr. Same hazard #328 fixed for retired
+// generic templates; the sweep is just the other producer of it.
+scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool, mut swept_names: Vec(Str)) {
     pn := program.children.len()
     pm : U8 = malloc(pn)
     memset(pm, 0, pn)
@@ -401,6 +429,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
             if visited.has(vd.name).not() {
                 memset(ptr_add(pm, i), 1, 1)
                 swept.add(own vd.name.clone())
+                vec_push_str(swept_names, vd.name)
             }
         }
         if is_def(stmt) {
@@ -416,6 +445,7 @@ scavenge_filter := func(mut program: Expr, visited: Set(Str), sweep_values: Bool
             is_anon_lifted := d.name.starts_with("AnonStruct").or(d.name.starts_with("AnonEnum"))
             if visited.has(d.name).not().and(is_anon_lifted.not()) {
                 memset(ptr_add(pm, i), 1, 1)
+                vec_push_str(swept_names, d.name)
             }
         }
     }

@@ -666,6 +666,14 @@ main := proc(args: ..Str) {
         format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"))
     add_count(tests, "structs_no_uncalled_pod_clone", "build", "CmpPoint_clone", 0,
         format(til_bin, " translate -c gen/c/structs_pc.c test/structs.til '&&' cat gen/c/structs_pc.c"))
+    // A swap_replace on a Str target never calls swap_bytes -- the builder
+    // writes the delete-copy-free sequence instead -- so the callee is not
+    // a reachability root there and the definition goes with it. Safe to
+    // sweep only because scavenge_imported erases swept names from the
+    // scope registries; the first attempt left check_fcall_mut_args
+    // resolving the swept name into a freed Expr (ASAN-caught here).
+    add_count(tests, "strings_no_uncalled_swap_bytes", "build", "swap_bytes", 0,
+        format(til_bin, " translate -c gen/c/strings_sw.c test/strings.til '&&' cat gen/c/strings_sw.c"))
     add_count(tests, "enums_no_uncalled_lifecycle", "build", "TagU8_delete", 0,
         format(til_bin, " translate -c gen/c/enums_lc.c test/enums.til '&&' cat gen/c/enums_lc.c"))
     add_count(tests, "enums_no_uncalled_payload_clone", "build", "ColorG_clone", 0,

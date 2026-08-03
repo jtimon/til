@@ -334,6 +334,12 @@ namespace:
     erase_binding := func(mut self: TypeScope, name: Str) {
         self.bindings.remove(name)
     }
+    // #326: the struct_defs twin of erase_func_def, for the scavenger --
+    // a swept type declaration's AST is freed, so its registry entry must
+    // go with it or a later by-name lookup reads a freed Expr.
+    erase_struct_def := func(mut self: TypeScope, name: Str) {
+        self.struct_defs.remove(name)
+    }
     set := func(mut self: TypeScope, name: Str, type: Type,
         is_mut: Bool,
         path: Str,
