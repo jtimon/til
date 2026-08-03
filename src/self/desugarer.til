@@ -236,7 +236,6 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
     }
     for i in 0..e.children.len() {
         ref mut c : Expr = e.children[i]
-        if c.is_null() { continue }
         // The rhs slot of a NodeType.Decl is a named function definition,
         // not a lambda. Skip lifting; just recurse to find any lambdas
         // nested INSIDE that named function's body.
@@ -5282,7 +5281,7 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
         // leave as Shallow -- builder emits a stack value
     } else if is_own.or(is_compound) {
         dd.own_type = OwnType.Own
-        if tb.is_null().not() { tb.own_type = OwnType.Own }
+        tb.own_type = OwnType.Own
     }
 
     hoisted.push(own decl)

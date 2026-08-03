@@ -281,9 +281,11 @@ LoadedProgram := struct {
     usize_override_bits : I64 = 0
 namespace:
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
-        if self.is_null() { return }
-        if self.core_units.is_null().not() { own self.core_units.delete(true) }
-        if self.units.is_null().not() { own self.units.delete(true) }
+        // Raw-address probes through the to_ptr launder (#321 step 3):
+        // the #302 drain contract hands deletes zeroed/moved-out slots.
+        if to_ptr(self).is_null() { return }
+        if to_ptr(self.core_units).is_null().not() { own self.core_units.delete(true) }
+        if to_ptr(self.units).is_null().not() { own self.units.delete(true) }
         own self.mode_files.delete(false)
         Target.delete(own self.target, false)
         Mode.delete(own self.cur_mode, false)
@@ -912,15 +914,12 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
 // decl, defs and values alike, is an ordinary graph node.
 priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     mut is_cli := false
-    mut is_library := false
-    if lp.cur_mode.is_null().not() {
-        if lp.cur_mode.needs_main {
-            if lp.run_tests.not() {
-                is_cli = true
-            }
+    if lp.cur_mode.needs_main {
+        if lp.run_tests.not() {
+            is_cli = true
         }
-        is_library = lp.cur_mode.is_library
     }
+    is_library := lp.cur_mode.is_library
 
     // 1) Build top-level decl maps: name -> (path, idx)
     mut core_top := Map(Str, DeclRef).new()
@@ -1151,7 +1150,6 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
 // what the builder parses. Runs on the compile path (scavenge_imported); the
 // interpreter additionally guards at runtime in parse_cli_arg.
 priv validate_cli_main := func(lp: LoadedProgram) {
-    if lp.cur_mode.is_null() { return }
     if lp.cur_mode.needs_main.not() { return }
     if lp.run_tests { return }
     for u : ProgramUnit in lp.units {
@@ -2221,16 +2219,14 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
                         } else {
                             if ctx.imported.has(resolved_path) {
                                 ref iu : ImportUnit = ctx.imported[resolved_path]
-                                if iu.is_null().not() {
-                                    for child : Expr in iu.ast.children {
-                                        if child.node_type.is(NodeType.Decl) {
-                                            switch child.node_type {
-                                            case NodeType.Decl(dd):
-                                                if dd.is_priv.not() {
-                                                    exp_symbols.push(own dd.name.clone())
-                                                }
-                                            case:
+                                for child : Expr in iu.ast.children {
+                                    if child.node_type.is(NodeType.Decl) {
+                                        switch child.node_type {
+                                        case NodeType.Decl(dd):
+                                            if dd.is_priv.not() {
+                                                exp_symbols.push(own dd.name.clone())
                                             }
+                                        case:
                                         }
                                     }
                                 }
@@ -2240,26 +2236,24 @@ priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context
                         handled = true
                         if ctx.imported.has(resolved_path) {
                             ref iu : ImportUnit = ctx.imported[resolved_path]
-                            if iu.is_null().not() {
-                                for sym : Str in exp_symbols {
-                                    mut found := false
-                                    for dd : Expr in iu.ast.children {
-                                        switch dd.node_type {
-                                        case NodeType.Decl(cd):
-                                            if cd.name == sym { found = true }
-                                        case:
-                                        }
-                                        if found { break }
+                            for sym : Str in exp_symbols {
+                                mut found := false
+                                for dd : Expr in iu.ast.children {
+                                    switch dd.node_type {
+                                    case NodeType.Decl(cd):
+                                        if cd.name == sym { found = true }
+                                    case:
                                     }
-                                    if found.not() {
-                                        imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
-                                        return false
-                                    }
-                                    // Members keyed "alias|member" (til's
-                                    // parser rejects nested generics like
-                                    // Map(Str, Set(Str)) in param types).
-                                    ns_alias_members.add(own format(decl_name, "|", sym))
+                                    if found { break }
                                 }
+                                if found.not() {
+                                    imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
+                                    return false
+                                }
+                                // Members keyed "alias|member" (til's
+                                // parser rejects nested generics like
+                                // Map(Str, Set(Str)) in param types).
+                                ns_alias_members.add(own format(decl_name, "|", sym))
                             }
                         }
                         ns_alias_names.add(own decl_name.clone())

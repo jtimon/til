@@ -1422,34 +1422,32 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     // regardless of the source-alias width.
     if name == "USize" { return type_from_name_init(scope_target_usize_pname(scope), scope) }
     if name == "UPtr" { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
-    if scope.is_null().not() {
-        b_o := scope.get_binding(name)
-        if b_o.is_some() {
-            ref b : TypeBinding = b_o.unwrap()
-            if b.is_type_alias {
-                if b.alias_target.is_empty().not() {
-                    return type_from_name_init(b.alias_target, scope)
-                }
-            }
-            if b.is_builtin {
-                // Builtin type (had a struct_def) vs builtin ext_func
-                // (has a func_def): test "builtin and not a func", and
-                // clone the owned Type. See the matching note in
-                // typer.til:type_from_name.
-                if scope.lookup_func(b.name).is_none() { return b.type.clone() }
-            }
-            if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
-                return Type.FuncPtr
+    b_o := scope.get_binding(name)
+    if b_o.is_some() {
+        ref b : TypeBinding = b_o.unwrap()
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() {
+                return type_from_name_init(b.alias_target, scope)
             }
         }
-        sdef_o := scope.get_struct(name)
-        if sdef_o.is_some() {
-            ref sdef : Expr = sdef_o.unwrap()
-            if sdef.node_type.is(NodeType.EnumDef) {
-                return Type.Enum(name.clone())
-            }
-            return Type.Struct(name.clone())
+        if b.is_builtin {
+            // Builtin type (had a struct_def) vs builtin ext_func
+            // (has a func_def): test "builtin and not a func", and
+            // clone the owned Type. See the matching note in
+            // typer.til:type_from_name.
+            if scope.lookup_func(b.name).is_none() { return b.type.clone() }
         }
+        if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
+            return Type.FuncPtr
+        }
+    }
+    sdef_o := scope.get_struct(name)
+    if sdef_o.is_some() {
+        ref sdef : Expr = sdef_o.unwrap()
+        if sdef.node_type.is(NodeType.EnumDef) {
+            return Type.Enum(name.clone())
+        }
+        return Type.Struct(name.clone())
     }
     return Type.Unknown
 }
@@ -1700,9 +1698,6 @@ priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state:
 // Walk a constant initializer for `<tname>.<member>` sibling-constant
 // references and visit each first.
 priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64)) {
-    // REM: control flow, not a guard -- the caller above walks
-    // `d.default_value`, and a member with no initializer has none.
-    if e.is_null() { return }
     switch e.node_type {
     case NodeType.FieldAccess(fa):
         if e.children.len() > 0 {

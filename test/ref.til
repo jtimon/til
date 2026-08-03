@@ -89,17 +89,10 @@ test_ref_dynamic_from_struct := test() {
 # bodies initialize a ref binding to NULL. Same rule as #168 step 1b for
 # func bodies. NULL ref-binding init now fails uniformly at module scope,
 # in func/proc bodies, in test() bodies, and in macros.)
-
-accept_null := func(x: RefPoint) {
-    // A borrowed compound param can receive NULL. (Primitives are passed by
-    // value now -- issue #223 auto-shallow -- so an I64 param can no longer
-    // take NULL; the borrowed-pointer case lives on for compound types.)
-    assert(is_null(x))
-}
-
-test_null_borrowed_arg := test() {
-    accept_null(NULL)
-}
+# (test_null_borrowed_arg removed: #321 step 3 forbids is_null on typed
+# values, so "a borrowed compound param can receive NULL" is no longer
+# an observable -- or intended -- state. A maybe-absent borrow param is
+# an Option(ref T) now; only raw Dynamic pointers can be null.)
 
 // #321 step 2: a ref field can no longer default to NULL; the
 // maybe-absent borrow is an Option(ref T) field (niche layout keeps it

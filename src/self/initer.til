@@ -435,7 +435,11 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                     mut g_self := Expr.new(ident_node("self"), stmt.line, stmt.col)
                     mut g_facc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
                     g_facc.add_child(own g_self)
-                    mut g_null := make_method_call_fcall(own g_facc, "is_null", stmt.line, stmt.col)
+                    // #321 step 3: probe through the to_ptr launder -- the
+                    // generated delete asks about raw field ADDRESSES, and
+                    // is_null on a typed value is an error now.
+                    mut g_tp := make_method_call_fcall(own g_facc, "to_ptr", stmt.line, stmt.col)
+                    mut g_null := make_method_call_fcall(own g_tp, "is_null", stmt.line, stmt.col)
                     mut g_not := make_method_call_fcall(own g_null, "not", stmt.line, stmt.col)
                     mut g_then := Expr.new(NodeType.Body, stmt.line, stmt.col)
                     g_then.add_child(own del_call)
@@ -3135,10 +3139,7 @@ priv init_type_arg_name := func(scope: TypeScope, name: Str) returns Str {
     // Map__Str_U32 while the parser's annotation mangling (and the typer's
     // param types) spelled Map__Str_USize -- two names for one type, and
     // which one a call site saw depended on declaration order.
-    if scope.is_null().not() {
-        return resolve_type_alias_for_name(scope, name).clone()
-    }
-    return name.clone()
+    return resolve_type_alias_for_name(scope, name).clone()
 }
 
 priv init_macro_inst_type_arg_name := func(arg: Expr, scope: TypeScope) returns Str {

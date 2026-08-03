@@ -246,21 +246,19 @@ find_namespace_func := func(sdef: Expr, method: Str, scope: TypeScope) returns O
     ref fd : Declaration = fd_o.unwrap()
     if fd.default_value.is_none() { return Option(ref Expr).None }
     ref e : Expr = fd.default_expr()
-    if scope.is_null().not() {
-        if e.node_type.is(NodeType.Ident) {
-            switch e.node_type {
-            case NodeType.Ident(id):
-                sf := scope.find(id.ident_name())
-                switch sf {
-                case ScopeFind.Found(b):
-                    bfd_o := scope.lookup_func(b.name)
-                    if bfd_o.is_some() { return bfd_o }
-                    bsd_o := scope.struct_def_of(b.name)
-                    if bsd_o.is_some() { return bsd_o }
-                case:
-                }
+    if e.node_type.is(NodeType.Ident) {
+        switch e.node_type {
+        case NodeType.Ident(id):
+            sf := scope.find(id.ident_name())
+            switch sf {
+            case ScopeFind.Found(b):
+                bfd_o := scope.lookup_func(b.name)
+                if bfd_o.is_some() { return bfd_o }
+                bsd_o := scope.struct_def_of(b.name)
+                if bsd_o.is_some() { return bsd_o }
             case:
             }
+        case:
         }
     }
     return Option(ref Expr).Some(e)
@@ -3132,6 +3130,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     // callee documents).
     callee_bind_o = scope.get_binding(name)
     if name == "free" { check_free_managed_local(scope, e, ctx) }
+    if name == "is_null" { check_is_null_arg_dynamic(scope, e, ctx) }
     // (check_move_managed_dest retired with the raw byte-move: `move` is
     // now the typed ownership primitive that destroys dest's old value
     // itself -- the guard's premise is gone, #302.)
@@ -6915,69 +6914,67 @@ type_from_name := func(name: Str, scope: TypeScope, ctx: Context) returns Type {
     // name, same authority as type_from_name_init and resolve_type_alias.
     if name == "USize" { return type_from_name(ctx.target_usize_pname, scope, ctx) }
     if name == "UPtr" { return type_from_name(ctx.target_uptr_pname, scope, ctx) }
-    if scope.is_null().not() {
-        b_o := scope.get_binding(name)
-        if b_o.is_some() {
-            ref mut b : TypeBinding = b_o.unwrap()
-            // #154: a type annotation naming a cross-file type uses its
-            // import (no auto_gen/current_type_name gate -- auto-generated
-            // bodies only exist because this file declared the type, so
-            // their annotations are source-level uses of the field types).
-            note_cross_file_use(ctx, b.path)
-            if b.is_type_alias {
-                if b.alias_target.is_empty().not() {
-                    return type_from_name(b.alias_target, scope, ctx)
-                }
-            }
-            // #187: explicit type annotations (e.g. ~ref x : Foo = ...~,
-            // function param/return types) count as a use of the named
-            // type. Same gate as the Ident path -- skip when we're inside
-            // the type's own namespace to keep auto-gen body references
-            // from masking a genuinely unused priv type.
-            if ctx.auto_gen_depth.eq(0).and(ctx.current_type_name.eq(name).not()) {
-                b.used = true
-            }
-            if b.is_builtin {
-                // A builtin binding is either a builtin TYPE (had a
-                // struct_def) or a builtin ext_func (has a func_def);
-                // never both. The old read here was
-                // `if b.struct_def.is_null().not()`, i.e. "builtin type".
-                // With struct_def removed, test the equivalent "builtin
-                // and NOT a func". lookup_func is shadowing-aware (gates
-                // on the binding's own scope) so it matches the exact
-                // per-binding semantics the struct_def field read had,
-                // unlike a get_struct name-walk which can fall through to
-                // a parent type of the same name. Clone the result: every
-                // type_from_name return path yields an owned Type that the
-                // caller Type_deletes.
-                if scope.lookup_func(b.name).is_none() { return b.type.clone() }
-            }
-            b_fd_o := scope.lookup_func(b.name)
-            if b_fd_o.is_some() {
-                ref b_fd : Expr = b_fd_o.unwrap()
-                if b_fd.children.len() == 0 {
-                    // Issue #58 / #147 step 5: a name that resolves to a
-                    // bodyless FuncDef (a FuncSig alias like `BinaryOp`)
-                    // now carries the alias name in the type itself.
-                    // Callsites that ask "is this a FuncPtr?" go through
-                    // `t.is_funcptr()` (helper accepting both `FuncPtr`
-                    // and `FuncPtrSig`). Consumers needing the FuncSig
-                    // name read it from `til_type_name(t)` instead of
-                    // from the carrier's `Declaration.explicit_type`,
-                    // which is the migration that eventually drops the
-                    // field.
-                    return Type.FuncPtrSig(name.clone())
-                }
+    b_o := scope.get_binding(name)
+    if b_o.is_some() {
+        ref mut b : TypeBinding = b_o.unwrap()
+        // #154: a type annotation naming a cross-file type uses its
+        // import (no auto_gen/current_type_name gate -- auto-generated
+        // bodies only exist because this file declared the type, so
+        // their annotations are source-level uses of the field types).
+        note_cross_file_use(ctx, b.path)
+        if b.is_type_alias {
+            if b.alias_target.is_empty().not() {
+                return type_from_name(b.alias_target, scope, ctx)
             }
         }
-        sdef_o := scope.get_struct(name)
-        if sdef_o.is_some() {
-            ref sdef : Expr = sdef_o.unwrap()
-            if sdef.node_type.is(NodeType.EnumDef) {
-                return Type.Enum(name.clone())
-            }
-            return Type.Struct(name.clone())
+        // #187: explicit type annotations (e.g. ~ref x : Foo = ...~,
+        // function param/return types) count as a use of the named
+        // type. Same gate as the Ident path -- skip when we're inside
+        // the type's own namespace to keep auto-gen body references
+        // from masking a genuinely unused priv type.
+        if ctx.auto_gen_depth.eq(0).and(ctx.current_type_name.eq(name).not()) {
+            b.used = true
         }
+        if b.is_builtin {
+            // A builtin binding is either a builtin TYPE (had a
+            // struct_def) or a builtin ext_func (has a func_def);
+            // never both. The old read here was
+            // `if b.struct_def.is_null().not()`, i.e. "builtin type".
+            // With struct_def removed, test the equivalent "builtin
+            // and NOT a func". lookup_func is shadowing-aware (gates
+            // on the binding's own scope) so it matches the exact
+            // per-binding semantics the struct_def field read had,
+            // unlike a get_struct name-walk which can fall through to
+            // a parent type of the same name. Clone the result: every
+            // type_from_name return path yields an owned Type that the
+            // caller Type_deletes.
+            if scope.lookup_func(b.name).is_none() { return b.type.clone() }
+        }
+        b_fd_o := scope.lookup_func(b.name)
+        if b_fd_o.is_some() {
+            ref b_fd : Expr = b_fd_o.unwrap()
+            if b_fd.children.len() == 0 {
+                // Issue #58 / #147 step 5: a name that resolves to a
+                // bodyless FuncDef (a FuncSig alias like `BinaryOp`)
+                // now carries the alias name in the type itself.
+                // Callsites that ask "is this a FuncPtr?" go through
+                // `t.is_funcptr()` (helper accepting both `FuncPtr`
+                // and `FuncPtrSig`). Consumers needing the FuncSig
+                // name read it from `til_type_name(t)` instead of
+                // from the carrier's `Declaration.explicit_type`,
+                // which is the migration that eventually drops the
+                // field.
+                return Type.FuncPtrSig(name.clone())
+            }
+        }
+    }
+    sdef_o := scope.get_struct(name)
+    if sdef_o.is_some() {
+        ref sdef : Expr = sdef_o.unwrap()
+        if sdef.node_type.is(NodeType.EnumDef) {
+            return Type.Enum(name.clone())
+        }
+        return Type.Struct(name.clone())
     }
     return Type.Unknown
 }
@@ -7388,6 +7385,37 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
     case: return false
     }
     return false
+}
+
+// #321 step 3: is_null is the Dynamic quarantine's raw-pointer probe. On
+// a typed value it asks reference-nullability, which the type system now
+// answers with Option(ref T) -- and after the field/param/return
+// migrations nothing typed legitimately holds null, so the question is
+// either dead or hiding a bug. Deliberately-raw checks launder through
+// to_ptr: a custom delete probing its own possibly-drained storage (the
+// #302 drain contract zeroes moved-out slots) spells it
+// `to_ptr(self).is_null()`, which makes the quarantine explicit and
+// greppable instead of an invisible exemption here.
+priv check_is_null_arg_dynamic := proc(scope: TypeScope, e: Expr, ctx: Context) {
+    if e.children.len() < 2 { return }
+    ref arg : Expr = e.children[1]
+    mut t := arg.til_type().clone()
+    switch t {
+    case Type.Custom(ind_cn): t = type_from_name(ind_cn, scope, ctx)
+    case:
+    }
+    if t.is(Type.Dynamic) { return }
+    // The quarantine's TYPED spellings: U8 is the raw-buffer label (the
+    // Vec.data `own data : U8 = 0` form, where integer zero is a legal
+    // lazily-absent state) and I8 is the C-string pointer (Str.c_str).
+    // Raw-alloc locals and raw fields of these labels hold addresses,
+    // and probing them for null is ordinary island code.
+    switch t {
+    case Type.Primitive(Primitive.U8): return
+    case Type.Primitive(Primitive.I8): return
+    case:
+    }
+    arg.type_error("is_null on a typed value; only raw pointers (Dynamic / the U8-I8 buffer labels) can be null (#321) -- switch on the Option instead, or to_ptr(x) for a deliberate raw-address probe", ctx)
 }
 
 // #321/#147: `return E.Variant(x)` where the variant's payload is a BORROW

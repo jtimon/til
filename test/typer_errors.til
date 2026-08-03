@@ -380,7 +380,8 @@ terr_step4_assign()
 // #168 step 1b / #177: ref bindings cannot be initialized to NULL.
 // Func/proc/test/macro bodies AND module scope are uniformly
 // rejected; #321 step 2 closed the old field-default exception too
-// (see TerrStep3 above).
+// (see TerrStep3 above). The two is_null reads below each count as a
+// #321 step 3 error as well (typed receivers).
 terr_null_ref_local_fn := func() returns I64 {
     ref leaked_null : I64 = NULL
     ref mut leaked_null_mut : I64 = NULL
@@ -1007,3 +1008,11 @@ consume_cell324 := proc(own c: BorrowEscCell) { println(c.besc_n.to_str()) }
 pass_ref_field324 := proc(h: RefField324) {
     consume_cell324(own h.cell)
 }
+
+// #321 step 3: is_null is the Dynamic quarantine's raw-pointer probe;
+// on a typed value the nullability question is answered by Option(ref T),
+// so both the direct and UFCS spellings are rejected. (Deliberate raw
+// probes launder through to_ptr -- see Expr.delete.)
+NullProbe321 := struct { np_n := 0 }
+probe_direct321 := func(p: NullProbe321) returns Bool { return is_null(p) }
+probe_ufcs321 := func(p: NullProbe321) returns Bool { return p.is_null() }

@@ -858,7 +858,9 @@ namespace:
     /// here lets functions return owned `Expr` that may be null without
     /// the caller having to clone-and-leak to dodge the deep delete.
     delete := func(own self: Expr, call_free: Bool = true) {
-        if self.is_null() { return }
+        // Raw-address probe through the to_ptr launder (#321 step 3):
+        // the #302 drain contract hands deletes zeroed/moved-out slots.
+        if to_ptr(self).is_null() { return }
         NodeType.delete(own self.node_type, false)
         self.children.clear()
         free(own self.children.data)

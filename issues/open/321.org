@@ -1653,6 +1653,82 @@ both binaries identical within noise -- no regression).
 
 216/216 plain suite AND 216/216 two-pass; boot == self-applied output.
 
+**** Batch 41: the dead-guard sweep -- 26 is_null sites drop, one was real
+
+The step-2 leftovers (nullable ref params) plus every stale null guard
+the earlier migrations left behind, settled the CLAUDE.md way: remove
+and let the suite decide. Dropped as dead (218/218 confirms):
+
+- garbager: five make_free_call result guards -- neither make_free_call
+  nor make_closure_delete_call can return NULL.
+- builder: c_type_name's struct_name guards (no NULL-passing caller),
+  and ALL the Mode guards (emit_func_def, build, emit_function_bodies,
+  the four forward-decl loops, keep_all_exports) -- lp.cur_mode is
+  `:= Mode()`, never null, and was already used unguarded at a dozen
+  sites.
+- loader: scavenge_visited_imported / validate_cli_main cur_mode
+  guards; the two ImportUnit guards after Map.has.
+- typer find_namespace_func + type_from_name, context
+  type_from_name_init, initer init_type_arg_name: the `scope` param
+  null-guards -- no caller passes a null scope.
+- context ns_const_order_deps' REM'd guard: batch 40 made the caller
+  pass default_expr() under is_some, so the "member with no
+  initializer" null it guarded no longer exists.
+- desugarer: the lambda-lift children null-continue, and a TypeBinding
+  guard on an unwrap result.
+
+ONE was real control flow wearing a dead guard's clothes: emit_func_def
+was reached with mode == NULL from emit_ns_method's literal-NULL
+argument (segfault the moment the guard dropped). Root fix, not a
+restored guard: `mode` now THREADS through emit_struct_funcs /
+emit_enum_def / emit_ns_method from emit_function_bodies, so the param
+is genuinely never null and the last literal NULL Mode argument is
+gone. Emitted C is unchanged (ns methods never hit the is_main path).
+
+Deliberately kept: the raw Dynamic quarantine checks (constfolder
+slots, interpreter heap layer, context interned-vec), the custom
+deletes' null-self/field guards (Expr.delete, LoadedProgram.delete --
+the #302 drain contract: a drain over a moved-out/zeroed slot must
+no-op), the is_null CORE-OP emission sites, and the generated
+delete's null-self guard the initer emits.
+
+218/218, pass 1 == pass 2.
+
+**** Batch 42: step 3 lands -- is_null on a typed value is a type error
+
+check_is_null_arg_dynamic (typer): the is_null CALL's argument must be
+Dynamic or a U8/I8 raw-buffer label (resolved through aliases), else a
+type error, both direct and UFCS spellings. The quarantine's typed
+spellings turned out to include the raw-buffer labels -- the first
+sweep flagged 111 sites, most of them DynPtrBox.p / Str.c_str /
+HeapBinding.ptr / FFIEntry.param_shallows style U8/I8 fields doing
+ordinary island work.
+
+What the check forced, each a real cleanup:
+
+- The initer's generated delete now emits the LAUNDERED probe
+  (to_ptr(self.field).is_null()) for owned aggregate fields, matching
+  the hand-written deletes (Expr.delete, LoadedProgram.delete) which
+  now spell their drain-contract probes the same way.
+- write_enum_flat unwrapped lookup_interp_type_def and THEN
+  null-checked the unwrapped ref -- contradictory since the Option
+  migration; now an honest switch whose None arm keeps the historical
+  4-byte tag width for anon enums.
+- emit_funcsig_typedefs (dead since batch 17 noted it, kept "not
+  deleted on a whim") failed the new rule and is deleted.
+- The interpreter's nullable-scope walkers (scope_get,
+  scope_return_move_is_local, scope_lookup_heap_binding,
+  scope_set_borrowed's source_scope) probe through to_ptr with their
+  REMs kept -- raw-built island Scopes, chain roots are real.
+- Dead guards: interpret's cur_mode (batch-41 parity), user_argv,
+  ffi_init_link_libs' link_flags pair, and a ctx_field_layout result
+  null-check (misses return EMPTY_FIELD_LAYOUT, never null).
+- test/ref.til's test_null_borrowed_arg retired: "a borrowed compound
+  param can receive NULL" is no longer an observable state.
+
+Fixture NullProbe321 pins both spellings; the #177 leaked_null lines
+now each count a step-3 error too (183 -> 187).
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.
@@ -1664,14 +1740,15 @@ both binaries identical within noise -- no regression).
 2. DONE (batch 39): check_ref_field_owned_default rejects ~= NULL~ on
    ref fields (Dynamic quarantine excepted, resolved through aliases);
    fixtures, raylib and libffi bindings converted in the same commit.
-3. Step 2 is DONE (batch 13). Steps 3-4 remain: remove ~is_null()~ on
-   refs, then the ~NULL~ keyword itself. Their own prerequisites:
-   - the nullable ref PARAMS the batches kept flagging (a null scope
-     ARGUMENT in the interpreter's walk loops, ~sdef~-style def params);
-   - making the #303 noreturn seed order-independent, so core files
-     typed before core/exit.til can instantiate Option (see batch 13);
-   - the Dynamic quarantine has to be spelled out in the language, not
-     just in this issue, since ~ref Dynamic~ keeps NULL by design.
+3. Step 2 is DONE (batch 13). Step 3 is DONE (batch 42): is_null on a
+   typed value is a type error; the quarantine (Dynamic + the U8/I8 raw
+   buffer labels) keeps it, deliberate probes launder through to_ptr,
+   and the rule is documented in doc/ownership.org. Its prerequisites
+   fell in batches 40-42: the nullable ref params (batch 41 + the
+   to_ptr-laundered scope walkers), the #303 noreturn seed (fixed back
+   in batch 13's seed_noreturn_chain -- the prerequisite note was
+   stale), and the quarantine doc. Step 4 remains: remove the ~NULL~
+   keyword itself.
 4. FIXED: the auto-shallow dangling-borrow hole. A function returning an
    enum with a borrowed payload hands a borrow back exactly like
    ~returns ref~ does, so the four param-demotion gates in
@@ -1681,18 +1758,11 @@ both binaries identical within noise -- no regression).
    pins the ~returns ref~ twin as the control and fails on the unfixed
    compiler with "expected '1', found '42'".
 
-   STILL OPEN, and worse than its ~returns ref~ equivalent: returning a
-   borrow of a LOCAL through the Option. ~returns ref~ is caught by gcc
-   (-Werror=return-local-addr); through an enum the address is stored in
-   a struct, so gcc cannot see it and the program silently reads garbage.
-   Reusing check_ref_function_returns does NOT work -- tried and backed
-   out: its rule is "the returned EXPRESSION must be a borrow source",
-   which is right for ~returns ref T~ and wrong for an enum VALUE whose
-   payload is the borrow, so it rejects the legitimate
-   ~return Option(ref T).Some(param)~. What this needs is a payload-aware
-   check: validate the borrow SOURCE of a ref-payload ctor arg against
-   the function's own scope, the same question #147 tracks for ref
-   returns generally.
+   FIXED (stale note corrected in batch 42): the payload-aware check is
+   check_enum_borrow_of_local_return -- `return E.Variant(x)` with a ref
+   payload rejects an OWNED-local x ("the local dies with this call"),
+   params/ref bindings/aliases stay legal, with a typer_errors fixture.
+   The general origin question (borrows of borrows) remains #147's.
 
 *** Decisions (2026-07-21 design discussion)
 

@@ -304,6 +304,27 @@ a second look. It is one of two things:
      container destructors themselves -- ~Vec.delete~, ~Map.delete~, etc.).
      These ARE the destructors the garbager calls; they are allowed to free.
 
+*** Null and ~is_null~: the quarantine rule (#321 step 3)
+
+Nothing TYPED is legitimately null. Absent borrows are ~Option(ref T)~
+(niche layout: one pointer, ~None~ == C's NULL), absent owned values are
+~Option(T)~, and the typer rejects ~is_null~ on any typed value. Null
+remains a legal state ONLY inside the raw quarantine, whose spellings
+are:
+
+  - ~Dynamic~ -- the type-erased raw pointer (this island).
+  - ~U8~ raw buffers -- the ~own data : U8 = 0~ Vec.data form, where
+    integer zero is the lazily-absent state.
+  - ~I8~ C-string pointers (~Str.c_str~).
+
+~is_null~ stays available on exactly those. A DELIBERATE raw-address
+probe on a typed value launders through ~to_ptr~: custom deletes
+checking their own possibly-drained storage (the #302 drain contract
+zeroes moved-out slots) spell it ~to_ptr(self).is_null()~ -- explicit
+and greppable, instead of an invisible typer exemption. The initer's
+generated deletes emit the same laundered probe for owned aggregate
+fields.
+
 *** Smell (a garbager gap, or a wrong manual implementation)
 
   - A manual ~delete~/~free~ on a NORMALLY-TYPED owned local or field that the

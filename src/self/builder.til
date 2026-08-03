@@ -1056,17 +1056,13 @@ priv field_emit_ctype := func(dd: Declaration) returns Str {
 
 priv c_type_name := func(shallow t: Type, struct_name: Str, ctx: Context) returns Str {
     if t.is(Type.Struct).or(t.is(Type.Enum)) {
-        if struct_name.is_null().not() {
-            if struct_name.len() > 0 {
-                return struct_name
-            }
+        if struct_name.len() > 0 {
+            return struct_name
         }
     }
     if t.is_funcptr() {
-        if struct_name.is_null().not() {
-            if struct_name.len() > 0 {
-                if is_funcsig_type(struct_name, ctx) { return struct_name }
-            }
+        if struct_name.len() > 0 {
+            if is_funcsig_type(struct_name, ctx) { return struct_name }
         }
     }
     if t.is(Type.Dynamic) { return "void" }
@@ -1498,7 +1494,7 @@ priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
     // program -- must not drop an exported constructor or `size` a
     // consumer will call.
     lp.ctx.builder_keep_all_exports = false
-    if lp.cur_mode.is_null().not() { lp.ctx.builder_keep_all_exports = lp.cur_mode.is_library }
+    lp.ctx.builder_keep_all_exports = lp.cur_mode.is_library
     lp.ctx.builder_collection_elem_types = Set(Str).new()
     mut inv_stack_names := Set(Str).new()
     mut inv_dup_names := Set(Str).new()
@@ -5098,9 +5094,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
     case NodeType.FuncDef(fd):
     ref body : Expr = func_def.children[0]
     mut is_main := false
-    if mode.is_null().not() {
-        if mode.needs_main { is_main = name == "main" }
-    }
+    if mode.needs_main { is_main = name == "main" }
 
     if is_main {
         nparam := fd.params.len()
@@ -5622,7 +5616,7 @@ priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context
     return builder_variant_ctor_omitted(type_name, member, ctx)
 }
 
-priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: LoadedProgram) {
+priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, lp: LoadedProgram) {
     mut is_auto_size := false
     ref fd : FunctionDef = funcdef_of(fdef)
     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { return }
@@ -5645,11 +5639,11 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, lp: Lo
         f.write(lp.ctx.target_usize_pname).write(" ").write(full_name).write("(void) {\n    return sizeof(").write(name).write(");\n}\n\n")
         return
     }
-    emit_func_def(f, full_name, fdef, NULL, false, lp)
+    emit_func_def(f, full_name, fdef, mode, false, lp)
     f.write("\n")
 }
 
-priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, lp: LoadedProgram) {
+priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, mode: Mode, lp: LoadedProgram) {
     // User-defined from ns_decls
     ref smi_ns : Vec(Declaration) = def_ns_decls(struct_def)
     mut smi : USize = 0
@@ -5658,12 +5652,12 @@ priv emit_struct_funcs := proc(f: File, name: Str, struct_def: Expr, lp: LoadedP
         smi = smi + 1
         if dd.default_value.is_none() { continue }
         if dd.default_expr().node_type.is(NodeType.FuncDef) {
-            emit_ns_method(f, name, def_ns_name_at(struct_def, cur_smi), dd.default_expr(), lp)
+            emit_ns_method(f, name, def_ns_name_at(struct_def, cur_smi), dd.default_expr(), mode, lp)
         }
     }
 }
 
-priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram) {
+priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: LoadedProgram) {
     ref edd : EnumDef = enumdef_of(enum_def)
     hp := enum_has_payloads(enum_def)
     if hp.not() {
@@ -5736,7 +5730,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, lp: LoadedProgram
         emi = emi + 1
         if dd.default_value.is_none() { continue }
         if dd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
-        emit_ns_method(f, name, def_ns_name_at(enum_def, cur_emi), dd.default_expr(), lp)
+        emit_ns_method(f, name, def_ns_name_at(enum_def, cur_emi), dd.default_expr(), mode, lp)
     }
 }
 
@@ -6268,12 +6262,6 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
             }
         }
     }
-}
-
-emit_funcsig_typedefs := proc(f: File, core_program: Expr, program: Expr, ctx: Context) {
-    if core_program.is_null().not() { emit_funcsig_typedefs_prog(f, core_program, ctx) }
-    if program.is_null().not()      { emit_funcsig_typedefs_prog(f, program, ctx) }
-    f.write("\n")
 }
 
 priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
@@ -7586,10 +7574,8 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     case NodeType.FuncDef(fd):
                         if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len() == 0 { continue }
-                        if mode.is_null().not() {
-                            if mode.needs_main {
-                                if dd.name == "main" { continue }
-                            }
+                        if mode.needs_main {
+                            if dd.name == "main" { continue }
                         }
                         fc := func_to_c(dd.name)
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) {
@@ -7632,10 +7618,8 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     if builder_is_type_gen_macro_def(rhs) { continue }
                     if rhs.children.len() == 0 { continue }
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                    if mode.is_null().not() {
-                        if mode.needs_main {
-                            if dd.name == "main" { continue }
-                        }
+                    if mode.needs_main {
+                        if dd.name == "main" { continue }
                     }
                     fc := func_to_c(dd.name)
                     emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -7702,10 +7686,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         if builder_is_type_gen_macro_def(rhs) { continue }
                         if rhs.children.len() == 0 { continue }
                         if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) { continue }
-                        if mode.is_null().not() {
-                            if mode.needs_main {
-                                if dd.name == "main" { continue }
-                            }
+                        if mode.needs_main {
+                            if dd.name == "main" { continue }
                         }
                         fc := func_to_c(dd.name)
                         emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
@@ -7749,10 +7731,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 case NodeType.FuncDef(fd):
                     if builder_is_type_gen_macro_def(rhs) { continue }
                     if rhs.children.len() == 0 { continue }
-                    if mode.is_null().not() {
-                        if mode.needs_main {
-                            if dd.name == "main" { continue }
-                        }
+                    if mode.needs_main {
+                        if dd.name == "main" { continue }
                     }
                     fc := func_to_c(dd.name)
                     if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).or(fd.func_type.is(FuncType.CoreFunc)).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc)) {
@@ -9169,9 +9149,9 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.StructDef:
-                    emit_struct_funcs(f, dd.name, rhs, lp)
+                    emit_struct_funcs(f, dd.name, rhs, mode, lp)
                 case NodeType.EnumDef:
-                    emit_enum_def(f, dd.name, rhs, lp)
+                    emit_enum_def(f, dd.name, rhs, mode, lp)
                     f.write("\n")
                 case NodeType.FuncDef(fd):
                     if builder_is_type_gen_macro_def(rhs) { continue }
@@ -9193,9 +9173,9 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
             ref rhs : Expr = stmt.children[0]
             switch rhs.node_type {
             case NodeType.StructDef:
-                emit_struct_funcs(f, dd.name, rhs, lp)
+                emit_struct_funcs(f, dd.name, rhs, mode, lp)
             case NodeType.EnumDef:
-                emit_enum_def(f, dd.name, rhs, lp)
+                emit_enum_def(f, dd.name, rhs, mode, lp)
                 f.write("\n")
             case NodeType.FuncDef(fd):
                 if builder_is_type_gen_macro_def(rhs) { continue }
@@ -9260,8 +9240,7 @@ priv emit_lib_init := proc(f: File, lp: LoadedProgram) {
 }
 
 priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedProgram) returns I32 {
-    mut is_lib := false
-    if mode.is_null().not() { is_lib = mode.is_library }
+    is_lib := mode.is_library
 
     // Every phase between init and here (lazy lowering, lifted lambdas,
     // monomorphization, garbager destructor insertion) may have APPENDED
@@ -9289,9 +9268,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
 
     mut is_script := true
-    if mode.is_null().not() {
-        if mode.decls_only { is_script = false }
-    }
+    if mode.decls_only { is_script = false }
 
     // #326: the dyn/reflection inventory must be in place before the first
     // gated emission (the forward-declaration block).
@@ -9385,9 +9362,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     }
     if run_tests.not() {
         if is_script {
-            mut needs_main := false
-            if mode.is_null().not() { needs_main = mode.needs_main }
-            if needs_main.not() {
+            if mode.needs_main.not() {
                 emit_script_main(f, lp)
             }
         }

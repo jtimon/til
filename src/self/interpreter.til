@@ -539,19 +539,21 @@ priv write_enum_flat := func(data: Dynamic, enum_name: Str, etag: I64, payload_d
     // the n low bytes of `etag`. REM: an anon / macro-generated enum is not
     // name-registered, so the lookup legitimately misses -- such enums are the
     // historical default width (4 bytes).
-    ref tedef : Expr = lookup_interp_type_def(enum_name, ctx).unwrap()
+    tedef_o := lookup_interp_type_def(enum_name, ctx)
     // #320 niche: the value IS one pointer at offset 0 -- no tag to write,
     // and the payload-less variant is written as null. The ctor path fills
     // the Some pointer itself (see the ref-payload branch in
     // enum_method_dispatch), so here None just zeroes the slot.
-    if tedef.is_null().not() {
+    mut tag_w : USize = 4
+    switch tedef_o {
+    case Option(ref Expr).Some(tedef):
         if enum_is_niche(tedef) {
             write_ptr(data, NULL)
             return
         }
+        tag_w = enum_tag_size(tedef)
+    case Option(ref Expr).None:
     }
-    mut tag_w : USize = 4
-    if tedef.is_null().not() { tag_w = enum_tag_size(tedef) }
     memcpy(data, etag, tag_w.cast(UPtr))
     if payload_data.is_null().not() {
         if payload_size > 0 {
@@ -3756,7 +3758,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFoun
     // may not be built yet, e.g. ctx.ns_fields before interpreter_init_ns)
     // -- that is a nullable ref PARAM, #321 step 2 material, distinct from
     // the parent chain's own None terminator below.
-    if s.is_null() { throw KeyNotFound() }
+    if to_ptr(s).is_null() { throw KeyNotFound() }
     ref mut cur : Scope = s
     mut walking := true
     while walking {
@@ -3774,7 +3776,7 @@ scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFoun
 }
 
 priv scope_return_move_is_local := func(mut s: Scope, name: Str) returns Bool {
-    if s.is_null() { return false }   // REM: nullable scope ARG, see scope_get
+    if to_ptr(s).is_null() { return false }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
     mut walking := true
     while walking {
@@ -3854,7 +3856,7 @@ scope_new := func(parent: Option(ref Scope)) returns Scope {
 
 // Look up the type/ownership metadata for a raw binding.
 scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref HeapBinding) {
-    if s.is_null() { return Option(ref HeapBinding).None }   // REM: nullable scope ARG, see scope_get
+    if to_ptr(s).is_null() { return Option(ref HeapBinding).None }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
     mut walking := true
     while walking {
@@ -4247,7 +4249,7 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
     ref til_type : Type = to_ptr(til_type_w)
     if source_name.len() == 0 { panic("borrowed binding without source name: ", name) }
     if source_name.len() > 0 { s.heap_aliases.set(name, own source_name.clone()) }
-    if source_scope.is_null() {
+    if to_ptr(source_scope).is_null() {
         switch s.parent {
         case Option(ref Scope).Some(p): source_scope = p
         case Option(ref Scope).None: panic("borrowed binding without source scope: ", name)
@@ -5016,7 +5018,7 @@ interp_session_start := func(mut session: InterpSession, user_argv: Vec(Str)) {
     session.user_argc = 0
     session.retained_programs = Vec(DynPtrBox).new()
     session.evaluated_units = Set(Str).new()
-    if user_argv.is_null().not() { session.user_argc = user_argv.len() }
+    session.user_argc = user_argv.len()
 }
 
 interp_session_free := func(mut session: InterpSession) {
@@ -5386,7 +5388,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
     // In needs_main mode, call main() (same logic as interpret()).  When
     // run_tests is set, tests are the entry points -- skip main() so a
     // mode cli/gui file with inline test() decls runs only its tests.
-    if lp.run_tests.not() { if lp.cur_mode.is_null().not() { if lp.cur_mode.needs_main {
+    if lp.run_tests.not() { if lp.cur_mode.needs_main {
         ref main_slot : Dynamic = scope_get(session_global(session), "main")!
         if main_slot.is_null() {
             eprint_single(lp.path)
@@ -5457,7 +5459,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
 
             eval_body(main_scope, body, lp.ctx)
             scope_free(own main_scope)
-    } } }
+    } }
 
     interp_session_finish_context(lp)
     interp_session_free(session)
@@ -5694,9 +5696,6 @@ priv ffi_load_archive_twin := proc(archive_path: Str) {
 }
 
 priv ffi_init_link_libs := proc(link_flags: Str) {
-    if link_flags.is_null() {
-        return
-    }
     // Two kinds of entry: `-lfoo` sonames dlopen'd by name, and archive PATHS
     // whose loadable twin sits beside them (see ffi_load_archive_twin).
     // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
@@ -5738,10 +5737,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     so_path_out = format("tmp/ffi_", process_id().to_str(), ".so")
     system_cmd("mkdir -p tmp")
 
-    mut lf := ""
-    if link_flags.is_null().not() {
-        lf = link_flags
-    }
+    lf := link_flags.clone()
     // #299: match the interpreter's own sanitizer. Under bin/til_asan the user
     // .so must be ASAN-instrumented too, so its libc allocator IS the ASAN
     // allocator -- otherwise an interpreter-side calloc that libffi routes to
@@ -6905,7 +6901,6 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
         case Type.Struct(sname):
             ref data : Dynamic = to_ptr(hb.ptr)
             ref fl : FieldLayout = ctx_field_layout(sname, fname, ctx)
-            if fl.is_null() { return NULL }
             if fl.is_enum.not() { return NULL }
             if fl.own_type.is(OwnType.Own).or(fl.own_type.is(OwnType.Ref)) {
                 // Own/Ref enum fields store a pointer to the raw enum bytes.
