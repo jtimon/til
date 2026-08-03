@@ -14,6 +14,39 @@ import("context")
 // desugarer helpers through the merged program scope -- no import of
 // typer is needed (see doc/pipeline.org).
 
+// Slot plan encoding for the rebuild below. A slot names WHERE its arg
+// comes from; nothing is copied while the plan is built.
+//   >= 0        -- index into the call's original children (the arg node
+//                  itself for a positional arg, or its child 0 when that
+//                  node is a NamedArg wrapper: the node type decides at
+//                  move time)
+//   SLOT_EMPTY  -- not filled yet (a missing argument if it survives)
+//   <= -2       -- defaults[-(v) - 2], a value resolve_default_value
+//                  synthesized (the only genuinely new Expr here)
+priv SLOT_EMPTY : I32 = -1
+priv slot_default_code := func(defaults_index: USize) returns I32 {
+    mut c : I32 = -2
+    return c.sub(defaults_index.to_i32())
+}
+priv slot_default_index := func(code: I32) returns USize {
+    mut c : I32 = -2
+    return c.sub(code).to_usize()
+}
+
+// Reorders an FCall's arguments into parameter order, expanding
+// variadic/kwargs runs and filling defaults. The rebuild MOVES the
+// argument subtrees out of the call's own children instead of cloning
+// them: the originals were dropped by the move_from at the end anyway,
+// so every clone was a deep copy of a subtree that died one line later.
+// It was the compiler's single largest source of Expr_clone (~15.9K
+// root clones per maps.til compile, most of the ~104K total once the
+// recursive subtree copies are counted).
+//
+// The scan below therefore records a PLAN (see the encoding above) and
+// touches no Expr; the moves all happen in the rebuild loop, after the
+// last diagnostic that can return false. That ordering is deliberate:
+// on an error path the call keeps its original children intact for the
+// passes that keep walking after a type error.
 desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, ctx: Context) returns Bool {
     nparam := fdef_data.params.len()
     vi := fdef_data.variadic_index
@@ -22,13 +55,13 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     if vi >= 0 {
         fixed_count = vi.to_usize()
     }
-    mut va_args := Vec(Expr).new()
-    mut kw_args := Vec(Expr).new()
-    // new_args is filled with exactly nparam placeholders below; pre-size
-    // it so that fill does zero reallocs (Vec grow-realloc churn).
-    mut new_args := Vec(Expr).with_capacity(nparam)
+    mut va_idxs := Vec(USize).new()
+    mut kw_idxs := Vec(USize).new()
+    mut defaults := Vec(Expr).new()
+    // Exactly nparam slots, pre-sized so the fill does zero reallocs.
+    mut slots := Vec(I32).with_capacity(nparam)
     for _ in 0..nparam {
-        new_args.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
+        slots.push(own SLOT_EMPTY)
     }
     mut pos_idx : USize = 0
     mut seen_named := false
@@ -49,7 +82,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             }
             if slot < 0 {
                 if kwi >= 0 {
-                    kw_args.push(own arg.clone())
+                    kw_idxs.push(own i)
                 } else {
                     if display_name.len() > 0 {
                         arg.type_error(format("'", display_name, "' has no parameter '", aname, "'"), ctx)
@@ -58,11 +91,10 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
                     }
                 }
             } else {
-                ref slot_arg : Expr = new_args[slot.to_usize()]
-                if slot_arg.node_type.is(NodeType.NoDefaultArg).not() {
+                if slots[slot.to_usize()] != SLOT_EMPTY {
                     arg.type_error(format("duplicate argument for parameter '", aname, "'"), ctx)
                 } else {
-                    new_args[slot.to_usize()] = arg.children[0].clone()
+                    slots[slot.to_usize()] = i.to_i32()
                 }
             }
         case:
@@ -71,26 +103,28 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             }
             if vi >= 0 {
                 if pos_idx >= fixed_count {
-                    va_args.push(own arg.clone())
+                    va_idxs.push(own i)
                 } else if pos_idx < nparam {
-                    new_args[pos_idx] = arg.clone()
+                    slots[pos_idx] = i.to_i32()
                 }
             } else if pos_idx < nparam {
-                new_args[pos_idx] = arg.clone()
+                slots[pos_idx] = i.to_i32()
             }
             pos_idx++
         }
     }
+    mut missing := false
     for i in 0..nparam {
         if i.to_i32() == vi { continue }
         if i.to_i32() == kwi { continue }
-        ref slot_arg : Expr = new_args[i]
-        if slot_arg.node_type.is(NodeType.NoDefaultArg) {
+        if slots[i] == SLOT_EMPTY {
             ref param : Declaration = fdef_data.params[i]
             if param.default_value.is_some() {
-                new_args[i] = resolve_default_value(param.default_expr(), e, ctx)
+                slots[i] = slot_default_code(defaults.len())
+                defaults.push(own resolve_default_value(param.default_expr(), e, ctx))
             } else {
                 e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
+                missing = true
             }
         }
     }
@@ -103,30 +137,40 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
         }
     }
+    // Missing-argument case: diagnostics emitted above, and nothing has
+    // been moved yet, so the call keeps its original arguments.
+    if missing { return false }
+
     // Rebuilt call args: callee + (per-param) one arg, or the expanded
     // variadic / kwargs runs. Over-estimate the capacity (never under) so
     // the fill below reallocs zero times on the hot per-call path.
-    mut new_ch := Vec(Expr).with_capacity(nparam + va_args.len() + kw_args.len() + 1)
-    ref callee : Expr = e.children[0]
-    new_ch.push(own callee.clone())
+    mut old := Vec(Expr).new()
+    old.move_from(e.children)
+    mut new_ch := Vec(Expr).with_capacity(nparam + va_idxs.len() + kw_idxs.len() + 1)
+    new_ch.push_take(old, 0)
     for i in 0..nparam {
         if i.to_i32() == vi {
-            va_count := va_args.len()
-            for vai in 0..va_count {
-                new_ch.push_take(va_args, vai)
+            for vai in 0..va_idxs.len() {
+                new_ch.push_take(old, va_idxs[vai])
             }
         } else if i.to_i32() == kwi {
-            kw_count := kw_args.len()
-            for kwi2 in 0..kw_count {
-                new_ch.push_take(kw_args, kwi2)
+            for kwi2 in 0..kw_idxs.len() {
+                new_ch.push_take(old, kw_idxs[kwi2])
             }
         } else {
-            ref slot_arg : Expr = new_args[i]
-            if slot_arg.node_type.is(NodeType.NoDefaultArg) {
-                // Missing-argument case: diagnostic already emitted above.
-                return false
+            ref code : I32 = slots[i]
+            if code < 0 {
+                new_ch.push_take(defaults, slot_default_index(code))
             } else {
-                new_ch.push_take(new_args, i)
+                // A NamedArg slot contributes the WRAPPED value, so the
+                // move comes out of the wrapper's children; the emptied
+                // wrapper dies with `old`.
+                ref mut src : Expr = old[code.to_usize()]
+                if src.node_type.is(NodeType.NamedArg) {
+                    new_ch.push_take(src.children, 0)
+                } else {
+                    new_ch.push_take(old, code.to_usize())
+                }
             }
         }
     }
@@ -4418,8 +4462,9 @@ priv hoist_param_swap_assign := func(mut ctx: Context, mut stmt: Expr, mut hoist
             case:
             }
         } else {
-            sz := hoist_to_temp(ctx, sz_call, hoisted, scope, false)
-            call.add_child(own sz)
+            call.add_child(own sz_call)
+            sz_slot := call.children.len() - 1
+            call.children[sz_slot] = hoist_slot_to_temp(ctx, call.children, sz_slot, hoisted, scope, false)
         }
         stmt = call
     case:
@@ -4499,7 +4544,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         ref fa_base : Expr = expr.children[0]
         if fa_base.node_type.is(NodeType.FCall).and(is_macro_call(fa_base, ctx).not()) {
             if fcall_is_get_method(fa_base).or(is_aggregate(fa_base.til_type()).and(fcall_returns_own(fa_base, scope))) {
-                expr.children[0] = hoist_to_temp(ctx, fa_base, hoisted, scope, false)
+                expr.children[0] = hoist_slot_to_temp(ctx, expr.children, 0, hoisted, scope, false)
             }
         }
     }
@@ -4657,7 +4702,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             set_own_arg(expr, i)
         }
 
-        expr.children[i] = hoist_to_temp(ctx, arg, hoisted, scope, slot_is_own)
+        expr.children[i] = hoist_slot_to_temp(ctx, expr.children, i, hoisted, scope, slot_is_own)
     }
 }
 
@@ -4669,7 +4714,7 @@ priv hoist_if_cond := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Ex
     hoist_expr(ctx, stmt.children[0], hoisted, scope)
     ref cond : Expr = stmt.children[0]
     if cond.node_type.is(NodeType.FCall) {
-        stmt.children[0] = hoist_to_temp(ctx, cond, hoisted, scope, false)
+        stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
     }
 }
 
@@ -4679,7 +4724,7 @@ priv hoist_return_expr := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Ve
     ref rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.FCall)
     .or(rhs.node_type.is_nonnull_literal()) {
-        replacement := hoist_to_temp(ctx, rhs, hoisted, scope, false)
+        replacement := hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
         stmt.children[0] = replacement
     }
 }
@@ -4709,7 +4754,7 @@ priv hoist_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children[0] = hoist_to_temp(ctx, rhs, hoisted, scope, false)
+        stmt.children[0] = hoist_slot_to_temp(ctx, stmt.children, 0, hoisted, scope, false)
     }
 }
 
@@ -4752,7 +4797,7 @@ priv hoist_field_assign_rhs := proc(mut ctx: Context, mut stmt: Expr, mut hoiste
         rhs.node_type.is(NodeType.FCall)
         .or(rhs.node_type.is_nonnull_literal())
     ) {
-        stmt.children[1] = hoist_to_temp(ctx, rhs, hoisted, scope, false)
+        stmt.children[1] = hoist_slot_to_temp(ctx, stmt.children, 1, hoisted, scope, false)
     }
 }
 
@@ -5209,7 +5254,31 @@ priv field_assign_needs_delete := func(stmt: Expr, scope: TypeScope) returns Boo
     return false
 }
 
+// Hoist the value in src[i] into a temp Decl, leaving the slot for the
+// caller to overwrite with the returned ident (every caller does, right
+// after). The value is MOVED into the Decl: it used to be cloned and
+// the original dropped by that overwrite one line later, which made
+// this the compiler's second-largest Expr_clone source.
+priv hoist_slot_to_temp := func(mut ctx: Context, mut src: Vec(Expr), i: USize, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
+    mut decl := Expr.new(NodeType.Decl(Declaration()), src[i].line, src[i].col)
+    decl.children.push_take(src, i)
+    return finish_hoist_temp(ctx, own decl, hoisted, scope, is_own)
+}
+
+// Copying twin, for the one caller whose value is not a Vec slot it can
+// give up: hoist_stmt_fcall replaces the statement WITH the Decl, so the
+// Decl cannot hold the statement object it is about to overwrite.
 priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
+    mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
+    decl.add_child(own val.clone())
+    return finish_hoist_temp(ctx, own decl, hoisted, scope, is_own)
+}
+
+// Name the temp, type it, register the binding, and queue the Decl.
+// `decl` arrives with the hoisted value already attached as its only
+// child -- the one thing the two entry points above do differently.
+priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Vec(Expr), mut scope: TypeScope, is_own: Bool) returns Expr {
+    ref val : Expr = decl.children[0]
     tp := type_prefix(val.til_type())
     // Non-underscore prefix so the builder's `_x`-deliberately-unused
     // exemption doesn't free-pass these compiler temps. If a hoisted
@@ -5219,7 +5288,6 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     tname := format("hoisted__", tp, "_", ctx.hoist_counter.to_str())
     ctx.hoist_counter++
 
-    mut decl := Expr.new(NodeType.Decl(Declaration()), val.line, val.col)
     decl.set_til_type(val.til_type())
 
     mut val_is_ref := false
@@ -5233,8 +5301,6 @@ priv hoist_to_temp := func(mut ctx: Context, val: Expr, mut hoisted: Vec(Expr), 
     // Shallow makes the typer-inserted Str.delete use call_free=false,
     // which the builder pairs with `&name` for the own-self arg.
     is_literal_str := val.node_type.is_literal_str()
-
-    decl.add_child(own val.clone())
 
     mut ident := Expr.new(ident_node(tname), val.line, val.col)
     ident.set_til_type(val.til_type())

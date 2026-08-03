@@ -345,11 +345,11 @@ typedef struct Vec__U64 Vec__U64;
 typedef struct Vec__CtorArg Vec__CtorArg;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
+typedef struct Vec__I32 Vec__I32;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
-typedef struct Vec__I32 Vec__I32;
 typedef struct Array__USize Array__USize;
 typedef struct Array__Bool Array__Bool;
 typedef struct Array__U8 Array__U8;
@@ -929,6 +929,13 @@ typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds {
 } priv___src_self_desugarer_til__StmtDesugarNeeds;
 
 
+typedef struct Vec__I32 {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__I32;
+
+
 typedef struct priv___src_self_garbager_til__LocalInfo {
     Str *name;
     Type type;
@@ -942,6 +949,15 @@ typedef struct priv___src_self_garbager_til__LocalInfo {
     Bool shallow_copy_transfer;
     Bool raw_alloc;
 } priv___src_self_garbager_til__LocalInfo;
+
+
+typedef struct priv___src_self_garbager_til__GcCfgBlock {
+    Option__ref_Expr body;
+    I32 start;
+    I32 end;
+    Bool is_root;
+    Vec__I32 succs;
+} priv___src_self_garbager_til__GcCfgBlock;
 
 
 typedef struct priv___src_self_garbager_til__BodyFacts {
@@ -962,13 +978,6 @@ typedef struct priv___src_self_garbager_til__GcBorrowEdge {
     Str borrower;
     I32 fixed_reach;
 } priv___src_self_garbager_til__GcBorrowEdge;
-
-
-typedef struct Vec__I32 {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__I32;
 
 
 typedef struct Array__USize {
@@ -1461,15 +1470,6 @@ typedef struct priv___src_self_typer_til__CoverageNode {
     Vec__Str sub_names;
     Vec__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
-
-
-typedef struct priv___src_self_garbager_til__GcCfgBlock {
-    Option__ref_Expr body;
-    I32 start;
-    I32 end;
-    Bool is_root;
-    Vec__I32 succs;
-} priv___src_self_garbager_til__GcCfgBlock;
 
 
 typedef struct ProgramUnit {
@@ -2751,6 +2751,8 @@ void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
 void adopt__U64(void * dest, U64 * src);
 void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_typer_til__CtorArg * src);
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
+I32 priv___src_self_desugarer_til__slot_default_code(USize defaults_index);
+USize priv___src_self_desugarer_til__slot_default_index(I32 code);
 Bool desugar_fcall_args_for_fdef(Expr * e, Str * display_name, FunctionDef * fdef_data, Context * ctx);
 void desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_desugarer_til__typer_is_lambda_target(Expr * e);
@@ -2877,7 +2879,20 @@ Option__ref_Str priv___src_self_desugarer_til__resolve_variadic_elem_type(Expr *
 Bool priv___src_self_desugarer_til__desugar_pure_splat_variadic_call(Expr * fcall, Str * array_type, I32 vi, USize vc);
 void priv___src_self_desugarer_til__rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool priv___src_self_desugarer_til__field_assign_needs_delete(Expr * stmt, TypeScope * scope);
+Expr * priv___src_self_desugarer_til__hoist_slot_to_temp(Context * ctx, Vec__Expr * src, USize i, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
 Expr * priv___src_self_desugarer_til__hoist_to_temp(Context * ctx, Expr * val, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
+Expr * priv___src_self_desugarer_til__finish_hoist_temp(Context * ctx, Expr * decl, Vec__Expr * hoisted, TypeScope * scope, Bool is_own);
+Vec__I32 * Vec__I32_new(void);
+Vec__I32 * Vec__I32_with_capacity(USize n);
+USize Vec__I32_len(Vec__I32 * self);
+void Vec__I32_clear(Vec__I32 * self);
+void Vec__I32_push(Vec__I32 * self, I32 * val);
+I32 * Vec__I32_unsafe_get(Vec__I32 * self, USize * i);
+I32 * Vec__I32_get(Vec__I32 * self, USize * i, I64 * _err_kind);
+void Vec__I32_unsafe_set(Vec__I32 * self, USize i, I32 * val);
+void Vec__I32_set(Vec__I32 * self, USize i, I32 * val, I64 * _err_kind);
+void Vec__I32_delete(Vec__I32 * self, Bool call_free);
+void adopt__I32(void * dest, I32 * src);
 priv___src_self_garbager_til__LocalInfo * priv___src_self_garbager_til__LocalInfo_clone(priv___src_self_garbager_til__LocalInfo * self);
 void priv___src_self_garbager_til__LocalInfo_delete(priv___src_self_garbager_til__LocalInfo * self, Bool call_free);
 Bool priv___src_self_garbager_til__heap_local_is_callable(priv___src_self_garbager_til__LocalInfo * local);
@@ -2962,13 +2977,6 @@ void priv___src_self_garbager_til__temp_check_body(Context * ctx, Expr * body, T
 Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr * body, TypeScope * scope, I32 scope_exit);
 Bool garbager_destroy_body(Context * ctx, Expr * body, TypeScope * scope);
 void garbager_destroy(Context * ctx);
-Vec__I32 * Vec__I32_new(void);
-USize Vec__I32_len(Vec__I32 * self);
-void Vec__I32_clear(Vec__I32 * self);
-void Vec__I32_push(Vec__I32 * self, I32 * val);
-I32 * Vec__I32_unsafe_get(Vec__I32 * self, USize * i);
-I32 * Vec__I32_get(Vec__I32 * self, USize * i, I64 * _err_kind);
-void Vec__I32_delete(Vec__I32 * self, Bool call_free);
 Array__USize * Array__USize_new(USize cap);
 USize * Array__USize_unsafe_get(Array__USize * self, USize * i);
 USize * Array__USize_get(Array__USize * self, USize * i, I64 * _err_kind);
@@ -3007,7 +3015,6 @@ void Vec__GcCfgBlock_push(Vec__GcCfgBlock * self, priv___src_self_garbager_til__
 priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_unsafe_get(Vec__GcCfgBlock * self, USize * i);
 priv___src_self_garbager_til__GcCfgBlock * Vec__GcCfgBlock_get(Vec__GcCfgBlock * self, USize * i, I64 * _err_kind);
 void Vec__GcCfgBlock_delete(Vec__GcCfgBlock * self, Bool call_free);
-void adopt__I32(void * dest, I32 * src);
 void adopt__U8(void * dest, U8 * src);
 void adopt__priv___src_self_garbager_til__GcBorrowEdge(void * dest, priv___src_self_garbager_til__GcBorrowEdge * src);
 void adopt__priv___src_self_garbager_til__LocalInfo(void * dest, priv___src_self_garbager_til__LocalInfo * src);
@@ -4083,6 +4090,7 @@ extern Str F32Name;
 extern Str F64Name;
 extern Str BoolName;
 extern U32 PTR_SIZE_BYTES;
+extern I32 priv___src_self_desugarer_til__SLOT_EMPTY;
 extern U8 priv___src_self_garbager_til__FLOW_UNREACHED;
 extern U8 priv___src_self_garbager_til__FLOW_UNINIT;
 extern U8 priv___src_self_garbager_til__FLOW_OWNED;
