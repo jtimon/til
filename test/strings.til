@@ -425,3 +425,19 @@ test_borrowed_view_in_container := test() {
     names.clear()
     assert_eq(Str, owner, "name")
 }
+
+test_own_arg_literal_tagged_local := test() {
+    // A stack local still carrying the CAP_LIT tag at runtime, passed to
+    // an own param. The builder heap-boxes the value, and the callee's
+    // box release exempts CAP_LIT (that exemption is for true static
+    // literal args, passed unboxed) -- so the box leaked 16 bytes per
+    // call until the wrap learned the LIT -> VIEW retag the own-return
+    // box path already used. ASAN (the suite's test build) pins it.
+    mut v := Vec(Str).new()
+    v.push(own "lit")
+    mut s := ""
+    v.push(own s)
+    assert_eq(USize, v.len(), 2)
+    assert_eq(Str, v[0], "lit")
+    assert_eq(Str, v[1], "")
+}

@@ -4922,6 +4922,18 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     f.write(ctype)
                     f.write(")); *_oa = ")
                     emit_expr(f, e, depth, ctx)
+                    // A Str stack local can carry the CAP_LIT tag at
+                    // runtime (`mut s := ""`), and the callee's
+                    // `free(own src)` box release is emitted with a
+                    // CAP_LIT exemption that exists for true static
+                    // literal objects (&_til_str_lits[N] passed
+                    // directly, no box). This box is heap, so retag
+                    // LIT -> VIEW: the buffer-free suppression the tag
+                    // carries survives (delete exempts views too), and
+                    // the box becomes freeable. Same normalization the
+                    // own-return box path emits. Without it every such
+                    // call leaked the 16-byte box (ASAN-verified).
+                    if ctype == "Str" { f.write("; if (_oa->cap == TIL_CAP_LIT) { _oa->cap = TIL_CAP_VIEW; }") }
                     f.write("; _oa; })")
                 }
             } else {
