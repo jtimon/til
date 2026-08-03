@@ -2080,7 +2080,17 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
             ref rhs : Expr = e.children[0]
             switch rhs.node_type {
             case NodeType.Literal(Literal.Str(s)):
-                builder_register_str_lit(ctx, s)
+                // #326: only a HOISTED immutable literal consumes its pool
+                // entry -- its globally-unique name maps to the element and
+                // every use resolves through it. A named decl (`tmpf :=
+                // "..."`, mut or global alike) emits its own storage and
+                // never consults the pool, so registering its literal left
+                // an entry nothing points at: 60 of them in til's own
+                // output. (Extending named locals to the pool instead is
+                // unsound: the ident map is context-wide, and an ordinary
+                // name can mean something else in a sibling body.) The
+                // recursion below skips this RHS for the same reason; a
+                // same-string literal elsewhere registers on its own.
                 if dd.is_mut.not().and(builder_is_hoisted_str_lit_ident(dd.name)) {
                     builder_register_str_lit_ident(ctx, dd.name, s)
                 }
@@ -2131,6 +2141,9 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
     // literal it does not find pooled.
     mut skip_base := false
     if e.node_type.is(NodeType.FieldAccess).and(e.children.len().gt(0)) {
+        skip_base = e.children[0].node_type.is_literal_str()
+    }
+    if e.node_type.is(NodeType.Decl).and(e.children.len().gt(0)) {
         skip_base = e.children[0].node_type.is_literal_str()
     }
     mut rsl_i : USize = 0
@@ -4081,11 +4094,15 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
             ref method_arg : Expr = e.children[2]
             switch method_arg.node_type {
             case NodeType.Literal(Literal.Str(ms)):
-                f.write("&(Str){.c_str=(void*)\"")
-                f.write(ms)
-                f.write("\", .count=")
-                emit_usize(f, ms.len())
-                f.write("ULL, .cap=TIL_CAP_LIT}")
+                if ctx.builder_str_lit_symbols.has(ms) {
+                    f.write("&").write(ctx.builder_str_lit_symbols[ms])
+                } else {
+                    f.write("&(Str){.c_str=(void*)\"")
+                    f.write(ms)
+                    f.write("\", .count=")
+                    emit_usize(f, ms.len())
+                    f.write("ULL, .cap=TIL_CAP_LIT}")
+                }
             case:
                 emit_as_ptr(f, method_arg, depth, false, ctx)
             }
@@ -4840,7 +4857,14 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retu
                 f.write("DEREF(").emit_expr(e, depth, ctx).write(")")
             }
         case NodeType.Literal(Literal.Str(s)):
-            f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
+            // #326: the pool element IS this value -- reading it dedups the
+            // inline compound-literal copy and consumes the entry the
+            // registration walk created (36 of them had no reader left).
+            if ctx.builder_str_lit_symbols.has(s) {
+                f.write(ctx.builder_str_lit_symbols[s])
+            } else {
+                f.write("(Str){.c_str=(void*)\"").write(s).write("\", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
+            }
         case NodeType.FieldAccess:
             if builder_fa_is_ns(e, ctx).and(e.til_type().is(Type.Enum)) {
                 f.write("(*").emit_expr(e, depth, ctx).write(")")
