@@ -1569,8 +1569,7 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     // arg can name a local to extend (the typer rejects temporaries).
     if e.til_type().is(Type.Enum).not() { return "" }
     switch e.children[1].node_type {
-    case NodeType.Ident:
-    case NodeType.FieldAccess:
+    case NodeType.Ident, NodeType.FieldAccess:
     case: return ""
     }
     ename := til_type_name(e.til_type())
@@ -1852,8 +1851,7 @@ priv while_spine_transfers := func(wbody: Expr, name: Str, scope: TypeScope, ctx
     }
     for sp : Expr in wbody.children {
         switch sp.node_type {
-        case NodeType.If: continue
-        case NodeType.Switch: continue
+        case NodeType.If, NodeType.Switch: continue
         case NodeType.While:
             if expr_transfers_own(sp.children[0], name, scope, ctx) { return true }
             if while_spine_transfers(sp.children[1], name, scope, ctx) { return true }

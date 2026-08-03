@@ -252,19 +252,8 @@ priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
 // names ext.h spells as real fixed-width C types.
 priv is_primitive_type := func(name: Str) returns Bool {
     switch name {
-    case "I64":   return true
-    case "U8":    return true
-    case "I8":    return true
-    case "I16":   return true
-    case "U16":   return true
-    case "I32":   return true
-    case "U32":   return true
-    case "U64":   return true
-    case "USize": return true
-    case "UPtr":  return true
-    case "F32":   return true
-    case "F64":   return true
-    case "Bool":  return true
+    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "USize", "UPtr", "F32", "F64",
+         "Bool": return true
     case:
     }
     return false
@@ -421,17 +410,7 @@ priv is_funcsig_type := func(name: Str, ctx: Context) returns Bool {
 // target-width aliases, not names ext.h declares.
 priv is_ext_h_type := func(name: Str) returns Bool {
     switch name {
-    case "U8":   return true
-    case "I8":   return true
-    case "I16":  return true
-    case "U16":  return true
-    case "I32":  return true
-    case "F32":  return true
-    case "F64":  return true
-    case "U32":  return true
-    case "U64":  return true
-    case "I64":  return true
-    case "Bool": return true
+    case "U8", "I8", "I16", "U16", "I32", "F32", "F64", "U32", "U64", "I64", "Bool": return true
     case:
     }
     return false
@@ -1004,9 +983,7 @@ priv til_type_to_c := func(shallow t: Type) returns Str {
     case Type.Primitive(Primitive.Bool):    return "Bool"
     case Type.None:    return "void"
     case Type.Dynamic: return "void *"
-    case Type.FuncPtr:    return "TilClosure *"
-    case Type.FuncPtrSig: return "TilClosure *"
-    case Type.Body:       return "TilClosure *"
+    case Type.FuncPtr, Type.FuncPtrSig, Type.Body: return "TilClosure *"
     case:                 return "I64"
     }
 }
@@ -1090,8 +1067,7 @@ priv type_name_to_c := func(name: Str, ctx: Context) returns Str {
     case "F64":     return "F64 *"
     case "Bool":    return "Bool *"
     case "Dynamic": return "void *"
-    case "Fn":      return "TilClosure *"
-    case "Body":    return "TilClosure *"
+    case "Fn", "Body": return "TilClosure *"
     case:
     }
     if ctx.funcsig_names.has(name) { return name }
@@ -1114,8 +1090,7 @@ priv type_name_to_c_value := func(name: Str, ctx: Context) returns Str {
     case "F64":     return "F64"
     case "Bool":    return "Bool"
     case "Dynamic": return "void *"
-    case "Fn":      return "TilClosure *"
-    case "Body":    return "TilClosure *"
+    case "Fn", "Body": return "TilClosure *"
     case:
     }
     if ctx.funcsig_names.has(name) { return name }

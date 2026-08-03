@@ -399,10 +399,7 @@ tokenize := proc(src: Str, path: Str) returns Vec(Token) {
 
         switch c {
         // Whitespace (spaces, tabs, \r, semicolons): skip
-        case ' ':  pos++; continue
-        case '\t': pos++; continue
-        case '\r': pos++; continue
-        case ';':  pos++; continue
+        case ' ', '\t', '\r', ';': pos++; continue
         case '\n':
             pos++
             line++

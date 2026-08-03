@@ -3629,10 +3629,7 @@ priv lazy_autoforce_node := func(mut parent: Expr, idx: USize, pnames: Set(Str),
             lazy_autoforce_body(c.children[2], pnames, catch_shadowed, memo, depth + 1)
         }
         return
-    case NodeType.Match:
-        lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1)
-        return
-    case NodeType.Switch:
+    case NodeType.Match, NodeType.Switch:
         lazy_autoforce_match_switch(c, pnames, shadowed, memo, depth + 1)
         return
     case:
@@ -3752,10 +3749,7 @@ priv lazy_count_live := func(e: Expr, pnames: Set(Str), shadowed: Set(Str), mut 
         }
         if e.children.len() >= 3 { lazy_count_live(e.children[2], pnames, cs, counts, depth + 1) }
         return
-    case NodeType.Match:
-        lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1)
-        return
-    case NodeType.Switch:
+    case NodeType.Match, NodeType.Switch:
         lazy_count_live_ms(e, pnames, shadowed, counts, depth + 1)
         return
     case NodeType.Body:
@@ -4104,8 +4098,7 @@ priv lazy_thunk_classify_capture := func(name: Str, scope: TypeScope,
 priv lazy_thunk_collect_captures := func(e: Expr, scope: TypeScope,
         mut bound: Set(Str), mut caps: Vec(Declaration)) {
     switch e.node_type {
-    case NodeType.FuncDef: return
-    case NodeType.CaptureBlock: return
+    case NodeType.FuncDef, NodeType.CaptureBlock: return
     case NodeType.Decl(dd):
         if dd.name.len() > 0 { bound.add(own dd.name.clone()) }
     case NodeType.ForIn(fd):

@@ -261,28 +261,16 @@ repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
     if peek_ast.children.len() == 0 { return false }
     ref puser : Expr = peek_ast.children[peek_ast.children.len() - 1]
     switch puser.node_type {
-    case NodeType.Decl:        return false
-    case NodeType.Assign:      return false
-    case NodeType.FieldAssign: return false
-    case NodeType.FuncDef:     return false
-    case NodeType.StructDef:   return false
-    case NodeType.EnumDef:     return false
-    case NodeType.Return:      return false
-    case NodeType.If:          return false
-    case NodeType.While:       return false
-    case NodeType.ForIn:       return false
-    case NodeType.Switch:      return false
-    case NodeType.Case:        return false
-    case NodeType.Break:       return false
-    case NodeType.Continue:    return false
-    case NodeType.Body:        return false
+    case NodeType.Decl, NodeType.Assign, NodeType.FieldAssign, NodeType.FuncDef,
+         NodeType.StructDef, NodeType.EnumDef, NodeType.Return, NodeType.If, NodeType.While,
+         NodeType.ForIn, NodeType.Switch, NodeType.Case, NodeType.Break, NodeType.Continue,
+         NodeType.Body: return false
     // A `catch` block (and a bare `throw`) is a statement, and it is the LAST
     // one on the only line shape that can express a catch at the prompt:
     // `ref r : I64 = a.get(5)? catch (err: T) { ... }`. Missing from this list,
     // it fell through to "wrap it as an expression" and the turn died on
     // "unexpected token 'ref'" inside the generated `(...).to_str()`.
-    case NodeType.Catch:       return false
-    case NodeType.Throw:       return false
+    case NodeType.Catch, NodeType.Throw: return false
     case:
     }
     return true
@@ -309,10 +297,7 @@ repl_ast_has_help_call := func(e: Expr) returns Bool {
 
 repl_ast_updates_doc_cache := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Decl:      return true
-    case NodeType.FuncDef:   return true
-    case NodeType.StructDef: return true
-    case NodeType.EnumDef:   return true
+    case NodeType.Decl, NodeType.FuncDef, NodeType.StructDef, NodeType.EnumDef: return true
     case NodeType.FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]

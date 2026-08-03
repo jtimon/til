@@ -989,10 +989,7 @@ priv raw_result_move_into := proc(shallow t: Type, dst: Dynamic, src: Dynamic, r
     case Type.Enum(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = dispatch_enum_size(name, ctx) }
-    case Type.Dynamic: size = Dynamic.size()
-    case Type.FuncPtr: size = Dynamic.size()
-    case Type.FuncPtrSig: size = Dynamic.size()
-    case Type.Body: size = Dynamic.size()
+    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: size = Dynamic.size()
     case Type.Custom(name):
         raw_result_move_into(type_from_name_init(name, ctx.scope), dst, src, return_is_ref, ctx)
         return
@@ -1015,11 +1012,7 @@ priv raw_result_drop_nested := proc(shallow t: Type, raw: Dynamic, return_is_ref
         if return_is_ref.not() { heap_drop_struct(name, raw, ctx) }
     case Type.Enum(name):
         if return_is_ref.not() { heap_drop_enum(name, raw, ctx) }
-    case Type.FuncPtr:
-        heap_drop_by_type(t, raw, ctx)
-    case Type.FuncPtrSig:
-        heap_drop_by_type(t, raw, ctx)
-    case Type.Body:
+    case Type.FuncPtr, Type.FuncPtrSig, Type.Body:
         heap_drop_by_type(t, raw, ctx)
     case Type.Custom(name):
         raw_result_drop_nested(type_from_name_init(name, ctx.scope), raw, return_is_ref, ctx)
@@ -1134,10 +1127,7 @@ priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
         return size
     case Type.Struct(name): return ctx_total_size(name, ctx)
     case Type.Enum(name): return dispatch_enum_size(name, ctx)
-    case Type.Dynamic: return Dynamic.size()
-    case Type.FuncPtr: return Dynamic.size()
-    case Type.FuncPtrSig: return Dynamic.size()
-    case Type.Body: return Dynamic.size()
+    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: return Dynamic.size()
     case Type.Custom(name): return raw_type_size(type_from_name_init(name, ctx.scope), ctx)
     case:
         panic("cannot size raw type ", til_type_name_c(t))
@@ -1214,10 +1204,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         if raw_type_is_prim(value_type, ctx) { return word_ring_slot(value_type, raw, ctx) }
     }
     switch value_type {
-    case Type.Dynamic: return deref(value_raw)
-    case Type.FuncPtr: return deref(value_raw)
-    case Type.FuncPtrSig: return deref(value_raw)
-    case Type.Body: return deref(value_raw)
+    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: return deref(value_raw)
     case Type.Custom(name):
         alias_type := type_from_name_init(name, ctx.scope)
         switch alias_type {
@@ -1730,12 +1717,7 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
     case NodeType.BodyValue:
         closure : Dynamic = make_interp_closure(e, scope, ctx)
         return raw_result_finish(e.til_type(), closure, destination, false, ctx)
-    case NodeType.StructDef:
-        mut result : Dynamic = destination
-        if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
-        write_ptr(result, e)
-        return result
-    case NodeType.EnumDef:
+    case NodeType.StructDef, NodeType.EnumDef:
         mut result : Dynamic = destination
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
         write_ptr(result, e)
@@ -3295,11 +3277,7 @@ priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
         mut al : USize = 0
         builtin_primitive_size_align(p, sz, al)
         return sz
-    case Type.Dynamic:
-        return 8
-    case Type.FuncPtr:
-        return 8
-    case Type.FuncPtrSig:
+    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig:
         return 8
     case:
     }
@@ -5872,13 +5850,7 @@ dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
         size = ctx_total_size(name, ctx)
     case Type.Enum(name):
         size = dispatch_enum_size(name, ctx)
-    case Type.Dynamic:
-        size = Dynamic.size()
-    case Type.FuncPtr:
-        size = Dynamic.size()
-    case Type.FuncPtrSig:
-        size = Dynamic.size()
-    case Type.Body:
+    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body:
         size = Dynamic.size()
     case Type.Custom(name):
         return dispatch_result_alloc(type_from_name_init(name, ctx.scope), ctx)
@@ -7619,14 +7591,8 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
 // "" for anything that is not one of the nine numeric primitives.
 priv scalar_op_cat := func(t: Str) returns Str {
     switch t {
-    case "U8":  return "u"
-    case "U16": return "u"
-    case "U32": return "u"
-    case "U64": return "u"
-    case "I8":  return "i"
-    case "I16": return "i"
-    case "I32": return "i"
-    case "I64": return "i"
+    case "U8", "U16", "U32", "U64": return "u"
+    case "I8", "I16", "I32", "I64": return "i"
     case "F32": return "f"
     case "F64": return "d"
     }
@@ -7635,16 +7601,7 @@ priv scalar_op_cat := func(t: Str) returns Str {
 
 priv scalar_is_binop := func(op: Str) returns Bool {
     switch op {
-    case "add": return true
-    case "sub": return true
-    case "mul": return true
-    case "band": return true
-    case "bor": return true
-    case "bxor": return true
-    case "shl": return true
-    case "shr": return true
-    case "div": return true
-    case "mod": return true
+    case "add", "sub", "mul", "band", "bor", "bxor", "shl", "shr", "div", "mod": return true
     }
     return false
 }
@@ -7715,12 +7672,7 @@ priv scalar_apply_f32 := func(op: Str, a: F32, b: F32) returns F32 {
 // ordering ops). Separate from scalar_is_binop because these write Bool.
 priv scalar_is_cmp := func(op: Str) returns Bool {
     switch op {
-    case "eq":  return true
-    case "neq": return true
-    case "lt":  return true
-    case "gt":  return true
-    case "lte": return true
-    case "gte": return true
+    case "eq", "neq", "lt", "gt", "lte", "gte": return true
     }
     return false
 }

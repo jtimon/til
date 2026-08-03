@@ -385,9 +385,7 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
 
 priv result_type_can_fold_to_expr := func(t: Type, ctx: Context) returns Bool {
     switch t {
-    case Type.Primitive:
-        return true
-    case Type.Enum:
+    case Type.Primitive, Type.Enum:
         return true
     case Type.Struct(sname):
         return struct_result_can_fold_to_expr(sname, ctx)
@@ -925,10 +923,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
 
     mut can_convert := false
     switch fcall.til_type() {
-    case Type.Primitive: can_convert = true
-    case Type.Enum: can_convert = true
-    case Type.Struct: can_convert = true
-    case Type.Custom: can_convert = true
+    case Type.Primitive, Type.Enum, Type.Struct, Type.Custom: can_convert = true
     case:
     }
     if can_convert.not() {

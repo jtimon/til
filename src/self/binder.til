@@ -154,34 +154,17 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     case "void": out.push_str("Dynamic"); return true
     // Plain `char` -> I8, matching Str.c_str's signedness. `unsigned char`
     // stays U8 (raw-byte buffers).
-    case "char":                   out.push_str("I8"); return true
-    case "signed char":            out.push_str("I8"); return true
+    case "char", "signed char": out.push_str("I8"); return true
     case "unsigned char":          out.push_str("U8"); return true
-    case "short":                  out.push_str("I16"); return true
-    case "short int":              out.push_str("I16"); return true
-    case "unsigned short":         out.push_str("U16"); return true
-    case "unsigned short int":     out.push_str("U16"); return true
-    case "int":                    out.push_str("I32"); return true
-    case "signed int":             out.push_str("I32"); return true
-    case "signed":                 out.push_str("I32"); return true
-    case "unsigned":               out.push_str("U32"); return true
-    case "unsigned int":           out.push_str("U32"); return true
-    case "long":                   out.push_str("I64"); return true
-    case "long int":               out.push_str("I64"); return true
-    case "signed long":            out.push_str("I64"); return true
-    case "signed long int":        out.push_str("I64"); return true
-    case "long long":              out.push_str("I64"); return true
-    case "long long int":          out.push_str("I64"); return true
-    case "signed long long":       out.push_str("I64"); return true
-    case "signed long long int":   out.push_str("I64"); return true
-    case "unsigned long":          out.push_str("U64"); return true
-    case "unsigned long int":      out.push_str("U64"); return true
-    case "unsigned long long":     out.push_str("U64"); return true
-    case "unsigned long long int": out.push_str("U64"); return true
+    case "short", "short int": out.push_str("I16"); return true
+    case "unsigned short", "unsigned short int": out.push_str("U16"); return true
+    case "int", "signed int", "signed": out.push_str("I32"); return true
+    case "unsigned", "unsigned int": out.push_str("U32"); return true
+    case "long", "long int", "signed long", "signed long int", "long long", "long long int",
+         "signed long long", "signed long long int": out.push_str("I64"); return true
+    case "unsigned long", "unsigned long int", "unsigned long long", "unsigned long long int": out.push_str("U64"); return true
     case "size_t":                 out.push_str("USize"); return true
-    case "ssize_t":                out.push_str("I64"); return true
-    case "ptrdiff_t":              out.push_str("I64"); return true
-    case "intptr_t":               out.push_str("I64"); return true
+    case "ssize_t", "ptrdiff_t", "intptr_t": out.push_str("I64"); return true
     case "uintptr_t":              out.push_str("U64"); return true
     case "int8_t":                 out.push_str("I8"); return true
     case "uint8_t":                out.push_str("U8"); return true
@@ -191,8 +174,7 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
     case "uint32_t":               out.push_str("U32"); return true
     case "int64_t":                out.push_str("I64"); return true
     case "uint64_t":               out.push_str("U64"); return true
-    case "bool":                   out.push_str("Bool"); return true
-    case "_Bool":                  out.push_str("Bool"); return true
+    case "bool", "_Bool": out.push_str("Bool"); return true
     case "float":                  out.push_str("F32"); return true
     // #333: `double` maps to the F64 primitive that closed it. The old
     // mapping onto F32 was an ABI lie -- 4 bytes read where C wrote 8,

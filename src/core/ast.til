@@ -979,12 +979,9 @@ namespace:
         case NodeType.Return:
             if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
-        case NodeType.If:          return TYPE_NONE
-        case NodeType.While:       return TYPE_NONE
+        case NodeType.If, NodeType.While: return TYPE_NONE
         case NodeType.ForIn(fd):   return fd.til_type
-        case NodeType.Break:       return TYPE_NONE
-        case NodeType.Continue:    return TYPE_NONE
-        case NodeType.Switch:      return TYPE_NONE
+        case NodeType.Break, NodeType.Continue, NodeType.Switch: return TYPE_NONE
         case NodeType.Match(md):   return md.til_type
         case NodeType.Case:        return TYPE_NONE
         case NodeType.NoDefaultArg:return TYPE_UNKNOWN
@@ -995,8 +992,7 @@ namespace:
             if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
         case NodeType.Catch:       return TYPE_NONE
-        case NodeType.RestPattern: return TYPE_UNKNOWN
-        case NodeType.ListPattern: return TYPE_UNKNOWN
+        case NodeType.RestPattern, NodeType.ListPattern: return TYPE_UNKNOWN
         case NodeType.CaptureBlock: return TYPE_NONE
         }
         return TYPE_UNKNOWN

@@ -3181,8 +3181,7 @@ infer_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ctx: Context)
     case NodeType.Ident:       infer_ident_expr(scope, expr, ctx)
     case NodeType.FuncDef:     infer_func_def_expr(scope, expr, ctx)
     case NodeType.BodyValue:   infer_body_value_expr(scope, expr, ctx)
-    case NodeType.StructDef:   infer_type_def_expr(scope, expr, ctx)
-    case NodeType.EnumDef:     infer_type_def_expr(scope, expr, ctx)
+    case NodeType.StructDef, NodeType.EnumDef: infer_type_def_expr(scope, expr, ctx)
     case NodeType.FCall:       infer_fcall_expr(scope, expr, in_func, ctx)
     case NodeType.FieldAccess: infer_field_access_expr(scope, expr, in_func, ctx)
     case NodeType.Literal(Literal.MapLit):      infer_map_lit_expr(scope, expr, in_func, ctx)
@@ -5805,9 +5804,7 @@ priv capture_block_check_refs := proc(e: Expr,
         enclosing: TypeScope, block_scope: TypeScope, root: TypeScope,
         captures: Vec(Declaration), ctx: Context) {
     switch e.node_type {
-    case NodeType.CaptureBlock: return
-    case NodeType.BodyValue: return
-    case NodeType.FuncDef: return
+    case NodeType.CaptureBlock, NodeType.BodyValue, NodeType.FuncDef: return
     case NodeType.Ident(idd):
         capture_block_check_name(e, idd.name, 0, enclosing, block_scope, root, captures, ctx)
     case NodeType.Assign(ad):
@@ -5902,9 +5899,7 @@ priv validate_captures := proc(scope: TypeScope, captures: Vec(Declaration), err
 // values / func defs, which carry their own capture lists.
 priv capture_block_rename := proc(mut e: Expr, from: Str, to: Str) {
     switch e.node_type {
-    case NodeType.CaptureBlock: return
-    case NodeType.BodyValue: return
-    case NodeType.FuncDef: return
+    case NodeType.CaptureBlock, NodeType.BodyValue, NodeType.FuncDef: return
     case NodeType.Ident(idd):
         if idd.ident_name() == from { e.node_type = ident_node(to) }
     case NodeType.Assign(ad):
@@ -6877,10 +6872,7 @@ priv type_ctor_consumes := func(t: Type) returns Bool {
     // set) and to the interpreter's own-arg move path.
     if is_funcptr(t) { return true }
     switch t {
-    case Type.Struct: return true
-    case Type.Enum: return true
-    case Type.Dynamic: return true
-    case Type.Body: return true
+    case Type.Struct, Type.Enum, Type.Dynamic, Type.Body: return true
     case: return false
     }
 }
@@ -8670,10 +8662,7 @@ priv match_is_bool_identity := func(m: Expr) returns Bool {
 // infer_body pass) nor into nested blocks/definitions (handled separately).
 priv replace_matches_rec := proc(scope: TypeScope, mut node: Expr, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context, mut pre: Vec(Expr)) {
     switch node.node_type {
-    case NodeType.Body:      return
-    case NodeType.FuncDef:   return
-    case NodeType.StructDef: return
-    case NodeType.EnumDef:   return
+    case NodeType.Body, NodeType.FuncDef, NodeType.StructDef, NodeType.EnumDef: return
     // #282: do not hoist a match out of a case guard (or body) -- it is
     // conditionally evaluated and infer_switch_stmt lowers it into the
     // pattern-gated position. See stmt_contains_match for the rationale.

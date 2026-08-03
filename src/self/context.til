@@ -1822,19 +1822,8 @@ niche_payload_is_owned_box := func(vtype: Str) returns Bool {
     if vtype == "Str" { return false }
     if vtype.starts_with("_Fn_") { return false }
     switch vtype {
-    case "I64": return false
-    case "U8": return false
-    case "I8": return false
-    case "I16": return false
-    case "U16": return false
-    case "I32": return false
-    case "U32": return false
-    case "U64": return false
-    case "USize": return false
-    case "UPtr": return false
-    case "F32": return false
-    case "F64": return false
-    case "Bool": return false
+    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "USize", "UPtr", "F32", "F64",
+         "Bool": return false
     case: return true
     }
 }
@@ -1981,9 +1970,7 @@ priv contains_return := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Return:
         return true
-    case NodeType.FuncDef:
-        return false
-    case NodeType.BodyValue:
+    case NodeType.FuncDef, NodeType.BodyValue:
         return false
     case:
         for c : Expr in e.children {
@@ -2022,13 +2009,7 @@ priv has_unnested_break := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.Break:
         return true
-    case NodeType.While:
-        return false
-    case NodeType.ForIn:
-        return false
-    case NodeType.FuncDef:
-        return false
-    case NodeType.BodyValue:
+    case NodeType.While, NodeType.ForIn, NodeType.FuncDef, NodeType.BodyValue:
         return false
     case:
         for c : Expr in e.children {
@@ -2152,10 +2133,7 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
 // and returns are excluded (an early return or a loop can't be flattened).
 priv lazy_is_safe_prelude := func(stmt: Expr) returns Bool {
     switch stmt.node_type {
-    case NodeType.Decl:        return true
-    case NodeType.Assign:      return true
-    case NodeType.FieldAssign: return true
-    case NodeType.FCall:       return true
+    case NodeType.Decl, NodeType.Assign, NodeType.FieldAssign, NodeType.FCall: return true
     case:                      return false
     }
 }
