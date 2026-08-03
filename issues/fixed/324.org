@@ -1,6 +1,38 @@
 # priority: medium
 # category: bugs
-** OPEN #324 A `ref` FIELD can be passed to an `own` parameter (ownership hole)
+** FIXED #324 A `ref` FIELD can be passed to an `own` parameter (ownership hole)
+
+*** Post-mortem (2026-08-03)
+
+Root cause, two layers. The visible one: the typer's own-arg rule only
+inspected ~NodeType.Ident~ arguments, so a ~ref~ FIELD passed to an
+~own~ parameter type-checked silently -- ownership transferred out of a
+borrow, and holders hand-freed storage their labels disclaimed. The
+structural one, found by just trying the relabel: the 14 in-tree sites
+could not be labeled honestly while NULL-as-absent existed, because an
+~own~ field's assign path drains the old value and ~T_delete(NULL)~
+crashes -- the fix genuinely depended on #321/#320's owning-niche
+Option landing first.
+
+What changed, across the #324 campaign commits: the Scope trio
+(~Context.ns_fields~, ~Context.constfolder_known~,
+~InterpSession.global~) and ~InterpCallableBox.env~ became
+~Option(Scope)~ owning fields (zeroed box = honestly None; ~ns_inited~
+second-source-of-truth removed); ~FFIEntry~'s four raw buffers,
+~FFITypePtrBox.ptr~, and ~ffi_type.elements~ became ~own~, dissolving
+the manual quad-free loops into ordinary drains (which surfaced and
+fixed Map.set's overwrite-skips-typed-delete leak and the ctor
+default-box leak); and the typer got the ~NodeType.FieldAccess~ arm
+beside the Ident one, rejecting ~own~-passing of any ~ref~ field. The
+final piece was custom ~FFIEntry.clone~ / ~FFITypePtrBox.clone~: the
+REPL clones the whole LoadedProgram each turn, and the generated clone
+copied the nparam-sized raw buffers as single bytes (and derefed
+legally-null ~param_shallows~) -- the buffers are copied at their real
+lengths now, with the copied cif repointed at the copied arg_types.
+
+Regression test: ~pass_ref_field324~ in test/typer_errors.til (count
+182); the REPL clone path is pinned by the existing repl_help suite
+test, which caught the generated-clone crash.
 
 Passing a ~ref~ binding to an ~own~ parameter is correctly a type
 error ("cannot pass ref variable to 'own' parameter; use .clone() to

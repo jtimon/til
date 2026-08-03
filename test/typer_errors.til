@@ -995,3 +995,13 @@ CallOp328 := func(I64) returns I64
 call_double328 := func(x: I64) returns I64 { return x.mul(2) }
 call_pick328 := func() returns CallOp328 { return call_double328 }
 call_result_direct := call_pick328()(5)
+
+// #324: a `ref` FIELD names storage its holder does not own, so passing
+// it to an `own` parameter transfers an ownership the field never had --
+// the callee (or a drain) would free through a borrow. The Ident arm has
+// rejected this for ref VARIABLES all along; fields used to slip past.
+RefField324 := struct { ref cell : BorrowEscCell }
+consume_cell324 := proc(own c: BorrowEscCell) { println(c.besc_n.to_str()) }
+pass_ref_field324 := proc(h: RefField324) {
+    consume_cell324(own h.cell)
+}

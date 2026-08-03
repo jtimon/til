@@ -1539,13 +1539,55 @@ check itself can land.
 
 208/208, pass 1 == pass 2.
 
+**** Batch 38: env + the FFI island; the #324 check lands and #324 closes
+
+InterpCallableBox.env becomes Option(Scope) -- the pleasant one: the
+box is heap_alloc'd zeroed and its ctor never runs, and the niche makes
+the zeroed slot IS-None, so a raw-built box starts honestly absent with
+no write at all. callable_box_free swaps the env out and takes it; the
+old ~b.env = NULL~ poison write is gone because the swap already leaves
+the field None.
+
+The FFI island dissolves: FFIEntry's four raw buffers, FFITypePtrBox.ptr
+and ffi_type.elements (hand-audited binding edit) are ~own~ now, so
+ffi_cleanup's manual quad-free loops and the descriptor-cache free loop
+are plain reset-assign drains. ASAN drove every step: Map.set's
+overwrite path does NOT run the typed value delete (Map.remove does --
+re-register removes first, fixing a pre-existing 182-byte leak per
+re-registered name), ctor field defaults for ~own U8 = 0~ materialize
+malloc'd one-byte boxes that island raw-writes orphan (all four buffers
+ride the ctor call now), and build_struct_ffi_type must memset its
+descriptor before the first own-field assign or the drain frees malloc
+garbage.
+
+The surprise: the REPL clones the whole LoadedProgram every turn, and
+the GENERATED FFIEntry clone copied the nparam-sized buffers as single
+bytes -- and derefed the legally-null param_shallows (repl_help caught
+it as a turn-two segfault). Custom FFIEntry.clone / FFITypePtrBox.clone
+copy each buffer at its real length and repoint the copied cif at the
+copied arg_types. Garbager lesson embedded there: stashing a local into
+a ref field pins it to end-of-body (borrow-edge rule 1), colliding with
+the ctor's transfer of the same local -- patch through the entry's own
+fields AFTER the ctor adopts them instead.
+
+With all 14 sites honest, the #324 typer check itself lands: the pown
+arm gets a NodeType.FieldAccess case beside the Ident one, rejecting
+~own~-passing of any ~ref~ field (fixture pass_ref_field324, typer
+error count 182). #324 moves to fixed/ in this commit. The remaining
+~ref ... = NULL~ fields in src/ are exactly the two Dynamic quarantine
+fields (Context.return_value, Context.interp_ret_dest), nullable by
+design.
+
+208/208, pass 1 == pass 2.
+
 *** What is left before the forbid can land
 
 0. DONE (batch 19): move-out of an owned ~Option(T)~.
    DONE (batch 20): all 37 ~returns Expr~ ~return NULL~ sites, at a ~3%
    self-translate cost that an owned-payload niche would remove.
-1. #324 (a ~ref~ FIELD may be passed to an ~own~ param) -> then the
-   three Scope-typed owning fields get a real ownership answer.
+1. DONE (batches 35-38): #324 is fixed and closed -- all 14 ref-labeled
+   owning fields relabeled (Scope trio + env as Option(Scope); the FFI
+   island as ~own~ buffers) and the FieldAccess own-arg check landed.
 2. Flip check_ref_field_owned_default: reject ~= NULL~ on a ref field
    whose type is not Dynamic (the quarantine exemption above), and
    convert the test fixtures in the same commit.

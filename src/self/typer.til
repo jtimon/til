@@ -821,6 +821,20 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
                         ref mut own_arg_b : TypeBinding = own_arg_b_o.unwrap()
                         own_arg_b.written = true
                     }
+                case NodeType.FieldAccess:
+                    // #324: the same rule for a ref FIELD. A `ref` field is
+                    // precisely the one its holder must NOT free
+                    // (doc/ownership.org) -- passing it to an `own`
+                    // parameter transfers an ownership the field never had.
+                    // The Ident arm above has rejected this for ref
+                    // VARIABLES all along; fields just slipped past. Broad
+                    // on purpose: every field this flagged in-tree was an
+                    // owned pointer wearing a ref label, and each has been
+                    // relabeled (the Scope trio, InterpCallableBox.env,
+                    // FFIEntry's buffers, FFITypePtrBox.ptr).
+                    if fa_own_type(arg, scope).is(OwnType.Ref) {
+                        arg.type_error("cannot pass ref field to 'own' parameter; the holder does not own it -- use .clone(), or relabel the field if it is really owned", ctx)
+                    }
                 case:
                 }
             }

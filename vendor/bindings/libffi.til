@@ -160,7 +160,14 @@ ffi_type := ext_struct("_ffi_type") {
     size : U64 = 0
     alignment : U16 = 0
     type : U16 = 0
-    ref elements : Dynamic = NULL
+    // Hand-audited (#324), keep across regens: for the struct descriptors
+    // til BUILDS (build_struct_ffi_type) the elements array is til's own
+    // malloc, freed when the descriptor is -- an `own` raw buffer, the
+    // Vec.data form. libffi's global descriptors also carry an elements
+    // pointer, but til only ever borrows those whole (ffi_type_ref) and
+    // never runs a typed delete on them, so the label costs them nothing.
+    // Same C shape either way: one pointer.
+    own elements : U8 = 0
 }
 
 /* Need minimal decorations for DLLs to work on Windows.  GCC has

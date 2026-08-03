@@ -230,11 +230,14 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
 CALLABLE_BOX_MAGIC : U64 = 1414745932
 
 // Only ever built raw on the EvalHeap (heap_alloc + field writes); the
-// ctor never runs, so the ref fields carry no defaults (#321).
+// ctor never runs. func_def borrows the parse tree; env is OWNED
+// (#321/#324) -- allocated by scope_new_owned, freed by
+// callable_box_free -- and heap_alloc's zeroed block IS the niche's None,
+// so a raw-built box starts honestly absent with no write at all.
 InterpCallableBox := struct {
     magic : U64 = 0
     ref func_def : Expr
-    ref env : Scope
+    env := Option(Scope).None
 }
 
 // Typed view of a binding's borrowed canonical type (see the
@@ -1240,7 +1243,7 @@ priv callable_raw_env := func(raw: Dynamic, fallback: Scope) returns ref Scope {
     ref stored : Dynamic = deref(raw)
     if callable_box_is(stored) {
         ref box : InterpCallableBox = to_ptr(stored)
-        return box.env
+        return callable_env(box)
     }
     return fallback
 }
@@ -4285,8 +4288,8 @@ priv scope_root_ref := func(s: Scope) returns ref Scope {
     }
 }
 
-priv closure_env_clone := func(env: Scope) returns ref Scope {
-    ref cloned : Scope = scope_new_boxed(env.parent)
+priv closure_env_clone := func(env: Scope) returns Scope {
+    mut cloned := scope_new_owned(env.parent)
     for name, hb in env.heap_bindings {
         if hb.moved_out { panic("closure clone from moved binding: ", name) }
         ref src : Dynamic = to_ptr(hb.ptr)
@@ -4325,7 +4328,7 @@ priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ct
 }
 
 priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) returns Dynamic {
-    ref env : Scope = scope_new_boxed(Option(ref Scope).Some(scope_root_ref(scope)))
+    mut env := scope_new_owned(Option(ref Scope).Some(scope_root_ref(scope)))
     switch func_def.node_type {
     case NodeType.FuncDef(fd):
         for cap : Declaration in fd.captures {
@@ -4342,10 +4345,20 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) ret
     ref callable : InterpCallableBox = to_ptr(box)
     callable.magic = CALLABLE_BOX_MAGIC
     callable.func_def = func_def
-    callable.env = env
+    callable.env = Option(Scope).Some(own env)
     result : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(result, box)
     return result
+}
+
+// #324: a live callable box's env, borrowed. PANICS on None: env is set at
+// make_interp_closure and cleared only inside callable_box_free, so an
+// absent env on a magic-checked box is a broken invariant.
+priv callable_env := func(b: InterpCallableBox) returns ref Scope {
+    switch b.env {
+    case Option(Scope).Some(e): return e
+    case Option(Scope).None: panic(__LOC__, "callable box env absent")
+    }
 }
 
 priv callable_box_is := func(ptr: Dynamic) returns Bool {
@@ -4361,7 +4374,7 @@ priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
     ref cloned : InterpCallableBox = to_ptr(dst)
     cloned.magic = CALLABLE_BOX_MAGIC
     cloned.func_def = src.func_def
-    cloned.env = closure_env_clone(src.env)
+    cloned.env = Option(Scope).Some(own closure_env_clone(callable_env(src)))
     return dst
 }
 
@@ -4372,8 +4385,9 @@ priv callable_storage_free := func(ptr: Dynamic) {
 priv callable_box_free := func(ptr: Dynamic) {
     if callable_box_is(ptr).not() { return }
     ref b : InterpCallableBox = to_ptr(ptr)
-    scope_free(own b.env)
-    b.env = NULL
+    mut env_old := Option(Scope).None
+    swap(Option(Scope), b.env, env_old)
+    scope_free(own Option(Scope).take(own env_old))
     mut owned_ptr : Dynamic = ptr
     EvalHeap.heap_free(own owned_ptr)
 }
@@ -5482,18 +5496,59 @@ FFIEntry := struct {
     // A void ext function has no return type: a real absent state.
     return_type := Option(ref Str).None
     nparam : USize = 0
-    // #321/#324: param_shallows and param_dynamics are only malloc'd when
-    // the signature has a shallow / dynamic param, so absence is real --
-    // but ffi_cleanup releases them with `free(own fe.param_shallows)`,
-    // a ref FIELD passed to an `own` parameter, which is the hole #324
-    // tracks. Ownership has to settle before these can become Options;
-    // a borrowed payload cannot be transferred out to free().
-    ref param_shallows : U8 = NULL
-    ref param_dynamics : U8 = NULL
+    // #321/#324: these four are raw C allocations the entry OWNS -- they
+    // wore `ref` labels while ffi_cleanup hand-freed them, the exact hole
+    // #324 tracks. With `own`, the map's ordinary value drain reclaims
+    // them (ffi_cleanup, the re-register path). The U8 label is the
+    // Vec.data raw-buffer form: param_shallows / param_dynamics are
+    // nparam byte-flag arrays, arg_types is an nparam pointer array.
+    // param_shallows stays null unless the signature has a shallow param
+    // (a real absence; delete no-ops on null).
+    own param_shallows : U8 = 0
+    own param_dynamics : U8 = 0
     return_is_shallow := false
     return_is_ref := false
-    ref cif : ffi_cif
-    ref arg_types : Dynamic
+    own cif : ffi_cif
+    own arg_types : U8 = 0
+namespace:
+    // The REPL clones the whole LoadedProgram -- Context and ffi_map
+    // included -- on every turn (repl_clone_loaded_program), and
+    // interp_session_prepare_context ffi_reset()s the clone before any
+    // call goes through it, so a cloned entry only ever lives to be
+    // drained. The clone still has to be correct: the generated one sees
+    // `own U8` and copies a single byte, but these are nparam-sized raw
+    // buffers and param_shallows is legally null -- a null deref the
+    // moment a REPL session cloned a program. Copy each buffer at its
+    // real length and repoint the copied cif at the copied arg_types so
+    // no cross-entry borrow survives the copy.
+    clone := func(self: FFIEntry) returns FFIEntry {
+        np := self.nparam
+        mut alloc_np := np
+        if alloc_np == 0 { alloc_np = 1 }
+        atypes : Dynamic = malloc(alloc_np.mul(8))
+        memcpy(atypes, self.arg_types, alloc_np.mul(8))
+        pdynamics : Dynamic = malloc(alloc_np)
+        memcpy(pdynamics, self.param_dynamics, alloc_np)
+        mut pshallows : Dynamic = 0
+        if self.param_shallows.is_null().not() {
+            pshallows = malloc(np)
+            memcpy(pshallows, self.param_shallows, np)
+        }
+        cif : Dynamic = malloc(ffi_cif.size())
+        memcpy(cif, self.cif, ffi_cif.size())
+        entry := FFIEntry(fn = self.fn, cif = cif, arg_types = atypes,
+            param_shallows = pshallows, param_dynamics = pdynamics,
+            return_type = self.return_type, nparam = np,
+            return_is_shallow = self.return_is_shallow,
+            return_is_ref = self.return_is_ref)
+        // Patch AFTER the ctor adopts the buffers, and through the entry's
+        // own fields: stashing the bare local into the cif first would add
+        // a garbager borrow edge (FieldAssign to a ref field pins the
+        // source to end of body) that collides with the ctor's transfer.
+        ref mut ccif : ffi_cif = to_ptr(entry.cif)
+        ccif.arg_types = to_ptr(entry.arg_types)
+        return entry
+    }
 }
 
 ExprPtrBox := struct {
@@ -5501,7 +5556,37 @@ ExprPtrBox := struct {
 }
 
 FFITypePtrBox := struct {
-    ref ptr : ffi_type
+    // #324: the box OWNS its descriptor -- build_struct_ffi_type mallocs
+    // it and cache teardown frees it. With `own` here (and on
+    // ffi_type.elements), resetting the cache Vec reclaims everything
+    // through ordinary drains; the manual free loop is gone.
+    own ptr : ffi_type
+namespace:
+    // Same REPL-clone story as FFIEntry.clone above: cloned boxes only
+    // live to be drained (ffi_reset runs before use), but the clone must
+    // still copy the elements array at its real length -- it is a
+    // null-terminated ffi_type* array (build_struct_ffi_type writes the
+    // terminator), which the generated clone would copy as one byte.
+    clone := func(self: FFITypePtrBox) returns FFITypePtrBox {
+        ref src : ffi_type = self.ptr
+        mut n : USize = 0
+        while true {
+            ref slot : Dynamic = ptr_add(src.elements, n.mul(Dynamic.size()))
+            ref p : Dynamic = deref(slot)
+            if p.is_null() { break }
+            n = n + 1
+        }
+        bytes := n.add(1).mul(Dynamic.size())
+        elements : Dynamic = malloc(bytes)
+        memcpy(elements, src.elements, bytes)
+        mut st : ffi_type = malloc(ffi_type.size())
+        memset(st, 0, ffi_type.size())
+        st.size = src.size
+        st.alignment = src.alignment
+        st.type = src.type
+        st.elements = elements
+        return FFITypePtrBox(ptr = st)
+    }
 }
 
 // Reset all FFI state so a fresh scan can run.
@@ -6558,15 +6643,20 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
             i = i + 1
         }
         memset(ptr_add(elements, nfields * Dynamic.size()), 0, Dynamic.size())
-        st : ffi_type = malloc(ffi_type.size())
-        ref mut stp : ffi_type = to_ptr(st)
-        stp.size = 0
-        stp.alignment = 0
-        stp.type = FFI_TYPE_STRUCT.to_u16()
-        stp.elements = elements
-        box := FFITypePtrBox(ptr = stp)
+        mut st : ffi_type = malloc(ffi_type.size())
+        // Zero before any field assign: st's fields are OWNED now, so an
+        // assign drains the old value -- on unzeroed malloc garbage that is
+        // free(<garbage>), a heap corruption. Zeroed, the drain sees null
+        // and no-ops.
+        memset(st, 0, ffi_type.size())
+        st.size = 0
+        st.alignment = 0
+        st.type = FFI_TYPE_STRUCT.to_u16()
+        st.elements = elements
+        box := FFITypePtrBox(ptr = st)
         ctx.ffi_type_cache.push(own box)
-        return stp
+        ref cached : FFITypePtrBox = ctx.ffi_type_cache[ctx.ffi_type_cache.len() - 1]
+        return cached.ptr
     case:
         panic(__LOC__, "build_struct_ffi_type: node is not a StructDef")
     }
@@ -7862,25 +7952,22 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
     ret_shallow := fd.return_own_type.is(OwnType.Shallow)
     cif : Dynamic = ffi_alloc_cif()
 
-    // Build FFIEntry
-    mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes)
-    if fd.return_type.len() > 0 { entry.return_type = Option(ref Str).Some(fd.return_type) }
-    entry.nparam = np
-    entry.param_shallows = pshallows
-    entry.param_dynamics = pdynamics
-    entry.return_is_shallow = ret_shallow
-    entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
-
-    // Resolve return ffi_type
+    // #324: resolve the return ffi_type and PREP before any of the four
+    // allocations transfers into an entry -- the fields are `own` now, so
+    // the failure path must free the locals while they are still the
+    // owners, and constructing first would leave it holding moved names.
+    mut ret_type_o := Option(ref Str).None
+    if fd.return_type.len() > 0 { ret_type_o = Option(ref Str).Some(fd.return_type) }
     ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
-    if entry.return_type.is_some() {
+    if ret_type_o.is_some() {
         if ret_shallow {
-            rtype = to_ptr(shallow_ffi_type(entry.return_type.unwrap(), ctx))
+            rtype = to_ptr(shallow_ffi_type(ret_type_o.unwrap(), ctx))
         } else {
             rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
         }
     }
-    prep_status := ffi_prep_cif(entry.cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
+    ref mut prep_cif : ffi_cif = to_ptr(cif)
+    prep_status := ffi_prep_cif(prep_cif, ffi_host_default_abi(), np.to_u32(), rtype, atypes)
     if prep_status.eq(FFI_OK).not() {
         // A failed prep leaves the cif garbage, so this entry must never
         // reach ffi_call -- but it must NOT take the program down either.
@@ -7903,6 +7990,18 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
         return
     }
 
+    // Build the entry; the four allocations transfer into its `own` fields.
+    // All four ride the CTOR call: an `own U8 = 0` field default would
+    // otherwise materialize as a malloc'd one-byte box that the island's
+    // raw field-writes overwrite without a drain -- 2 leaked bytes per
+    // entry, found by ASAN the moment the fields stopped being `ref`.
+    mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes,
+        param_shallows = pshallows, param_dynamics = pdynamics)
+    entry.return_type = ret_type_o
+    entry.nparam = np
+    entry.return_is_shallow = ret_shallow
+    entry.return_is_ref = fd.return_own_type.is(OwnType.Ref)
+
     // Store in ctx.ffi_map. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the
     // old clone+box dance here leaked both the box and the cloned Str.
@@ -7915,13 +8014,12 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, ctx: Context) {
     // a translate-time leak ffi_cleanup never saw (the stale pointers had
     // already left ffi_map). Free them first, exactly as ffi_cleanup does
     // for each live entry.
-    if ctx.ffi_map.has(name) {
-        ref old_fe : FFIEntry = ctx.ffi_map[name]
-        free(own old_fe.param_shallows)
-        free(own old_fe.param_dynamics)
-        free(own old_fe.arg_types)
-        free(own old_fe.cif)
-    }
+    // Re-registering a name overwrites its FFIEntry. Map.set's overwrite
+    // path does NOT run the typed value delete, so drop the old entry
+    // explicitly first: remove's value drop runs FFIEntry.delete, whose
+    // `own` fields free the four raw allocations. The manual quad-free
+    // this replaces was #324's hole (own-passing ref fields).
+    if ctx.ffi_map.has(name) { ctx.ffi_map.remove(name) }
     val : FFIEntry = malloc(FFIEntry.size())
     // Manual island byte-move (#286): erased slot, sized copy.
     memcpy(val, entry, FFIEntry.size())
@@ -8028,25 +8126,19 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
 ffi_cleanup := proc(ctx: Context) {
     if ctx.ffi_loaded { ffi_close_user_so() }
     if ctx.ffi_map_inited {
-        for _, fe in ctx.ffi_map {
-            free(own fe.param_shallows)
-            free(own fe.param_dynamics)
-            free(own fe.arg_types)
-            free(own fe.cif)
-        }
-        // Inner C-heap pointers freed above; reset the maps to fresh
-        // empties so the owning Context auto-deletes live containers
-        // rather than double-freeing what we just tore down.
+        // The reset's drain runs FFIEntry.delete per entry, whose `own`
+        // fields free the four raw allocations -- the manual per-entry
+        // quad-free this replaces was #324's hole and, with owned fields,
+        // a double free (ASAN caught it via Map delete -> FFIEntry_delete).
         ctx.ffi_map = Map(Str, FFIEntry).new()
         ctx.ffi_struct_defs = Map(Str, ExprPtrBox).new()
         ctx.ffi_map_inited = false
     }
     ctx.ffi_loaded = false
     if ctx.ffi_type_cache_inited {
-        for box : FFITypePtrBox in ctx.ffi_type_cache {
-            free(own box.ptr.elements)
-            free(own box.ptr)
-        }
+        // The reset's drain runs FFITypePtrBox.delete per entry, which owns
+        // its descriptor, which owns its elements array -- the manual free
+        // loop this replaces was #324's hole (own-passing ref fields).
         ctx.ffi_type_cache = Vec(FFITypePtrBox).new()
         ctx.ffi_type_cache_inited = false
     }

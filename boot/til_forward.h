@@ -1105,7 +1105,7 @@ typedef struct _ffi_type {
     U64 size;
     U16 alignment;
     U16 type;
-    void * *elements;
+    U8 *elements;
 } ffi_type;
 
 
@@ -1118,13 +1118,6 @@ typedef struct {
     U32 flags;
     U32 extra_cif_fields;
 } ffi_cif;
-
-
-typedef struct InterpCallableBox {
-    U64 magic;
-    Expr *func_def;
-    Scope *env;
-} InterpCallableBox;
 
 
 typedef struct HeapBinding {
@@ -1162,7 +1155,7 @@ typedef struct FFIEntry {
     Bool return_is_shallow;
     Bool return_is_ref;
     ffi_cif *cif;
-    void * *arg_types;
+    U8 *arg_types;
 } FFIEntry;
 
 
@@ -1510,6 +1503,13 @@ struct Option__Scope {
     Scope *data;
 };
 
+typedef struct InterpCallableBox {
+    U64 magic;
+    Expr *func_def;
+    Option__Scope env;
+} InterpCallableBox;
+
+
 typedef struct InterpSession {
     Option__Scope global;
     Bool core_evaluated;
@@ -1702,6 +1702,7 @@ void * Dynamic_clone(void * self);
 void Dynamic_delete(void * self, Bool call_free);
 Str * til_type_name(Type * t);
 void U8_delete(U8 * self, Bool call_free);
+void U16_delete(U16 * self, Bool call_free);
 Str * U32_to_str(U32 val);
 void U32_delete(U32 * self, Bool call_free);
 Str * U64_to_str(U64 val);
@@ -2249,6 +2250,7 @@ Map__Str_FFIEntry * Map__Str_FFIEntry_new(void);
 Bool Map__Str_FFIEntry_has(Map__Str_FFIEntry * self, Str * key);
 FFIEntry * Map__Str_FFIEntry_get(Map__Str_FFIEntry * self, Str * key, I64 * _err_kind);
 void Map__Str_FFIEntry_set(Map__Str_FFIEntry * self, Str * key, FFIEntry * val);
+Bool Map__Str_FFIEntry_remove(Map__Str_FFIEntry * self, Str * key);
 void Map__Str_FFIEntry_delete(Map__Str_FFIEntry * self, Bool call_free);
 Map__Str_FFIEntry * Map__Str_FFIEntry_clone(Map__Str_FFIEntry * self);
 Map__Str_ExprPtrBox * Map__Str_ExprPtrBox_new(void);
@@ -2262,6 +2264,7 @@ USize Vec__FFITypePtrBox_len(Vec__FFITypePtrBox * self);
 void Vec__FFITypePtrBox_clear(Vec__FFITypePtrBox * self);
 void Vec__FFITypePtrBox_push(Vec__FFITypePtrBox * self, FFITypePtrBox * val);
 FFITypePtrBox * Vec__FFITypePtrBox_unsafe_get(Vec__FFITypePtrBox * self, USize * i);
+FFITypePtrBox * Vec__FFITypePtrBox_get(Vec__FFITypePtrBox * self, USize * i, I64 * _err_kind);
 void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
 Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self);
@@ -2321,6 +2324,7 @@ Vec__call_Vec_Str * Vec__call_Vec_Str_clone(Vec__call_Vec_Str * self);
 Vec__FFIEntry * Vec__FFIEntry_new(void);
 void Vec__FFIEntry_clear(Vec__FFIEntry * self);
 FFIEntry * Vec__FFIEntry_unsafe_get(Vec__FFIEntry * self, USize * i);
+void Vec__FFIEntry_remove_at(Vec__FFIEntry * self, USize i, I64 * _err_kind);
 void Vec__FFIEntry_unsafe_set(Vec__FFIEntry * self, USize i, FFIEntry * val);
 void Vec__FFIEntry_delete(Vec__FFIEntry * self, Bool call_free);
 Vec__FFIEntry * Vec__FFIEntry_clone(Vec__FFIEntry * self);
@@ -3633,6 +3637,8 @@ void Vec__DocEntry_delete(Vec__DocEntry * self, Bool call_free);
 void adopt__priv___src_self_builder_til__DynCallInfo(void * dest, priv___src_self_builder_til__DynCallInfo * src);
 void adopt__priv___src_self_builder_til__CollectionInfo(void * dest, priv___src_self_builder_til__CollectionInfo * src);
 void adopt__DocEntry(void * dest, DocEntry * src);
+void ffi_type_delete(ffi_type * self, Bool call_free);
+void ffi_cif_delete(ffi_cif * self, Bool call_free);
 Str * priv___src_self_interpreter_til__interp_error_path(Context * ctx);
 void priv___src_self_interpreter_til__interp_error(Expr * e, Str * msg, Context * ctx);
 void priv___src_self_interpreter_til__interp_lang_error(Expr * e, Str * msg, Context * ctx);
@@ -3782,7 +3788,6 @@ void * interp_intern_type(Type t, Context * ctx);
 void priv___src_self_interpreter_til__scope_drop_existing_heap_slot(Scope * s, Str * name, Bool drop_nested);
 void scope_set_heap_owned(Scope * s, Str * name, void * ptr, void * til_type_w, OwnType * own_type, Context * ctx, Bool is_local, Bool is_borrowed, Bool is_erased_dynamic);
 Scope * scope_new_owned(Option__ref_Scope parent);
-Scope * scope_new_boxed(Option__ref_Scope * parent);
 void scope_drop_owned_bindings(Scope * s);
 void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str * name, void * til_type_w, OwnType * own_type, Str * source_name, Scope * source_scope);
 void scope_free(Scope * s);
@@ -3790,6 +3795,7 @@ Scope * priv___src_self_interpreter_til__scope_root_ref(Scope * s);
 Scope * priv___src_self_interpreter_til__closure_env_clone(Scope * env);
 void priv___src_self_interpreter_til__capture_raw_binding(Scope * env, Scope * source, Declaration * cap, Context * ctx);
 void * priv___src_self_interpreter_til__make_interp_closure(Expr * func_def, Scope * scope, Context * ctx);
+Scope * priv___src_self_interpreter_til__callable_env(InterpCallableBox * b);
 Bool priv___src_self_interpreter_til__callable_box_is(void * ptr);
 void * priv___src_self_interpreter_til__callable_storage_clone(void * ptr);
 void priv___src_self_interpreter_til__callable_storage_free(void * ptr);
