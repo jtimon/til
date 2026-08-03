@@ -133,26 +133,35 @@ x_px := func(idx: I64, count: I64) returns I64 {
     return MARGIN_LEFT.add(idx.mul(CHART_W).div(count.sub(1)))
 }
 
+// The Row field a series name selects. build_points and series_has_data both
+// need this mapping and MUST agree on it: a series the has-data check reads
+// from a different field than the plot would either drop a populated series
+// or draw a flat line for an empty one. Unknown series answer 0, which
+// series_has_data reports as "no data" and so never reaches the plot.
+series_value := func(row: Row, series: Str) returns I64 {
+    switch series {
+    case "interp":    return row.interp_ms
+    case "compile":   return row.compile_ms
+    case "run":       return row.run_ms
+    case "wall":      return row.wall_ms
+    case "self":      return row.self_ms
+    case "mem-inte":  return row.mem_inte
+    case "mem-comp":  return row.mem_comp
+    case "mem-run":   return row.mem_run
+    case "mem-total": return row.mem_total
+    case "self-mem":  return row.self_mem
+    case:
+    }
+    return 0
+}
+
 // Build a polyline points string for one data series
 build_points := func(rows: Vec(Row), series: Str, y_max: I64) returns Str {
     mut pts := ""
     mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows[i]
-        mut val := 0
-        switch series {
-        case "interp":    val = row.interp_ms
-        case "compile":   val = row.compile_ms
-        case "run":       val = row.run_ms
-        case "wall":      val = row.wall_ms
-        case "self":      val = row.self_ms
-        case "mem-inte":  val = row.mem_inte
-        case "mem-comp":  val = row.mem_comp
-        case "mem-run":   val = row.mem_run
-        case "mem-total": val = row.mem_total
-        case "self-mem":  val = row.self_mem
-        case:
-        }
+        val := series_value(row, series)
         x := x_px(i.to_i64(), rows.len().to_i64())
         y := y_px(val, y_max)
         if i.gt(0) { pts = format(pts, " ") }
@@ -189,21 +198,7 @@ svg_polyline := func(points: Str, color: Str) returns Str {
 // Check if any row has nonzero data for a series
 series_has_data := func(rows: Vec(Row), series: Str) returns Bool {
     for row : Row in rows {
-        mut val := 0
-        switch series {
-        case "interp":    val = row.interp_ms
-        case "compile":   val = row.compile_ms
-        case "run":       val = row.run_ms
-        case "wall":      val = row.wall_ms
-        case "self":      val = row.self_ms
-        case "mem-inte":  val = row.mem_inte
-        case "mem-comp":  val = row.mem_comp
-        case "mem-run":   val = row.mem_run
-        case "mem-total": val = row.mem_total
-        case "self-mem":  val = row.self_mem
-        case:
-        }
-        if val.gt(0) { return true }
+        if series_value(row, series).gt(0) { return true }
     }
     return false
 }

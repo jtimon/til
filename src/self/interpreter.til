@@ -2864,7 +2864,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             fdef_func_type = fdef_ns.func_type
             direct_return_own_type = fdef_ns.return_own_type
             if fdef_ns.return_type.len() > 0 { direct_result_type = type_from_name_init(fdef_ns.return_type, ctx.scope) }
-            if fdef_func_type.is(FuncType.ExtFunc).or(fdef_func_type.is(FuncType.ExtProc)).or(fdef_func_type.is(FuncType.CoreFunc)).or(fdef_func_type.is(FuncType.CoreProc)).or(fdef_func_type.is(FuncType.CoreLazyFunc)) {
+            if fdef_func_type.is_bodyless() {
                 parent_sname := til_type_name(callee_expr.children[0].til_type())
                 ref tc : Dynamic = scope_get(scope, parent_sname)? catch (e: KeyNotFound) {
                     // REM: parent_sname is unbound for a primitive receiver

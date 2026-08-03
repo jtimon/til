@@ -106,6 +106,20 @@ namespace:
         case FuncType.CoreLazyFunc: return "CoreLazyFunc"
         }
     }
+    // A func type with no til body: the ext_* FFI boundary (the body lives
+    // in C) and the core_* intrinsics (every backend lowers them natively,
+    // so no symbol is emitted). Every pass that walks, types, or emits a
+    // body skips these, which is why the same five-variant test appeared
+    // at 22 call sites before this. Naming the set makes a new bodyless
+    // variant a one-line change here instead of 22 edits -- CoreLazyFunc
+    // was appended recently and had to be threaded through every one.
+    is_bodyless := func(self: FuncType) returns Bool {
+        switch self {
+        case FuncType.ExtFunc, FuncType.ExtProc,
+             FuncType.CoreFunc, FuncType.CoreProc, FuncType.CoreLazyFunc: return true
+        case: return false
+        }
+    }
 }
 
 /// Argument ownership mode: Own (takes ownership), Ref (borrow), Shallow (trivial copy).

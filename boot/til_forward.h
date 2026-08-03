@@ -1733,6 +1733,7 @@ void I64_delete(I64 * self, Bool call_free);
 Str * Bool_to_str(Bool b);
 void Bool_delete(Bool * self, Bool call_free);
 Str * FuncType_variant_name(FuncType * self);
+Bool FuncType_is_bodyless(FuncType * self);
 Bool Option__Expr_is_some(Option__Expr self);
 Bool Option__Expr_is_none(Option__Expr self);
 Expr * Option__Expr_take(Option__Expr * self);

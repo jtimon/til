@@ -3592,7 +3592,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             inner.set_func_def(tc_name, tc_nd.default_expr())
             ref mut tc_fb : TypeBinding = inner.get_binding(tc_name).unwrap()
             tc_fb.is_func_decl = true
-            if tc_fd.func_type.is(FuncType.ExtFunc).or(tc_fd.func_type.is(FuncType.ExtProc)).or(tc_fd.func_type.is(FuncType.CoreFunc)).or(tc_fd.func_type.is(FuncType.CoreProc)).or(tc_fd.func_type.is(FuncType.CoreLazyFunc)) {
+            if tc_fd.func_type.is_bodyless() {
                 tc_fb.is_builtin = true
             }
         case:
@@ -4082,13 +4082,13 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
                 // ownership leaks the synthesized Array. Keep the parser's
                 // Ref setting for ext bindings; force Own elsewhere.
                 // (Issue #109: ffi_run was 228B/9 from exactly this.)
-                is_ext_va := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
+                is_ext_va := fdef.func_type.is_bodyless()
                 if is_ext_va.not() { param.own_type = OwnType.Own }
                 va_type := variadic_array_type_name(scope, param.explicit_type)
                 func_scope.set(param.name, Type.Struct(va_type), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else if i.to_i32() == fdef.kwargs_index {
                 // Same rationale as variadic above.
-                is_ext_kw := fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc))
+                is_ext_kw := fdef.func_type.is_bodyless()
                 if is_ext_kw.not() { param.own_type = OwnType.Own }
                 func_scope.set(param.name, Type.Struct("KwargsMap"), false, ctx.path, expr.line, expr.col, true, param.own_type)
             } else {
@@ -5211,7 +5211,7 @@ priv infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr, ctx: Context)
         fb.is_func_decl = true
         fb.is_priv = sdecl.is_priv
         fb.orig_name = sdecl.orig_name.clone()
-        if fdef.func_type.is(FuncType.ExtFunc).or(fdef.func_type.is(FuncType.ExtProc)).or(fdef.func_type.is(FuncType.CoreFunc)).or(fdef.func_type.is(FuncType.CoreProc)).or(fdef.func_type.is(FuncType.CoreLazyFunc)) {
+        if fdef.func_type.is_bodyless() {
             fb.is_builtin = true
         }
         return true
