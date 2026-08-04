@@ -17,41 +17,372 @@
   by hand, and it is why REPL bugs keep being found by piping a
   heredoc instead of by using it.
 
-*** How rstil handled it
+*** Decision
 
-  rstil declared ~rlwrap~ an OPTIONAL dependency (README.org:
-  "rlwrap (Optional, for the repl)") and its ~make.til~ ~run_repl~ ran
+  Implement the editor in til. Keep only the irreducibly platform-specific
+  terminal operations in ~src/c/ext.c~. Do not vendor rlwrap, GNU Readline,
+  linenoise, or another line-editing library, and do not add a helper process.
 
-  : rlwrap ./bin/rstil repl
+  This keeps ~til repl~ self-contained, avoids adding a copyleft runtime
+  dependency, and makes the REPL own its prompt,
+  history, continuation-line, and mode-switch semantics instead of asking a
+  separate process to infer them from terminal output.
 
-  rlwrap is a separate binary that wraps a child process's stdin with
-  GNU readline. That shape is wrong for til twice over:
+*** Research: rlwrap is not the right vendor dependency
 
-  - it is something the USER has to install before the REPL is usable,
-    and til's rule is that nothing beyond til itself is needed to use
-    the language
-  - it is a wrapper PROCESS, not a library the REPL can call, so `til
-    repl` invoked directly (the normal way) still has no editing
+  Research was done against rlwrap 0.48, released 2025-11-13:
 
-  Licensing is not the blocker here: rlwrap is GPL-2.0 and readline is
-  GPL-3.0, both free software. The blocker is the dependency itself.
+  - [[https://github.com/hanslub42/rlwrap/releases/tag/v0.48][rlwrap 0.48 release]]
+  - [[https://github.com/hanslub42/rlwrap/blob/v0.48/README.md][upstream README]]
+  - [[https://github.com/hanslub42/rlwrap/blob/v0.48/INSTALL][upstream INSTALL]]
+  - [[https://github.com/hanslub42/rlwrap/blob/v0.48/src/Makefile.am][production source list]]
+  - [[https://github.com/hanslub42/rlwrap/blob/v0.48/src/main.c][GPL notice and process architecture]]
+  - [[https://www.gnu.org/software/readline/][GNU Readline licensing and platform notes]]
 
-*** Directions (not decided)
+  The result is decisive:
 
-  1. Implement the line editor in til: raw mode via termios in
-     ~src/c/ext.c~, ANSI escapes for cursor movement and redraw, an
-     in-memory history Vec plus a history file. No new vendored code,
-     but it is the most work, and it has to cope with a non-tty stdin
-     (the suite pipes into the REPL) by falling back to the current
-     ~fgetc~ path.
-  2. Vendor a small permissively-licensed C line editor next to
-     raylib / nng / tinyfiledialogs / libffi. linenoise (BSD-2-clause,
-     one ~.c~ + one ~.h~) is the usual choice and fits the existing
-     vendoring pattern exactly.
+  - rlwrap is free software, but it is copyleft: its source headers grant
+    GPL-2.0-or-later. It links GNU Readline, which is GPLv3. A distributed
+    rlwrap-plus-Readline binary is therefore under GPLv3-compatible terms.
+    That does not necessarily relicense til if rlwrap remains a genuinely
+    separate executable distributed beside it, but it would add a copyleft
+    component and its source-distribution obligations to the MIT-licensed
+    compiler binary.
+    Linking Readline into ~til~ itself would make the combined binary subject
+    to Readline's GPL terms.
 
-  Either way it must survive the non-interactive path: ~test/repl_help.til~
-  drives the REPL by piping a file into it, and ~bin/til < file~ must keep
-  behaving exactly as it does today.
+  - rlwrap is not a line-editor library. Its ~main~ forks a child under a
+    pseudo-terminal, watches both stdin and the PTY with ~select~, detects and
+    rewrites prompts, mirrors terminal settings, forwards signals, queues
+    child input, and eventually ~execvp~s the wrapped command. Making it
+    transparent would require ~til repl~ to locate and exec a second bundled
+    binary, pass a recursion sentinel, and arrange for ~til~ to run as that
+    binary's child. That is materially different from linking the static
+    archives already under ~vendor/~.
 
-  Windows is a live consideration for direction 2 -- linenoise is
-  POSIX-only upstream, and til builds a windows-x64 target.
+  - It is not small. The 0.48 production list has twelve C translation units
+    plus headers, about 334 KB of C/header source before generated configure
+    machinery. The hard editing work is still delegated to GNU Readline.
+
+  - It is not one self-contained dependency. Upstream requires GNU Readline
+    plus one of termcap, curses, ncurses, tinfo, or tinfow; libptytty is used
+    by default when available. To promise no user-installed dependency, til
+    would have to vendor and build the terminal library stack as well, or ship
+    a dynamically-linked helper that fails when those libraries are absent.
+
+  - Its portability does not match til's target matrix. Upstream targets
+    Unix-like systems, macOS, and Cygwin. Its core assumptions are
+    ~fork~/~exec~, PTYs, Unix signals, and ~select~. Til also emits a native
+    ~windows-x64~ compiler, where a transparent rlwrap helper would need a
+    separate port rather than an ordinary mingw cross-build.
+
+  Vendoring rlwrap would therefore add more code, more build inputs, a new
+  installed executable, a second process at every interactive launch, and
+  copyleft licensing, while still leaving native Windows unresolved. It does
+  not satisfy the intended "vendor it and make it disappear" shape.
+
+  Linenoise is permissive and much smaller, but upstream still describes
+  roughly 1,600 non-comment source lines and does not provide native Windows
+  support (it points Windows users to separate forks). It also does not supply
+  the Ctrl-R reverse search required here. Adapting and maintaining that C
+  implementation would duplicate editor policy outside til while the same
+  POSIX/Windows terminal glue would still be necessary. It is not a useful
+  middle ground for this issue.
+
+*** Current code path and constraints
+
+  The relevant path is deliberately narrow:
+
+  - ~src/til.til:repl_read_line~ prints the prompt in three fragments and
+    calls ~in_read_line~.
+  - ~src/c/ext.c:in_read_line~ flushes stdout and reads until newline/EOF with
+    ~fgetc~. It is portable and unbounded, and already distinguishes an empty
+    line from EOF through its Bool result.
+  - ~repl_read_block~ repeatedly calls that physical-line reader while token
+    bracket depth is positive. The first prompt and continuation prompt are
+    different.
+  - ~run_repl~ can tear down and restart a REPL session after a ~mode X~ line.
+    Editor/history state must survive that restart even though declarations do
+    not.
+  - ~test/repl_help.til~ redirects stdin and stdout and checks prompt-bearing
+    output. The non-TTY path must remain byte-for-byte compatible and must not
+    create or rewrite a history file.
+  - The editor runs while the REPL is waiting for a line; no other thread emits
+    asynchronous REPL output. There is no rlwrap-style PTY multiplexing problem
+    to solve inside til.
+
+*** Required user-visible behavior
+
+  Interactive mode is enabled only when stdin AND stdout are consoles/TTYs.
+  Redirect either side, or use a POSIX terminal with ~TERM=dumb~, and the code
+  uses today's ~in_read_line~ path with today's prompts and EOF behavior.
+  Failure to enter terminal mode after a real console was detected is an
+  explicit error, not a silent fallback that injects escape bytes into source.
+
+  The first implementation must provide:
+
+  - insertion at the cursor, Left/Right, Home/End, Backspace, and Delete
+  - Up/Down history navigation, preserving and restoring the unfinished draft
+    that was present before the first Up
+  - Ctrl-A/Ctrl-E, Ctrl-B/Ctrl-F, and Ctrl-P/Ctrl-N aliases
+  - Ctrl-U (delete to start), Ctrl-K (delete to end), and Ctrl-W (delete the
+    preceding ASCII-whitespace-delimited word)
+  - Ctrl-L to clear and redraw the current edit
+  - Ctrl-R incremental reverse history search; another Ctrl-R finds the next
+    older match, Backspace edits the query, Enter submits the match,
+    Right/Escape accepts it for further editing, and Ctrl-G cancels the search
+    and restores the pre-search line
+  - Ctrl-D as EOF only on an empty line; otherwise it deletes under the cursor
+  - current Ctrl-C/Ctrl-\ signal behavior, including terminal restoration;
+    this issue must not quietly turn a process-level interrupt into "clear the
+    line and continue"
+  - a bell for movement beyond an edge, a missing search match, or an unknown
+    escape sequence; unknown escape bytes must never enter the til source
+  - horizontal scrolling for an input wider than the terminal, so redraw never
+    relies on guessing how the terminal wrapped earlier rows
+
+  The editor is byte-oriented, matching til's ASCII source language. UTF-8
+  grapheme navigation, syntax-aware completion, filename completion, hints,
+  vi mode, configurable key maps, password masking, and a visual multi-row
+  editor are explicitly outside this issue. Tab remains an inserted source
+  whitespace byte; this issue does not invent completion policy.
+
+*** History contract
+
+  History is part of the REPL, not of the terminal bridge:
+
+  - Construct one editor/history state in ~run_repl~ and pass it through
+    ~run_repl_session~, ~repl_read_block~, and ~repl_read_line~. A ~mode X~
+    restart must not reload history or lose the current session's entries.
+
+  - Store accepted PHYSICAL lines, not reconstructed parser blocks. A recalled
+    continuation line can therefore be edited at the continuation prompt, and
+    the file format never needs to encode embedded newlines. Add a line when
+    Enter accepts it, before parsing/evaluation, so syntax errors and
+    ~exit(0)~ submissions are still remembered.
+
+  - Ignore empty lines and consecutive duplicates. Keep the newest 1,000
+    entries in memory and on disk. Up starts at newest; Down from the newest
+    entry restores the draft saved before history navigation. Editing a
+    recalled entry changes only the editable copy until it is submitted.
+
+  - Use one newline-terminated source line per record. Strip a single trailing
+    CR while loading a Windows-written file. No escaping or second
+    representation is needed because entries are physical lines and cannot
+    contain CR/LF.
+
+  - On POSIX, use ~$XDG_STATE_HOME/til/repl_history~ when
+    ~XDG_STATE_HOME~ is set, otherwise
+    ~$HOME/.local/state/til/repl_history~. On Windows use
+    ~%LOCALAPPDATA%/til/repl_history~, falling back to
+    ~%USERPROFILE%/.til/repl_history~. These are standard host state
+    locations, not new til configuration variables or flags.
+
+  - If no home/state location exists, print one warning and keep session-only
+    history. If a selected path exists but cannot be read or written, print the
+    concrete path and OS error and keep the in-memory history; never silently
+    pretend persistence succeeded.
+
+  - Persist after every accepted non-empty line, not only at normal REPL
+    shutdown: an entered ~exit(0)~, Ctrl-C, or crash must not discard the
+    session. Write a same-directory temporary file, restrict it to user-only
+    access on POSIX, flush it, and atomically replace the history file. The
+    policy and serialization stay in til; a tiny platform primitive performs
+    the permission-preserving atomic replacement. Concurrent REPLs retain the
+    conventional last-writer-wins behavior of a bounded readline history file;
+    cross-process history merging/locking is not part of this issue.
+
+*** Implementation plan
+
+**** A. Add the narrow platform bridge
+
+  Add private REPL terminal declarations in a til implementation module and
+  matching declarations/bodies in ~src/c/ext.h~ / ~src/c/ext.c~. Do not expose
+  terminal editing as a general stdlib API in this issue. The bridge should do
+  only what cannot be expressed portably in til:
+
+  - detect whether stdin and stdout are terminals
+  - begin/end one line-editing interval, saving and restoring every changed
+    input/output mode bit
+  - read one input event, with an optional short timeout after ESC
+  - report terminal columns for horizontal scrolling
+  - atomically replace the already-serialized history contents
+
+  Event values should have one documented internal representation: ordinary
+  input bytes are 0..255; EOF, timeout, resize, and native Windows special keys
+  use disjoint negative/internal codes. POSIX returns input bytes and lets til
+  decode ANSI sequences. Windows maps console key events for arrows,
+  Home/End, and Delete to the same internal key enum before returning; text and
+  control keys still return bytes.
+
+  POSIX details:
+
+  - use ~isatty~, ~tcgetattr~/~tcsetattr~, ~read~, ~poll~ or ~select~ for the
+    ESC timeout, and ~ioctl(TIOCGWINSZ)~ for columns
+  - disable canonical input and echo while editing, but retain ~ISIG~ so
+    Ctrl-C/Ctrl-\ keep their current meanings; disable software flow control
+    so control bytes reach the editor
+  - install temporary signal cleanup for SIGINT, SIGQUIT, SIGTERM, SIGHUP, and
+    SIGTSTP: restore the saved tty state, restore or chain the prior disposition,
+    and re-deliver the signal; after SIGCONT, re-enter edit mode and force a
+    redraw
+  - register an ~atexit~ restoration as a final normal-exit backstop, while
+    still ending terminal mode explicitly on every return path
+
+  Windows details:
+
+  - use ~GetConsoleMode~ to detect both handles and save their modes
+  - disable line input/echo only during editing, retain processed Ctrl-C
+    handling, read ~KEY_EVENT_RECORD~ values, and ignore key-up events
+  - enable virtual-terminal output for the small ANSI redraw vocabulary, then
+    restore the original output mode exactly
+  - use ~GetConsoleScreenBufferInfo~ for columns and a console control handler
+    to restore modes on process termination
+
+  Emscripten and non-console handles always report non-interactive and retain
+  ~in_read_line~. No readline, curses, terminfo, PTY, or new link flag is
+  introduced on any target.
+
+**** B. Implement the editor state machine in til
+
+  Put the editor in an internal til module (for example
+  ~src/self/repl_editor.til~) imported by ~src/til.til~. Keeping it separate
+  from the already large REPL evaluator makes the pure state transitions
+  directly testable; it is an internal compiler module, not a new public
+  stdlib surface.
+
+  Model at least:
+
+  - current line and byte cursor
+  - horizontal viewport start
+  - history entries, history cursor, and pre-navigation draft
+  - normal versus reverse-search mode
+  - search query, matching history index, matching line, and the line/cursor
+    saved before search
+  - an action result: keep editing, submit line, EOF, redraw, or bell
+
+  Keep key application independent of terminal I/O. A function that accepts
+  one normalized key and mutates this state can be exhaustively tested without
+  a real terminal. Buffer insertion/deletion and history/search transitions
+  belong there. The outer blocking loop owns event reads, ANSI decoding,
+  rendering, and final line ownership.
+
+  Decode these common POSIX forms in til:
+
+  - arrows: "ESC [ A/B/C/D" and "ESC O A/B/C/D"
+  - Home: "ESC [ H", "ESC O H", "ESC [ 1~", and "ESC [ 7~"
+  - End: "ESC [ F", "ESC O F", "ESC [ 4~", and "ESC [ 8~"
+  - Delete: "ESC [ 3~"
+
+  Use a short follow-up timeout only after ESC, so Escape itself remains a key
+  and a truncated/unknown sequence cannot block forever. Consume an entire
+  unknown CSI/SS3 sequence and bell once instead of leaking any of it into the
+  source buffer.
+
+**** C. Make rendering deterministic
+
+  Refactor ~repl_read_line~ to build one prompt string
+  (~til[MODE]> ~ or ~til[MODE]... ~) and hand it to the editor. The editor
+  prints the initial prompt itself, which gives redraw one authoritative prompt
+  width instead of reconstructing three earlier writes.
+
+  Render a single terminal row:
+
+  - query columns on redraw
+  - reserve the prompt's visible width and at least one input column; clip only
+    an abnormally over-wide prompt for display
+  - move the viewport until the cursor is visible
+  - emit carriage return + erase-line, prompt, and the visible input slice
+  - move left by the rendered bytes after the cursor
+
+  Reverse search temporarily renders a clear
+  ~(reverse-i-search)`QUERY': MATCH~ status/prompt using the same one-row
+  clipping machinery. Leaving search redraws the ordinary prompt and editable
+  line. Because til source and these prompts are ASCII, byte count equals
+  terminal column count for this issue's supported input.
+
+  Terminal mode begins immediately before the first interactive render/read
+  and ends before tokenization, parsing, evaluation, or any user code runs.
+  That prevents REPL programs from inheriting raw console settings.
+
+**** D. Integrate history and preserve the non-TTY path
+
+  At ~run_repl~ startup, detect interactivity. Only an interactive REPL resolves
+  and loads the history path. Pass the resulting editor by mutation through
+  every session and physical-line read.
+
+  In ~repl_read_line~:
+
+  - construct the same prompt text in both paths
+  - interactive: call the til editor and propagate its explicit line/EOF result
+  - non-interactive: print the prompt exactly as today and call the unchanged
+    ~in_read_line~
+
+  Keep ~repl_read_block~'s bracket-depth and EOF contract unchanged. Do not
+  combine physical lines in history, change when a block is considered open,
+  or make redirected input pass through editor state.
+
+**** E. Add regressions before calling it complete
+
+  Add pure editor tests that feed normalized events and assert both line and
+  cursor after every important transition:
+
+  - insertion in the middle; both edge movements; Home/End
+  - Backspace/Delete and all required Ctrl bindings
+  - first Up saves a draft; Up/Down bounds; Down restores that draft
+  - recalled history is copied, not mutated in place
+  - duplicate/empty history policy and 1,000-entry truncation
+  - reverse-search query growth/shrink, repeated Ctrl-R, accept, cancel, and no
+    match
+  - every supported ANSI spelling plus incomplete and unknown sequences
+  - horizontal viewport movement at narrow widths
+  - Ctrl-D on empty versus non-empty input
+
+  Add a Unix pseudo-terminal integration test (Linux and macOS/BSD ~script~
+  syntax are different, so select by ~host_os~) that drives the actual
+  ~bin/til repl~ with escape/control bytes and an isolated
+  ~XDG_STATE_HOME~. It must prove:
+
+  - Left/Home/End/Delete edit a line that evaluates to the expected value
+  - Up and Ctrl-R recall submitted lines
+  - a second process loads persisted history from the first
+  - Ctrl-D exits cleanly
+  - tty settings before and after normal EOF and SIGINT are identical
+  - no raw arrow bytes reach the parser
+
+  Keep and strengthen ~test/repl_help.til~ as the redirected-input regression:
+  point HOME/XDG state at ~tmp~, assert no history file is created, and retain
+  its existing output checks. Register the pure and PTY tests in the regular
+  CLI suite so this feature cannot regress behind a hand-run target again.
+
+  Native Windows console behavior needs a runner/manual smoke test for the
+  same key table and mode restoration; the regular cross-build must at least
+  compile every Windows branch under ~-Wall -Wextra -Werror~.
+
+**** F. Verification and delivery
+
+  This is ordinary runtime/source work, not an emit-side compiler change, so it
+  should fit in one implementation commit and needs no bootstrap preparation
+  ladder. Before that commit:
+
+  - run ~make clean && make test~
+  - run the focused PTY test visibly on Linux
+  - compile the native Windows target and both macOS targets
+  - verify the final executable has no readline/curses dependency and the diff
+    adds nothing under ~vendor/~ or the install layout
+
+*** Acceptance checklist
+
+  - [ ] ~til repl~ and bare ~til~ provide the editing/key behavior above on a
+        real POSIX terminal.
+  - [ ] Native Windows uses the same editor state/history and equivalent keys.
+  - [ ] History persists automatically at the documented per-user path with no
+        til-specific flag, environment variable, helper executable, or package
+        installation.
+  - [ ] Redirected stdin/stdout retains the existing prompt/output/EOF behavior
+        and performs no terminal escapes or history I/O.
+  - [ ] EOF, Ctrl-C, Ctrl-\, suspend/resume, and ordinary failures leave the
+        terminal exactly as it was found.
+  - [ ] The full suite includes pure state-machine and real-PTY regressions.
+  - [ ] No rlwrap/readline/linenoise source, binary, link flag, or license is
+        added.
