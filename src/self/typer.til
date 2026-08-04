@@ -3425,6 +3425,11 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                         if fd.default_expr().node_type.is_literal_null().not() {
                             narrow_dynamic(fd.default_expr(), fd.til_type)
                         }
+                        // The `__LOC__` sentinel above is deliberately left
+                        // uninferred, so it has no value type to compare.
+                        if fd.default_expr().node_type.is(NodeType.Loc).not() {
+                            check_declared_value_type(fd.default_expr(), tc_fname, fd.default_expr(), fd.til_type, fd.explicit_type, inner, ctx)
+                        }
                     }
                 }
             } else {
@@ -5333,6 +5338,31 @@ priv fcall_is_raw_alloc := func(e: Expr) returns Bool {
     }
 }
 
+// The declared-vs-value agreement check, shared by local declarations
+// and struct field defaults. Both spell the same rule -- an explicit
+// `: T` annotation must agree with the initialization value -- but only
+// the local path enforced it, so a field default reached the C compiler
+// unchecked: `Bar := struct { ref f : Foo = 0 }` typed clean and then
+// died as "assignment to 'Foo *' from incompatible pointer type" in
+// gen/til/*.c, and `s : Str = 0` / `n : I64 = "x"` typed clean too.
+// `at` is the node the diagnostic hangs off (the Decl stmt for a local,
+// the default expr for a field).
+priv check_declared_value_type := proc(at: Expr, name: Str, val: Expr, declared: Type, explicit_type: Str, scope: TypeScope, ctx: Context) {
+    if can_implicit_usize_coerce(val.til_type(), declared, explicit_type).not()
+        .and(val.til_type().is(declared).not())
+        // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
+        .and(funcptr_eq(val.til_type(), declared).not())
+        .and(val.til_type().is(Type.Dynamic).not())
+        .and(declared.is(Type.Dynamic).not()) {
+        at.type_error(format("'", name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.til_type())), ctx)
+    } else if is_aggregate(declared) {
+        val_sname := til_type_name(val.til_type())
+        if val_sname.len().gt(0).and(resolve_type_alias(scope, explicit_type).eq(val_sname).not()) {
+            at.type_error(format("'", name, "' declared as ", explicit_type, " but value is ", val_sname), ctx)
+        }
+    }
+}
+
 priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
     switch stmt.node_type {
     case NodeType.Decl(sdecl):
@@ -5409,19 +5439,9 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
                 }
             case:
             }
-        } else if can_implicit_usize_coerce(val.til_type(), declared, sdecl.explicit_type).not()
-        .and(val.til_type().is(declared).not())
-        // Issue #58 / #147 step 5: FuncPtr/FuncPtrSig wildcard family-eq.
-        .and(funcptr_eq(val.til_type(), declared).not())
-        .and(val.til_type().is(Type.Dynamic).not())
-    .and(declared.is(Type.Dynamic).not()) {
-        stmt.type_error(format("'", sdecl.name, "' declared as ", type_to_name(declared), " but value is ", type_to_name(val.til_type())), ctx)
-    } else if is_aggregate(declared) {
-        val_sname := til_type_name(val.til_type())
-        if val_sname.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val_sname).not()) {
-            stmt.type_error(format("'", sdecl.name, "' declared as ", sdecl.explicit_type, " but value is ", val_sname), ctx)
+        } else {
+            check_declared_value_type(stmt, sdecl.name, val, declared, sdecl.explicit_type, scope, ctx)
         }
-    }
     // Resolve type alias in declared til_type so that struct/enum names match
     // the canonical target (e.g. Point2 -> Point).
     if is_aggregate(declared) {

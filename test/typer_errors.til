@@ -1016,3 +1016,14 @@ mv_missing_required := mv_variadic_callee()
 // `format("<", ..a)` printed "<\xa0"" instead of "<ab". Rejected now.
 sp_arr := array(Str, "a", "b")
 sp_mixed := format("<", ..sp_arr)
+
+// A struct field's default has to agree with its explicit type, exactly
+// like a local declaration's. The check was missing on the field path, so
+// these typed clean and died in the C compiler instead ("assignment to
+// 'FieldDefCell *' from incompatible pointer type" for the ref case) or
+// silently built a nonsense value.
+FieldDefCell := struct { fdc_n := 0 }
+FieldDefStruct := struct { fdc : FieldDefCell = 0 }
+FieldDefRef := struct { ref fdc : FieldDefCell = 0 }
+FieldDefStr := struct { fds : Str = 0 }
+FieldDefNum := struct { fdn : I64 = "x" }

@@ -574,8 +574,8 @@ test_anon_enum_as_macro_arg := test() {
 
 make_pair := macro(T: Type) returns StructDef {
     return struct {
-        first: T = 0
-        second: T = 0
+        first: T
+        second: T
     }
 }
 PairI64 := make_pair(I64)
@@ -585,10 +585,15 @@ test_macro_struct_gen := test() {
     assert_eq(I64, p.first.add(p.second), 7)
 }
 
+// No `= 0` default: a macro cannot spell "the zero of T" for every T
+// (`value : Str = 0` is a type error now, the same as it always was for a
+// hand-written field), and an explicitly typed field needs no default --
+// it just becomes mandatory in the struct literal, which is how both
+// tests below already build these.
 make_kv := macro(K: Type, V: Type) returns StructDef {
     return struct {
-        key: K = 0
-        value: V = 0
+        key: K
+        value: V
     }
 }
 KVI64Str := make_kv(I64, Str)
