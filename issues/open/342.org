@@ -1,0 +1,105 @@
+# priority: medium
+# category: bugs
+** OPEN #342 Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
+
+A ~..~ splat passed alongside other arguments in the same variadic
+block is currently a type error:
+
+    arr := array(Str, "a", "b")
+    format("<", ..arr)
+    // error: a '..' splat must be the only argument in the variadic
+    // block for 'parts'; splat one array holding every element, or
+    // combine them in a nested call
+
+The intended meaning is obvious and used to hold when the internals
+were different: the splat expands the array's elements in place among
+the other variadic args, so ~format("<", ..arr)~ prints ~<ab~. The
+rejection is a stopgap, not the semantics we want. Before it landed,
+the call COMPILED and produced garbage -- the splatted Array's own
+header bytes read back as the element type, varying run to run:
+
+    format("<", ..arr)     -->  <\xa0""       (expected <ab)
+    format(..arr, ">")     -->  \xc0"">
+
+No error, no crash, wrong output, on both backends alike (the lowering
+runs in the shared desugar, so interpretation and compilation
+corrupted identically).
+
+*** Why the current internals cannot express it
+
+Three facts combine:
+
+- ~is_splat~ is ONE Bool on ~FCallData~, set by the parser
+  (~set_fcall_splat~) when ANY argument carries ~..~. WHICH argument
+  carried it is recorded nowhere.
+- The variadic lowering (~desugar_one_variadic_fcall~) wraps the
+  call's variadic block into a collector Array: ~Array.new(cap)~ with
+  a compile-time capacity, one throwing ~Array.set~ per element, then
+  the block is replaced by the collector
+  (~rewrite_variadic_fcall_args~). Every element is assumed to BE one
+  element.
+- The only splat-aware path, ~desugar_pure_splat_variadic_call~, can
+  recover which arg is the splat only when the block holds exactly one
+  argument (~vc == 1~): then "the splat" is unambiguous, and the
+  splatted array is passed through directly (clone-wrapped when it is
+  an Ident, so the caller's array is not moved out from under it).
+
+With a sibling inside the block, ~vc > 1~, the pure-splat path
+declines, the ordinary path wraps the splatted Array as a single
+ELEMENT of the collector, and the callee reads the Array header's
+bytes as its element type.
+
+Note the boundary is the variadic BLOCK, not the argument list --
+which is why the corpus never caught it. test/kwargs.til's
+~combo_sum("x", ..arr, bias = 100)~ always worked: ~"x"~ binds a fixed
+param and ~bias~ is kwargs, so ~..arr~ sits alone in its block and
+takes the pure-splat path. Only a sibling INSIDE the block broke, and
+no test had one.
+
+(In-repo git history is truncated, so the era where this worked is not
+reachable for archaeology; within the reachable history the ~vc == 1~
+limitation is present throughout.)
+
+*** What restoring it needs (solution to be decided)
+
+1. Record the splat's position. The natural shape is a ~splat_args~
+   bitmap on ~FCallData~ indexed like ~own_args~ / ~ref_args~;
+   ~is_splat~ could eventually become the derived ~splat_args != 0~.
+   FCallData's layout is committed-boot ABI, so the field is appended
+   at the end and the migration is staged per doc/self.org.
+
+2. Lower a block whose total length is not compile-time known. Today's
+   collector is ~Array.new(<literal cap>)~ + one ~set~ per element.
+   With a splat among the elements the capacity is
+   ~fixed_count + splatted.len()~, a runtime expression, and the
+   splatted elements need a copy loop instead of one ~set~. Candidate
+   shapes:
+   - teach ~build_variadic_array_decl~ a runtime capacity and emit a
+     per-splat element-copy loop next to the ~set~ calls; or
+   - have the desugar do what the current error message tells the user
+     to do by hand: build the combined array first (concat helper),
+     then feed the call the pure-splat form it already handles.
+
+3. Define ownership for the mixed form. The pure-splat path
+   clone-wraps an Ident splat because moving it would zero the
+   caller's array; an element-wise copy has the same question per
+   element (clone vs move-out for owned temporaries), and the
+   collector's elements are MOVED into it by ~Array.set~ -- see the
+   borrow-clone note in ~build_variadic_array_set~. Whatever lowering
+   is chosen must not double-free the source array or shred its
+   elements.
+
+4. Check the comptime path too: the constfolder folds all-comptime
+   variadic calls while they are still RAW (pre-lowering, via eval),
+   so mixed splats at compile time need the same defined semantics as
+   the lowered runtime form.
+
+*** Where the stopgap lives
+
+The rejection is in the typer's ~infer_and_validate_fcall_args_for_fdef~
+(it has ~fvc~ and ~is_splat~ in hand there). The regression fixture is
+~sp_mixed~ in test/typer_errors.til. When the feature is restored:
+remove the check, flip that fixture into a positive test of the mixed
+form, and ~mv_variadic_callee~'s body (same file) can return to the
+direct ~format(mv_head, ..mv_rest)~ it originally had before the
+rejection forced the nested workaround.

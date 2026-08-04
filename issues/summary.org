@@ -1,3 +1,6 @@
+* Bugs
+** Medium
+*** [[./open/342.org][#342]] Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation
