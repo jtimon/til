@@ -69,9 +69,15 @@
        Same diagnostic and same fix advice as the return case; `shallow` /
        `own` captures still store fine. Test:
        test/capture_global_escape_error.til.
-       Remaining: stores through paths this still does not see -- assigning
-       into a global's FIELD, into a container element, or handing the
-       closure to a callee that stores it.
+       A global's FIELD (`g.fn = <closure>`) is rejected the same way
+       (2026-08-03): the field outlives the call exactly as the global does,
+       and before the check the read returned garbage (ASAN:
+       stack-use-after-return). The FieldAssign arm resolves the lvalue chain's
+       root (closure_lvalue_root) and applies the same global test, so a LOCAL
+       holder stays legal -- it dies with the closure. Test:
+       test/capture_global_field_escape_error.til.
+       Remaining: stores through paths this still does not see -- into a
+       container element, or handing the closure to a callee that stores it.
    - [X] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
      Functions already had them; blocks rejected `own`/`shallow` at parse
      time and now accept the full modifier set, so every capture site

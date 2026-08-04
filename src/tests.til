@@ -996,6 +996,10 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_global_escape_error", "typer",
         "borrows captured local", 1,
         format(til_bin, " interpret test/capture_global_escape_error.til"))
+    // #54: and via a global's FIELD.
+    add_count(tests, "capture_global_field_escape_error", "typer",
+        "borrows captured local", 1,
+        format(til_bin, " interpret test/capture_global_field_escape_error.til"))
     add_count(tests, "capture_own_arg_escape_error", "typer",
         "own argument closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_own_arg_escape_error.til"))

@@ -1,0 +1,24 @@
+mode test
+
+// Negative test (issue #54): the global-escape rule reaches one level deeper.
+// Storing a closure that BORROWS a captured local into a GLOBAL's FIELD is the
+// same dangle as storing it in the global itself -- the field outlives the
+// call, so the captured stack slot dies on return (ASAN: stack-use-after-
+// return; the read returned garbage before this was rejected). A LOCAL holder
+// stays legal, since it dies with the closure.
+
+Thunk := func() returns I64
+zero := func() returns I64 { return 0 }
+Holder := struct { fn : Thunk = zero }
+
+mut g_h := Holder()
+
+set_field := func() {
+    local := 42
+    g_h.fn = func() returns I64 [local] { return local }
+}
+
+test_escape := test() {
+    set_field()
+    assert_eq(I64, g_h.fn(), 42)
+}

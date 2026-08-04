@@ -3831,6 +3831,19 @@ priv assign_target_is_global := func(name: Str, func_scope: TypeScope) returns B
     return root.bindings.has(name)
 }
 
+// #54: the root binding name of an lvalue chain (`g.a.b` -> `g`), or "" when
+// the chain does not root in a plain name. Used to decide whether a
+// FieldAssign target lives in a global.
+priv closure_lvalue_root := func(e: Expr) returns Str {
+    switch e.node_type {
+    case NodeType.Ident(rid): return Str.clone(rid.ident_name())
+    case NodeType.FieldAccess:
+        if e.children.len() > 0 { return closure_lvalue_root(e.children[0]) }
+    case:
+    }
+    return ""
+}
+
 priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, ctx: Context) {
     switch e.node_type {
     case NodeType.Return:
@@ -3854,6 +3867,24 @@ priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: Ty
                     e.type_error(format("closure stored in global '", gad.name,
                         "' borrows captured local '", gcap, "'; capture it as 'own ", gcap,
                         "' or 'shallow ", gcap, "' if the closure escapes"), ctx)
+                }
+            }
+        }
+    case NodeType.FieldAssign(gfad):
+        // #54: same escape one level deeper -- `g.fn = <closure>` where `g` is
+        // a global. The field outlives the call exactly as the global does, so
+        // a borrowed capture dangles on return (ASAN: stack-use-after-return,
+        // and the read returns garbage). Children are [receiver, rhs].
+        if e.children.len() > 1 {
+            froot := closure_lvalue_root(e.children[0])
+            if froot.len() > 0 {
+                if assign_target_is_global(froot, func_scope) {
+                    fcap := closure_borrowed_capture_name(e.children[1], func_scope)
+                    if fcap.len() > 0 {
+                        e.type_error(format("closure stored in global '", froot, ".", gfad.name,
+                            "' borrows captured local '", fcap, "'; capture it as 'own ", fcap,
+                            "' or 'shallow ", fcap, "' if the closure escapes"), ctx)
+                    }
                 }
             }
         }
