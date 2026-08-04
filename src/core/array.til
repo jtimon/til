@@ -57,22 +57,6 @@ namespace:
         self.unsafe_set(i, own val)
     }
 
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Array from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    to_str := func(self: Array(T)) returns Str {
-        mut out := "Array("
-        for i in 0..self.cap {
-            if i > 0 { out = out.format(", ") }
-            ref e : T = ptr_add(self.data, i.mul(T.size()))
-            elem_str := T.to_str(e)
-            out = out.format(elem_str)
-        }
-        return out.format(")")
-    }
-
     delete := func(own self: Array(T), call_free: Bool = true) {
         for i in 0..self.cap {
             T.delete(own ptr_add(self.data, i.mul(T.size())), false)

@@ -127,22 +127,6 @@ namespace:
         return false
     }
 
-    /// Members in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Set from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    to_str := func(self: Set(T)) returns Str {
-        mut out := "Set("
-        for i in 0..self.count {
-            if i > 0 { out = out.format(", ") }
-            ref e : T = ptr_add(self.data, i.mul(T.size()))
-            elem_str := T.to_str(e)
-            out = out.format(elem_str)
-        }
-        return out.format(")")
-    }
-
     delete := func(own self: Set(T), call_free: Bool = true) {
         self.clear()
         free(own self.data)

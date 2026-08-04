@@ -72,18 +72,6 @@ namespace:
         return self.type_sizes[i]
     }
 
-    /// The element TYPES, not their values: the values live in an untyped
-    /// `own data` buffer that only type_names can interpret. Hand-written
-    /// because that own field disqualifies Tuple from the generated to_str.
-    to_str := func(self: Tuple) returns Str {
-        mut out := "Tuple("
-        for i in 0..self.type_names.len() {
-            if i > 0 { out = out.format(", ") }
-            out = out.format(self.type_names.unsafe_get(i))
-        }
-        return out.format(")")
-    }
-
     delete := func(own self: Tuple, call_free: Bool = true) {
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
