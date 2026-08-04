@@ -113,31 +113,36 @@ namespace:
         other.count = 0
     }
 
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
+    /// Replace self's contents with other's by taking over its BUFFER.
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other`
+    /// emits, and copies nothing: self drops its own elements, frees its
+    /// storage, and adopts other's pointer.
+    /// Takes `mut`, not `own`: several callers hand over a struct FIELD
+    /// (`old.move_from(body.children)`), whose storage the callee must
+    /// never free -- with `own` the callee's cleanup calls
+    /// `free(&expr->children)` and the process dies on "free(): invalid
+    /// pointer". The caller keeps the shell; it is left lazy-empty, so
+    /// its own delete is a no-op and a later push allocates afresh.
+    ///
+    /// The elements move by pointer, so a `ref` into SELF's old storage
+    /// does not survive the call -- it did not survive the old
+    /// memcpy-with-realloc version either, whose first act was equally
+    /// to delete every element self held.
     move_from := func(mut self: Vec(T), mut other: Vec(T)) {
         for i in 0..self.count {
             T.delete(own ptr_add(self.data, i.mul(T.size())), false)
         }
-        needed := other.count
-        if needed > self.cap {
-            mut new_cap := self.cap
-            if new_cap == 0 { new_cap = 1 }
-            while needed > new_cap {
-                new_cap = new_cap * 2
-            }
-            self.data = realloc(own self.data, new_cap.mul(T.size()))
-            self.cap = new_cap
-        }
-        if needed > 0 {
-            memcpy(self.data, other.data, needed.mul(T.size()))
-        }
-        self.count = needed
-        other.count = 0
+        free(own self.data)
+        // The HEADER moves, not the elements. Field-by-field assignment
+        // cannot express this: `self.data = other.data` drops self's old
+        // pointer (right) and then `other.data = 0` drops the pointer
+        // self just adopted (a double free), and with `other` owned the
+        // callee's own cleanup would free it a third time. Copying the
+        // three fields as bytes and blanking the source hands the buffer
+        // over exactly once; the emptied shell then deletes as a
+        // lazy-empty Vec.
+        memcpy(self, other, Vec(T).size())
+        memset(other, 0, Vec(T).size())
     }
 
     /// Unchecked element access: return a reference to the element at
