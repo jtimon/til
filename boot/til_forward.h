@@ -970,6 +970,7 @@ typedef struct priv___src_self_garbager_til__BodyFacts {
     Vec__U64 escapes;
     Vec__Str def_names;
     Vec__I64 def_bits;
+    Vec__Bool directives;
 } priv___src_self_garbager_til__BodyFacts;
 
 
@@ -2067,6 +2068,8 @@ Option__ref_Expr TypeScope_struct_def_of(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_struct_def_of_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_lookup_func(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_lookup_func_fp(TypeScope * self, Str * name, U64 * fp);
+Option__ref_Expr TypeScope_local_struct_def_fp(TypeScope * self, Str * name, U64 * fp);
+Option__ref_Expr TypeScope_local_func_def_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_lookup_func_symbol(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_lookup_func_symbol_fp(TypeScope * self, Str * name, U64 * fp);
 void TypeScope_set_func_def(TypeScope * self, Str * name, Expr * fdef);
@@ -2982,7 +2985,7 @@ void priv___src_self_garbager_til__promote_own_transferred_locals(Context * ctx,
 Bool priv___src_self_garbager_til__stmt_is_conditional_container(Expr * stmt);
 Bool priv___src_self_garbager_til__add_delete_to_branch(Expr * branch, priv___src_self_garbager_til__LocalInfo * local, Expr * src, TypeScope * scope, Context * ctx);
 Bool priv___src_self_garbager_til__sink_nontransfer_paths(Expr * node, priv___src_self_garbager_til__LocalInfo * local, TypeScope * scope, Context * ctx);
-void priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
+Bool priv___src_self_garbager_til__sink_conditional_transfer_deletes(Expr * body, Vec__LocalInfo * locals, TypeScope * scope, Context * ctx);
 void priv___src_self_garbager_til__record_storage_decisions(Expr * body, Vec__LocalInfo * locals);
 void priv___src_self_garbager_til__record_field_transfer_decisions(Expr * body, TypeScope * scope);
 void priv___src_self_garbager_til__record_keep_outer_args_expr(Expr * e, Set__Str * false_names);

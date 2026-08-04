@@ -316,6 +316,18 @@ namespace:
         case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
+    // The struct-def / func-def of a name the caller KNOWS this scope
+    // binds -- it is iterating self.bindings. struct_def_of and
+    // lookup_func both start by probing bindings to find the owning
+    // scope; when the answer is "this one" by construction, that probe
+    // (a search of the biggest map in the scope) is dead weight, and so
+    // is recomputing the fingerprint for the second question.
+    local_struct_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
+        return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
+    }
+    local_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Option(ref Expr) {
+        return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
+    }
     lookup_func_symbol := func(self: TypeScope, name: Str) returns Option(ref Expr) {
         return self.lookup_func_symbol_fp(name, name_fingerprint(name))
     }

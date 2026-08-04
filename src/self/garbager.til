@@ -1273,6 +1273,11 @@ priv BodyFacts := struct {
     // rhs_depends_on_var hands names to expr_uses_var.
     def_names := Vec(Str).new()
     def_bits := Vec(I64).new()
+    // is_compile_directive per statement. That is a property of the
+    // STATEMENT, not of the binding being asked about, but the scans
+    // below run per (binding, statement) and re-derived it every time:
+    // a callee-name string compare per binding for the same answer.
+    directives := Vec(Bool).new()
 }
 
 // The probe universe for one body: every name a fact consumer below can
@@ -1362,6 +1367,7 @@ priv body_stmt_facts := func(body: Expr, scope: TypeScope, with_transfers: Bool,
             case:
             }
         }
+        bf.directives.push(own is_compile_directive(stmt))
         if dname.len() > 0 {
             bf.def_bits.push(own fact_bit_req(fi, dname).to_i64())
             bf.def_names.push(own dname)
@@ -1386,8 +1392,13 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         // main itself; skip the usual is_param filter so they get a
         // scope-end delete.
         if b.is_param.and(b.own_type.is(OwnType.Own).not()) { continue }
-        if scope.struct_def_of(b.name).is_some() { continue }
-        if scope.lookup_func(b.name).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
+        // These two ask whether THIS scope registers the name as a type
+        // or a function; the binding came out of this scope's own map,
+        // so the local probes answer exactly what struct_def_of /
+        // lookup_func would, without their binding probe.
+        bfp := name_fingerprint(b.name)
+        if scope.local_struct_def_fp(b.name, bfp).is_some() { continue }
+        if scope.local_func_def_fp(b.name, bfp).is_some().and(b.type.is_funcptr().not()).and(b.type.is(Type.Body).not()) { continue }
 
         // One name->bit resolution per binding; every per-statement
         // question below is then a bit test.
@@ -1421,8 +1432,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
             scan_from = decl_idx.add(1).to_usize()
         }
         for j in scan_from..body.children.len() {
-            ref stmt : Expr = body.children[j]
-            if is_compile_directive(stmt) { continue }
+            if facts.directives.unsafe_get(j) { continue }
             fbase := j.mul(facts.words)
             if fact_bit_test(facts.uses, fbase, bbit) {
                 last_use = j.to_i32()
@@ -1456,7 +1466,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         mut skip_scope_delete := is_program_scope.and(decl_idx.lt(0).or(b.name.starts_with("hoisted__").not()))
         if skip_scope_delete.not() {
             for j in scan_from..body.children.len() {
-                if is_compile_directive(body.children[j]) { continue }
+                if facts.directives.unsafe_get(j) { continue }
                 fbase := j.mul(facts.words)
                 // A closure body use, or a write_ptr that stored this
                 // binding's pointer into raw memory: in both cases it stays
@@ -1848,7 +1858,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, locals: Vec(LocalInfo), fac
         if tainted.len() == 0 { continue }
         mut view_last : I32 = -1
         for j in 0..body.children.len() {
-            if is_compile_directive(body.children[j]) { continue }
+            if facts.directives.unsafe_get(j) { continue }
             // Any tainted binding used here? One row intersection
             // replaces the per-tainted-name probes.
             if fact_row_intersects(facts.uses, j.mul(facts.words), tmask, facts.words) { view_last = j.to_i32() }
@@ -2683,7 +2693,13 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
 // Str is handled like any other owned local here: Str.delete knows whether its
 // buffer is owned, literal, or a view. The sink must be path-sensitive instead
 // of type-sensitive.
-priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) {
+// Returns true iff a graft happened, i.e. iff the body was
+// restructured. Facts taken before this pass are positional, so the
+// caller must recompute them when (and only when) that is the case --
+// and it almost never is: 22 grafts per 8,154 fact computations on a
+// test/first_class.til translate.
+priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, ctx: Context) returns Bool {
+    mut grafted := false
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         if local.decl_index.lt(0).and(local.dtor_transfer) { continue }
@@ -2709,6 +2725,7 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
         ref tstmt : Expr = body.children[local.own_transfer.to_usize()]
         if tstmt.node_type.is(NodeType.If).or(tstmt.node_type.is(NodeType.Switch)) {
             sink_nontransfer_paths(tstmt, local, scope, ctx)
+            grafted = true
             continue
         }
         // #302 stage 3: a Body at own_transfer is EITHER the
@@ -2735,9 +2752,11 @@ priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(Local
             // gate above; only the loop-iteration hazard remains.
             if transfer_lex_inside_while(tstmt, local.name, scope, ctx).not() {
                 sink_nontransfer_paths(tstmt, local, scope, ctx)
+                grafted = true
             }
         }
     }
+    return grafted
 }
 
 // #302 stage 1: stamp the settled storage decision on each Decl's
@@ -2960,17 +2979,20 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // reads that row, and it is the only part that consults scope), so
     // computing it once here serves all of them.
     //
-    // The name->bit index is shared by both fact computations and every
-    // consumer: sink below moves deletes (FCall statements) around but
-    // adds no bindings and no top-level Assign targets, so the universe
-    // built from the pre-restructure body stays exact.
+    // The name->bit index is shared by every consumer: sink below moves
+    // deletes (FCall statements) around but adds no bindings and no
+    // top-level Assign targets, so the universe built from the
+    // pre-restructure body stays exact.
     //
-    // The recompute after sink_conditional_transfer_deletes is not
-    // optional: fact rows are positional, and sink can grow branch
-    // bodies, so facts taken before it would index the wrong statements.
+    // ONE computation for the whole pass. Fact rows are positional, so
+    // they must be rebuilt if sink_conditional_transfer_deletes grows a
+    // branch body -- and only then, which is why sink reports it: the
+    // graft fires 22 times per 8,154 fact computations, so the
+    // unconditional rebuild this replaced was pure waste in essentially
+    // every body (~9% of a translate went into building facts).
     fidx := fact_universe(body, scope)
-    pre_facts := body_stmt_facts(body, scope, true, fidx)
-    collect_scope_locals(ctx, body, scope, is_program_scope, pre_facts, fidx, locals_vec)
+    mut facts := body_stmt_facts(body, scope, true, fidx)
+    collect_scope_locals(ctx, body, scope, is_program_scope, facts, fidx, locals_vec)
     // Before the zero-locals early return: outer-target assigns need
     // their save_old_delete decision even in bodies that own no locals,
     // and the stage-5 temp contract applies to every body.
@@ -2980,19 +3002,19 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     temp_check_body(ctx, body, scope)
     if locals_vec.len() == 0 { return false }
 
-    extend_ref_local_lifetimes(body, locals_vec, scope, pre_facts, fidx)
+    extend_ref_local_lifetimes(body, locals_vec, scope, facts, fidx)
     check_use_after_own_transfer(body, locals_vec, scope, ctx)
     promote_own_transferred_locals(ctx, body, locals_vec)
     record_storage_decisions(body, locals_vec)
-    sink_conditional_transfer_deletes(body, locals_vec, scope, ctx)
+    if sink_conditional_transfer_deletes(body, locals_vec, scope, ctx) {
+        // Only when sink actually grafted: the rows are positional and
+        // the grafted deletes shift the statements they landed among.
+        facts = body_stmt_facts(body, scope, false, fidx)
+    }
     // After the own-transfer check (so an over-eager taint can't spuriously
     // flag use-after-transfer): defer a local's auto-delete past any later
     // statement that reads a hoisted view aliasing its buffer. See #250.
-    // Recomputed: sink above may have restructured the body, and facts
-    // are positional. Shared with the taint walk below, which needs the
-    // same post-sink view.
-    post_facts := body_stmt_facts(body, scope, false, fidx)
-    extend_hoist_view_lifetimes(body, locals_vec, post_facts, fidx)
+    extend_hoist_view_lifetimes(body, locals_vec, facts, fidx)
 
     // #302 stage 0: decision audit. The analysis above has settled every
     // per-binding decision; the dump itself runs after the insertion loop
@@ -3039,7 +3061,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // BodyFacts' def_names/def_bits close that gap: one walk, one
     // implementation, and it keeps answering after the move_from below
     // empties body.children.
-    ref taint_facts : BodyFacts = post_facts
+    ref taint_facts : BodyFacts = facts
 
     mut old := Vec(Expr).new()
     old.move_from(body.children)
