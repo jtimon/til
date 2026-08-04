@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * builtin_primitive_from_name
@@ -50,6 +50,16 @@ func til_type_from_explicit_type(name: Str) returns Type
 
 #+begin_src til
 func decl_typed(explicit_type: Str, name: Str, doc: Str, shallow is_mut: Bool, shallow redundant_mut: Bool, shallow is_priv: Bool, shallow used: Bool, own_type: OwnType) returns Declaration
+#+end_src
+
+* take_expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.take_expr
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func take_expr(mut e: Expr) returns Expr
 #+end_src
 
 * parse
@@ -239,6 +249,12 @@ namespace:
     /// this is its removal half). Later elements shift left to keep the
     /// storage sorted and dense.
     func remove(mut self: Set__Str, val: Str) returns shallow Bool
+    /// Members in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Set from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Set__Str) returns Str
     func delete(own self: Set__Str, shallow call_free: Bool)
     func clone(self: Set__Str) returns Set__Str
     func size() returns shallow USize
@@ -276,6 +292,12 @@ namespace:
     func set(mut self: Map__Str_Str, key: Str, own val: Str)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Str, key: Str) returns shallow Bool
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    func to_str(self: Map__Str_Str) returns Str
     func delete(own self: Map__Str_Str, shallow call_free: Bool)
     func clone(self: Map__Str_Str) returns Map__Str_Str
     func hash(self: Map__Str_Str, hasher: HashFn) returns shallow U64
@@ -370,90 +392,24 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Bool, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Bool) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Bool) returns Vec__Bool
     func size() returns shallow USize
 }
 #+end_src
 
-* Option__ref_StructDef
+* adopt__Bool
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.parser.Option__ref_StructDef
+:CUSTOM_ID: til.src.self.parser.adopt__Bool
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-enum Option__ref_StructDef {
-    None
-    Some: StructDef
-namespace:
-    func is_some(shallow self: Option__ref_StructDef) returns shallow Bool
-    func is_none(shallow self: Option__ref_StructDef) returns shallow Bool
-    func unwrap_or(self: Option__ref_StructDef, default_v: StructDef) returns ref StructDef
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
-    func unwrap(self: Option__ref_StructDef) returns ref StructDef
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
-    func take(own self: Option__ref_StructDef) returns ref StructDef
-    ext_func None() returns shallow Option__ref_StructDef
-    ext_func Some(val: StructDef) returns shallow Option__ref_StructDef
-    core_func is(self: Option__ref_StructDef, other: Option__ref_StructDef) returns shallow Bool
-    func eq(shallow self: Option__ref_StructDef, shallow other: Option__ref_StructDef) returns shallow Bool
-    func delete(own self: Option__ref_StructDef, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_StructDef) returns Str
-    func clone(self: Option__ref_StructDef) returns shallow Option__ref_StructDef
-    func size() returns shallow USize
-}
-#+end_src
-
-* Option__ref_EnumDef
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.parser.Option__ref_EnumDef
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-enum Option__ref_EnumDef {
-    None
-    Some: EnumDef
-namespace:
-    func is_some(shallow self: Option__ref_EnumDef) returns shallow Bool
-    func is_none(shallow self: Option__ref_EnumDef) returns shallow Bool
-    func unwrap_or(self: Option__ref_EnumDef, default_v: EnumDef) returns ref EnumDef
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
-    func unwrap(self: Option__ref_EnumDef) returns ref EnumDef
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
-    func take(own self: Option__ref_EnumDef) returns ref EnumDef
-    ext_func None() returns shallow Option__ref_EnumDef
-    ext_func Some(val: EnumDef) returns shallow Option__ref_EnumDef
-    core_func is(self: Option__ref_EnumDef, other: Option__ref_EnumDef) returns shallow Bool
-    func eq(shallow self: Option__ref_EnumDef, shallow other: Option__ref_EnumDef) returns shallow Bool
-    func delete(own self: Option__ref_EnumDef, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_EnumDef) returns Str
-    func clone(self: Option__ref_EnumDef) returns shallow Option__ref_EnumDef
-    func size() returns shallow USize
-}
+func adopt__Bool(dest: Dynamic, own src: Bool)
 #+end_src

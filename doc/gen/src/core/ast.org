@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * Primitive
@@ -23,6 +23,7 @@ enum Primitive {
     I64
     F32
     Bool
+    F64
 namespace:
     I16
     U16
@@ -34,12 +35,19 @@ namespace:
     I64
     F32
     Bool
+    F64
     core_func is(self: Primitive, other: Primitive) returns shallow Bool
     func eq(self: Primitive, other: Primitive) returns shallow Bool
     func delete(own self: Primitive, shallow call_free: Bool)
+    func cmp(a: Primitive, b: Primitive) returns shallow I64
     func to_str(self: Primitive) returns Str
     func clone(self: Primitive) returns Primitive
     func size() returns shallow USize
+    func lt(a: Primitive, b: Primitive) returns shallow Bool
+    func gt(a: Primitive, b: Primitive) returns shallow Bool
+    func neq(a: Primitive, b: Primitive) returns shallow Bool
+    func lte(a: Primitive, b: Primitive) returns shallow Bool
+    func gte(a: Primitive, b: Primitive) returns shallow Bool
 }
 #+end_src
 
@@ -84,9 +92,15 @@ namespace:
     core_func is(self: Type, other: Type) returns shallow Bool
     func eq(self: Type, other: Type) returns shallow Bool
     func delete(own self: Type, shallow call_free: Bool)
+    func cmp(a: Type, b: Type) returns shallow I64
     func to_str(self: Type) returns Str
     func clone(self: Type) returns Type
     func size() returns shallow USize
+    func lt(a: Type, b: Type) returns shallow Bool
+    func gt(a: Type, b: Type) returns shallow Bool
+    func neq(a: Type, b: Type) returns shallow Bool
+    func lte(a: Type, b: Type) returns shallow Bool
+    func gte(a: Type, b: Type) returns shallow Bool
 }
 #+end_src
 
@@ -113,6 +127,7 @@ enum FuncType {
     CoreLazyFunc
 namespace:
     func variant_name(self: FuncType) returns Str
+    func is_bodyless(self: FuncType) returns shallow Bool
     Func
     Proc
     Test
@@ -127,9 +142,15 @@ namespace:
     core_func is(self: FuncType, other: FuncType) returns shallow Bool
     func eq(self: FuncType, other: FuncType) returns shallow Bool
     func delete(own self: FuncType, shallow call_free: Bool)
+    func cmp(a: FuncType, b: FuncType) returns shallow I64
     func to_str(self: FuncType) returns Str
     func clone(self: FuncType) returns FuncType
     func size() returns shallow USize
+    func lt(a: FuncType, b: FuncType) returns shallow Bool
+    func gt(a: FuncType, b: FuncType) returns shallow Bool
+    func neq(a: FuncType, b: FuncType) returns shallow Bool
+    func lte(a: FuncType, b: FuncType) returns shallow Bool
+    func gte(a: FuncType, b: FuncType) returns shallow Bool
 }
 #+end_src
 
@@ -153,9 +174,15 @@ namespace:
     core_func is(self: OwnType, other: OwnType) returns shallow Bool
     func eq(self: OwnType, other: OwnType) returns shallow Bool
     func delete(own self: OwnType, shallow call_free: Bool)
+    func cmp(a: OwnType, b: OwnType) returns shallow I64
     func to_str(self: OwnType) returns Str
     func clone(self: OwnType) returns OwnType
     func size() returns shallow USize
+    func lt(a: OwnType, b: OwnType) returns shallow Bool
+    func gt(a: OwnType, b: OwnType) returns shallow Bool
+    func neq(a: OwnType, b: OwnType) returns shallow Bool
+    func lte(a: OwnType, b: OwnType) returns shallow Bool
+    func gte(a: OwnType, b: OwnType) returns shallow Bool
 }
 #+end_src
 
@@ -177,8 +204,55 @@ namespace:
     core_func is(self: GcStorage, other: GcStorage) returns shallow Bool
     func eq(self: GcStorage, other: GcStorage) returns shallow Bool
     func delete(own self: GcStorage, shallow call_free: Bool)
+    func cmp(a: GcStorage, b: GcStorage) returns shallow I64
     func to_str(self: GcStorage) returns Str
     func clone(self: GcStorage) returns GcStorage
+    func size() returns shallow USize
+    func lt(a: GcStorage, b: GcStorage) returns shallow Bool
+    func gt(a: GcStorage, b: GcStorage) returns shallow Bool
+    func neq(a: GcStorage, b: GcStorage) returns shallow Bool
+    func lte(a: GcStorage, b: GcStorage) returns shallow Bool
+    func gte(a: GcStorage, b: GcStorage) returns shallow Bool
+}
+#+end_src
+
+* Option__Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.Option__Expr
+:group: Core
+:END:
+
+#+begin_src til
+enum Option__Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__Expr) returns shallow Bool
+    func is_none(shallow self: Option__Expr) returns shallow Bool
+    func unwrap_or(shallow self: Option__Expr, default_v: Expr) returns Expr
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(shallow self: Option__Expr) returns Expr
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__Expr) returns Expr
+    ext_func None() returns shallow Option__Expr
+    ext_func Some(own val: Expr) returns shallow Option__Expr
+    core_func is(self: Option__Expr, other: Option__Expr) returns shallow Bool
+    func eq(shallow self: Option__Expr, shallow other: Option__Expr) returns shallow Bool
+    func delete(own self: Option__Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__Expr) returns Str
+    func clone(shallow self: Option__Expr) returns shallow Option__Expr
     func size() returns shallow USize
 }
 #+end_src
@@ -202,14 +276,20 @@ struct Declaration {
     mut used : Bool
     mut own_type : OwnType
     mut til_type : Type
-    own mut default_value : Expr
+    mut default_value : Option__Expr
     mut orig_name : Str
     mut gc_storage : GcStorage
 namespace:
     func eq(a: Declaration, b: Declaration) returns shallow Bool
     func to_str(self: Declaration) returns Str
+    /// The default-value expression, borrowed. PANICS on None: callers
+    /// either sit under an is_some() guard or know absence is impossible
+    /// for their decl kind (e.g. an initer-built member whose default IS
+    /// the definition). Prefer a switch when the None arm does real work.
+    func default_expr(self: Declaration) returns ref Expr
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, shallow call_free: Bool)
+    func hash(self: Declaration, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 #+end_src
@@ -470,13 +550,20 @@ struct VariantDef {
     mut payload_const : Bool
     mut tag_value : I64
     mut payload_ref : Bool
+    mut payload_funcsig : Bool
 namespace:
     func eq(a: VariantDef, b: VariantDef) returns shallow Bool
     func to_str(self: VariantDef) returns Str
     func clone(self: VariantDef) returns VariantDef
     func delete(own self: VariantDef, shallow call_free: Bool)
     func hash(self: VariantDef, hasher: HashFn) returns shallow U64
+    func cmp(a: VariantDef, b: VariantDef) returns shallow I64
     func size() returns shallow USize
+    func lt(a: VariantDef, b: VariantDef) returns shallow Bool
+    func gt(a: VariantDef, b: VariantDef) returns shallow Bool
+    func neq(a: VariantDef, b: VariantDef) returns shallow Bool
+    func lte(a: VariantDef, b: VariantDef) returns shallow Bool
+    func gte(a: VariantDef, b: VariantDef) returns shallow Bool
 }
 #+end_src
 
@@ -584,7 +671,13 @@ namespace:
     func clone(self: AssignData) returns AssignData
     func delete(own self: AssignData, shallow call_free: Bool)
     func hash(self: AssignData, hasher: HashFn) returns shallow U64
+    func cmp(a: AssignData, b: AssignData) returns shallow I64
     func size() returns shallow USize
+    func lt(a: AssignData, b: AssignData) returns shallow Bool
+    func gt(a: AssignData, b: AssignData) returns shallow Bool
+    func neq(a: AssignData, b: AssignData) returns shallow Bool
+    func lte(a: AssignData, b: AssignData) returns shallow Bool
+    func gte(a: AssignData, b: AssignData) returns shallow Bool
 }
 #+end_src
 
@@ -606,7 +699,13 @@ namespace:
     func clone(self: FieldAssignData) returns FieldAssignData
     func delete(own self: FieldAssignData, shallow call_free: Bool)
     func hash(self: FieldAssignData, hasher: HashFn) returns shallow U64
+    func cmp(a: FieldAssignData, b: FieldAssignData) returns shallow I64
     func size() returns shallow USize
+    func lt(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
+    func gt(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
+    func neq(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
+    func lte(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
+    func gte(a: FieldAssignData, b: FieldAssignData) returns shallow Bool
 }
 #+end_src
 
@@ -691,6 +790,38 @@ namespace:
     func delete(own self: MatchData, shallow call_free: Bool)
     func hash(self: MatchData, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
+}
+#+end_src
+
+* CaseData
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.CaseData
+:group: Core
+:END:
+
+Payload for NodeType.Case (issue #334): how many patterns precede the
+guard/body children. Child layout: [pattern x N, guard?, body]. The body
+is always the LAST child; pattern_count == 0 is the default `case:` arm
+([body] alone); a guard exists iff children.len() > pattern_count + 1.
+Only pattern_count is stored -- everything else derives from it and the
+child count, so there is no second copy of the shape to drift.
+
+#+begin_src til
+struct CaseData {
+    mut pattern_count : USize
+namespace:
+    func eq(a: CaseData, b: CaseData) returns shallow Bool
+    func to_str(_self: CaseData) returns Str
+    func clone(self: CaseData) returns CaseData
+    func delete(own self: CaseData, shallow call_free: Bool)
+    func hash(self: CaseData, hasher: HashFn) returns shallow U64
+    func cmp(a: CaseData, b: CaseData) returns shallow I64
+    func size() returns shallow USize
+    func lt(a: CaseData, b: CaseData) returns shallow Bool
+    func gt(a: CaseData, b: CaseData) returns shallow Bool
+    func neq(a: CaseData, b: CaseData) returns shallow Bool
+    func lte(a: CaseData, b: CaseData) returns shallow Bool
+    func gte(a: CaseData, b: CaseData) returns shallow Bool
 }
 #+end_src
 
@@ -801,6 +932,16 @@ TYPE_I64 is a Type
 TYPE_F32 is a Type
 #+end_src
 
+* TYPE_F64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.TYPE_F64
+:group: Core
+:END:
+
+#+begin_src til
+TYPE_F64 is a Type
+#+end_src
+
 * TYPE_STR
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.TYPE_STR
@@ -881,7 +1022,7 @@ enum NodeType {
     Continue
     Switch
     Match: MatchData
-    Case
+    Case: CaseData
     NoDefaultArg
     Throw
     Catch
@@ -919,7 +1060,7 @@ namespace:
     ext_func Continue() returns NodeType
     ext_func Switch() returns NodeType
     ext_func Match(own val: MatchData) returns NodeType
-    ext_func Case() returns NodeType
+    ext_func Case(own val: CaseData) returns NodeType
     ext_func NoDefaultArg() returns NodeType
     ext_func Throw() returns NodeType
     ext_func Catch() returns NodeType
@@ -984,6 +1125,106 @@ namespace:
 }
 #+end_src
 
+* ident_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.ident_of
+:group: Core
+:END:
+
+#+begin_src til
+func ident_of(e: Expr, loc: Str) returns ref IdentData
+#+end_src
+
+* decl_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.decl_of
+:group: Core
+:END:
+
+#+begin_src til
+func decl_of(e: Expr, loc: Str) returns ref Declaration
+#+end_src
+
+* fcall_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.fcall_of
+:group: Core
+:END:
+
+#+begin_src til
+func fcall_of(e: Expr, loc: Str) returns ref FCallData
+#+end_src
+
+* funcdef_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.funcdef_of
+:group: Core
+:END:
+
+#+begin_src til
+func funcdef_of(e: Expr, loc: Str) returns ref FunctionDef
+#+end_src
+
+* fieldaccess_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.fieldaccess_of
+:group: Core
+:END:
+
+#+begin_src til
+func fieldaccess_of(e: Expr, loc: Str) returns ref FieldAccessData
+#+end_src
+
+* structdef_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.structdef_of
+:group: Core
+:END:
+
+#+begin_src til
+func structdef_of(e: Expr, loc: Str) returns ref StructDef
+#+end_src
+
+* enumdef_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.enumdef_of
+:group: Core
+:END:
+
+#+begin_src til
+func enumdef_of(e: Expr, loc: Str) returns ref EnumDef
+#+end_src
+
+* case_of
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.case_of
+:group: Core
+:END:
+
+#+begin_src til
+func case_of(e: Expr, loc: Str) returns ref CaseData
+#+end_src
+
+* case_pattern_count
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.case_pattern_count
+:group: Core
+:END:
+
+#+begin_src til
+func case_pattern_count(cn: Expr) returns shallow USize
+#+end_src
+
+* case_has_guard
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.case_has_guard
+:group: Core
+:END:
+
+#+begin_src til
+func case_has_guard(cn: Expr) returns shallow Bool
+#+end_src
+
 * Option__ref_Str
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.ast.Option__ref_Str
@@ -1019,9 +1260,15 @@ namespace:
     core_func is(self: Option__ref_Str, other: Option__ref_Str) returns shallow Bool
     func eq(shallow self: Option__ref_Str, shallow other: Option__ref_Str) returns shallow Bool
     func delete(own self: Option__ref_Str, shallow call_free: Bool)
+    func cmp(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow I64
     func to_str(shallow self: Option__ref_Str) returns Str
     func clone(self: Option__ref_Str) returns shallow Option__ref_Str
     func size() returns shallow USize
+    func lt(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
+    func gt(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
+    func neq(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
+    func lte(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
+    func gte(shallow a: Option__ref_Str, shallow b: Option__ref_Str) returns shallow Bool
 }
 #+end_src
 
@@ -1056,6 +1303,12 @@ namespace:
     func set(mut self: Map__Str_USize, key: Str, own val: USize)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_USize, key: Str) returns shallow Bool
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    func to_str(self: Map__Str_USize) returns Str
     func delete(own self: Map__Str_USize, shallow call_free: Bool)
     func clone(self: Map__Str_USize) returns Map__Str_USize
     func hash(self: Map__Str_USize, hasher: HashFn) returns shallow U64
@@ -1150,6 +1403,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__VariantDef, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__VariantDef) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns shallow USize
@@ -1243,6 +1502,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FieldLayout, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__FieldLayout) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
     func size() returns shallow USize
@@ -1336,6 +1601,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Declaration, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Declaration) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Declaration) returns Vec__Declaration
     func size() returns shallow USize
@@ -1429,6 +1700,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Expr, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Expr) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Expr) returns Vec__Expr
     func size() returns shallow USize
@@ -1522,8 +1799,64 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__USize, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__USize) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__USize) returns Vec__USize
     func size() returns shallow USize
 }
+#+end_src
+
+* adopt__USize
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.adopt__USize
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__USize(dest: Dynamic, own src: USize)
+#+end_src
+
+* adopt__VariantDef
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.adopt__VariantDef
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__VariantDef(dest: Dynamic, own src: VariantDef)
+#+end_src
+
+* adopt__FieldLayout
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.adopt__FieldLayout
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__FieldLayout(dest: Dynamic, own src: FieldLayout)
+#+end_src
+
+* adopt__Declaration
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.adopt__Declaration
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__Declaration(dest: Dynamic, own src: Declaration)
+#+end_src
+
+* adopt__Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.ast.adopt__Expr
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__Expr(dest: Dynamic, own src: Expr)
 #+end_src

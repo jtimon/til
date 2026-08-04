@@ -120,12 +120,20 @@ Scope := struct {
 #+end_src
 
 A no-default ~ref field : Type~ is REQUIRED at instantiation (#242), so
-the common "always initialized" case needs no sentinel at all. ~= NULL~
-as a ref-field default is being retired (#321); it survives today only
-in the ~Dynamic~ quarantine (raw non-owning pointer slots such as
-~ref return_value : Dynamic = NULL~), which is the untyped layer where
-a null bit pattern is legitimate -- the same split Rust draws between
-~&T~ / ~Option<&T>~ and raw ~*mut T~.
+the common "always initialized" case needs no sentinel at all. A
+maybe-absent borrow is ~Option(ref T)~ -- one pointer wide, ~None~ is
+C's null -- and a ref field can no longer default to nothing at all:
+#321 retired that, and with it the ~NULL~ keyword, which is now an
+undefined symbol.
+
+Null survives only in the raw QUARANTINE -- ~Dynamic~ and the ~U8~ /
+~I8~ raw-buffer and C-string labels -- the untyped layer where a null
+bit pattern is legitimate, and there it is written as the integer
+literal ~0~ (~ref return_value : Dynamic = 0~; the typer rewrites the
+literal to the null pointer for a Dynamic target). ~is_null~ is
+allowed on exactly those types. Same split Rust draws between ~&T~ /
+~Option<&T>~ and raw ~*mut T~; see doc/ownership.org, "Null and
+is_null: the quarantine rule".
 
 ** Key rules
 

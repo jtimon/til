@@ -1,5 +1,5 @@
 #+TITLE: src/self/eval_heap.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * word_bits
@@ -40,6 +40,96 @@ ext_func f32_word(shallow f: F32) returns shallow U64
 
 #+begin_src til
 ext_func word_f32(shallow b: U64) returns shallow F32
+#+end_src
+
+* f64_bits_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_add
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_add(shallow a: U64, shallow b: U64) returns shallow U64
+#+end_src
+
+* f64_bits_sub
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_sub
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_sub(shallow a: U64, shallow b: U64) returns shallow U64
+#+end_src
+
+* f64_bits_mul
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_mul
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_mul(shallow a: U64, shallow b: U64) returns shallow U64
+#+end_src
+
+* f64_bits_div
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_div
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_div(shallow a: U64, shallow b: U64) returns shallow U64
+#+end_src
+
+* f64_bits_cmp
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_cmp
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_cmp(shallow a: U64, shallow b: U64) returns shallow I64
+#+end_src
+
+* str_parse_f64_bits
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.str_parse_f64_bits
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func str_parse_f64_bits(s: Str) returns shallow U64
+#+end_src
+
+* f64_bits_to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_to_str
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_to_str(shallow b: U64) returns Str
+#+end_src
+
+* f64_bits_to_repr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_to_repr
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_to_repr(shallow b: U64) returns Str
+#+end_src
+
+* f64_bits_from_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.eval_heap.f64_bits_from_i64
+:group: Compiler tools
+:END:
+
+#+begin_src til
+ext_func f64_bits_from_i64(shallow v: I64) returns shallow U64
 #+end_src
 
 * word_drop
@@ -100,8 +190,14 @@ namespace:
     func get_bool(ptr: Dynamic) returns shallow Bool
     func clone(shallow self: EvalHeap) returns shallow EvalHeap
     func hash(shallow self: EvalHeap, hasher: HashFn) returns shallow U64
-    func eq(shallow self: EvalHeap, shallow other: EvalHeap) returns shallow Bool
+    func cmp(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow I64
     func to_str(shallow self: EvalHeap) returns Str
     func size() returns shallow USize
+    func eq(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func lt(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func gt(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func neq(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func lte(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func gte(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
 }
 #+end_src

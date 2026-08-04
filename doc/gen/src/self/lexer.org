@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * TokenType
@@ -180,9 +180,15 @@ namespace:
     core_func is(self: TokenType, other: TokenType) returns shallow Bool
     func eq(self: TokenType, other: TokenType) returns shallow Bool
     func delete(own self: TokenType, shallow call_free: Bool)
+    func cmp(a: TokenType, b: TokenType) returns shallow I64
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
     func size() returns shallow USize
+    func lt(a: TokenType, b: TokenType) returns shallow Bool
+    func gt(a: TokenType, b: TokenType) returns shallow Bool
+    func neq(a: TokenType, b: TokenType) returns shallow Bool
+    func lte(a: TokenType, b: TokenType) returns shallow Bool
+    func gte(a: TokenType, b: TokenType) returns shallow Bool
 }
 #+end_src
 
@@ -200,6 +206,10 @@ struct Token {
     line : U32
     col : U32
 namespace:
+    /// Hand-written so a Vec(Token) can render: `const` fields do not reach
+    /// the generated to_str. Position first, since that is what a token dump
+    /// is read for.
+    func to_str(self: Token) returns Str
     func clone(self: Token) returns Token
     func delete(own self: Token, shallow call_free: Bool)
     func hash(self: Token, hasher: HashFn) returns shallow U64
@@ -278,6 +288,12 @@ namespace:
     func set(mut self: Map__Str_TokenType, key: Str, own val: TokenType)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_TokenType, key: Str) returns shallow Bool
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    func to_str(self: Map__Str_TokenType) returns Str
     func delete(own self: Map__Str_TokenType, shallow call_free: Bool)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
     func hash(self: Map__Str_TokenType, hasher: HashFn) returns shallow U64
@@ -372,6 +388,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Token, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Token) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Token) returns Vec__Token
     func size() returns shallow USize
@@ -465,8 +487,34 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__TokenType, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__TokenType) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__TokenType) returns Vec__TokenType
     func size() returns shallow USize
 }
+#+end_src
+
+* adopt__TokenType
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.adopt__TokenType
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__TokenType(dest: Dynamic, own src: TokenType)
+#+end_src
+
+* adopt__Token
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.lexer.adopt__Token
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func adopt__Token(dest: Dynamic, own src: Token)
 #+end_src

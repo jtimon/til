@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -32,6 +32,16 @@ func push_qn(mut v: Vec__Str, type_name: Str, method: Str)
 func collect_refs(e: Expr, mut refs: Vec__Str)
 #+end_src
 
+* scav_value_decl_sweepable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_value_decl_sweepable
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_value_decl_sweepable(stmt: Expr) returns shallow Bool
+#+end_src
+
 * scavenge_filter
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.scavenger.scavenge_filter
@@ -39,7 +49,7 @@ func collect_refs(e: Expr, mut refs: Vec__Str)
 :END:
 
 #+begin_src til
-func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool)
+func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values: Bool, mut swept_names: Vec__Str)
 #+end_src
 
 * dce_program_bodies

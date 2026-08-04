@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -191,6 +191,8 @@ namespace:
     /// '_' digit separators (issue #255) are stripped first since strtof
     /// does not accept them.
     func to_f32(self: Str) returns shallow F32
+    /// F64 twin of to_f32: faithful strtod parse, '_' separators stripped.
+    func to_f64(self: Str) returns shallow F64
     /// Split the string on `delim`, returning a Vec of Str clones.
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns shallow USize
@@ -232,6 +234,16 @@ func digit_value(shallow ch: I8) returns shallow I64
 ext_func str_parse_f32(s: Str) returns shallow F32
 #+end_src
 
+* str_parse_f64
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.str_parse_f64
+:group: Core
+:END:
+
+#+begin_src til
+ext_func str_parse_f64(s: Str) returns shallow F64
+#+end_src
+
 * c_str_len
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.str.c_str_len
@@ -258,9 +270,15 @@ namespace:
     func clone(_self: OutOfBounds) returns OutOfBounds
     func delete(own self: OutOfBounds, shallow call_free: Bool)
     func hash(self: OutOfBounds, hasher: HashFn) returns shallow U64
-    func eq(_self: OutOfBounds, _other: OutOfBounds) returns shallow Bool
+    func cmp(_a: OutOfBounds, _b: OutOfBounds) returns shallow I64
     func to_str(_self: OutOfBounds) returns Str
     func size() returns shallow USize
+    func eq(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func lt(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func gt(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func neq(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func lte(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
+    func gte(a: OutOfBounds, b: OutOfBounds) returns shallow Bool
 }
 #+end_src
 
@@ -279,9 +297,15 @@ namespace:
     func clone(_self: KeyNotFound) returns KeyNotFound
     func delete(own self: KeyNotFound, shallow call_free: Bool)
     func hash(self: KeyNotFound, hasher: HashFn) returns shallow U64
-    func eq(_self: KeyNotFound, _other: KeyNotFound) returns shallow Bool
+    func cmp(_a: KeyNotFound, _b: KeyNotFound) returns shallow I64
     func to_str(_self: KeyNotFound) returns Str
     func size() returns shallow USize
+    func eq(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func lt(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func gt(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func neq(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func lte(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
+    func gte(a: KeyNotFound, b: KeyNotFound) returns shallow Bool
 }
 #+end_src
 
@@ -316,6 +340,12 @@ namespace:
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Array from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Array__Str) returns Str
     func delete(own self: Array__Str, shallow call_free: Bool)
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow USize
@@ -409,8 +439,24 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Str, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Str) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Str) returns Vec__Str
     func size() returns shallow USize
 }
+#+end_src
+
+* adopt__Str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.str.adopt__Str
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__Str(dest: Dynamic, own src: Str)
 #+end_src

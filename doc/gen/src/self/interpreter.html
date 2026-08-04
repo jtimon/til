@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9c075f4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -63,7 +63,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler tools</h2><ul>
 <li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
-<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li></ul></li>
+<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_owned">scope_new_owned</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__DynPtrBox">Vec__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__HeapBinding">adopt__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a></li></ul></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
 <h2>CLI</h2><ul>
@@ -92,7 +92,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <pre><code class="language-til">struct InterpCallableBox {
     mut magic : U64
     ref mut func_def : Expr
-    ref mut env : Scope
+    mut env : Option__Scope
 namespace:
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, shallow call_free: Bool)
@@ -121,6 +121,10 @@ namespace:
     mut moved_out : Bool
     mut is_raw_alloc : Bool
 namespace:
+    /// The flags, not the pointers: ptr / til_type_p / ctx are borrowed
+    /// addresses whose values differ run to run. Those refs are also why
+    /// this is hand-written -- the generated to_str refuses them.
+    func to_str(self: HeapBinding) returns Str
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, shallow call_free: Bool)
     func size() returns shallow USize
@@ -147,7 +151,7 @@ namespace:
 <h2>InterpSession</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">struct InterpSession {
-    ref mut global : Scope
+    mut global : Option__Scope
     mut core_evaluated : Bool
     mut user_argc : USize
     mut retained_programs : Vec__DynPtrBox
@@ -156,6 +160,7 @@ namespace:
 namespace:
     func clone(self: InterpSession) returns InterpSession
     func delete(own self: InterpSession, shallow call_free: Bool)
+    func hash(self: InterpSession, hasher: HashFn) returns shallow U64
     func size() returns shallow USize
 }
 </code></pre>
@@ -266,6 +271,12 @@ namespace:
 <h2>scope_set_heap_moved</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">func scope_set_heap_moved(mut s: Scope, name: Str, shallow moved_out: Bool)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.scope_new_owned">
+<h2>scope_new_owned</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func scope_new_owned(shallow parent: Option__ref_Scope) returns Scope
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_new_boxed">
@@ -413,14 +424,18 @@ namespace:
     ref mut fn : U8
     mut return_type : Option__ref_Str
     mut nparam : USize
-    ref mut param_shallows : U8
-    ref mut param_dynamics : U8
+    own mut param_shallows : U8
+    own mut param_dynamics : U8
     mut return_is_shallow : Bool
     mut return_is_ref : Bool
-    ref mut cif : ffi_cif
-    ref mut arg_types : Dynamic
+    own mut cif : ffi_cif
+    own mut arg_types : U8
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
+    /// The own fields are libffi-side buffers with no til shape; what
+    /// identifies an entry is its arity and return handling. Hand-written
+    /// because those own fields disqualify the generated to_str.
+    func to_str(self: FFIEntry) returns Str
     func delete(own self: FFIEntry, shallow call_free: Bool)
     func size() returns shallow USize
 }
@@ -432,6 +447,7 @@ namespace:
 <pre><code class="language-til">struct ExprPtrBox {
     ref mut ptr : Expr
 namespace:
+    func to_str(self: ExprPtrBox) returns Str
     func clone(self: ExprPtrBox) returns ExprPtrBox
     func delete(own self: ExprPtrBox, shallow call_free: Bool)
     func size() returns shallow USize
@@ -442,9 +458,10 @@ namespace:
 <h2>FFITypePtrBox</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">struct FFITypePtrBox {
-    ref mut ptr : ffi_type
+    own mut ptr : ffi_type
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
+    func to_str(_self: FFITypePtrBox) returns Str
     func delete(own self: FFITypePtrBox, shallow call_free: Bool)
     func size() returns shallow USize
 }
@@ -558,6 +575,7 @@ namespace:
     ext_func Some(val: HeapBinding) returns shallow Option__ref_HeapBinding
     core_func is(self: Option__ref_HeapBinding, other: Option__ref_HeapBinding) returns shallow Bool
     func delete(own self: Option__ref_HeapBinding, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_HeapBinding) returns Str
     func clone(self: Option__ref_HeapBinding) returns shallow Option__ref_HeapBinding
     func size() returns shallow USize
 }
@@ -590,6 +608,12 @@ namespace:
     func set(mut self: Map__Str_HeapBinding, key: Str, own val: HeapBinding)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_HeapBinding, key: Str) returns shallow Bool
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    func to_str(self: Map__Str_HeapBinding) returns Str
     func delete(own self: Map__Str_HeapBinding, shallow call_free: Bool)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns shallow U64
@@ -680,6 +704,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__DynPtrBox, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__DynPtrBox) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DynPtrBox) returns Vec__DynPtrBox
     func size() returns shallow USize
@@ -804,10 +834,28 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__HeapBinding, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__HeapBinding) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
     func size() returns shallow USize
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.adopt__HeapBinding">
+<h2>adopt__HeapBinding</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func adopt__HeapBinding(dest: Dynamic, own src: HeapBinding)
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">
+<h2>adopt__priv___src_self_interpreter_til__DynPtrBox</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">func adopt__priv___src_self_interpreter_til__DynPtrBox(dest: Dynamic, own src: priv___src_self_interpreter_til__DynPtrBox)
 </code></pre>
 </article>
 </main></div>

@@ -84,14 +84,16 @@ To bind a reference explicitly:
 ref val : I64 = vec.get(0)
 #+end_src
 
-*** NULL
+*** NULL (there isn't one)
 
-til does have ~NULL~, but only for reference-shaped values:
-- ~ref~ locals
-- ~ref~ fields
-- functions returning ~ref Type~
+til has NO ~NULL~ -- the keyword was removed by #321, and the name is
+an undefined symbol.  "Maybe absent" is a TYPE, not a magic value:
+~Option(ref T)~ for a maybe-absent borrow, ~Option(T)~ for a
+maybe-absent owned value.  Both are ONE POINTER wide (the niche
+layout: ~None~ is C's null), so this costs nothing against the C
+shape it replaces.
 
-That is the natural translation target for nullable C pointers:
+That is the natural translation target for a nullable C pointer:
 
 #+begin_src c
 Expr *def_val = NULL;
@@ -99,14 +101,27 @@ if (def_val != NULL) { ... }
 #+end_src
 
 #+begin_src til
-ref def_val : Expr = NULL
-if is_null(def_val).not() { ... }
+mut def_val := Option(ref Expr).None
+switch def_val {
+case Option(ref Expr).Some(dv): ...
+case Option(ref Expr).None:
+}
 #+end_src
 
-For value-typed optionals, keep using sentinels or structural absence:
-- Optional strings: often ~""~
-- Optional indices: often ~0.sub(1)~ (i.e. -1)
-- Optional children: 0 or 1 children rather than a nullable inline value
+A ~ref~ field with NO default is mandatory at construction -- that is
+how a never-absent borrow is spelled, and the typer rejects a ~ref~
+field that tries to default to nothing.
+
+Null survives only in the raw QUARANTINE, where a pointer's null IS a
+legal value: ~Dynamic~, and the ~U8~ / ~I8~ raw-buffer and C-string
+labels.  There it is written as the integer literal ~0~ (the typer
+rewrites it to the null pointer when the target type is Dynamic), and
+~is_null~ is allowed on exactly those types.  See doc/ownership.org,
+"Null and is_null: the quarantine rule".
+
+For value-typed optionals prefer ~Option(T)~; the old sentinel habits
+(~""~ for an absent string, ~-1~ for an absent index, 0-or-1 children
+for an absent inline value) are what it replaces.
 
 *** Low-level memory
 
@@ -552,10 +567,14 @@ for (int _p = 0; _p < 2; _p++) {
 
 #+begin_src til
 for prog_idx in 0..2 {
-    ref mut prog : Expr = NULL
-    if prog_idx.eq(0) { prog = core_program } else { prog = program }
-    if is_null(prog) { continue }
-    for i in 0..prog.child_count() { ... }
+    mut prog := Option(ref Expr).None
+    if prog_idx.eq(0) { prog = Option(ref Expr).Some(core_program) }
+    else { prog = Option(ref Expr).Some(program) }
+    switch prog {
+    case Option(ref Expr).Some(p):
+        for i in 0..p.child_count() { ... }
+    case Option(ref Expr).None:
+    }
 }
 #+end_src
 

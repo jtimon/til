@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * vec
@@ -55,8 +55,24 @@ namespace:
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Array from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Array__Dynamic) returns Str
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns shallow USize
 }
+#+end_src
+
+* adopt__Dynamic
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.vec.adopt__Dynamic
+:group: Core
+:END:
+
+#+begin_src til
+func adopt__Dynamic(dest: Dynamic, own src: Dynamic)
 #+end_src

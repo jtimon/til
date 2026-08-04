@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * Lang
@@ -20,9 +20,15 @@ namespace:
     core_func is(self: Lang, other: Lang) returns shallow Bool
     func eq(self: Lang, other: Lang) returns shallow Bool
     func delete(own self: Lang, shallow call_free: Bool)
+    func cmp(a: Lang, b: Lang) returns shallow I64
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
     func size() returns shallow USize
+    func lt(a: Lang, b: Lang) returns shallow Bool
+    func gt(a: Lang, b: Lang) returns shallow Bool
+    func neq(a: Lang, b: Lang) returns shallow Bool
+    func lte(a: Lang, b: Lang) returns shallow Bool
+    func gte(a: Lang, b: Lang) returns shallow Bool
 }
 #+end_src
 
@@ -62,9 +68,15 @@ namespace:
     core_func is(self: Target, other: Target) returns shallow Bool
     func eq(self: Target, other: Target) returns shallow Bool
     func delete(own self: Target, shallow call_free: Bool)
+    func cmp(a: Target, b: Target) returns shallow I64
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
     func size() returns shallow USize
+    func lt(a: Target, b: Target) returns shallow Bool
+    func gt(a: Target, b: Target) returns shallow Bool
+    func neq(a: Target, b: Target) returns shallow Bool
+    func lte(a: Target, b: Target) returns shallow Bool
+    func gte(a: Target, b: Target) returns shallow Bool
 }
 #+end_src
 

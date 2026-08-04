@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9c075f4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -31,7 +31,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/core/array.html">src/core/array.til</a></li>
 <li><a href="../../src/core/cast.html">src/core/cast.til</a></li>
 <li><a href="../../src/core/tuple.html">src/core/tuple.til</a></li>
-<li><a class="current" href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a><ul><li><a href="#til.src.core.kwargs_map.KwargsMap">KwargsMap</a></li><li><a href="#til.src.core.kwargs_map.Map__Str_Tuple">Map__Str_Tuple</a></li><li><a href="#til.src.core.kwargs_map.Vec__Tuple">Vec__Tuple</a></li></ul></li>
+<li><a class="current" href="../../src/core/kwargs_map.html">src/core/kwargs_map.til</a><ul><li><a href="#til.src.core.kwargs_map.KwargsMap">KwargsMap</a></li><li><a href="#til.src.core.kwargs_map.Map__Str_Tuple">Map__Str_Tuple</a></li><li><a href="#til.src.core.kwargs_map.Vec__Tuple">Vec__Tuple</a></li><li><a href="#til.src.core.kwargs_map.adopt__Tuple">adopt__Tuple</a></li></ul></li>
 <li><a href="../../src/core/exit.html">src/core/exit.til</a></li>
 <li><a href="../../src/core/io.html">src/core/io.til</a></li>
 <li><a href="../../src/core/mem.html">src/core/mem.til</a></li>
@@ -136,6 +136,12 @@ namespace:
     func set(mut self: Map__Str_Tuple, key: Str, own val: Tuple)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Tuple, key: Str) returns shallow Bool
+    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
+    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
+    /// disqualifies Map from that generator, so this is hand-written.
+    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
+    /// form is rejected as a redundant self-conversion when the type is Str.
+    func to_str(self: Map__Str_Tuple) returns Str
     func delete(own self: Map__Str_Tuple, shallow call_free: Bool)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
     func hash(self: Map__Str_Tuple, hasher: HashFn) returns shallow U64
@@ -226,10 +232,22 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Tuple, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__Tuple) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Tuple) returns Vec__Tuple
     func size() returns shallow USize
 }
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.kwargs_map.adopt__Tuple">
+<h2>adopt__Tuple</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<pre><code class="language-til">func adopt__Tuple(dest: Dynamic, own src: Tuple)
 </code></pre>
 </article>
 </main></div>

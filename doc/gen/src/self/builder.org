@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * closure_call_name
@@ -100,16 +100,6 @@ proc emit_closure_runtime_types(f: File)
 
 #+begin_src til
 proc emit_funcsig_typedefs_prog(f: File, prog: Expr, ctx: Context)
-#+end_src
-
-* emit_funcsig_typedefs
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.builder.emit_funcsig_typedefs
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc emit_funcsig_typedefs(f: File, core_program: Expr, program: Expr, ctx: Context)
 #+end_src
 
 * build_forward_header_lp
@@ -223,9 +213,15 @@ namespace:
     func clone(self: DocEntry) returns DocEntry
     func delete(own self: DocEntry, shallow call_free: Bool)
     func hash(self: DocEntry, hasher: HashFn) returns shallow U64
-    func eq(self: DocEntry, other: DocEntry) returns shallow Bool
+    func cmp(a: DocEntry, b: DocEntry) returns shallow I64
     func to_str(self: DocEntry) returns Str
     func size() returns shallow USize
+    func eq(a: DocEntry, b: DocEntry) returns shallow Bool
+    func lt(a: DocEntry, b: DocEntry) returns shallow Bool
+    func gt(a: DocEntry, b: DocEntry) returns shallow Bool
+    func neq(a: DocEntry, b: DocEntry) returns shallow Bool
+    func lte(a: DocEntry, b: DocEntry) returns shallow Bool
+    func gte(a: DocEntry, b: DocEntry) returns shallow Bool
 }
 #+end_src
 
@@ -343,6 +339,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__DynCallInfo, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__DynCallInfo) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DynCallInfo) returns Vec__DynCallInfo
     func size() returns shallow USize
@@ -436,6 +438,12 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__CollectionInfo, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__CollectionInfo) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__CollectionInfo) returns Vec__CollectionInfo
     func size() returns shallow USize
@@ -529,8 +537,44 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__DocEntry, shallow call_free: Bool)
+    /// Elements in order, in the `Name(a, b)` shape a struct's generated
+    /// to_str uses. `own data` disqualifies Vec from that generator, so
+    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
+    /// the method form is rejected as a redundant self-conversion when T
+    /// is Str.
+    func to_str(self: Vec__DocEntry) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__DocEntry) returns Vec__DocEntry
     func size() returns shallow USize
 }
+#+end_src
+
+* adopt__priv___src_self_builder_til__DynCallInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.adopt__priv___src_self_builder_til__DynCallInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_builder_til__DynCallInfo(dest: Dynamic, own src: priv___src_self_builder_til__DynCallInfo)
+#+end_src
+
+* adopt__priv___src_self_builder_til__CollectionInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.adopt__priv___src_self_builder_til__CollectionInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_builder_til__CollectionInfo(dest: Dynamic, own src: priv___src_self_builder_til__CollectionInfo)
+#+end_src
+
+* adopt__DocEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.adopt__DocEntry
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__DocEntry(dest: Dynamic, own src: DocEntry)
 #+end_src

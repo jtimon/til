@@ -94,11 +94,14 @@ in the output and ask:
      register exactly like the bare pointer -- but only by value;
      without ~shallow~ the ext boundary passes it by pointer and
      the call is ABI-wrong.  ~shallow~ is not inferred here.
-   - a struct FIELD that til code CONSTRUCTS cannot take the
-     Option shape yet: the ctor treats the payload as an ownership
-     transfer rather than a borrow (#324), so those keep
-     ~ref field : T = NULL~ until #324 lands.  raylib.til is the
-     in-tree example -- gui.til builds a ~Wave~ from a til buffer.
+   - #324 and #321 have both landed, so there is no
+     "keep it as a nullable ref field" escape hatch left: the ~NULL~
+     keyword is gone.  A typed nullable pointer field is
+     ~field : Option(ref T) = Option(ref T).None~; a raw one stays in
+     the quarantine as ~ref field : Dynamic = 0~ (integer zero is the
+     null pointer there).  raylib.til shows both -- its typed arrays
+     are Option fields, its ~Image.data~-style raw buffers are
+     Dynamic.
 
 If any of (1)-(4) flips, also walk the matching wrapper in
 ~src/modes/gui.til~ (or wherever the user-facing surface lives)
@@ -375,8 +378,9 @@ struct mirrors (~Font.recs~, the ~Mesh~ vertex arrays,
 ~AudioStream.buffer~/~processor~,
 ~AutomationEventList.events~) is spelled
 ~field : Option(ref T) = Option(ref T).None~ -- ref fields cannot
-default to NULL since #321 step 2, and the niche keeps the struct
-layout byte-identical to C's. The ~ref ... : Dynamic = NULL~
+default to nothing since #321 step 2 (and the NULL keyword is gone
+entirely), while the niche keeps the struct layout byte-identical to
+C's. The ~ref ... : Dynamic = 0~
 fields (~Image.data~, ~AudioBuffer.data~, ~ctxData~, ~paths~)
 stay as generated: the Dynamic quarantine keeps raw null legal.
 
@@ -404,7 +408,7 @@ regens" in ~vendor/bindings/libffi.til~:
    (~ffi_prep_cif~ sets it before any use), and cifs are raw-built
    (malloc + prep), never ctor'd. ~ffi_type.elements~ stays ~own~
    (its own hand-audit note) and ~arg_types~ stays
-   ~ref Dynamic = NULL~ (quarantine).
+   ~ref Dynamic = 0~ (quarantine).
 
 Useful workflow:
 

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ef4e43f87</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9c075f4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -62,7 +62,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/builder.html">src/self/builder.til</a></li>
 </ul>
 <h2>Compiler tools</h2><ul>
-<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.word_bits">word_bits</a></li><li><a href="#til.src.self.eval_heap.bits_word">bits_word</a></li><li><a href="#til.src.self.eval_heap.f32_word">f32_word</a></li><li><a href="#til.src.self.eval_heap.word_f32">word_f32</a></li><li><a href="#til.src.self.eval_heap.word_drop">word_drop</a></li><li><a href="#til.src.self.eval_heap.dispatch_scratch_base">dispatch_scratch_base</a></li><li><a href="#til.src.self.eval_heap.word_ring_base">word_ring_base</a></li><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
+<li><a class="current" href="../../src/self/eval_heap.html">src/self/eval_heap.til</a><ul><li><a href="#til.src.self.eval_heap.word_bits">word_bits</a></li><li><a href="#til.src.self.eval_heap.bits_word">bits_word</a></li><li><a href="#til.src.self.eval_heap.f32_word">f32_word</a></li><li><a href="#til.src.self.eval_heap.word_f32">word_f32</a></li><li><a href="#til.src.self.eval_heap.f64_bits_add">f64_bits_add</a></li><li><a href="#til.src.self.eval_heap.f64_bits_sub">f64_bits_sub</a></li><li><a href="#til.src.self.eval_heap.f64_bits_mul">f64_bits_mul</a></li><li><a href="#til.src.self.eval_heap.f64_bits_div">f64_bits_div</a></li><li><a href="#til.src.self.eval_heap.f64_bits_cmp">f64_bits_cmp</a></li><li><a href="#til.src.self.eval_heap.str_parse_f64_bits">str_parse_f64_bits</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_str">f64_bits_to_str</a></li><li><a href="#til.src.self.eval_heap.f64_bits_to_repr">f64_bits_to_repr</a></li><li><a href="#til.src.self.eval_heap.f64_bits_from_i64">f64_bits_from_i64</a></li><li><a href="#til.src.self.eval_heap.word_drop">word_drop</a></li><li><a href="#til.src.self.eval_heap.dispatch_scratch_base">dispatch_scratch_base</a></li><li><a href="#til.src.self.eval_heap.word_ring_base">word_ring_base</a></li><li><a href="#til.src.self.eval_heap.EvalHeap">EvalHeap</a></li></ul></li>
 <li><a href="../../src/self/interpreter.html">src/self/interpreter.til</a></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
@@ -102,6 +102,60 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>word_f32</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
 <pre><code class="language-til">ext_func word_f32(shallow b: U64) returns shallow F32
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_add">
+<h2>f64_bits_add</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_add(shallow a: U64, shallow b: U64) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_sub">
+<h2>f64_bits_sub</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_sub(shallow a: U64, shallow b: U64) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_mul">
+<h2>f64_bits_mul</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_mul(shallow a: U64, shallow b: U64) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_div">
+<h2>f64_bits_div</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_div(shallow a: U64, shallow b: U64) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_cmp">
+<h2>f64_bits_cmp</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_cmp(shallow a: U64, shallow b: U64) returns shallow I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.str_parse_f64_bits">
+<h2>str_parse_f64_bits</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func str_parse_f64_bits(s: Str) returns shallow U64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_to_str">
+<h2>f64_bits_to_str</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_to_str(shallow b: U64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_to_repr">
+<h2>f64_bits_to_repr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_to_repr(shallow b: U64) returns Str
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.eval_heap.f64_bits_from_i64">
+<h2>f64_bits_from_i64</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">ext_func f64_bits_from_i64(shallow v: I64) returns shallow U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.word_drop">
@@ -146,9 +200,15 @@ namespace:
     func get_bool(ptr: Dynamic) returns shallow Bool
     func clone(shallow self: EvalHeap) returns shallow EvalHeap
     func hash(shallow self: EvalHeap, hasher: HashFn) returns shallow U64
-    func eq(shallow self: EvalHeap, shallow other: EvalHeap) returns shallow Bool
+    func cmp(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow I64
     func to_str(shallow self: EvalHeap) returns Str
     func size() returns shallow USize
+    func eq(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func lt(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func gt(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func neq(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func lte(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
+    func gte(shallow a: EvalHeap, shallow b: EvalHeap) returns shallow Bool
 }
 </code></pre>
 </article>

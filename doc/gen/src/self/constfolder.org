@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * constfolder_clear_known
@@ -138,4 +138,14 @@ namespace:
     func clone(self: Option__ref_Scope) returns shallow Option__ref_Scope
     func size() returns shallow USize
 }
+#+end_src
+
+* swap__Option__Scope
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.constfolder.swap__Option__Scope
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func swap__Option__Scope(mut a: Option__Scope, mut b: Option__Scope)
 #+end_src

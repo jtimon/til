@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -14,6 +14,11 @@ namespace:
     func size() returns shallow USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, shallow call_free: Bool)
+    /// An opaque slot: the pointer value itself would differ between runs,
+    /// so a container of Dynamics renders a fixed placeholder. Exists at all
+    /// because Vec/Map/Set/Array.to_str call T.to_str for every element type,
+    /// and Vec(Dynamic) is instantiated.
+    func to_str(_self: Dynamic) returns Str
 }
 #+end_src
 

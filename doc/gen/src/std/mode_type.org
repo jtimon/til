@@ -1,5 +1,5 @@
 #+TITLE: src/std/mode_type.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * Mode
@@ -21,8 +21,14 @@ namespace:
     func clone(self: Mode) returns Mode
     func delete(own self: Mode, shallow call_free: Bool)
     func hash(self: Mode, hasher: HashFn) returns shallow U64
-    func eq(self: Mode, other: Mode) returns shallow Bool
+    func cmp(a: Mode, b: Mode) returns shallow I64
     func to_str(self: Mode) returns Str
     func size() returns shallow USize
+    func eq(a: Mode, b: Mode) returns shallow Bool
+    func lt(a: Mode, b: Mode) returns shallow Bool
+    func gt(a: Mode, b: Mode) returns shallow Bool
+    func neq(a: Mode, b: Mode) returns shallow Bool
+    func lte(a: Mode, b: Mode) returns shallow Bool
+    func gte(a: Mode, b: Mode) returns shallow Bool
 }
 #+end_src

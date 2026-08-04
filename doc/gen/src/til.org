@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-ef4e43f87
+#+SUBTITLE: til 0.0.1-9c075f4
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -139,7 +139,7 @@ func repl_ast_has_known_variadic_call(e: Expr) returns shallow Bool
 :END:
 
 #+begin_src til
-proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64) returns Expr
+proc repl_delta_from_source(path: Str, source: Str, mut anon_type_counter: I64, mut parse_errors: I32) returns Expr
 #+end_src
 
 * repl_peek_needs_expr_wrap
