@@ -3428,7 +3428,7 @@ File * emit_capturing_closure_value(File * f, Expr * e, I32 * _depth, Context * 
 void priv___src_self_builder_til__emit_str_lit_expr(File * f, Str * s, Context * ctx);
 Bool priv___src_self_builder_til__assign_str_lit_needs_own_box(Str * aname, Str * ctype, Expr * rhs, Context * ctx);
 void priv___src_self_builder_til__emit_str_lit_own_box(File * f, Str * s);
-void priv___src_self_builder_til__emit_str_lit_temp_expr(File * f, Str * s);
+void priv___src_self_builder_til__emit_str_lit_temp_expr(File * f, Str * s, Context * ctx);
 Str * priv___src_self_builder_til__num_lit_to_c(Str * text);
 File * priv___src_self_builder_til__emit_expr(File * f, Expr * e, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_body(File * f, Expr * body, I32 depth, Context * ctx);
@@ -3460,7 +3460,7 @@ void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enu
 void priv___src_self_builder_til__emit_is_n_operand(File * f, Expr * e, USize idx, Str * enum_c, Bool is_niche, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__builder_variant_ctor_kept(Str * ename, Expr * enum_def, Str * vname, Context * ctx);
 Bool priv___src_self_builder_til__builder_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Context * ctx);
-void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Str * owner, Context * ctx);
+void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Str * owner, Bool in_body, Context * ctx);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);

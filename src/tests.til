@@ -670,6 +670,14 @@ main := proc(args: ..Str) {
     // enum -- zero uses across the whole corpus.
     add_count(tests, "enums_no_dead_tag_typedef", "build", "_tag;", 0,
         format(til_bin, " translate -c gen/c/enums_tt.c test/enums.til '&&' cat gen/c/enums_tt.c"))
+    // The POD-struct ctor Decl (`p := Point(x=1)`) is a #302-documented
+    // divergent path -- the record says HeapBox, the emitter's compound
+    // literal is a stack value -- so the site collector mirrors the
+    // emitter's own condition instead of trusting the record. aliases.til
+    // clones such a local through an alias type; with the mirror the
+    // splice is seen and the corpus's last never-called function goes.
+    add_count(tests, "aliases_no_uncalled_pod_clone", "build", "Point_clone", 0,
+        format(til_bin, " translate -c gen/c/aliases_pc.c test/aliases.til '&&' cat gen/c/aliases_pc.c"))
     add_count(tests, "structs_no_uncalled_pod_clone", "build", "CmpPoint_clone", 0,
         format(til_bin, " translate -c gen/c/structs_pc.c test/structs.til '&&' cat gen/c/structs_pc.c"))
     // A swap_replace on a Str target never calls swap_bytes -- the builder

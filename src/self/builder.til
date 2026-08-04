@@ -1536,11 +1536,11 @@ priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
         mut inv_param_names := Set(Str).new()
         if lp.skip_core.not() {
             for u : ProgramUnit in lp.core_units {
-                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", lp.ctx)
+                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
             }
         }
         for u : ProgramUnit in lp.units {
-            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", lp.ctx)
+            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
         }
         n_sites := inv_round_sites.len()
         lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
@@ -3774,7 +3774,14 @@ priv emit_str_lit_own_box := proc(f: File, s: Str) {
     f.write("ULL, .cap = TIL_CAP_VIEW}; _lb; })")
 }
 
-priv emit_str_lit_temp_expr := proc(f: File, s: Str) {
+priv emit_str_lit_temp_expr := proc(f: File, s: Str, ctx: Context) {
+    // #326: the pool element is the same CAP_LIT value, and every own-payload
+    // consumer gates its free on `cap != TIL_CAP_LIT` -- the pool address is
+    // exactly as safe as the stack compound literal it replaces.
+    if ctx.builder_str_lit_symbols.has(s) {
+        f.write("&").write(ctx.builder_str_lit_symbols[s])
+        return
+    }
     f.write("&(Str){.c_str = (void *)\"")
     f.write(s)
     f.write("\", .count = ")
@@ -4979,7 +4986,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
     case NodeType.Literal(Literal.Str):
         switch e.node_type {
         case NodeType.Literal(Literal.Str(s)):
-            if is_own { emit_str_lit_temp_expr(f, s) }
+            if is_own { emit_str_lit_temp_expr(f, s, ctx) }
             else { emit_expr(f, e, depth, ctx) }
         case:
         }
@@ -5894,7 +5901,7 @@ priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str
     return stack_names.has(bps_name)
 }
 
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, ctx: Context) {
+priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, in_body: Bool, ctx: Context) {
     // A delete is body-local, so the storage tracking below is too: each
     // function body starts from fresh name sets, or the same short local
     // name (`c`, `r`) declared across sibling bodies would look like a
@@ -5914,7 +5921,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         case:
         }
         for bvs_fn_ch : Expr in e.children {
-            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", ctx)
+            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", true, ctx)
         }
         return
     }
@@ -5925,9 +5932,30 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     // definition, never toward dropping a called one.
     switch e.node_type {
     case NodeType.Decl(bvs_dd):
+        // The POD-struct ctor Decl is one of #302's documented divergent
+        // paths: the record says HeapBox while the emitter's compound-
+        // literal shortcut emits a stack value. Mirror the emitter's OWN
+        // condition (ctor callee naming the resolved POD type, safe args)
+        // so `p := Point(x=1)` counts as stack and `p.clone()` splices --
+        // in_body only, because a top-level value global really does take
+        // the non-stack path.
+        mut bvs_ctor_stack := false
+        if in_body.and(e.children.len().gt(0)) {
+            ref bvs_crhs : Expr = e.children[0]
+            bvs_c_sname := til_type_name(bvs_crhs.til_type())
+            if bvs_crhs.node_type.is(NodeType.FCall).and(bvs_c_sname.len().gt(0)).and(bvs_crhs.children.len().gt(0)) {
+                switch bvs_crhs.children[0].node_type {
+                case NodeType.Ident(bvs_ci):
+                    if bvs_ci.ident_name().eq(bvs_c_sname) {
+                        bvs_ctor_stack = is_pod_struct(bvs_c_sname, ctx).and(pod_ctor_args_are_safe(bvs_crhs, ctx))
+                    }
+                case:
+                }
+            }
+        }
         if stack_names.has(bvs_dd.name).or(dup_names.has(bvs_dd.name)) {
             if dup_names.has(bvs_dd.name).not() { dup_names.add(own bvs_dd.name.clone()) }
-        } else if bvs_dd.gc_storage.is(GcStorage.Stack) {
+        } else if bvs_dd.gc_storage.is(GcStorage.Stack).or(bvs_ctor_stack) {
             stack_names.add(own bvs_dd.name.clone())
         } else {
             // Non-stack declaration of this name: any same-named stack
@@ -6004,7 +6032,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
         if cur_bvs == skip_child { continue }
-        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, ctx)
+        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         // A site inside an OMITTED definition is not a call: the body that
@@ -6024,7 +6052,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
             if owner.len() > 0 {
                 if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
             }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", ctx)
+            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", in_body, ctx)
         }
     }
 }
