@@ -106,9 +106,8 @@ The golden test ~gc_audit~ (src/tests.til) pins
 ~TIL_GC_AUDIT=test/gc_audit.til bin/til translate test/gc_audit.til~
 against ~test/gc_audit.expected~, so every #302 stage shows its decision
 diffs in review. Regeneration recipe in test/gc_audit.til's header. The
-env read is ext.c's ~gc_audit_filter~ (same pattern as ~TIL_LEAK_PROBE~);
-unset means disabled and the pass does no extra work beyond one env read
-per body.
+env read is ~std/sys~'s ~get_env~ ("" when unset); unset means disabled
+and the pass does no extra work beyond one env read per body.
 
 ** The target contract (#302)
 

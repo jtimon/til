@@ -1,5 +1,6 @@
 mode lib
 import("context")
+import("../std/sys")
 
 // Asap destruction phase. See doc/pipeline.org step 5 and issue #204.
 //
@@ -142,10 +143,8 @@ priv transfer_is_destructor_call := func(stmt: Expr, name: Str) returns Bool {
 // analysis phases) and the destructor sites present in the body after
 // insertion. The golden test test/gc_audit.til + test/gc_audit.expected
 // pins the dump so later #302 stages show their decision diffs in review
-// instead of only as ASAN outcomes. See doc/garbager.org. The env read
-// lives in ext.c (gc_audit_filter, "" when unset) like the TIL_LEAK_PROBE
-// gate.
-gc_audit_filter := ext_proc() returns Str {}
+// instead of only as ASAN outcomes. See doc/garbager.org. The env read is
+// std/sys's get_env, which answers "" when the variable is unset.
 
 priv gc_audit_flag := func(b: Bool) returns Str {
     if b { return "1" }
@@ -2997,7 +2996,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // per-binding decision; the dump itself runs after the insertion loop
     // so the site walk sees the final body. Cost when disabled: one env
     // read per body.
-    audit_filter := gc_audit_filter()
+    audit_filter := get_env("TIL_GC_AUDIT")
     audit := audit_filter.len().gt(0).and(ctx.path.contains(audit_filter))
     if audit {
         // #302 stage 3 slice 1: dump the body's CFG. Built here, after

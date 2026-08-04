@@ -25,6 +25,27 @@ current_rss_bytes := ext_proc(shallow pid: I64) returns shallow U64 {}
 process_id := ext_proc() returns shallow I32 {}
 host_os := ext_proc() returns Str {}
 host_arch := ext_proc() returns Str {}
+// libc getenv, bound directly -- no C wrapper in ext.c. The binding name
+// is the C symbol (priv would mangle it), so this one keeps libc's
+// spelling; I8 is char, so the emitted prototype matches stdlib.h's (the
+// #176 machinery). NULL when unset, otherwise a borrowed pointer into
+// libc's environ block, which the next setenv may move. Callers use
+// get_env below.
+getenv := ext_proc(name: I8) returns ref I8 {}
+
+/// Read an environment variable, "" when unset. NOT view-compatible:
+/// `name` reaches C as a NUL-terminated string, so it must be a literal
+/// or an owned Str, never a substr view (a view's bytes end at its count,
+/// with no NUL there, and getenv would read past it). Pass
+/// `view.clone()` at the call site if you have one. The result is owned:
+/// the bytes are copied out of the environ block, so the Str stays valid
+/// however the environment changes later. A host observation, hence proc:
+/// the same call can answer differently twice in one run.
+get_env := proc(name: Str) returns Str {
+    ref val : I8 = getenv(name.c_str)
+    if is_null(val) { return "" }
+    return Str.from_c_str(val).clone()
+}
 mkdir_p := ext_proc(path: Str) returns shallow I32 {}
 copy_file := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 copy_tree := ext_proc(src: Str, dst: Str) returns shallow I32 {}
