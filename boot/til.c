@@ -263609,7 +263609,7 @@ int main(int argc, char **argv) {
     WORD_RING_SLOTS = 4096;
     priv___src_self_interpreter_til__word_ring_idx = 0;
     { Vec__DynPtrBox *_hp = (Vec__DynPtrBox *)Vec__DynPtrBox_new(); priv___src_self_interpreter_til__scope_pool = *_hp; free(_hp); }
-    VERSION = (Str){.c_str=(void*)"0.0.1-9b002fa80", .count=15ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str=(void*)"0.0.1-01859fcb9", .count=15ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str * args = malloc(sizeof(Array__Str));

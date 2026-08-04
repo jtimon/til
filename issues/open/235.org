@@ -1,36 +1,87 @@
 # priority: low
 # category: features
-** OPEN #235 Vendor libsecp256k1 and expose sha256d via the HashFn interface
+** OPEN #235 Vendor libsecp256k1 for experimental BIP-340 signatures
 
-  Add ~libsecp256k1~ as a new vendor dependency under ~vendor/~ (next
-  to ~libffi~ / ~raylib~ / ~nng~) and expose its SHA-256 + SHA-256d
-  (double-SHA-256) primitives as another byte-level hash usable from
-  til. Long-term goal: any crypto-strength hash needed for chain /
-  signature work is a one-vendor-dep step away.
+*** Decision
 
-  The interesting part is the interface, not the link wiring. ~HashFn~
-  today is fixed at ~func(Dynamic, USize) returns U64~ -- the U64 fits
-  FNV-1a / Knuth output exactly, but SHA-256d's natural output is 32
-  bytes. Folding a 32-byte digest down to ~U64~ at the boundary throws
-  away the very property the caller asked for. Two shapes worth
-  considering:
+  Vendor the official [[https://github.com/bitcoin-core/secp256k1][Bitcoin Core libsecp256k1]] under its MIT
+  license and use its BIP-340 Schnorr implementation. This is a good
+  dependency even if it remains permanent: it has no runtime dependencies,
+  is designed to avoid timing side channels, and has the specialist review,
+  testing, and maintenance that we cannot honestly reproduce ourselves.
 
-  - Generalise the return type. ~HashResult~ as an enum with variants
-    for the common widths -- ~U64~, ~U128~ (when til grows one),
-    ~Bytes32~ for SHA-256, etc. ~HashMap~ still folds whatever it gets
-    down to a bucket index; callers that want the full digest
-    (e.g. content-addressed lookups, merkle work) keep it.
-  - Keep ~HashFn~ as ~U64~ and add a parallel ~CryptoHashFn :=
-    func(Dynamic, USize, mut Dynamic) returns USize~ (caller-supplied
-    output buffer, returns bytes written). ~HashMap~ stays on the
-    cheap ~HashFn~; crypto consumers reach for the second alias.
+  Prefer a signed upstream release (v0.8.0 is current as of 2026-08-04),
+  verify the tag/tarball, record the version, and preserve its license. Build
+  only the required extrakeys + schnorrsig modules, as static archives for
+  compiled programs and the normal shared twin for interpreted code. The user
+  must not install libsecp256k1 or any transitive package.
 
-  Sketch the trade-off in a short note when starting work; commit to
-  one before touching ~src/std/hashmap.til~. None of this is final
-  yet -- the firm deliverable is the vendor dep plus a working
-  sha256d-of-bytes call from til. Picking the interface shape and
-  whether ~HashMap.hasher~ ever points at sha256d is the open part.
+  Do not turn libsecp256k1's tagged-hash helper or internal SHA-256 machinery
+  into a general ~HashFn~ / SHA-256d API, and do not change ~HashMap~. Hashing,
+  key generation, ECDSA, recovery, ECDH, tweaks, and a pure-til curve
+  implementation are outside this issue.
 
-  Bench coverage from #234 should grow to include the crypto hash so
-  the order-of-magnitude cost gap (FNV-1a vs SHA-256d) is visible
-  next to the swap site.
+*** Required warning
+
+  ~mode crypto~ is an experimental til interface over the real upstream
+  library, not a security-reviewed cryptographic API. Selecting the mode and
+  its generated documentation must prominently say:
+
+  #+begin_example
+  WARNING: til and mode crypto are experimental and have not had a security
+  review. Do not rely on this interface to protect anything important. Prefer
+  the upstream libsecp256k1 API directly, possibly through a project-owned
+  custom mode, unless you are deliberately testing this experiment.
+  #+end_example
+
+  A future cryptography implementation written in til would be valuable as an
+  experiment and as an invitation for cryptography experts to review and
+  maintain it. It must not silently replace the upstream backend or lose this
+  warning. In particular, til does not yet guarantee that copies of secret-key
+  bytes are securely erased from managed memory.
+
+*** Minimal interface
+
+  Keep the first surface to BIP-340 signing and verification over secp256k1.
+  Internally start the curve dispatch in the final formal names, leaving the
+  follow-up backends visible but unimplemented:
+
+  #+begin_src til
+  priv CURVES := enum {
+      Secp256k1,
+      // Edwards25519, // TODO #339
+      // Edwards448,   // TODO #339
+      // Secp256r1,    // TODO #339
+  }
+  #+end_src
+
+  The exported wrapper should provide:
+
+  - signing of an exactly 32-byte message with an exactly 32-byte secret key
+    and caller-supplied 32 bytes of BIP-340 auxiliary randomness, returning the
+    64-byte signature
+  - verification of a 64-byte signature against an exactly 32-byte message and
+    a serialized 32-byte x-only public key, returning Bool
+  - derivation of the serialized x-only public key from a valid secret key
+
+  Use owned wrapper types for secret keys, public keys, messages, and
+  signatures instead of four interchangeable byte arrays. Reject wrong lengths
+  and invalid secret/public keys at construction. Invalid signatures are a
+  normal ~false~ result. Verify every signature immediately after signing, as
+  upstream's ~secp256k1_schnorrsig_sign32~ does not do that itself, and fail
+  loudly if self-verification fails. Zero all C temporaries that held secrets.
+
+  Do not generate keys or auxiliary randomness in this issue: accepting those
+  bytes from the caller avoids inventing an unreviewed CSPRNG API. Do not hash
+  arbitrary messages implicitly: the 32-byte message contract leaves domain
+  separation and hashing explicit.
+
+*** Verification
+
+  - Run the upstream library's enabled test suite when importing/updating the
+    vendored release.
+  - Cover the official BIP-340 valid and invalid test vectors through the til
+    wrapper, interpreted and compiled.
+  - Cross-build every supported native target and verify that only ~mode
+    crypto~ programs link the dependency.
+  - Confirm the warning is visible and that no system libsecp256k1 is needed.

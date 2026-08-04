@@ -1,0 +1,26 @@
+# priority: low
+# category: features
+** OPEN #339 Add Ed25519, Ed448, and ECDSA/secp256r1 signature backends
+
+  Follow #235 by extending the experimental signature interface with formally
+  named algorithms and curves:
+
+  - Ed25519: EdDSA instantiated over edwards25519
+  - Ed448: EdDSA instantiated over edwards448
+  - ECDSA over secp256r1 (NIST P-256)
+
+  Curve25519 and Curve448 name Montgomery-form curves primarily used by X25519
+  and X448 key agreement; they are not signature algorithm names. Key agreement
+  remains outside this issue.
+
+  Remove the corresponding TODO comments from ~CURVES~ only as each audited
+  backend lands. The shared interface must retain algorithm-tagged keys and
+  signatures and account for each scheme's different key, signature, message,
+  prehash, and context rules rather than forcing secp256k1's byte sizes onto
+  every backend.
+
+  Prefer maintained, permissively licensed, specialist-reviewed libraries. A
+  pure-til implementation is experimental unless cryptography experts take on
+  its review and maintenance, and it must carry the same warning as ~mode
+  crypto~. Verify each backend against its standard valid and invalid test
+  vectors in interpreted and compiled builds.
