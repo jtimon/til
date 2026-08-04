@@ -1,0 +1,80 @@
+# priority: high
+# category: cleanups
+** OPEN #338 Unify type inference: fields use real inference, typer stamps inferred types into the AST
+
+Two related problems, both symptoms of type inference not being one
+system:
+
+*** 1. Field defaults use a syntactic guesser instead of real inference
+
+A struct field with a default value and no explicit type does NOT go
+through the same inference as ~x := <expr>~ elsewhere. Instead
+~field_inferred_type_name~ (src/self/context.til) pattern-matches the
+default value's SHAPE at initer time: a Num literal -> I64, a Str
+literal -> Str, an FCall -> "the callee's Ident is the type name".
+
+That last arm exists for the constructor form ~inner := Inner(n = 7)~
+and is wrong for a plain function call:
+
+    make_inner := func() returns Inner { return Inner(n = 7) }
+    Outer := struct {
+        inner := make_inner()    // field type becomes "make_inner"
+    }
+
+    error: no method 'clone' for type 'unknown'
+    error: no method 'delete' for type 'unknown'
+    error: no method 'to_str' for type 'unknown'
+
+The guesser resolves "make_inner" to a func binding (FuncPtr/Unknown),
+generated clone/delete bodies fail to type, and cmp/eq/to_str are
+silently skipped. A previous partial attempt (resolve the callee via
+scope.lookup_func and stamp its return type) fixed primitive-returning
+calls but regressed struct-returning ones: once field types resolve,
+~struct_fields_support_generated_method~ starts generating cmp/eq/to_str
+whose bodies the typer still cannot type. Generation must be gated on a
+RESOLVED field type, so the deriver and the typer can never disagree.
+
+The desired end state: field defaults are inferred by the SAME code
+path as any other declaration's initialization value, and the
+syntactic guesser is retired. The language rule stays as is (already
+enforced, see test below): a field with no default value requires an
+explicit type and becomes mandatory in the struct literal; a field
+with a default is optional.
+
+The obstacle is ordering: the initer decides whether to generate
+clone/delete/eq/cmp/to_str and builds their bodies BEFORE the typer
+runs, which is why the guesser was invented. Either the initer runs
+real inference on field defaults, or method generation moves after
+inference -- the latter is the #174/#165 methodgen migration
+(init_declarations_global's scope-using methodgen moving into the
+typer's type_decls_file sweep), which this issue depends on / overlaps
+with.
+
+*** 2. The typer should stamp every inferred type explicitly into the AST
+
+Once the typer infers a declaration's type, later phases (desugarer,
+garbager, builder, scavenger, interpreter) should read the explicit
+result, never re-guess. Today this is only PARTIALLY true: the typer
+stamps ~stmt.til_type~ and the scope binding, but writes back
+~Declaration.explicit_type~ / ~Declaration.til_type~ only in special
+cases (FuncPtrSig decls for the scavenger, USize/UPtr param
+normalization, captures). Downstream code compensates by re-deriving
+types from syntax -- ~field_inferred_type_name~ being the worst
+offender, called from 5 sites (context.til, initer.til) some of which
+run POST-typer.
+
+Desired end state: after the typer runs, every Declaration (locals,
+params, fields) carries its resolved type explicitly
+(~explicit_type~/~til_type~ filled in), and post-typer phases read it
+instead of guessing. This removes the duplicate inference lookalikes
+and makes the AST the single source of truth after typing.
+
+*** Regression tests to add/keep
+
+- test_field_type_derived_through_new_call (test/structs.til) already
+  pins the ~T(Args).new()~ constructor-form default.
+- New: a field defaulted from a plain function call
+  (~inner := make_inner()~) types as the callee's return type, gets
+  clone/delete/eq/cmp/to_str, and works in the struct literal.
+- Existing: a default-less field requires an explicit type and is
+  mandatory in the struct literal ("missing required field").
