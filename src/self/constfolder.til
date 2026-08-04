@@ -1273,7 +1273,7 @@ priv va_build_dce := func(mut body: Expr, va_done: Vec(Str), ctx: Context) {
             }
             if drop.not() { keep.push_take(body.children, r) }
         }
-        body.children.move_from(keep)
+        body.children.move_from(own keep)
     }
 }
 
@@ -1498,7 +1498,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         }
         if drop.not() { keep.push_take(body.children, di) }
     }
-    body.children.move_from(keep)
+    body.children.move_from(own keep)
 }
 
 priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {

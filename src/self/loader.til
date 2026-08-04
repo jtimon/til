@@ -1243,8 +1243,7 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
     for u : ProgramUnit in lp.units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         base_dir := dir_of(u.path)
-        mut old_children := Vec(Expr).new()
-        old_children.move_from(iu.ast.children)
+        mut old_children := iu.ast.children.take()
         mut new_children := Vec(Expr).new()
         for idx in 0..old_children.count {
             ref stmt : Expr = old_children[idx]
@@ -2444,8 +2443,7 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
 }
 
 priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Context) {
-    mut old := Vec(Expr).new()
-    old.move_from(iu.ast.children)
+    mut old := iu.ast.children.take()
     mut new_ch := Vec(Expr).new()
     mut imp_idx : USize = 0
     mut ns_alias_names := Set(Str).new()
@@ -2543,7 +2541,7 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Conte
         }
     }
 
-    iu.ast.children.move_from(new_ch)
+    iu.ast.children.move_from(own new_ch)
 }
 
 // Issue #262: lazy_func / lazy_proc inlining.
@@ -3397,8 +3395,7 @@ priv lazy_stmt_value_slot := func(s: Expr) returns Option(ref Expr) {
 }
 
 priv lazy_stmt_inline_body := func(mut body: Expr, scope: TypeScope, ctx: Context) {
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
     mut new := Vec(Expr).new()
     for idx in 0..old.len() {
         ref s : Expr = old[idx]
@@ -4004,7 +4001,7 @@ priv lazy_thunk_lower_def := func(mut lp: LoadedProgram,
         mut new_ch := Vec(Expr).new()
         for cd in 0..cache_decls.len() { new_ch.push_take(cache_decls, cd) }
         for bi in 0..body.children.len() { new_ch.push_take(body.children, bi) }
-        body.children.move_from(new_ch)
+        body.children.move_from(own new_ch)
     }
 
     no_shadow := Set(Str).new()

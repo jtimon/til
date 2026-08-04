@@ -2040,8 +2040,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     // by only looking at preceding siblings within the view.
     flow_table := gc_flow_stmt_table(body, live, FLOW_OWNED, has_exit, scope, ctx)
 
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
 
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
@@ -2120,7 +2119,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         }
         new_ch.push_take(old, i)
     }
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
 }
 
 priv insert_nested_exit_deletes := proc(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, ctx: Context) {
@@ -3086,8 +3085,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
     // empties body.children.
     ref taint_facts : BodyFacts = facts
 
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
 
     mut new_ch := Vec(Expr).new()
     for i in 0..old.len() {
@@ -3102,7 +3100,7 @@ priv insert_free_calls := proc(ctx: Context, mut body: Expr, mut scope: TypeScop
         new_ch.append(own post_deletes)
     }
 
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
     if audit { gc_audit_dump(ctx, body, locals_vec) }
     return true
 }

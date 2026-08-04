@@ -2135,7 +2135,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 for pn : Str in pnames {
                     ffd.params.push(own Declaration(name = pn.clone(), own_type = OwnType.Ref))
                 }
-                ffd.captures.move_from(captures)
+                ffd.captures.move_from(own captures)
                 mut fdef := Expr.new(NodeType.FuncDef(ffd), t_line, t_col)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with explicit_type

@@ -376,7 +376,7 @@ priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map
         kr++
     }
     idx.keys.count = kw
-    idx.values.move_from(nv)
+    idx.values.move_from(own nv)
 }
 
 // #326: a top-level VALUE declaration -- not a func/struct/enum def, and
@@ -755,21 +755,19 @@ priv dce_one_body := proc(mut body: Expr, at_top_level: Bool) returns Bool {
         // Rebuild body.children honoring the marks. DELETE skips the
         // stmt; REPLACE_RHS swaps the Decl for its RHS (the FCall is
         // moved in via push_take from a temporary Vec).
-        mut old := Vec(Expr).new()
-        old.move_from(body.children)
+        mut old := body.children.take()
         mut new_ch := Vec(Expr).new()
         for k in 0..n {
             ref mark : U8 = ptr_add(marks, k)
             if mark == MARK_DELETE { continue }
             if mark == MARK_REPLACE_RHS {
-                mut decl_children := Vec(Expr).new()
-                decl_children.move_from(old[k].children)
+                mut decl_children := old[k].children.take()
                 new_ch.push_take(decl_children, 0)
                 continue
             }
             new_ch.push_take(old, k)
         }
-        body.children.move_from(new_ch)
+        body.children.move_from(own new_ch)
         // Prune trivial-delete stmts targeting dropped names from any
         // nested body (e.g. early-return cleanup inside an if-then).
         for j in 0..body.children.len() {

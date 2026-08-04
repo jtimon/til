@@ -154,8 +154,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     // Rebuilt call args: callee + (per-param) one arg, or the expanded
     // variadic / kwargs runs. Over-estimate the capacity (never under) so
     // the fill below reallocs zero times on the hot per-call path.
-    mut old := Vec(Expr).new()
-    old.move_from(e.children)
+    mut old := e.children.take()
     mut new_ch := Vec(Expr).with_capacity(nparam + va_idxs.len() + kw_idxs.len() + 1)
     new_ch.push_take(old, 0)
     for i in 0..nparam {
@@ -184,7 +183,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             }
         }
     }
-    e.children.move_from(new_ch)
+    e.children.move_from(own new_ch)
     return missing.not()
 }
 
@@ -1620,7 +1619,7 @@ priv pending_remove_all_matching := func(mut pending: Vec(Str), type_name: Str) 
             kept.push(own n.clone())
         }
     }
-    pending.move_from(kept)
+    pending.move_from(own kept)
     return found
 }
 
@@ -2093,8 +2092,7 @@ priv process_throw_catch_in_body := proc(
     if body.node_type.is(NodeType.Body).not() { return }
     if body.children.len() == 0 { return }
 
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
     mut old_snapshot : Vec(Expr) = old.clone()
     // Pre-size to the known lower bound: every old stmt lands in new_ch
     // (possibly wrapped), avoiding the 1->2->...->n realloc churn per body.
@@ -2539,7 +2537,7 @@ priv process_throw_catch_in_body := proc(
         if had_throw_subtree { seen_throwing = true }
     }
 
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
 }
 
 // Function-body wrapper for the single-walk consolidated processing.
@@ -2603,8 +2601,7 @@ process_throw_catch_in_func_body := proc(
     // Prepend slot decls and append fallback return.
     line := body.line
     col := body.col
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
     // Lower bound: all old stmts + the slot decls/fallback return pushed below.
     mut new_ch := Vec(Expr).with_capacity(old.len() + types_to_declare.len() + 2)
 
@@ -2639,7 +2636,7 @@ process_throw_catch_in_func_body := proc(
         }
         new_ch.push(own ret)
     }
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
 }
 // True if `e` contains a Match node reachable without crossing into a nested
 // block/definition (those sub-bodies are lowered when infer_body recurses
@@ -2667,14 +2664,13 @@ stmt_contains_match := func(e: Expr) returns Bool {
 // preserving order. Mirrors the rebuild used by body_pre_passes.
 splice_stmts_before := func(mut body: Expr, idx: USize, mut pre: Vec(Expr)) {
     if pre.len() == 0 { return }
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
     // Exact final size: the old stmts with pre spliced in.
     mut nw := Vec(Expr).with_capacity(old.len() + pre.len())
     for j in 0..idx { nw.push_take(old, j) }
     for k in 0..pre.len() { nw.push_take(pre, k) }
     for j in idx..old.len() { nw.push_take(old, j) }
-    body.children.move_from(nw)
+    body.children.move_from(own nw)
 }
 
 // Look up the payload type for a variant of a named enum, by enum
@@ -2913,8 +2909,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
                                         mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut, enum_payload_is_pointer_slot(enum_def, vt_idx))
 
-                                        mut old := Vec(Expr).new()
-                                        old.move_from(case_body.children)
+                                        mut old := case_body.children.take()
 
                                         // Exact final size: bind decls + old stmts.
                                         mut new_ch := Vec(Expr).with_capacity(bind_decls.len() + old.len())
@@ -2924,7 +2919,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                                         for bi in 0..old.len() {
                                             new_ch.push_take(old, bi)
                                         }
-                                    case_body.children.move_from(new_ch)
+                                    case_body.children.move_from(own new_ch)
                                         has_condition = true
                                     }
                                 }
@@ -3141,8 +3136,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                         // recursive value-match calls may have prepended for
                         // their own nested patterns.
                         if sp_bindings.len() > 0 {
-                            mut old_body := Vec(Expr).new()
-                            old_body.move_from(case_body.children)
+                            mut old_body := case_body.children.take()
                             // Exact final size: pattern bindings + old stmts.
                             mut new_body := Vec(Expr).with_capacity(sp_bindings.len() + old_body.len())
                             for spi in 0..sp_bindings.len() {
@@ -3151,7 +3145,7 @@ make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_
                             for obi in 0..old_body.len() {
                                 new_body.push_take(old_body, obi)
                             }
-                            case_body.children.move_from(new_body)
+                            case_body.children.move_from(own new_body)
                         }
                         // Fold conds into a left-associative AND chain.
                         condition = fold_and_chain(sp_conds, sw_line, sw_col)
@@ -3424,8 +3418,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
     mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut, enum_payload_is_pointer_slot(enum_def, vt_idx))
     ref mut body : Expr = case_node.children[1]
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
     // Exact final size: bind decls + old stmts.
     mut new_ch := Vec(Expr).with_capacity(bind_decls.len() + old.len())
     for bd in 0..bind_decls.len() {
@@ -3434,7 +3427,7 @@ prepend_clike_payload_binding := func(scope: TypeScope, sw_expr: Expr, mut case_
     for bi in 0..old.len() {
         new_ch.push_take(old, bi)
     }
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
 }
 
 replace_body_stmt_with_block := func(mut body: Expr, stmt_idx: USize, own block: Expr) {
@@ -3881,9 +3874,9 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: St
 }
 
 priv rewrite_collection_fcall_to_ident := func(mut fcall: Expr, coll_name: Str, coll_type: Type) {
-    mut old_args := Vec(Expr).new()
-    old_args.move_from(fcall.children)
-    fcall.children = Vec(Expr).new()
+    // The args are dropped, not reused: take() leaves children
+    // lazy-empty, and the taken Vec is deleted right here.
+    Vec(Expr).delete(own fcall.children.take())
     fcall.node_type = ident_node(coll_name)
     fcall.set_til_type(coll_type)
 }
@@ -4315,8 +4308,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         return false
     }
 
-    mut old := Vec(Expr).new()
-    old.move_from(body.children)
+    mut old := body.children.take()
 
     // Lower bound: each old stmt lands in new_ch (some expand to more).
     mut new_ch := Vec(Expr).with_capacity(old.len())
@@ -4359,7 +4351,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
             new_ch.push_take(old, i)
         }
     }
-    body.children.move_from(new_ch)
+    body.children.move_from(own new_ch)
     // Free the two scratch buffers (like temp_ch above). move_from zeroed
     // new_ch.count, and every slot moved out of old was zeroed by
     // push_take, so the only elements Vec.delete drops are old's
@@ -4830,8 +4822,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
         old_own := fcall_data.own_args
         line := fcall.line
         col := fcall.col
-        mut old_args := Vec(Expr).new()
-        old_args.move_from(fcall.children)
+        mut old_args := fcall.children.take()
         mut fcall_new_ch := Vec(Expr).new()
         mut va_inserted := false
         mut new_own : U64 = 0
@@ -4875,7 +4866,7 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
             new_own = new_own.bor(bit)
             fcall_new_ch.push(own va_id)
         }
-        fcall.children.move_from(fcall_new_ch)
+        fcall.children.move_from(own fcall_new_ch)
         fcall_data.own_args = new_own
     case:
         UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
@@ -5169,8 +5160,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
         if vc.eq(1).not() { return false }
         if fcd.is_splat.not() { return false }
 
-        mut old_args := Vec(Expr).new()
-        old_args.move_from(fcall.children)
+        mut old_args := fcall.children.take()
 
         ref splat_in : Expr = old_args[vi.to_usize()]
         mut splat := splat_in.clone()
@@ -5187,7 +5177,7 @@ priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, 
                 fcall_new_ch.push_take(old_args, j)
             }
         }
-        fcall.children.move_from(fcall_new_ch)
+        fcall.children.move_from(own fcall_new_ch)
         set_own_arg(fcall, vi.to_usize())
         return true
     case:
@@ -5201,8 +5191,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
     case NodeType.FCall(fcd):
         kc := fcall_kwargs_count(fcall)
         old_own := fcd.own_args
-        mut old_args := Vec(Expr).new()
-        old_args.move_from(fcall.children)
+        mut old_args := fcall.children.take()
         mut fcall_new_ch := Vec(Expr).new()
         mut kw_inserted := false
         mut new_own : U64 = 0
@@ -5249,7 +5238,7 @@ priv rewrite_kwargs_fcall_args := func(mut fcall: Expr, kw_name: Str, ki: I32) {
             fcall_new_ch.push(own kw_id)
         }
 
-        fcall.children.move_from(fcall_new_ch)
+        fcall.children.move_from(own fcall_new_ch)
         fcd.own_args = new_own
     case:
         UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
