@@ -885,3 +885,573 @@ dce_program_bodies := proc(mut program: Expr) {
         }
     }
 }
+
+// --- #326: C-emit reachability ---
+//
+// The scavenger's mark/sweep answers "does this declaration survive in the
+// AST" -- backend-neutral, because the interpreter runs that AST. This pass
+// answers the SECOND, C-only question: "will the emitted C contain a call to
+// it". The two genuinely differ. `Color.Red` in a match arm is a live
+// reference the interpreter evaluates by constructing the variant, while the
+// builder splices `(Color){.tag=...}` and calls nothing; `T.size()` is
+// resolved by runtime name off the AST, while the constfolder has already
+// turned every C-side call into a literal.
+//
+// It lives here rather than in builder.til because it IS reachability -- a
+// walk, a site inventory and a fixpoint -- and the builder's job is to
+// translate, not to analyse. The builder keeps only the lookups.
+
+scav_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), param_names: Set(Str), ctx: Context) returns Bool {
+    if member.eq("clone") {
+        // Mirror the emitters' branch ORDER, not just their predicate: every
+        // Decl/Assign/FieldAssign/ctor-field path checks shallow-return
+        // before the POD splice, and a NICHE enum's clone returns by value
+        // (#320, one word), so its payload-less-variant clone -- which
+        // is_pod_enum_clone_of alone would call spliceable -- is emitted as
+        // a real call.
+        if fcall_is_shallow_return(e, ctx) { return false }
+        if is_pod_enum_clone_call(e, ctx) { return true }
+        // The POD-STRUCT twin, mirroring is_pod_struct_user_clone: the
+        // emitters splice a FieldAccess arg unconditionally and an Ident
+        // arg when it is a stack local or a parameter of the enclosing
+        // function -- which is what stack_names/param_names hold here.
+        if e.children.len() < 2 { return false }
+        ref bps_ca : Expr = e.children[1]
+        if bps_ca.til_type().is(Type.Struct).not() { return false }
+        if is_pod_struct(til_type_name(bps_ca.til_type()), ctx).not() { return false }
+        switch bps_ca.node_type {
+        case NodeType.Ident(bps_can):
+            ref bps_caname : Str = bps_can.ident_name()
+            if param_names.has(bps_caname) { return true }
+            if dup_names.has(bps_caname) { return false }
+            return stack_names.has(bps_caname)
+        case NodeType.FieldAccess:
+            return true
+        case:
+        }
+        return false
+    }
+    if member.eq("delete").not() { return false }
+    if e.children.len() < 2 { return false }
+    ref bps_arg : Expr = e.children[1]
+    if bps_arg.node_type.is(NodeType.Ident).not() { return false }
+    if bps_arg.til_type().is(Type.Enum).not() { return false }
+    if is_pod_enum(til_type_name(bps_arg.til_type()), ctx).not() { return false }
+    mut bps_name := ""
+    switch bps_arg.node_type {
+    case NodeType.Ident(bps_id): bps_name = Str.clone(bps_id.ident_name())
+    case:
+    }
+    if dup_names.has(bps_name) { return false }
+    return stack_names.has(bps_name)
+}
+scav_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, in_body: Bool, ctx: Context) {
+    // A delete is body-local, so the storage tracking below is too: each
+    // function body starts from fresh name sets, or the same short local
+    // name (`c`, `r`) declared across sibling bodies would look like a
+    // shadowing conflict and defeat the stack check in every one of them.
+    // Params seed their own set -- the struct-clone splice treats a param
+    // like a stack value, but a delete on one (an `own` param's scheduled
+    // cleanup) is a real call, so they must not feed the delete mirror.
+    if e.node_type.is(NodeType.FuncDef) {
+        mut bvs_fn_stack := Set(Str).new()
+        mut bvs_fn_dup := Set(Str).new()
+        mut bvs_fn_params := Set(Str).new()
+        switch e.node_type {
+        case NodeType.FuncDef(bvs_fnd):
+            for bvs_fp : Declaration in bvs_fnd.params {
+                if bvs_fn_params.has(bvs_fp.name).not() { bvs_fn_params.add(own bvs_fp.name.clone()) }
+            }
+        case:
+        }
+        for bvs_fn_ch : Expr in e.children {
+            scav_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", true, ctx)
+        }
+        return
+    }
+    // Track which bindings the garbager recorded as Stack storage -- the
+    // AST-visible mirror of the emitter's stack_locals set (#302's
+    // assert_gc_stack keeps the two honest). The known divergences record
+    // HeapBox while emitting stack, which errs toward keeping a delete
+    // definition, never toward dropping a called one.
+    switch e.node_type {
+    case NodeType.Decl(bvs_dd):
+        // The POD-struct ctor Decl is one of #302's documented divergent
+        // paths: the record says HeapBox while the emitter's compound-
+        // literal shortcut emits a stack value. Mirror the emitter's OWN
+        // condition (ctor callee naming the resolved POD type, safe args)
+        // so `p := Point(x=1)` counts as stack and `p.clone()` splices --
+        // in_body only, because a top-level value global really does take
+        // the non-stack path.
+        mut bvs_ctor_stack := false
+        if in_body.and(e.children.len().gt(0)) {
+            ref bvs_crhs : Expr = e.children[0]
+            bvs_c_sname := til_type_name(bvs_crhs.til_type())
+            if bvs_crhs.node_type.is(NodeType.FCall).and(bvs_c_sname.len().gt(0)).and(bvs_crhs.children.len().gt(0)) {
+                switch bvs_crhs.children[0].node_type {
+                case NodeType.Ident(bvs_ci):
+                    if bvs_ci.ident_name().eq(bvs_c_sname) {
+                        bvs_ctor_stack = is_pod_struct(bvs_c_sname, ctx).and(pod_ctor_args_are_safe(bvs_crhs, ctx))
+                    }
+                case:
+                }
+            }
+        }
+        if stack_names.has(bvs_dd.name).or(dup_names.has(bvs_dd.name)) {
+            if dup_names.has(bvs_dd.name).not() { dup_names.add(own bvs_dd.name.clone()) }
+        } else if bvs_dd.gc_storage.is(GcStorage.Stack).or(bvs_ctor_stack) {
+            stack_names.add(own bvs_dd.name.clone())
+        } else {
+            // Non-stack declaration of this name: any same-named stack
+            // entry can no longer be trusted.
+            if stack_names.has(bvs_dd.name) { dup_names.add(own bvs_dd.name.clone()) }
+        }
+    case:
+    }
+    // CALLEE position only. A bare `Enum.Variant` expression never lowers
+    // to a call: the builder splices the value in place -- a compound
+    // literal `(E){.tag = E_TAG_V}`, `&(E){...}`, or an inline
+    // malloc-and-tag in return position -- so recording it kept a
+    // constructor with no caller (85 of them in test/first_class.til, 151
+    // in til's own output). `Enum.Variant(payload)` and every ordinary
+    // `T.method(...)` ARE calls, and both are an FCall whose child 0 is
+    // this field access.
+    // #302 stage 4: the DRAIN's delete is conjured into the C with no
+    // FCall in the AST (see the scavenger's matching root). The lifecycle
+    // gate below decides on this site inventory, so a drain-only delete
+    // needs its site recorded here too -- BOTH gates must know, or one of
+    // them drops the method. Regression: test/drain_only_delete.til.
+    switch e.node_type {
+    case NodeType.Assign(bvs_dad):
+        if bvs_dad.save_old_delete.and(e.children.len() > 0) {
+            bvs_dtn := til_type_name(e.children[0].til_type())
+            if bvs_dtn.len() > 0 {
+                bvs_dkey := bvs_dtn.concat3(".", "delete")
+                if sites.has(bvs_dkey).not() { sites.add(own bvs_dkey.clone()) }
+            }
+        }
+    case NodeType.FieldAssign(bvs_dfad):
+        if bvs_dfad.save_old_delete.and(e.children.len() > 1) {
+            bvs_dtn2 := til_type_name(e.children[1].til_type())
+            if bvs_dtn2.len() > 0 {
+                bvs_dkey2 := bvs_dtn2.concat3(".", "delete")
+                if sites.has(bvs_dkey2).not() { sites.add(own bvs_dkey2.clone()) }
+            }
+        }
+    case:
+    }
+
+    if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
+        switch e.children[0].node_type {
+        case NodeType.FieldAccess(bvs_f):
+            ref bvs_fa : Expr = e.children[0]
+            if bvs_fa.children.len() > 0 {
+                recv_type := til_type_name(bvs_fa.children[0].til_type())
+                if recv_type.len() > 0 {
+                    if scav_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, param_names, ctx).not() {
+                        key := recv_type.concat3(".", bvs_f.field_access_name())
+                        if sites.has(key).not() { sites.add(own key.clone()) }
+                    }
+                }
+            }
+        case:
+        }
+    }
+    mut skip_child : USize = 99
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
+        switch e.children[0].node_type {
+        case NodeType.Ident(bvs_c):
+            if bvs_c.ident_name() == "is_n" { skip_child = 2 }
+        case:
+        }
+    }
+    if e.node_type.is(NodeType.Case) { skip_child = 0 }
+    mut bvs_owner := ""
+    switch e.node_type {
+    case NodeType.Decl(bvs_od): bvs_owner = Str.clone(bvs_od.name)
+    case:
+    }
+    mut bvs_i : USize = 0
+    for bvs_ch : Expr in e.children {
+        cur_bvs := bvs_i
+        bvs_i = bvs_i + 1
+        if cur_bvs == skip_child { continue }
+        scav_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        // A site inside an OMITTED definition is not a call: the body that
+        // would contain it is never emitted. The generated clone/eq bodies
+        // chain -- FuncType_clone's body compares via FuncType.eq -- so a
+        // dead clone kept eq's definition alive, and this walk asks the
+        // gate itself, on the previous iteration's site set, to know which
+        // bodies to skip (see the fixpoint loop in
+        // builder_fill_reflect_inventory). The owner name comes down from
+        // the enclosing Decl statement; "" means unknown, walk everything.
+        ref bvs_ns : Vec(Declaration) = def_ns_decls(e)
+        mut bvs_mi : USize = 0
+        for bvs_d : Declaration in bvs_ns {
+            cur_bvs_mi := bvs_mi
+            bvs_mi = bvs_mi + 1
+            if bvs_d.default_value.is_none() { continue }
+            if owner.len() > 0 {
+                if scav_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
+            }
+            scav_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", in_body, ctx)
+        }
+    }
+}
+scav_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if builder_is_inline_accessor(member, type_name.concat3("_", member), ctx).not() { return false }
+    // Ask the generated dispatch per METHOD, as the auto-size and
+    // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
+    // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`
+    // registers `*.clone` and says nothing about `len`/`unsafe_get`; the
+    // coarse test kept every inline accessor in the two dyn-heaviest
+    // fixtures.
+    if scav_dyn_fn_target_kept(type_name, member, ctx) { return false }
+    return scav_needs_reflect("dyn_call_m".concat3(".", member), ctx).not()
+}
+scav_size_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    // Not restricted to the AUTO-GENERATED ones: core writes `size` by
+    // hand for the primitives (`func() returns USize { return 1 }`), and
+    // the argument is the same either way -- the constfolder folds every
+    // call to a literal, so the out-of-line definition has no caller.
+    if member.eq("size").not() { return false }
+    if ctx.builder_keep_all_exports { return false }
+    // The generated C that could still call it. A `_dyn` wrapper does, so
+    // ask the same predicate that decides whether one is emitted at all --
+    // not merely whether dyn_fn appears somewhere, which is true for every
+    // program importing std/dyn_array (its `dyn_fn(elem_type, "clone")`
+    // registers `*.clone`, and nothing about `size`). The `dyn_call_<m>`
+    // bodies also call the real function, so ask for the METHOD there too:
+    // core/tuple.til dispatches `delete` and `clone` in programs that never
+    // dispatch `size`.
+    if scav_dyn_fn_target_kept(type_name, member, ctx) { return false }
+    if scav_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
+    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
+}
+scav_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    bvco_def_o := find_struct_def(type_name, ctx)
+    if bvco_def_o.is_none() { return false }
+    ref bvco_def : Expr = bvco_def_o.unwrap()
+    if bvco_def.node_type.is(NodeType.EnumDef).not() { return false }
+    mut is_variant := false
+    switch bvco_def.node_type {
+    case NodeType.EnumDef(bvco_edd):
+        for bvco_vd : VariantDef in bvco_edd.variants {
+            if bvco_vd.name == member { is_variant = true }
+        }
+    case:
+    }
+    if is_variant.not() { return false }
+    return scav_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
+}
+scav_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
+    // Any ENUM, payload-carrying included: the site inventory is what
+    // decides, and the splice predicates only ever fire for the POD
+    // shapes, so a payload enum's sites always record and the definition
+    // stays whenever anything clones/deletes/compares one. POD STRUCTS
+    // join on the same terms: their clone splice depends on the
+    // argument's storage, which the collector mirrors through the #302
+    // gc_storage record and the enclosing function's params; their
+    // delete/eq are never spliced, so those sites always record.
+    if_enum_o := find_struct_def(type_name, ctx)
+    if if_enum_o.is_none() { return false }
+    if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() {
+        if if_enum_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+        if is_pod_struct(type_name, ctx).not() { return false }
+    }
+    if ctx.builder_keep_all_exports { return false }
+    if ctx.builder_collection_elem_types.has(type_name) { return false }
+    if scav_dyn_fn_target_kept(type_name, member, ctx) { return false }
+    if scav_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
+    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
+}
+scav_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if scav_ns_method_inlined_away(type_name, member, ctx) { return true }
+    if scav_size_method_omitted(type_name, member, ctx) { return true }
+    if scav_pod_lifecycle_omitted(type_name, member, ctx) { return true }
+    return scav_variant_ctor_omitted(type_name, member, ctx)
+}
+scav_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns Bool {
+    if def_ns_get(enum_def, vname).is_none() { return false }
+    if ctx.builder_keep_all_exports { return true }
+    // The generated dispatch that calls the real constructor, asked per
+    // METHOD exactly as the auto-`size` gate asks it.
+    if scav_dyn_fn_target_kept(ename, vname, ctx) { return true }
+    if scav_needs_reflect("dyn_call_m".concat3(".", vname), ctx) { return true }
+    return ctx.builder_ns_member_sites.has(ename.concat3(".", vname))
+}
+scav_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
+    if ctx.builder_dyn_fn_targets.has("*.".concat3(member, "")) { return true }
+    return ctx.builder_dyn_fn_targets.has(type_name.concat3(".", member))
+}
+scav_needs_reflect := func(name: Str, ctx: Context) returns Bool {
+    return ctx.builder_reflect_inventory.has(name)
+}
+
+scav_is_reflect_builtin_name := func(n: Str) returns Bool {
+    if n.starts_with("dyn_") { return true }
+    if n.starts_with("struct_field_") { return true }
+    if n.starts_with("enum_variant_") { return true }
+    return n.starts_with("func_sig_")
+}
+scav_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
+    if inv.has(n).not() { inv.add(own Str.clone(n)) }
+    // The four struct_* / seven enum_* / six func_sig_* primitives share
+    // one emitted body group, so record the family key too: one mention
+    // keeps the whole group.
+    if n.starts_with("struct_field_") {
+        if inv.has("struct_field_").not() { inv.add(own Str.clone("struct_field_")) }
+    } else if n.starts_with("enum_variant_") {
+        if inv.has("enum_variant_").not() { inv.add(own Str.clone("enum_variant_")) }
+    } else if n.starts_with("func_sig_") {
+        if inv.has("func_sig_").not() { inv.add(own Str.clone("func_sig_")) }
+    }
+}
+
+scav_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str)) {
+    switch e.node_type {
+    case NodeType.Ident(rid):
+        if scav_is_reflect_builtin_name(rid.ident_name()) {
+            scav_record_reflect_name(rid.ident_name(), inv)
+        }
+    case:
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref cri_ns : Vec(Declaration) = def_ns_decls(e)
+        for cri_d : Declaration in cri_ns {
+            if cri_d.default_value.is_none() { continue }
+            scav_collect_reflect_inventory(cri_d.default_expr(), inv)
+        }
+    }
+    for cri_c : Expr in e.children {
+        scav_collect_reflect_inventory(cri_c, inv)
+    }
+}
+scav_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str)) {
+    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
+        mut is_dyn_fn := false
+        switch e.children[0].node_type {
+        case NodeType.Ident(dfn): is_dyn_fn = dfn.ident_name().eq("dyn_fn")
+        case:
+        }
+        if is_dyn_fn {
+            switch e.children[2].node_type {
+            case NodeType.Literal(Literal.Str(dfm)):
+                mut key := "*.".concat3(dfm, "")
+                switch e.children[1].node_type {
+                case NodeType.Literal(Literal.Str(dft)): key = dft.concat3(".", dfm)
+                case:
+                }
+                if targets.has(key).not() { targets.add(own key.clone()) }
+            case:
+            }
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref cdt_ns : Vec(Declaration) = def_ns_decls(e)
+        for cdt_d : Declaration in cdt_ns {
+            if cdt_d.default_value.is_none() { continue }
+            scav_collect_dyn_fn_targets(cdt_d.default_expr(), targets)
+        }
+    }
+    for cdt_c : Expr in e.children {
+        scav_collect_dyn_fn_targets(cdt_c, targets)
+    }
+}
+scav_collect_lit_guard_use := func(e: Expr, mut used: Bool) {
+    if used { return }
+    switch e.node_type {
+    case NodeType.Assign:
+        if til_type_name(e.til_type()).eq("Str") { used = true }
+        if e.children.len() > 0 {
+            if e.children[0].node_type.is_literal_str() { used = true }
+        }
+    case NodeType.FCall(blg_fcd):
+        if blg_fcd.swap_replace.and(e.children.len().gte(2)) {
+            if til_type_name(e.children[1].til_type()).eq("Str") { used = true }
+        }
+    case:
+    }
+    if used { return }
+    for blg_ch : Expr in e.children {
+        scav_collect_lit_guard_use(blg_ch, used)
+        if used { return }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref blg_ns : Vec(Declaration) = def_ns_decls(e)
+        for blg_d : Declaration in blg_ns {
+            if blg_d.default_value.is_none() { continue }
+            scav_collect_lit_guard_use(blg_d.default_expr(), used)
+            if used { return }
+        }
+    }
+}
+collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
+    if e.node_type.is(NodeType.FCall) {
+        if e.children.len() >= 3 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(callee_name):
+                switch e.children[2].node_type {
+                case NodeType.Literal(Literal.Str(method)):
+                    ref cn : Str = callee_name.ident_name()
+                    mut has_ret := false
+                    if cn == "dyn_call_ret" { has_ret = true }
+                    if cn.eq("dyn_call").or(cn.eq("dyn_call_ret")) {
+                        mut nargs : I32 = 1
+                        if e.children.len() >= 4 {
+                            switch e.children[3].node_type {
+                            case NodeType.Literal(Literal.Num(num_str)):
+                                nargs = num_str.literal_num_text().to_i32()
+                            case:
+                            }
+                        }
+                        mut found := false
+                        for existing : DynCallInfo in methods {
+                            if existing.method == method { found = true }
+                        }
+                        if found.not() {
+                            info := DynCallInfo(method = method, nargs = nargs, has_return = has_ret)
+                            methods.push(own info)
+                        }
+                    }
+                case:
+                }
+            case:
+            }
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref cdm_ns : Vec(Declaration) = def_ns_decls(e)
+        for cdm_d : Declaration in cdm_ns {
+            if cdm_d.default_value.is_some() {
+                collect_dyn_methods(cdm_d.default_expr(), methods)
+            }
+        }
+    }
+    for e_ci : Expr in e.children {
+        collect_dyn_methods(e_ci, methods)
+    }
+}
+collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)) {
+    if e.node_type.is(NodeType.FCall) {
+        if e.children.len() >= 2 {
+            switch e.children[0].node_type {
+            case NodeType.Ident(name):
+                mut is_vec : I32 = -1
+                if name.ident_name() == "array" { is_vec = 0 }
+                else if name.ident_name() == "vec" { is_vec = 1 }
+                if is_vec >= 0 {
+                    type_name := array_vec_elem_type_name(e)
+                    if type_name.len() > 0 {
+                        mut found := false
+                        for existing : CollectionInfo in infos {
+                            if existing.type_name == type_name {
+                                if existing.is_vec == is_vec { found = true }
+                            }
+                        }
+                        if found.not() {
+                            info := CollectionInfo(type_name = type_name, is_vec = is_vec)
+                            infos.push(own info)
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref ccb_ns : Vec(Declaration) = def_ns_decls(e)
+        for ccb_d : Declaration in ccb_ns {
+            if ccb_d.default_value.is_some() {
+                collect_collection_builtins(ccb_d.default_expr(), infos)
+            }
+        }
+    }
+    for e_ci : Expr in e.children {
+        collect_collection_builtins(e_ci, infos)
+    }
+}
+scavenge_emit_inventory := proc(lp: LoadedProgram) {
+    lp.ctx.builder_reflect_inventory = Set(Str).new()
+    lp.ctx.builder_dyn_fn_targets = Set(Str).new()
+    lp.ctx.builder_ns_member_sites = Set(Str).new()
+    lp.ctx.builder_lit_guard_used = false
+    // A library's exported ABI is roots by policy (seed_library_roots), so
+    // the site-driven gates -- which can only see calls made by THIS
+    // program -- must not drop an exported constructor or `size` a
+    // consumer will call.
+    lp.ctx.builder_keep_all_exports = false
+    lp.ctx.builder_keep_all_exports = lp.cur_mode.is_library
+    lp.ctx.builder_collection_elem_types = Set(Str).new()
+    mut inv_stack_names := Set(Str).new()
+    mut inv_dup_names := Set(Str).new()
+    mut inv_coll_infos := Vec(CollectionInfo).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            scav_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
+            scav_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
+            scav_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
+            collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        scav_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
+        scav_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
+        scav_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
+        collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
+    }
+    // Which METHODS the dyn_call/dyn_call_ret bodies dispatch, not just that
+    // the family exists. Every `dyn_call_<m>` body calls the real
+    // `Type_<m>`, so a gate on a per-method family (the auto-`size` one)
+    // needs the method set, and "dyn_call appears somewhere" is far too
+    // coarse: core/tuple.til dispatches `delete` and `clone` in programs
+    // that never dispatch `size`. Recorded under a `dyn_call_m.` prefix so
+    // it cannot collide with the plain feature names in the same set;
+    // the emitters rebuild the same list from the same walker.
+    mut inv_dyn_methods := Vec(DynCallInfo).new()
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
+    }
+    for inv_dm : DynCallInfo in inv_dyn_methods {
+        key := "dyn_call_m".concat3(".", inv_dm.method)
+        if lp.ctx.builder_reflect_inventory.has(key).not() {
+            lp.ctx.builder_reflect_inventory.add(own key.clone())
+        }
+    }
+    // Fixpoint over the site inventory: pass N+1 skips the bodies pass N's
+    // gate omits, because a site inside an unemitted body is not a call.
+    // Monotone -- skipping bodies only removes sites, fewer sites only add
+    // omissions -- so it terminates; two or three rounds in practice.
+    mut inv_prev_sites : USize = 99999999
+    while true {
+        mut inv_round_sites := Set(Str).new()
+        inv_stack_names = Set(Str).new()
+        inv_dup_names = Set(Str).new()
+        mut inv_param_names := Set(Str).new()
+        if lp.skip_core.not() {
+            for u : ProgramUnit in lp.core_units {
+                scav_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
+            }
+        }
+        for u : ProgramUnit in lp.units {
+            scav_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
+        }
+        n_sites := inv_round_sites.len()
+        lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
+        if n_sites == inv_prev_sites { break }
+        inv_prev_sites = n_sites
+    }
+    for inv_ci : CollectionInfo in inv_coll_infos {
+        if lp.ctx.builder_collection_elem_types.has(inv_ci.type_name).not() {
+            lp.ctx.builder_collection_elem_types.add(own inv_ci.type_name.clone())
+        }
+    }
+}

@@ -6,16 +6,6 @@ import("targets")
 import("../std/sys")
 import("../std/file")
 
-priv CollectionInfo := struct {
-    ref type_name : Str
-    is_vec : I32 = 0
-}
-
-priv DynCallInfo := struct {
-    ref method : Str
-    nargs : I32 = 1
-    has_return := false
-}
 
 closure_call_name := func(name: Str) returns Str {
     return format(func_to_c(name), "__til_closure_call")
@@ -34,12 +24,6 @@ closure_value_name := func(name: Str) returns Str {
 
 // #321 step 2: "no captured signature for this local" is a real state,
 // so the miss is an Option, not a null ref.
-priv resolve_local_fn_sig := func(ctx: Context, name: Str) returns Option(ref Expr) {
-    ref slot : Dynamic = ctx.builder_func.local_fn_sigs.get(name)?
-    catch (e: KeyNotFound) { return Option(ref Expr).None }
-    ref sig : Expr = deref(slot)
-    return Option(ref Expr).Some(sig)
-}
 
 priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, ctx: Context) returns Option(ref Expr) {
     switch rhs.node_type {
@@ -78,85 +62,6 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
     return Option(ref Expr).None
 }
 
-priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
-    if fcall.node_type.is(NodeType.FCall).not() { return Option(ref Expr).None }
-    if fcall.children.len() == 0 { return Option(ref Expr).None }
-    ref callee : Expr = fcall.children[0]
-    // Only FuncPtr-typed callees go through the indirect-call emit path, so
-    // this is the only shape that actually needs an answer. Other callees
-    // (struct constructors, regular func calls) have no fn_sig today.
-    if callee.til_type().is_funcptr().not() { return Option(ref Expr).None }
-    ref s : TypeScope = ctx.scope
-    vs := resolve_fn_sig(fcall, s)
-    if vs.is_some() { return vs }
-    // resolve_fn_sig only sees globals + struct fields. The remaining FuncPtr
-    // shapes are params and locals of the function currently being emitted;
-    // their bindings lived in a transient func_scope that is gone by now.
-    switch callee.node_type {
-    case NodeType.Ident(name):
-        // Fallback 1: FuncPtr param of the current function. Issue #58
-        // / #147 step 5: the FuncSig alias name lives on param.til_type
-        // as Type.FuncPtrSig(name) -- read it via til_type_name(t)
-        // instead of through param.explicit_type + scope.find indirection.
-        // The Type.FuncPtrSig predicate filters out non-FuncSig params
-        // (Struct/Enum) without needing the bodyless-FuncDef gate.
-        switch ctx.current_fdef {
-        case Option(ref Expr).Some(cf1):
-            switch cf1.node_type {
-            case NodeType.FuncDef(cur_fd):
-                for p : Declaration in cur_fd.params {
-                    if p.name.eq(name.ident_name()).not() { continue }
-                    if p.til_type.is(Type.FuncPtrSig).not() { return Option(ref Expr).None }
-                    sig_name := til_type_name(p.til_type)
-                    if sig_name.len() == 0 { return Option(ref Expr).None }
-                    pftbfd_o := s.lookup_func(sig_name)
-                    if pftbfd_o.is_none() { return Option(ref Expr).None }
-                    if pftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
-                    return pftbfd_o
-                }
-            case:
-            }
-        case Option(ref Expr).None:
-        }
-        // Fallback 2: local FuncPtr decl whose signature was captured at
-        // emit_stmt_decl time.
-        vl := resolve_local_fn_sig(ctx, name.ident_name())
-        if vl.is_some() { return vl }
-        // Fallback 3: the Ident itself is a known global function name used
-        // as a FuncPtr value (e.g. an inlined ref to a top-level func).
-        return find_callee_fdef(name.ident_name(), ctx)
-    case NodeType.FCall:
-        // Issue #58: `cast(value, BinaryOp)(args)`. The cast's til_type
-        // is Type.FuncPtr (set by infer_cast_fcall on the user FuncSig
-        // path), and child(2) is the FuncSig Ident kept verbatim so we
-        // can resolve the signature here.
-        if callee.children.len() != 3 { return Option(ref Expr).None }
-        ref cast_head : Expr = callee.children[0]
-        switch cast_head.node_type {
-        case NodeType.Ident(cn):
-            if cn.ident_name().eq("cast").not() { return Option(ref Expr).None }
-        case:
-            return Option(ref Expr).None
-        }
-        mut sig_name := ""
-        switch callee.children[2].node_type {
-        case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
-        case: return Option(ref Expr).None
-        }
-        sf := s.find(sig_name)
-        switch sf {
-        case ScopeFind.Found(ftb):
-            ftbfd_o := s.lookup_func(ftb.name)
-            if ftbfd_o.is_none() { return Option(ref Expr).None }
-            if ftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
-            return ftbfd_o
-        case:
-        }
-        return Option(ref Expr).None
-    case:
-        return Option(ref Expr).None
-    }
-}
 
 priv is_stack_local := func(name: Str, ctx: Context) returns Bool {
     return ctx.builder_func.stack_locals.has(name)
@@ -250,14 +155,6 @@ priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
 // The til scalar set, INCLUDING the target-width aliases USize and UPtr --
 // the one difference from is_ext_h_type's list below, which covers only the
 // names ext.h spells as real fixed-width C types.
-priv is_primitive_type := func(name: Str) returns Bool {
-    switch name {
-    case "I64", "U8", "I8", "I16", "U16", "I32", "U32", "U64", "USize", "UPtr", "F32", "F64",
-         "Bool": return true
-    case:
-    }
-    return false
-}
 
 // A POD enum has no variant payloads, so every variant is fully
 // representable as a single `tag` field assignment.  The typer wraps
@@ -265,57 +162,17 @@ priv is_primitive_type := func(name: Str) returns Bool {
 // semantics, but for POD enums the wrap is a wasteful round-trip
 // (malloc + deref + free of a stack compound literal).  The Decl
 // emission path recognises the wrap and emits the value directly.
-priv is_pod_enum := func(enum_name: Str, ctx: Context) returns Bool {
-    if enum_name.len() == 0 { return false }
-    ed_o := find_struct_def(enum_name, ctx)
-    if ed_o.is_none() { return false }
-    ref ed : Expr = ed_o.unwrap()
-    if ed.node_type.is(NodeType.EnumDef).not() { return false }
-    if enum_has_payloads(ed) { return false }
-    return true
-}
 
 // Matches the typer-emitted `<Enum>.clone(<value>)` wrap around Ident /
 // FieldAccess RHSes of Enum type. True when the wrap can be skipped
 // (whole enum is POD, or the clone arg is a payload-less variant of
 // an otherwise-payload-carrying enum).
-priv is_pod_enum_clone_call := func(e: Expr, ctx: Context) returns Bool {
-    tname := clone_call_type_name(e)
-    if tname.len() == 0 { return false }
-    return is_pod_enum_clone_of(e, find_struct_def(tname, ctx))
-}
 
 // Matches user-written `<value>.clone()` where the typer's expansion
 // lands `<value>` as e.children[1] and the callee's receiver carries the
 // POD-struct type. Fires when the arg is an Ident of a stack_local /
 // param (struct value) or a FieldAccess (struct field, possibly
 // pointer-typed -- caller derefs explicitly).
-priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() < 2 { return false }
-    ref callee : Expr = e.children[0]
-    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
-    mut is_clone := false
-    switch callee.node_type {
-    case NodeType.FieldAccess(m): is_clone = m.field_access_name() == "clone"
-    case:
-    }
-    if is_clone.not() { return false }
-    if callee.children.len() == 0 { return false }
-    ref recv : Expr = callee.children[0]
-    if recv.til_type().is(Type.Struct).not() { return false }
-    tname := til_type_name(recv.til_type())
-    if is_pod_struct(tname, ctx).not() { return false }
-    switch e.children[1].node_type {
-    case NodeType.Ident(an):
-        ref aname : Str = an.ident_name()
-        return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
-    case NodeType.FieldAccess:
-        return true
-    case:
-        return false
-    }
-}
 
 // Emit the POD-struct user-clone arg as a struct value: dereference
 // pointer-typed FieldAccesses and pointer-shaped params, otherwise emit
@@ -345,6 +202,36 @@ priv emit_pod_struct_user_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: C
 
 // Emit the clone arg as `(T){.tag = T_TAG_X}` when it's a ns-Enum
 // variant FieldAccess; otherwise fall back to emit_deref.
+// Emit-time state (ctx.builder_func.stack_locals) makes this one
+// builder-only: the scavenger's C-emit pass mirrors it from the AST
+// instead (scav_pod_site_spliced).
+priv is_pod_struct_user_clone := func(e: Expr, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if e.children.len() < 2 { return false }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return false }
+    mut is_clone := false
+    switch callee.node_type {
+    case NodeType.FieldAccess(m): is_clone = m.field_access_name() == "clone"
+    case:
+    }
+    if is_clone.not() { return false }
+    if callee.children.len() == 0 { return false }
+    ref recv : Expr = callee.children[0]
+    if recv.til_type().is(Type.Struct).not() { return false }
+    tname := til_type_name(recv.til_type())
+    if is_pod_struct(tname, ctx).not() { return false }
+    switch e.children[1].node_type {
+    case NodeType.Ident(an):
+        ref aname : Str = an.ident_name()
+        return is_stack_local(aname, ctx).or(is_current_func_param(aname, ctx))
+    case NodeType.FieldAccess:
+        return true
+    case:
+        return false
+    }
+}
+
 priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context) {
     ref pe_arg : Expr = e.children[1]
     if pe_arg.node_type.is(NodeType.FieldAccess).and(builder_fa_is_ns(pe_arg, ctx)).and(pe_arg.til_type().is(Type.Enum)) {
@@ -380,27 +267,6 @@ priv emit_pod_enum_clone_arg := proc(f: File, e: Expr, depth: I32, ctx: Context)
 // POD field set from a ctor FCall.  Callers must still pair this with
 // a non-freeing delete at scope end (call_free=false) so the cleanup
 // doesn't try to free a stack pointer.
-priv is_pod_struct := func(struct_name: Str, ctx: Context) returns Bool {
-    if struct_name.len() == 0 { return false }
-    if is_primitive_type(struct_name) { return false }
-    sdef_o := find_struct_def(struct_name, ctx)
-    if sdef_o.is_none() { return false }
-    ref sdef : Expr = sdef_o.unwrap()
-    switch sdef.node_type {
-    case NodeType.StructDef(sdd):
-        if sdd.fields.len() == 0 { return false }
-        for fd : Declaration in sdd.fields {
-            if fd.own_type.is(OwnType.Own) { return false }
-            if fd.own_type.is(OwnType.Ref) { return false }
-            if is_primitive_type(fd.explicit_type) { continue }
-            if is_pod_struct(fd.explicit_type, ctx) { continue }
-            return false
-        }
-        return true
-    case:
-    }
-    return false
-}
 
 priv is_funcsig_type := func(name: Str, ctx: Context) returns Bool {
     return ctx.funcsig_names.has(name)
@@ -433,9 +299,6 @@ priv is_exported_top_level_global := func(stmt: Expr) returns Bool {
     return true
 }
 
-priv find_struct_def := func(name: Str, ctx: Context) returns Option(ref Expr) {
-    return ctx.scope.get_struct(name)
-}
 
 // The C type an inline-lowered call's RESULT actually has. NOT the node's
 // stamp: validate_fcall_arg re-stamps an ARGUMENT node with the PARAM's
@@ -459,9 +322,6 @@ priv inline_call_ret_ctype := func(e: Expr, callee_name: Str, ctx: Context) retu
     return til_type_name_c(e.til_type())
 }
 
-priv find_callee_fdef := func(name: Str, ctx: Context) returns Option(ref Expr) {
-    return ctx.scope.lookup_func_symbol(name)
-}
 
 // --- len/unsafe_get accessor inlining (issue #300) ---
 // A `for x in c` loop desugars to c.len() (the loop bound) and c.unsafe_get(i)
@@ -517,18 +377,6 @@ priv subst_ident_expr := proc(e: Expr, name: Str, val: Expr) {
 // Count uses of the Ident `name` inside `e` (the accessor inline requires
 // each hoisted temp to be used exactly once, or splicing its init back in
 // would duplicate or drop that computation).
-priv count_ident_uses := func(e: Expr, name: Str) returns USize {
-    mut n : USize = 0
-    switch e.node_type {
-    case NodeType.Ident(id):
-        if id.ident_name().eq(name) { n = 1 }
-    case:
-    }
-    for ci in 0..e.children.len() {
-        n = n.add(count_ident_uses(e.children[ci], name))
-    }
-    return n
-}
 
 // True when a statement is the garbager's cleanup of a desugarer-hoisted
 // scalar temp: `hoisted__X.delete(...)`. For a value primitive that delete
@@ -537,22 +385,6 @@ priv count_ident_uses := func(e: Expr, name: Str) returns USize {
 // used-exactly-once count -- without this, every temp that gets a cleanup
 // call counts two uses (its real use + the delete arg) and the gate
 // wrongly rejects the body.
-priv builder_is_temp_delete := func(e: Expr) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() < 2 { return false }
-    switch e.children[0].node_type {
-    case NodeType.FieldAccess(dn):
-        if dn.field_access_name().eq("delete").not() { return false }
-    case:
-        return false
-    }
-    switch e.children[1].node_type {
-    case NodeType.Ident(an):
-        return an.ident_name().starts_with("hoisted__").and(is_primitive(e.children[1].til_type()))
-    case:
-        return false
-    }
-}
 
 // True when a `len`/`unsafe_get` accessor call is inlinable: the callee
 // resolves to a plain func whose body is a single `return EXPR`, possibly
@@ -565,41 +397,6 @@ priv builder_is_temp_delete := func(e: Expr) returns Bool {
 // real calls per self-host translate -- did not). Accept that shape when
 // every temp is declared with exactly one init and used exactly once
 // outside the delete cleanups; emit_inline_accessor splices the inits back.
-priv builder_is_inline_accessor := func(mname: Str, flat: Str, ctx: Context) returns Bool {
-    if mname.eq("len").or(mname.eq("unsafe_get")).not() { return false }
-    fdef_o := find_callee_fdef(flat, ctx)
-    if fdef_o.is_none() { return false }
-    ref fdef : Expr = fdef_o.unwrap()
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        if fd.func_type.is(FuncType.Func).not() { return false }
-        if fdef.children.len() == 0 { return false }
-        ref body : Expr = fdef.children[0]
-        n := body.children.len()
-        if n == 0 { return false }
-        for si in 0..n.sub(1) {
-            ref s : Expr = body.children[si]
-            if builder_is_temp_delete(s) { continue }
-            switch s.node_type {
-            case NodeType.Decl(sd):
-                if sd.name.starts_with("hoisted__").not() { return false }
-                if s.children.len() != 1 { return false }
-                mut uses : USize = 0
-                for sj in si.add(1)..n {
-                    if builder_is_temp_delete(body.children[sj]) { continue }
-                    uses = uses.add(count_ident_uses(body.children[sj], sd.name))
-                }
-                if uses != 1 { return false }
-            case:
-                return false
-            }
-        }
-        ref stmt : Expr = body.children[n.sub(1)]
-        return stmt.node_type.is(NodeType.Return).and(stmt.children.len().gt(0))
-    case:
-        return false
-    }
-}
 
 // Emit an inlinable accessor call by splicing its (param-substituted) return
 // expression -- a value or a ref return depending on the accessor's return_own.
@@ -782,17 +579,6 @@ priv is_shallow_param := func(name: Str, ctx: Context) returns Bool {
     }
 }
 
-priv callee_returns_shallow := func(callee_name: Str, ctx: Context) returns Bool {
-    fdef_o := find_callee_fdef(callee_name, ctx)
-    if fdef_o.is_none() { return false }
-    ref fdef : Expr = fdef_o.unwrap()
-    switch fdef.node_type {
-    case NodeType.FuncDef(fd):
-        return fd.return_own_type.is(OwnType.Shallow)
-    case:
-        return false
-    }
-}
 
 priv callee_returns_dynamic := func(callee_name: Str, ctx: Context) returns Bool {
     if callee_name == "malloc" { return true }
@@ -924,30 +710,6 @@ priv callee_param_explicit_type := func(callee_name: Str, arg_index: USize, ctx:
     }
 }
 
-priv fcall_is_shallow_return := func(fcall: Expr, ctx: Context) returns Bool {
-    if fcall.node_type.is(NodeType.FCall).not() { return false }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(ident):
-        if callee_returns_shallow(ident.ident_name(), ctx) { return true }
-    case NodeType.FieldAccess(mname):
-        sname := til_type_name(callee.children[0].til_type())
-        if sname.len() == 0 { return false }
-        flat := sname.concat3("_", mname.field_access_name())
-        if callee_returns_shallow(flat, ctx) { return true }
-    case:
-    }
-    sig_o := fcall_fn_sig(fcall, ctx)
-    if sig_o.is_some() {
-        ref sig : Expr = sig_o.unwrap()
-        switch sig.node_type {
-        case NodeType.FuncDef(sfd):
-            return sfd.return_own_type.is(OwnType.Shallow)
-        case:
-        }
-    }
-    return false
-}
 
 priv fcall_returns_dynamic := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
@@ -1335,92 +1097,19 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
 // dynamically. Root them in the surviving AST instead: record which of
 // these builtins it names, and gate each emit_* family on that.
 // Ident-based (not call-based) so a first-class reference counts too.
-priv builder_is_reflect_builtin_name := func(n: Str) returns Bool {
-    if n.starts_with("dyn_") { return true }
-    if n.starts_with("struct_field_") { return true }
-    if n.starts_with("enum_variant_") { return true }
-    return n.starts_with("func_sig_")
-}
 
-priv builder_record_reflect_name := func(n: Str, mut inv: Set(Str)) {
-    if inv.has(n).not() { inv.add(own Str.clone(n)) }
-    // The four struct_* / seven enum_* / six func_sig_* primitives share
-    // one emitted body group, so record the family key too: one mention
-    // keeps the whole group.
-    if n.starts_with("struct_field_") {
-        if inv.has("struct_field_").not() { inv.add(own Str.clone("struct_field_")) }
-    } else if n.starts_with("enum_variant_") {
-        if inv.has("enum_variant_").not() { inv.add(own Str.clone("enum_variant_")) }
-    } else if n.starts_with("func_sig_") {
-        if inv.has("func_sig_").not() { inv.add(own Str.clone("func_sig_")) }
-    }
-}
 
-priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str)) {
-    switch e.node_type {
-    case NodeType.Ident(rid):
-        if builder_is_reflect_builtin_name(rid.ident_name()) {
-            builder_record_reflect_name(rid.ident_name(), inv)
-        }
-    case:
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cri_ns : Vec(Declaration) = def_ns_decls(e)
-        for cri_d : Declaration in cri_ns {
-            if cri_d.default_value.is_none() { continue }
-            builder_collect_reflect_inventory(cri_d.default_expr(), inv)
-        }
-    }
-    for cri_c : Expr in e.children {
-        builder_collect_reflect_inventory(cri_c, inv)
-    }
-}
 
 // #326: record what dyn_fn can dispatch to. The method is always a string
 // literal; the TYPE is literal for a static `dyn_fn("Vec", "clone")` and a
 // runtime expression for the collection/interface shape
 // (`dyn_fn(elem_type, "clone")` in std/dyn_array.til), which can name any
 // type and so records the `*.m` wildcard the scavenger already uses.
-priv builder_collect_dyn_fn_targets := proc(e: Expr, mut targets: Set(Str)) {
-    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
-        mut is_dyn_fn := false
-        switch e.children[0].node_type {
-        case NodeType.Ident(dfn): is_dyn_fn = dfn.ident_name().eq("dyn_fn")
-        case:
-        }
-        if is_dyn_fn {
-            switch e.children[2].node_type {
-            case NodeType.Literal(Literal.Str(dfm)):
-                mut key := "*.".concat3(dfm, "")
-                switch e.children[1].node_type {
-                case NodeType.Literal(Literal.Str(dft)): key = dft.concat3(".", dfm)
-                case:
-                }
-                if targets.has(key).not() { targets.add(own key.clone()) }
-            case:
-            }
-        }
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cdt_ns : Vec(Declaration) = def_ns_decls(e)
-        for cdt_d : Declaration in cdt_ns {
-            if cdt_d.default_value.is_none() { continue }
-            builder_collect_dyn_fn_targets(cdt_d.default_expr(), targets)
-        }
-    }
-    for cdt_c : Expr in e.children {
-        builder_collect_dyn_fn_targets(cdt_c, targets)
-    }
-}
 
 // A `Type.member` pair dyn_fn's dispatch table can name. The wrapper, its
 // closure value and the table entry are all gated on this, identically --
 // a mismatch would leave the table pointing at a symbol that was not
 // emitted, which is a link error rather than a silent hole.
-priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if ctx.builder_dyn_fn_targets.has("*.".concat3(member, "")) { return true }
-    return ctx.builder_dyn_fn_targets.has(type_name.concat3(".", member))
-}
 
 // #326: the three emitters that call TIL_LIT_GUARD all write a Str THROUGH
 // a pointer. Recognize their AST shapes: an Assign whose type is Str (the
@@ -1430,207 +1119,10 @@ priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Contex
 // answers from the AST; the checks are deliberately looser than the
 // emitters' own conditions because a false yes only leaves the `#define`
 // this gate exists to remove, while a false no is a build error.
-priv builder_collect_lit_guard_use := func(e: Expr, mut used: Bool) {
-    if used { return }
-    switch e.node_type {
-    case NodeType.Assign:
-        if til_type_name(e.til_type()).eq("Str") { used = true }
-        if e.children.len() > 0 {
-            if e.children[0].node_type.is_literal_str() { used = true }
-        }
-    case NodeType.FCall(blg_fcd):
-        if blg_fcd.swap_replace.and(e.children.len().gte(2)) {
-            if til_type_name(e.children[1].til_type()).eq("Str") { used = true }
-        }
-    case:
-    }
-    if used { return }
-    for blg_ch : Expr in e.children {
-        builder_collect_lit_guard_use(blg_ch, used)
-        if used { return }
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref blg_ns : Vec(Declaration) = def_ns_decls(e)
-        for blg_d : Declaration in blg_ns {
-            if blg_d.default_value.is_none() { continue }
-            builder_collect_lit_guard_use(blg_d.default_expr(), used)
-            if used { return }
-        }
-    }
-}
 
-priv builder_fill_reflect_inventory := proc(lp: LoadedProgram) {
-    lp.ctx.builder_reflect_inventory = Set(Str).new()
-    lp.ctx.builder_dyn_fn_targets = Set(Str).new()
-    lp.ctx.builder_ns_member_sites = Set(Str).new()
-    lp.ctx.builder_lit_guard_used = false
-    // A library's exported ABI is roots by policy (seed_library_roots), so
-    // the site-driven gates -- which can only see calls made by THIS
-    // program -- must not drop an exported constructor or `size` a
-    // consumer will call.
-    lp.ctx.builder_keep_all_exports = false
-    lp.ctx.builder_keep_all_exports = lp.cur_mode.is_library
-    lp.ctx.builder_collection_elem_types = Set(Str).new()
-    mut inv_stack_names := Set(Str).new()
-    mut inv_dup_names := Set(Str).new()
-    mut inv_coll_infos := Vec(CollectionInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
-            builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-            builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
-            collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
-        builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-        builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
-        collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
-    }
-    // Which METHODS the dyn_call/dyn_call_ret bodies dispatch, not just that
-    // the family exists. Every `dyn_call_<m>` body calls the real
-    // `Type_<m>`, so a gate on a per-method family (the auto-`size` one)
-    // needs the method set, and "dyn_call appears somewhere" is far too
-    // coarse: core/tuple.til dispatches `delete` and `clone` in programs
-    // that never dispatch `size`. Recorded under a `dyn_call_m.` prefix so
-    // it cannot collide with the plain feature names in the same set;
-    // the emitters rebuild the same list from the same walker.
-    mut inv_dyn_methods := Vec(DynCallInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
-    }
-    for inv_dm : DynCallInfo in inv_dyn_methods {
-        key := "dyn_call_m".concat3(".", inv_dm.method)
-        if lp.ctx.builder_reflect_inventory.has(key).not() {
-            lp.ctx.builder_reflect_inventory.add(own key.clone())
-        }
-    }
-    // Fixpoint over the site inventory: pass N+1 skips the bodies pass N's
-    // gate omits, because a site inside an unemitted body is not a call.
-    // Monotone -- skipping bodies only removes sites, fewer sites only add
-    // omissions -- so it terminates; two or three rounds in practice.
-    mut inv_prev_sites : USize = 99999999
-    while true {
-        mut inv_round_sites := Set(Str).new()
-        inv_stack_names = Set(Str).new()
-        inv_dup_names = Set(Str).new()
-        mut inv_param_names := Set(Str).new()
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
-        }
-        n_sites := inv_round_sites.len()
-        lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
-        if n_sites == inv_prev_sites { break }
-        inv_prev_sites = n_sites
-    }
-    for inv_ci : CollectionInfo in inv_coll_infos {
-        if lp.ctx.builder_collection_elem_types.has(inv_ci.type_name).not() {
-            lp.ctx.builder_collection_elem_types.add(own inv_ci.type_name.clone())
-        }
-    }
-}
 
-priv builder_needs_reflect := func(name: Str, ctx: Context) returns Bool {
-    return ctx.builder_reflect_inventory.has(name)
-}
 
-priv collect_dyn_methods := proc(e: Expr, mut methods: Vec(DynCallInfo)) {
-    if e.node_type.is(NodeType.FCall) {
-        if e.children.len() >= 3 {
-            switch e.children[0].node_type {
-            case NodeType.Ident(callee_name):
-                switch e.children[2].node_type {
-                case NodeType.Literal(Literal.Str(method)):
-                    ref cn : Str = callee_name.ident_name()
-                    mut has_ret := false
-                    if cn == "dyn_call_ret" { has_ret = true }
-                    if cn.eq("dyn_call").or(cn.eq("dyn_call_ret")) {
-                        mut nargs : I32 = 1
-                        if e.children.len() >= 4 {
-                            switch e.children[3].node_type {
-                            case NodeType.Literal(Literal.Num(num_str)):
-                                nargs = num_str.literal_num_text().to_i32()
-                            case:
-                            }
-                        }
-                        mut found := false
-                        for existing : DynCallInfo in methods {
-                            if existing.method == method { found = true }
-                        }
-                        if found.not() {
-                            info := DynCallInfo(method = method, nargs = nargs, has_return = has_ret)
-                            methods.push(own info)
-                        }
-                    }
-                case:
-                }
-            case:
-            }
-        }
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref cdm_ns : Vec(Declaration) = def_ns_decls(e)
-        for cdm_d : Declaration in cdm_ns {
-            if cdm_d.default_value.is_some() {
-                collect_dyn_methods(cdm_d.default_expr(), methods)
-            }
-        }
-    }
-    for e_ci : Expr in e.children {
-        collect_dyn_methods(e_ci, methods)
-    }
-}
 
-priv collect_collection_builtins := proc(e: Expr, mut infos: Vec(CollectionInfo)) {
-    if e.node_type.is(NodeType.FCall) {
-        if e.children.len() >= 2 {
-            switch e.children[0].node_type {
-            case NodeType.Ident(name):
-                mut is_vec : I32 = -1
-                if name.ident_name() == "array" { is_vec = 0 }
-                else if name.ident_name() == "vec" { is_vec = 1 }
-                if is_vec >= 0 {
-                    type_name := array_vec_elem_type_name(e)
-                    if type_name.len() > 0 {
-                        mut found := false
-                        for existing : CollectionInfo in infos {
-                            if existing.type_name == type_name {
-                                if existing.is_vec == is_vec { found = true }
-                            }
-                        }
-                        if found.not() {
-                            info := CollectionInfo(type_name = type_name, is_vec = is_vec)
-                            infos.push(own info)
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref ccb_ns : Vec(Declaration) = def_ns_decls(e)
-        for ccb_d : Declaration in ccb_ns {
-            if ccb_d.default_value.is_some() {
-                collect_collection_builtins(ccb_d.default_expr(), infos)
-            }
-        }
-    }
-    for e_ci : Expr in e.children {
-        collect_collection_builtins(e_ci, infos)
-    }
-}
 
 priv emit_field := proc(f: File, var: Str, field: Str, ctx: Context) {
     f.write(var)
@@ -2074,7 +1566,7 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
             // emitted -- otherwise they are pool entries nothing points at,
             // and a fully unreferenced pool is itself an unused static.
             case NodeType.StructDef(sd):
-                if builder_needs_reflect("struct_field_", ctx) {
+                if scav_needs_reflect("struct_field_", ctx) {
                     mut rlr : USize = 0
                     for rl_fd : Declaration in sd.fields {
                         builder_register_str_lit(ctx, sd.field_name_at(rlr))
@@ -2083,7 +1575,7 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                     }
                 }
             case NodeType.EnumDef(ed):
-                if builder_needs_reflect("enum_variant_", ctx) {
+                if scav_needs_reflect("enum_variant_", ctx) {
                     for vd : VariantDef in ed.variants {
                         builder_register_str_lit(ctx, vd.name)
                         if vd.payload_type.len() > 0 { builder_register_str_lit(ctx, vd.payload_type) }
@@ -2091,7 +1583,7 @@ priv builder_register_str_lits_for_expr := proc(e: Expr, mut ctx: Context) {
                     builder_register_str_lit(ctx, "")
                 }
             case NodeType.FuncDef(fd):
-                if rhs.children.len().eq(0).and(builder_needs_reflect("func_sig_", ctx)) {
+                if rhs.children.len().eq(0).and(scav_needs_reflect("func_sig_", ctx)) {
                     for p : Declaration in fd.params { builder_register_str_lit(ctx, p.explicit_type) }
                     if fd.return_type.len().gt(0) { builder_register_str_lit(ctx, fd.return_type) }
                     for tt : Str in fd.throw_types { builder_register_str_lit(ctx, tt) }
@@ -2179,7 +1671,7 @@ priv builder_register_str_lits := proc(lp: LoadedProgram) {
 //
 // #326: the `#define` follows the same rule as every other generated helper
 // family -- it is emitted only when the AST holds a shape that writes a Str
-// through a pointer (builder_collect_lit_guard_use). The pool itself is
+// through a pointer (scav_collect_lit_guard_use). The pool itself is
 // independent: it exists whenever some literal was pooled, guard or no.
 priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
     n := ctx.builder_str_lit_values.len()
@@ -2249,34 +1741,12 @@ priv collect_dyn_has_methods := proc(e: Expr, mut methods: Vec(Str)) {
 // to decide whether the FCall's children are positional field
 // initializers (ctor) vs an arbitrary call (which would type-clash
 // inside a `.field = ...` initializer).
-priv fcall_is_struct_ctor := func(e: Expr) returns Bool {
-    if e.node_type.is(NodeType.FCall).not() { return false }
-    if e.children.len() == 0 { return false }
-    sname := til_type_name(e.til_type())
-    if sname.len() == 0 { return false }
-    switch e.children[0].node_type {
-    case NodeType.Ident(ci): return ci.ident_name() == sname
-    case:
-    }
-    return false
-}
 
 // True when every FCall arg of `ctor` is either non-FCall or itself a
 // POD-struct ctor (recursively safe). The POD compound-literal path
 // requires this -- a non-ctor FCall arg (e.g. Point.clone(...)) would
 // either type-clash with the positional field assumption or return a
 // pointer that can't be assigned into a value field.
-priv pod_ctor_args_are_safe := func(ctor: Expr, ctx: Context) returns Bool {
-    for i in 1..ctor.children.len() {
-        ref arg : Expr = ctor.children[i]
-        if arg.node_type.is(NodeType.FCall).not() { continue }
-        if fcall_is_struct_ctor(arg).not() { return false }
-        arg_sname := til_type_name(arg.til_type())
-        if is_pod_struct(arg_sname, ctx).not() { return false }
-        if pod_ctor_args_are_safe(arg, ctx).not() { return false }
-    }
-    return true
-}
 
 // Emit a C compound literal initializer for a POD-struct ctor FCall:
 // `(Type){.f1 = v1, .f2 = v2, ...}`.  Nested POD ctor args recurse so
@@ -5528,17 +4998,6 @@ priv emit_struct_typedef := proc(f: File, name: Str, struct_def: Expr, mut emitt
 // generated dyn dispatch -- the per-method `_dyn` wrapper and the
 // `dyn_call_<m>` bodies both call the real function -- so the skip is off
 // whenever any dyn dispatch is requested.
-priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if builder_is_inline_accessor(member, type_name.concat3("_", member), ctx).not() { return false }
-    // Ask the generated dispatch per METHOD, as the auto-size and
-    // variant-ctor gates do. "dyn_fn appears somewhere" is true of every
-    // program importing std/dyn_array, whose `dyn_fn(elem_type, "clone")`
-    // registers `*.clone` and says nothing about `len`/`unsafe_get`; the
-    // coarse test kept every inline accessor in the two dyn-heaviest
-    // fixtures.
-    if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    return builder_needs_reflect("dyn_call_m".concat3(".", member), ctx).not()
-}
 
 // #326: the AUTO-GENERATED `size` method is emitted from the namespace
 // index, which says the member exists -- not that any C calls it. At a
@@ -5553,25 +5012,6 @@ priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Co
 // width-mismatched target (size_intrinsics_use_sizeof) is every one of them
 // because the constfolder deliberately leaves those unfolded. dyn_size_of
 // is not a caller: it inlines `sizeof(T)` per arm.
-priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    // Not restricted to the AUTO-GENERATED ones: core writes `size` by
-    // hand for the primitives (`func() returns USize { return 1 }`), and
-    // the argument is the same either way -- the constfolder folds every
-    // call to a literal, so the out-of-line definition has no caller.
-    if member.eq("size").not() { return false }
-    if ctx.builder_keep_all_exports { return false }
-    // The generated C that could still call it. A `_dyn` wrapper does, so
-    // ask the same predicate that decides whether one is emitted at all --
-    // not merely whether dyn_fn appears somewhere, which is true for every
-    // program importing std/dyn_array (its `dyn_fn(elem_type, "clone")`
-    // registers `*.clone`, and nothing about `size`). The `dyn_call_<m>`
-    // bodies also call the real function, so ask for the METHOD there too:
-    // core/tuple.til dispatches `delete` and `clone` in programs that never
-    // dispatch `size`.
-    if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
-    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
-}
 
 // The one predicate every namespace-method emitter asks: definition and all
 // six forward-declaration loops share it, so a disagreement would be a link
@@ -5580,24 +5020,8 @@ priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Conte
 // declaration loops reach it as well as the four `edd.variants` prototype
 // loops. Without this they declared what the definition gate had already
 // dropped -- the declared-never-defined shape this issue exists to remove.
-// The keep-logic itself lives in builder_variant_ctor_kept; here it is
+// The keep-logic itself lives in scav_variant_ctor_kept; here it is
 // keyed by name because the loop already holds the surviving member.
-priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    bvco_def_o := find_struct_def(type_name, ctx)
-    if bvco_def_o.is_none() { return false }
-    ref bvco_def : Expr = bvco_def_o.unwrap()
-    if bvco_def.node_type.is(NodeType.EnumDef).not() { return false }
-    mut is_variant := false
-    switch bvco_def.node_type {
-    case NodeType.EnumDef(bvco_edd):
-        for bvco_vd : VariantDef in bvco_edd.variants {
-            if bvco_vd.name == member { is_variant = true }
-        }
-    case:
-    }
-    if is_variant.not() { return false }
-    return builder_variant_ctor_kept(type_name, bvco_def, member, ctx).not()
-}
 
 // True for a namespace method the builder lowers INLINE, so no C function
 // of that name exists anywhere: the core families only. An enum's
@@ -5620,35 +5044,7 @@ priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
 // cleanup. The stand-downs are the callers outside the AST walk: dyn
 // dispatch per method, the raw array_of/vec_of element helpers, and a
 // library's exported ABI.
-priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if member.eq("clone").or(member.eq("delete")).or(member.eq("eq")).not() { return false }
-    // Any ENUM, payload-carrying included: the site inventory is what
-    // decides, and the splice predicates only ever fire for the POD
-    // shapes, so a payload enum's sites always record and the definition
-    // stays whenever anything clones/deletes/compares one. POD STRUCTS
-    // join on the same terms: their clone splice depends on the
-    // argument's storage, which the collector mirrors through the #302
-    // gc_storage record and the enclosing function's params; their
-    // delete/eq are never spliced, so those sites always record.
-    if_enum_o := find_struct_def(type_name, ctx)
-    if if_enum_o.is_none() { return false }
-    if if_enum_o.unwrap().node_type.is(NodeType.EnumDef).not() {
-        if if_enum_o.unwrap().node_type.is(NodeType.StructDef).not() { return false }
-        if is_pod_struct(type_name, ctx).not() { return false }
-    }
-    if ctx.builder_keep_all_exports { return false }
-    if ctx.builder_collection_elem_types.has(type_name) { return false }
-    if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
-    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
-}
 
-priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
-    if builder_size_method_omitted(type_name, member, ctx) { return true }
-    if builder_pod_lifecycle_omitted(type_name, member, ctx) { return true }
-    return builder_variant_ctor_omitted(type_name, member, ctx)
-}
 
 priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: Mode, lp: LoadedProgram) {
     mut is_auto_size := false
@@ -5658,7 +5054,7 @@ priv emit_ns_method := proc(f: File, name: Str, dd_name: Str, fdef: Expr, mode: 
     // A bodyless namespace signature (interface method, issue #251) is a
     // FuncSig type, not an implementation -- it emits no C function.
     if fdef.children.len() == 0 { return }
-    if builder_ns_method_omitted(name, dd_name, lp.ctx) { return }
+    if scav_ns_method_omitted(name, dd_name, lp.ctx) { return }
     full_name := name.concat3("_", dd_name)
     // Issue #309: on a width-mismatched target (`--usize=32` or a narrower
     // cross-compile target), emit the auto-generated size method as C
@@ -5698,7 +5094,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: L
         // Simple enum
         for vd : VariantDef in edd.variants {
             ref vn : Str = vd.name
-            if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
+            if scav_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
             f.write("    ").write(name).write(" *r = malloc(sizeof(").write(name).write("));\n")
             f.write("    *r = (").write(name).write("){ .tag = ").write(name).write("_TAG_").write(vn).write(" };\n")
@@ -5710,7 +5106,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: L
         for i in 0..edd.variants.len() {
             ref vd : VariantDef = edd.variants[i]
             ref vn : Str = vd.name
-            if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
+            if scav_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
             f.write(name).write(" ").write(name).write("_").write(vn).write("(")
             if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
@@ -5725,7 +5121,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: L
         for i in 0..edd.variants.len() {
             ref vd : VariantDef = edd.variants[i]
             ref vn : Str = vd.name
-            if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
+            if scav_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
             if vt.len() == 0 {
                 f.write(name).write(" *").write(name).write("_").write(vn).write("() {\n")
@@ -5813,15 +5209,6 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
 // over EVERY variant, so their `is_n(self, E.V, w)` tag checks name them
 // all. Those are real references whose C lowering is a compound-literal tag
 // compare, not a call.
-priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns Bool {
-    if def_ns_get(enum_def, vname).is_none() { return false }
-    if ctx.builder_keep_all_exports { return true }
-    // The generated dispatch that calls the real constructor, asked per
-    // METHOD exactly as the auto-`size` gate asks it.
-    if builder_dyn_fn_target_kept(ename, vname, ctx) { return true }
-    if builder_needs_reflect("dyn_call_m".concat3(".", vname), ctx) { return true }
-    return ctx.builder_ns_member_sites.has(ename.concat3(".", vname))
-}
 
 // Key a namespace-shaped field access the way the CALL emitter names the C
 // function: `til_type_name` of the receiver's type, not the receiver ident's
@@ -5843,206 +5230,7 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
 // stack-locals answer through the #302 gc_storage record; a name declared
 // twice in one unit walk cannot be told apart, so it takes the safe side
 // (recorded as a call, the definition stays).
-priv builder_pod_site_spliced := func(e: Expr, member: Str, stack_names: Set(Str), dup_names: Set(Str), param_names: Set(Str), ctx: Context) returns Bool {
-    if member.eq("clone") {
-        // Mirror the emitters' branch ORDER, not just their predicate: every
-        // Decl/Assign/FieldAssign/ctor-field path checks shallow-return
-        // before the POD splice, and a NICHE enum's clone returns by value
-        // (#320, one word), so its payload-less-variant clone -- which
-        // is_pod_enum_clone_of alone would call spliceable -- is emitted as
-        // a real call.
-        if fcall_is_shallow_return(e, ctx) { return false }
-        if is_pod_enum_clone_call(e, ctx) { return true }
-        // The POD-STRUCT twin, mirroring is_pod_struct_user_clone: the
-        // emitters splice a FieldAccess arg unconditionally and an Ident
-        // arg when it is a stack local or a parameter of the enclosing
-        // function -- which is what stack_names/param_names hold here.
-        if e.children.len() < 2 { return false }
-        ref bps_ca : Expr = e.children[1]
-        if bps_ca.til_type().is(Type.Struct).not() { return false }
-        if is_pod_struct(til_type_name(bps_ca.til_type()), ctx).not() { return false }
-        switch bps_ca.node_type {
-        case NodeType.Ident(bps_can):
-            ref bps_caname : Str = bps_can.ident_name()
-            if param_names.has(bps_caname) { return true }
-            if dup_names.has(bps_caname) { return false }
-            return stack_names.has(bps_caname)
-        case NodeType.FieldAccess:
-            return true
-        case:
-        }
-        return false
-    }
-    if member.eq("delete").not() { return false }
-    if e.children.len() < 2 { return false }
-    ref bps_arg : Expr = e.children[1]
-    if bps_arg.node_type.is(NodeType.Ident).not() { return false }
-    if bps_arg.til_type().is(Type.Enum).not() { return false }
-    if is_pod_enum(til_type_name(bps_arg.til_type()), ctx).not() { return false }
-    mut bps_name := ""
-    switch bps_arg.node_type {
-    case NodeType.Ident(bps_id): bps_name = Str.clone(bps_id.ident_name())
-    case:
-    }
-    if dup_names.has(bps_name) { return false }
-    return stack_names.has(bps_name)
-}
 
-priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_names: Set(Str), mut dup_names: Set(Str), mut param_names: Set(Str), owner: Str, in_body: Bool, ctx: Context) {
-    // A delete is body-local, so the storage tracking below is too: each
-    // function body starts from fresh name sets, or the same short local
-    // name (`c`, `r`) declared across sibling bodies would look like a
-    // shadowing conflict and defeat the stack check in every one of them.
-    // Params seed their own set -- the struct-clone splice treats a param
-    // like a stack value, but a delete on one (an `own` param's scheduled
-    // cleanup) is a real call, so they must not feed the delete mirror.
-    if e.node_type.is(NodeType.FuncDef) {
-        mut bvs_fn_stack := Set(Str).new()
-        mut bvs_fn_dup := Set(Str).new()
-        mut bvs_fn_params := Set(Str).new()
-        switch e.node_type {
-        case NodeType.FuncDef(bvs_fnd):
-            for bvs_fp : Declaration in bvs_fnd.params {
-                if bvs_fn_params.has(bvs_fp.name).not() { bvs_fn_params.add(own bvs_fp.name.clone()) }
-            }
-        case:
-        }
-        for bvs_fn_ch : Expr in e.children {
-            builder_collect_ns_member_sites(bvs_fn_ch, sites, bvs_fn_stack, bvs_fn_dup, bvs_fn_params, "", true, ctx)
-        }
-        return
-    }
-    // Track which bindings the garbager recorded as Stack storage -- the
-    // AST-visible mirror of the emitter's stack_locals set (#302's
-    // assert_gc_stack keeps the two honest). The known divergences record
-    // HeapBox while emitting stack, which errs toward keeping a delete
-    // definition, never toward dropping a called one.
-    switch e.node_type {
-    case NodeType.Decl(bvs_dd):
-        // The POD-struct ctor Decl is one of #302's documented divergent
-        // paths: the record says HeapBox while the emitter's compound-
-        // literal shortcut emits a stack value. Mirror the emitter's OWN
-        // condition (ctor callee naming the resolved POD type, safe args)
-        // so `p := Point(x=1)` counts as stack and `p.clone()` splices --
-        // in_body only, because a top-level value global really does take
-        // the non-stack path.
-        mut bvs_ctor_stack := false
-        if in_body.and(e.children.len().gt(0)) {
-            ref bvs_crhs : Expr = e.children[0]
-            bvs_c_sname := til_type_name(bvs_crhs.til_type())
-            if bvs_crhs.node_type.is(NodeType.FCall).and(bvs_c_sname.len().gt(0)).and(bvs_crhs.children.len().gt(0)) {
-                switch bvs_crhs.children[0].node_type {
-                case NodeType.Ident(bvs_ci):
-                    if bvs_ci.ident_name().eq(bvs_c_sname) {
-                        bvs_ctor_stack = is_pod_struct(bvs_c_sname, ctx).and(pod_ctor_args_are_safe(bvs_crhs, ctx))
-                    }
-                case:
-                }
-            }
-        }
-        if stack_names.has(bvs_dd.name).or(dup_names.has(bvs_dd.name)) {
-            if dup_names.has(bvs_dd.name).not() { dup_names.add(own bvs_dd.name.clone()) }
-        } else if bvs_dd.gc_storage.is(GcStorage.Stack).or(bvs_ctor_stack) {
-            stack_names.add(own bvs_dd.name.clone())
-        } else {
-            // Non-stack declaration of this name: any same-named stack
-            // entry can no longer be trusted.
-            if stack_names.has(bvs_dd.name) { dup_names.add(own bvs_dd.name.clone()) }
-        }
-    case:
-    }
-    // CALLEE position only. A bare `Enum.Variant` expression never lowers
-    // to a call: the builder splices the value in place -- a compound
-    // literal `(E){.tag = E_TAG_V}`, `&(E){...}`, or an inline
-    // malloc-and-tag in return position -- so recording it kept a
-    // constructor with no caller (85 of them in test/first_class.til, 151
-    // in til's own output). `Enum.Variant(payload)` and every ordinary
-    // `T.method(...)` ARE calls, and both are an FCall whose child 0 is
-    // this field access.
-    // #302 stage 4: the DRAIN's delete is conjured into the C with no
-    // FCall in the AST (see the scavenger's matching root). The lifecycle
-    // gate below decides on this site inventory, so a drain-only delete
-    // needs its site recorded here too -- BOTH gates must know, or one of
-    // them drops the method. Regression: test/drain_only_delete.til.
-    switch e.node_type {
-    case NodeType.Assign(bvs_dad):
-        if bvs_dad.save_old_delete.and(e.children.len() > 0) {
-            bvs_dtn := til_type_name(e.children[0].til_type())
-            if bvs_dtn.len() > 0 {
-                bvs_dkey := bvs_dtn.concat3(".", "delete")
-                if sites.has(bvs_dkey).not() { sites.add(own bvs_dkey.clone()) }
-            }
-        }
-    case NodeType.FieldAssign(bvs_dfad):
-        if bvs_dfad.save_old_delete.and(e.children.len() > 1) {
-            bvs_dtn2 := til_type_name(e.children[1].til_type())
-            if bvs_dtn2.len() > 0 {
-                bvs_dkey2 := bvs_dtn2.concat3(".", "delete")
-                if sites.has(bvs_dkey2).not() { sites.add(own bvs_dkey2.clone()) }
-            }
-        }
-    case:
-    }
-
-    if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
-        switch e.children[0].node_type {
-        case NodeType.FieldAccess(bvs_f):
-            ref bvs_fa : Expr = e.children[0]
-            if bvs_fa.children.len() > 0 {
-                recv_type := til_type_name(bvs_fa.children[0].til_type())
-                if recv_type.len() > 0 {
-                    if builder_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, param_names, ctx).not() {
-                        key := recv_type.concat3(".", bvs_f.field_access_name())
-                        if sites.has(key).not() { sites.add(own key.clone()) }
-                    }
-                }
-            }
-        case:
-        }
-    }
-    mut skip_child : USize = 99
-    if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
-        switch e.children[0].node_type {
-        case NodeType.Ident(bvs_c):
-            if bvs_c.ident_name() == "is_n" { skip_child = 2 }
-        case:
-        }
-    }
-    if e.node_type.is(NodeType.Case) { skip_child = 0 }
-    mut bvs_owner := ""
-    switch e.node_type {
-    case NodeType.Decl(bvs_od): bvs_owner = Str.clone(bvs_od.name)
-    case:
-    }
-    mut bvs_i : USize = 0
-    for bvs_ch : Expr in e.children {
-        cur_bvs := bvs_i
-        bvs_i = bvs_i + 1
-        if cur_bvs == skip_child { continue }
-        builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
-    }
-    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        // A site inside an OMITTED definition is not a call: the body that
-        // would contain it is never emitted. The generated clone/eq bodies
-        // chain -- FuncType_clone's body compares via FuncType.eq -- so a
-        // dead clone kept eq's definition alive, and this walk asks the
-        // gate itself, on the previous iteration's site set, to know which
-        // bodies to skip (see the fixpoint loop in
-        // builder_fill_reflect_inventory). The owner name comes down from
-        // the enclosing Decl statement; "" means unknown, walk everything.
-        ref bvs_ns : Vec(Declaration) = def_ns_decls(e)
-        mut bvs_mi : USize = 0
-        for bvs_d : Declaration in bvs_ns {
-            cur_bvs_mi := bvs_mi
-            bvs_mi = bvs_mi + 1
-            if bvs_d.default_value.is_none() { continue }
-            if owner.len() > 0 {
-                if builder_ns_method_omitted(owner, def_ns_name_at(e, cur_bvs_mi), ctx) { continue }
-            }
-            builder_collect_ns_member_sites(bvs_d.default_expr(), sites, stack_names, dup_names, param_names, "", in_body, ctx)
-        }
-    }
-}
 
 priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, ctx: Context) {
     f.write("struct ").write(ename).write(" {\n")
@@ -6555,7 +5743,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                         case NodeType.FuncDef(fd):
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi))
                             if fd.func_type.is_bodyless() { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
+                            if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi), lp.ctx) { continue }
                             emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
                         }
@@ -6600,7 +5788,7 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
                     // every such method got a prototype that nothing defines
                     // and nothing calls -- 61 in til's own output.
                     if builder_ns_method_lowered_inline(fdd.default_expr()) { continue }
-                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
+                    if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fwi2), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fwi2))
                     emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                 }
@@ -6622,11 +5810,11 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+            if scav_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for hdr_vd : VariantDef in hdr_edd.variants {
-                if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
+                if scav_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                 if hdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                     f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7648,7 +6836,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         switch fdd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is_bodyless() { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
+                            if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw2i))
                             emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
@@ -7691,7 +6879,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                     switch fdd.default_expr().node_type {
                     case NodeType.FuncDef(fd):
                         if fd.func_type.is_bodyless() { continue }
-                        if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
+                        if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
                         full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw3i))
                         emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                     case:
@@ -7723,11 +6911,11 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             ref dd : Declaration = decl_of(stmt)
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+            if scav_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for hdr_vd : VariantDef in hdr_edd.variants {
-                if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
+                if scav_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
                 if hdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
                     f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7759,7 +6947,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         switch fdd.default_expr().node_type {
                         case NodeType.FuncDef(fd):
                             if fd.func_type.is_bodyless() { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
+                            if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af1i), lp.ctx) { continue }
                             full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af1i))
                             emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                         case:
@@ -7807,7 +6995,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     // every such method got a prototype that nothing defines
                     // and nothing calls -- 61 in til's own output.
                     if builder_ns_method_lowered_inline(fdd.default_expr()) { continue }
-                    if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
+                    if scav_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_af2i), lp.ctx) { continue }
                     full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_af2i))
                     emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                 }
@@ -7840,11 +7028,11 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                 if stmt.children.len() == 0 { continue }
                 if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
                 ref dd : Declaration = decl_of(stmt)
-                if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+                if scav_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
                 ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
                 ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
                 for shdr_vd : VariantDef in shdr_edd.variants {
-                    if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
+                    if scav_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                     if shdr_vd.payload_type.len() > 0 {
                         tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                         f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7863,11 +7051,11 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
             if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
             switch stmt.node_type {
             case NodeType.Decl(dd):
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
+            if scav_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
             ref shdr_edd : EnumDef = enumdef_of(stmt.children[0])
             ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
             for shdr_vd : VariantDef in shdr_edd.variants {
-                if builder_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
+                if scav_variant_ctor_kept(dd.name, stmt.children[0], shdr_vd.name, lp.ctx).not() { continue }
                 if shdr_vd.payload_type.len() > 0 {
                     tnc := type_name_to_c(shdr_vd.payload_type, lp.ctx)
                     f.write(ctor_ret).write(dd.name).write("_").write(shdr_vd.name).write("(").write(tnc).write(");\n")
@@ -7939,19 +7127,19 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     // #326: one prototype per family that is actually emitted (see the
     // gates in emit_program). An unreferenced prototype is not a warning,
     // but it advertises a definition that no longer exists.
-    if builder_needs_reflect("dyn_fn", lp.ctx) {
+    if scav_needs_reflect("dyn_fn", lp.ctx) {
         f.write("void *dyn_fn(Str *type_name, Str *method);\n")
     }
-    if builder_needs_reflect("dyn_size_of", lp.ctx) {
+    if scav_needs_reflect("dyn_size_of", lp.ctx) {
         f.write("USize dyn_size_of(Str *type_name);\n")
     }
-    if builder_needs_reflect("struct_field_", lp.ctx) {
+    if scav_needs_reflect("struct_field_", lp.ctx) {
         f.write("I64 struct_field_count(Str *type_name);\n")
         f.write("Str *struct_field_name(Str *type_name, I64 *index);\n")
         f.write("I64 struct_field_is_mut(Str *type_name, I64 *index);\n")
         f.write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     }
-    if builder_needs_reflect("enum_variant_", lp.ctx) {
+    if scav_needs_reflect("enum_variant_", lp.ctx) {
         f.write("I64 enum_variant_count(Str *type_name);\n")
         f.write("Str *enum_variant_name(Str *type_name, I64 *index);\n")
         f.write("I64 enum_variant_has_payload(Str *type_name, I64 *index);\n")
@@ -7960,7 +7148,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         f.write("I64 enum_variant_payload_is_const(Str *type_name, I64 *index);\n")
         f.write("I64 enum_variant_payload_is_ref(Str *type_name, I64 *index);\n")
     }
-    if builder_needs_reflect("func_sig_", lp.ctx) {
+    if scav_needs_reflect("func_sig_", lp.ctx) {
         f.write("I64 func_sig_param_count(Str *type_name);\n")
         f.write("Str *func_sig_param_type(Str *type_name, I64 *index);\n")
         f.write("I64 func_sig_return_count(Str *type_name);\n")
@@ -8158,7 +7346,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface
                         // methods -- there is no C function behind them.
                         // ext_funcs on non-interface types are C-backed.
-                        if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
+                        if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(scav_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
                             emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw0i), fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw0i), "_dyn")
                         }
@@ -8185,7 +7373,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     // #269: no wrapper for abstract interface methods --
                     // there is no C function behind them. ext_funcs on
                     // non-interface types are C-backed.
-                    if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
+                    if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(scav_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
                         emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw1i), fd, lp.ctx)
                         emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw1i), "_dyn")
                     }
@@ -8214,7 +7402,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: abstract interface methods have no
                         // _dyn wrapper closure to point at. ext_funcs
                         // on non-interface types are C-backed.
-                        if dfn_fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
+                        if dfn_fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(scav_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd_name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
@@ -8242,7 +7430,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     // #269: abstract interface methods have no _dyn
                     // wrapper closure to point at. ext_funcs on
                     // non-interface types are C-backed.
-                    if dfn_fd2.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
+                    if dfn_fd2.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(scav_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                         tlen := dd.name.len()
                         mlen := nsd2_name.len()
                         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
@@ -9348,6 +8536,17 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     build_register_func_symbols_lp(lp)
     build_register_funcsig_names_lp(lp)
     build_register_closure_values_lp(lp)
+    // #326: the C-emit reachability pass (scavenger.til). It is invoked
+    // HERE, not from scavenge_imported, because its lowering queries read
+    // the C-symbol aliases build_register_func_symbols_lp has just
+    // installed -- fcall_is_shallow_return resolves a callee through
+    // scope.lookup_func_symbol, and answering it before registration gets
+    // a different, wrong answer (EvalHeap_clone and CtorArg_clone became
+    // implicit declarations in til's own output). The ANALYSIS belongs to
+    // the scavenger and lives there; only its trigger point is the
+    // builder's, because only the builder knows when its symbol table is
+    // complete.
+    scavenge_emit_inventory(lp)
     f := File.new(c_output_path, true)
 
     f.write("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include <stddef.h>\n\n")
@@ -9357,7 +8556,6 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
 
     // #326: the dyn/reflection inventory must be in place before the first
     // gated emission (the forward-declaration block).
-    builder_fill_reflect_inventory(lp)
 
     emit_monolithic_header_lp(f, mode, lp)
     f.write("#include \"ext.h\"\n\n")
@@ -9394,12 +8592,12 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     // #326: each family is emitted only when the surviving AST names it.
     // dyn_fn's per-method `_dyn` wrappers and closure values exist solely
     // to fill its dispatch table, so they go with it.
-    if builder_needs_reflect("dyn_fn", lp.ctx) { emit_dyn_fn_wrappers(f, lp) }
+    if scav_needs_reflect("dyn_fn", lp.ctx) { emit_dyn_fn_wrappers(f, lp) }
     emit_dyn_has_bodies(f, lp)
-    if builder_needs_reflect("dyn_size_of", lp.ctx) { emit_dyn_size_of_body(f, lp) }
-    if builder_needs_reflect("struct_field_", lp.ctx) { emit_struct_introspection_bodies(f, lp) }
-    if builder_needs_reflect("enum_variant_", lp.ctx) { emit_enum_introspection_bodies(f, lp) }
-    if builder_needs_reflect("func_sig_", lp.ctx) { emit_funcsig_introspection_bodies(f, lp) }
+    if scav_needs_reflect("dyn_size_of", lp.ctx) { emit_dyn_size_of_body(f, lp) }
+    if scav_needs_reflect("struct_field_", lp.ctx) { emit_struct_introspection_bodies(f, lp) }
+    if scav_needs_reflect("enum_variant_", lp.ctx) { emit_enum_introspection_bodies(f, lp) }
+    if scav_needs_reflect("func_sig_", lp.ctx) { emit_funcsig_introspection_bodies(f, lp) }
     mut has_dyn_type_to_str2 := false
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {

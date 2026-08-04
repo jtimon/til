@@ -258,6 +258,8 @@ typedef struct ImportUnit ImportUnit;
 typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
 typedef struct Context Context;
+typedef struct CollectionInfo CollectionInfo;
+typedef struct DynCallInfo DynCallInfo;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 enum {
     Option__ref_TypeBinding_TAG_None,
@@ -276,11 +278,6 @@ typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
-enum {
-    Option__ref_Expr_TAG_None,
-    Option__ref_Expr_TAG_Some
-};
-typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
@@ -296,6 +293,11 @@ enum {
 };
 typedef struct Option__ref_Declaration Option__ref_Declaration;
 typedef struct Vec__I64 Vec__I64;
+enum {
+    Option__ref_Expr_TAG_None,
+    Option__ref_Expr_TAG_Some
+};
+typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
@@ -366,6 +368,8 @@ enum {
     Option__ref_Scope_TAG_Some
 };
 typedef struct Option__ref_Scope Option__ref_Scope;
+typedef struct Vec__CollectionInfo Vec__CollectionInfo;
+typedef struct Vec__DynCallInfo Vec__DynCallInfo;
 typedef struct ProgramUnit ProgramUnit;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct priv___src_self_loader_til__DeclRef priv___src_self_loader_til__DeclRef;
@@ -375,13 +379,9 @@ typedef struct Map__Str_DeclRef Map__Str_DeclRef;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
 typedef struct Vec__DeclRef Vec__DeclRef;
-typedef struct priv___src_self_builder_til__CollectionInfo priv___src_self_builder_til__CollectionInfo;
-typedef struct priv___src_self_builder_til__DynCallInfo priv___src_self_builder_til__DynCallInfo;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
-typedef struct Vec__DynCallInfo Vec__DynCallInfo;
-typedef struct Vec__CollectionInfo Vec__CollectionInfo;
 typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct _ffi_type ffi_type;
 typedef struct InterpCallableBox InterpCallableBox;
@@ -763,6 +763,19 @@ typedef struct GenericFuncSource {
 } GenericFuncSource;
 
 
+typedef struct CollectionInfo {
+    Str *type_name;
+    I32 is_vec;
+} CollectionInfo;
+
+
+typedef struct DynCallInfo {
+    Str *method;
+    I32 nargs;
+    Bool has_return;
+} DynCallInfo;
+
+
 struct Option__ref_TypeBinding {
     TypeBinding *data;
 };
@@ -783,10 +796,6 @@ typedef struct Map__Str_Expr {
     Vec__Expr values;
 } Map__Str_Expr;
 
-
-struct Option__ref_Expr {
-    Expr *data;
-};
 
 typedef struct Map__Str_Dynamic {
     Vec__Str keys;
@@ -815,6 +824,10 @@ typedef struct Vec__I64 {
     USize cap;
 } Vec__I64;
 
+
+struct Option__ref_Expr {
+    Expr *data;
+};
 
 typedef struct Vec__TypeBinding {
     U8 *data;
@@ -1028,6 +1041,20 @@ struct Option__ref_Scope {
     Scope *data;
 };
 
+typedef struct Vec__CollectionInfo {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__CollectionInfo;
+
+
+typedef struct Vec__DynCallInfo {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__DynCallInfo;
+
+
 typedef struct priv___src_self_loader_til__DeclRef {
     Str path;
     USize idx;
@@ -1074,19 +1101,6 @@ typedef struct Vec__DeclRef {
 } Vec__DeclRef;
 
 
-typedef struct priv___src_self_builder_til__CollectionInfo {
-    Str *type_name;
-    I32 is_vec;
-} priv___src_self_builder_til__CollectionInfo;
-
-
-typedef struct priv___src_self_builder_til__DynCallInfo {
-    Str *method;
-    I32 nargs;
-    Bool has_return;
-} priv___src_self_builder_til__DynCallInfo;
-
-
 typedef struct priv___src_self_builder_til__BuildPaths {
     Str name;
     Str c_path;
@@ -1110,20 +1124,6 @@ typedef struct DocEntry {
     Str since;
     Str deprecated;
 } DocEntry;
-
-
-typedef struct Vec__DynCallInfo {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__DynCallInfo;
-
-
-typedef struct Vec__CollectionInfo {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__CollectionInfo;
 
 
 typedef struct Vec__DocEntry {
@@ -2185,6 +2185,23 @@ Bool is_aggregate(Type * t);
 Bool is_range_new_call(Expr * e);
 USize fcall_kwargs_count(Expr * fcall);
 USize fcall_variadic_count(Expr * fcall, USize nparam, Bool callee_has_kwargs);
+Option__ref_Expr find_struct_def(Str * name, Context * ctx);
+Option__ref_Expr find_callee_fdef(Str * name, Context * ctx);
+Bool is_primitive_type(Str * name);
+Bool is_pod_struct(Str * struct_name, Context * ctx);
+Bool is_pod_enum(Str * enum_name, Context * ctx);
+Bool callee_returns_shallow(Str * callee_name, Context * ctx);
+Option__ref_Expr fcall_fn_sig(Expr * fcall, Context * ctx);
+Bool fcall_is_shallow_return(Expr * fcall, Context * ctx);
+Bool pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
+Bool is_pod_enum_clone_call(Expr * e, Context * ctx);
+Bool builder_is_temp_delete(Expr * e);
+USize count_ident_uses(Expr * e, Str * name);
+Bool builder_is_inline_accessor(Str * mname, Str * flat, Context * ctx);
+Option__ref_Expr resolve_local_fn_sig(Context * ctx, Str * name);
+Bool fcall_is_struct_ctor(Expr * e);
+void CollectionInfo_delete(CollectionInfo * self, Bool call_free);
+void DynCallInfo_delete(DynCallInfo * self, Bool call_free);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
@@ -2245,9 +2262,6 @@ Vec__Str * Map__Str_call_Vec_Str_get(Map__Str_call_Vec_Str * self, Str * key, I6
 void Map__Str_call_Vec_Str_set(Map__Str_call_Vec_Str * self, Str * key, Vec__Str * val);
 void Map__Str_call_Vec_Str_delete(Map__Str_call_Vec_Str * self, Bool call_free);
 Map__Str_call_Vec_Str * Map__Str_call_Vec_Str_clone(Map__Str_call_Vec_Str * self);
-Bool Option__ref_Expr_is_some(Option__ref_Expr self);
-Bool Option__ref_Expr_is_none(Option__ref_Expr self);
-Expr * Option__ref_Expr_unwrap(Option__ref_Expr * self);
 Map__Str_Dynamic * Map__Str_Dynamic_new(void);
 USize Map__Str_Dynamic_len(Map__Str_Dynamic * self);
 Bool Map__Str_Dynamic_has(Map__Str_Dynamic * self, Str * key);
@@ -2290,6 +2304,9 @@ I64 * Vec__I64_unsafe_get(Vec__I64 * self, USize * i);
 I64 * Vec__I64_get(Vec__I64 * self, USize * i, I64 * _err_kind);
 void Vec__I64_unsafe_set(Vec__I64 * self, USize i, I64 * val);
 void Vec__I64_delete(Vec__I64 * self, Bool call_free);
+Bool Option__ref_Expr_is_some(Option__ref_Expr self);
+Bool Option__ref_Expr_is_none(Option__ref_Expr self);
+Expr * Option__ref_Expr_unwrap(Option__ref_Expr * self);
 Vec__TypeBinding * Vec__TypeBinding_new(void);
 USize Vec__TypeBinding_len(Vec__TypeBinding * self);
 void Vec__TypeBinding_clear(Vec__TypeBinding * self);
@@ -3112,6 +3129,38 @@ void priv___src_self_scavenger_til__fix_stale_litstr_in_body(Expr * body);
 void priv___src_self_scavenger_til__body_dce_walk(Expr * e, Bool at_top_level);
 void priv___src_self_scavenger_til__body_dce_ns(Expr * rhs);
 void dce_program_bodies(Expr * program);
+Bool scav_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Context * ctx);
+void scav_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Str * owner, Bool in_body, Context * ctx);
+Bool scav_ns_method_inlined_away(Str * type_name, Str * member, Context * ctx);
+Bool scav_size_method_omitted(Str * type_name, Str * member, Context * ctx);
+Bool scav_variant_ctor_omitted(Str * type_name, Str * member, Context * ctx);
+Bool scav_pod_lifecycle_omitted(Str * type_name, Str * member, Context * ctx);
+Bool scav_ns_method_omitted(Str * type_name, Str * member, Context * ctx);
+Bool scav_variant_ctor_kept(Str * ename, Expr * enum_def, Str * vname, Context * ctx);
+Bool scav_dyn_fn_target_kept(Str * type_name, Str * member, Context * ctx);
+Bool scav_needs_reflect(Str * name, Context * ctx);
+Bool scav_is_reflect_builtin_name(Str * n);
+void scav_record_reflect_name(Str * n, Set__Str * inv);
+void scav_collect_reflect_inventory(Expr * e, Set__Str * inv);
+void scav_collect_dyn_fn_targets(Expr * e, Set__Str * targets);
+void scav_collect_lit_guard_use(Expr * e, Bool * used);
+void collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);
+void collect_collection_builtins(Expr * e, Vec__CollectionInfo * infos);
+void scavenge_emit_inventory(LoadedProgram * lp);
+Vec__CollectionInfo * Vec__CollectionInfo_new(void);
+USize Vec__CollectionInfo_len(Vec__CollectionInfo * self);
+void Vec__CollectionInfo_clear(Vec__CollectionInfo * self);
+void Vec__CollectionInfo_push(Vec__CollectionInfo * self, CollectionInfo * val);
+CollectionInfo * Vec__CollectionInfo_unsafe_get(Vec__CollectionInfo * self, USize * i);
+void Vec__CollectionInfo_delete(Vec__CollectionInfo * self, Bool call_free);
+Vec__DynCallInfo * Vec__DynCallInfo_new(void);
+USize Vec__DynCallInfo_len(Vec__DynCallInfo * self);
+void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);
+void Vec__DynCallInfo_push(Vec__DynCallInfo * self, DynCallInfo * val);
+DynCallInfo * Vec__DynCallInfo_unsafe_get(Vec__DynCallInfo * self, USize * i);
+void Vec__DynCallInfo_delete(Vec__DynCallInfo * self, Bool call_free);
+void adopt__CollectionInfo(void * dest, CollectionInfo * src);
+void adopt__DynCallInfo(void * dest, DynCallInfo * src);
 Str * priv___src_self_loader_til__normalize_mode_name(Str * mode_name);
 Str * priv___src_self_loader_til__display_path(Str * p, Str * cwd);
 Mode * priv___src_self_loader_til__require_mode(Context * ctx, Str * path, Str * mode_name);
@@ -3294,13 +3343,9 @@ void Vec__DeclRef_delete(Vec__DeclRef * self, Bool call_free);
 void adopt__priv___src_self_loader_til__DeclRef(void * dest, priv___src_self_loader_til__DeclRef * src);
 void adopt__ProgramUnit(void * dest, ProgramUnit * src);
 void adopt__priv___src_self_loader_til__ImportCheckEntry(void * dest, priv___src_self_loader_til__ImportCheckEntry * src);
-void priv___src_self_builder_til__CollectionInfo_delete(priv___src_self_builder_til__CollectionInfo * self, Bool call_free);
-void priv___src_self_builder_til__DynCallInfo_delete(priv___src_self_builder_til__DynCallInfo * self, Bool call_free);
 Str * closure_call_name(Str * name);
 Str * closure_value_name(Str * name);
-Option__ref_Expr priv___src_self_builder_til__resolve_local_fn_sig(Context * ctx, Str * name);
 Option__ref_Expr priv___src_self_builder_til__resolve_decl_fn_sig(Expr * rhs, Declaration * dd, TypeScope * scope, Context * ctx);
-Option__ref_Expr priv___src_self_builder_til__fcall_fn_sig(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__is_stack_local(Str * name, Context * ctx);
 void priv___src_self_builder_til__assert_gc_stack(Declaration * dd, Str * shape);
 Bool priv___src_self_builder_til__is_stack_lit_str_local(Str * name, Context * ctx);
@@ -3309,24 +3354,15 @@ Bool priv___src_self_builder_til__is_value_global(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ref_global(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ref_local(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__use_dot_access(Expr * obj, Context * ctx);
-Bool priv___src_self_builder_til__is_primitive_type(Str * name);
-Bool priv___src_self_builder_til__is_pod_enum(Str * enum_name, Context * ctx);
-Bool priv___src_self_builder_til__is_pod_enum_clone_call(Expr * e, Context * ctx);
-Bool priv___src_self_builder_til__is_pod_struct_user_clone(Expr * e, Context * ctx);
 void priv___src_self_builder_til__emit_pod_struct_user_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
+Bool priv___src_self_builder_til__is_pod_struct_user_clone(Expr * e, Context * ctx);
 void priv___src_self_builder_til__emit_pod_enum_clone_arg(File * f, Expr * e, I32 depth, Context * ctx);
-Bool priv___src_self_builder_til__is_pod_struct(Str * struct_name, Context * ctx);
 Bool priv___src_self_builder_til__is_funcsig_type(Str * name, Context * ctx);
 Bool priv___src_self_builder_til__is_ext_h_type(Str * name);
 Bool priv___src_self_builder_til__is_exported_top_level_global(Expr * stmt);
-Option__ref_Expr priv___src_self_builder_til__find_struct_def(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__inline_call_ret_ctype(Expr * e, Str * callee_name, Context * ctx);
-Option__ref_Expr priv___src_self_builder_til__find_callee_fdef(Str * name, Context * ctx);
 void priv___src_self_builder_til__inline_subst(Expr * e, Vec__Declaration * params, Expr * call);
 void priv___src_self_builder_til__subst_ident_expr(Expr * e, Str * name, Expr * val);
-USize priv___src_self_builder_til__count_ident_uses(Expr * e, Str * name);
-Bool priv___src_self_builder_til__builder_is_temp_delete(Expr * e);
-Bool priv___src_self_builder_til__builder_is_inline_accessor(Str * mname, Str * flat, Context * ctx);
 void priv___src_self_builder_til__emit_inline_accessor(File * f, Expr * e, Expr * fdef, I32 depth, Context * ctx);
 Bool priv___src_self_builder_til__builder_callee_is_core(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__core_binop_to_c(Str * op);
@@ -3336,7 +3372,6 @@ Bool priv___src_self_builder_til__builder_fa_is_ptr(Expr * e, Context * ctx);
 Bool priv___src_self_builder_til__builder_fa_is_ns_with_fname(Expr * e, Str * sname, Str * fname, Context * ctx);
 Bool priv___src_self_builder_til__builder_fa_is_ns(Expr * e, Context * ctx);
 Bool priv___src_self_builder_til__is_shallow_param(Str * name, Context * ctx);
-Bool priv___src_self_builder_til__callee_returns_shallow(Str * callee_name, Context * ctx);
 Bool priv___src_self_builder_til__callee_returns_dynamic(Str * callee_name, Context * ctx);
 Str * priv___src_self_builder_til__delete_call_free_lit(Str * type_name, Bool set_free, Context * ctx);
 Bool priv___src_self_builder_til__callee_param_is_shallow(Str * callee_name, USize arg_index, Context * ctx);
@@ -3345,7 +3380,6 @@ Bool priv___src_self_builder_til__callee_param_is_uptr(Str * callee_name, USize 
 Bool priv___src_self_builder_til__callee_param_is_own(Str * callee_name, USize arg_index, Context * ctx);
 Bool priv___src_self_builder_til__callee_param_writes_back(Str * callee_name, USize arg_index, Context * ctx);
 Str * priv___src_self_builder_til__callee_param_explicit_type(Str * callee_name, USize arg_index, Context * ctx);
-Bool priv___src_self_builder_til__fcall_is_shallow_return(Expr * fcall, Context * ctx);
 Bool priv___src_self_builder_til__fcall_returns_dynamic(Expr * fcall, Context * ctx);
 Str * priv___src_self_builder_til__til_type_to_c(Type t);
 void priv___src_self_builder_til__seed_primitive_names(Set__Str * emitted);
@@ -3372,16 +3406,6 @@ void priv___src_self_builder_til__collect_ident_refs(Expr * e, Set__Str * refs);
 void priv___src_self_builder_til__emit_til_default(File * f, Type t);
 Str * priv___src_self_builder_til__param_ctype(FunctionDef * fd, USize i, Context * ctx);
 void priv___src_self_builder_til__emit_param_list(File * f, Expr * fdef, Bool with_names, Bool for_ext_decl, Context * ctx);
-Bool priv___src_self_builder_til__builder_is_reflect_builtin_name(Str * n);
-void priv___src_self_builder_til__builder_record_reflect_name(Str * n, Set__Str * inv);
-void priv___src_self_builder_til__builder_collect_reflect_inventory(Expr * e, Set__Str * inv);
-void priv___src_self_builder_til__builder_collect_dyn_fn_targets(Expr * e, Set__Str * targets);
-Bool priv___src_self_builder_til__builder_dyn_fn_target_kept(Str * type_name, Str * member, Context * ctx);
-void priv___src_self_builder_til__builder_collect_lit_guard_use(Expr * e, Bool * used);
-void priv___src_self_builder_til__builder_fill_reflect_inventory(LoadedProgram * lp);
-Bool priv___src_self_builder_til__builder_needs_reflect(Str * name, Context * ctx);
-void priv___src_self_builder_til__collect_dyn_methods(Expr * e, Vec__DynCallInfo * methods);
-void priv___src_self_builder_til__collect_collection_builtins(Expr * e, Vec__CollectionInfo * infos);
 void priv___src_self_builder_til__emit_field(File * f, Str * var, Str * field, Context * ctx);
 Option__ref_Str priv___src_self_builder_til__get_stack_local_ctype(Str * name, Context * ctx);
 Str * priv___src_self_builder_til__resolve_callee_name(Expr * fcall);
@@ -3410,8 +3434,6 @@ void priv___src_self_builder_til__builder_register_dyn_type_to_str_lits(LoadedPr
 void priv___src_self_builder_til__builder_register_str_lits(LoadedProgram * lp);
 void priv___src_self_builder_til__builder_emit_str_lit_pool(File * f, Context * ctx);
 void priv___src_self_builder_til__collect_dyn_has_methods(Expr * e, Vec__Str * methods);
-Bool priv___src_self_builder_til__fcall_is_struct_ctor(Expr * e);
-Bool priv___src_self_builder_til__pod_ctor_args_are_safe(Expr * ctor, Context * ctx);
 void priv___src_self_builder_til__emit_pod_compound_literal(File * f, Expr * ctor, I32 depth, Context * ctx);
 void priv___src_self_builder_til__emit_stmt_decl(File * f, Expr * e, I32 depth, Context * ctx);
 Str * priv___src_self_builder_til__emit_return_ctype(Expr * rv, Context * ctx);
@@ -3449,19 +3471,11 @@ void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitt
 void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_typedef(File * f, Str * name, Expr * struct_def, Set__Str * emitted_tags);
-Bool priv___src_self_builder_til__builder_ns_method_inlined_away(Str * type_name, Str * member, Context * ctx);
-Bool priv___src_self_builder_til__builder_size_method_omitted(Str * type_name, Str * member, Context * ctx);
-Bool priv___src_self_builder_til__builder_variant_ctor_omitted(Str * type_name, Str * member, Context * ctx);
 Bool priv___src_self_builder_til__builder_ns_method_lowered_inline(Expr * fdef);
-Bool priv___src_self_builder_til__builder_pod_lifecycle_omitted(Str * type_name, Str * member, Context * ctx);
-Bool priv___src_self_builder_til__builder_ns_method_omitted(Str * type_name, Str * member, Context * ctx);
 void priv___src_self_builder_til__emit_ns_method(File * f, Str * name, Str * dd_name, Expr * fdef, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_funcs(File * f, Str * name, Expr * struct_def, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_enum_def(File * f, Str * name, Expr * enum_def, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_is_n_operand(File * f, Expr * e, USize idx, Str * enum_c, Bool is_niche, I32 depth, Context * ctx);
-Bool priv___src_self_builder_til__builder_variant_ctor_kept(Str * ename, Expr * enum_def, Str * vname, Context * ctx);
-Bool priv___src_self_builder_til__builder_pod_site_spliced(Expr * e, Str * member, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Context * ctx);
-void priv___src_self_builder_til__builder_collect_ns_member_sites(Expr * e, Set__Str * sites, Set__Str * stack_names, Set__Str * dup_names, Set__Str * param_names, Str * owner, Bool in_body, Context * ctx);
 void priv___src_self_builder_til__emit_enum_struct_body(File * f, Str * ename, Expr * enum_def, Context * ctx);
 void priv___src_self_builder_til__topo_emit_struct_enum_defs_lp(File * f, Set__Str * emitted, LoadedProgram * lp);
 Str * priv___src_self_builder_til__func_return_ctype(FunctionDef * fd, Context * ctx);
@@ -3626,18 +3640,6 @@ Str * priv___src_self_builder_til__til_doc_html_out_path(Str * unit_path);
 void priv___src_self_builder_til__ensure_parent_dir(Str * path);
 void priv___src_self_builder_til__emit_unit_doc(ProgramUnit * u, DocCatalog * catalog, Str * version);
 I32 cmd_doc(LoadedProgram * lp, Str * version);
-Vec__DynCallInfo * Vec__DynCallInfo_new(void);
-USize Vec__DynCallInfo_len(Vec__DynCallInfo * self);
-void Vec__DynCallInfo_clear(Vec__DynCallInfo * self);
-void Vec__DynCallInfo_push(Vec__DynCallInfo * self, priv___src_self_builder_til__DynCallInfo * val);
-priv___src_self_builder_til__DynCallInfo * Vec__DynCallInfo_unsafe_get(Vec__DynCallInfo * self, USize * i);
-void Vec__DynCallInfo_delete(Vec__DynCallInfo * self, Bool call_free);
-Vec__CollectionInfo * Vec__CollectionInfo_new(void);
-USize Vec__CollectionInfo_len(Vec__CollectionInfo * self);
-void Vec__CollectionInfo_clear(Vec__CollectionInfo * self);
-void Vec__CollectionInfo_push(Vec__CollectionInfo * self, priv___src_self_builder_til__CollectionInfo * val);
-priv___src_self_builder_til__CollectionInfo * Vec__CollectionInfo_unsafe_get(Vec__CollectionInfo * self, USize * i);
-void Vec__CollectionInfo_delete(Vec__CollectionInfo * self, Bool call_free);
 Vec__DocEntry * Vec__DocEntry_new(void);
 USize Vec__DocEntry_len(Vec__DocEntry * self);
 void Vec__DocEntry_clear(Vec__DocEntry * self);
@@ -3645,8 +3647,6 @@ void Vec__DocEntry_push(Vec__DocEntry * self, DocEntry * val);
 DocEntry * Vec__DocEntry_unsafe_get(Vec__DocEntry * self, USize * i);
 DocEntry * Vec__DocEntry_get(Vec__DocEntry * self, USize * i, I64 * _err_kind);
 void Vec__DocEntry_delete(Vec__DocEntry * self, Bool call_free);
-void adopt__priv___src_self_builder_til__DynCallInfo(void * dest, priv___src_self_builder_til__DynCallInfo * src);
-void adopt__priv___src_self_builder_til__CollectionInfo(void * dest, priv___src_self_builder_til__CollectionInfo * src);
 void adopt__DocEntry(void * dest, DocEntry * src);
 void ffi_type_delete(ffi_type * self, Bool call_free);
 void ffi_cif_delete(ffi_cif * self, Bool call_free);
