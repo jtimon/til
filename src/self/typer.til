@@ -1295,6 +1295,19 @@ priv infer_and_validate_fcall_args_for_fdef := proc(scope: TypeScope, mut e: Exp
                     case:
                         UNREACHABLE("expected FCall, got ", e.node_type.head_str())
                     }
+                    // A splat sharing the variadic block with other args
+                    // cannot be lowered: is_splat is ONE flag on the whole
+                    // call, so which argument carried the `..` is not
+                    // recorded anywhere, and desugar_pure_splat_variadic_call
+                    // can only recover it when the block holds exactly one
+                    // arg. The desugar used to wrap the splatted Array as if
+                    // it were a single element and the callee then read the
+                    // Array's bytes as its element type -- `format("<", ..a)`
+                    // silently printed "<\xa0\"\"" instead of "<ab". Refuse
+                    // it here rather than emit that.
+                    if is_splat.and(fvc > 1) {
+                        e.type_error(format("a '..' splat must be the only argument in the variadic block for '", vparam.name, "'; splat one array holding every element, or combine them in a nested call"), ctx)
+                    }
                     if vptype_name.len().gt(0).and(is_splat.not()) {
                         vptype := type_from_name(vptype_name, scope, ctx)
                         if vptype.is(Type.Dynamic).not() {
