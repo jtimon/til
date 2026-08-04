@@ -34,11 +34,26 @@ UmlType := struct {
     name := ""
     kind := ""
     lines := Vec(Str).new()
+
+namespace:
+    // Hand-written: these live in Vecs, and Vec(T).to_str requires T.to_str
+    // on every element type. The generated one is not emitted for a struct
+    // holding a Vec.
+    to_str := func(self: UmlType) returns Str {
+        return format("UmlType(file=", self.file, ", name=", self.name,
+                      ", kind=", self.kind, ")")
+    }
 }
 
 UmlPanel := struct {
     file := ""
     types := Vec(UmlType).new()
+
+namespace:
+    to_str := func(self: UmlPanel) returns Str {
+        return format("UmlPanel(file=", self.file,
+                      ", types=", self.types.len().to_str(), ")")
+    }
 }
 
 file_label := func(path: Str) returns Str {
