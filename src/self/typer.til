@@ -7830,7 +7830,12 @@ fact_bit_of := func(fi: FactIndex, name: Str) returns I64 {
 fact_bit_record := func(mut mask: Vec(U64), base: USize, bit: USize) {
     w := base.add(bit / 64)
     mut one : U64 = 1
-    mask.unsafe_set(w, own mask.unsafe_get(w).bor(one.shl(bit.mod(64).to_u64())))
+    // Stored through a ref, not Vec.unsafe_set: the setter takes its
+    // value OWNED, so every recorded bit went through a malloc'd U64
+    // box that adopt then freed -- a malloc/free pair per name per
+    // statement, to OR one word.
+    ref mut slot : U64 = mask.unsafe_get(w)
+    slot = slot.bor(one.shl(bit.mod(64).to_u64()))
 }
 
 // Record `name` in the mask row at `base`. A name outside the probe

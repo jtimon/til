@@ -1311,9 +1311,14 @@ priv fact_row_intersects := func(mask: Vec(U64), base: USize, other: Vec(U64), w
     return false
 }
 
+// One malloc and one memset. Vec.push takes its value OWNED, so the
+// element-at-a-time fill this replaced ran a malloc/free pair per WORD
+// of every row -- five rows per body, to write zeros.
 priv zeroed_words := func(total: USize) returns Vec(U64) {
+    if total == 0 { return Vec(U64).new() }
     mut v := Vec(U64).with_capacity(total)
-    for _ in 0..total { v.push(own 0) }
+    memset(v.data, 0, total.mul(U64.size()))
+    v.count = total
     return v
 }
 
