@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9c075f4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a783bc1db</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -260,12 +260,6 @@ namespace:
     func set(mut self: Map__Str_I64, key: Str, own val: I64)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_I64, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_I64) returns Str
     func delete(own self: Map__Str_I64, shallow call_free: Bool)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func hash(self: Map__Str_I64, hasher: HashFn) returns shallow U64
@@ -300,12 +294,6 @@ namespace:
     func set(mut self: Map__Str_GenericFuncSource, key: Str, own val: GenericFuncSource)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_GenericFuncSource, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_GenericFuncSource) returns Str
     func delete(own self: Map__Str_GenericFuncSource, shallow call_free: Bool)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
     func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns shallow U64
@@ -396,12 +384,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__GenericFuncSource, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__GenericFuncSource) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func size() returns shallow USize

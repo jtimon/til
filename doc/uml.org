@@ -340,6 +340,13 @@
 *** imported := Map(Str, ImportUnit).new()
 *** check_unused_imports := false
 *** ... (64 more)
+** CollectionInfo: StructDef
+*** ref type_name : Str
+*** is_vec : I32 = 0
+** DynCallInfo: StructDef
+*** ref method : Str
+*** nargs : I32 = 1
+*** has_return := false
 * targets
 ** Lang: EnumDef
 *** C
@@ -441,18 +448,12 @@
 *** escapes := Vec(U64).new()
 *** def_names := Vec(Str).new()
 *** def_bits := Vec(I64).new()
+*** directives := Vec(Bool).new()
 ** GcBorrowEdge: StructDef
 *** owner := ""
 *** borrower := ""
 *** fixed_reach : I32 = -1
 * builder
-** CollectionInfo: StructDef
-*** ref type_name : Str
-*** is_vec : I32 = 0
-** DynCallInfo: StructDef
-*** ref method : Str
-*** nargs : I32 = 1
-*** has_return := false
 ** BuildPaths: StructDef
 *** name := ""
 *** c_path := ""

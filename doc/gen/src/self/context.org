@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * TypeBinding
@@ -106,6 +106,8 @@ namespace:
     func struct_def_of_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func lookup_func(self: TypeScope, name: Str) returns shallow Option__ref_Expr
     func lookup_func_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
+    func local_struct_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
+    func local_func_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func lookup_func_symbol(self: TypeScope, name: Str) returns shallow Option__ref_Expr
     func lookup_func_symbol_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func set_func_def(mut self: TypeScope, name: Str, fdef: Expr)
@@ -233,10 +235,6 @@ struct ImportUnit {
     own mut ast : Expr
     mut imports : Vec__Str
 namespace:
-    /// The `own ast` is a whole program body -- summarised by its statement
-    /// count, not dumped. That own field is also why this is hand-written:
-    /// the generated to_str refuses a struct with one.
-    func to_str(self: ImportUnit) returns Str
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, shallow call_free: Bool)
     func size() returns shallow USize
@@ -1129,6 +1127,193 @@ func fcall_kwargs_count(fcall: Expr) returns shallow USize
 func fcall_variadic_count(fcall: Expr, shallow nparam: USize, shallow callee_has_kwargs: Bool) returns shallow USize
 #+end_src
 
+* find_struct_def
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.find_struct_def
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func find_struct_def(name: Str, ctx: Context) returns shallow Option__ref_Expr
+#+end_src
+
+* find_callee_fdef
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.find_callee_fdef
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func find_callee_fdef(name: Str, ctx: Context) returns shallow Option__ref_Expr
+#+end_src
+
+* is_primitive_type
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_primitive_type
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func is_primitive_type(name: Str) returns shallow Bool
+#+end_src
+
+* is_pod_struct
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_pod_struct
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func is_pod_struct(struct_name: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* is_pod_enum
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_pod_enum
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func is_pod_enum(enum_name: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* callee_returns_shallow
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.callee_returns_shallow
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func callee_returns_shallow(callee_name: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* fcall_fn_sig
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.fcall_fn_sig
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_fn_sig(fcall: Expr, ctx: Context) returns shallow Option__ref_Expr
+#+end_src
+
+* fcall_is_shallow_return
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.fcall_is_shallow_return
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_is_shallow_return(fcall: Expr, ctx: Context) returns shallow Bool
+#+end_src
+
+* pod_ctor_args_are_safe
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.pod_ctor_args_are_safe
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func pod_ctor_args_are_safe(ctor: Expr, ctx: Context) returns shallow Bool
+#+end_src
+
+* is_pod_enum_clone_call
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.is_pod_enum_clone_call
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func is_pod_enum_clone_call(e: Expr, ctx: Context) returns shallow Bool
+#+end_src
+
+* builder_is_temp_delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.builder_is_temp_delete
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func builder_is_temp_delete(e: Expr) returns shallow Bool
+#+end_src
+
+* count_ident_uses
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.count_ident_uses
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func count_ident_uses(e: Expr, name: Str) returns shallow USize
+#+end_src
+
+* builder_is_inline_accessor
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.builder_is_inline_accessor
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func builder_is_inline_accessor(mname: Str, flat: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* resolve_local_fn_sig
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.resolve_local_fn_sig
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func resolve_local_fn_sig(ctx: Context, name: Str) returns shallow Option__ref_Expr
+#+end_src
+
+* fcall_is_struct_ctor
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.fcall_is_struct_ctor
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fcall_is_struct_ctor(e: Expr) returns shallow Bool
+#+end_src
+
+* CollectionInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.CollectionInfo
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct CollectionInfo {
+    ref mut type_name : Str
+    mut is_vec : I32
+namespace:
+    func to_str(self: CollectionInfo) returns Str
+    func clone(self: CollectionInfo) returns CollectionInfo
+    func delete(own self: CollectionInfo, shallow call_free: Bool)
+    func size() returns shallow USize
+}
+#+end_src
+
+* DynCallInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.DynCallInfo
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+struct DynCallInfo {
+    ref mut method : Str
+    mut nargs : I32
+    mut has_return : Bool
+namespace:
+    func to_str(self: DynCallInfo) returns Str
+    func clone(self: DynCallInfo) returns DynCallInfo
+    func delete(own self: DynCallInfo, shallow call_free: Bool)
+    func size() returns shallow USize
+}
+#+end_src
+
 * Map__Str_TypeBinding
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.Map__Str_TypeBinding
@@ -1160,12 +1345,6 @@ namespace:
     func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_TypeBinding) returns Str
     func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
     func clone(self: Map__Str_TypeBinding) returns Map__Str_TypeBinding
     func hash(self: Map__Str_TypeBinding, hasher: HashFn) returns shallow U64
@@ -1301,12 +1480,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Dynamic, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Dynamic) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns shallow USize
@@ -1344,12 +1517,6 @@ namespace:
     func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Mode) returns Str
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
     func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
@@ -1388,12 +1555,6 @@ namespace:
     func set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_FuncType) returns Str
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
     func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
@@ -1471,12 +1632,6 @@ namespace:
     func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_ImportUnit) returns Str
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
     func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
@@ -1515,12 +1670,6 @@ namespace:
     func set(mut self: Map__Str_Expr, key: Str, own val: Expr)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Expr) returns Str
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
     func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
@@ -1559,12 +1708,6 @@ namespace:
     func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_StructLayout) returns Str
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
     func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
@@ -1603,56 +1746,9 @@ namespace:
     func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_call_Vec_Str) returns Str
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
     func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
     func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-#+end_src
-
-* Option__ref_Expr
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Option__ref_Expr
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-enum Option__ref_Expr {
-    None
-    Some: Expr
-namespace:
-    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
-    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
-    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
-    func unwrap(self: Option__ref_Expr) returns ref Expr
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
-    func take(own self: Option__ref_Expr) returns ref Expr
-    ext_func None() returns shallow Option__ref_Expr
-    ext_func Some(val: Expr) returns shallow Option__ref_Expr
-    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
-    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
-    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Expr) returns Str
-    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
     func size() returns shallow USize
 }
 #+end_src
@@ -1688,12 +1784,6 @@ namespace:
     func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Dynamic) returns Str
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
     func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
@@ -1732,12 +1822,6 @@ namespace:
     func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_FFIEntry) returns Str
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
     func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
@@ -1776,12 +1860,6 @@ namespace:
     func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_ExprPtrBox) returns Str
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
     func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
@@ -1876,12 +1954,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FFITypePtrBox) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
     func size() returns shallow USize
@@ -2055,14 +2127,49 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__I64, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__I64) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow USize
+}
+#+end_src
+
+* Option__ref_Expr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__ref_Expr
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum Option__ref_Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
+    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
+    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_Expr) returns ref Expr
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_Expr) returns ref Expr
+    ext_func None() returns shallow Option__ref_Expr
+    ext_func Some(val: Expr) returns shallow Option__ref_Expr
+    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
+    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
+    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Expr) returns Str
+    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
     func size() returns shallow USize
 }
 #+end_src
@@ -2154,12 +2261,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__TypeBinding, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__TypeBinding) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__TypeBinding) returns Vec__TypeBinding
     func size() returns shallow USize
@@ -2253,12 +2354,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Mode, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Mode) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Mode) returns Vec__Mode
     func size() returns shallow USize
@@ -2352,12 +2447,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FuncType, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FuncType) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FuncType) returns Vec__FuncType
     func size() returns shallow USize
@@ -2451,12 +2540,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__ImportUnit, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__ImportUnit) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__ImportUnit) returns Vec__ImportUnit
     func size() returns shallow USize
@@ -2550,12 +2633,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__StructLayout, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__StructLayout) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__StructLayout) returns Vec__StructLayout
     func size() returns shallow USize
@@ -2649,12 +2726,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__call_Vec_Str) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
     func size() returns shallow USize
@@ -2748,12 +2819,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FFIEntry, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FFIEntry) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
     func size() returns shallow USize
@@ -2847,12 +2912,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__ExprPtrBox) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
     func size() returns shallow USize

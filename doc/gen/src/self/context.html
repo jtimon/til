@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-9c075f4</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a783bc1db</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -47,7 +47,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Compiler frontend</h2><ul>
 <li><a href="../../src/self/lexer.html">src/self/lexer.til</a></li>
 <li><a href="../../src/self/parser.html">src/self/parser.til</a></li>
-<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.name_fingerprint">name_fingerprint</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.type_binding_is_type_token">type_binding_is_type_token</a></li><li><a href="#til.src.self.context.init_func_is_generic">init_func_is_generic</a></li><li><a href="#til.src.self.context.init_stmt_is_generic_source">init_stmt_is_generic_source</a></li><li><a href="#til.src.self.context.type_name_mentions_param">type_name_mentions_param</a></li><li><a href="#til.src.self.context.generic_source_throws_depend_on_type">generic_source_throws_depend_on_type</a></li><li><a href="#til.src.self.context.GenericFuncSource">GenericFuncSource</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.InternedTypes">InternedTypes</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.PRIM_NAMES">PRIM_NAMES</a></li><li><a href="#til.src.self.context._PRIM_NAMES_ek">_PRIM_NAMES_ek</a></li><li><a href="#til.src.self.context.WIDTH_ALIAS_NAMES">WIDTH_ALIAS_NAMES</a></li><li><a href="#til.src.self.context._WIDTH_ALIAS_NAMES_ek">_WIDTH_ALIAS_NAMES_ek</a></li><li><a href="#til.src.self.context.is_scalar_type_name">is_scalar_type_name</a></li><li><a href="#til.src.self.context.resolved_type_name">resolved_type_name</a></li><li><a href="#til.src.self.context.unsigned_prim_name_for_width">unsigned_prim_name_for_width</a></li><li><a href="#til.src.self.context.unsigned_prim_width_for_name">unsigned_prim_width_for_name</a></li><li><a href="#til.src.self.context.host_usize_pname">host_usize_pname</a></li><li><a href="#til.src.self.context.host_uptr_pname">host_uptr_pname</a></li><li><a href="#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_from_name_init">type_from_name_init</a></li><li><a href="#til.src.self.context.init_type_from_explicit_type">init_type_from_explicit_type</a></li><li><a href="#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.member_get">member_get</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.def_ns_name_at">def_ns_name_at</a></li><li><a href="#til.src.self.context.def_ns_has">def_ns_has</a></li><li><a href="#til.src.self.context.def_ns_get">def_ns_get</a></li><li><a href="#til.src.self.context.def_ns_pos">def_ns_pos</a></li><li><a href="#til.src.self.context.ns_const_eval_order">ns_const_eval_order</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_tag_at">enum_variant_tag_at</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.niche_payload_is_owned_box">niche_payload_is_owned_box</a></li><li><a href="#til.src.self.context.enum_variant_payload_funcsig">enum_variant_payload_funcsig</a></li><li><a href="#til.src.self.context.enum_is_niche">enum_is_niche</a></li><li><a href="#til.src.self.context.enum_niche_some_index">enum_niche_some_index</a></li><li><a href="#til.src.self.context.enum_variant_payload_ref">enum_variant_payload_ref</a></li><li><a href="#til.src.self.context.enum_payload_is_pointer_slot">enum_payload_is_pointer_slot</a></li><li><a href="#til.src.self.context.enum_has_ref_payload">enum_has_ref_payload</a></li><li><a href="#til.src.self.context.rhs_is_allocator_call">rhs_is_allocator_call</a></li><li><a href="#til.src.self.context.fn_never_returns">fn_never_returns</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.Map__Str_TypeBinding">Map__Str_TypeBinding</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding">Option__ref_TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Option__Scope">Option__Scope</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope">Option__ref_TypeScope</a></li><li><a href="#til.src.self.context.Option__ref_Declaration">Option__ref_Declaration</a></li><li><a href="#til.src.self.context.Vec__I64">Vec__I64</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__TypeBinding">adopt__TypeBinding</a></li><li><a href="#til.src.self.context.adopt__Mode">adopt__Mode</a></li><li><a href="#til.src.self.context.adopt__FuncType">adopt__FuncType</a></li><li><a href="#til.src.self.context.adopt__ImportUnit">adopt__ImportUnit</a></li><li><a href="#til.src.self.context.adopt__StructLayout">adopt__StructLayout</a></li><li><a href="#til.src.self.context.adopt__Vec__Str">adopt__Vec__Str</a></li><li><a href="#til.src.self.context.adopt__FFIEntry">adopt__FFIEntry</a></li><li><a href="#til.src.self.context.adopt__ExprPtrBox">adopt__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__FFITypePtrBox">adopt__FFITypePtrBox</a></li><li><a href="#til.src.self.context.adopt__I64">adopt__I64</a></li></ul></li>
+<li><a class="current" href="../../src/self/context.html">src/self/context.til</a><ul><li><a href="#til.src.self.context.TypeBinding">TypeBinding</a></li><li><a href="#til.src.self.context.ScopeFind">ScopeFind</a></li><li><a href="#til.src.self.context.name_fingerprint">name_fingerprint</a></li><li><a href="#til.src.self.context.TypeScope">TypeScope</a></li><li><a href="#til.src.self.context.binding_func_type">binding_func_type</a></li><li><a href="#til.src.self.context.type_binding_is_type_token">type_binding_is_type_token</a></li><li><a href="#til.src.self.context.init_func_is_generic">init_func_is_generic</a></li><li><a href="#til.src.self.context.init_stmt_is_generic_source">init_stmt_is_generic_source</a></li><li><a href="#til.src.self.context.type_name_mentions_param">type_name_mentions_param</a></li><li><a href="#til.src.self.context.generic_source_throws_depend_on_type">generic_source_throws_depend_on_type</a></li><li><a href="#til.src.self.context.GenericFuncSource">GenericFuncSource</a></li><li><a href="#til.src.self.context.func_def_type">func_def_type</a></li><li><a href="#til.src.self.context.ImportUnit">ImportUnit</a></li><li><a href="#til.src.self.context.BuilderFuncScratch">BuilderFuncScratch</a></li><li><a href="#til.src.self.context.InternedTypes">InternedTypes</a></li><li><a href="#til.src.self.context.Context">Context</a></li><li><a href="#til.src.self.context.context_register_target_int_alias_types">context_register_target_int_alias_types</a></li><li><a href="#til.src.self.context.context_reset_type_scope">context_reset_type_scope</a></li><li><a href="#til.src.self.context.note_cross_file_use">note_cross_file_use</a></li><li><a href="#til.src.self.context.note_cross_file_type_use">note_cross_file_type_use</a></li><li><a href="#til.src.self.context.scope_target_usize_pname">scope_target_usize_pname</a></li><li><a href="#til.src.self.context.scope_target_uptr_pname">scope_target_uptr_pname</a></li><li><a href="#til.src.self.context.priv_c_name">priv_c_name</a></li><li><a href="#til.src.self.context.align_up">align_up</a></li><li><a href="#til.src.self.context.PRIM_NAMES">PRIM_NAMES</a></li><li><a href="#til.src.self.context._PRIM_NAMES_ek">_PRIM_NAMES_ek</a></li><li><a href="#til.src.self.context.WIDTH_ALIAS_NAMES">WIDTH_ALIAS_NAMES</a></li><li><a href="#til.src.self.context._WIDTH_ALIAS_NAMES_ek">_WIDTH_ALIAS_NAMES_ek</a></li><li><a href="#til.src.self.context.is_scalar_type_name">is_scalar_type_name</a></li><li><a href="#til.src.self.context.resolved_type_name">resolved_type_name</a></li><li><a href="#til.src.self.context.unsigned_prim_name_for_width">unsigned_prim_name_for_width</a></li><li><a href="#til.src.self.context.unsigned_prim_width_for_name">unsigned_prim_width_for_name</a></li><li><a href="#til.src.self.context.host_usize_pname">host_usize_pname</a></li><li><a href="#til.src.self.context.host_uptr_pname">host_uptr_pname</a></li><li><a href="#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a></li><li><a href="#til.src.self.context.size_intrinsics_use_sizeof">size_intrinsics_use_sizeof</a></li><li><a href="#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a></li><li><a href="#til.src.self.context.make_method_call_fcall">make_method_call_fcall</a></li><li><a href="#til.src.self.context.make_get_payload_fcall">make_get_payload_fcall</a></li><li><a href="#til.src.self.context.make_is_tag_check_fcall">make_is_tag_check_fcall</a></li><li><a href="#til.src.self.context.make_payload_ref_decl">make_payload_ref_decl</a></li><li><a href="#til.src.self.context.make_payload_ref_decls">make_payload_ref_decls</a></li><li><a href="#til.src.self.context.type_is_primitive">type_is_primitive</a></li><li><a href="#til.src.self.context.is_type_metatype">is_type_metatype</a></li><li><a href="#til.src.self.context.funcptr_eq">funcptr_eq</a></li><li><a href="#til.src.self.context.type_from_name_init">type_from_name_init</a></li><li><a href="#til.src.self.context.init_type_from_explicit_type">init_type_from_explicit_type</a></li><li><a href="#til.src.self.context.field_inferred_type_name">field_inferred_type_name</a></li><li><a href="#til.src.self.context.array_vec_elem_type_name">array_vec_elem_type_name</a></li><li><a href="#til.src.self.context.is_pod_type_for_clone">is_pod_type_for_clone</a></li><li><a href="#til.src.self.context.is_struct_or_enum">is_struct_or_enum</a></li><li><a href="#til.src.self.context.is_func_decl">is_func_decl</a></li><li><a href="#til.src.self.context.is_def">is_def</a></li><li><a href="#til.src.self.context.member_get">member_get</a></li><li><a href="#til.src.self.context.def_ns_decls">def_ns_decls</a></li><li><a href="#til.src.self.context.def_ns_name_at">def_ns_name_at</a></li><li><a href="#til.src.self.context.def_ns_has">def_ns_has</a></li><li><a href="#til.src.self.context.def_ns_get">def_ns_get</a></li><li><a href="#til.src.self.context.def_ns_pos">def_ns_pos</a></li><li><a href="#til.src.self.context.ns_const_eval_order">ns_const_eval_order</a></li><li><a href="#til.src.self.context.enum_has_payloads">enum_has_payloads</a></li><li><a href="#til.src.self.context.enum_tag_type">enum_tag_type</a></li><li><a href="#til.src.self.context.enum_tag_size">enum_tag_size</a></li><li><a href="#til.src.self.context.enum_variant_tag">enum_variant_tag</a></li><li><a href="#til.src.self.context.enum_variant_tag_at">enum_variant_tag_at</a></li><li><a href="#til.src.self.context.enum_variant_index">enum_variant_index</a></li><li><a href="#til.src.self.context.enum_variant_type">enum_variant_type</a></li><li><a href="#til.src.self.context.enum_variant_payload_const">enum_variant_payload_const</a></li><li><a href="#til.src.self.context.niche_payload_is_owned_box">niche_payload_is_owned_box</a></li><li><a href="#til.src.self.context.enum_variant_payload_funcsig">enum_variant_payload_funcsig</a></li><li><a href="#til.src.self.context.enum_is_niche">enum_is_niche</a></li><li><a href="#til.src.self.context.enum_niche_some_index">enum_niche_some_index</a></li><li><a href="#til.src.self.context.enum_variant_payload_ref">enum_variant_payload_ref</a></li><li><a href="#til.src.self.context.enum_payload_is_pointer_slot">enum_payload_is_pointer_slot</a></li><li><a href="#til.src.self.context.enum_has_ref_payload">enum_has_ref_payload</a></li><li><a href="#til.src.self.context.rhs_is_allocator_call">rhs_is_allocator_call</a></li><li><a href="#til.src.self.context.fn_never_returns">fn_never_returns</a></li><li><a href="#til.src.self.context.stmt_always_diverges">stmt_always_diverges</a></li><li><a href="#til.src.self.context.lazy_body_inlinable">lazy_body_inlinable</a></li><li><a href="#til.src.self.context.lazy_body_split_point">lazy_body_split_point</a></li><li><a href="#til.src.self.context.lazy_body_stmt_inlinable">lazy_body_stmt_inlinable</a></li><li><a href="#til.src.self.context.lazy_variadic_body_unrollable">lazy_variadic_body_unrollable</a></li><li><a href="#til.src.self.context.is_primitive">is_primitive</a></li><li><a href="#til.src.self.context.is_funcptr">is_funcptr</a></li><li><a href="#til.src.self.context.is_aggregate">is_aggregate</a></li><li><a href="#til.src.self.context.is_range_new_call">is_range_new_call</a></li><li><a href="#til.src.self.context.ast_print">ast_print</a></li><li><a href="#til.src.self.context.fcall_kwargs_count">fcall_kwargs_count</a></li><li><a href="#til.src.self.context.fcall_variadic_count">fcall_variadic_count</a></li><li><a href="#til.src.self.context.find_struct_def">find_struct_def</a></li><li><a href="#til.src.self.context.find_callee_fdef">find_callee_fdef</a></li><li><a href="#til.src.self.context.is_primitive_type">is_primitive_type</a></li><li><a href="#til.src.self.context.is_pod_struct">is_pod_struct</a></li><li><a href="#til.src.self.context.is_pod_enum">is_pod_enum</a></li><li><a href="#til.src.self.context.callee_returns_shallow">callee_returns_shallow</a></li><li><a href="#til.src.self.context.fcall_fn_sig">fcall_fn_sig</a></li><li><a href="#til.src.self.context.fcall_is_shallow_return">fcall_is_shallow_return</a></li><li><a href="#til.src.self.context.pod_ctor_args_are_safe">pod_ctor_args_are_safe</a></li><li><a href="#til.src.self.context.is_pod_enum_clone_call">is_pod_enum_clone_call</a></li><li><a href="#til.src.self.context.builder_is_temp_delete">builder_is_temp_delete</a></li><li><a href="#til.src.self.context.count_ident_uses">count_ident_uses</a></li><li><a href="#til.src.self.context.builder_is_inline_accessor">builder_is_inline_accessor</a></li><li><a href="#til.src.self.context.resolve_local_fn_sig">resolve_local_fn_sig</a></li><li><a href="#til.src.self.context.fcall_is_struct_ctor">fcall_is_struct_ctor</a></li><li><a href="#til.src.self.context.CollectionInfo">CollectionInfo</a></li><li><a href="#til.src.self.context.DynCallInfo">DynCallInfo</a></li><li><a href="#til.src.self.context.Map__Str_TypeBinding">Map__Str_TypeBinding</a></li><li><a href="#til.src.self.context.Option__ref_TypeBinding">Option__ref_TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Dynamic">Vec__Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_Mode">Map__Str_Mode</a></li><li><a href="#til.src.self.context.Map__Str_FuncType">Map__Str_FuncType</a></li><li><a href="#til.src.self.context.Option__Scope">Option__Scope</a></li><li><a href="#til.src.self.context.Map__Str_ImportUnit">Map__Str_ImportUnit</a></li><li><a href="#til.src.self.context.Map__Str_Expr">Map__Str_Expr</a></li><li><a href="#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a></li><li><a href="#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a></li><li><a href="#til.src.self.context.Map__Str_Dynamic">Map__Str_Dynamic</a></li><li><a href="#til.src.self.context.Map__Str_FFIEntry">Map__Str_FFIEntry</a></li><li><a href="#til.src.self.context.Map__Str_ExprPtrBox">Map__Str_ExprPtrBox</a></li><li><a href="#til.src.self.context.Vec__FFITypePtrBox">Vec__FFITypePtrBox</a></li><li><a href="#til.src.self.context.Option__ref_TypeScope">Option__ref_TypeScope</a></li><li><a href="#til.src.self.context.Option__ref_Declaration">Option__ref_Declaration</a></li><li><a href="#til.src.self.context.Vec__I64">Vec__I64</a></li><li><a href="#til.src.self.context.Option__ref_Expr">Option__ref_Expr</a></li><li><a href="#til.src.self.context.Vec__TypeBinding">Vec__TypeBinding</a></li><li><a href="#til.src.self.context.Vec__Mode">Vec__Mode</a></li><li><a href="#til.src.self.context.Vec__FuncType">Vec__FuncType</a></li><li><a href="#til.src.self.context.Vec__ImportUnit">Vec__ImportUnit</a></li><li><a href="#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a></li><li><a href="#til.src.self.context.Vec__call_Vec_Str">Vec__call_Vec_Str</a></li><li><a href="#til.src.self.context.Vec__FFIEntry">Vec__FFIEntry</a></li><li><a href="#til.src.self.context.Vec__ExprPtrBox">Vec__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__TypeBinding">adopt__TypeBinding</a></li><li><a href="#til.src.self.context.adopt__Mode">adopt__Mode</a></li><li><a href="#til.src.self.context.adopt__FuncType">adopt__FuncType</a></li><li><a href="#til.src.self.context.adopt__ImportUnit">adopt__ImportUnit</a></li><li><a href="#til.src.self.context.adopt__StructLayout">adopt__StructLayout</a></li><li><a href="#til.src.self.context.adopt__Vec__Str">adopt__Vec__Str</a></li><li><a href="#til.src.self.context.adopt__FFIEntry">adopt__FFIEntry</a></li><li><a href="#til.src.self.context.adopt__ExprPtrBox">adopt__ExprPtrBox</a></li><li><a href="#til.src.self.context.adopt__FFITypePtrBox">adopt__FFITypePtrBox</a></li><li><a href="#til.src.self.context.adopt__I64">adopt__I64</a></li></ul></li>
 <li><a href="../../src/self/modes.html">src/self/modes.til</a></li>
 <li><a href="../../src/self/initer.html">src/self/initer.til</a></li>
 <li><a href="../../src/self/typer.html">src/self/typer.til</a></li>
@@ -168,6 +168,8 @@ namespace:
     func struct_def_of_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func lookup_func(self: TypeScope, name: Str) returns shallow Option__ref_Expr
     func lookup_func_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
+    func local_struct_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
+    func local_func_def_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func lookup_func_symbol(self: TypeScope, name: Str) returns shallow Option__ref_Expr
     func lookup_func_symbol_fp(self: TypeScope, name: Str, fp: U64) returns shallow Option__ref_Expr
     func set_func_def(mut self: TypeScope, name: Str, fdef: Expr)
@@ -259,10 +261,6 @@ namespace:
     own mut ast : Expr
     mut imports : Vec__Str
 namespace:
-    /// The `own ast` is a whole program body -- summarised by its statement
-    /// count, not dumped. That own field is also why this is hand-written:
-    /// the generated to_str refuses a struct with one.
-    func to_str(self: ImportUnit) returns Str
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, shallow call_free: Bool)
     func size() returns shallow USize
@@ -851,6 +849,125 @@ namespace:
 <pre><code class="language-til">func fcall_variadic_count(fcall: Expr, shallow nparam: USize, shallow callee_has_kwargs: Bool) returns shallow USize
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.context.find_struct_def">
+<h2>find_struct_def</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func find_struct_def(name: Str, ctx: Context) returns shallow Option__ref_Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.find_callee_fdef">
+<h2>find_callee_fdef</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func find_callee_fdef(name: Str, ctx: Context) returns shallow Option__ref_Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.is_primitive_type">
+<h2>is_primitive_type</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_primitive_type(name: Str) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.is_pod_struct">
+<h2>is_pod_struct</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_pod_struct(struct_name: Str, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.is_pod_enum">
+<h2>is_pod_enum</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_pod_enum(enum_name: Str, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.callee_returns_shallow">
+<h2>callee_returns_shallow</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func callee_returns_shallow(callee_name: Str, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.fcall_fn_sig">
+<h2>fcall_fn_sig</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_fn_sig(fcall: Expr, ctx: Context) returns shallow Option__ref_Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.fcall_is_shallow_return">
+<h2>fcall_is_shallow_return</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_is_shallow_return(fcall: Expr, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.pod_ctor_args_are_safe">
+<h2>pod_ctor_args_are_safe</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func pod_ctor_args_are_safe(ctor: Expr, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.is_pod_enum_clone_call">
+<h2>is_pod_enum_clone_call</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func is_pod_enum_clone_call(e: Expr, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.builder_is_temp_delete">
+<h2>builder_is_temp_delete</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func builder_is_temp_delete(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.count_ident_uses">
+<h2>count_ident_uses</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func count_ident_uses(e: Expr, name: Str) returns shallow USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.builder_is_inline_accessor">
+<h2>builder_is_inline_accessor</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func builder_is_inline_accessor(mname: Str, flat: Str, ctx: Context) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.resolve_local_fn_sig">
+<h2>resolve_local_fn_sig</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func resolve_local_fn_sig(ctx: Context, name: Str) returns shallow Option__ref_Expr
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.fcall_is_struct_ctor">
+<h2>fcall_is_struct_ctor</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">func fcall_is_struct_ctor(e: Expr) returns shallow Bool
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.CollectionInfo">
+<h2>CollectionInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct CollectionInfo {
+    ref mut type_name : Str
+    mut is_vec : I32
+namespace:
+    func to_str(self: CollectionInfo) returns Str
+    func clone(self: CollectionInfo) returns CollectionInfo
+    func delete(own self: CollectionInfo, shallow call_free: Bool)
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.DynCallInfo">
+<h2>DynCallInfo</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">struct DynCallInfo {
+    ref mut method : Str
+    mut nargs : I32
+    mut has_return : Bool
+namespace:
+    func to_str(self: DynCallInfo) returns Str
+    func clone(self: DynCallInfo) returns DynCallInfo
+    func delete(own self: DynCallInfo, shallow call_free: Bool)
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.context.Map__Str_TypeBinding">
 <h2>Map__Str_TypeBinding</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
@@ -878,12 +995,6 @@ namespace:
     func set(mut self: Map__Str_TypeBinding, key: Str, own val: TypeBinding)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_TypeBinding, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_TypeBinding) returns Str
     func delete(own self: Map__Str_TypeBinding, shallow call_free: Bool)
     func clone(self: Map__Str_TypeBinding) returns Map__Str_TypeBinding
     func hash(self: Map__Str_TypeBinding, hasher: HashFn) returns shallow U64
@@ -1011,12 +1122,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Dynamic, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Dynamic) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns shallow USize
@@ -1050,12 +1155,6 @@ namespace:
     func set(mut self: Map__Str_Mode, key: Str, own val: Mode)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Mode, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Mode) returns Str
     func delete(own self: Map__Str_Mode, shallow call_free: Bool)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
     func hash(self: Map__Str_Mode, hasher: HashFn) returns shallow U64
@@ -1090,12 +1189,6 @@ namespace:
     func set(mut self: Map__Str_FuncType, key: Str, own val: FuncType)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_FuncType, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_FuncType) returns Str
     func delete(own self: Map__Str_FuncType, shallow call_free: Bool)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
     func hash(self: Map__Str_FuncType, hasher: HashFn) returns shallow U64
@@ -1165,12 +1258,6 @@ namespace:
     func set(mut self: Map__Str_ImportUnit, key: Str, own val: ImportUnit)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_ImportUnit, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_ImportUnit) returns Str
     func delete(own self: Map__Str_ImportUnit, shallow call_free: Bool)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
     func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns shallow U64
@@ -1205,12 +1292,6 @@ namespace:
     func set(mut self: Map__Str_Expr, key: Str, own val: Expr)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Expr, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Expr) returns Str
     func delete(own self: Map__Str_Expr, shallow call_free: Bool)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
     func hash(self: Map__Str_Expr, hasher: HashFn) returns shallow U64
@@ -1245,12 +1326,6 @@ namespace:
     func set(mut self: Map__Str_StructLayout, key: Str, own val: StructLayout)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_StructLayout, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_StructLayout) returns Str
     func delete(own self: Map__Str_StructLayout, shallow call_free: Bool)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
     func hash(self: Map__Str_StructLayout, hasher: HashFn) returns shallow U64
@@ -1285,52 +1360,9 @@ namespace:
     func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_call_Vec_Str) returns Str
     func delete(own self: Map__Str_call_Vec_Str, shallow call_free: Bool)
     func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
     func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns shallow U64
-    func size() returns shallow USize
-}
-</code></pre>
-</article>
-<article class="doc-entry" id="til.src.self.context.Option__ref_Expr">
-<h2>Option__ref_Expr</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">enum Option__ref_Expr {
-    None
-    Some: Expr
-namespace:
-    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
-    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
-    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
-    /// The contained value; PANICS on None, ala Rust's unwrap. For the
-    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
-    /// has already handled absence and unwrapping cannot fail. Prefer
-    /// a `switch` when both arms do real work, and `unwrap_or` when a
-    /// default is meaningful -- reach for this only when None is
-    /// unreachable by construction, so it fails loudly if that ever
-    /// stops being true.
-    func unwrap(self: Option__ref_Expr) returns ref Expr
-    /// The contained value, MOVED out; PANICS on None, like unwrap.
-    /// unwrap only BORROWS self, so for an owned payload it must hand
-    /// back a deep clone; this consumes the Option instead, so the
-    /// payload's bytes move and only the enum shell is freed (#321).
-    /// Use it wherever the caller takes ownership of what the Option
-    /// held -- an `Option(Expr)` returned by an AST helper, say, where
-    /// a clone would copy a whole subtree and break node identity.
-    func take(own self: Option__ref_Expr) returns ref Expr
-    ext_func None() returns shallow Option__ref_Expr
-    ext_func Some(val: Expr) returns shallow Option__ref_Expr
-    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
-    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
-    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
-    func to_str(shallow self: Option__ref_Expr) returns Str
-    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
     func size() returns shallow USize
 }
 </code></pre>
@@ -1362,12 +1394,6 @@ namespace:
     func set(mut self: Map__Str_Dynamic, key: Str, own val: Dynamic)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_Dynamic, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_Dynamic) returns Str
     func delete(own self: Map__Str_Dynamic, shallow call_free: Bool)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
     func hash(self: Map__Str_Dynamic, hasher: HashFn) returns shallow U64
@@ -1402,12 +1428,6 @@ namespace:
     func set(mut self: Map__Str_FFIEntry, key: Str, own val: FFIEntry)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_FFIEntry, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_FFIEntry) returns Str
     func delete(own self: Map__Str_FFIEntry, shallow call_free: Bool)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
     func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns shallow U64
@@ -1442,12 +1462,6 @@ namespace:
     func set(mut self: Map__Str_ExprPtrBox, key: Str, own val: ExprPtrBox)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_ExprPtrBox, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_ExprPtrBox) returns Str
     func delete(own self: Map__Str_ExprPtrBox, shallow call_free: Bool)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
     func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns shallow U64
@@ -1538,12 +1552,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FFITypePtrBox, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FFITypePtrBox) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
     func size() returns shallow USize
@@ -1705,14 +1713,45 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__I64, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__I64) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__I64) returns Vec__I64
+    func size() returns shallow USize
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.context.Option__ref_Expr">
+<h2>Option__ref_Expr</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
+<pre><code class="language-til">enum Option__ref_Expr {
+    None
+    Some: Expr
+namespace:
+    func is_some(shallow self: Option__ref_Expr) returns shallow Bool
+    func is_none(shallow self: Option__ref_Expr) returns shallow Bool
+    func unwrap_or(self: Option__ref_Expr, default_v: Expr) returns ref Expr
+    /// The contained value; PANICS on None, ala Rust's unwrap. For the
+    /// `if o.is_none() { ... }` + `o.unwrap()` idiom, where the caller
+    /// has already handled absence and unwrapping cannot fail. Prefer
+    /// a `switch` when both arms do real work, and `unwrap_or` when a
+    /// default is meaningful -- reach for this only when None is
+    /// unreachable by construction, so it fails loudly if that ever
+    /// stops being true.
+    func unwrap(self: Option__ref_Expr) returns ref Expr
+    /// The contained value, MOVED out; PANICS on None, like unwrap.
+    /// unwrap only BORROWS self, so for an owned payload it must hand
+    /// back a deep clone; this consumes the Option instead, so the
+    /// payload's bytes move and only the enum shell is freed (#321).
+    /// Use it wherever the caller takes ownership of what the Option
+    /// held -- an `Option(Expr)` returned by an AST helper, say, where
+    /// a clone would copy a whole subtree and break node identity.
+    func take(own self: Option__ref_Expr) returns ref Expr
+    ext_func None() returns shallow Option__ref_Expr
+    ext_func Some(val: Expr) returns shallow Option__ref_Expr
+    core_func is(self: Option__ref_Expr, other: Option__ref_Expr) returns shallow Bool
+    func eq(shallow self: Option__ref_Expr, shallow other: Option__ref_Expr) returns shallow Bool
+    func delete(own self: Option__ref_Expr, shallow call_free: Bool)
+    func to_str(shallow self: Option__ref_Expr) returns Str
+    func clone(self: Option__ref_Expr) returns shallow Option__ref_Expr
     func size() returns shallow USize
 }
 </code></pre>
@@ -1800,12 +1839,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__TypeBinding, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__TypeBinding) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__TypeBinding) returns Vec__TypeBinding
     func size() returns shallow USize
@@ -1895,12 +1928,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Mode, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Mode) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Mode) returns Vec__Mode
     func size() returns shallow USize
@@ -1990,12 +2017,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FuncType, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FuncType) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FuncType) returns Vec__FuncType
     func size() returns shallow USize
@@ -2085,12 +2106,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__ImportUnit, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__ImportUnit) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__ImportUnit) returns Vec__ImportUnit
     func size() returns shallow USize
@@ -2180,12 +2195,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__StructLayout, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__StructLayout) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__StructLayout) returns Vec__StructLayout
     func size() returns shallow USize
@@ -2275,12 +2284,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__call_Vec_Str, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__call_Vec_Str) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
     func size() returns shallow USize
@@ -2370,12 +2373,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FFIEntry, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FFIEntry) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
     func size() returns shallow USize
@@ -2465,12 +2462,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__ExprPtrBox, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__ExprPtrBox) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
     func size() returns shallow USize

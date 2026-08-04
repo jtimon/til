@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -60,4 +60,390 @@ func scavenge_filter(mut program: Expr, visited: Set__Str, shallow sweep_values:
 
 #+begin_src til
 proc dce_program_bodies(mut program: Expr)
+#+end_src
+
+* scav_pod_site_spliced
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_pod_site_spliced
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_pod_site_spliced(e: Expr, member: Str, stack_names: Set__Str, dup_names: Set__Str, param_names: Set__Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_collect_ns_member_sites
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_collect_ns_member_sites
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc scav_collect_ns_member_sites(e: Expr, mut sites: Set__Str, mut stack_names: Set__Str, mut dup_names: Set__Str, mut param_names: Set__Str, owner: Str, shallow in_body: Bool, ctx: Context)
+#+end_src
+
+* scav_ns_method_inlined_away
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_ns_method_inlined_away
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_ns_method_inlined_away(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_size_method_omitted
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_size_method_omitted
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_size_method_omitted(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_variant_ctor_omitted
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_variant_ctor_omitted
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_variant_ctor_omitted(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_pod_lifecycle_omitted
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_pod_lifecycle_omitted
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_pod_lifecycle_omitted(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_ns_method_omitted
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_ns_method_omitted
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_ns_method_omitted(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_variant_ctor_kept
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_variant_ctor_kept
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_variant_ctor_kept(ename: Str, enum_def: Expr, vname: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_dyn_fn_target_kept
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_dyn_fn_target_kept
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_dyn_fn_target_kept(type_name: Str, member: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_needs_reflect
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_needs_reflect
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_needs_reflect(name: Str, ctx: Context) returns shallow Bool
+#+end_src
+
+* scav_is_reflect_builtin_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_is_reflect_builtin_name
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_is_reflect_builtin_name(n: Str) returns shallow Bool
+#+end_src
+
+* scav_record_reflect_name
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_record_reflect_name
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_record_reflect_name(n: Str, mut inv: Set__Str)
+#+end_src
+
+* scav_collect_reflect_inventory
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_collect_reflect_inventory
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc scav_collect_reflect_inventory(e: Expr, mut inv: Set__Str)
+#+end_src
+
+* scav_collect_dyn_fn_targets
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_collect_dyn_fn_targets
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc scav_collect_dyn_fn_targets(e: Expr, mut targets: Set__Str)
+#+end_src
+
+* scav_collect_lit_guard_use
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scav_collect_lit_guard_use
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func scav_collect_lit_guard_use(e: Expr, mut used: Bool)
+#+end_src
+
+* collect_dyn_methods
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.collect_dyn_methods
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc collect_dyn_methods(e: Expr, mut methods: Vec__DynCallInfo)
+#+end_src
+
+* collect_collection_builtins
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.collect_collection_builtins
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc collect_collection_builtins(e: Expr, mut infos: Vec__CollectionInfo)
+#+end_src
+
+* scavenge_emit_inventory
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.scavenge_emit_inventory
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc scavenge_emit_inventory(lp: LoadedProgram)
+#+end_src
+
+* Vec__CollectionInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.Vec__CollectionInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Vec__CollectionInfo {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
+    func new() returns Vec__CollectionInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
+    func with_capacity(shallow n: USize) returns Vec__CollectionInfo
+    func len(self: Vec__CollectionInfo) returns shallow USize
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__CollectionInfo)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__CollectionInfo, marks: Dynamic)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__CollectionInfo, own val: CollectionInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__CollectionInfo, own other: Vec__CollectionInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__CollectionInfo, mut other: Vec__CollectionInfo)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__CollectionInfo, i: USize) returns ref CollectionInfo
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__CollectionInfo, i: USize, mut _err_kind: I64) returns ref CollectionInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__CollectionInfo) returns CollectionInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__CollectionInfo, shallow i: USize, mut _err_kind: I64)
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__CollectionInfo, shallow n: USize) returns Vec__CollectionInfo
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__CollectionInfo, shallow n: USize)
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__CollectionInfo, shallow i: USize, own val: CollectionInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__CollectionInfo, shallow i: USize, own val: CollectionInfo, mut _err_kind: I64)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__CollectionInfo, mut src: Vec__CollectionInfo, shallow i: USize)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__CollectionInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__CollectionInfo) returns Vec__CollectionInfo
+    func size() returns shallow USize
+}
+#+end_src
+
+* Vec__DynCallInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.Vec__DynCallInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Vec__DynCallInfo {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    /// Create a new empty Vec for elements of type T. Lazy: no allocation
+    /// until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+    /// and the grow sites below seed cap 0->1 on the first insert. This keeps
+    /// the many containers that stay empty (e.g. the unused maps in a fresh
+    /// Scope) allocation-free, which is the dominant per-call interpreter cost.
+    func new() returns Vec__DynCallInfo
+    /// Create an empty Vec pre-sized for `n` elements, so pushing up to `n`
+    /// items reallocs zero times. Use at call sites where the final length is
+    /// known up front (cloning a Vec of known length, building a fixed arg
+    /// list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+    /// `new()` + repeated `push` pays. n=0 behaves like new(): lazy-empty,
+    /// no allocation (the grow sites seed cap 0->1 on the first insert).
+    func with_capacity(shallow n: USize) returns Vec__DynCallInfo
+    func len(self: Vec__DynCallInfo) returns shallow USize
+    /// Drop all live elements via elem_delete but keep the allocated
+    /// storage and element-type metadata so the Vec can be reused.
+    func clear(mut self: Vec__DynCallInfo)
+    /// Drop the elements flagged in `marks` (a byte-per-element buffer,
+    /// nonzero = drop, at least self.count entries) via elem_delete, then
+    /// compact the survivors forward and update count. This is the
+    /// container home for the scavenger's mark/sweep/compact, which used
+    /// to reach into data/count directly.
+    func delete_marked(mut self: Vec__DynCallInfo, marks: Dynamic)
+    /// Append an element to the end. `val` is owned: after this call the
+    /// caller must not use the value passed -- clone it first if needed.
+    func push(mut self: Vec__DynCallInfo, own val: DynCallInfo)
+    /// Consume the contents of `other` by appending them to `self`.
+    /// `other` is taken by ownership and will be empty after the call.
+    func append(mut self: Vec__DynCallInfo, own other: Vec__DynCallInfo)
+    /// Replace self's contents with other's via memcpy (no per-elem clone).
+    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
+    /// Takes `mut` (not `own`) so caller retains ownership of other; its
+    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
+    /// prevents that auto-delete from re-running elem_delete on items whose
+    /// bytes were moved into self.
+    func move_from(mut self: Vec__DynCallInfo, mut other: Vec__DynCallInfo)
+    /// Unchecked element access: return a reference to the element at
+    /// index `i` with NO bounds check. The caller must prove `i < len()`.
+    /// This is the unchecked core that `get` wraps; for-in uses it
+    /// directly because its `_fi < len()` termination test already
+    /// proves the index in bounds (issue #284).
+    func unsafe_get(self: Vec__DynCallInfo, i: USize) returns ref DynCallInfo
+    /// Return a reference to the element at index `i`. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i]`
+    /// to panic on a bad index. The reference is valid until the
+    /// next mutation.
+    func get(self: Vec__DynCallInfo, i: USize, mut _err_kind: I64) returns ref DynCallInfo
+    /// Remove and return the last element. Panics if empty. The caller
+    /// takes ownership of the returned value.
+    func pop(mut self: Vec__DynCallInfo) returns DynCallInfo
+    /// Remove and drop the element at `i`, shifting later elements left.
+    func remove_at(mut self: Vec__DynCallInfo, shallow i: USize, mut _err_kind: I64)
+    /// Split off the first `n` elements into a new Vec. Panics if `n`
+    /// exceeds self.len(). The remaining elements shift to the front.
+    func take_prefix(mut self: Vec__DynCallInfo, shallow n: USize) returns Vec__DynCallInfo
+    /// Drop the elements from index `n` to the end, freeing each via
+    /// elem_delete, and set count to `n` (the survivors [0, n) are left
+    /// untouched). Panics if `n` exceeds len. This is the container home
+    /// for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+    func truncate(mut self: Vec__DynCallInfo, shallow n: USize)
+    /// Overwrite the element at index `i` without a bounds check, dropping
+    /// the old value. Caller guarantees `i < self.count`; the write-side
+    /// mirror of unsafe_get (issue #284).
+    func unsafe_set(mut self: Vec__DynCallInfo, shallow i: USize, own val: DynCallInfo)
+    /// Overwrite the element at index `i`. `val` is owned. Throws
+    /// OutOfBounds if `i` is past the end; call as `vec[i] = val`
+    /// (or `vec.set(i, own val)!`) to panic on a bad index.
+    func set(mut self: Vec__DynCallInfo, shallow i: USize, own val: DynCallInfo, mut _err_kind: I64)
+    /// Move bytes of src[i] into self (push). Source slot is zeroed so that
+    /// src's eventual elem_delete on it is a no-op (relies on the same
+    /// count==0/data==NULL convention used by take_children and Vec.delete).
+    func push_take(mut self: Vec__DynCallInfo, mut src: Vec__DynCallInfo, shallow i: USize)
+    /// Drop each element via elem_delete, free storage, then free self
+    /// unless `call_free` is false.
+    func delete(own self: Vec__DynCallInfo, shallow call_free: Bool)
+    /// Deep-copy the Vec and all its elements via elem_clone.
+    func clone(self: Vec__DynCallInfo) returns Vec__DynCallInfo
+    func size() returns shallow USize
+}
+#+end_src
+
+* adopt__CollectionInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.adopt__CollectionInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__CollectionInfo(dest: Dynamic, own src: CollectionInfo)
+#+end_src
+
+* adopt__DynCallInfo
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.scavenger.adopt__DynCallInfo
+:group: Compiler backend
+:END:
+
+#+begin_src til
+func adopt__DynCallInfo(dest: Dynamic, own src: DynCallInfo)
 #+end_src

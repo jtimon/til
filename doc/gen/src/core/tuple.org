@@ -1,5 +1,5 @@
 #+TITLE: src/core/tuple.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * Tuple
@@ -33,10 +33,6 @@ namespace:
     /// Byte size of the element at index `i`. Panics if `i` is past
     /// the end.
     func size_at(self: Tuple, i: USize) returns ref USize
-    /// The element TYPES, not their values: the values live in an untyped
-    /// `own data` buffer that only type_names can interpret. Hand-written
-    /// because that own field disqualifies Tuple from the generated to_str.
-    func to_str(self: Tuple) returns Str
     func delete(own self: Tuple, shallow call_free: Bool)
     func clone(self: Tuple) returns Tuple
     func size() returns shallow USize

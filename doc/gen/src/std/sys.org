@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -120,6 +120,35 @@ ext_proc host_os() returns Str
 
 #+begin_src til
 ext_proc host_arch() returns Str
+#+end_src
+
+* getenv
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.getenv
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc getenv(name: I8) returns ref I8
+#+end_src
+
+* get_env
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.sys.get_env
+:group: Standard library
+:END:
+
+Read an environment variable, "" when unset. NOT view-compatible:
+`name` reaches C as a NUL-terminated string, so it must be a literal
+or an owned Str, never a substr view (a view's bytes end at its count,
+with no NUL there, and getenv would read past it). Pass
+`view.clone()` at the call site if you have one. The result is owned:
+the bytes are copied out of the environ block, so the Str stays valid
+however the environment changes later. A host observation, hence proc:
+the same call can answer differently twice in one run.
+
+#+begin_src til
+proc get_env(name: Str) returns Str
 #+end_src
 
 * mkdir_p

@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -817,12 +817,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__U64, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__U64) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__U64) returns Vec__U64
     func size() returns shallow USize
@@ -916,12 +910,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__CtorArg, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__CtorArg) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__CtorArg) returns Vec__CtorArg
     func size() returns shallow USize
@@ -1015,12 +1003,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__CoverageNode, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__CoverageNode) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__CoverageNode) returns Vec__CoverageNode
     func size() returns shallow USize

@@ -288,7 +288,7 @@
   <text x="942" y="342" class="line">error_count : I32 = 0</text>
   <text x="942" y="360" class="line">error_msg := &quot;&quot;</text>
   <text x="942" y="378" class="line">source := &quot;&quot;</text>
-  <rect x="1298" y="24" width="460" height="2124" rx="14" ry="14" class="panel"/>
+  <rect x="1298" y="24" width="460" height="2342" rx="14" ry="14" class="panel"/>
   <text x="1318" y="62" class="panel-label">context</text>
   <rect x="1318" y="88" width="244" height="424" rx="10" ry="10" class="box"/>
   <text x="1332" y="126" class="title">TypeBinding: StructDef</text>
@@ -392,6 +392,15 @@
   <text x="1332" y="2086" class="line">imported := Map(Str, ImportUnit).new()</text>
   <text x="1332" y="2104" class="line">check_unused_imports := false</text>
   <text x="1332" y="2122" class="line">... (64 more)</text>
+  <rect x="1318" y="2148" width="228" height="82" rx="10" ry="10" class="box"/>
+  <text x="1332" y="2186" class="title">CollectionInfo: StructDef</text>
+  <text x="1332" y="2204" class="line">ref type_name : Str</text>
+  <text x="1332" y="2222" class="line">is_vec : I32 = 0</text>
+  <rect x="1318" y="2248" width="204" height="100" rx="10" ry="10" class="box"/>
+  <text x="1332" y="2286" class="title">DynCallInfo: StructDef</text>
+  <text x="1332" y="2304" class="line">ref method : Str</text>
+  <text x="1332" y="2322" class="line">nargs : I32 = 1</text>
+  <text x="1332" y="2340" class="line">has_return := false</text>
   <rect x="1792" y="24" width="188" height="462" rx="14" ry="14" class="panel"/>
   <text x="1812" y="62" class="panel-label">targets</text>
   <rect x="1812" y="88" width="132" height="100" rx="10" ry="10" class="box"/>
@@ -479,7 +488,7 @@
   <text x="3140" y="344" class="line">fully_covered := false</text>
   <text x="3140" y="362" class="line">sub_names := Vec(Str).new()</text>
   <text x="3140" y="380" class="line">sub_nodes := Vec(CoverageNode).new()</text>
-  <rect x="3496" y="24" width="308" height="824" rx="14" ry="14" class="panel"/>
+  <rect x="3496" y="24" width="308" height="842" rx="14" ry="14" class="panel"/>
   <text x="3516" y="62" class="panel-label">garbager</text>
   <rect x="3516" y="88" width="268" height="244" rx="10" ry="10" class="box"/>
   <text x="3530" y="126" class="title">LocalInfo: StructDef</text>
@@ -501,7 +510,7 @@
   <text x="3530" y="442" class="line">end : I32 = 0</text>
   <text x="3530" y="460" class="line">is_root := false</text>
   <text x="3530" y="478" class="line">succs := Vec(I32).new()</text>
-  <rect x="3516" y="504" width="244" height="208" rx="10" ry="10" class="box"/>
+  <rect x="3516" y="504" width="260" height="226" rx="10" ry="10" class="box"/>
   <text x="3530" y="542" class="title">BodyFacts: StructDef</text>
   <text x="3530" y="560" class="line">words : USize = 0</text>
   <text x="3530" y="578" class="line">n_stmts : USize = 0</text>
@@ -512,46 +521,38 @@
   <text x="3530" y="668" class="line">escapes := Vec(U64).new()</text>
   <text x="3530" y="686" class="line">def_names := Vec(Str).new()</text>
   <text x="3530" y="704" class="line">def_bits := Vec(I64).new()</text>
-  <rect x="3516" y="730" width="212" height="100" rx="10" ry="10" class="box"/>
-  <text x="3530" y="768" class="title">GcBorrowEdge: StructDef</text>
-  <text x="3530" y="786" class="line">owner := &quot;&quot;</text>
-  <text x="3530" y="804" class="line">borrower := &quot;&quot;</text>
-  <text x="3530" y="822" class="line">fixed_reach : I32 = -1</text>
-  <rect x="3838" y="24" width="308" height="798" rx="14" ry="14" class="panel"/>
+  <text x="3530" y="722" class="line">directives := Vec(Bool).new()</text>
+  <rect x="3516" y="748" width="212" height="100" rx="10" ry="10" class="box"/>
+  <text x="3530" y="786" class="title">GcBorrowEdge: StructDef</text>
+  <text x="3530" y="804" class="line">owner := &quot;&quot;</text>
+  <text x="3530" y="822" class="line">borrower := &quot;&quot;</text>
+  <text x="3530" y="840" class="line">fixed_reach : I32 = -1</text>
+  <rect x="3838" y="24" width="308" height="580" rx="14" ry="14" class="panel"/>
   <text x="3858" y="62" class="panel-label">builder</text>
-  <rect x="3858" y="88" width="228" height="82" rx="10" ry="10" class="box"/>
-  <text x="3872" y="126" class="title">CollectionInfo: StructDef</text>
-  <text x="3872" y="144" class="line">ref type_name : Str</text>
-  <text x="3872" y="162" class="line">is_vec : I32 = 0</text>
-  <rect x="3858" y="188" width="204" height="100" rx="10" ry="10" class="box"/>
-  <text x="3872" y="226" class="title">DynCallInfo: StructDef</text>
-  <text x="3872" y="244" class="line">ref method : Str</text>
-  <text x="3872" y="262" class="line">nargs : I32 = 1</text>
-  <text x="3872" y="280" class="line">has_return := false</text>
-  <rect x="3858" y="306" width="196" height="190" rx="10" ry="10" class="box"/>
-  <text x="3872" y="344" class="title">BuildPaths: StructDef</text>
-  <text x="3872" y="362" class="line">name := &quot;&quot;</text>
-  <text x="3872" y="380" class="line">c_path := &quot;&quot;</text>
-  <text x="3872" y="398" class="line">bin_path := &quot;&quot;</text>
-  <text x="3872" y="416" class="line">fwd_path := &quot;&quot;</text>
-  <text x="3872" y="434" class="line">h_path := &quot;&quot;</text>
-  <text x="3872" y="452" class="line">til_path := &quot;&quot;</text>
-  <text x="3872" y="470" class="line">py_path := &quot;&quot;</text>
-  <text x="3872" y="488" class="line">do_lib := false</text>
-  <rect x="3858" y="514" width="180" height="208" rx="10" ry="10" class="box"/>
-  <text x="3872" y="552" class="title">DocEntry: StructDef</text>
-  <text x="3872" y="570" class="line">name := &quot;&quot;</text>
-  <text x="3872" y="588" class="line">id := &quot;&quot;</text>
-  <text x="3872" y="606" class="line">unit_path := &quot;&quot;</text>
-  <text x="3872" y="624" class="line">group := &quot;&quot;</text>
-  <text x="3872" y="642" class="line">page := &quot;&quot;</text>
-  <text x="3872" y="660" class="line">body := &quot;&quot;</text>
-  <text x="3872" y="678" class="line">info := &quot;&quot;</text>
-  <text x="3872" y="696" class="line">since := &quot;&quot;</text>
-  <text x="3872" y="714" class="line">deprecated := &quot;&quot;</text>
-  <rect x="3858" y="740" width="268" height="64" rx="10" ry="10" class="box"/>
-  <text x="3872" y="778" class="title">DocCatalog: StructDef</text>
-  <text x="3872" y="796" class="line">entries := Vec(DocEntry).new()</text>
+  <rect x="3858" y="88" width="196" height="190" rx="10" ry="10" class="box"/>
+  <text x="3872" y="126" class="title">BuildPaths: StructDef</text>
+  <text x="3872" y="144" class="line">name := &quot;&quot;</text>
+  <text x="3872" y="162" class="line">c_path := &quot;&quot;</text>
+  <text x="3872" y="180" class="line">bin_path := &quot;&quot;</text>
+  <text x="3872" y="198" class="line">fwd_path := &quot;&quot;</text>
+  <text x="3872" y="216" class="line">h_path := &quot;&quot;</text>
+  <text x="3872" y="234" class="line">til_path := &quot;&quot;</text>
+  <text x="3872" y="252" class="line">py_path := &quot;&quot;</text>
+  <text x="3872" y="270" class="line">do_lib := false</text>
+  <rect x="3858" y="296" width="180" height="208" rx="10" ry="10" class="box"/>
+  <text x="3872" y="334" class="title">DocEntry: StructDef</text>
+  <text x="3872" y="352" class="line">name := &quot;&quot;</text>
+  <text x="3872" y="370" class="line">id := &quot;&quot;</text>
+  <text x="3872" y="388" class="line">unit_path := &quot;&quot;</text>
+  <text x="3872" y="406" class="line">group := &quot;&quot;</text>
+  <text x="3872" y="424" class="line">page := &quot;&quot;</text>
+  <text x="3872" y="442" class="line">body := &quot;&quot;</text>
+  <text x="3872" y="460" class="line">info := &quot;&quot;</text>
+  <text x="3872" y="478" class="line">since := &quot;&quot;</text>
+  <text x="3872" y="496" class="line">deprecated := &quot;&quot;</text>
+  <rect x="3858" y="522" width="268" height="64" rx="10" ry="10" class="box"/>
+  <text x="3872" y="560" class="title">DocCatalog: StructDef</text>
+  <text x="3872" y="578" class="line">entries := Vec(DocEntry).new()</text>
   <rect x="4180" y="24" width="420" height="1324" rx="14" ry="14" class="panel"/>
   <text x="4200" y="62" class="panel-label">interpreter</text>
   <rect x="4200" y="88" width="252" height="100" rx="10" ry="10" class="box"/>

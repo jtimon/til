@@ -1,16 +1,6 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
-
-* gc_audit_filter
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.garbager.gc_audit_filter
-:group: Compiler backend
-:END:
-
-#+begin_src til
-ext_proc gc_audit_filter() returns Str
-#+end_src
 
 * is_pod_enum_clone_wrap
 :PROPERTIES:
@@ -73,12 +63,6 @@ namespace:
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__USize, shallow i: USize, own val: USize, mut _err_kind: I64)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Array from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Array__USize) returns Str
     func delete(own self: Array__USize, shallow call_free: Bool)
     func clone(self: Array__USize) returns Array__USize
     func size() returns shallow USize
@@ -116,12 +100,6 @@ namespace:
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__Bool, shallow i: USize, own val: Bool, mut _err_kind: I64)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Array from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Array__Bool) returns Str
     func delete(own self: Array__Bool, shallow call_free: Bool)
     func clone(self: Array__Bool) returns Array__Bool
     func size() returns shallow USize
@@ -159,12 +137,6 @@ namespace:
     /// owned. Throws OutOfBounds if `i` is past the end; call as
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__U8, shallow i: USize, own val: U8, mut _err_kind: I64)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Array from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Array__U8) returns Str
     func delete(own self: Array__U8, shallow call_free: Bool)
     func clone(self: Array__U8) returns Array__U8
     func size() returns shallow USize
@@ -258,12 +230,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__GcBorrowEdge, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__GcBorrowEdge) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__GcBorrowEdge) returns Vec__GcBorrowEdge
     func size() returns shallow USize
@@ -357,12 +323,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__LocalInfo, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__LocalInfo) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__LocalInfo) returns Vec__LocalInfo
     func size() returns shallow USize
@@ -456,12 +416,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__GcCfgBlock, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__GcCfgBlock) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__GcCfgBlock) returns Vec__GcCfgBlock
     func size() returns shallow USize

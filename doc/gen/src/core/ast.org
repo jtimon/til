@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-9c075f4
+#+SUBTITLE: til 0.0.1-a783bc1db
 #+OPTIONS: toc:t
 
 * Primitive
@@ -127,6 +127,10 @@ enum FuncType {
     CoreLazyFunc
 namespace:
     func variant_name(self: FuncType) returns Str
+    func is_ext(self: FuncType) returns shallow Bool
+    func is_core(self: FuncType) returns shallow Bool
+    func is_lazy(self: FuncType) returns shallow Bool
+    func is_plain(self: FuncType) returns shallow Bool
     func is_bodyless(self: FuncType) returns shallow Bool
     Func
     Proc
@@ -1303,12 +1307,6 @@ namespace:
     func set(mut self: Map__Str_USize, key: Str, own val: USize)
     /// Remove `key`, dropping its key and value. Returns false if absent.
     func remove(mut self: Map__Str_USize, key: Str) returns shallow Bool
-    /// Entries in key order, in the `Name(k=v, k2=v2)` shape a struct's
-    /// generated to_str uses. `keys`/`values` are Vecs, whose `own data`
-    /// disqualifies Map from that generator, so this is hand-written.
-    /// K.to_str / V.to_str are the NAMESPACE form on purpose: the method
-    /// form is rejected as a redundant self-conversion when the type is Str.
-    func to_str(self: Map__Str_USize) returns Str
     func delete(own self: Map__Str_USize, shallow call_free: Bool)
     func clone(self: Map__Str_USize) returns Map__Str_USize
     func hash(self: Map__Str_USize, hasher: HashFn) returns shallow U64
@@ -1403,12 +1401,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__VariantDef, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__VariantDef) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns shallow USize
@@ -1502,12 +1494,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__FieldLayout, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__FieldLayout) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
     func size() returns shallow USize
@@ -1601,12 +1587,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Declaration, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Declaration) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Declaration) returns Vec__Declaration
     func size() returns shallow USize
@@ -1700,12 +1680,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__Expr, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__Expr) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__Expr) returns Vec__Expr
     func size() returns shallow USize
@@ -1799,12 +1773,6 @@ namespace:
     /// Drop each element via elem_delete, free storage, then free self
     /// unless `call_free` is false.
     func delete(own self: Vec__USize, shallow call_free: Bool)
-    /// Elements in order, in the `Name(a, b)` shape a struct's generated
-    /// to_str uses. `own data` disqualifies Vec from that generator, so
-    /// this is hand-written. T.to_str is the NAMESPACE form on purpose:
-    /// the method form is rejected as a redundant self-conversion when T
-    /// is Str.
-    func to_str(self: Vec__USize) returns Str
     /// Deep-copy the Vec and all its elements via elem_clone.
     func clone(self: Vec__USize) returns Vec__USize
     func size() returns shallow USize
