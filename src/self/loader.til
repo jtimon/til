@@ -699,7 +699,7 @@ priv seed_noreturn_chain := proc(ast: Expr) {
                 ref rhs : Expr = stmt.children[0]
                 switch rhs.node_type {
                 case NodeType.FuncDef(fd):
-                    if fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc)).not() { continue }
+                    if fd.func_type.is_plain().not() { continue }
                     if noreturn_names.has(dd.name) { continue }
                     if rhs.children.len() == 0 { continue }
                     ref body : Expr = rhs.children[0]
@@ -3039,7 +3039,7 @@ lazy_recursive_variadic_def := func(fdef: Expr) returns Bool {
     mut fixed_names := Vec(Str).new()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        if fd.func_type.is(FuncType.LazyFunc).or(fd.func_type.is(FuncType.LazyProc)).not() { return false }
+        if fd.func_type.is_lazy().not() { return false }
         if fd.kwargs_index >= 0 { return false }
         if fd.variadic_index < 0 { return false }
         if fd.variadic_index.to_usize() != fd.params.len() - 1 { return false }
@@ -3340,7 +3340,7 @@ priv lazy_stmt_inlinable_call := func(call: Expr, scope: TypeScope, ctx: Context
     if fdef_o.is_none() { return Option(ref Expr).None }
     ref fdef : Expr = fdef_o.unwrap()
     ft := func_def_type(fdef)
-    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { return Option(ref Expr).None }
+    if ft.is_lazy().not() { return Option(ref Expr).None }
     if fdef.children.len() == 0 { return Option(ref Expr).None }
     ref body : Expr = fdef.children[0]
     if lazy_body_inlinable(body) { return Option(ref Expr).None }
@@ -3454,7 +3454,7 @@ priv expand_lazy_in_expr := func(mut e: Expr, scope: TypeScope, depth: I32, ctx:
                 if fdef_o.is_some() {
                     ref fdef : Expr = fdef_o.unwrap()
                     ft := func_def_type(fdef)
-                    if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)) {
+                    if ft.is_lazy() {
                         // Variadic lazy defs unroll over the call's operands
                         // (the recursive Haskell-style form first, then the
                         // iterative for-in form); fixed-arity defs inline
@@ -4525,7 +4525,7 @@ priv lazy_thunk_lower_unit := func(mut lp: LoadedProgram, unit_path: Str,
         if lname.len() == 0 { continue }
         ref fdef : Expr = stmt.children[0]
         ft := func_def_type(fdef)
-        if ft.is(FuncType.LazyFunc).or(ft.is(FuncType.LazyProc)).not() { continue }
+        if ft.is_lazy().not() { continue }
         // A bodyless lazy funcsig `Sig := lazy_func(T, ...) returns R` (#262
         // first-class): lower the TYPE, not a def.
         if fdef.children.len() == 0 {

@@ -168,7 +168,7 @@ repl_ast_has_loader_directive := func(e: Expr) returns Bool {
 repl_ast_has_lazy_def := func(e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.FuncDef(fd):
-        if fd.func_type.is(FuncType.LazyFunc).or(fd.func_type.is(FuncType.LazyProc)) { return true }
+        if fd.func_type.is_lazy() { return true }
     case:
     }
     for child : Expr in e.children {

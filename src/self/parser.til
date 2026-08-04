@@ -762,7 +762,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // followed by `= (names) { body }`. Wires the names into the
         // FuncSig-typed params and parses the body, producing a fully
         // formed FuncDef Expr usable anywhere a FuncDef literal is.
-        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not()) {
+        if ft.is_plain().not() {
             parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " cannot use FuncSig form")
         }
         advance(p) // consume '='
@@ -796,8 +796,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         // returns Bool` names a lazy funcsig type. The loader lowers it to the
         // thunk signature `func(_Fn_ret_Bool, _Fn_ret_Bool) returns Bool` and
         // wraps args at calls through a value of that type.
-        if ft.is(FuncType.Func).not().and(ft.is(FuncType.Proc).not())
-        .and(ft.is(FuncType.LazyFunc).not()).and(ft.is(FuncType.LazyProc).not()) {
+        if ft.is_plain().not().and(ft.is_lazy().not()) {
             parse_fail(p, kw_line, kw_col, "", func_type_name(ft), " requires a body")
         }
     }

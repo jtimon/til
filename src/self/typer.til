@@ -1881,7 +1881,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         mut abs_ret_type := ""
         switch ns_func2.node_type {
         case NodeType.FuncDef(abs_fd):
-            if abs_fd.func_type.is(FuncType.ExtFunc).or(abs_fd.func_type.is(FuncType.ExtProc)) {
+            if abs_fd.func_type.is_ext() {
                 abs_method = true
                 abs_returns = abs_fd.return_type.len() > 0
                 abs_ret_type = abs_fd.return_type.clone()
@@ -2835,8 +2835,7 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
 priv generic_normalize_concrete_sig := func(scope: TypeScope, mut fdef_expr: Expr, ctx: Context) {
     switch fdef_expr.node_type {
     case NodeType.FuncDef(fdef):
-        auto_ok := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
-            .or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.LazyProc))
+        auto_ok := fdef.func_type.is_plain().or(fdef.func_type.is_lazy())
         if auto_ok.not() { return }
         widths_differ := resolve_type_alias(scope, "USize").eq(resolve_type_alias(scope, "UPtr")).not()
         if fdef.return_type.len() > 0 {
@@ -3132,7 +3131,7 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
                         if dyn_md.default_value.is_some() {
                             switch dyn_md.default_expr().node_type {
                             case NodeType.FuncDef(dyn_mfd):
-                                if dyn_mfd.func_type.is(FuncType.CoreFunc).or(dyn_mfd.func_type.is(FuncType.CoreProc)).or(dyn_mfd.func_type.is(FuncType.CoreLazyFunc)) {
+                                if dyn_mfd.func_type.is_core() {
                                     e.type_error(format("'", dyn_type_nm, ".", dyn_meth, "' is a ", func_type_name(dyn_mfd.func_type), " (an inline-only primitive intrinsic with no symbol) and cannot be indirected via dyn_fn"), ctx)
                                 }
                             case:
@@ -3493,8 +3492,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     // only user-written members carry the contract.
                     if if_fd.auto_generated { continue }
                     ift := if_fd.func_type
-                    ok_kind := ift.is(FuncType.Func).or(ift.is(FuncType.Proc))
-                        .or(ift.is(FuncType.ExtFunc)).or(ift.is(FuncType.ExtProc))
+                    ok_kind := ift.is_plain().or(ift.is_ext())
                     if ok_kind.not() {
                         if_nd.default_expr().type_error(format("interface member '", if_name, "' must be a 'func'/'proc' (concrete default) or 'ext_func'/'ext_proc' (abstract method)"), ctx)
                     }
@@ -3546,7 +3544,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     if am_fd.auto_generated { continue }
                     // Only abstract (ext_func/ext_proc) methods must be
                     // provided; func/proc defaults are inherited.
-                    if am_fd.func_type.is(FuncType.ExtFunc).or(am_fd.func_type.is(FuncType.ExtProc)).not() { continue }
+                    if am_fd.func_type.is_ext().not() { continue }
                     switch find_ns_decl(expr, am_name) {
                     case Option(ref Declaration).None:
                         expr.type_error(format("'", impl_self_name, "' does not implement abstract method '", am_name, "' required by interface '", impl_iface_name, "'"), ctx)
@@ -3687,7 +3685,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr) {
         // auto-shallow ABI of the ordinary func/proc it will hold, so
         // normalize primitive params/returns to Shallow here too. Otherwise
         // the call-through codegen would deref a value return as a pointer.
-        sig_auto_shallow := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
+        sig_auto_shallow := fdef.func_type.is_plain()
         if fdef.return_type.len() > 0 {
             return_type_name := fdef.return_type.clone()
             ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
@@ -3913,7 +3911,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // tail, e.g. `x := f(a); return x.and(b)`). Reject anything else
         // loudly (loops, early returns, first-class) -- those need the thunk
         // fallback and would otherwise silently degrade to an eager call.
-        if fdef.func_type.is(FuncType.LazyFunc).or(fdef.func_type.is(FuncType.LazyProc)) {
+        if fdef.func_type.is_lazy() {
             if expr.children.len() > 0 {
                 // Issue #262: the RECURSIVE variadic form (vand/vor) is fully
                 // consumed by the loader's recursion-unroll -- every call is
@@ -3968,8 +3966,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // func/proc definitions only. ext_func/ext_proc qualifiers map
         // directly to a hand-written C signature (e.g. U64_clone takes a
         // 'const U64 *'), so their shallow-ness must be preserved exactly.
-        auto_shallow_ok := fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc))
-            .or(fdef.func_type.is(FuncType.LazyFunc)).or(fdef.func_type.is(FuncType.LazyProc))
+        auto_shallow_ok := fdef.func_type.is_plain().or(fdef.func_type.is_lazy())
         if fdef.func_type.is(FuncType.Test) {
             // Allowed at root scope, or at the immediate namespace
             // level of a struct/enum (issue #51).  Tests in arbitrary
@@ -4233,7 +4230,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         // typed, so FCalls inside it already carry noreturn_call stamps
         // from callees typed earlier (imports and earlier decls in the
         // file: exit -> panic -> TODO/UNREACHABLE chain in core/exit.til).
-        if fdef.func_type.is(FuncType.Func).or(fdef.func_type.is(FuncType.Proc)) {
+        if fdef.func_type.is_plain() {
             if fn_never_returns(expr.children[0]) { fdef.noreturn = true }
         }
     case:
@@ -8298,8 +8295,7 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns I32 {
 priv fdef_returns_shallow_settled := func(fd: FunctionDef, scope: TypeScope, ctx: Context) returns Bool {
     if fd.return_own_type.is(OwnType.Shallow) { return true }
     if fd.return_own_type.is(OwnType.Own).not() { return false }
-    auto_ok := fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc))
-        .or(fd.func_type.is(FuncType.LazyFunc)).or(fd.func_type.is(FuncType.LazyProc))
+    auto_ok := fd.func_type.is_plain().or(fd.func_type.is_lazy())
     if auto_ok.not() { return false }
     if fd.return_type.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, fd.return_type)

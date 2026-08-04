@@ -4920,7 +4920,7 @@ priv gen_implements_defaults_for_stmt := func(stmt: Expr, scope: TypeScope) {
         mut is_default := false
         switch am.default_expr().node_type {
         case NodeType.FuncDef(am_fd):
-            if am_fd.auto_generated.not().and(am_fd.func_type.is(FuncType.Func).or(am_fd.func_type.is(FuncType.Proc))) {
+            if am_fd.auto_generated.not().and(am_fd.func_type.is_plain()) {
                 is_default = true
             }
         case:

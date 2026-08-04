@@ -468,7 +468,7 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Boo
 init_func_is_generic := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
     case NodeType.FuncDef(fd):
-        gok := fd.func_type.is(FuncType.Func).or(fd.func_type.is(FuncType.Proc))
+        gok := fd.func_type.is_plain()
         if gok.not() { return false }
         // A `P: Type` param is a generic TYPE-PARAMETER only if its name
         // is actually USED as a type elsewhere in the signature -- as

@@ -703,7 +703,7 @@ priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bo
 // See call_copies_ref_str: an ext callee hands back a C-owned Str buffer
 // only when it declares one. `returns ref Dynamic` is pointer laundering.
 priv ext_fdef_copies_str := func(fd: FunctionDef) returns Bool {
-    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).not() { return false }
+    if fd.func_type.is_ext().not() { return false }
     return fd.return_type == "Str"
 }
 
@@ -2835,7 +2835,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 mut fp_func_type := FuncType.Func
                 ref fp_fdef : FunctionDef = funcdef_of(func_def)
                 fp_func_type = fp_fdef.func_type
-                if fp_func_type.is(FuncType.ExtFunc).or(fp_func_type.is(FuncType.ExtProc)) {
+                if fp_func_type.is_ext() {
                     for qn, nsv_hb in ns_scope(c).heap_bindings {
                         if heap_type_is_callable(hb_type(nsv_hb)).not() { continue }
                         ref nsv : Dynamic = to_ptr(nsv_hb.ptr)
@@ -3067,7 +3067,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 // `InitWindow(...)` "succeeded" and simply opened no window,
                 // and `GetRandomValue(5, 5)` returned 0 instead of 5. A
                 // missing symbol has to say so.
-                if ext_fd.func_type.is(FuncType.ExtFunc).or(ext_fd.func_type.is(FuncType.ExtProc)) {
+                if ext_fd.func_type.is_ext() {
                     callable_raw_free(fn_raw, ctx)
                     if ctx.constfold_active.not() {
                         panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name())
@@ -8055,7 +8055,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                 ref fdef : Expr = stmt.children[0]
                 switch fdef.node_type {
                 case NodeType.FuncDef(fd):
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)) {
+                    if fd.func_type.is_ext() {
                         switch stmt.node_type {
                         case NodeType.Decl(dname):
                             ref fn_ptr : U8 = ffi_dlsym(dname.name)
@@ -8085,13 +8085,13 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                     case:
                         continue
                     }
-                    if fd_func_type.is(FuncType.ExtFunc).or(fd_func_type.is(FuncType.ExtProc)) {
+                    if fd_func_type.is_ext() {
                         flat_name := sdd.name.concat3("_", sdd_data.member_name_at(cur_ni))
                         ref fn_ptr : U8 = ffi_dlsym(flat_name)
                         if fn_ptr.is_null().not() {
                             ffi_register(flat_name, fn_ptr, fdef, ctx)
                         }
-                    } else if fd_func_type.is(FuncType.Func).or(fd_func_type.is(FuncType.Proc)) {
+                    } else if fd_func_type.is_plain() {
                         // Scan function body for nested ext_func/ext_proc.
                         // A bodyless namespace signature (interface
                         // method, issue #251) has no body to scan.
@@ -8102,7 +8102,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                                 ref idef : Expr = inner.children[0]
                                 switch idef.node_type {
                                 case NodeType.FuncDef(ifd):
-                                    if ifd.func_type.is(FuncType.ExtFunc).or(ifd.func_type.is(FuncType.ExtProc)) {
+                                    if ifd.func_type.is_ext() {
                                         ref iname : Declaration = decl_of(inner)
                                         ref ifn : U8 = ffi_dlsym(iname.name)
                                         if ifn.is_null().not() {

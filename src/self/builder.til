@@ -663,7 +663,7 @@ priv builder_callee_is_core := func(name: Str, ctx: Context) returns Bool {
     ref fdef : Expr = fdef_o.unwrap()
     switch fdef.node_type {
     case NodeType.FuncDef(fd):
-        return fd.func_type.is(FuncType.CoreFunc).or(fd.func_type.is(FuncType.CoreProc)).or(fd.func_type.is(FuncType.CoreLazyFunc))
+        return fd.func_type.is_core()
     case:
         return false
     }
@@ -5615,9 +5615,7 @@ priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Cont
 // test/ffi_module caught the first version of this.
 priv builder_ns_method_lowered_inline := func(fdef: Expr) returns Bool {
     ref bnmli_fd : FunctionDef = funcdef_of(fdef)
-    return bnmli_fd.func_type.is(FuncType.CoreFunc)
-        .or(bnmli_fd.func_type.is(FuncType.CoreProc))
-        .or(bnmli_fd.func_type.is(FuncType.CoreLazyFunc))
+    return bnmli_fd.func_type.is_core()
 }
 
 // #326: a payload-less enum's clone/delete follow the same rule as the
@@ -8114,7 +8112,7 @@ priv def_is_interface := func(def: Expr) returns Bool {
 // never be dyn_fn'd (the typer enforces this), so it gets NO dyn wrapper, NO
 // closure value, and NO dyn_fn dispatch entry. The call lowers inline instead.
 priv func_type_is_core := func(ft: FuncType) returns Bool {
-    return ft.is(FuncType.CoreFunc).or(ft.is(FuncType.CoreProc)).or(ft.is(FuncType.CoreLazyFunc))
+    return ft.is_core()
 }
 
 emit_dyn_fn_closure_value := proc(f: File, type_name: Str, method_name: Str, suffix: Str) {
@@ -8145,7 +8143,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: no wrapper for abstract interface
                         // methods -- there is no C function behind them.
                         // ext_funcs on non-interface types are C-backed.
-                        if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
+                        if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw0i), lp.ctx)) {
                             emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw0i), fd, lp.ctx)
                             emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw0i), "_dyn")
                         }
@@ -8172,7 +8170,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     // #269: no wrapper for abstract interface methods --
                     // there is no C function behind them. ext_funcs on
                     // non-interface types are C-backed.
-                    if fd.func_type.is(FuncType.ExtFunc).or(fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
+                    if fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, def_ns_name_at(def, cur_dfw1i), lp.ctx)) {
                         emit_dyn_fn_wrapper(f, dd.name, def_ns_name_at(def, cur_dfw1i), fd, lp.ctx)
                         emit_dyn_fn_closure_value(f, dd.name, def_ns_name_at(def, cur_dfw1i), "_dyn")
                     }
@@ -8201,7 +8199,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                         // #269: abstract interface methods have no
                         // _dyn wrapper closure to point at. ext_funcs
                         // on non-interface types are C-backed.
-                        if dfn_fd.func_type.is(FuncType.ExtFunc).or(dfn_fd.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
+                        if dfn_fd.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd_name, lp.ctx)) {
                             tlen := dd.name.len()
                             mlen := nsd_name.len()
                             f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd_name).write("_dyn__til_closure;\n")
@@ -8229,7 +8227,7 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
                     // #269: abstract interface methods have no _dyn
                     // wrapper closure to point at. ext_funcs on
                     // non-interface types are C-backed.
-                    if dfn_fd2.func_type.is(FuncType.ExtFunc).or(dfn_fd2.func_type.is(FuncType.ExtProc)).and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
+                    if dfn_fd2.func_type.is_ext().and(def_is_interface(def)).not().and(func_type_is_core(dfn_fd2.func_type).not()).and(builder_dyn_fn_target_kept(dd.name, nsd2_name, lp.ctx)) {
                         tlen := dd.name.len()
                         mlen := nsd2_name.len()
                         f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0 && method->count == "); emit_usize(f, mlen); f.write("ULL && memcmp(method->c_str, \"").write(nsd2_name).write("\", "); emit_usize(f, mlen); f.write("ULL) == 0) return (void*)&").write(dd.name).write("_").write(nsd2_name).write("_dyn__til_closure;\n")
@@ -8706,7 +8704,7 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                     mut dyn_skip_abstract := false
                     switch method_fdef.node_type {
                     case NodeType.FuncDef(abs_mfd):
-                        if abs_mfd.func_type.is(FuncType.ExtFunc).or(abs_mfd.func_type.is(FuncType.ExtProc)) {
+                        if abs_mfd.func_type.is_ext() {
                             dyn_skip_abstract = true
                         }
                     case:
@@ -8786,7 +8784,7 @@ priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
                 mut dyn_skip_abstract2 := false
                 switch method_fdef.node_type {
                 case NodeType.FuncDef(abs_mfd2):
-                    if abs_mfd2.func_type.is(FuncType.ExtFunc).or(abs_mfd2.func_type.is(FuncType.ExtProc)) {
+                    if abs_mfd2.func_type.is_ext() {
                         dyn_skip_abstract2 = true
                     }
                 case:
@@ -9267,7 +9265,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
         if is_func_decl(stmt).not() { continue }
         ref fdef : Expr = stmt.children[0]
         ref fd : FunctionDef = funcdef_of(fdef)
-        if fd.func_type.is(FuncType.ExtFunc).not().and(fd.func_type.is(FuncType.ExtProc).not()) { continue }
+        if fd.func_type.is_ext().not() { continue }
         ref dd : Declaration = decl_of(stmt)
         if dd.name.eq("print_single").or(dd.name.eq("print_flush")) { continue }
         // Issue #176: builder.til (and similar units) use the
@@ -9283,7 +9281,7 @@ priv emit_ext_func_declarations := proc(f: File, program: Expr, ctx: Context) {
         if shadow_fdef_o.is_some() {
             switch shadow_fdef_o.unwrap().node_type {
             case NodeType.FuncDef(sfd):
-                if sfd.func_type.is(FuncType.ExtFunc).not().and(sfd.func_type.is(FuncType.ExtProc).not()) {
+                if sfd.func_type.is_ext().not() {
                     shadowed_by_func = true
                 }
             case:

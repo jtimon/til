@@ -106,19 +106,44 @@ namespace:
         case FuncType.CoreLazyFunc: return "CoreLazyFunc"
         }
     }
-    // A func type with no til body: the ext_* FFI boundary (the body lives
-    // in C) and the core_* intrinsics (every backend lowers them natively,
-    // so no symbol is emitted). Every pass that walks, types, or emits a
-    // body skips these, which is why the same five-variant test appeared
-    // at 22 call sites before this. Naming the set makes a new bodyless
-    // variant a one-line change here instead of 22 edits -- CoreLazyFunc
-    // was appended recently and had to be threaded through every one.
-    is_bodyless := func(self: FuncType) returns Bool {
+    // ext_func / ext_proc: the FFI boundary. The body is user-written C, so
+    // nothing here is emitted, walked, or auto-cleaned.
+    is_ext := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.ExtFunc, FuncType.ExtProc,
-             FuncType.CoreFunc, FuncType.CoreProc, FuncType.CoreLazyFunc: return true
+        case FuncType.ExtFunc, FuncType.ExtProc: return true
         case: return false
         }
+    }
+    // core_func / core_proc / core_lazy_func: primitive intrinsics. Every
+    // backend lowers them natively (no symbol emitted) and none can be
+    // indirected through a FuncPtr or dyn_fn.
+    is_core := func(self: FuncType) returns Bool {
+        switch self {
+        case FuncType.CoreFunc, FuncType.CoreProc, FuncType.CoreLazyFunc: return true
+        case: return false
+        }
+    }
+    // lazy_func / lazy_proc: arguments are call-by-name, spliced at the call
+    // site by the loader rather than evaluated before the call.
+    is_lazy := func(self: FuncType) returns Bool {
+        switch self {
+        case FuncType.LazyFunc, FuncType.LazyProc: return true
+        case: return false
+        }
+    }
+    // An ordinary til-bodied func / proc -- the declarations that get
+    // auto-shallow inference and auto-generated methods.
+    is_plain := func(self: FuncType) returns Bool {
+        switch self {
+        case FuncType.Func, FuncType.Proc: return true
+        case: return false
+        }
+    }
+    // No til body to walk, type, or emit: the C boundary plus the natively
+    // lowered intrinsics. Stated as the union so a new ext_* or core_*
+    // variant only has to join its own set above.
+    is_bodyless := func(self: FuncType) returns Bool {
+        return self.is_ext().or(self.is_core())
     }
 }
 
