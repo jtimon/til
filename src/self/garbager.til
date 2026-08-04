@@ -648,18 +648,60 @@ priv gc_flow_block_kill := func(blocks: Vec(GcCfgBlock), bid: USize, name: Str, 
 // per-block transfer function is likewise computed once (see
 // gc_flow_block_kill), which turns the sweep body into pure state
 // arithmetic.
+// Counting sort by successor: one pass to size each block's bucket,
+// one to fill it. The version this replaced asked, for every block,
+// which of the OTHER blocks name it -- rescanning every successor list
+// once per block, O(V^2) for a graph with O(V) edges. A big function's
+// CFG has hundreds of blocks, and this is called once per body per
+// solve. Bucket contents keep the same order (both fills visit
+// predecessors in increasing block id), so the fixpoint meets in the
+// same sequence.
 priv gc_flow_preds := func(blocks: Vec(GcCfgBlock), mut pred_off: Array(USize), mut preds: Vec(USize)) {
     n := blocks.len()
-    for bi in 0..n {
-        pred_off[bi] = preds.len()
-        for p in 0..n {
-            ref pb : GcCfgBlock = blocks[p]
-            for k in 0..pb.succs.len() {
-                if pb.succs[k].to_usize() == bi { preds.push(own p) }
-            }
+    mut counts := Array(USize).new(n)
+    for i in 0..n { counts[i] = 0 }
+    for p in 0..n {
+        ref pb : GcCfgBlock = blocks[p]
+        for k in 0..pb.succs.len() {
+            sidx := pb.succs[k].to_usize()
+            ref c : USize = counts[sidx]
+            counts[sidx] = c.add(1)
         }
     }
-    pred_off[n] = preds.len()
+    mut acc : USize = 0
+    for bi in 0..n {
+        pred_off[bi] = acc.add(0)
+        ref cb : USize = counts[bi]
+        acc = acc.add(cb)
+    }
+    pred_off[n] = acc.add(0)
+    if acc == 0 { return }
+    // Sized once and written by index: the fill below is not in bucket
+    // order, so pushing is out, and Vec.move_from would not help -- it
+    // MEMCPIES the source into self and zeroes its count (it takes
+    // `mut`, not `own`), so filling a second Vec and moving it in would
+    // buy one malloc, one copy of the whole edge list, and one free.
+    if preds.cap < acc {
+        preds.data = realloc(own preds.data, acc.mul(USize.size()))
+        preds.cap = acc
+    }
+    preds.count = acc
+    mut cursor := Array(USize).new(n)
+    for bi in 0..n {
+        ref pb2 : USize = pred_off[bi]
+        cursor[bi] = pb2.add(0)
+    }
+    // Every slot is written exactly once: acc is the edge count.
+    for p in 0..n {
+        ref pb : GcCfgBlock = blocks[p]
+        for k in 0..pb.succs.len() {
+            sidx := pb.succs[k].to_usize()
+            ref at : USize = cursor[sidx]
+            ref mut slot : USize = preds.unsafe_get(at)
+            slot = p.add(0)
+            cursor[sidx] = at.add(1)
+        }
+    }
 }
 
 // The sweep itself, over precomputed predecessors and per-block

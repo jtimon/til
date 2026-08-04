@@ -1671,6 +1671,7 @@ Str * Str_from_c_str(void * s);
 void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool call_free);
+Str * Str_borrowed_view(Str * s);
 Str * Str_substr(Str * s, USize start, USize n);
 Str * Str_trim(Str * s);
 Bool Str_contains(Str * a, Str * b);

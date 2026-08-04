@@ -1026,16 +1026,17 @@ scav_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_nam
         if bvs_dad.save_old_delete.and(e.children.len() > 0) {
             bvs_dtn := til_type_name(e.children[0].til_type())
             if bvs_dtn.len() > 0 {
-                bvs_dkey := bvs_dtn.concat3(".", "delete")
-                if sites.has(bvs_dkey).not() { sites.add(own bvs_dkey.clone()) }
+                // Set.add dedupes; the has() probe this dropped bought a
+                // second binary search to save a clone -- and then cloned
+                // anyway.
+                sites.add(own bvs_dtn.concat3(".", "delete"))
             }
         }
     case NodeType.FieldAssign(bvs_dfad):
         if bvs_dfad.save_old_delete.and(e.children.len() > 1) {
             bvs_dtn2 := til_type_name(e.children[1].til_type())
             if bvs_dtn2.len() > 0 {
-                bvs_dkey2 := bvs_dtn2.concat3(".", "delete")
-                if sites.has(bvs_dkey2).not() { sites.add(own bvs_dkey2.clone()) }
+                sites.add(own bvs_dtn2.concat3(".", "delete"))
             }
         }
     case:
@@ -1049,8 +1050,7 @@ scav_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_nam
                 recv_type := til_type_name(bvs_fa.children[0].til_type())
                 if recv_type.len() > 0 {
                     if scav_pod_site_spliced(e, bvs_f.field_access_name(), stack_names, dup_names, param_names, ctx).not() {
-                        key := recv_type.concat3(".", bvs_f.field_access_name())
-                        if sites.has(key).not() { sites.add(own key.clone()) }
+                        sites.add(own recv_type.concat3(".", bvs_f.field_access_name()))
                     }
                 }
             }
@@ -1066,9 +1066,11 @@ scav_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut stack_nam
         }
     }
     if e.node_type.is(NodeType.Case) { skip_child = 0 }
+    // Borrowed: the name lives in the Decl node, which outlives this
+    // call, and `owner` is only read (by scav_ns_method_omitted).
     mut bvs_owner := ""
     switch e.node_type {
-    case NodeType.Decl(bvs_od): bvs_owner = Str.clone(bvs_od.name)
+    case NodeType.Decl(bvs_od): bvs_owner = bvs_od.name.borrowed_view()
     case:
     }
     mut bvs_i : USize = 0
