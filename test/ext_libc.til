@@ -1,8 +1,9 @@
 mode cli
 
+import("../src/std/sys")
+
 // Issue #176 regression test: binding libc string-pointer functions directly
-// via ext_func used to fail C compilation under -Werror with two distinct
-// errors:
+// used to fail C compilation under -Werror with two distinct errors:
 //   1. "conflicting types for 'setenv'" -- til emits its own U8 * prototype
 //      that clashes with stdlib.h's 'const char *' declaration.
 //   2. "-Wpointer-sign" / "-Wdiscarded-qualifiers" at the call site, because
@@ -13,9 +14,12 @@ mode cli
 // the matching diagnostic pragmas at the top of the generated .c so the call
 // site compiles cleanly.
 
-setenv := ext_func(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
-getenv := ext_func(name: I8) returns ref I8 {}
-unsetenv := ext_func(name: I8) returns shallow I32 {}
+// ext_proc, not ext_func: these read and mutate the process environment,
+// so the const-folder must never run them at build time (doc/ffi.org's
+// audit checklist). getenv is not redeclared here -- std/sys.til binds
+// the same libc symbol, and a second binding of it would collide.
+setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
+unsetenv := ext_proc(name: I8) returns shallow I32 {}
 
 main := proc() {
     rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1)
@@ -61,6 +65,31 @@ main := proc() {
         return
     }
     _rc4 := unsetenv("TIL_ISSUE_176_CHAIN".c_str)
+
+    // std/sys's get_env, the Str-facing wrapper over the same libc getenv:
+    // an owned Str with the value, "" when the variable is unset. The set
+    // case must also survive the unset that follows it -- get_env clones
+    // the bytes out of the environ block, so a value read BEFORE the
+    // unsetenv still reads correctly after it (a borrowed view would not).
+    rc5 := setenv("TIL_ISSUE_176_WRAP".c_str, "wrapped".c_str, 1)
+    if rc5.neq(0) {
+        println("wrapper setenv failed")
+        return
+    }
+    got := get_env("TIL_ISSUE_176_WRAP")
+    if got.neq("wrapped") {
+        println("get_env returned the wrong value: ", got)
+        return
+    }
+    _rc6 := unsetenv("TIL_ISSUE_176_WRAP".c_str)
+    if got.neq("wrapped") {
+        println("get_env result did not survive unsetenv: ", got)
+        return
+    }
+    if get_env("TIL_ISSUE_176_WRAP").neq("") {
+        println("get_env did not report an unset variable as empty")
+        return
+    }
 
     println("ok")
 }

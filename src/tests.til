@@ -875,8 +875,9 @@ main := proc(args: ..Str) {
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
         format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
-    // Issue #176: binding libc functions like setenv/getenv directly via
-    // ext_func must compile under -Werror and produce the expected behaviour.
+    // Issue #176: binding libc functions like setenv/getenv directly must
+    // compile under -Werror and produce the expected behaviour. Also covers
+    // std/sys's get_env wrapper over that same libc getenv.
     ext_libc_exp := "gen/out/expected/ext_libc.out"
     File.writefile(ext_libc_exp, format("ok", NL))
     add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
