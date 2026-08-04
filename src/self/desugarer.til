@@ -125,6 +125,20 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             } else {
                 e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 missing = true
+                // Fill the slot anyway, with the unfilled-call-arg-slot
+                // placeholder NoDefaultArg exists for. The rebuild below is
+                // what establishes the param-aligned layout every later
+                // derivation assumes (fcall_variadic_count and friends solve
+                // for the variadic count by subtracting nparam from
+                // children.len(), in USize). Returning early here instead
+                // left the raw parsed list in place, so that subtraction
+                // UNDERFLOWED to an enormous count and the variadic desugar
+                // walked args that were not there -- `expect()` killed the
+                // compiler with an uncaught OutOfBounds right after printing
+                // the real diagnostic. The compile is already failing; what
+                // matters is that it fails by reporting, not by crashing.
+                slots[i] = slot_default_code(defaults.len())
+                defaults.push(own Expr.new(NodeType.NoDefaultArg, e.line, e.col))
             }
         }
     }
@@ -137,10 +151,6 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
         }
     }
-    // Missing-argument case: diagnostics emitted above, and nothing has
-    // been moved yet, so the call keeps its original arguments.
-    if missing { return false }
-
     // Rebuilt call args: callee + (per-param) one arg, or the expanded
     // variadic / kwargs runs. Over-estimate the capacity (never under) so
     // the fill below reallocs zero times on the hot per-call path.
@@ -175,7 +185,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
         }
     }
     e.children.move_from(new_ch)
-    return true
+    return missing.not()
 }
 
 desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {

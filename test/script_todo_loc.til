@@ -1,0 +1,10 @@
+mode script
+
+// A bare TODO() is legal -- the message parts are optional -- and the whole
+// value of one is the location it points at. So it must report the CALL SITE
+// (panic's `loc` default resolves at the caller, not in core/exit.til) and
+// print a plain "TODO", not the "TODO: " that formatting an empty parts list
+// used to leave behind. Expected exit code is 1 (panic exits non-zero).
+
+println("before")
+TODO()

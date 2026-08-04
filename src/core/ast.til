@@ -890,7 +890,6 @@ namespace:
         case NodeType.RestPattern:    return "RestPattern"
         case NodeType.ListPattern:    return "ListPattern"
         }
-        return "?"
     }
 }
 

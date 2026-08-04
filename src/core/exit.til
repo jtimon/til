@@ -19,8 +19,16 @@ panic := func(parts: ..Str, loc: Str = __LOC__) {
     exit(1)
 }
 
+// Message parts are optional, as in UNREACHABLE: a bare TODO() is a legal
+// "not written yet" marker whose location IS the message, so the empty case
+// prints plain "TODO" rather than a dangling ": ". Either way `loc` reports
+// the CALL SITE, not this file.
 TODO := func(parts: ..Str, loc: Str = __LOC__) {
-    panic("TODO: ", format(..parts), loc = loc)
+    if parts.len() == 0 {
+        panic("TODO", loc = loc)
+    } else {
+        panic("TODO: ", format(..parts), loc = loc)
+    }
 }
 
 // Like panic/TODO, UNREACHABLE takes formatted message parts. They are

@@ -997,3 +997,14 @@ probe_ufcs321 := func(p: NullProbe321) returns Bool { return p.is_null() }
 // (#321 step 4's NULL-literal fixtures left with the keyword: nothing can
 // utter NULL from source anymore. The typer's four write-side checks stay
 // as guards over compiler-generated null nodes.)
+
+// Omitting a required argument of a callee that ALSO declares a variadic
+// used to CRASH the compiler right after printing this error: argument
+// alignment bails without rebuilding the arg list, and the variadic desugar
+// then derived its count by subtracting the param count from the SHORTER
+// list -- USize, so it underflowed and the setter loop read past the end.
+// `expect()` reaches it the same way. One error, then the run continues.
+mv_variadic_callee := func(mv_head: Str, mv_rest: ..Str) returns Str {
+    return format(mv_head, ..mv_rest)
+}
+mv_missing_required := mv_variadic_callee()

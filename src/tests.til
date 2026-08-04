@@ -963,7 +963,7 @@ main := proc(args: ..Str) {
         format(til_bin, " test", asan_flag, " test/test_in_namespace.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "error:", 175,
+    add_count(tests, "typer_errors", "typer", "error:", 176,
         format(til_bin, " interpret test/typer_errors.til"))
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,
@@ -1146,6 +1146,17 @@ main := proc(args: ..Str) {
             "test/script_bang_panic_msg.til:14:10: panic: uncaught throw 'OutOfBounds'", NL))
     add_cli_pair(tests, "script_bang_panic_msg", "test/script_bang_panic_msg.til",
         "", 1, format(exp, "script_bang_panic_msg.out"), til_bin, asan_flag)
+
+    // A bare TODO() keeps working and still points at the CALL SITE, not at
+    // core/exit.til: `loc` defaults to __LOC__, which resolves at the caller.
+    // With no message parts it prints plain "TODO" -- formatting an empty
+    // parts list used to leave a dangling "TODO: ". This is the only place we
+    // call TODO with no message; real markers should say what is missing.
+    File.writefile(format(exp, "script_todo_loc.out"),
+        format("before", NL,
+            "test/script_todo_loc.til:10:1: panic: TODO", NL))
+    add_cli_pair(tests, "script_todo_loc", "test/script_todo_loc.til",
+        "", 1, format(exp, "script_todo_loc.out"), til_bin, asan_flag)
 
     // Top-level statements get the same throw/catch/bang lowering as a
     // function body: a subscript (`v[0]` -> `get(...)!`), an explicit bang
