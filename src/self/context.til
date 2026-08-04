@@ -1557,6 +1557,38 @@ init_type_from_explicit_type := func(name: Str, scope: TypeScope) returns Type {
     return til_type_from_explicit_type(resolved)
 }
 
+// The type-application spelling a method call's RECEIVER names, or "":
+// `Vec(Str).new` -> "Vec(Str)", `Map(Str, I64).new` -> "Map(Str, I64)".
+// Only all-Ident applications are rendered; anything else (a nested
+// application, a computed receiver) stays "" and the caller falls back to
+// "type unknown here", which is what every reader assumed before.
+priv type_application_name := func(callee: Expr) returns Str {
+    if callee.children.len() == 0 { return "" }
+    ref recv : Expr = callee.children[0]
+    // Already monomorphized by the initer (`Vec__Str.new()`): the
+    // receiver is a bare type name, which is the answer.
+    switch recv.node_type {
+    case NodeType.Ident(mn): return Str.clone(mn.ident_name())
+    case:
+    }
+    if recv.node_type.is(NodeType.FCall).not() { return "" }
+    if recv.children.len() < 2 { return "" }
+    mut base := ""
+    switch recv.children[0].node_type {
+    case NodeType.Ident(bn): base = Str.clone(bn.ident_name())
+    case: return ""
+    }
+    mut out := base.format("(")
+    for i in 1..recv.children.len() {
+        if i > 1 { out = out.format(", ") }
+        switch recv.children[i].node_type {
+        case NodeType.Ident(an): out = out.format(an.ident_name())
+        case: return ""
+        }
+    }
+    return out.format(")")
+}
+
 field_inferred_type_name := func(fd: Declaration) returns Str {
     if fd.explicit_type.len() > 0 { return fd.explicit_type.clone() }
     if fd.default_value.is_none() { return "" }
@@ -1569,6 +1601,21 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
         if def_val.children.len() == 0 { return "" }
         switch def_val.children[0].node_type {
         case NodeType.Ident(cn): return Str.clone(cn.ident_name())
+        case NodeType.FieldAccess:
+            // A template instance built through its own constructor:
+            // `lines := Vec(Str).new()`. The callee is a FieldAccess
+            // (`Vec(Str).new`) whose RECEIVER is the type application
+            // `Vec(Str)` -- not a bare Ident, so the arm above misses it
+            // and the field looked untyped. That mattered once the
+            // containers grew a to_str: a struct is granted its auto
+            // to_str only when every field's type is KNOWN here, so an
+            // unannotated container field silently disqualified the whole
+            // struct, and `Vec(ThatStruct)` then failed to type-check its
+            // own to_str body ("no namespace function 'to_str'").
+            // Rebuild the application spelling; downstream resolution
+            // already handles it (an explicitly annotated
+            // `lines : Vec(Str) = ...` field always worked).
+            return type_application_name(def_val.children[0])
         case:
         }
     case:

@@ -2127,6 +2127,7 @@ Bool is_type_metatype(Type * t);
 Bool funcptr_eq(Type * a, Type * b);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
+Str * priv___src_self_context_til__type_application_name(Expr * callee);
 Str * field_inferred_type_name(Declaration * fd);
 Str * array_vec_elem_type_name(Expr * fcall);
 Bool is_pod_type_for_clone(Str * type_name, TypeScope * scope);

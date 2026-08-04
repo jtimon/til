@@ -381,3 +381,27 @@ test_vec_to_str := test() {
     s.push(own "b")
     assert_eq(Str, s.to_str(), "Vec(a, b)")
 }
+
+// A struct is granted its auto to_str only when every field's type is
+// KNOWN when the initer decides -- and an UNANNOTATED container field
+// (`lines := Vec(Str).new()`) had no type there: the deriver only knew
+// the bare `T(...)` ctor shape, not `T(Args).new()` through a
+// FieldAccess callee. So the struct was silently denied to_str, and
+// then `Vec(ThatStruct).to_str` -- whose body calls `T.to_str(e)` on
+// every element -- failed to type-check with "no namespace function
+// 'to_str' on 'VecToStrItem'". Annotating the field always worked,
+// which is what made the gap invisible.
+VecToStrItem := struct {
+    name := ""
+    lines := Vec(Str).new()
+}
+
+test_vec_to_str_unannotated_container_field := test() {
+    mut items := Vec(VecToStrItem).new()
+    items.push(own VecToStrItem(name = "a"))
+    mut second := VecToStrItem(name = "b")
+    second.lines.push(own "x")
+    items.push(own second)
+    assert_eq(Str, items.to_str(),
+        "Vec(VecToStrItem(name=a, lines=Vec()), VecToStrItem(name=b, lines=Vec(x)))")
+}
