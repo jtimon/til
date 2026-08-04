@@ -594,3 +594,34 @@ test_template_formal_name_collision := test() {
     sv.add(own K(n = 1))
     assert_eq(USize, sv.len(), 1)
 }
+
+// A field's type is derived from its DEFAULT when it carries no
+// annotation, and the deriver has to see through a `T(Args).new()`
+// constructor call: that is an FCall whose callee is a FieldAccess
+// (`Inner.new`), not the bare `T(...)` shape. It used to return "" for
+// this, so the field read as untyped and the struct was silently denied
+// its generated to_str -- which only became visible when something
+// asked for one. Annotating the field always worked, which is what hid
+// the gap. (The container to_str that first exposed this was reverted;
+// a user type with its own to_str pins the deriver directly.)
+DerivedFieldInner := struct {
+    n := 0
+namespace:
+    new := func() returns DerivedFieldInner { return DerivedFieldInner(n = 7) }
+    to_str := func(self: DerivedFieldInner) returns Str {
+        return format("Inner(", self.n.to_str(), ")")
+    }
+}
+
+DerivedFieldOuter := struct {
+    label := ""
+    inner := DerivedFieldInner.new()
+}
+
+test_field_type_derived_through_new_call := test() {
+    o := DerivedFieldOuter(label = "x")
+    assert_eq(I64, o.inner.n, 7)
+    // The generated to_str exists only because the field's type was
+    // derived through `DerivedFieldInner.new()`.
+    assert_eq(Str, o.to_str(), "DerivedFieldOuter(label=x, inner=Inner(7))")
+}
