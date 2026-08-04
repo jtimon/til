@@ -15,13 +15,6 @@ default_next_boards : NextBoardsFn = (_board) { return Vec(Board).new() }
 
 Board := struct {
     data := Array(U8).new(MAX_BOARD.to_usize())
-
-namespace:
-    // Hand-written: Array's `own data` keeps the generated to_str from being
-    // emitted for anything holding one, and the search keeps a Vec(Board).
-    to_str := func(self: Board) returns Str {
-        return format("Board(", self.data.to_str(), ")")
-    }
 }
 
 AlphaBeta := struct {

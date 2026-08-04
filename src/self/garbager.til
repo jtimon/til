@@ -69,19 +69,6 @@ priv LocalInfo := struct {
     // contract until the #302 Dynamic-never-owns migration retires
     // them.
     raw_alloc := false
-
-namespace:
-    /// The per-binding decision, which is what a LocalInfo dump is read
-    /// for. Hand-written because `ref name` disqualifies the generated
-    /// to_str; the audit dump (gc_audit_dump) prints the same fields.
-    to_str := func(self: LocalInfo) returns Str {
-        return format("LocalInfo(name=", self.name,
-                      ", decl=", self.decl_index.to_str(),
-                      ", last_use=", self.last_use.to_str(),
-                      ", own_transfer=", self.own_transfer.to_str(),
-                      ", heap=", self.is_heap.to_str(),
-                      ", skip=", self.skip_scope_delete.to_str(), ")")
-    }
 }
 
 // True when the local's value IS a callable (a funcptr or a Body
@@ -397,16 +384,6 @@ priv GcCfgBlock := struct {
     // located in the graph through root blocks only.
     is_root := false
     succs := Vec(I32).new()
-
-namespace:
-    /// The span and edges, which is what a CFG dump is read for; `body` is
-    /// a borrowed Body node, summarised by nothing. Hand-written because
-    /// the Option(ref Expr) field blocks the generated to_str.
-    to_str := func(self: GcCfgBlock) returns Str {
-        return format("GcCfgBlock(", self.start.to_str(), "..", self.end.to_str(),
-                      ", is_root=", self.is_root.to_str(),
-                      ", succs=", self.succs.to_str(), ")")
-    }
 }
 
 priv cfg_new_block := func(mut blocks: Vec(GcCfgBlock), body: Expr, start: I32, is_root: Bool) returns I32 {

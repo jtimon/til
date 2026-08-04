@@ -199,13 +199,3 @@ test_map_with_capacity_zero_is_lazy := test() {
     ref v : I64 = m["a"]
     assert_eq(I64, v, 1)
 }
-
-// Entries in key order; see test_vec_to_str for why the containers carry a
-// hand-written to_str at all.
-test_map_to_str := test() {
-    mut m := Map(Str, I64).new()
-    assert_eq(Str, m.to_str(), "Map()")
-    m.set("b", own 2)
-    m.set("a", own 1)
-    assert_eq(Str, m.to_str(), "Map(a=1, b=2)")
-}

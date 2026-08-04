@@ -274,18 +274,6 @@ HeapBinding := struct {
     // pointer (malloc family), not a boxed value block. Readers that
     // collapse prim blocks to words must skip these.
     is_raw_alloc := false
-
-namespace:
-    /// The flags, not the pointers: ptr / til_type_p / ctx are borrowed
-    /// addresses whose values differ run to run. Those refs are also why
-    /// this is hand-written -- the generated to_str refuses them.
-    to_str := func(self: HeapBinding) returns Str {
-        return format("HeapBinding(own_type=", self.own_type.to_str(),
-                      ", is_local=", self.is_local.to_str(),
-                      ", is_borrowed=", self.is_borrowed.to_str(),
-                      ", moved_out=", self.moved_out.to_str(),
-                      ", is_raw_alloc=", self.is_raw_alloc.to_str(), ")")
-    }
 }
 
 Scope := struct {
@@ -3250,10 +3238,6 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
 // pointers.
 priv DynPtrBox := struct {
     own p : U8 = 0
-
-namespace:
-    // A raw owned block; its address says nothing reproducible.
-    to_str := func(_self: DynPtrBox) returns Str { return "DynPtrBox(<own>)" }
 }
 
 // Issue #275, generalized after #58: Array/Vec/Set keep elements in an
@@ -5562,24 +5546,10 @@ namespace:
         ccif.arg_types = to_ptr(entry.arg_types)
         return entry
     }
-
-    /// The own fields are libffi-side buffers with no til shape; what
-    /// identifies an entry is its arity and return handling. Hand-written
-    /// because those own fields disqualify the generated to_str.
-    to_str := func(self: FFIEntry) returns Str {
-        return format("FFIEntry(nparam=", self.nparam.to_str(),
-                      ", return_is_shallow=", self.return_is_shallow.to_str(),
-                      ", return_is_ref=", self.return_is_ref.to_str(), ")")
-    }
 }
 
 ExprPtrBox := struct {
     ref ptr : Expr
-
-namespace:
-    to_str := func(self: ExprPtrBox) returns Str {
-        return format("ExprPtrBox(", self.ptr.line.to_str(), ":", self.ptr.col.to_str(), ")")
-    }
 }
 
 FFITypePtrBox := struct {
@@ -5614,9 +5584,6 @@ namespace:
         st.elements = elements
         return FFITypePtrBox(ptr = st)
     }
-
-    // The pointee is a libffi descriptor with no til-side shape to print.
-    to_str := func(_self: FFITypePtrBox) returns Str { return "FFITypePtrBox(<ffi_type>)" }
 }
 
 // Reset all FFI state so a fresh scan can run.
