@@ -366,7 +366,7 @@ namespace:
     to_u64 := func(self: LiteralNumData) returns U64 { return self.text.to_u64() }
     to_usize := func(self: LiteralNumData) returns USize { return self.text.to_usize() }
     to_f32 := func(self: LiteralNumData) returns F32 { return self.text.to_f32() }
-    literal_num_text := func(self: LiteralNumData) returns Str { return self.text.clone() }
+    literal_num_text := func(self: LiteralNumData) returns ref Str { return self.text }
 
     /// Does the literal's TEXT spell a float? The lexer accepts a fractional
     /// part ('.' then a digit) and an exponent (e/E, optional sign, digits)
@@ -863,7 +863,7 @@ namespace:
         switch self {
         case NodeType.Body:           return "Body"
         case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
-        case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", s.literal_num_text())
+        case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", Str.clone(s.literal_num_text()))
         case NodeType.Literal(Literal.Bool(b)):
             if b { return "LiteralBool true" }
             return "LiteralBool false"

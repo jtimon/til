@@ -3319,7 +3319,7 @@ switch_is_clike := func(scope: TypeScope, stmt: Expr, sw_expr: Expr, is_match: B
                 // int/char: a constant literal, or a `lo..hi` range (Range.new
                 // FCall with int/char-literal bounds) emitted as a C case range.
                 switch pat.node_type {
-                case NodeType.Literal(Literal.Num(num)): lit_text = num.literal_num_text()
+                case NodeType.Literal(Literal.Num(num)): lit_text = Str.clone(num.literal_num_text())
                 case NodeType.FCall:
                     if is_range_new_call(pat).not() { return false }
                     if pat.children[1].node_type.is_literal_num().not() { return false }

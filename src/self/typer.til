@@ -1214,7 +1214,7 @@ priv validate_fcall_arg := proc(mut arg: Expr, ptype: Type, ptype_name: Str, par
     case NodeType.Literal(Literal.Num(lit_str)):
         if is_numeric_type(ptype) {
             if literal_in_range(lit_str.literal_num_text(), ptype).not() {
-                arg.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(ptype)), ctx)
+                arg.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(ptype)), ctx)
             }
             arg.set_til_type(ptype)
             return
@@ -4816,7 +4816,7 @@ priv narrow_return_literal := proc(scope: TypeScope, mut rv: Expr, ctx: Context)
     switch rv.node_type {
     case NodeType.Literal(Literal.Num(lit_str)):
         if literal_in_range(lit_str.literal_num_text(), rt).not() {
-            rv.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(rt)), ctx)
+            rv.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(rt)), ctx)
         }
         rv.set_til_type(rt)
     case:
@@ -5619,7 +5619,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
             switch val.node_type {
             case NodeType.Literal(Literal.Num(lit_str)):
                 if is_numeric_type(declared).and(literal_in_range(lit_str.literal_num_text(), declared).not()) {
-                    val.type_error(format("integer literal ", lit_str.literal_num_text(), " out of range for ", type_to_name(declared)), ctx)
+                    val.type_error(format("integer literal ", Str.clone(lit_str.literal_num_text()), " out of range for ", type_to_name(declared)), ctx)
                 }
             case:
             }
