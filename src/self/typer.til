@@ -337,7 +337,7 @@ priv expr_is_comptime := func(e: Expr, scope: TypeScope) returns Bool {
         case:
             return false
         }
-        if cb_ft.is(FuncType.Proc).or(cb_ft.is(FuncType.ExtProc)).or(cb_ft.is(FuncType.CoreProc)) {
+        if cb_ft.is_proc() {
             return false
         }
         if cb_ft.is(FuncType.Macro).or(cb_ft.is(FuncType.Func)).or(cb_ft.is(FuncType.ExtFunc)).or(cb_ft.is(FuncType.CoreFunc)).or(cb_ft.is(FuncType.CoreLazyFunc)) {
@@ -1593,7 +1593,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
     if fn_type.is_funcptr().not() {
         if in_func != 0 {
             callee_ft := scope.get_func_type(name)
-            if callee_ft.is(FuncType.Proc).or(callee_ft.is(FuncType.ExtProc)).or(callee_ft.is(FuncType.CoreProc)) {
+            if callee_ft.is_proc() {
                 ctx.proc_calls_count = ctx.proc_calls_count + 1
                 if debug_exempt.not() {
                     e.type_error(format("func cannot call proc '", name, "'"), ctx)
@@ -1601,7 +1601,7 @@ priv resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str,
             }
         } else if ctx.proc_def_depth > 0 {
             callee_ft2 := scope.get_func_type(name)
-            if callee_ft2.is(FuncType.Proc).or(callee_ft2.is(FuncType.ExtProc)).or(callee_ft2.is(FuncType.CoreProc)) {
+            if callee_ft2.is_proc() {
                 ctx.proc_calls_count = ctx.proc_calls_count + 1
             }
         }
@@ -1995,7 +1995,7 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     if ctx.proc_def_depth.gt(0).or(in_func.neq(0)) {
         switch ns_func2.node_type {
         case NodeType.FuncDef(ns_fdef0):
-            if ns_fdef0.func_type.is(FuncType.Proc).or(ns_fdef0.func_type.is(FuncType.ExtProc)).or(ns_fdef0.func_type.is(FuncType.CoreProc)) {
+            if ns_fdef0.func_type.is_proc() {
                 ctx.proc_calls_count = ctx.proc_calls_count + 1
             }
         case:

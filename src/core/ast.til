@@ -123,8 +123,13 @@ namespace:
         case: return false
         }
     }
-    // lazy_func / lazy_proc: arguments are call-by-name, spliced at the call
-    // site by the loader rather than evaluated before the call.
+    // lazy_func / lazy_proc: USER-DEFINED call-by-name declarations, whose
+    // own body the loader splices into each call site.
+    // core_lazy_func is call-by-name too but is deliberately NOT here: it is
+    // bodyless, so the loader splices a compiler-known expansion instead
+    // (and/or -> a short-circuiting match). The two are the if / else-if
+    // branches of expand_lazy_in_expr, so folding CoreLazyFunc into this set
+    // would send and/or down the user-lazy path. It lives in is_core.
     is_lazy := func(self: FuncType) returns Bool {
         switch self {
         case FuncType.LazyFunc, FuncType.LazyProc: return true
@@ -136,6 +141,19 @@ namespace:
     is_plain := func(self: FuncType) returns Bool {
         switch self {
         case FuncType.Func, FuncType.Proc: return true
+        case: return false
+        }
+    }
+    // Every proc flavour: a callee that may have side effects, which is what
+    // the "func cannot call proc" rule and the proc_calls_count bookkeeping
+    // test for.
+    // LazyProc is absent on purpose and is NOT a gap: the loader rewrites a
+    // spliced lazy_proc back to FuncType.Proc (expand_lazy_in_expr), so no
+    // LazyProc callee survives to the typer, where every one of these checks
+    // runs.
+    is_proc := func(self: FuncType) returns Bool {
+        switch self {
+        case FuncType.Proc, FuncType.ExtProc, FuncType.CoreProc: return true
         case: return false
         }
     }

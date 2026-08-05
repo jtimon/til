@@ -1780,6 +1780,7 @@ Bool FuncType_is_ext(FuncType * self);
 Bool FuncType_is_core(FuncType * self);
 Bool FuncType_is_lazy(FuncType * self);
 Bool FuncType_is_plain(FuncType * self);
+Bool FuncType_is_proc(FuncType * self);
 Bool FuncType_is_bodyless(FuncType * self);
 Bool Option__Expr_is_some(Option__Expr self);
 Bool Option__Expr_is_none(Option__Expr self);
