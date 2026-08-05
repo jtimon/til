@@ -952,15 +952,18 @@ priv scavenge_visited_imported := func(lp: LoadedProgram) returns Set(Str) {
     // 2) Seed worklist from the concatenated user-unit stream
     mut worklist := Vec(Str).new()
     vec_push_str(worklist, "Str")
-    // #326: the INTERPRETER resolves `T.size()` by runtime name --
-    // get_elem_size builds the call from a type name it only learns at
-    // runtime, for element widths of Array/Vec/Tuple/Map/Set and for
-    // dyn_size_of -- so no static walk can see those uses. A program that
-    // will be interpreted roots `size` on every type through the existing
-    // wildcard; one that is only compiled does not, because the emitted C
-    // reads widths from sizeof. `test` does both, so it takes the
-    // conservative side.
-    if lp.ctx.compile_mode.not().or(lp.run_tests) { vec_push_str(worklist, "*.size") }
+    // #326: `T.size()` is resolved by RUNTIME NAME -- get_elem_size builds
+    // the call from a type name it only learns at runtime, for element
+    // widths of Array/Vec/Tuple/Map/Set and for dyn_size_of -- so no static
+    // walk can see those uses. That makes it a real reachability edge, and
+    // an unconditional root: the scavenger answers "is this declaration
+    // used", once, for every backend, and does not ask which backend is
+    // coming. (It used to skip the root when ctx.compile_mode said "C
+    // only", on the grounds that emitted C reads widths from sizeof. That
+    // is a fact about the C emitter, and it belongs to the C emitter --
+    // builder_size_method_omitted drops the function there, where a future
+    // backend can make its own call.)
+    vec_push_str(worklist, "*.size")
     // #326: the hand-written C runtime (src/c/ext.c) is linked into every
     // program, so whatever IT needs from til is an unconditional root. That
     // set is exactly three symbols -- `nm -u` on ext.o resolves everything
