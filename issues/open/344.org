@@ -1,0 +1,105 @@
+# priority: high
+# category: bugs
+** OPEN #344 One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
+
+Four probes, all run on master's own compiler (~til_boot~ built from
+HEAD's boot/), interpreted AND compiled. They show one gap from three
+sides.
+
+*** 1. A write through a non-mut param is accepted, and the backends disagree on it
+
+    Flat := struct { n : I64 = 0 }
+    poke := func(f: Flat) {
+        f.n = f.n + 1
+    }
+    main := proc() {
+        f := Flat()      // NOT mut
+        poke(f)
+        println(f.n.to_str())
+    }
+
+The typer accepts this. Interpreted it prints ~1~: the caller's
+immutable local was mutated. Compiled it prints ~0~: the write landed
+in a copy and vanished. Same accepted program, two different outputs
+-- no accessors involved, plain user code.
+
+With ~mut f~ / ~mut~ caller local (the honest form) both backends
+print ~1~ and agree. The divergence is specifically the non-mut param
+boundary: interpreted argument passing shares the caller's storage for
+an aggregate regardless of ~mut~, the compiled form only does when the
+param is ~mut~. (Which side is intended is part of the decision below;
+the disagreement itself is the bug.)
+
+*** 2. The typer pushes code INTO the divergent form
+
+~check_unused_mut_params~ (#164 step 2) flags a ~mut~ param whose
+binding never had ~written~ flipped -- and ~written~ only flips on a
+direct ~param = ...~, ~param.f = ...~, or passing ~param~ as a mut/own
+argument. A write through a borrow RETURNED BY A CALL does not credit
+the param it borrows from:
+
+    inner_of := func(o: Outer) returns ref Inner {
+        return o.inner
+    }
+    bump := func(mut o: Outer) {
+        ref i : Inner = inner_of(o)
+        i.n = i.n + 1
+    }
+    // error: redundant 'mut' on parameter 'o': never written through
+
+The honest ~mut~ is a type error, so the only form that compiles is
+the non-mut one -- which is exactly the divergent shape from probe 1
+(interpreted mutates twice, compiled not at all). The check that
+exists to remove dead qualifiers is steering authors into the broken
+region.
+
+(Within one scope the laundered write is consistent: borrow a local's
+field through the same accessor and both backends print the same
+answer. Only the param boundary splits them.)
+
+*** 3. It blocks the self layer's own cleanup
+
+#253's payload accessors (~decl_of~, ~fcall_of~, ~structdef_of~, ...)
+return a writable ~ref~ borrow through a NON-mut ~Expr~ param. Any
+compiler function that mutates its node only through such a borrow
+gets probe 2's error on its honest ~mut~. Twenty-four extraction
+switches in the self layer are kept hand-written for exactly this
+reason -- the ~set_fcall_throw~ / ~set_own_arg~ family,
+~compute_struct_layout~ (which writes via
+~for mut fd : Declaration in struct_meta.fields~), and several
+typer/desugarer passes that rewrite the node handed to them. Each is
+five lines doing what one accessor line should.
+
+*** What a fix must decide (solution open)
+
+The three faces share one root: mutability is only policed on the
+"too much mut" side. Candidate directions, not exclusive:
+
+- Symmetric enforcement: writing through a non-mut param -- directly,
+  via a method taking ~mut self~, or through a ~ref~ borrowed from it
+  -- becomes a type error. Needs ~written~-style tracking to follow
+  borrows: a ~ref~-returning call rooted at param X, written through,
+  counts as a write of X. The same tracking, run on the redundancy
+  side, fixes probe 2 (honest ~mut~ stops being flagged).
+- Mut-aware borrows: a ~ref~ return rooted at a non-mut param is a
+  read-only borrow; writing through it is the error, and an accessor
+  that wants to hand out writable borrows must take its param ~mut~
+  (two accessor flavors, the C++ const model). Heavier, but makes the
+  intent explicit at the signature.
+- Backend agreement regardless: whichever rule is chosen, the two
+  backends must stop disagreeing on any accepted program -- either the
+  typer rejects every divergent form, or argument passing is unified
+  so non-mut aggregates behave the same interpreted and compiled.
+
+Whatever is chosen unblocks #253's remaining 24 switches: with honest
+~mut~ compiling (or read/write borrow flavors), they convert to the
+accessors like the other 200+ did.
+
+*** Test notes
+
+The suite runs interpret-vs-compiled comparisons (~add_both~), so a
+single fixture shaped like probe 1 would have caught the divergence;
+none existed. The fix should add: the divergence probe as a matched
+pair, the honest-mut accessor writer (probe 2) as a positive case
+once tracking follows borrows, and whichever rejection the chosen
+rule introduces to test/typer_errors.til.
