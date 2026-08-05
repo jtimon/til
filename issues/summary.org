@@ -44,7 +44,6 @@
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/341.org][#341]] Leading-dot enum variants in switch/match cases: `case .Body:`
 ** Low
-*** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/63.org][#63]] User-defined modes
 *** [[./open/94.org][#94]] Generic Range: support any type with inc/dec
 *** [[./open/114.org][#114]] Source docs + repl help/introspection

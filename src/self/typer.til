@@ -3902,6 +3902,67 @@ priv closure_lvalue_root := func(e: Expr) returns Str {
     return ""
 }
 
+// #54: does this function body STORE the parameter named `pname` somewhere
+// that outlives the call -- a global, or a global's field? Whole-program
+// compilation makes the callee visible, so the escape is decidable here with
+// no annotation on the signature. `root` is the callee's own root scope; a
+// name it does not know is not a global of ours.
+priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, depth: I32) returns Bool {
+    if depth > 128 { return false }
+    switch e.node_type {
+    case NodeType.FuncDef: return false          // nested def: its own params
+    case NodeType.Assign(sad):
+        if root.bindings.has(sad.name).and(e.children.len().gt(0)) {
+            switch e.children[0].node_type {
+            case NodeType.Ident(sid):
+                if sid.ident_name() == pname { return true }
+            case:
+            }
+        }
+    case NodeType.FieldAssign:
+        if e.children.len() > 1 {
+            froot := closure_lvalue_root(e.children[0])
+            if froot.len().gt(0).and(root.bindings.has(froot)) {
+                switch e.children[1].node_type {
+                case NodeType.Ident(fid):
+                    if fid.ident_name() == pname { return true }
+                case:
+                }
+            }
+        }
+    case:
+    }
+    for c : Expr in e.children {
+        if body_stores_param_globally(c, pname, root, depth + 1) { return true }
+    }
+    return false
+}
+
+// #54: a function that STORES a parameter somewhere outliving the call must
+// own it. Storing a BORROWED parameter globally keeps a reference the caller
+// still owns and destroys: for a closure argument the caller emits
+// `drop(env); free(til_closure)` right after the call, so the global is left
+// pointing at freed memory (ASAN: heap-use-after-free). Declaring the
+// parameter `own` transfers it instead, and the caller stops freeing --
+// verified: the same program runs correctly with `own f`. Checked on the
+// DEFINITION, so it holds no matter who calls it.
+priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, ctx: Context) {
+    if fdef.children.len() == 0 { return }
+    ref pfd : FunctionDef = funcdef_of(fdef)
+    if pfd.variadic_index >= 0 { return }
+    ref pbody : Expr = fdef.children[0]
+    ref proot : TypeScope = scope_root_ref(func_scope)
+    for pp : Declaration in pfd.params {
+        if pp.own_type.is(OwnType.Ref).not() { continue }
+        if pp.name.len() == 0 { continue }
+        if body_stores_param_globally(pbody, pp.name, proot, 0).not() { continue }
+        fdef.type_error(format("parameter '", pp.name,
+            "' is stored where it outlives this call, but it is only borrowed; ",
+            "declare it 'own ", pp.name, "' so the caller transfers ownership ",
+            "instead of destroying it after the call"), ctx)
+    }
+}
+
 priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, ctx: Context) {
     switch e.node_type {
     case NodeType.Return:
@@ -4308,6 +4369,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
         if macro_is_template.not() {
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
+            check_param_stored_globally(expr, func_scope, ctx)
             check_all_paths_return(expr, ctx)
             check_unused_params(func_scope, expr, ctx)
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)

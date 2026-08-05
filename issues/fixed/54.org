@@ -1,6 +1,35 @@
 # priority: low
 # category: features
-** WIP #54 Explicit capture syntax (closures)
+** FIXED #54 Explicit capture syntax (closures)
+
+*** Post-mortem
+
+Closed once every checkbox below was ticked. The arc: block capture lists
+and their scope restriction; func-def / FuncSig capture lists; closures
+running under the interpreter; TilClosure values for the C backend;
+shallow/own modifiers for funcs AND blocks; and finally the escape rules
+that keep a borrowed capture from outliving its frame.
+
+The escape half is the part worth remembering. A capture declared `[x]` is
+a BORROW of a stack slot, so the closure must not outlive the defining
+call. Each way a closure can escape got the same treatment -- prove the
+dangle with ASAN first, then reject it with a diagnostic naming the capture
+and the fix: return (returned closure), `own` argument, a GLOBAL slot, a
+global's FIELD, and a CALLEE that stores its parameter. A container element
+needed nothing: `push(own ...)` is an `own` parameter, so the own-arg rule
+already covered it.
+
+The callee case is the only one that needed reasoning beyond the current
+function, and it needed no new syntax: til compiles whole-program, so
+body_stores_param_globally can just look at whether the callee assigns that
+parameter into a global. A callee that merely calls its argument stays
+legal.
+
+The deepest one was the callee store, and its rule belongs on the
+DEFINITION: a parameter the body stores globally must be `own`, or the
+caller destroys it right after the call. That also fixed the `shallow`
+capture crash on the same path -- `shallow` is what the other diagnostics
+recommend, so leaving it broken would have made the advice a trap.
 
    Progress (incremental, see commits):
    - [X] Block captures (scope restriction): bare `[a, mut b] { ... }`
@@ -38,7 +67,7 @@
       closures, explicit FuncSig locals, named FuncSig-form captured
       lambdas, direct FuncSig arguments, and mut captures work in compile
       mode. Tests: test/closures_interp.til and test/first_class.til.
-    - [ ] Escaping closure lifetimes for stored/returned closures. C closure
+    - [X] Escaping closure lifetimes for stored/returned closures. C closure
        environments currently borrow captured locals, so a closure called
        after its defining stack scope exits can dangle.
       Progress: borrowed captures use parameter-like ref semantics, returned
@@ -76,8 +105,24 @@
        root (closure_lvalue_root) and applies the same global test, so a LOCAL
        holder stays legal -- it dies with the closure. Test:
        test/capture_global_field_escape_error.til.
-       Remaining: stores through paths this still does not see -- into a
-       container element, or handing the closure to a callee that stores it.
+       The last two paths are settled (2026-08-03). A CONTAINER element was
+       already covered: `v.push(own <closure>)` takes an `own` parameter, so
+       the existing own-arg rule rejects it -- that note was stale.
+
+       A CALLEE that stores the closure needed a rule on the DEFINITION, not
+       the call site, and it turned out to be the deeper bug. Storing a
+       BORROWED parameter somewhere that outlives the call keeps a reference
+       the caller still owns and destroys: for a closure argument the caller
+       emits `drop(env); free(til_closure)` immediately after the call, so the
+       global is left pointing at freed memory. This bit `shallow` captures
+       too -- the very fix the other escape diagnostics recommend -- which is
+       why it segfaulted rather than merely dangling. check_param_stored_globally
+       (src/self/typer.til) rejects it at the definition: a parameter the body
+       assigns into a global (or a global's field) must be declared `own`, and
+       with `own f` the caller transfers instead of freeing, verified working.
+       Because the callee is now illegal outright, no call-site rule is needed.
+       Test: test/capture_callee_escape_error.til.
+
    - [X] shallow/own capture modifiers (value-copy/move) for funcs and blocks.
      Functions already had them; blocks rejected `own`/`shallow` at parse
      time and now accept the full modifier set, so every capture site

@@ -1002,6 +1002,10 @@ main := proc(args: ..Str) {
     add_count(tests, "capture_global_field_escape_error", "typer",
         "borrows captured local", 1,
         format(til_bin, " interpret test/capture_global_field_escape_error.til"))
+    // #54: a callee that STORES a parameter globally must own it.
+    add_count(tests, "capture_callee_escape_error", "typer",
+        "is stored where it outlives this call", 1,
+        format(til_bin, " interpret test/capture_callee_escape_error.til"))
     add_count(tests, "capture_own_arg_escape_error", "typer",
         "own argument closure borrows captured local", 1,
         format(til_bin, " interpret test/capture_own_arg_escape_error.til"))
