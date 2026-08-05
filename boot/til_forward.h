@@ -2443,6 +2443,7 @@ void gen_struct_size_method_for_stmt(Expr * stmt, Context * ctx);
 void gen_enum_size_method_for_stmt(Expr * stmt, TypeScope * scope, Context * ctx);
 void gen_unity_derived_for_stmt(Expr * stmt);
 void gen_cmp_derived_for_stmt(Expr * stmt);
+void priv___src_self_initer_til__set_ftype_from_call_callee(Expr * call, Str * ftype);
 void compute_struct_layout(Str * name, Expr * struct_def, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__type_size_align(Str * ftype, TypeScope * scope, Context * ctx, USize * sz, USize * al);
 USize compute_enum_layout(Str * name, Expr * enum_def, TypeScope * scope, Context * ctx);
@@ -2925,6 +2926,7 @@ Expr * priv___src_self_desugarer_til__build_kwargs_map_set(Expr * fcall, TypeSco
 Expr * priv___src_self_desugarer_til__build_variadic_array_decl(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, USize vc, Context * ctx);
 Str * priv___src_self_desugarer_til__variadic_err_slot_name(Str * va_name, Str * suffix);
 void priv___src_self_desugarer_til__build_variadic_err_slots(Str * va_name, Vec__Expr * new_ch, TypeScope * scope, Context * ctx, U32 line, U32 col);
+void priv___src_self_desugarer_til__narrow_literal_to_elem(Expr * val, Type * elem_t);
 Expr * priv___src_self_desugarer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, I32 vi, USize j, Context * ctx);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_decl(Expr * fcall, Str * elem_type, Str * vec_name);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, USize j, Context * ctx);
@@ -3230,6 +3232,7 @@ void priv___src_self_loader_til__append_field_indented(Str * out, Str * dname, D
 void priv___src_self_loader_til__append_ns_method_indented(Str * out, Str * dname, Declaration * d);
 Str * priv___src_self_loader_til__format_var_info(Str * name, Declaration * dd, TypeScope * scope);
 Str * priv___src_self_loader_til__format_func_info(Str * name, FunctionDef * fd);
+void priv___src_self_loader_til__add_ns_method_capacity(Declaration * d, USize * cap);
 Str * priv___src_self_loader_til__format_struct_info(Str * name, StructDef * sdef);
 Str * priv___src_self_loader_til__format_enum_info(Str * name, EnumDef * edef);
 Str * format_decl_info(Expr * stmt, TypeScope * scope);
@@ -3242,6 +3245,7 @@ Bool priv___src_self_loader_til__desugar_one_import(Expr * imp_stmt, Str * decl_
 void priv___src_self_loader_til__collect_case_pattern_binders(Expr * pat, Set__Str * out);
 void priv___src_self_loader_til__ns_alias_rewrite_child(Expr * e, USize i, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed, Context * ctx);
 void priv___src_self_loader_til__rewrite_ns_alias_uses(Expr * e, Set__Str * alias_names, Set__Str * alias_members, Map__Str_Str * alias_paths, Str * path, Set__Str * shadowed, Context * ctx);
+Bool priv___src_self_loader_til__is_valid_import_call(Expr * imp_stmt_ref);
 void priv___src_self_loader_til__desugar_namespace_imports(Str * path, ImportUnit * iu, Context * ctx);
 void priv___src_self_loader_til__lazy_substitute_idents(Expr * e, Map__Str_Expr * subs);
 Option__Expr priv___src_self_loader_til__lazy_single_return_value(Expr * body);
@@ -3527,6 +3531,8 @@ void priv___src_self_builder_til__register_func_symbols_prog(Expr * prog, Contex
 void priv___src_self_builder_til__build_register_func_symbols_lp(LoadedProgram * lp);
 void collect_closure_value_names(Expr * e, Set__Str * names, Context * ctx);
 void build_register_closure_values_lp(LoadedProgram * lp);
+void priv___src_self_builder_til__emit_funcsig_alias_typedef(File * f, Expr * stmt, Expr * rhs, Declaration * dd, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_top_level_func_forward(File * f, Expr * rhs, Declaration * dd, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_monolithic_header_lp(File * f, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_all_forward_declarations(File * f, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_fn_wrapper(File * f, Str * type_name, Str * method_name, FunctionDef * fd, Context * ctx);
@@ -3546,6 +3552,7 @@ void priv___src_self_builder_til__emit_funcsig_branch_for_stmt(File * f, Expr * 
 void priv___src_self_builder_til__emit_funcsig_branches(File * f, I32 kind, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_funcsig_introspection_bodies(File * f, LoadedProgram * lp);
 Str * priv___src_self_builder_til__dyn_type_str_display(Str * vn);
+Bool priv___src_self_builder_til__find_enum_variants_in_units(Vec__ProgramUnit * units, Str * ename, Vec__Str * variant_names, Vec__Str * variant_types, LoadedProgram * lp);
 Bool priv___src_self_builder_til__find_loaded_enum_variants(Str * ename, Vec__Str * variant_names, Vec__Str * variant_types, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_type_to_str_body(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_dyn_call_bodies(File * f, LoadedProgram * lp);
@@ -3556,6 +3563,7 @@ void priv___src_self_builder_til__emit_ns_const_defs_for_stmt(File * f, Expr * s
 void priv___src_self_builder_til__emit_ns_const_global_defs(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_test_main(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_script_main(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_top_level_definitions(File * f, Expr * rhs, Declaration * dd, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_function_bodies(File * f, Mode * mode, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_ext_func_declarations(File * f, Expr * program, Context * ctx);
 void priv___src_self_builder_til__emit_lib_init(File * f, LoadedProgram * lp);

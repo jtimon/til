@@ -1896,6 +1896,29 @@ gen_cmp_derived_for_stmt := func(stmt: Expr) {
     }
 }
 
+// The type name a call's callee names -- `T(...)` and `T.method(...)` both
+// yield "T". Leaves `ftype` untouched when the callee is neither shape, which
+// is why this sets in place instead of returning: the callers fall back to
+// whatever they had already derived.
+priv set_ftype_from_call_callee := func(call: Expr, mut ftype: Str) {
+    if call.children.len() == 0 { return }
+    ref callee : Expr = call.children[0]
+    switch callee.node_type {
+    case NodeType.Ident(ft):
+        ftype = Str.clone(ft.ident_name())
+    case NodeType.FieldAccess:
+        if callee.children.len() > 0 {
+            ref type_node : Expr = callee.children[0]
+            switch type_node.node_type {
+            case NodeType.Ident(ft):
+                ftype = Str.clone(ft.ident_name())
+            case:
+            }
+        }
+    case:
+    }
+}
+
 compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope, ctx: Context) {
     if ctx.struct_layouts.has(name) { return }
     // Set sentinel so nested recursion into self-referential types
@@ -1928,23 +1951,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         ref def_val : Expr = fd.default_expr()
                         if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
-                            if def_val.children.len() > 0 {
-                                ref callee : Expr = def_val.children[0]
-                                switch callee.node_type {
-                                case NodeType.Ident(ft):
-                                    ftype = Str.clone(ft.ident_name())
-                                case NodeType.FieldAccess:
-                                    if callee.children.len() > 0 {
-                                        ref type_node : Expr = callee.children[0]
-                                        switch type_node.node_type {
-                                        case NodeType.Ident(ft):
-                                            ftype = Str.clone(ft.ident_name())
-                                        case:
-                                        }
-                                    }
-                                case:
-                                }
-                            }
+                            set_ftype_from_call_callee(def_val, ftype)
                         } else if def_val.node_type.is(NodeType.FieldAccess) {
                             if def_val.children.len() > 0 {
                                 ref type_node : Expr = def_val.children[0]
@@ -2021,23 +2028,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
                         else if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
                         else if def_val.node_type.is(NodeType.FCall) {
-                            if def_val.children.len() > 0 {
-                                ref callee : Expr = def_val.children[0]
-                                switch callee.node_type {
-                                case NodeType.Ident(ft):
-                                    ftype = Str.clone(ft.ident_name())
-                                case NodeType.FieldAccess:
-                                    if callee.children.len() > 0 {
-                                        ref type_node : Expr = callee.children[0]
-                                        switch type_node.node_type {
-                                        case NodeType.Ident(ft):
-                                            ftype = Str.clone(ft.ident_name())
-                                        case:
-                                        }
-                                    }
-                                case:
-                                }
-                            }
+                            set_ftype_from_call_callee(def_val, ftype)
                         } else if def_val.node_type.is(NodeType.FieldAccess) {
                             if def_val.children.len() > 0 {
                                 ref type_node : Expr = def_val.children[0]

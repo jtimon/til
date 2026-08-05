@@ -5546,13 +5546,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                         emit_funcsig_typedef(f, dd.name, rhs, lp.ctx)
                     }
                 } else {
-                    switch rhs.node_type {
-                    case NodeType.Ident(rhs_name):
-                        if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
-                            f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
-                        }
-                    case:
-                    }
+                    emit_funcsig_alias_typedef(f, stmt, rhs, dd, lp)
                 }
             }
         }
@@ -5569,13 +5563,7 @@ priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
                     emit_funcsig_typedef(f, dd.name, rhs, lp.ctx)
                 }
             } else {
-                switch rhs.node_type {
-                case NodeType.Ident(rhs_name):
-                    if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
-                        f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
-                    }
-                case:
-                }
+                emit_funcsig_alias_typedef(f, stmt, rhs, dd, lp)
             }
         }
     }
@@ -6806,6 +6794,41 @@ build_register_closure_values_lp := proc(lp: LoadedProgram) {
     }
 }
 
+// A funcsig alias binding (`Name := SomeSig`) emitted as a C typedef. The
+// core-unit and program-unit loops both reach it with the same arguments.
+priv emit_funcsig_alias_typedef := proc(f: File, stmt: Expr, rhs: Expr, dd: Declaration, lp: LoadedProgram) {
+    switch rhs.node_type {
+    case NodeType.Ident(rhs_name):
+        if stmt.til_type().is(Type.None).and(is_funcsig_type(rhs_name.ident_name(), lp.ctx)) {
+            f.write("typedef ").write(rhs_name.ident_name()).write(" ").write(dd.name).write(";\n")
+        }
+    case:
+    }
+}
+
+// The forward declaration for one top-level func binding. emit_monolithic_
+// header_lp walks core units and program units in two separate loops whose
+// surrounding bookkeeping differs, but whose func-binding arm is the same
+// work; this is that arm, so the two cannot drift apart.
+// The guards `return` where the loops used to `continue`: this switch is the
+// tail of both loop bodies, so skipping the rest of the iteration and
+// returning from here are the same thing.
+priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, lp: LoadedProgram) {
+    switch rhs.node_type {
+    case NodeType.FuncDef(fd):
+        if builder_is_type_gen_macro_def(rhs) { return }
+        if rhs.children.len() == 0 { return }
+        if mode.needs_main {
+            if dd.name == "main" { return }
+        }
+        fc := func_to_c(dd.name)
+        if fd.func_type.is_bodyless() { return }
+        emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
+        if lp.ctx.closure_value_names.has(dd.name) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
+    case:
+    }
+}
+
 priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
     emit_closure_runtime_types(f)
@@ -6843,21 +6866,7 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
                         }
                     }
                 } else {
-                    switch rhs.node_type {
-                    case NodeType.FuncDef(fd):
-                        if builder_is_type_gen_macro_def(rhs) { continue }
-                        if rhs.children.len() == 0 { continue }
-                        if mode.needs_main {
-                            if dd.name == "main" { continue }
-                        }
-                        fc := func_to_c(dd.name)
-                        if fd.func_type.is_bodyless() {
-                            continue
-                        }
-                        emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
-                        if lp.ctx.closure_value_names.has(dd.name) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
-                    case:
-                    }
+                    emit_top_level_func_forward(f, rhs, dd, mode, lp)
                 }
             }
         }
@@ -7000,21 +7009,7 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                     emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
                 }
             } else {
-                switch rhs.node_type {
-                case NodeType.FuncDef(fd):
-                    if builder_is_type_gen_macro_def(rhs) { continue }
-                    if rhs.children.len() == 0 { continue }
-                    if mode.needs_main {
-                        if dd.name == "main" { continue }
-                    }
-                    fc := func_to_c(dd.name)
-                    if fd.func_type.is_bodyless() {
-                        continue
-                    }
-                    emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
-                    if lp.ctx.closure_value_names.has(dd.name) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
-                case:
-                }
+                emit_top_level_func_forward(f, rhs, dd, mode, lp)
             }
         }
     }
@@ -7768,25 +7763,9 @@ priv dyn_type_str_display := func(vn: Str) returns Str {
 // Locate the variants of an enum definition by name in the loaded
 // program. Returns true iff found. The first hit wins; out-vecs are
 // only written on a hit.
-priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), mut variant_types: Vec(Str), lp: LoadedProgram) returns Bool {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_struct_or_enum(stmt).not() { continue }
-                switch stmt.node_type {
-                case NodeType.Decl(dd):
-                    if dd.name.eq(ename).not() { continue }
-                    if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
-                    mut hp := false
-                    collect_enum_variants(stmt.children[0], variant_names, variant_types, hp)
-                    return true
-                case:
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
+// One unit list's worth of the search below.
+priv find_enum_variants_in_units := func(units: Vec(ProgramUnit), ename: Str, mut variant_names: Vec(Str), mut variant_types: Vec(Str), lp: LoadedProgram) returns Bool {
+    for u : ProgramUnit in units {
         ref iu : ImportUnit = lp.ctx.imported[u.path]
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
@@ -7802,6 +7781,13 @@ priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), 
         }
     }
     return false
+}
+
+priv find_loaded_enum_variants := func(ename: Str, mut variant_names: Vec(Str), mut variant_types: Vec(Str), lp: LoadedProgram) returns Bool {
+    if lp.skip_core.not() {
+        if find_enum_variants_in_units(lp.core_units, ename, variant_names, variant_types, lp) { return true }
+    }
+    return find_enum_variants_in_units(lp.units, ename, variant_names, variant_types, lp)
 }
 
 // Data-driven: walk the user's ~Type~ enum and emit one case per
@@ -8411,6 +8397,28 @@ priv emit_script_main := proc(f: File, lp: LoadedProgram) {
     lp.ctx.script_globals = Set(Str).new()
 }
 
+// One top-level binding's definitions. emit_function_bodies walks core units
+// and program units in two loops that differ only in which unit list they
+// iterate, so both arms call this. `return` replaces the loops' `continue`:
+// the switch is the tail of both loop bodies.
+priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mode: Mode, lp: LoadedProgram) {
+    switch rhs.node_type {
+    case NodeType.StructDef:
+        emit_struct_funcs(f, dd.name, rhs, mode, lp)
+    case NodeType.EnumDef:
+        emit_enum_def(f, dd.name, rhs, mode, lp)
+        f.write("\n")
+    case NodeType.FuncDef(fd):
+        if builder_is_type_gen_macro_def(rhs) { return }
+        if fd.func_type.is_bodyless() { return }
+        if rhs.children.len() == 0 { return }
+        emit_func_def(f, dd.name, rhs, mode, false, lp)
+        if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
+        f.write("\n")
+    case:
+    }
+}
+
 priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
     emit_capturing_closures_lp(f, lp)
     if lp.skip_core.not() {
@@ -8420,21 +8428,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
                 if stmt.node_type.is(NodeType.Decl).not() { continue }
                 ref dd : Declaration = decl_of(stmt)
                 ref rhs : Expr = stmt.children[0]
-                switch rhs.node_type {
-                case NodeType.StructDef:
-                    emit_struct_funcs(f, dd.name, rhs, mode, lp)
-                case NodeType.EnumDef:
-                    emit_enum_def(f, dd.name, rhs, mode, lp)
-                    f.write("\n")
-                case NodeType.FuncDef(fd):
-                    if builder_is_type_gen_macro_def(rhs) { continue }
-                    if fd.func_type.is_bodyless() { continue }
-                    if rhs.children.len() == 0 { continue }
-                    emit_func_def(f, dd.name, rhs, mode, false, lp)
-                    if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
-                    f.write("\n")
-                case:
-                }
+                emit_top_level_definitions(f, rhs, dd, mode, lp)
             }
         }
     }
@@ -8444,21 +8438,7 @@ priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = decl_of(stmt)
             ref rhs : Expr = stmt.children[0]
-            switch rhs.node_type {
-            case NodeType.StructDef:
-                emit_struct_funcs(f, dd.name, rhs, mode, lp)
-            case NodeType.EnumDef:
-                emit_enum_def(f, dd.name, rhs, mode, lp)
-                f.write("\n")
-            case NodeType.FuncDef(fd):
-                if builder_is_type_gen_macro_def(rhs) { continue }
-                if fd.func_type.is_bodyless() { continue }
-                if rhs.children.len() == 0 { continue }
-                emit_func_def(f, dd.name, rhs, mode, false, lp)
-                if lp.ctx.closure_value_names.has(dd.name) { emit_closure_wrapper_def(f, dd.name, rhs, lp.ctx) }
-                f.write("\n")
-            case:
-            }
+            emit_top_level_definitions(f, rhs, dd, mode, lp)
         }
     }
 }

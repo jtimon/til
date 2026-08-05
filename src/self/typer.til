@@ -7214,16 +7214,10 @@ priv is_uptr_name := func(name: Str) returns Bool {
 }
 
 priv can_implicit_usize_coerce := func(from: Type, to: Type, to_name: Str) returns Bool {
-    if is_usize_name(to_name) {
-        switch to {
-        case Type.Primitive(Primitive.U32):
-            return is_integral_numeric_type(from)
-        case Type.Primitive(Primitive.U64):
-            return is_integral_numeric_type(from)
-        case: return false
-        }
-    }
-    if is_uptr_name(to_name) {
+    // USize and UPtr are the same test: both are container-width aliases
+    // that resolve to U32 or U64 depending on the build, and an integral
+    // source coerces into either. They were two identical switches.
+    if is_usize_name(to_name).or(is_uptr_name(to_name)) {
         switch to {
         case Type.Primitive(Primitive.U32):
             return is_integral_numeric_type(from)

@@ -3747,6 +3747,19 @@ priv build_variadic_err_slots := func(va_name: Str, mut new_ch: Vec(Expr), mut s
     new_ch.push(own ek)
 }
 
+// A bare numeric literal stored into a typed container takes the element
+// type when it fits, so the backend emits it at the element's width instead
+// of the literal's default I64. Both the set and push desugars need it.
+priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
+    switch val.node_type {
+    case NodeType.Literal(Literal.Num(lit_str)):
+        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
+            val.set_til_type(elem_t)
+        }
+    case:
+    }
+}
+
 priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: USize, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     // Issue #225: the variadic-arg collector fills its temp Array with the
@@ -3788,13 +3801,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
         }
     }
     elem_t := type_from_name(elem_type, scope, ctx)
-    switch val.node_type {
-    case NodeType.Literal(Literal.Num(lit_str)):
-        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
-            val.set_til_type(elem_t)
-        }
-    case:
-    }
+    narrow_literal_to_elem(val, elem_t)
     set_call.add_child(own val)
 
     // Manually attach the throwing-set error out-args (see comment above).
@@ -3860,13 +3867,7 @@ priv build_builtin_vec_push := func(fcall: Expr, scope: TypeScope, elem_type: St
         }
     }
     elem_t := type_from_name(elem_type, scope, ctx)
-    switch val.node_type {
-    case NodeType.Literal(Literal.Num(lit_str)):
-        if is_numeric_type(elem_t).and(literal_in_range(lit_str.literal_num_text(), elem_t)) {
-            val.set_til_type(elem_t)
-        }
-    case:
-    }
+    narrow_literal_to_elem(val, elem_t)
     push_call.add_child(own val)
 
     sync_own_args_from_callee(push_call, scope)

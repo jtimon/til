@@ -1929,6 +1929,21 @@ priv format_func_info := func(name: Str, fd: FunctionDef) returns Str {
     return out
 }
 
+// Capacity a namespace method contributes to a format_*_info buffer: its
+// return type plus each parameter's name and type. format_struct_info and
+// format_enum_info size their buffers identically.
+priv add_ns_method_capacity := func(d: Declaration, mut cap: USize) {
+    if d.default_value.is_none() { return }
+    switch d.default_expr().node_type {
+    case NodeType.FuncDef(fd):
+        cap = cap.add(fd.return_type.len()) + 48
+        for p : Declaration in fd.params {
+            cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
+        }
+    case:
+    }
+}
+
 priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     mut cap : USize = name.len() + 128
     mut cfi : USize = 0
@@ -1940,16 +1955,7 @@ priv format_struct_info := func(name: Str, sdef: StructDef) returns Str {
     for d : Declaration in sdef.ns_decls {
         cap = cap.add(sdef.member_name_at(cni).len()).add(d.doc.len() * 2) + 192
         cni = cni + 1
-        if d.default_value.is_some() {
-            switch d.default_expr().node_type {
-            case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()) + 48
-                for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
-                }
-            case:
-            }
-        }
+        add_ns_method_capacity(d, cap)
     }
     cap = cap * 2
     mut out := Str.with_capacity(cap)
@@ -1984,16 +1990,7 @@ priv format_enum_info := func(name: Str, edef: EnumDef) returns Str {
     for d : Declaration in edef.ns_decls {
         cap = cap.add(edef.member_name_at(eni).len()).add(d.doc.len() * 2) + 192
         eni = eni + 1
-        if d.default_value.is_some() {
-            switch d.default_expr().node_type {
-            case NodeType.FuncDef(fd):
-                cap = cap.add(fd.return_type.len()) + 48
-                for p : Declaration in fd.params {
-                    cap = cap.add(p.name.len()).add(p.explicit_type.len()) + 48
-                }
-            case:
-            }
-        }
+        add_ns_method_capacity(d, cap)
     }
     cap = cap * 2
     mut out := Str.with_capacity(cap)
@@ -2445,6 +2442,25 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
     }
 }
 
+// An `import("path")` call: callee named `import`, first argument a string
+// literal. The two callers differ only in where the call sits -- as a Decl's
+// RHS or as a bare statement -- so both hand the call here.
+priv is_valid_import_call := func(imp_stmt_ref: Expr) returns Bool {
+    if imp_stmt_ref.children.len() < 2 { return false }
+    switch imp_stmt_ref.children[0].node_type {
+    case NodeType.Ident(id):
+        if id.ident_name() == "import" {
+            switch imp_stmt_ref.children[1].node_type {
+            case NodeType.Literal(Literal.Str(_p)):
+                return true
+            case:
+            }
+        }
+    case:
+    }
+    return false
+}
+
 priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Context) {
     mut old := iu.ast.children.take()
     mut new_ch := Vec(Expr).new()
@@ -2477,37 +2493,8 @@ priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, ctx: Conte
         mut handled := false
         if is_imp {
             mut is_valid_import := false
-            if is_decl_rhs {
-                ref imp_stmt_ref : Expr = stmt.children[0]
-                if imp_stmt_ref.children.len() >= 2 {
-                    switch imp_stmt_ref.children[0].node_type {
-                    case NodeType.Ident(id):
-                        if id.ident_name() == "import" {
-                            switch imp_stmt_ref.children[1].node_type {
-                            case NodeType.Literal(Literal.Str(_p)):
-                                is_valid_import = true
-                            case:
-                            }
-                        }
-                    case:
-                    }
-                }
-            } else {
-                ref imp_stmt_ref : Expr = stmt
-                if imp_stmt_ref.children.len() >= 2 {
-                    switch imp_stmt_ref.children[0].node_type {
-                    case NodeType.Ident(id):
-                        if id.ident_name() == "import" {
-                            switch imp_stmt_ref.children[1].node_type {
-                            case NodeType.Literal(Literal.Str(_p)):
-                                is_valid_import = true
-                            case:
-                            }
-                        }
-                    case:
-                    }
-                }
-            }
+            if is_decl_rhs { is_valid_import = is_valid_import_call(stmt.children[0]) }
+            else { is_valid_import = is_valid_import_call(stmt) }
 
             if is_valid_import {
                 mut resolved := ""
