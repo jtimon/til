@@ -1,0 +1,456 @@
+mode test
+
+import("../src/self/repl_editor")
+
+// Pure state-machine regressions for the REPL line editor (#332).
+// Everything here feeds NORMALIZED keys to repl_editor_apply_key and
+// bytes to repl_ansi_feed: no terminal, no history file, no bin/til
+// subprocess. The real-terminal half lives in test/repl_pty.til.
+
+// ESC-prefixed byte string, built from the byte value: the compiled and
+// interpreted backends do not agree on \xNN inside a string literal, and
+// this file has to mean the same thing on both.
+priv seq := func(rest: Str) returns Str {
+    return format(Str.from_byte(27), rest)
+}
+
+// Type a run of ASCII bytes.
+priv feed := func(mut ed: ReplEditor, text: Str) {
+    for i in 0..text.len() {
+        _act := repl_editor_apply_key(ed, text.unsafe_get(i).cast(I64))
+    }
+}
+
+priv press := func(mut ed: ReplEditor, k: I64) returns EditAction {
+    return repl_editor_apply_key(ed, k)
+}
+
+priv hit := func(mut ed: ReplEditor, k: I64) {
+    _act := repl_editor_apply_key(ed, k)
+}
+
+// Decode a whole byte sequence, returning what the last byte produced.
+priv decode := func(bytes: Str) returns I64 {
+    mut d := AnsiDecoder()
+    mut key := REPL_KEY_PENDING
+    for i in 0..bytes.len() {
+        key = repl_ansi_feed(d, bytes.unsafe_get(i).cast(I64))
+    }
+    return key
+}
+
+priv history_of := proc(mut ed: ReplEditor, entries: ..Str) {
+    for e : Str in entries {
+        repl_editor_history_add(ed, e)
+    }
+}
+
+test_insert_at_cursor := test() {
+    mut ed := ReplEditor()
+    feed(ed, "abc")
+    assert_eq(Str, ed.line, "abc")
+    assert_eq(USize, ed.cursor, 3)
+    hit(ed, REPL_KEY_LEFT)
+    hit(ed, REPL_KEY_LEFT)
+    assert_eq(USize, ed.cursor, 1)
+    feed(ed, "XY")
+    assert_eq(Str, ed.line, "aXYbc")
+    assert_eq(USize, ed.cursor, 3)
+}
+
+test_edge_movement_bells := test() {
+    mut ed := ReplEditor()
+    // Both edges of an empty line, then of a real one.
+    assert(press(ed, REPL_KEY_LEFT).is(EditAction.Bell))
+    assert(press(ed, REPL_KEY_RIGHT).is(EditAction.Bell))
+    feed(ed, "ab")
+    assert(press(ed, REPL_KEY_RIGHT).is(EditAction.Bell))
+    hit(ed, REPL_KEY_HOME)
+    assert_eq(USize, ed.cursor, 0)
+    assert(press(ed, REPL_KEY_LEFT).is(EditAction.Bell))
+    assert(press(ed, REPL_KEY_HOME).is(EditAction.Bell))
+    hit(ed, REPL_KEY_END)
+    assert_eq(USize, ed.cursor, 2)
+    assert(press(ed, REPL_KEY_END).is(EditAction.Bell))
+}
+
+test_ctrl_movement_aliases := test() {
+    mut ed := ReplEditor()
+    feed(ed, "hello")
+    hit(ed, REPL_CTRL_A)
+    assert_eq(USize, ed.cursor, 0)
+    hit(ed, REPL_CTRL_F)
+    hit(ed, REPL_CTRL_F)
+    assert_eq(USize, ed.cursor, 2)
+    hit(ed, REPL_CTRL_B)
+    assert_eq(USize, ed.cursor, 1)
+    hit(ed, REPL_CTRL_E)
+    assert_eq(USize, ed.cursor, 5)
+}
+
+test_backspace_and_delete := test() {
+    mut ed := ReplEditor()
+    feed(ed, "abcd")
+    hit(ed, REPL_BYTE_DEL)
+    assert_eq(Str, ed.line, "abc")
+    assert_eq(USize, ed.cursor, 3)
+    // Ctrl-H is the same key on terminals that send BS instead of DEL.
+    hit(ed, REPL_CTRL_H)
+    assert_eq(Str, ed.line, "ab")
+    hit(ed, REPL_KEY_HOME)
+    hit(ed, REPL_KEY_DELETE)
+    assert_eq(Str, ed.line, "b")
+    assert_eq(USize, ed.cursor, 0)
+    hit(ed, REPL_KEY_DELETE)
+    assert_eq(Str, ed.line, "")
+    assert(press(ed, REPL_KEY_DELETE).is(EditAction.Bell))
+    assert(press(ed, REPL_BYTE_DEL).is(EditAction.Bell))
+}
+
+test_kill_bindings := test() {
+    mut ed := ReplEditor()
+    feed(ed, "one two three")
+    hit(ed, REPL_CTRL_W)
+    assert_eq(Str, ed.line, "one two ")
+    hit(ed, REPL_CTRL_W)
+    assert_eq(Str, ed.line, "one ")
+    assert_eq(USize, ed.cursor, 4)
+    // Trailing whitespace is skipped before the word itself is eaten.
+    feed(ed, "four   ")
+    hit(ed, REPL_CTRL_W)
+    assert_eq(Str, ed.line, "one ")
+
+    mut ed2 := ReplEditor()
+    feed(ed2, "abcdef")
+    hit(ed2, REPL_KEY_HOME)
+    hit(ed2, REPL_KEY_RIGHT)
+    hit(ed2, REPL_KEY_RIGHT)
+    hit(ed2, REPL_CTRL_K)
+    assert_eq(Str, ed2.line, "ab")
+    assert_eq(USize, ed2.cursor, 2)
+    assert(press(ed2, REPL_CTRL_K).is(EditAction.Bell))
+    feed(ed2, "cd")
+    hit(ed2, REPL_KEY_LEFT)
+    hit(ed2, REPL_CTRL_U)
+    assert_eq(Str, ed2.line, "d")
+    assert_eq(USize, ed2.cursor, 0)
+    assert(press(ed2, REPL_CTRL_U).is(EditAction.Bell))
+    assert(press(ed2, REPL_CTRL_W).is(EditAction.Bell))
+}
+
+test_submit_and_clear_screen := test() {
+    mut ed := ReplEditor()
+    feed(ed, "1 + 1")
+    assert(press(ed, REPL_CTRL_L).is(EditAction.ClearScreen))
+    // Ctrl-L redraws; it does not touch the line being edited.
+    assert_eq(Str, ed.line, "1 + 1")
+    assert(press(ed, REPL_BYTE_CR).is(EditAction.Submit))
+    assert(press(ed, REPL_BYTE_LF).is(EditAction.Submit))
+}
+
+test_ctrl_d_empty_versus_not := test() {
+    mut ed := ReplEditor()
+    // Empty line: EOF, the only way Ctrl-D ends the session.
+    assert(press(ed, REPL_CTRL_D).is(EditAction.Eof))
+    feed(ed, "abc")
+    // At the end of a non-empty line there is nothing under the cursor.
+    assert(press(ed, REPL_CTRL_D).is(EditAction.Bell))
+    hit(ed, REPL_KEY_HOME)
+    assert(press(ed, REPL_CTRL_D).is(EditAction.Continue))
+    assert_eq(Str, ed.line, "bc")
+}
+
+test_unknown_bytes_never_insert := test() {
+    mut ed := ReplEditor()
+    feed(ed, "ab")
+    // A control byte with no binding, and a decoded-but-unsupported
+    // escape sequence: both ring, neither reaches the source line.
+    assert(press(ed, 26).is(EditAction.Bell))
+    assert(press(ed, REPL_KEY_UNKNOWN).is(EditAction.Bell))
+    assert(press(ed, REPL_BYTE_ESC).is(EditAction.Bell))
+    assert_eq(Str, ed.line, "ab")
+    // Tab is source whitespace, not a completion request.
+    assert(press(ed, REPL_BYTE_TAB).is(EditAction.Continue))
+    assert_eq(USize, ed.line.len(), 3)
+}
+
+test_history_add_policy := test() {
+    mut ed := ReplEditor()
+    repl_editor_history_add(ed, "")
+    assert_eq(USize, ed.history.len(), 0)
+    repl_editor_history_add(ed, "a")
+    repl_editor_history_add(ed, "a")
+    assert_eq(USize, ed.history.len(), 1)
+    repl_editor_history_add(ed, "b")
+    repl_editor_history_add(ed, "a")
+    assert_eq(USize, ed.history.len(), 3)
+    assert_eq(Str, ed.history[2], "a")
+}
+
+test_history_truncates_to_max := test() {
+    mut ed := ReplEditor()
+    for i in 0..1005 {
+        repl_editor_history_add(ed, format("line", i.to_str()))
+    }
+    assert_eq(USize, ed.history.len(), 1000)
+    // The oldest five fell off the front; the newest is still there.
+    assert_eq(Str, ed.history[0], "line5")
+    assert_eq(Str, ed.history[999], "line1004")
+}
+
+test_history_navigation_and_draft := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "first", "second")
+    // Start a fresh line the way read_line does.
+    ed.hist_idx = ed.history.len()
+    feed(ed, "draft")
+    hit(ed, REPL_KEY_UP)
+    assert_eq(Str, ed.line, "second")
+    assert_eq(USize, ed.cursor, 6)
+    hit(ed, REPL_KEY_UP)
+    assert_eq(Str, ed.line, "first")
+    // Oldest entry: no further back to go.
+    assert(press(ed, REPL_KEY_UP).is(EditAction.Bell))
+    hit(ed, REPL_KEY_DOWN)
+    assert_eq(Str, ed.line, "second")
+    hit(ed, REPL_KEY_DOWN)
+    // Down off the newest entry restores the draft saved by the first Up.
+    assert_eq(Str, ed.line, "draft")
+    assert(press(ed, REPL_KEY_DOWN).is(EditAction.Bell))
+    // Ctrl-P / Ctrl-N are the same two keys.
+    hit(ed, REPL_CTRL_P)
+    assert_eq(Str, ed.line, "second")
+    hit(ed, REPL_CTRL_N)
+    assert_eq(Str, ed.line, "draft")
+}
+
+test_recalled_entry_is_a_copy := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "keepme")
+    ed.hist_idx = ed.history.len()
+    hit(ed, REPL_KEY_UP)
+    assert_eq(Str, ed.line, "keepme")
+    hit(ed, REPL_BYTE_DEL)
+    feed(ed, "X")
+    assert_eq(Str, ed.line, "keepmX")
+    // Editing the recalled line must not rewrite the stored entry.
+    assert_eq(Str, ed.history[0], "keepme")
+}
+
+test_reverse_search_growth_and_repeat := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "alpha", "beta", "alphabet")
+    ed.hist_idx = ed.history.len()
+    feed(ed, "wip")
+    hit(ed, REPL_CTRL_R)
+    assert(ed.searching)
+    feed(ed, "alph")
+    assert_eq(Str, ed.search_query, "alph")
+    // Newest match first.
+    assert_eq(Str, ed.line, "alphabet")
+    hit(ed, REPL_CTRL_R)
+    assert_eq(Str, ed.line, "alpha")
+    // Nothing older matches.
+    assert(press(ed, REPL_CTRL_R).is(EditAction.Bell))
+    assert_eq(Str, ed.line, "alpha")
+    // Shrinking the query keeps the match it already found.
+    hit(ed, REPL_BYTE_DEL)
+    assert_eq(Str, ed.search_query, "alp")
+    assert_eq(Str, ed.line, "alpha")
+    // Emptying it puts the pre-search draft back on screen.
+    hit(ed, REPL_BYTE_DEL)
+    hit(ed, REPL_BYTE_DEL)
+    hit(ed, REPL_BYTE_DEL)
+    assert_eq(Str, ed.search_query, "")
+    assert_eq(Str, ed.line, "wip")
+    assert(press(ed, REPL_BYTE_DEL).is(EditAction.Bell))
+}
+
+test_reverse_search_no_match_keeps_query := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "alpha")
+    ed.hist_idx = ed.history.len()
+    hit(ed, REPL_CTRL_R)
+    // A byte that matches nothing is refused, so the query never
+    // describes a line that is not on screen.
+    assert(press(ed, 'z').is(EditAction.Bell))
+    assert_eq(Str, ed.search_query, "")
+    // Ctrl-R with an empty query has nothing to search for.
+    assert(press(ed, REPL_CTRL_R).is(EditAction.Bell))
+}
+
+test_reverse_search_accept_submit_cancel := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "println(1)", "println(2)")
+    ed.hist_idx = ed.history.len()
+    feed(ed, "half")
+    hit(ed, REPL_CTRL_R)
+    feed(ed, "(1)")
+    assert_eq(Str, ed.line, "println(1)")
+    // Right accepts the match for further editing.
+    hit(ed, REPL_KEY_RIGHT)
+    assert(ed.searching.not())
+    assert_eq(Str, ed.line, "println(1)")
+    assert_eq(USize, ed.cursor, 10)
+
+    mut ed2 := ReplEditor()
+    history_of(ed2, "println(1)", "println(2)")
+    ed2.hist_idx = ed2.history.len()
+    hit(ed2, REPL_CTRL_R)
+    feed(ed2, "(2)")
+    assert(press(ed2, REPL_BYTE_CR).is(EditAction.Submit))
+    assert(ed2.searching.not())
+    assert_eq(Str, ed2.line, "println(2)")
+
+    mut ed3 := ReplEditor()
+    history_of(ed3, "println(1)")
+    ed3.hist_idx = ed3.history.len()
+    feed(ed3, "unfinished")
+    hit(ed3, REPL_KEY_LEFT)
+    hit(ed3, REPL_CTRL_R)
+    feed(ed3, "(1)")
+    assert_eq(Str, ed3.line, "println(1)")
+    // Ctrl-G restores the exact line AND cursor from before the search.
+    hit(ed3, REPL_CTRL_G)
+    assert(ed3.searching.not())
+    assert_eq(Str, ed3.line, "unfinished")
+    assert_eq(USize, ed3.cursor, 9)
+
+    // Escape also accepts, and any other editing key accepts then acts.
+    mut ed4 := ReplEditor()
+    history_of(ed4, "println(1)")
+    ed4.hist_idx = ed4.history.len()
+    hit(ed4, REPL_CTRL_R)
+    feed(ed4, "(1)")
+    hit(ed4, REPL_BYTE_ESC)
+    assert(ed4.searching.not())
+    assert_eq(Str, ed4.line, "println(1)")
+
+    mut ed5 := ReplEditor()
+    history_of(ed5, "println(1)")
+    ed5.hist_idx = ed5.history.len()
+    hit(ed5, REPL_CTRL_R)
+    feed(ed5, "(1)")
+    hit(ed5, REPL_KEY_HOME)
+    assert(ed5.searching.not())
+    assert_eq(USize, ed5.cursor, 0)
+}
+
+test_ansi_arrow_spellings := test() {
+    assert_eq(I64, decode(seq("[A")), REPL_KEY_UP)
+    assert_eq(I64, decode(seq("[B")), REPL_KEY_DOWN)
+    assert_eq(I64, decode(seq("[C")), REPL_KEY_RIGHT)
+    assert_eq(I64, decode(seq("[D")), REPL_KEY_LEFT)
+    assert_eq(I64, decode(seq("OA")), REPL_KEY_UP)
+    assert_eq(I64, decode(seq("OB")), REPL_KEY_DOWN)
+    assert_eq(I64, decode(seq("OC")), REPL_KEY_RIGHT)
+    assert_eq(I64, decode(seq("OD")), REPL_KEY_LEFT)
+}
+
+test_ansi_home_end_delete_spellings := test() {
+    assert_eq(I64, decode(seq("[H")), REPL_KEY_HOME)
+    assert_eq(I64, decode(seq("OH")), REPL_KEY_HOME)
+    assert_eq(I64, decode(seq("[1~")), REPL_KEY_HOME)
+    assert_eq(I64, decode(seq("[7~")), REPL_KEY_HOME)
+    assert_eq(I64, decode(seq("[F")), REPL_KEY_END)
+    assert_eq(I64, decode(seq("OF")), REPL_KEY_END)
+    assert_eq(I64, decode(seq("[4~")), REPL_KEY_END)
+    assert_eq(I64, decode(seq("[8~")), REPL_KEY_END)
+    assert_eq(I64, decode(seq("[3~")), REPL_KEY_DELETE)
+}
+
+test_ansi_unknown_sequences_are_consumed_whole := test() {
+    // Unsupported CSI finals and parameters: one unknown key, never the
+    // individual bytes.
+    assert_eq(I64, decode(seq("[Z")), REPL_KEY_UNKNOWN)
+    assert_eq(I64, decode(seq("[9~")), REPL_KEY_UNKNOWN)
+    assert_eq(I64, decode(seq("[1;5C")), REPL_KEY_UNKNOWN)
+    assert_eq(I64, decode(seq("OZ")), REPL_KEY_UNKNOWN)
+    // ESC followed by an ordinary byte (Alt-x) is not a sequence we know.
+    assert_eq(I64, decode(seq("x")), REPL_KEY_UNKNOWN)
+}
+
+test_ansi_plain_bytes_pass_through := test() {
+    mut d := AnsiDecoder()
+    assert_eq(I64, repl_ansi_feed(d, 'a'), 97)
+    assert_eq(I64, repl_ansi_feed(d, REPL_CTRL_R), REPL_CTRL_R)
+    // A negative event mid-sequence abandons the partial sequence.
+    assert_eq(I64, repl_ansi_feed(d, REPL_BYTE_ESC), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_feed(d, REPL_KEY_EOF), REPL_KEY_EOF)
+    assert_eq(I64, repl_ansi_feed(d, 'b'), 98)
+}
+
+test_ansi_incomplete_sequences_time_out := test() {
+    // A bare ESC is the Escape key.
+    mut d := AnsiDecoder()
+    assert_eq(I64, repl_ansi_feed(d, REPL_BYTE_ESC), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_timeout(d), REPL_BYTE_ESC)
+    // A truncated CSI is unknown input, not two source bytes.
+    assert_eq(I64, repl_ansi_feed(d, REPL_BYTE_ESC), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_feed(d, '['), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_timeout(d), REPL_KEY_UNKNOWN)
+    // Same for a truncated SS3, and for a half-typed parameter.
+    assert_eq(I64, repl_ansi_feed(d, REPL_BYTE_ESC), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_feed(d, 'O'), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_timeout(d), REPL_KEY_UNKNOWN)
+    assert_eq(I64, repl_ansi_feed(d, REPL_BYTE_ESC), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_feed(d, '['), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_feed(d, '3'), REPL_KEY_PENDING)
+    assert_eq(I64, repl_ansi_timeout(d), REPL_KEY_UNKNOWN)
+    // Nothing pending: the timeout has nothing to report.
+    assert_eq(I64, repl_ansi_timeout(d), REPL_KEY_PENDING)
+    // The decoder is usable again afterwards.
+    assert_eq(I64, decode(seq("[A")), REPL_KEY_UP)
+}
+
+test_viewport_scrolls_horizontally := test() {
+    // Cursor past the right edge drags the window right...
+    assert_eq(USize, repl_editor_viewport(0, 10, 20, 5), 6)
+    // ...and never further than it has to.
+    assert_eq(USize, repl_editor_viewport(0, 3, 20, 5), 0)
+    assert_eq(USize, repl_editor_viewport(6, 6, 20, 5), 6)
+    // Cursor left of the window drags it back.
+    assert_eq(USize, repl_editor_viewport(6, 3, 20, 5), 3)
+    // A window left beyond a now-shorter line is clamped first.
+    assert_eq(USize, repl_editor_viewport(30, 2, 5, 5), 2)
+    // One usable column is the narrowest case that still works.
+    assert_eq(USize, repl_editor_viewport(0, 7, 9, 1), 7)
+}
+
+test_history_load_parses_records := test() {
+    mut ed := ReplEditor()
+    repl_editor_history_load_str(ed, format("one\ntwo\n"))
+    assert_eq(USize, ed.history.len(), 2)
+    assert_eq(Str, ed.history[0], "one")
+    assert_eq(Str, ed.history[1], "two")
+
+    // A file written on Windows: one trailing CR per record, stripped.
+    mut ed2 := ReplEditor()
+    cr := Str.from_byte(13)
+    repl_editor_history_load_str(ed2, format("one", cr, "\ntwo", cr, "\n"))
+    assert_eq(USize, ed2.history.len(), 2)
+    assert_eq(Str, ed2.history[0], "one")
+    assert_eq(Str, ed2.history[1], "two")
+
+    // Blank records and consecutive duplicates are dropped on load too.
+    mut ed3 := ReplEditor()
+    repl_editor_history_load_str(ed3, format("a\n\na\nb\n"))
+    assert_eq(USize, ed3.history.len(), 2)
+    assert_eq(Str, ed3.history[0], "a")
+    assert_eq(Str, ed3.history[1], "b")
+}
+
+test_history_serialize_round_trips := test() {
+    mut ed := ReplEditor()
+    history_of(ed, "x := 1", "println(x.to_str())")
+    text := repl_editor_history_serialize(ed)
+    assert_eq(Str, text, format("x := 1\nprintln(x.to_str())\n"))
+    mut back := ReplEditor()
+    repl_editor_history_load_str(back, text)
+    assert_eq(USize, back.history.len(), 2)
+    assert_eq(Str, back.history[0], "x := 1")
+    assert_eq(Str, back.history[1], "println(x.to_str())")
+    // Empty history serializes to nothing at all.
+    empty := ReplEditor()
+    assert_eq(Str, repl_editor_history_serialize(empty), "")
+}

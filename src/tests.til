@@ -807,6 +807,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/generic_infer_imports.til", flags)
     add_both(tests, "test/closures.til", flags)
     add_both(tests, "test/regression.til", flags)
+    add_both(tests, "test/repl_editor.til", flags)
     add_both(tests, "test/files.til", flags)
     add_both(tests, "test/circular_imports.til", flags)
     add_both(tests, "test/import_diamond.til", flags)
@@ -1257,6 +1258,14 @@ main := proc(args: ..Str) {
     // wherever bin/tests runs -- make test, linux CI, and the mac jobs that
     // invoke bin/tests directly. Exit-code-only check (no expected_out).
     add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til"))
+
+    // #332: the REPL line editor's real-terminal half. Drives bin/til
+    // through a pseudo-terminal with actual escape/control bytes and an
+    // isolated XDG_STATE_HOME, and self-checks like repl_help does. The
+    // pure state machine is test/repl_editor.til, in the both-backend
+    // list above; neither is a hand-run target, so the feature cannot
+    // regress behind one again.
+    add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
 
     // === Run all tests in parallel ===
     mut suite_end_ms := 0

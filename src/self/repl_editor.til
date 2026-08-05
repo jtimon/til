@@ -1,0 +1,788 @@
+mode lib
+
+// REPL line editor and history (issue #332).
+//
+// `til repl` used to read its input with in_read_line, i.e. with the tty
+// in canonical mode: the driver gave backspace and nothing else, Up/Down
+// injected their raw escape bytes into the source, and nothing survived
+// the session. This module is the editor: key bindings, history policy,
+// ANSI decoding, and the one-row redraw. Only what cannot be expressed
+// portably in til lives in C (src/c/ext.c, the repl_term_* /
+// repl_history_* bridge below): console detection, the raw-mode
+// interval, one input event, the terminal width, and the atomic history
+// replacement. No readline, curses, terminfo, PTY, or extra link flag is
+// involved on any target.
+//
+// It is an INTERNAL compiler module -- src/til.til imports it -- not a
+// public stdlib surface. Terminal editing is deliberately not exposed as
+// a general std API.
+
+import("../std/sys")
+
+// --- Bridge to the platform terminal (src/c/ext.c) ---
+//
+// These are the module's private surface in spirit; they are not spelled
+// `priv` because that would mangle the name away from the C symbol the
+// binding names (same reason getenv is spelled bare in src/std/sys.til).
+repl_term_is_interactive := ext_proc() returns shallow Bool {}
+repl_term_begin := ext_proc() returns shallow Bool {}
+repl_term_end := ext_proc() {}
+repl_term_flush := ext_proc() {}
+repl_term_read_event := ext_proc(shallow timeout_ms: I64) returns shallow I64 {}
+repl_term_columns := ext_proc() returns shallow I64 {}
+repl_history_read := ext_proc(path: Str, mut out: Str, mut err: Str) returns shallow I64 {}
+repl_history_write := ext_proc(path: Str, contents: Str, mut err: Str) returns shallow I64 {}
+
+// --- Normalized key alphabet ---
+//
+// One documented internal representation for an input event: ordinary
+// bytes are 0..255, everything else is a disjoint negative code. The
+// first block mirrors TIL_KEY_* in src/c/ext.h byte for byte (POSIX
+// returns bytes and til decodes the escape sequences below; native
+// Windows maps its console key events onto the same codes). The second
+// block never crosses the bridge -- it is what the decoder tells the
+// read loop about a sequence that is not finished, or not understood.
+REPL_KEY_EOF : I64 = -1
+REPL_KEY_TIMEOUT : I64 = -2
+REPL_KEY_REDRAW : I64 = -3
+REPL_KEY_ERROR : I64 = -4
+REPL_KEY_UP : I64 = -10
+REPL_KEY_DOWN : I64 = -11
+REPL_KEY_RIGHT : I64 = -12
+REPL_KEY_LEFT : I64 = -13
+REPL_KEY_HOME : I64 = -14
+REPL_KEY_END : I64 = -15
+REPL_KEY_DELETE : I64 = -16
+REPL_KEY_PENDING : I64 = -100
+REPL_KEY_UNKNOWN : I64 = -101
+
+// Control bytes the editor binds. Spelled out so the key table reads as
+// key names rather than as small integers.
+REPL_CTRL_A : I64 = 1
+REPL_CTRL_B : I64 = 2
+REPL_CTRL_D : I64 = 4
+REPL_CTRL_E : I64 = 5
+REPL_CTRL_F : I64 = 6
+REPL_CTRL_G : I64 = 7
+REPL_CTRL_H : I64 = 8
+REPL_CTRL_K : I64 = 11
+REPL_CTRL_L : I64 = 12
+REPL_CTRL_N : I64 = 14
+REPL_CTRL_P : I64 = 16
+REPL_CTRL_R : I64 = 18
+REPL_CTRL_U : I64 = 21
+REPL_CTRL_W : I64 = 23
+REPL_BYTE_TAB : I64 = 9
+REPL_BYTE_LF : I64 = 10
+REPL_BYTE_CR : I64 = 13
+REPL_BYTE_ESC : I64 = 27
+REPL_BYTE_DEL : I64 = 127
+
+// Newest entries kept, in memory and on disk.
+REPL_HISTORY_MAX : USize = 1000
+// Follow-up wait after a bare ESC. Short enough that Escape stays usable
+// as a key, long enough that a real escape sequence is never split.
+REPL_ESC_TIMEOUT_MS : I64 = 50
+
+/// What the outer read loop must do after one key was applied.
+EditAction := enum { Continue, Submit, Eof, Bell, ClearScreen }
+
+/// Everything one interactive REPL owns: the line being edited, the
+/// history it recalls from, and the reverse-search sub-mode. Constructed
+/// once in run_repl and passed by mutation through every session, so a
+/// `mode X` restart keeps both the file's entries and this session's.
+ReplEditor := struct {
+    // True once the REPL decided both standard streams are a usable
+    // console. False keeps the whole in_read_line path.
+    interactive := false
+    // History file, and whether writing to it is still worth trying.
+    hist_path := ""
+    persist := false
+    own history := Vec(Str).new()
+
+    // --- per-line editing state ---
+    prompt := ""
+    line := ""
+    cursor : USize = 0
+    // Leftmost byte of `line` currently on screen: input wider than the
+    // terminal scrolls horizontally rather than wrapping, so redraw never
+    // has to guess how the terminal wrapped an earlier row.
+    view_start : USize = 0
+    // Position in `history`; == history.len() means "editing the draft".
+    hist_idx : USize = 0
+    // The unfinished line saved when history navigation started.
+    draft := ""
+
+    // --- reverse-search sub-mode ---
+    searching := false
+    search_query := ""
+    // History index of the current match, -1 when there is none.
+    search_idx : I64 = -1
+    // Line and cursor from before Ctrl-R, restored by Ctrl-G.
+    saved_line := ""
+    saved_cursor : USize = 0
+}
+
+// --- Small byte/string helpers -------------------------------------------
+//
+// Control bytes are built from their numeric value instead of written as
+// escapes in a literal: the compiled and interpreted backends disagree
+// about which escapes a string literal understands (\n and \t are common
+// to both; \r and \xNN are not), and this code must render identically
+// under either.
+
+priv byte_str := func(v: I64) returns Str {
+    return Str.from_byte(v.to_u8())
+}
+
+// ESC [ <body> -- the whole redraw vocabulary is CSI sequences.
+priv csi := func(body: Str) returns Str {
+    return format(byte_str(REPL_BYTE_ESC), "[", body)
+}
+
+priv is_ascii_space := func(c: I8) returns Bool {
+    return c.eq(' ').or(c.eq('\t')).or(c.eq('\n')).or(c.eq('\r'))
+}
+
+// --- ANSI decoding --------------------------------------------------------
+//
+// A byte-at-a-time state machine, kept separate from terminal I/O so
+// every supported spelling (and every truncated or unknown one) is
+// testable without a terminal.
+
+AnsiDecoder := struct {
+    // 0 = ground, 1 = saw ESC, 2 = inside CSI (ESC [), 3 = inside SS3 (ESC O)
+    state : I64 = 0
+    // CSI parameter bytes collected so far ("3" of "ESC [ 3 ~").
+    params := ""
+}
+
+priv csi_final := func(params: Str, fin: I64) returns I64 {
+    if params.len() == 0 {
+        if fin == 65 { return REPL_KEY_UP }
+        if fin == 66 { return REPL_KEY_DOWN }
+        if fin == 67 { return REPL_KEY_RIGHT }
+        if fin == 68 { return REPL_KEY_LEFT }
+        if fin == 72 { return REPL_KEY_HOME }
+        if fin == 70 { return REPL_KEY_END }
+    }
+    if fin == 126 {
+        if params == "1" { return REPL_KEY_HOME }
+        if params == "7" { return REPL_KEY_HOME }
+        if params == "4" { return REPL_KEY_END }
+        if params == "8" { return REPL_KEY_END }
+        if params == "3" { return REPL_KEY_DELETE }
+    }
+    return REPL_KEY_UNKNOWN
+}
+
+priv ss3_final := func(fin: I64) returns I64 {
+    if fin == 65 { return REPL_KEY_UP }
+    if fin == 66 { return REPL_KEY_DOWN }
+    if fin == 67 { return REPL_KEY_RIGHT }
+    if fin == 68 { return REPL_KEY_LEFT }
+    if fin == 72 { return REPL_KEY_HOME }
+    if fin == 70 { return REPL_KEY_END }
+    return REPL_KEY_UNKNOWN
+}
+
+/// Feed one event to the decoder. Returns a normalized key, or
+/// REPL_KEY_PENDING when more bytes are needed to decide. An unknown or
+/// unsupported sequence is consumed WHOLE and reported as
+/// REPL_KEY_UNKNOWN, so no escape byte can ever reach the source buffer.
+repl_ansi_feed := func(mut d: AnsiDecoder, ev: I64) returns I64 {
+    if ev < 0 {
+        // EOF, a redraw request, or a native Windows key: never part of
+        // an escape sequence, so abandon any half-read one.
+        d.state = 0
+        d.params = ""
+        return ev
+    }
+    if d.state == 0 {
+        if ev == REPL_BYTE_ESC {
+            d.state = 1
+            d.params = ""
+            return REPL_KEY_PENDING
+        }
+        return ev
+    }
+    if d.state == 1 {
+        if ev == 91 {
+            d.state = 2
+            d.params = ""
+            return REPL_KEY_PENDING
+        }
+        if ev == 79 {
+            d.state = 3
+            return REPL_KEY_PENDING
+        }
+        // ESC followed by anything else (Alt-<key>, a second ESC): not a
+        // sequence this editor knows.
+        d.state = 0
+        return REPL_KEY_UNKNOWN
+    }
+    if d.state == 2 {
+        if ev.gte(48).and(ev.lte(57)).or(ev.eq(59)) {
+            next := format(d.params, byte_str(ev))
+            d.params = next
+            return REPL_KEY_PENDING
+        }
+        if ev.gte(32).and(ev.lte(47)) {
+            // Intermediate byte: part of the sequence, carries no meaning
+            // for the forms below. Keep consuming.
+            return REPL_KEY_PENDING
+        }
+        d.state = 0
+        return csi_final(d.params, ev)
+    }
+    d.state = 0
+    return ss3_final(ev)
+}
+
+/// No follow-up byte arrived within the ESC timeout. A bare ESC is the
+/// Escape key; a truncated sequence is unknown input, never source.
+repl_ansi_timeout := func(mut d: AnsiDecoder) returns I64 {
+    if d.state == 0 { return REPL_KEY_PENDING }
+    if d.state == 1 {
+        d.state = 0
+        return REPL_BYTE_ESC
+    }
+    d.state = 0
+    return REPL_KEY_UNKNOWN
+}
+
+// --- History --------------------------------------------------------------
+
+/// Where the host keeps per-user state. Standard locations, not til
+/// configuration: no flag, no til-specific environment variable. Empty
+/// when the host names no home at all.
+priv history_path := proc() returns Str {
+    if host_os() == "windows" {
+        local := get_env("LOCALAPPDATA")
+        if local.len() > 0 { return format(local, "/til/repl_history") }
+        profile := get_env("USERPROFILE")
+        if profile.len() > 0 { return format(profile, "/.til/repl_history") }
+        return ""
+    }
+    xdg := get_env("XDG_STATE_HOME")
+    if xdg.len() > 0 { return format(xdg, "/til/repl_history") }
+    home := get_env("HOME")
+    if home.len() > 0 { return format(home, "/.local/state/til/repl_history") }
+    return ""
+}
+
+priv path_parent := func(path: Str) returns Str {
+    i := path.rfind("/")
+    if i <= 0 { return "" }
+    return path.substr(0, i.to_usize()).clone()
+}
+
+/// One newline-terminated PHYSICAL line per record. Entries cannot
+/// contain CR or LF (they are single physical lines), so no escaping and
+/// no second representation is needed.
+repl_editor_history_serialize := func(ed: ReplEditor) returns Str {
+    mut total : USize = 0
+    for i in 0..ed.history.len() {
+        ref e : Str = ed.history[i]
+        total = total + e.len() + 1
+    }
+    if total == 0 { return "" }
+    mut out := Str.with_capacity(total)
+    for i in 0..ed.history.len() {
+        ref e : Str = ed.history[i]
+        out.push_str(e)
+        out.push_str("\n")
+    }
+    return out
+}
+
+priv history_trim := func(mut ed: ReplEditor) {
+    while ed.history.len() > REPL_HISTORY_MAX {
+        ed.history.remove_at(0)!
+    }
+}
+
+/// Parse a history file. A single trailing CR is stripped so a file
+/// written on Windows loads unchanged elsewhere.
+repl_editor_history_load_str := func(mut ed: ReplEditor, data: Str) {
+    lines := data.split("\n")
+    for i in 0..lines.len() {
+        ref l : Str = lines[i]
+        mut n := l.len()
+        if n > 0 {
+            if l.unsafe_get(n - 1) == '\r' { n = n - 1 }
+        }
+        if n == 0 { continue }
+        entry := l.substr(0, n).clone()
+        if ed.history.len() > 0 {
+            ref last : Str = ed.history[ed.history.len() - 1]
+            if last == entry { continue }
+        }
+        ed.history.push(own entry)
+    }
+    history_trim(ed)
+}
+
+priv history_persist := proc(mut ed: ReplEditor) {
+    if ed.persist.not() { return }
+    data := repl_editor_history_serialize(ed)
+    mut err := ""
+    rc := repl_history_write(ed.hist_path, data, err)
+    if rc != 0 {
+        // Concrete path and OS error, once, then session-only history:
+        // retrying on every line would bury the message it just printed.
+        println("til: REPL history not saved (", err, "); this session's history stays in memory")
+        ed.persist = false
+    }
+}
+
+/// Record one ACCEPTED physical line. Empty lines and consecutive
+/// duplicates are ignored. Called the moment Enter accepts a line --
+/// before parsing or evaluation -- so a syntax error or a typed
+/// `exit(0)` is still remembered.
+repl_editor_history_add := proc(mut ed: ReplEditor, line: Str) {
+    if line.len() == 0 { return }
+    if ed.history.len() > 0 {
+        ref last : Str = ed.history[ed.history.len() - 1]
+        if last == line { return }
+    }
+    ed.history.push(own line.clone())
+    history_trim(ed)
+    history_persist(ed)
+}
+
+// --- Editing primitives ---------------------------------------------------
+
+priv line_replace := func(mut ed: ReplEditor, next: Str) {
+    ed.line = next.clone()
+}
+
+priv insert_byte := func(mut ed: ReplEditor, b: I64) {
+    next := format(ed.line.substr(0, ed.cursor),
+                   byte_str(b),
+                   ed.line.substr(ed.cursor, ed.line.len() - ed.cursor))
+    line_replace(ed, next)
+    ed.cursor = ed.cursor + 1
+}
+
+priv delete_range := func(mut ed: ReplEditor, start: USize, end: USize) {
+    next := format(ed.line.substr(0, start),
+                   ed.line.substr(end, ed.line.len() - end))
+    line_replace(ed, next)
+    ed.cursor = start
+}
+
+// Start of the ASCII-whitespace-delimited word before the cursor.
+priv word_start := func(ed: ReplEditor) returns USize {
+    mut i := ed.cursor
+    while i > 0 {
+        if is_ascii_space(ed.line.unsafe_get(i - 1)).not() { break }
+        i = i - 1
+    }
+    while i > 0 {
+        if is_ascii_space(ed.line.unsafe_get(i - 1)) { break }
+        i = i - 1
+    }
+    return i
+}
+
+priv set_line_from_history := func(mut ed: ReplEditor, idx: USize) {
+    // A recalled entry is COPIED into the editable line; editing it
+    // changes only that copy until it is submitted as a new entry.
+    ref e : Str = ed.history[idx]
+    line_replace(ed, e)
+    ed.cursor = ed.line.len()
+    ed.view_start = 0
+}
+
+// --- Reverse incremental search -------------------------------------------
+
+// Newest-first scan from `start` down to 0 for an entry containing
+// `query`; -1 when there is none. An empty query matches "wherever we
+// already are".
+priv search_find := func(ed: ReplEditor, start: I64, query: Str) returns I64 {
+    if query.len() == 0 { return start }
+    mut i := start
+    while i >= 0 {
+        ref e : Str = ed.history[i.to_usize()]
+        if e.contains(query) { return i }
+        i = i - 1
+    }
+    return -1
+}
+
+priv search_enter := func(mut ed: ReplEditor) {
+    ed.searching = true
+    ed.search_query = ""
+    ed.search_idx = ed.history.len().to_i64() - 1
+    ed.saved_line = ed.line.clone()
+    ed.saved_cursor = ed.cursor
+}
+
+priv search_leave := func(mut ed: ReplEditor) {
+    ed.searching = false
+    ed.search_query = ""
+    ed.search_idx = -1
+    ed.saved_line = ""
+    ed.saved_cursor = 0
+}
+
+priv search_apply_key := func(mut ed: ReplEditor, key: I64) returns EditAction {
+    if key == REPL_CTRL_G {
+        // Cancel: the line is exactly what it was before Ctrl-R.
+        line_replace(ed, ed.saved_line)
+        ed.cursor = ed.saved_cursor
+        ed.view_start = 0
+        search_leave(ed)
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_R {
+        if ed.search_query.len() == 0 { return EditAction.Bell }
+        found := search_find(ed, ed.search_idx - 1, ed.search_query)
+        if found < 0 { return EditAction.Bell }
+        ed.search_idx = found
+        set_line_from_history(ed, found.to_usize())
+        return EditAction.Continue
+    }
+    if key.eq(REPL_BYTE_CR).or(key.eq(REPL_BYTE_LF)) {
+        search_leave(ed)
+        ed.cursor = ed.line.len()
+        return EditAction.Submit
+    }
+    if key.eq(REPL_KEY_RIGHT).or(key.eq(REPL_BYTE_ESC)) {
+        // Accept the match and keep editing it.
+        search_leave(ed)
+        ed.cursor = ed.line.len()
+        return EditAction.Continue
+    }
+    if key.eq(REPL_BYTE_DEL).or(key.eq(REPL_CTRL_H)) {
+        if ed.search_query.len() == 0 { return EditAction.Bell }
+        shorter := ed.search_query.substr(0, ed.search_query.len() - 1).clone()
+        ed.search_query = shorter
+        if ed.search_query.len() == 0 {
+            // Back to no query at all: show what was being edited.
+            line_replace(ed, ed.saved_line)
+            ed.cursor = ed.saved_cursor
+            ed.search_idx = ed.history.len().to_i64() - 1
+            return EditAction.Continue
+        }
+        // The current match contains the longer query, so it still
+        // contains this one -- nothing to re-scan.
+        return EditAction.Continue
+    }
+    if key.gte(32).and(key.lte(126)).or(key.eq(REPL_BYTE_TAB)) {
+        grown := format(ed.search_query, byte_str(key))
+        found := search_find(ed, ed.search_idx, grown)
+        if found < 0 {
+            // Keep query and match consistent: a byte that matches
+            // nothing is refused outright rather than leaving a query
+            // that describes no displayed line.
+            return EditAction.Bell
+        }
+        ed.search_query = grown
+        ed.search_idx = found
+        set_line_from_history(ed, found.to_usize())
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_L { return EditAction.ClearScreen }
+    if key == REPL_KEY_UNKNOWN { return EditAction.Bell }
+    // Any other editing key accepts the match first, then means what it
+    // ordinarily means (readline behaves the same way).
+    search_leave(ed)
+    ed.cursor = ed.line.len()
+    return repl_editor_apply_key(ed, key)
+}
+
+// --- The normal-mode key table --------------------------------------------
+
+priv normal_apply_key := func(mut ed: ReplEditor, key: I64) returns EditAction {
+    if key.eq(REPL_BYTE_CR).or(key.eq(REPL_BYTE_LF)) {
+        return EditAction.Submit
+    }
+    if key.eq(REPL_KEY_LEFT).or(key.eq(REPL_CTRL_B)) {
+        if ed.cursor == 0 { return EditAction.Bell }
+        ed.cursor = ed.cursor - 1
+        return EditAction.Continue
+    }
+    if key.eq(REPL_KEY_RIGHT).or(key.eq(REPL_CTRL_F)) {
+        if ed.cursor >= ed.line.len() { return EditAction.Bell }
+        ed.cursor = ed.cursor + 1
+        return EditAction.Continue
+    }
+    if key.eq(REPL_KEY_HOME).or(key.eq(REPL_CTRL_A)) {
+        if ed.cursor == 0 { return EditAction.Bell }
+        ed.cursor = 0
+        return EditAction.Continue
+    }
+    if key.eq(REPL_KEY_END).or(key.eq(REPL_CTRL_E)) {
+        if ed.cursor >= ed.line.len() { return EditAction.Bell }
+        ed.cursor = ed.line.len()
+        return EditAction.Continue
+    }
+    if key.eq(REPL_BYTE_DEL).or(key.eq(REPL_CTRL_H)) {
+        if ed.cursor == 0 { return EditAction.Bell }
+        delete_range(ed, ed.cursor - 1, ed.cursor)
+        return EditAction.Continue
+    }
+    if key == REPL_KEY_DELETE {
+        if ed.cursor >= ed.line.len() { return EditAction.Bell }
+        delete_range(ed, ed.cursor, ed.cursor + 1)
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_D {
+        // EOF only on an empty line; otherwise it deletes under the
+        // cursor, which is what every other shell does with it.
+        if ed.line.len() == 0 { return EditAction.Eof }
+        if ed.cursor >= ed.line.len() { return EditAction.Bell }
+        delete_range(ed, ed.cursor, ed.cursor + 1)
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_U {
+        if ed.cursor == 0 { return EditAction.Bell }
+        delete_range(ed, 0, ed.cursor)
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_K {
+        if ed.cursor >= ed.line.len() { return EditAction.Bell }
+        delete_range(ed, ed.cursor, ed.line.len())
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_W {
+        if ed.cursor == 0 { return EditAction.Bell }
+        delete_range(ed, word_start(ed), ed.cursor)
+        return EditAction.Continue
+    }
+    if key.eq(REPL_KEY_UP).or(key.eq(REPL_CTRL_P)) {
+        if ed.hist_idx == 0 { return EditAction.Bell }
+        if ed.hist_idx == ed.history.len() {
+            // First Up: the unfinished draft is kept so Down can bring
+            // it back untouched.
+            ed.draft = ed.line.clone()
+        }
+        ed.hist_idx = ed.hist_idx - 1
+        set_line_from_history(ed, ed.hist_idx)
+        return EditAction.Continue
+    }
+    if key.eq(REPL_KEY_DOWN).or(key.eq(REPL_CTRL_N)) {
+        if ed.hist_idx >= ed.history.len() { return EditAction.Bell }
+        ed.hist_idx = ed.hist_idx + 1
+        if ed.hist_idx == ed.history.len() {
+            line_replace(ed, ed.draft)
+            ed.cursor = ed.line.len()
+            ed.view_start = 0
+        } else {
+            set_line_from_history(ed, ed.hist_idx)
+        }
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_R {
+        search_enter(ed)
+        return EditAction.Continue
+    }
+    if key == REPL_CTRL_L { return EditAction.ClearScreen }
+    if key.gte(32).and(key.lte(126)).or(key.eq(REPL_BYTE_TAB)) {
+        // Tab is an ordinary source whitespace byte here; this issue
+        // invents no completion policy.
+        insert_byte(ed, key)
+        return EditAction.Continue
+    }
+    // Every remaining control byte and every unknown escape sequence.
+    return EditAction.Bell
+}
+
+/// Apply one normalized key to the editor state. Deliberately free of
+/// terminal I/O: the whole state machine is exercised by
+/// test/repl_editor.til without a terminal.
+repl_editor_apply_key := func(mut ed: ReplEditor, key: I64) returns EditAction {
+    if ed.searching { return search_apply_key(ed, key) }
+    return normal_apply_key(ed, key)
+}
+
+// --- Rendering ------------------------------------------------------------
+
+priv term_write := proc(s: Str) {
+    print_single(s)
+}
+
+priv render_prompt := func(ed: ReplEditor) returns Str {
+    if ed.searching {
+        return format("(reverse-i-search)`", ed.search_query, "': ")
+    }
+    return ed.prompt.clone()
+}
+
+// Owned copy of at most `n` bytes of `s`. The copy is the point: `s` is a
+// temporary at the one call site, and a substr VIEW of it would outlive
+// the buffer it borrows.
+priv clip := func(s: Str, n: USize) returns Str {
+    if s.len() <= n { return s.clone() }
+    return s.substr(0, n).clone()
+}
+
+/// Slide the horizontal viewport until `cursor` is visible in `avail`
+/// input columns, returning the new leftmost byte. Split out of the
+/// renderer so the scrolling arithmetic is testable at narrow widths
+/// without a terminal.
+repl_editor_viewport := func(view_start: USize, cursor: USize, line_len: USize, avail: USize) returns USize {
+    mut start := view_start
+    if start > line_len { start = line_len }
+    if cursor < start { start = cursor }
+    if cursor >= start + avail { start = cursor + 1 - avail }
+    return start
+}
+
+/// Redraw the single row the editor owns. The prompt is part of that row
+/// (the editor printed it), so redraw has one authoritative prompt width
+/// instead of reconstructing earlier writes. til source and these
+/// prompts are ASCII, so a byte is a column.
+priv editor_render := proc(mut ed: ReplEditor) {
+    cols := repl_term_columns()
+    // Leave the last column empty: writing into it puts most terminals in
+    // the pending-wrap state, and the next write lands on a new row.
+    mut usable := cols - 1
+    if usable < 1 { usable = 1 }
+    prompt_full := render_prompt(ed)
+    mut pw := prompt_full.len().to_i64()
+    // Clip only an abnormally over-wide prompt, and always keep at least
+    // one column of input visible.
+    if pw > usable - 1 { pw = usable - 1 }
+    if pw < 0 { pw = 0 }
+    mut avail := usable - pw
+    if avail < 1 { avail = 1 }
+    availu : USize = avail.to_usize()
+    prompt_vis := clip(prompt_full, pw.to_usize())
+
+    ed.view_start = repl_editor_viewport(ed.view_start, ed.cursor, ed.line.len(), availu)
+    mut vis_len := ed.line.len() - ed.view_start
+    if vis_len > availu { vis_len = availu }
+
+    // Rendered bytes to the right of the cursor: the cursor is put back
+    // by moving left over them once the row is drawn.
+    after := ed.view_start + vis_len - ed.cursor
+    mut move_back := ""
+    if after > 0 { move_back = csi(format(after.to_str(), "D")) }
+    out := format(byte_str(REPL_BYTE_CR), csi("K"), prompt_vis,
+                  ed.line.substr(ed.view_start, vis_len), move_back)
+    term_write(out)
+    repl_term_flush()
+}
+
+// --- Session wiring -------------------------------------------------------
+
+priv terminal_available := proc() returns Bool {
+    if repl_term_is_interactive().not() { return false }
+    if host_os() == "windows" { return true }
+    // A POSIX terminal that says it cannot do anything is taken at its
+    // word: no escapes, no history I/O, plain in_read_line.
+    if get_env("TERM") == "dumb" { return false }
+    return true
+}
+
+/// Decide once, at REPL startup, whether this process edits interactively,
+/// and load the history file if it does. Redirect either standard stream
+/// (or set TERM=dumb) and nothing here touches the terminal or the disk.
+repl_editor_start := proc(mut ed: ReplEditor) {
+    ed.interactive = terminal_available()
+    if ed.interactive.not() { return }
+    path := history_path()
+    if path.len() == 0 {
+        println("til: no home or state directory found; REPL history is session-only")
+        return
+    }
+    dir := path_parent(path)
+    if dir.len() > 0 {
+        if mkdir_p(dir) != 0 {
+            println("til: cannot create '", dir, "'; REPL history is session-only")
+            return
+        }
+    }
+    ed.hist_path = path.clone()
+    ed.persist = true
+    mut data := ""
+    mut err := ""
+    rc := repl_history_read(ed.hist_path, data, err)
+    if rc == 2 {
+        println("til: REPL history not loaded (", err, "); this session's history stays in memory")
+        ed.persist = false
+        return
+    }
+    if rc == 0 { repl_editor_history_load_str(ed, data) }
+}
+
+/// Read one PHYSICAL line with editing and history. `eof` distinguishes
+/// end of input from an empty line, exactly as in_read_line's Bool does.
+/// Terminal mode is entered here and left before returning, so nothing
+/// the REPL evaluates inherits raw console settings.
+repl_editor_read_line := proc(mut ed: ReplEditor, prompt: Str, mut eof: Bool) returns Str {
+    if repl_term_begin().not() {
+        // A real console was detected at startup; failing to configure it
+        // now is an error, not a reason to fall back to a path that would
+        // inject escape bytes into the source.
+        panic("REPL: could not enter terminal editing mode")
+    }
+    ed.prompt = prompt.clone()
+    ed.line = ""
+    ed.cursor = 0
+    ed.view_start = 0
+    ed.draft = ""
+    ed.hist_idx = ed.history.len()
+    search_leave(ed)
+
+    mut dec := AnsiDecoder()
+    editor_render(ed)
+    mut accepted := ""
+    mut at_eof := false
+    mut done := false
+    while done.not() {
+        ev := repl_term_read_event(-1)
+        mut key := repl_ansi_feed(dec, ev)
+        while key == REPL_KEY_PENDING {
+            follow := repl_term_read_event(REPL_ESC_TIMEOUT_MS)
+            if follow == REPL_KEY_TIMEOUT {
+                key = repl_ansi_timeout(dec)
+            } else {
+                key = repl_ansi_feed(dec, follow)
+            }
+        }
+        if key == REPL_KEY_ERROR {
+            repl_term_end()
+            panic("REPL: terminal input failed")
+        }
+        if key == REPL_KEY_REDRAW {
+            editor_render(ed)
+            continue
+        }
+        if key == REPL_KEY_EOF {
+            at_eof = true
+            done = true
+            continue
+        }
+        action := repl_editor_apply_key(ed, key)
+        switch action {
+        case EditAction.Submit:
+            accepted = ed.line.clone()
+            done = true
+        case EditAction.Eof:
+            at_eof = true
+            done = true
+        case EditAction.Bell:
+            term_write(byte_str(7))
+            editor_render(ed)
+        case EditAction.ClearScreen:
+            term_write(csi("H"))
+            term_write(csi("2J"))
+            editor_render(ed)
+        case EditAction.Continue:
+            editor_render(ed)
+        }
+    }
+    // Leave the edited row before anything else prints. CR is explicit:
+    // the cursor is wherever the editor left it on this row.
+    term_write(format(byte_str(REPL_BYTE_CR), "\n"))
+    repl_term_flush()
+    repl_term_end()
+    eof = at_eof
+    if at_eof { return "" }
+    repl_editor_history_add(ed, accepted)
+    return accepted
+}

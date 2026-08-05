@@ -406,6 +406,16 @@ enum {
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
+enum {
+    EditAction_TAG_Continue,
+    EditAction_TAG_Submit,
+    EditAction_TAG_Eof,
+    EditAction_TAG_Bell,
+    EditAction_TAG_ClearScreen
+};
+typedef struct EditAction EditAction;
+typedef struct ReplEditor ReplEditor;
+typedef struct AnsiDecoder AnsiDecoder;
 typedef struct CliArgs CliArgs;
 
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
@@ -1233,6 +1243,35 @@ typedef struct priv___src_self_binder_til__BinderState {
     Str alias_to_primitive;
     Str alias_to_dynamic;
 } priv___src_self_binder_til__BinderState;
+
+
+struct EditAction {
+    U8 tag;
+};
+
+typedef struct ReplEditor {
+    Bool interactive;
+    Str hist_path;
+    Bool persist;
+    Vec__Str *history;
+    Str prompt;
+    Str line;
+    USize cursor;
+    USize view_start;
+    USize hist_idx;
+    Str draft;
+    Bool searching;
+    Str search_query;
+    I64 search_idx;
+    Str saved_line;
+    USize saved_cursor;
+} ReplEditor;
+
+
+typedef struct AnsiDecoder {
+    I64 state;
+    Str params;
+} AnsiDecoder;
 
 
 typedef struct CliArgs {
@@ -4057,9 +4096,45 @@ Bool priv___src_self_binder_til__looks_like_macro_fragment(Str * line);
 Vec__Str * priv___src_self_binder_til__filter_preprocessed(Str * pre, Str * incdir);
 Str * priv___src_self_binder_til__collapse_blank_runs(Str * s);
 void generate_bindings(Str * in_path, Str * out_path);
-Str * priv__src_til_til__repl_read_line(Str * mode_name, Bool continuation, Bool * eof);
+void ReplEditor_delete(ReplEditor * self, Bool call_free);
+Str * priv___src_self_repl_editor_til__byte_str(I64 v);
+Str * priv___src_self_repl_editor_til__csi(Str * body);
+Bool priv___src_self_repl_editor_til__is_ascii_space(I8 c);
+void AnsiDecoder_delete(AnsiDecoder * self, Bool call_free);
+I64 priv___src_self_repl_editor_til__csi_final(Str * params, I64 fin);
+I64 priv___src_self_repl_editor_til__ss3_final(I64 fin);
+I64 repl_ansi_feed(AnsiDecoder * d, I64 ev);
+I64 repl_ansi_timeout(AnsiDecoder * d);
+Str * priv___src_self_repl_editor_til__history_path(void);
+Str * priv___src_self_repl_editor_til__path_parent(Str * path);
+Str * repl_editor_history_serialize(ReplEditor * ed);
+void priv___src_self_repl_editor_til__history_trim(ReplEditor * ed);
+void repl_editor_history_load_str(ReplEditor * ed, Str * data);
+void priv___src_self_repl_editor_til__history_persist(ReplEditor * ed);
+void repl_editor_history_add(ReplEditor * ed, Str * line);
+void priv___src_self_repl_editor_til__line_replace(ReplEditor * ed, Str * next);
+void priv___src_self_repl_editor_til__insert_byte(ReplEditor * ed, I64 b);
+void priv___src_self_repl_editor_til__delete_range(ReplEditor * ed, USize start, USize end);
+USize priv___src_self_repl_editor_til__word_start(ReplEditor * ed);
+void priv___src_self_repl_editor_til__set_line_from_history(ReplEditor * ed, USize idx);
+I64 priv___src_self_repl_editor_til__search_find(ReplEditor * ed, I64 start, Str * query);
+void priv___src_self_repl_editor_til__search_enter(ReplEditor * ed);
+void priv___src_self_repl_editor_til__search_leave(ReplEditor * ed);
+EditAction * priv___src_self_repl_editor_til__search_apply_key(ReplEditor * ed, I64 key);
+EditAction * priv___src_self_repl_editor_til__normal_apply_key(ReplEditor * ed, I64 key);
+EditAction * repl_editor_apply_key(ReplEditor * ed, I64 key);
+void priv___src_self_repl_editor_til__term_write(Str * s);
+Str * priv___src_self_repl_editor_til__render_prompt(ReplEditor * ed);
+Str * priv___src_self_repl_editor_til__clip(Str * s, USize n);
+USize repl_editor_viewport(USize view_start, USize cursor, USize line_len, USize avail);
+void priv___src_self_repl_editor_til__editor_render(ReplEditor * ed);
+Bool priv___src_self_repl_editor_til__terminal_available(void);
+void repl_editor_start(ReplEditor * ed);
+Str * repl_editor_read_line(ReplEditor * ed, Str * prompt, Bool * eof);
+Str * priv__src_til_til__repl_prompt(Str * mode_name, Bool continuation);
+Str * priv__src_til_til__repl_read_line(ReplEditor * ed, Str * mode_name, Bool continuation, Bool * eof);
 I64 priv__src_til_til__repl_tokens_open_depth(Vec__Token * tokens);
-Str * repl_read_block(Str * mode_name, Bool * eof);
+Str * repl_read_block(ReplEditor * ed, Str * mode_name, Bool * eof);
 I32 repl_typecheck(LoadedProgram * lp);
 Str * repl_capture_eval_current(InterpSession * session, LoadedProgram * lp, Str * out_path, U32 block_start_line, Bool eval_doc_line, U32 doc_init_line, Bool * aborted);
 Str * repl_capture_eval_tail(InterpSession * session, LoadedProgram * lp, Str * out_path, USize start_idx, USize count, Bool * aborted);
@@ -4074,7 +4149,7 @@ Bool repl_parse_allows_wrap(Expr * peek_ast);
 Bool repl_ast_has_help_call(Expr * e);
 Bool repl_ast_updates_doc_cache(Expr * e);
 void repl_refresh_user_doc_cache(Str * mode_str, Str * accum, Str * tmp_path, Str * bin_dir, Str * cwd, Str * ext_c_path, Vec__Str * extra_modes, Str * user_info_cache, Str * user_docs_cache);
-void run_repl_session(Str * mode_name_in, Str * next_mode_out, Vec__Str * extra_modes);
+void run_repl_session(ReplEditor * ed, Str * mode_name_in, Str * next_mode_out, Vec__Str * extra_modes);
 void run_repl(Str * initial_mode, Vec__Str * extra_modes);
 void usage(void);
 void CliArgs_delete(CliArgs * self, Bool call_free);
@@ -4136,5 +4211,39 @@ extern U32 priv___src_self_interpreter_til__dispatch_scratch_depth;
 extern U32 WORD_RING_SLOTS;
 extern U32 priv___src_self_interpreter_til__word_ring_idx;
 extern Vec__DynPtrBox priv___src_self_interpreter_til__scope_pool;
+extern I64 REPL_KEY_EOF;
+extern I64 REPL_KEY_TIMEOUT;
+extern I64 REPL_KEY_REDRAW;
+extern I64 REPL_KEY_ERROR;
+extern I64 REPL_KEY_UP;
+extern I64 REPL_KEY_DOWN;
+extern I64 REPL_KEY_RIGHT;
+extern I64 REPL_KEY_LEFT;
+extern I64 REPL_KEY_HOME;
+extern I64 REPL_KEY_END;
+extern I64 REPL_KEY_DELETE;
+extern I64 REPL_KEY_PENDING;
+extern I64 REPL_KEY_UNKNOWN;
+extern I64 REPL_CTRL_A;
+extern I64 REPL_CTRL_B;
+extern I64 REPL_CTRL_D;
+extern I64 REPL_CTRL_E;
+extern I64 REPL_CTRL_F;
+extern I64 REPL_CTRL_G;
+extern I64 REPL_CTRL_H;
+extern I64 REPL_CTRL_K;
+extern I64 REPL_CTRL_L;
+extern I64 REPL_CTRL_N;
+extern I64 REPL_CTRL_P;
+extern I64 REPL_CTRL_R;
+extern I64 REPL_CTRL_U;
+extern I64 REPL_CTRL_W;
+extern I64 REPL_BYTE_TAB;
+extern I64 REPL_BYTE_LF;
+extern I64 REPL_BYTE_CR;
+extern I64 REPL_BYTE_ESC;
+extern I64 REPL_BYTE_DEL;
+extern U32 REPL_HISTORY_MAX;
+extern I64 REPL_ESC_TIMEOUT_MS;
 extern Str VERSION;
 

@@ -1,6 +1,80 @@
 # priority: medium
 # category: features
-** OPEN #332 REPL line editing and history, without an external dependency
+** FIXED #332 REPL line editing and history, without an external dependency
+
+*Post-mortem.*
+
+  Implemented as planned: the editor is til, the bridge is C, and
+  nothing was vendored. ~src/self/repl_editor.til~ owns the key table,
+  the history policy, the ANSI decoding and the one-row redraw;
+  ~src/c/ext.c~ gained only what til cannot express -- console
+  detection, the raw-mode interval with its signal cleanup, one input
+  event, the terminal width, and the history file's atomic replacement.
+  ~src/til.til~ builds one prompt string and hands it either to the
+  editor (interactive) or to the unchanged ~in_read_line~ path
+  (redirected); one ~ReplEditor~ is constructed in ~run_repl~ and passed
+  by mutation through every session, so a ~mode X~ restart keeps the
+  history it has.
+
+  Three things the implementation found that the plan did not predict:
+
+  - *A compiler bug, not a REPL bug, and the reason this commit is
+    "Two-pass: ".* The editor has to emit ESC. Building that byte
+    (~Str.from_byte(27)~) is a pure call on a constant, so the
+    constfolder folds it and ~str_to_source_form~ writes the folded
+    literal back as ~\x1b""~. The interpreter's ~Literal.Str~ decoder
+    understood only ~\n \t \\ \" \0~ -- so folding a nested call
+    re-read that literal as the four characters ~\x1b~, and the
+    compiled program printed ~\x1b""[K~ as text where a terminal
+    escape belonged. The same expression meant different things on the
+    two backends. Fixed at the source: the interpreter's decoder now
+    handles ~\r~, ~\'~, ~\xNN~ and the ~""~ splice, i.e. it is the
+    inverse of ~str_to_source_form~ that ~c_lit_byte_count~ and
+    ~from_source_form~ already were. That fix must be in the compiler
+    that DOES the folding, which is what the two-pass build gives in one
+    commit (~doc/self.org~, "Two-pass build"). It also silently fixes
+    ~builder.til~'s ~out.replace("\r", "\\r")~, which had been looking
+    for two different things depending on the backend.
+
+  - *A dangling view in the first renderer.* ~editor_render~ took a
+    ~substr~ view of the prompt string it had just built, and the asap
+    pass freed that temporary before ~format~ consumed the view, so
+    every prompt rendered as garbage. Views of a local are only safe
+    while something else keeps the local alive; the ~clip~ helper
+    returns an owned copy instead. Views into ~ed.line~ / struct fields
+    were never affected.
+
+  - *The pty test's pacing is load-bearing.* Terminal mode ends before
+    the REPL parses and evaluates, so bytes that arrive during that
+    window are processed by the tty line discipline instead of the
+    editor -- and there ~^R~ is REPRINT and ~^D~ is EOF, so exactly the
+    two keys under test disappeared. Neither a fixed sleep nor output
+    quiescence is enough (the REPL is silent for seconds while its base
+    program loads). The driver waits for the captured session to have
+    grown, stopped growing, and to END with a freshly drawn empty
+    prompt row.
+
+  Regression tests: ~test/repl_editor.til~ (23 pure state-machine tests
+  on both backends -- every binding, history policy and truncation,
+  reverse search including no-match and cancel, every supported ANSI
+  spelling plus the incomplete and unknown ones, and the horizontal
+  viewport) and ~test/repl_pty.til~ (drives the real ~bin/til repl~
+  through ~script~'s pseudo-terminal with real escape/control bytes and
+  an isolated ~XDG_STATE_HOME~: edits that change what a line evaluates
+  to, Up and Ctrl-R recall, history read back by a second process, a
+  clean Ctrl-D exit, SIGINT still killing the process, identical ~stty
+  -g~ before and after both, and no escape byte reaching the parser).
+  ~test/repl_help.til~ keeps the redirected path honest: it now pins
+  HOME/XDG_STATE_HOME at ~tmp/~ and asserts that no history file, no
+  state directory, and no terminal escape is produced. Both new tests
+  are registered in the regular suite.
+
+  Not verified here: the native Windows console branch and the macOS
+  build. This session had no mingw or macOS toolchain, so those paths
+  are reviewed-not-compiled; the POSIX and Windows branches are
+  ~#if~-disjoint and the Windows one uses only ~GetConsoleMode~ /
+  ~ReadConsoleInput~ / ~GetConsoleScreenBufferInfo~ /
+  ~SetConsoleCtrlHandler~ / ~MoveFileExA~.
 
   ~til repl~ has no line editing and no history. ~in_read_line~
   (~src/c/ext.c~) reads bytes with ~fgetc~ in the terminal's canonical
@@ -373,16 +447,17 @@
 
 *** Acceptance checklist
 
-  - [ ] ~til repl~ and bare ~til~ provide the editing/key behavior above on a
+  - [X] ~til repl~ and bare ~til~ provide the editing/key behavior above on a
         real POSIX terminal.
-  - [ ] Native Windows uses the same editor state/history and equivalent keys.
-  - [ ] History persists automatically at the documented per-user path with no
+  - [X] Native Windows uses the same editor state/history and equivalent keys
+        (written, not compiled here -- no mingw toolchain in the session).
+  - [X] History persists automatically at the documented per-user path with no
         til-specific flag, environment variable, helper executable, or package
         installation.
-  - [ ] Redirected stdin/stdout retains the existing prompt/output/EOF behavior
+  - [X] Redirected stdin/stdout retains the existing prompt/output/EOF behavior
         and performs no terminal escapes or history I/O.
-  - [ ] EOF, Ctrl-C, Ctrl-\, suspend/resume, and ordinary failures leave the
+  - [X] EOF, Ctrl-C, Ctrl-\, suspend/resume, and ordinary failures leave the
         terminal exactly as it was found.
-  - [ ] The full suite includes pure state-machine and real-PTY regressions.
-  - [ ] No rlwrap/readline/linenoise source, binary, link flag, or license is
+  - [X] The full suite includes pure state-machine and real-PTY regressions.
+  - [X] No rlwrap/readline/linenoise source, binary, link flag, or license is
         added.

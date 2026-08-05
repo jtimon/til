@@ -77,6 +77,12 @@ static void stdio_capture_fail(const char *op) {
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <dlfcn.h>
+// REPL line editor (issue #332): raw mode, the ESC follow-up timeout,
+// the window size, and the cleanup signals.
+#include <termios.h>
+#include <sys/ioctl.h>
+#include <poll.h>
+#include <signal.h>
 // RTLD_DEFAULT is a GNU/Darwin extension the header only exposes at the right
 // feature level: glibc hides it without _GNU_SOURCE and some cross toolchains
 // targeting linux do not expose it, while macOS gates it behind __DARWIN_C_FULL.
@@ -1498,6 +1504,531 @@ Bool in_read_line(Str *line) {
     line->count = (U32)len;
     line->cap = (U32)len;
     return 1;
+}
+
+/* --- REPL line editor bridge (issue #332) --------------------------------
+ *
+ * Everything policy-shaped -- key bindings, history rules, redraw, ANSI
+ * decoding -- lives in src/self/repl_editor.til. What is here is what til
+ * cannot express: whether the two standard streams are consoles, the
+ * raw-mode interval with its saved state and signal cleanup, one input
+ * event, the terminal width, and a permission-preserving atomic file
+ * replacement. No readline, curses, terminfo or PTY is involved on any
+ * target, and no new link flag is needed.
+ */
+
+/* Overwrite a til-side `mut s: Str` out-parameter with `len` bytes,
+ * releasing whatever it held (same ownership rules as in_read_line:
+ * a literal (CAP_LIT) or a view (CAP_VIEW) owns nothing to free). */
+static void repl_str_assign(Str *dst, const char *data, size_t len) {
+    char *buf = malloc(len + 1);
+    if (!buf) {
+        fprintf(stderr, "repl_str_assign: allocation failed\n");
+        exit(1);
+    }
+    if (len > 0) memcpy(buf, data, len);
+    buf[len] = '\0';
+    if (dst->c_str && dst->cap != CAP_LIT && dst->cap != CAP_VIEW) {
+        free(dst->c_str);
+    }
+    dst->c_str = (I8 *)buf;
+    dst->count = (USize)len;
+    dst->cap = (USize)len;
+}
+
+/* "<op> '<path>': <errno text>" into the til-side error out-parameter. */
+static I64 repl_history_fail(Str *err, const char *op, const char *path, int code) {
+    const char *why = strerror(code);
+    size_t need = strlen(op) + strlen(path) + strlen(why) + 8;
+    char *msg = malloc(need);
+    if (!msg) {
+        fprintf(stderr, "repl_history_fail: allocation failed\n");
+        exit(1);
+    }
+    snprintf(msg, need, "%s '%s': %s", op, path, why);
+    repl_str_assign(err, msg, strlen(msg));
+    free(msg);
+    return 2;
+}
+
+void repl_term_flush(void) {
+    fflush(stdout);
+}
+
+#if defined(_WIN32)
+
+/* Native Windows console. The same editor state machine drives it; only
+ * the mode bits and the key decoding differ, and the console gives whole
+ * key events so the arrows/Home/End/Delete are mapped to the TIL_KEY_*
+ * codes here rather than being decoded from an escape sequence in til. */
+static DWORD repl_term_saved_in_mode = 0;
+static DWORD repl_term_saved_out_mode = 0;
+static int repl_term_active = 0;
+static int repl_term_atexit_armed = 0;
+static int repl_term_ctrl_handler_armed = 0;
+static volatile LONG repl_term_redraw = 0;
+
+static HANDLE repl_term_in(void) { return GetStdHandle(STD_INPUT_HANDLE); }
+static HANDLE repl_term_out(void) { return GetStdHandle(STD_OUTPUT_HANDLE); }
+
+Bool repl_term_is_interactive(void) {
+    DWORD in_mode = 0, out_mode = 0;
+    return GetConsoleMode(repl_term_in(), &in_mode) &&
+           GetConsoleMode(repl_term_out(), &out_mode);
+}
+
+static void repl_term_restore_modes(void) {
+    SetConsoleMode(repl_term_in(), repl_term_saved_in_mode);
+    SetConsoleMode(repl_term_out(), repl_term_saved_out_mode);
+}
+
+static void repl_term_atexit_restore(void) {
+    if (repl_term_active) {
+        repl_term_restore_modes();
+        repl_term_active = 0;
+    }
+}
+
+/* Ctrl-C / close / logoff terminate the process without unwinding, so the
+ * console modes go back here before the default handler runs. */
+static BOOL WINAPI repl_term_ctrl_handler(DWORD type) {
+    (void)type;
+    repl_term_atexit_restore();
+    return FALSE;
+}
+
+Bool repl_term_begin(void) {
+    if (repl_term_active) return 1;
+    HANDLE hin = repl_term_in();
+    HANDLE hout = repl_term_out();
+    if (!GetConsoleMode(hin, &repl_term_saved_in_mode)) return 0;
+    if (!GetConsoleMode(hout, &repl_term_saved_out_mode)) return 0;
+    /* Line input and echo off so the editor owns the line; PROCESSED_INPUT
+     * stays on so Ctrl-C keeps raising the console control event it raises
+     * today instead of arriving as byte 3. */
+    DWORD in_mode = repl_term_saved_in_mode;
+    in_mode &= ~(DWORD)(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
+    in_mode |= ENABLE_PROCESSED_INPUT;
+    if (!SetConsoleMode(hin, in_mode)) return 0;
+    /* The redraw vocabulary is ANSI (CR, erase-line, cursor-left), so ask
+     * for virtual terminal output; the original mode is restored exactly. */
+    DWORD out_mode = repl_term_saved_out_mode;
+#ifdef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    out_mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+#endif
+    if (!SetConsoleMode(hout, out_mode)) {
+        SetConsoleMode(hin, repl_term_saved_in_mode);
+        return 0;
+    }
+    if (!repl_term_atexit_armed) {
+        atexit(repl_term_atexit_restore);
+        repl_term_atexit_armed = 1;
+    }
+    if (!repl_term_ctrl_handler_armed) {
+        SetConsoleCtrlHandler(repl_term_ctrl_handler, TRUE);
+        repl_term_ctrl_handler_armed = 1;
+    }
+    repl_term_active = 1;
+    repl_term_redraw = 0;
+    return 1;
+}
+
+void repl_term_end(void) {
+    if (!repl_term_active) return;
+    fflush(stdout);
+    repl_term_restore_modes();
+    repl_term_active = 0;
+}
+
+I64 repl_term_read_event(I64 timeout_ms) {
+    HANDLE hin = repl_term_in();
+    for (;;) {
+        if (repl_term_redraw) {
+            repl_term_redraw = 0;
+            return TIL_KEY_REDRAW;
+        }
+        if (timeout_ms >= 0) {
+            DWORD w = WaitForSingleObject(hin, (DWORD)timeout_ms);
+            if (w == WAIT_TIMEOUT) return TIL_KEY_TIMEOUT;
+            if (w != WAIT_OBJECT_0) return TIL_KEY_ERROR;
+        }
+        INPUT_RECORD rec;
+        DWORD got = 0;
+        if (!ReadConsoleInput(hin, &rec, 1, &got)) return TIL_KEY_ERROR;
+        if (got == 0) return TIL_KEY_EOF;
+        if (rec.EventType == WINDOW_BUFFER_SIZE_EVENT) return TIL_KEY_REDRAW;
+        if (rec.EventType != KEY_EVENT) continue;
+        if (!rec.Event.KeyEvent.bKeyDown) continue;   /* key-up records */
+        switch (rec.Event.KeyEvent.wVirtualKeyCode) {
+        case VK_UP:     return TIL_KEY_UP;
+        case VK_DOWN:   return TIL_KEY_DOWN;
+        case VK_RIGHT:  return TIL_KEY_RIGHT;
+        case VK_LEFT:   return TIL_KEY_LEFT;
+        case VK_HOME:   return TIL_KEY_HOME;
+        case VK_END:    return TIL_KEY_END;
+        case VK_DELETE: return TIL_KEY_DELETE;
+        default: break;
+        }
+        /* Text and control keys still arrive as bytes, exactly like POSIX.
+         * til's source language is ASCII, so anything above 127 is not a
+         * source byte; drop it rather than feed the editor half a UTF-16
+         * code unit. */
+        {
+            CHAR ch = rec.Event.KeyEvent.uChar.AsciiChar;
+            unsigned char b = (unsigned char)ch;
+            if (b == 0 || b > 127) continue;
+            return (I64)b;
+        }
+    }
+}
+
+I64 repl_term_columns(void) {
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    if (GetConsoleScreenBufferInfo(repl_term_out(), &info)) {
+        int cols = info.srWindow.Right - info.srWindow.Left + 1;
+        if (cols > 0) return (I64)cols;
+    }
+    return 80;   /* conventional width when the console cannot say */
+}
+
+#elif defined(__EMSCRIPTEN__)
+
+/* No console to put in raw mode: the REPL keeps the in_read_line path. */
+Bool repl_term_is_interactive(void) { return 0; }
+Bool repl_term_begin(void) { return 0; }
+void repl_term_end(void) {}
+I64 repl_term_read_event(I64 timeout_ms) { (void)timeout_ms; return TIL_KEY_EOF; }
+I64 repl_term_columns(void) { return 80; }
+
+#else
+
+static struct termios repl_term_saved;
+static int repl_term_saved_valid = 0;
+static int repl_term_active = 0;
+static int repl_term_atexit_armed = 0;
+static volatile sig_atomic_t repl_term_redraw = 0;
+
+/* Signals that must not leave the terminal in raw mode. Each is restored
+ * to its previous disposition and re-delivered, so Ctrl-C and Ctrl-\ keep
+ * meaning exactly what they mean without the editor. */
+static const int repl_term_sig_list[] = {
+    SIGINT, SIGQUIT, SIGTERM, SIGHUP, SIGTSTP
+};
+#define REPL_TERM_SIG_COUNT ((int)(sizeof(repl_term_sig_list) / sizeof(repl_term_sig_list[0])))
+static struct sigaction repl_term_sig_prev[REPL_TERM_SIG_COUNT];
+static struct sigaction repl_term_winch_prev;
+static int repl_term_sig_armed = 0;
+
+Bool repl_term_is_interactive(void) {
+    return isatty(STDIN_FILENO) && isatty(STDOUT_FILENO);
+}
+
+static void repl_term_apply_raw(void) {
+    struct termios raw = repl_term_saved;
+    /* Software flow control off so Ctrl-Q/Ctrl-S reach the editor as
+     * bytes, CR left untranslated (Enter arrives as 13), and the parity /
+     * high-bit mangling off so a byte is a byte. */
+    raw.c_iflag &= (tcflag_t)~(IXON | ICRNL | INPCK | ISTRIP | BRKINT);
+    /* Canonical mode and echo off -- the editor draws the line. ISIG is
+     * deliberately KEPT: Ctrl-C and Ctrl-\ stay process-level signals. */
+    raw.c_lflag &= (tcflag_t)~(ECHO | ICANON | IEXTEN);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSADRAIN, &raw);
+}
+
+static void repl_term_apply_saved(void) {
+    if (repl_term_saved_valid) {
+        tcsetattr(STDIN_FILENO, TCSADRAIN, &repl_term_saved);
+    }
+}
+
+static void repl_term_install_signals(void);
+
+static void repl_term_restore_signals(void) {
+    if (!repl_term_sig_armed) return;
+    for (int i = 0; i < REPL_TERM_SIG_COUNT; i++) {
+        sigaction(repl_term_sig_list[i], &repl_term_sig_prev[i], NULL);
+    }
+    sigaction(SIGWINCH, &repl_term_winch_prev, NULL);
+    repl_term_sig_armed = 0;
+}
+
+static void repl_term_on_winch(int sig) {
+    (void)sig;
+    repl_term_redraw = 1;
+}
+
+static void repl_term_on_signal(int sig) {
+    /* Put the terminal back the way it was found, then let the signal do
+     * what it would have done without the editor. Unblocking it around
+     * the raise matters: inside its own handler the signal is blocked, so
+     * a plain raise() would sit pending until this function returned --
+     * i.e. until after raw mode had been re-entered below. */
+    repl_term_apply_saved();
+    repl_term_active = 0;
+    repl_term_restore_signals();
+    sigset_t one, prev;
+    sigemptyset(&one);
+    sigaddset(&one, sig);
+    sigprocmask(SIG_UNBLOCK, &one, &prev);
+    raise(sig);
+    sigprocmask(SIG_SETMASK, &prev, NULL);
+    /* Only reached when the re-delivered signal did not end the process --
+     * SIGTSTP stopped it and SIGCONT resumed it here. Re-enter edit mode
+     * and force the caller to redraw the line it was editing. */
+    repl_term_install_signals();
+    repl_term_apply_raw();
+    repl_term_active = 1;
+    repl_term_redraw = 1;
+}
+
+static void repl_term_install_signals(void) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = repl_term_on_signal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;   /* no SA_RESTART: a blocked read must see EINTR */
+    for (int i = 0; i < REPL_TERM_SIG_COUNT; i++) {
+        sigaction(repl_term_sig_list[i], &sa, &repl_term_sig_prev[i]);
+    }
+    struct sigaction wa;
+    memset(&wa, 0, sizeof(wa));
+    wa.sa_handler = repl_term_on_winch;
+    sigemptyset(&wa.sa_mask);
+    wa.sa_flags = 0;
+    sigaction(SIGWINCH, &wa, &repl_term_winch_prev);
+    repl_term_sig_armed = 1;
+}
+
+/* Final backstop for a normal exit that skipped repl_term_end -- panic(),
+ * exit(0) typed at the prompt. Every ordinary return path still ends
+ * terminal mode explicitly. */
+static void repl_term_atexit_restore(void) {
+    if (repl_term_active) {
+        repl_term_apply_saved();
+        repl_term_active = 0;
+    }
+}
+
+Bool repl_term_begin(void) {
+    if (repl_term_active) return 1;
+    if (!repl_term_is_interactive()) return 0;
+    if (tcgetattr(STDIN_FILENO, &repl_term_saved) != 0) return 0;
+    repl_term_saved_valid = 1;
+    repl_term_apply_raw();
+    struct termios check;
+    if (tcgetattr(STDIN_FILENO, &check) != 0) return 0;
+    if ((check.c_lflag & (tcflag_t)(ECHO | ICANON)) != 0) {
+        repl_term_apply_saved();
+        return 0;
+    }
+    if (!repl_term_atexit_armed) {
+        atexit(repl_term_atexit_restore);
+        repl_term_atexit_armed = 1;
+    }
+    repl_term_install_signals();
+    repl_term_active = 1;
+    repl_term_redraw = 0;
+    return 1;
+}
+
+void repl_term_end(void) {
+    if (!repl_term_active) return;
+    fflush(stdout);
+    repl_term_apply_saved();
+    repl_term_restore_signals();
+    repl_term_active = 0;
+}
+
+I64 repl_term_read_event(I64 timeout_ms) {
+    for (;;) {
+        if (repl_term_redraw) {
+            repl_term_redraw = 0;
+            return TIL_KEY_REDRAW;
+        }
+        if (timeout_ms >= 0) {
+            struct pollfd pfd;
+            pfd.fd = STDIN_FILENO;
+            pfd.events = POLLIN;
+            pfd.revents = 0;
+            int r = poll(&pfd, 1, (int)timeout_ms);
+            if (r == 0) return TIL_KEY_TIMEOUT;
+            if (r < 0) {
+                if (errno == EINTR) continue;
+                return TIL_KEY_ERROR;
+            }
+        }
+        unsigned char b = 0;
+        ssize_t n = read(STDIN_FILENO, &b, 1);
+        if (n == 1) return (I64)b;
+        if (n == 0) return TIL_KEY_EOF;
+        if (errno == EINTR) continue;
+        return TIL_KEY_ERROR;
+    }
+}
+
+I64 repl_term_columns(void) {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        return (I64)ws.ws_col;
+    }
+    return 80;   /* conventional width when the tty cannot say */
+}
+
+#endif  /* _WIN32 / __EMSCRIPTEN__ / POSIX */
+
+I64 repl_history_read(const Str *path, Str *out, Str *err) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    if (!p) {
+        fprintf(stderr, "repl_history_read: allocation failed\n");
+        exit(1);
+    }
+    FILE *f = fopen(p, "rb");
+    if (!f) {
+        int code = errno;
+        I64 r = (code == ENOENT) ? 1 : repl_history_fail(err, "read", p, code);
+        free(p);
+        return r;
+    }
+    size_t cap = 4096, len = 0;
+    char *buf = malloc(cap);
+    if (!buf) {
+        fprintf(stderr, "repl_history_read: allocation failed\n");
+        exit(1);
+    }
+    for (;;) {
+        if (len == cap) {
+            cap *= 2;
+            char *grown = realloc(buf, cap);
+            if (!grown) {
+                fprintf(stderr, "repl_history_read: allocation failed\n");
+                exit(1);
+            }
+            buf = grown;
+        }
+        size_t got = fread(buf + len, 1, cap - len, f);
+        len += got;
+        if (got == 0) break;
+    }
+    int bad = ferror(f);
+    int code = errno;
+    fclose(f);
+    if (bad) {
+        I64 r = repl_history_fail(err, "read", p, code);
+        free(buf);
+        free(p);
+        return r;
+    }
+    repl_str_assign(out, buf, len);
+    free(buf);
+    free(p);
+    return 0;
+}
+
+I64 repl_history_write(const Str *path, const Str *contents, Str *err) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    if (!p) {
+        fprintf(stderr, "repl_history_write: allocation failed\n");
+        exit(1);
+    }
+    /* Same-directory temporary, then an atomic replace: a REPL killed
+     * mid-write never truncates the history it already had. */
+    size_t tmp_len = strlen(p) + 32;
+    char *tmp = malloc(tmp_len);
+    if (!tmp) {
+        fprintf(stderr, "repl_history_write: allocation failed\n");
+        exit(1);
+    }
+#if defined(_WIN32)
+    snprintf(tmp, tmp_len, "%s.tmp%lu", p, (unsigned long)GetCurrentProcessId());
+#else
+    snprintf(tmp, tmp_len, "%s.tmp%ld", p, (long)getpid());
+#endif
+    const char *data = (const char *)contents->c_str;
+    size_t len = (size_t)contents->count;
+#if defined(_WIN32)
+    FILE *f = fopen(tmp, "wb");
+    if (!f) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    if (len > 0 && fwrite(data, 1, len, f) != len) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        fclose(f);
+        remove(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    if (fflush(f) != 0 || fclose(f) != 0) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        remove(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    if (!MoveFileExA(tmp, p, MOVEFILE_REPLACE_EXISTING)) {
+        I64 r = repl_history_fail(err, "replace", p, EACCES);
+        remove(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+#else
+    /* 0600 from the start: a shell history file is user-only, and
+     * creating it with the mode avoids a window where it is not. */
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    size_t off = 0;
+    while (off < len) {
+        ssize_t w = write(fd, data + off, len - off);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            I64 r = repl_history_fail(err, "write", tmp, errno);
+            close(fd);
+            unlink(tmp);
+            free(tmp);
+            free(p);
+            return r;
+        }
+        off += (size_t)w;
+    }
+    /* Flush before the rename so a crash right after it cannot leave the
+     * directory entry pointing at unwritten data. */
+    if (fsync(fd) != 0 && errno != EINVAL) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        close(fd);
+        unlink(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    if (close(fd) != 0) {
+        I64 r = repl_history_fail(err, "write", tmp, errno);
+        unlink(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+    if (rename(tmp, p) != 0) {
+        I64 r = repl_history_fail(err, "replace", p, errno);
+        unlink(tmp);
+        free(tmp);
+        free(p);
+        return r;
+    }
+#endif
+    free(tmp);
+    free(p);
+    return 0;
 }
 
 Str *cfile_read_all(const void *handle) {

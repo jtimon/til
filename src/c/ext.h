@@ -290,3 +290,43 @@ Str *cfile_read_n(const void *handle, I64 count);
 // Line input. The til-side binding declares `mut line: Str`, so line
 // is mutated by this call -- keep it non-const.
 Bool in_read_line(Str *line);
+
+// --- REPL line editor bridge (issue #332) ---
+//
+// The editor itself (key handling, history policy, rendering, ANSI
+// decoding) lives in src/self/repl_editor.til. Only the operations that
+// cannot be expressed portably in til are here: terminal detection, the
+// raw-mode interval, one input event, the column count, and the atomic
+// history replacement.
+//
+// repl_term_read_event returns one EVENT. Ordinary input bytes come back
+// as 0..255; everything else is one of the disjoint negative codes below.
+// POSIX hands back raw bytes and lets til decode the ANSI sequences;
+// native Windows maps console key events onto the same TIL_KEY_* codes
+// before returning, so both sides feed the editor the same alphabet.
+// src/self/repl_editor.til mirrors these values as REPL_KEY_* constants.
+#define TIL_KEY_EOF     (-1)
+#define TIL_KEY_TIMEOUT (-2)
+#define TIL_KEY_REDRAW  (-3)
+#define TIL_KEY_ERROR   (-4)
+#define TIL_KEY_UP      (-10)
+#define TIL_KEY_DOWN    (-11)
+#define TIL_KEY_RIGHT   (-12)
+#define TIL_KEY_LEFT    (-13)
+#define TIL_KEY_HOME    (-14)
+#define TIL_KEY_END     (-15)
+#define TIL_KEY_DELETE  (-16)
+
+Bool repl_term_is_interactive(void);
+Bool repl_term_begin(void);
+void repl_term_end(void);
+void repl_term_flush(void);
+I64 repl_term_read_event(I64 timeout_ms);
+I64 repl_term_columns(void);
+// History file I/O. Both report failure through their return value
+// (0 = done, 1 = no such file, 2 = error described in *err) instead of
+// exiting the way cfile_open does: a REPL whose history file is
+// unreadable must keep running with in-memory history, and it must say
+// so rather than pretend the write happened.
+I64 repl_history_read(const Str *path, Str *out, Str *err);
+I64 repl_history_write(const Str *path, const Str *contents, Str *err);

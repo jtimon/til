@@ -18,6 +18,7 @@ import("self/loader")
 import("self/builder")
 import("self/interpreter")
 import("self/binder")
+import("self/repl_editor")
 link("vendor/raylib/src/libraylib.a")
 link("m")
 link("pthread")
@@ -35,13 +36,27 @@ get_cwd_str := ext_proc() returns Str {}
 
 // --- CLI ---
 
+// The one prompt string, built the same way for both input paths. The
+// editor needs it as a value (redraw has to know its width); the
+// redirected path just prints it, byte for byte what it printed before.
+priv repl_prompt := func(mode_name: Str, continuation: Bool) returns Str {
+    if continuation { return format("til[", mode_name, "]... ") }
+    return format("til[", mode_name, "]> ")
+}
+
 // Read one line of REPL input. Returns the line (without trailing newline);
 // sets `eof` when stdin is exhausted, which an empty line alone does not
 // distinguish (both come back as "").
-priv repl_read_line := proc(mode_name: Str, continuation: Bool, mut eof: Bool) returns Str {
-    print_single("til[")
-    print_single(mode_name)
-    if continuation { print_single("]... ") } else { print_single("]> ") }
+//
+// Interactive (#332): the til editor in src/self/repl_editor.til owns the
+// prompt, the keys, and the history. Redirected: the unchanged
+// in_read_line path, with no terminal escapes and no history I/O.
+priv repl_read_line := proc(mut ed: ReplEditor, mode_name: Str, continuation: Bool, mut eof: Bool) returns Str {
+    prompt := repl_prompt(mode_name, continuation)
+    if ed.interactive {
+        return repl_editor_read_line(ed, prompt, eof)
+    }
+    print_single(prompt)
     mut line := ""
     ok := in_read_line(line)
     eof = ok.not()
@@ -78,11 +93,11 @@ priv repl_tokens_open_depth := func(tokens: Vec(Token)) returns I64 {
 // `eof` tells the caller which of the two empty results it got: in_read_line
 // returns "" for both an empty line and end of input, so pressing Enter at the
 // prompt used to end the session.
-repl_read_block := proc(mode_name: Str, mut eof: Bool) returns Str {
-    mut block := repl_read_line(mode_name, false, eof)
+repl_read_block := proc(mut ed: ReplEditor, mode_name: Str, mut eof: Bool) returns Str {
+    mut block := repl_read_line(ed, mode_name, false, eof)
     if eof { return "" }
     while repl_tokens_open_depth(tokenize(block, "<repl>")) > 0 {
-        next := repl_read_line(mode_name, true, eof)
+        next := repl_read_line(ed, mode_name, true, eof)
         if eof { return block }
         block = format(block, "\n", next)
     }
@@ -359,7 +374,7 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
 //
 // Strategy: keep the accumulated source for load/type/prepare, but keep one
 // interpreter session alive and evaluate only the current accepted input.
-run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec(Str)) {
+run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec(Str)) {
     mut mode_str := mode_name_in.clone()
     if mode_str.len() == 0 { mode_str = "script" }
 
@@ -405,7 +420,7 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 
     while true {
         mut at_eof := false
-        block := repl_read_block(mode_str, at_eof)
+        block := repl_read_block(ed, mode_str, at_eof)
         if at_eof {
             println("")
             break
@@ -669,12 +684,17 @@ run_repl_session := proc(mode_name_in: Str, mut next_mode_out: Str, extra_modes:
 // Outer REPL driver: restarts the session when a `mode X` statement is entered.
 run_repl := proc(initial_mode: Str, extra_modes: Vec(Str)) {
     println(format("til ", VERSION, " REPL -- Ctrl-D to exit"))
+    // One editor for the whole REPL, constructed before the first
+    // session and passed by mutation through every one of them: a
+    // `mode X` restart discards declarations, not history (#332).
+    mut editor := ReplEditor()
+    repl_editor_start(editor)
     mut next_mode := initial_mode.clone()
     if next_mode.len() == 0 { next_mode = "script" }
     while next_mode.len() > 0 {
         cur := next_mode.clone()
         next_mode = ""
-        run_repl_session(cur, next_mode, extra_modes)
+        run_repl_session(editor, cur, next_mode, extra_modes)
     }
 }
 

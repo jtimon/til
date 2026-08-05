@@ -1608,12 +1608,42 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
                 if i + 1 < text.count {
                     ref next : I8 = text.unsafe_get(i + 1)
                     if next == 110 { memset(ptr_add(buf, j), 10, 1); j = j + 1; i = i + 2; continue }
+                    if next == 114 { memset(ptr_add(buf, j), 13, 1); j = j + 1; i = i + 2; continue }
                     if next == 116 { memset(ptr_add(buf, j), 9, 1); j = j + 1; i = i + 2; continue }
                     if next == 92 { memset(ptr_add(buf, j), 92, 1); j = j + 1; i = i + 2; continue }
                     if next == 34 { memset(ptr_add(buf, j), 34, 1); j = j + 1; i = i + 2; continue }
+                    if next == 39 { memset(ptr_add(buf, j), 39, 1); j = j + 1; i = i + 2; continue }
                     if next == 48 { memset(ptr_add(buf, j), 0, 1); j = j + 1; i = i + 2; continue }
+                    // `\xNN`. The compiled backend gets this for free (the
+                    // literal is emitted into C, whose lexer decodes it), and
+                    // constfolder's str_to_source_form WRITES this form for
+                    // any folded byte a til literal cannot spell, so an
+                    // interpreter that did not decode it saw four source
+                    // characters where the compiled program saw one byte --
+                    // the same expression meaning different things on the two
+                    // backends.
+                    if next == 120 {
+                        if i + 3 < text.count {
+                            hi := digit_value(text.unsafe_get(i + 2))
+                            lo := digit_value(text.unsafe_get(i + 3))
+                            if hi.gte(0).and(lo.gte(0)) {
+                                memset(ptr_add(buf, j), hi.mul(16).add(lo).to_i32(), 1)
+                                j = j + 1
+                                i = i + 4
+                                continue
+                            }
+                        }
+                    }
                 }
             }
+            // The `""` (close-quote + open-quote) that str_to_source_form
+            // emits after a `\xNN` so the C lexer cannot read the next
+            // character as a further hex digit. C concatenates the adjacent
+            // literals and it contributes no byte, so drop it here too --
+            // exactly what the builder's c_lit_byte_count and constfolder's
+            // from_source_form already do. A real quote byte is stored as
+            // `\"` and was consumed by the branch above.
+            if ch == 34 { i = i + 1; continue }
             memcpy(ptr_add(buf, j), ptr_add(text.c_str, i), 1)
             j++
             i++

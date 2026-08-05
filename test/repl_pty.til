@@ -1,0 +1,270 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// Real-terminal regression for the REPL line editor (#332).
+//
+// The pure state machine is covered by test/repl_editor.til; this drives
+// the ACTUAL `bin/til repl` through a pseudo-terminal with real escape
+// and control bytes, which is the only way to prove the terminal half:
+// raw mode, the ANSI decoding of what a terminal really sends, history
+// persisted between two processes, and tty settings restored on both
+// normal EOF and SIGINT.
+//
+// The pty comes from `script`, whose invocation differs between
+// util-linux and BSD/macOS, so the command is selected by host_os().
+// Input is fed in timed chunks: terminal mode is entered per physical
+// line and left again before the REPL evaluates anything, so a single
+// blast of bytes would land in the canonical-mode window between lines
+// and be processed by the tty driver instead of by the editor.
+
+DIR := "tmp/repl_pty"
+// Poll interval and cap for the "wait until the editor is ready" pacing
+// below. 0.25s * 240 is a minute of patience before the driver gives up
+// and lets the assertions report what actually happened.
+POLL_SECONDS := "0.25"
+POLL_LIMIT := "240"
+// What a redrawn, empty, waiting-for-input prompt row ends with --
+// trailing space included, since command substitution strips trailing
+// NEWLINES only and the row ends in the prompt's own space.
+PROMPT_TAIL := "til[script]> "
+
+count_matches := func(haystack: Str, needle: Str) returns I64 {
+    if needle.is_empty() { return 0 }
+    mut count := 0
+    mut start : USize = 0
+    while start.lte(haystack.len().sub(needle.len())) {
+        pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
+        if pos.eq(-1) { return count }
+        count++
+        pos_u : USize = pos.to_usize()
+        start = start.add(pos_u).add(needle.len())
+    }
+    return count
+}
+
+byte_str := func(v: I64) returns Str {
+    return Str.from_byte(v.to_u8())
+}
+
+esc_seq := func(rest: Str) returns Str {
+    return format(byte_str(27), rest)
+}
+
+// One `script` session running `cmd` under a pty, fed by `drive`.
+// TERM is pinned so the editor is never disabled by an inherited
+// TERM=dumb, and the state/home directories are isolated under tmp/.
+session_cmd := proc(drive: Str, inner: Str, out_path: Str) returns Str {
+    env := format("TERM=xterm XDG_STATE_HOME=", DIR, "/state HOME=", DIR, "/home ")
+    mut runner := format("script -q -e -c \"sh -c '", inner, "'\" /dev/null")
+    if host_os() == "macos" {
+        runner = format("script -q /dev/null sh -c '", inner, "'")
+    }
+    return format("sh ", drive, " | ", env, runner, " > ", out_path, " 2>&1")
+}
+
+// Write the chunk files and the shell driver that paces them into the
+// pty. `tag` namespaces one session's files.
+//
+// Pacing waits for the editor to be READY -- the captured session has
+// grown since the last chunk, stopped growing, and ends with a freshly
+// drawn empty prompt row. Nothing weaker works: the editor leaves
+// terminal mode before the REPL parses and evaluates a line, and it is
+// silent for seconds while the base program loads, so both a fixed sleep
+// and plain output quiescence let a chunk land in the canonical-mode
+// window -- where the tty line discipline eats it (^R is REPRINT, ^D is
+// EOF) instead of the editor seeing it. Waiting on the prompt also
+// adapts to whatever the machine's per-turn cost happens to be.
+write_drive := proc(tag: Str, chunks: Vec(Str), out_path: Str) returns Str {
+    mut script_src := format(
+        "wait_prompt() {\n",
+        "  prev=-1\n",
+        "  n=0\n",
+        "  while [ $n -lt ", POLL_LIMIT, " ]; do\n",
+        "    sleep ", POLL_SECONDS, "\n",
+        "    cur=`wc -c < ", out_path, " 2>/dev/null || echo 0`\n",
+        "    if [ \"$cur\" = \"$prev\" ] && [ \"$cur\" -gt \"$1\" ]; then\n",
+        "      case `tail -c 40 ", out_path, " 2>/dev/null` in\n",
+        "        *\"", PROMPT_TAIL, "\") return 0 ;;\n",
+        "      esac\n",
+        "    fi\n",
+        "    prev=$cur\n",
+        "    n=`expr $n + 1`\n",
+        "  done\n",
+        "}\n",
+        "send() {\n",
+        "  base=`wc -c < ", out_path, " 2>/dev/null || echo 0`\n",
+        "  cat $1\n",
+        "  wait_prompt $base\n",
+        "}\n",
+        "wait_prompt 0\n")
+    last := chunks.len() - 1
+    for i in 0..chunks.len() {
+        ref c : Str = chunks[i]
+        path := format(DIR, "/", tag, "_", i.to_str())
+        File.writefile(path, c)
+        if i == last {
+            // The last chunk ends the session (Ctrl-D or Ctrl-C), so
+            // there is no prompt to wait for -- just leave the pipe open
+            // long enough for the REPL to act on it and exit.
+            script_src = format(script_src, "cat ", path, "\nsleep 3\n")
+        } else {
+            script_src = format(script_src, "send ", path, "\n")
+        }
+    }
+    drive := format(DIR, "/", tag, "_drive.sh")
+    File.writefile(drive, script_src)
+    return drive
+}
+
+run_session := proc(tag: Str, chunks: Vec(Str), inner: Str, out_path: Str) returns I64 {
+    drive := write_drive(tag, chunks, out_path)
+    pid := spawn_cmd(session_cmd(drive, inner, out_path))
+    return wait_cmd(pid)
+}
+
+// `stty -g` around the REPL, inside the pty. `trap : INT` keeps the
+// wrapper shell alive when Ctrl-C kills the REPL -- a trapped (as
+// opposed to ignored) signal is reset to its default in the child, so
+// the REPL still sees an ordinary SIGINT. The `&&`-guarded marker file
+// records a clean exit without needing `$?`, which the two platforms'
+// `script` invocations would quote differently.
+stty_wrapper := func(tag: Str) returns Str {
+    return format("trap : INT; stty -g > ", DIR, "/", tag, "_before; bin/til repl && touch ", DIR, "/", tag, "_ok; stty -g > ", DIR, "/", tag, "_after")
+}
+
+read_if_present := proc(path: Str) returns Str {
+    if File.exists(path) { return File.readfile(path) }
+    return ""
+}
+
+main := proc() {
+    if host_os() == "windows" {
+        // No pty here. The Windows console path is a runner/manual smoke
+        // test; the cross-build compiles every Windows branch.
+        println("repl_pty SKIP (no pseudo-terminal on windows)")
+        return
+    }
+
+    _rm := system_cmd(format("rm -rf ", DIR))
+    _mk := system_cmd(format("mkdir -p ", DIR, "/state ", DIR, "/home"))
+
+    cr := byte_str(13)
+    ctrl_c := byte_str(3)
+    ctrl_d := byte_str(4)
+    ctrl_r := byte_str(18)
+    up := esc_seq("[A")
+    left := esc_seq("[D")
+    home := esc_seq("[H")
+    end := esc_seq("[F")
+    del := esc_seq("[3~")
+
+    // Every marker below is produced by format() at RUN time, so the
+    // string "A1" exists in the OUTPUT only -- never in the source line
+    // the editor echoes back. Wrapping the match in CR LF pins it to a
+    // line of its own, which no redraw of a prompt row can produce.
+    nl := format(cr, "\n")
+
+    mut p1 := Vec(Str).new()
+    // Home + Delete: two junk bytes typed at the front are removed from
+    // the start of the line the cursor is not at.
+    p1.push(own format("zzprintln(format(\"A\",\"1\"))", home, del, del, cr))
+    // Home + End: the tail is typed after jumping to the front and back,
+    // so a broken End would close the parens in the wrong place.
+    p1.push(own format("println(format(\"A\",\"2\"", home, end, "))", cr))
+    // Left + Delete: remove a trailing typo without touching the rest.
+    p1.push(own format("println(format(\"A\",\"3\"))X", left, del, cr))
+    // Up three times reaches the first line submitted in this session.
+    p1.push(own format(up, up, up, cr))
+    // Ctrl-R finds the "A","2" line and Enter submits the match.
+    p1.push(own format(ctrl_r, "A\",\"2", cr))
+    // Ctrl-D on an empty line ends the session.
+    p1.push(own ctrl_d.clone())
+
+    rc1 := run_session("p1", p1, stty_wrapper("p1"), format(DIR, "/out1"))
+    out1 := File.readfile(format(DIR, "/out1"))
+
+    // A second process, same isolated state directory: Up must recall
+    // what the first one persisted.
+    mut p2 := Vec(Str).new()
+    p2.push(own format(up, cr))
+    p2.push(own ctrl_d.clone())
+    rc2 := run_session("p2", p2, stty_wrapper("p2"), format(DIR, "/out2"))
+    out2 := File.readfile(format(DIR, "/out2"))
+
+    // SIGINT: the REPL dies the way it always has, and leaves the
+    // terminal exactly as it found it.
+    mut p3 := Vec(Str).new()
+    p3.push(own format("println(format(\"A\",\"9\"))", cr))
+    p3.push(own ctrl_c.clone())
+    _rc3 := run_session("p3", p3, stty_wrapper("p3"), format(DIR, "/out3"))
+    out3 := File.readfile(format(DIR, "/out3"))
+
+    hist_path := format(DIR, "/state/til/repl_history")
+    mut hist := ""
+    if File.exists(hist_path) { hist = File.readfile(hist_path) }
+    hist_lines := hist.split("\n")
+    // split leaves a trailing empty piece after the final newline.
+    // Five accepted lines from session 1 (session 2 re-submits the line
+    // it recalled, which is the newest entry and so a duplicate), plus
+    // session 3's one line -- which SIGINT killed the process before it
+    // could exit, so its presence is what proves history is persisted per
+    // accepted line rather than at shutdown.
+    hist_count := hist_lines.len().to_i64() - 1
+    hist_after_sigint := count_matches(hist, "println(format(\"A\",\"9\"))")
+
+    edited1 := count_matches(out1, format(nl, "A1", nl))
+    edited2 := count_matches(out1, format(nl, "A2", nl))
+    edited3 := count_matches(out1, format(nl, "A3", nl))
+    persisted := count_matches(out2, format(nl, "A2", nl))
+    before_sigint := count_matches(out3, format(nl, "A9", nl))
+    // No raw escape byte may reach the parser: the editor's own redraw
+    // writes ESC [ K and ESC [ <n> D and nothing else, so an arrow
+    // spelling in the output means an undecoded sequence got through.
+    leaked_arrow := count_matches(out1, "[A") + count_matches(out1, "[3~")
+    parse_errors := count_matches(out1, "error:") + count_matches(out2, "error:")
+
+    before1 := read_if_present(format(DIR, "/p1_before"))
+    after1 := read_if_present(format(DIR, "/p1_after"))
+    before3 := read_if_present(format(DIR, "/p3_before"))
+    after3 := read_if_present(format(DIR, "/p3_after"))
+    // Ctrl-D ended both editing sessions with status 0; Ctrl-C did not
+    // (a process-level interrupt stays one).
+    clean_exit1 := File.exists(format(DIR, "/p1_ok"))
+    clean_exit2 := File.exists(format(DIR, "/p2_ok"))
+    sigint_survived := File.exists(format(DIR, "/p3_ok"))
+
+    if and(edited1.eq(2), edited2.eq(2), edited3.eq(1), persisted.eq(1),
+           before_sigint.eq(1), leaked_arrow.eq(0), parse_errors.eq(0),
+           hist_count.eq(6), hist_after_sigint.eq(1),
+           clean_exit1, clean_exit2,
+           sigint_survived.not(),
+           before1.len().gt(0), before1.eq(after1),
+           before3.len().gt(0), before3.eq(after3)) {
+        println("repl_pty PASS")
+        return
+    }
+    println("repl_pty FAIL: A1=", edited1.to_str(), " A2=", edited2.to_str(),
+            " A3=", edited3.to_str(), " persisted=", persisted.to_str(),
+            " before_sigint=", before_sigint.to_str(),
+            " leaked_arrow=", leaked_arrow.to_str(),
+            " parse_errors=", parse_errors.to_str(),
+            " hist_count=", hist_count.to_str(),
+            " hist_after_sigint=", hist_after_sigint.to_str(),
+            " clean_exit1=", clean_exit1.to_str(),
+            " clean_exit2=", clean_exit2.to_str(),
+            " sigint_survived=", sigint_survived.to_str(),
+            " rc1=", rc1.to_str(), " rc2=", rc2.to_str(),
+            " tty1_same=", before1.eq(after1).to_str(),
+            " tty3_same=", before3.eq(after3).to_str())
+    println("--- session 1 ---")
+    print(out1)
+    println("--- session 2 ---")
+    print(out2)
+    println("--- session 3 ---")
+    print(out3)
+    println("--- history ---")
+    print(hist)
+    exit(1)
+}
