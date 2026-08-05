@@ -5,23 +5,36 @@ DynArray := struct {
     own data : U8 = 0
     const cap : USize = 0
     const elem_size : USize = 0
+    const elem_kind : USize = ELEM_POD
     const elem_clone : CloneFn = default_clone
     const elem_delete : DeleteFn = default_delete
 
 namespace:
-    /// Create a zero-initialized DynArray with the given element type and capacity.
-    new_type_name := func(elem_type: Str, cap: USize) returns DynArray {
-        if elem_type.is_empty() { panic("DynArray.new: elem_type required") }
+    priv new_type_name_kind := func(elem_type: Str, elem_kind: USize, cap: USize) returns DynArray {
+        if elem_kind == ELEM_FN {
+            return DynArray(data = calloc(cap, 8), cap = cap,
+                         elem_size = 8, elem_kind = ELEM_FN)
+        }
         elem_size : USize = dyn_size_of(elem_type)
+        if elem_kind == ELEM_POD {
+            return DynArray(data = calloc(cap, elem_size), cap = cap,
+                         elem_size = elem_size, elem_kind = ELEM_POD)
+        }
         return DynArray(data = calloc(cap, elem_size), cap = cap,
-                     elem_size = elem_size,
+                     elem_size = elem_size, elem_kind = ELEM_BOXED,
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
     }
 
+    /// Create a zero-initialized DynArray with the given element type and capacity.
+    new_type_name := func(elem_type: Str, cap: USize) returns DynArray {
+        if elem_type.is_empty() { panic("DynArray.new: elem_type required") }
+        return DynArray.new_type_name_kind(elem_type, type_name_storage_kind(elem_type), cap)
+    }
+
     new := func(T: Type, cap: USize) returns DynArray {
         elem_type := dyn_type_to_str(T)
-        return DynArray.new_type_name(elem_type, cap)
+        return DynArray.new_type_name_kind(elem_type, type_storage_kind(T), cap)
     }
 
     len := func(self: DynArray) returns USize { return self.cap }
@@ -45,7 +58,13 @@ namespace:
     /// the old value. Caller guarantees `i < self.cap`; the write-side
     /// mirror of unsafe_get (issue #284).
     unsafe_set := func(self: DynArray, i: USize, own val: Dynamic) {
-        self.elem_delete(self.unsafe_get(i), false)
+        if self.elem_kind == ELEM_BOXED {
+            self.elem_delete(self.unsafe_get(i), false)
+        } else if self.elem_kind == ELEM_FN {
+            til_closure_slot_delete(self.unsafe_get(i))
+            write_ptr(self.unsafe_get(i), val)
+            return
+        }
         memcpy(self.unsafe_get(i), val, self.elem_size)
         free(own val)
     }
@@ -57,8 +76,14 @@ namespace:
         if i >= self.cap {
             // val is not stored on the error path: drop its content and box.
             // (if/else so the owned `val` is consumed on exactly one path.)
-            self.elem_delete(val, false)
-            free(own val)
+            if self.elem_kind == ELEM_BOXED {
+                self.elem_delete(val, false)
+                free(own val)
+            } else if self.elem_kind == ELEM_FN {
+                til_closure_delete(val)
+            } else {
+                free(own val)
+            }
             throw OutOfBounds()
         } else {
             self.unsafe_set(i, own val)
@@ -66,22 +91,35 @@ namespace:
     }
 
     delete := func(own self: DynArray, call_free: Bool = true) {
-        for i in 0..self.cap {
-            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+        if self.elem_kind == ELEM_BOXED {
+            for i in 0..self.cap {
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
+        } else if self.elem_kind == ELEM_FN {
+            for i in 0..self.cap {
+                til_closure_slot_delete(ptr_add(self.data, i.mul(self.elem_size)))
+            }
         }
         free(own self.data)
         if call_free { free(own self) }
     }
 
     clone := func(self: DynArray) returns DynArray {
+        if self.elem_kind == ELEM_FN {
+            panic("DynArray.clone: callable element cloning is not supported")
+        }
         new_data : U8 = malloc(self.cap.mul(self.elem_size))
-        for i in 0..self.cap {
-            cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
-            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
-            free(own cloned)
+        if self.elem_kind == ELEM_BOXED {
+            for i in 0..self.cap {
+                cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
+                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                free(own cloned)
+            }
+        } else {
+            memcpy(new_data, self.data, self.cap.mul(self.elem_size))
         }
         return DynArray(data = new_data, cap = self.cap,
-                     elem_size = self.elem_size,
+                     elem_size = self.elem_size, elem_kind = self.elem_kind,
                      elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }

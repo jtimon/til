@@ -131,8 +131,13 @@ namespace:
                 memcpy(cloned_key, key, self.keys.elem_size)
             }
             memcpy(ptr_add(self.keys.data, lo.mul(self.keys.elem_size)), cloned_key, self.keys.elem_size)
-            memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val, self.values.elem_size)
-            free(own val)
+            if self.values.elem_kind == ELEM_FN {
+                write_ptr(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val)
+            } else {
+                memcpy(ptr_add(self.values.data, lo.mul(self.values.elem_size)), val, self.values.elem_size)
+                free(own val)
+            }
+            free(own cloned_key)
             self.keys.count = self.keys.count + 1
             self.values.count = self.values.count + 1
         }

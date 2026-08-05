@@ -330,6 +330,8 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                 mut pass_directly := false
                 if fd.own_type.is(OwnType.Ref) {
                     pass_directly = true
+                } else if fd.own_type.is(OwnType.Own).not().and(type_is_callable_storage(type_from_name_init(field_inferred_type_name(fd), scope))) {
+                    pass_directly = true
                 } else if fd.own_type.is(OwnType.Own).not().and(is_pod_type_for_clone(field_inferred_type_name(fd), scope)) {
                     // POD field: value-copy is the clone, so pass
                     // directly and skip the wasteful `.clone()` wrap.
@@ -338,8 +340,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                     // benefits -- inference picks I64 from the
                     // LiteralNum default value.  Own-typed fields are
                     // excluded: their value-copy aliases the heap
-                    // payload.  FuncPtr fields fall under is_pod
-                    // (a function pointer is just a pointer value).
+                    // payload.
                     pass_directly = true
                 }
 
@@ -392,7 +393,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
         mut pod_no_field_deletes := is_pod_type_for_clone(sname, scope)
         for d_pod : Declaration in sdd.fields {
             if d_pod.own_type.is(OwnType.Ref) { continue }
-            if d_pod.explicit_type.len().gt(0).and(type_from_name_init(d_pod.explicit_type, scope).is_funcptr().or(type_from_name_init(d_pod.explicit_type, scope).is(Type.Body))) {
+            if d_pod.explicit_type.len().gt(0).and(type_is_callable_storage(type_from_name_init(d_pod.explicit_type, scope))) {
                 pod_no_field_deletes = false
             }
         }
@@ -410,7 +411,7 @@ priv gen_struct_clone_delete_for_stmt := func(stmt: Expr, scope: TypeScope, ctx:
                 mut field_acc := Expr.new(field_access_node(dl_fname), stmt.line, stmt.col)
                 field_acc.add_child(own self_id)
 
-                if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).is_funcptr().or(type_from_name_init(fd.explicit_type, scope).is(Type.Body))) {
+                if fd.explicit_type.len().gt(0).and(type_is_callable_storage(type_from_name_init(fd.explicit_type, scope))) {
                     mut closure_del := Expr.new(NodeType.FCall(FCallData()), stmt.line, stmt.col)
                     mut closure_del_id := Expr.new(ident_node("til_closure_delete"), stmt.line, stmt.col)
                     closure_del.add_child(own closure_del_id)

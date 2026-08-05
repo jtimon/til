@@ -403,6 +403,9 @@ namespace:
     // ref struct_def field). Same malloc'd-cell pattern as set_func_def
     // -- the cell is owned by the Map, the Expr lives in the AST.
     set_struct_def := func(mut self: TypeScope, name: Str, sdef: Expr) {
+        if sdef.node_type.is(NodeType.StructDef).not().and(sdef.node_type.is(NodeType.EnumDef).not()) {
+            panic("set_struct_def: expected struct or enum for ", name, ", got ", sdef.node_type.head_str())
+        }
         cell : UPtr = malloc(UPtr.size())
         write_ptr(cell, sdef)
         self.struct_defs.set(name, own cell)
@@ -1519,6 +1522,10 @@ funcptr_eq := func(a: Type, b: Type) returns Bool {
     return an == bn
 }
 
+type_is_callable_storage := func(t: Type) returns Bool {
+    return t.is_funcptr().or(t.is(Type.Body))
+}
+
 type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     mut bt := Type.Unknown
     if builtin_type_from_name(name, bt) { return bt }
@@ -1662,7 +1669,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if type_name.len() == 0 { return false }
     t := type_from_name_init(type_name, scope)
     if is_primitive(t) { return true }
-    if t.is_funcptr().or(t.is(Type.Body)) { return true }
+    if type_is_callable_storage(t) { return false }
     sdef_o := scope.get_struct(type_name)
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()

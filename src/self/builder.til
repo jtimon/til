@@ -7128,6 +7128,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     if builder_needs_reflect("dyn_size_of", lp.ctx) {
         f.write("USize dyn_size_of(Str *type_name);\n")
     }
+    if builder_needs_reflect("dyn_storage_kind", lp.ctx) {
+        f.write("USize dyn_storage_kind(Str *type_name);\n")
+    }
     if builder_needs_reflect("struct_field_", lp.ctx) {
         f.write("I64 struct_field_count(Str *type_name);\n")
         f.write("Str *struct_field_name(Str *type_name, I64 *index);\n")
@@ -7440,6 +7443,11 @@ priv emit_dyn_fn_wrappers := proc(f: File, lp: LoadedProgram) {
     f.write("}\n\n")
 }
 
+priv emit_dyn_name_return_branch := proc(f: File, type_name: Str, ret_expr: Str) {
+    tlen := type_name.len()
+    f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(type_name->c_str, \"").write(type_name).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) return ").write(ret_expr).write(";\n")
+}
+
 // One `if (name == "X") return sizeof(X);` arm. The C `sizeof` is what
 // makes the width right for the TARGET (#309): USize/UPtr expand through
 // ext.h's typedefs, so a --usize=64 build reports 8 for USize without this
@@ -7465,6 +7473,8 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     // died there.
     for prim : Str in PRIM_NAMES { emit_dyn_size_of_arm(f, prim) }
     for alias_name : Str in WIDTH_ALIAS_NAMES { emit_dyn_size_of_arm(f, alias_name) }
+    emit_dyn_name_return_branch(f, "Fn", "sizeof(TilClosure *)")
+    emit_dyn_name_return_branch(f, "Body", "sizeof(TilClosure *)")
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units {
             ref iu : ImportUnit = lp.ctx.imported[u.path]
@@ -7484,6 +7494,88 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
         }
     }
     f.write("    fprintf(stderr, \"dyn_size_of: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
+    f.write("    exit(1);\n")
+    f.write("}\n\n")
+}
+
+priv emit_dyn_funcsig_storage_branches_prog := proc(f: File, prog: Expr, ctx: Context) {
+    for stmt : Expr in prog.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        if stmt.children.len() == 0 { continue }
+        switch stmt.node_type {
+        case NodeType.Decl(dd):
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.FuncDef) {
+                if rhs.children.len() == 0 {
+                    emit_dyn_name_return_branch(f, dd.name, "2")
+                    continue
+                }
+            }
+            if stmt.til_type().is(Type.None) {
+                switch rhs.node_type {
+                case NodeType.Ident(rhs_name):
+                    if is_funcsig_type(rhs_name.ident_name(), ctx) {
+                        emit_dyn_name_return_branch(f, dd.name, "2")
+                    }
+                case:
+                }
+            }
+        case:
+            UNREACHABLE()
+        }
+    }
+}
+
+priv emit_dyn_storage_kind_body := proc(f: File, lp: LoadedProgram) {
+    f.write("USize dyn_storage_kind(Str *type_name) {\n    (void)type_name;\n")
+    emit_dyn_name_return_branch(f, "Dynamic", "0")
+    emit_dyn_name_return_branch(f, "I64", "0")
+    emit_dyn_name_return_branch(f, "U8", "0")
+    emit_dyn_name_return_branch(f, "I8", "0")
+    emit_dyn_name_return_branch(f, "I16", "0")
+    emit_dyn_name_return_branch(f, "U16", "0")
+    emit_dyn_name_return_branch(f, "I32", "0")
+    emit_dyn_name_return_branch(f, "U32", "0")
+    emit_dyn_name_return_branch(f, "U64", "0")
+    emit_dyn_name_return_branch(f, "USize", "0")
+    emit_dyn_name_return_branch(f, "UPtr", "0")
+    emit_dyn_name_return_branch(f, "F32", "0")
+    emit_dyn_name_return_branch(f, "Bool", "0")
+    emit_dyn_name_return_branch(f, "Fn", "2")
+    emit_dyn_name_return_branch(f, "Body", "2")
+    if lp.skip_core.not() {
+        for ufs : ProgramUnit in lp.core_units {
+            ref iufs : ImportUnit = lp.ctx.imported[ufs.path]
+            emit_dyn_funcsig_storage_branches_prog(f, iufs.ast, lp.ctx)
+        }
+    }
+    for ufs2 : ProgramUnit in lp.units {
+        ref iufs2 : ImportUnit = lp.ctx.imported[ufs2.path]
+        emit_dyn_funcsig_storage_branches_prog(f, iufs2.ast, lp.ctx)
+    }
+    if lp.skip_core.not() {
+        for u : ProgramUnit in lp.core_units {
+            ref iu : ImportUnit = lp.ctx.imported[u.path]
+            for stmt : Expr in iu.ast.children {
+                if is_struct_or_enum(stmt).not() { continue }
+                switch stmt.node_type {
+                case NodeType.Decl(dd): emit_dyn_name_return_branch(f, dd.name, "1")
+                case: UNREACHABLE()
+                }
+            }
+        }
+    }
+    for u : ProgramUnit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            switch stmt.node_type {
+            case NodeType.Decl(dd): emit_dyn_name_return_branch(f, dd.name, "1")
+            case: UNREACHABLE()
+            }
+        }
+    }
+    f.write("    fprintf(stderr, \"dyn_storage_kind: unknown type %.*s\\n\", (int)type_name->count, (char*)type_name->c_str);\n")
     f.write("    exit(1);\n")
     f.write("}\n\n")
 }
@@ -8575,6 +8667,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     if builder_needs_reflect("dyn_fn", lp.ctx) { emit_dyn_fn_wrappers(f, lp) }
     emit_dyn_has_bodies(f, lp)
     if builder_needs_reflect("dyn_size_of", lp.ctx) { emit_dyn_size_of_body(f, lp) }
+    if builder_needs_reflect("dyn_storage_kind", lp.ctx) { emit_dyn_storage_kind_body(f, lp) }
     if builder_needs_reflect("struct_field_", lp.ctx) { emit_struct_introspection_bodies(f, lp) }
     if builder_needs_reflect("enum_variant_", lp.ctx) { emit_enum_introspection_bodies(f, lp) }
     if builder_needs_reflect("func_sig_", lp.ctx) { emit_funcsig_introspection_bodies(f, lp) }

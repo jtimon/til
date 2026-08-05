@@ -37,6 +37,7 @@ dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dyn
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_size_of := ext_func(type_name: Str) returns shallow USize {}
+dyn_storage_kind := ext_func(type_name: Str) returns shallow USize {}
 dyn_type_to_str := ext_func(type: Type) returns Str {}
 
 // Extract the struct/enum/custom name carried in a Type's payload.
@@ -51,6 +52,31 @@ til_type_name := func(t: Type) returns Str {
     case Type.FuncPtrSig(s): return s.clone()
     case: return ""
     }
+}
+
+type_name_storage_kind := func(type_name: Str) returns USize {
+    if type_name == "Fn" { return ELEM_FN }
+    if type_name == "Body" { return ELEM_FN }
+    if type_name == "Dynamic" { return ELEM_POD }
+    if type_name == "I64" { return ELEM_POD }
+    if type_name == "U8" { return ELEM_POD }
+    if type_name == "I8" { return ELEM_POD }
+    if type_name == "I16" { return ELEM_POD }
+    if type_name == "U16" { return ELEM_POD }
+    if type_name == "I32" { return ELEM_POD }
+    if type_name == "U32" { return ELEM_POD }
+    if type_name == "U64" { return ELEM_POD }
+    if type_name == "USize" { return ELEM_POD }
+    if type_name == "UPtr" { return ELEM_POD }
+    if type_name == "F32" { return ELEM_POD }
+    if type_name == "Bool" { return ELEM_POD }
+    return ELEM_BOXED
+}
+
+type_storage_kind := func(t: Type) returns USize {
+    if t.is(Type.FuncPtr).or(t.is(Type.FuncPtrSig)).or(t.is(Type.Body)) { return ELEM_FN }
+    if t.is(Type.Primitive).or(t.is(Type.Dynamic)) { return ELEM_POD }
+    return type_name_storage_kind(dyn_type_to_str(t))
 }
 
 // Struct introspection primitives (issue #56/#58). Query the loaded
@@ -182,8 +208,8 @@ dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 //   matches the old empty-elem_type behavior.
 // ELEM_BOXED: elements own heap data; clone/delete dispatch per element
 //   through elem_clone / elem_delete.
-// ELEM_FN: function pointer storage. push stores the pointer value directly
-//   (write_ptr, no free); delete paths run the closure cleanup hook.
+// ELEM_FN: callable pointer storage (FuncSig / Body). push stores the pointer
+//   value directly (write_ptr, no free); delete paths run the closure cleanup hook.
 ELEM_POD : USize = 0
 ELEM_BOXED : USize = 1
 ELEM_FN : USize = 2

@@ -1,6 +1,7 @@
 mode test
 
 import("../src/std/dyn_vec")
+import("../src/std/dyn_map")
 
 // --- Lambda functions: anonymous inline FuncDef literals (issue #61) ---
 // A lambda is the same syntax as a named function definition, just
@@ -296,6 +297,14 @@ test_dyn_type_to_str_body := test() {
     assert_eq(Str, "Body", dyn_type_to_str(Body))
 }
 
+test_dyn_storage_kind_callable_types := test() {
+    assert_eq(USize, dyn_storage_kind("Dynamic"), ELEM_POD)
+    assert_eq(USize, dyn_storage_kind("Str"), ELEM_BOXED)
+    assert_eq(USize, dyn_storage_kind("Fn"), ELEM_FN)
+    assert_eq(USize, dyn_storage_kind("Body"), ELEM_FN)
+    assert_eq(USize, dyn_storage_kind("BinaryOp"), ELEM_FN)
+}
+
 test_vec_body_cast_call_inline := test() {
     mut x := 0
     mut bodies := DynVec.new(Body)
@@ -304,6 +313,22 @@ test_vec_body_cast_call_inline := test() {
     ref raw : Dynamic = bodies[0]
     cast(raw, Body)()
     assert_eq(I64, x, 1)
+}
+
+test_dyn_map_body_value := test() {
+    mut x := 0
+    mut bodies := DynMap.new(Str, Body)
+    b : Body = [mut x] { x = x.add(4) }
+    bodies.set("run", own b)
+    ref raw : Dynamic = bodies["run"]
+    cast(raw, Body)()
+    assert_eq(I64, x, 4)
+
+    b2 : Body = [mut x] { x = x.add(5) }
+    bodies.set("run", own b2)
+    ref raw2 : Dynamic = bodies["run"]
+    cast(raw2, Body)()
+    assert_eq(I64, x, 9)
 }
 
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---

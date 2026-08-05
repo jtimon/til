@@ -88,3 +88,19 @@ test_dyn_array_overwrite := test() {
     ref v : I64 = a.get(0)!
     assert_eq(I64, v, 99)
 }
+
+test_dyn_array_body_call_set := test() {
+    mut x := 0
+    a := DynArray.new(Body, 1)
+    b : Body = [mut x] { x = x.add(1) }
+    a.set(0, own b)!
+    ref raw : Dynamic = a[0]
+    cast(raw, Body)()
+    assert_eq(I64, x, 1)
+
+    b2 : Body = [mut x] { x = x.add(2) }
+    a.set(0, own b2)!
+    ref raw2 : Dynamic = a[0]
+    cast(raw2, Body)()
+    assert_eq(I64, x, 3)
+}

@@ -2175,6 +2175,7 @@ Vec__Expr * make_payload_ref_decls(Expr * arg, Str * bind_name, Str * fresh_name
 Bool type_is_primitive(Type * t, Primitive * p);
 Bool is_type_metatype(Type * t);
 Bool funcptr_eq(Type * a, Type * b);
+Bool type_is_callable_storage(Type * t);
 Type * type_from_name_init(Str * name, TypeScope * scope);
 Type * init_type_from_explicit_type(Str * name, TypeScope * scope);
 Str * priv___src_self_context_til__type_application_name(Expr * callee);
@@ -3540,8 +3541,11 @@ Bool priv___src_self_builder_til__def_is_interface(Expr * def);
 Bool priv___src_self_builder_til__func_type_is_core(FuncType * ft);
 void emit_dyn_fn_closure_value(File * f, Str * type_name, Str * method_name, Str * suffix);
 void priv___src_self_builder_til__emit_dyn_fn_wrappers(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_dyn_name_return_branch(File * f, Str * type_name, Str * ret_expr);
 void priv___src_self_builder_til__emit_dyn_size_of_arm(File * f, Str * tname);
 void priv___src_self_builder_til__emit_dyn_size_of_body(File * f, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_dyn_funcsig_storage_branches_prog(File * f, Expr * prog, Context * ctx);
+void priv___src_self_builder_til__emit_dyn_storage_kind_body(File * f, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_field_branch_for_stmt(File * f, Expr * stmt, I32 kind, Context * ctx);
 void priv___src_self_builder_til__emit_struct_field_branches(File * f, I32 kind, LoadedProgram * lp);
 void priv___src_self_builder_til__emit_struct_introspection_bodies(File * f, LoadedProgram * lp);
@@ -3821,7 +3825,7 @@ void * priv___src_self_interpreter_til__eval_call(Scope * scope, Expr * e, Conte
 void priv___src_self_interpreter_til__DynPtrBox_delete(priv___src_self_interpreter_til__DynPtrBox * self, Bool call_free);
 Str * priv___src_self_interpreter_til__container_elem_type(Str * struct_name, Context * ctx);
 USize priv___src_self_interpreter_til__container_elem_size(Str * elem_type, Context * ctx);
-Bool priv___src_self_interpreter_til__type_name_is_funcsig(Str * type_name, Context * ctx);
+Bool priv___src_self_interpreter_til__type_name_is_callable_storage(Str * type_name, Context * ctx);
 USize priv___src_self_interpreter_til__container_live_count(Str * struct_name, void * data, Context * ctx);
 USize priv___src_self_interpreter_til__container_capacity(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__container_elem_deep_free(Str * elem_type, void * slot, Context * ctx);
@@ -3835,6 +3839,7 @@ USize priv___src_self_interpreter_til__dyn_vec_count(void * data, Context * ctx)
 USize priv___src_self_interpreter_til__dyn_vec_cap(void * data, Context * ctx);
 USize priv___src_self_interpreter_til__dyn_vec_elem_size(void * data, Context * ctx);
 USize priv___src_self_interpreter_til__dyn_vec_elem_kind(void * data, Context * ctx);
+USize priv___src_self_interpreter_til__dyn_array_elem_kind(void * data, Context * ctx);
 Str * priv___src_self_interpreter_til__erased_elem_delete_type(Str * struct_name, void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_dyn_vec_buffer(void * data, Context * ctx);
 void priv___src_self_interpreter_til__free_dyn_array_buffer(void * data, Context * ctx);
@@ -3975,6 +3980,8 @@ Bool priv___src_self_interpreter_til__h_spawn_cmd(Scope * s, Expr * e, void * r,
 Bool priv___src_self_interpreter_til__h_dyn_has_method(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_dyn_fn(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_dyn_size_of(Scope * s, Expr * e, void * r, Context * ctx);
+USize priv___src_self_interpreter_til__storage_kind_for_type_name(Str * type_name, Context * ctx);
+Bool priv___src_self_interpreter_til__h_dyn_storage_kind(Scope * s, Expr * e, void * r, Context * ctx);
 void str_copy_into(void * result, Str * src, Context * ctx);
 Str * priv___src_self_interpreter_til__eval_str_owned(Scope * s, Expr * arg, Context * ctx);
 Expr * priv___src_self_interpreter_til__interp_lookup_struct(Scope * s, Expr * e, Str * type_name, Str * who, Context * ctx);
@@ -4181,6 +4188,7 @@ Vec__Str * collect_user_argv(LoadedProgram * lp, Array__Str * args, USize start_
 
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
+extern U32 ELEM_POD;
 extern U32 ELEM_BOXED;
 extern U32 ELEM_FN;
 extern Type TYPE_NONE;

@@ -11,32 +11,33 @@ DynVec := struct {
     const elem_delete : DeleteFn = default_delete
 
 namespace:
+    priv new_type_name_kind := func(elem_type: Str, elem_kind: USize) returns DynVec {
+        if elem_kind == ELEM_FN {
+            return DynVec(data = malloc(8), cap = 1,
+                        elem_size = 8, elem_kind = ELEM_FN)
+        }
+        sz : USize = dyn_size_of(elem_type)
+        if elem_kind == ELEM_POD {
+            return DynVec(data = malloc(sz), cap = 1,
+                       elem_size = sz, elem_kind = ELEM_POD)
+        }
+        return DynVec(data = malloc(sz), cap = 1,
+                    elem_size = sz, elem_kind = ELEM_BOXED,
+                    elem_clone = dyn_fn(elem_type, "clone"),
+                    elem_delete = dyn_fn(elem_type, "delete"))
+    }
+
     /// Create a new empty DynVec for elements of the given type.
     new_type_name := func(elem_type: Str) returns DynVec {
         if elem_type.is_empty() {
             panic("DynVec.new: elem_type required")
         }
-        if elem_type == "Dynamic" {
-            return DynVec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_kind = ELEM_POD)
-        }
-        // Issue #58/#54: function pointers are 8-byte callable values.
-        // Store them in slots directly; cleanup uses the closure hook
-        // instead of a non-existent FuncSig.delete method.
-        if (elem_type == "Fn").or(elem_type == "Body") {
-            return DynVec(data = malloc(8), cap = 1,
-                       elem_size = 8, elem_kind = ELEM_FN)
-        }
-        sz : USize = dyn_size_of(elem_type)
-        return DynVec(data = malloc(sz), cap = 1,
-                   elem_size = sz, elem_kind = ELEM_BOXED,
-                   elem_clone = dyn_fn(elem_type, "clone"),
-                   elem_delete = dyn_fn(elem_type, "delete"))
+        return DynVec.new_type_name_kind(elem_type, type_name_storage_kind(elem_type))
     }
 
     new := func(T: Type) returns DynVec {
         elem_type := dyn_type_to_str(T)
-        return DynVec.new_type_name(elem_type)
+        return DynVec.new_type_name_kind(elem_type, type_storage_kind(T))
     }
 
     /// Create an empty DynVec with room for `n` elements, so filling it
@@ -112,9 +113,8 @@ namespace:
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
             self.cap = new_cap
         }
-        // Issue #58/#54: function pointers arrive as direct callable
-        // pointers. Store the pointer value itself into the slot and
-        // leave cleanup to til_closure_slot_delete.
+        // Callable values arrive as direct closure pointers. Store the pointer
+        // value itself into the slot and leave cleanup to til_closure_slot_delete.
         if self.elem_kind == ELEM_FN {
             write_ptr(ptr_add(self.data, self.count.mul(self.elem_size)), val)
             self.count = self.count + 1
@@ -301,8 +301,12 @@ namespace:
             // (if/else so the owned `val` is consumed on exactly one path.)
             if self.elem_kind == ELEM_BOXED {
                 self.elem_delete(val, false)
+                free(own val)
+            } else if self.elem_kind == ELEM_FN {
+                til_closure_delete(val)
+            } else {
+                free(own val)
             }
-            free(own val)
             throw OutOfBounds()
         } else {
             self.unsafe_set(i, own val)
@@ -340,6 +344,9 @@ namespace:
 
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
+        if self.elem_kind == ELEM_FN {
+            panic("DynVec.clone: callable element cloning is not supported")
+        }
         new_data : U8 = malloc(self.cap.mul(self.elem_size))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
