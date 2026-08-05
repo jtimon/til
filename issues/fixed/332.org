@@ -69,12 +69,43 @@
   state directory, and no terminal escape is produced. Both new tests
   are registered in the regular suite.
 
-  Not verified here: the native Windows console branch and the macOS
-  build. This session had no mingw or macOS toolchain, so those paths
-  are reviewed-not-compiled; the POSIX and Windows branches are
-  ~#if~-disjoint and the Windows one uses only ~GetConsoleMode~ /
-  ~ReadConsoleInput~ / ~GetConsoleScreenBufferInfo~ /
-  ~SetConsoleCtrlHandler~ / ~MoveFileExA~.
+*Follow-up: the cross-target verification, and two things it turned up.*
+
+  The first commit shipped the Windows console branch reviewed but not
+  compiled, and no macOS build. Both are done now, and neither needed a
+  code change:
+
+  - windows-x64: ~src/c/ext.c~ compiles clean under
+    ~-Wall -Wextra -Werror~ with mingw (the ~_WIN32~ branch really is
+    the one compiled -- ~repl_term_ctrl_handler~ is in the object), and
+    a full ~--target=windows-x64~ build links a PE32+ executable.
+  - macos-arm64 and macos-x64: both cross-build and link
+    (~NOUNDEFS~ Mach-O) through the vendored SDK-less toolchain. macOS
+    takes the POSIX branch, so its termios/ioctl/poll/signal use is
+    compiled there too.
+  - ~ldd bin/til~ names no readline, curses, tinfo or termcap, and the
+    diff added nothing under ~vendor/~ or the install layout.
+
+  Driving the real REPL through a pty at ~stty cols 40~ also confirmed
+  the horizontal scrolling, the ~til[script]... ~ continuation prompt,
+  and that a multi-line block is stored in history as the physical lines
+  it was typed as. It exposed two blemishes, both now fixed:
+
+  - *Ctrl-D printed a blank line the piped REPL never printed.* The
+    editor ended the prompt row itself on BOTH exit paths, but
+    ~run_repl_session~ already prints one newline at EOF -- it has to,
+    since the redirected path's ~in_read_line~ leaves the cursor after
+    the prompt. The editor now ends the row only for an accepted line.
+  - *A signal left the shell prompt on top of the REPL's row.* The
+    handler restored the tty modes but not the cursor, so whatever
+    printed next (the shell after SIGINT, the job-control notice after
+    SIGTSTP) landed mid-row. It writes ~\r\n~ first now -- ~write(2)~,
+    which is async-signal-safe where this file's usual stdio is not.
+    The Windows console control handler does the same.
+
+  Both are pinned in ~test/repl_pty.til~: the Ctrl-D sessions must
+  produce no blank line after the final prompt, and the SIGINT session's
+  captured output must end in a line break rather than in a prompt.
 
   ~til repl~ has no line editing and no history. ~in_read_line~
   (~src/c/ext.c~) reads bytes with ~fgetc~ in the terminal's canonical

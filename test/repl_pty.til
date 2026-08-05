@@ -224,6 +224,15 @@ main := proc() {
     // spelling in the output means an undecoded sequence got through.
     leaked_arrow := count_matches(out1, "[A") + count_matches(out1, "[3~")
     parse_errors := count_matches(out1, "error:") + count_matches(out2, "error:")
+    // Exiting prints ONE line break, the caller's, exactly as the piped
+    // REPL always did. The editor used to end the prompt row itself on
+    // the EOF path too, so Ctrl-D left a stray blank line behind.
+    blank_on_exit := count_matches(out1, format(PROMPT_TAIL, nl, nl))
+                   + count_matches(out2, format(PROMPT_TAIL, nl, nl))
+    // Ctrl-C ends the row it interrupted, so the shell prompt that
+    // follows starts on a line of its own instead of on top of ours:
+    // the killed session's output ends in a line break, not in a prompt.
+    row_ended_on_sigint := out3.ends_with(nl)
 
     before1 := read_if_present(format(DIR, "/p1_before"))
     after1 := read_if_present(format(DIR, "/p1_after"))
@@ -238,6 +247,7 @@ main := proc() {
     if and(edited1.eq(2), edited2.eq(2), edited3.eq(1), persisted.eq(1),
            before_sigint.eq(1), leaked_arrow.eq(0), parse_errors.eq(0),
            hist_count.eq(6), hist_after_sigint.eq(1),
+           blank_on_exit.eq(0), row_ended_on_sigint,
            clean_exit1, clean_exit2,
            sigint_survived.not(),
            before1.len().gt(0), before1.eq(after1),
@@ -252,6 +262,8 @@ main := proc() {
             " parse_errors=", parse_errors.to_str(),
             " hist_count=", hist_count.to_str(),
             " hist_after_sigint=", hist_after_sigint.to_str(),
+            " blank_on_exit=", blank_on_exit.to_str(),
+            " row_ended_on_sigint=", row_ended_on_sigint.to_str(),
             " clean_exit1=", clean_exit1.to_str(),
             " clean_exit2=", clean_exit2.to_str(),
             " sigint_survived=", sigint_survived.to_str(),

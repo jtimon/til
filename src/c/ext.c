@@ -1590,9 +1590,15 @@ static void repl_term_atexit_restore(void) {
 }
 
 /* Ctrl-C / close / logoff terminate the process without unwinding, so the
- * console modes go back here before the default handler runs. */
+ * console modes go back here before the default handler runs -- and the
+ * row being edited is ended first, so whatever prints next does not land
+ * on top of the prompt (the POSIX handler does the same). */
 static BOOL WINAPI repl_term_ctrl_handler(DWORD type) {
     (void)type;
+    if (repl_term_active) {
+        DWORD written = 0;
+        WriteFile(repl_term_out(), "\r\n", 2, &written, NULL);
+    }
     repl_term_atexit_restore();
     return FALSE;
 }
@@ -1760,6 +1766,14 @@ static void repl_term_on_winch(int sig) {
 }
 
 static void repl_term_on_signal(int sig) {
+    /* End the row being edited before anything else claims it: whoever
+     * comes next (the shell after SIGINT, the job-control notice after
+     * SIGTSTP) would otherwise print on top of the prompt. write(2) is
+     * async-signal-safe where the stdio the rest of this file uses is
+     * not; the result is deliberately ignored, since a failed write
+     * changes nothing about the restoration below. */
+    ssize_t wrote = write(STDOUT_FILENO, "\r\n", 2);
+    (void)wrote;
     /* Put the terminal back the way it was found, then let the signal do
      * what it would have done without the editor. Unblocking it around
      * the raise matters: inside its own handler the signal is blocked, so

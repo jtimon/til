@@ -778,8 +778,16 @@ repl_editor_read_line := proc(mut ed: ReplEditor, prompt: Str, mut eof: Bool) re
     }
     // Leave the edited row before anything else prints. CR is explicit:
     // the cursor is wherever the editor left it on this row.
-    term_write(format(byte_str(REPL_BYTE_CR), "\n"))
-    repl_term_flush()
+    //
+    // Only for an accepted line. On EOF the caller already ends the
+    // prompt row itself (run_repl_session's `println("")`, which the
+    // redirected path needs because in_read_line leaves the cursor after
+    // the prompt) -- ending it here too made Ctrl-D print a blank line
+    // that the piped REPL never printed.
+    if at_eof.not() {
+        term_write(format(byte_str(REPL_BYTE_CR), "\n"))
+        repl_term_flush()
+    }
     repl_term_end()
     eof = at_eof
     if at_eof { return "" }
