@@ -1,0 +1,96 @@
+# priority: medium
+# category: features
+** FIXED #341 Leading-dot enum variants in switch/match cases: `case .Body:`
+
+*** Post-mortem
+
+    Nothing was broken; the enum name was just redundant. Every arm of a
+    switch repeated a name the subject expression had already fixed:
+
+    #+begin_example
+    switch e.node_type {
+    case NodeType.Body:
+    case NodeType.Decl(dd):
+    case NodeType.FCall:
+    case:
+    }
+    #+end_example
+
+    Fix: the enum name may now be elided in a case pattern, so
+    ~case .Body:~ means ~case NodeType.Body:~. Jai has the form and Odin
+    picked it up.
+
+    Split across the two passes that each know half the answer:
+
+    - Parser ([[file:../../src/self/parser.til][src/self/parser.til]],
+      ~parse_primary~): a leading ~Dot~ produces an ~Ident("")~ receiver
+      and is deliberately NOT consumed, so the existing postfix chain
+      builds ~FieldAccess("Body")(Ident(""))~ -- byte for byte what
+      ~NodeType.Body~ builds -- and the FCall form for a payload binding
+      ~.Decl(dd)~ falls out of the same loop with no new code. An empty
+      Ident cannot come from source (the lexer needs at least one
+      character), so it is an unambiguous marker rather than a guess.
+    - Typer ([[file:../../src/self/typer.til][src/self/typer.til]],
+      ~qualify_dotted_case_patterns~): fills the name in from the
+      subject's type once the subject is inferred. Every later pass keeps
+      seeing the fully qualified pattern it always saw.
+
+    Two call sites, both necessary, and finding the second was the one
+    real trap: ~infer_switch_stmt~ handles statement switches, but a
+    ~match~ types its arms in ~infer_match_expr~ BEFORE the shared switch
+    desugar ever runs, so a dotted arm there failed with "undefined
+    function ''" until it got its own call. In ~infer_switch_stmt~ the
+    call must also sit BEFORE the ~switch_is_clike~ dispatch, which
+    returns early for payload-free enums.
+
+    Scope: switch/match case patterns only -- the smaller change, and the
+    position that actually hurts. Other positions where an enum type is
+    implied (a typed declaration's RHS, an enum-typed parameter, a return,
+    an enum-typed struct field) still need the name written out; Rust does
+    not have the shorthand at all, Swift has it everywhere. The parser
+    accepts the leading dot anywhere, so widening later is a typer-only
+    change; one that reaches the typer outside a case pattern is a hard
+    error, not a silent fallthrough.
+
+    Template enums need no special casing: by the time the typer runs,
+    ~Option(I64)~ is already ~Option__I64~, which is exactly the name the
+    pattern wants.
+
+    A non-enum subject is rejected ("a leading-dot pattern needs an enum
+    subject"), and the receiver is then filled with the subject's type
+    name anyway -- purely so the follow-on diagnostic reads "struct 'I64'
+    has no field 'Nope'" instead of talking about a symbol named "",
+    which looks like a compiler bug.
+
+    Regression tests: ~test_dot_pattern_payloads~,
+    ~test_dot_pattern_mixed_with_qualified~,
+    ~test_dot_pattern_payload_free_enum~,
+    ~test_dot_pattern_shared_and_guarded~, ~test_dot_pattern_in_match~ and
+    ~test_dot_pattern_template_enum~ in
+    [[file:../../test/enums.til][test/enums.til]]; the non-enum-subject
+    and unknown-variant cases in
+    [[file:../../test/typer_errors.til][test/typer_errors.til]].
+
+*** Original report
+
+   Instead of repeating the type in all cases:
+
+   #+begin_example
+   switch e.node_type {
+   case NodeType.Body:
+   case NodeType.Declaration:
+   case: // etc
+   }
+   #+end_example
+
+   could be:
+
+   #+begin_example
+   switch e.node_type {
+   case .Body:
+   case .Declaration:
+   case: // etc
+   }
+   #+end_example
+
+   Seen in Jai (and Odin copied it); good call.

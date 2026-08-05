@@ -1027,3 +1027,19 @@ FieldDefStruct := struct { fdc : FieldDefCell = 0 }
 FieldDefRef := struct { ref fdc : FieldDefCell = 0 }
 FieldDefStr := struct { fds : Str = 0 }
 FieldDefNum := struct { fdn : I64 = "x" }
+
+// #341: a leading-dot pattern elides the enum name, so the subject has to
+// BE an enum -- there is nothing else the name could come from. A dotted
+// name that is not a variant of the subject's enum reports against that
+// enum, exactly as the written-out spelling does.
+dot_non_enum_subject := 3
+switch dot_non_enum_subject {
+case .Nope: println("no")
+case: println("d")
+}
+DotErrColor341 := enum { DRed, DGreen }
+dot_err_c := DotErrColor341.DRed
+switch dot_err_c {
+case .DPurple: println("no")
+case: println("d")
+}

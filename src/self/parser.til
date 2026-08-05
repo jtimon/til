@@ -1611,6 +1611,20 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     mut e_set := false
 
     switch t.type {
+    case TokenType.Dot:
+        // #341: leading-dot enum variant -- `.Body`, `.Decl(dd)`. The enum
+        // name is elided because the context implies it, so the parser
+        // cannot supply it: it emits the ordinary qualified shape with an
+        // EMPTY receiver name and the typer fills it in from the switch
+        // subject (qualify_dotted_case_patterns). The dot is deliberately
+        // NOT consumed -- the postfix chain below sees it and builds
+        // `FieldAccess("Body")(Ident(""))` / the FCall form for a payload
+        // binding, byte for byte what `NodeType.Body` builds. An empty
+        // Ident cannot come from source (the lexer needs at least one
+        // character), so it is an unambiguous marker, and any that
+        // survives to the typer outside a case pattern is a hard error.
+        e = Expr.new(ident_node(""), t_line, t_col)
+        e_set = true
     case TokenType.StringTok:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)

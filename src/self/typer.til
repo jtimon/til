@@ -8801,6 +8801,10 @@ priv infer_match_expr := proc(scope: TypeScope, mut expr: Expr, in_func: I32, ct
     if expr.children.len() == 0 { expr.set_til_type(Type.Unknown); return }
     ref subj : Expr = expr.children[0]
     infer_expr(scope, subj, in_func, ctx)
+    // #341: a match types its arms HERE, before the shared switch desugar
+    // ever sees them, so `case .Some(v):` has to be qualified here too --
+    // infer_switch_stmt's own call then finds nothing left to do.
+    qualify_dotted_case_patterns(expr, expr.children[0].til_type(), ctx)
     // The match's type is the common arm type. Take it from the first arm and
     // check the rest agree, so a mismatch is reported clearly here (rather than
     // surfacing later as a temp-named assignment error from the lowering).
@@ -9380,6 +9384,60 @@ priv infer_clike_switch := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, 
     stmt.set_til_type(Type.None)
 }
 
+// #341: the receiver of a leading-dot case pattern. The parser emits
+// `.Body` as `FieldAccess("Body")(Ident(""))` -- the qualified shape with
+// the enum name left blank, because only the switch subject knows it.
+// Returns the empty-Ident child of `pat` to fill in, or None. Sees through
+// the FCall wrapper a payload binding adds (`.Decl(dd)`).
+priv dotted_pattern_receiver := func(mut pat: Expr) returns Option(ref Expr) {
+    mut fa_o : Option(ref Expr) = Option(ref Expr).None
+    if pat.node_type.is(NodeType.FieldAccess) {
+        fa_o = Option(ref Expr).Some(pat)
+    } else if pat.node_type.is(NodeType.FCall).and(pat.children.len().gt(0)) {
+        if pat.children[0].node_type.is(NodeType.FieldAccess) {
+            fa_o = Option(ref Expr).Some(pat.children[0])
+        }
+    }
+    if fa_o.is_none() { return Option(ref Expr).None }
+    ref mut fa : Expr = fa_o.unwrap()
+    if fa.children.len() == 0 { return Option(ref Expr).None }
+    ref mut recv : Expr = fa.children[0]
+    switch recv.node_type {
+    case NodeType.Ident(rid):
+        if rid.ident_name().len() == 0 { return Option(ref Expr).Some(recv) }
+    case:
+    }
+    return Option(ref Expr).None
+}
+
+// #341: rewrite every `case .Variant:` in this switch/match into the fully
+// qualified `case Enum.Variant:`, so every later pass keeps seeing exactly
+// what it sees today. A dotted pattern over a non-enum subject has no enum
+// to resolve against and is rejected here rather than left to fail as a
+// baffling "no variant" further down.
+priv qualify_dotted_case_patterns := proc(mut stmt: Expr, sw_type: Type, ctx: Context) {
+    sname := til_type_name(sw_type)
+    for ci in 1..stmt.children.len() {
+        ref mut cnode : Expr = stmt.children[ci]
+        if cnode.node_type.is(NodeType.Case).not() { continue }
+        for pi in 0..case_pattern_count(cnode) {
+            recv_o := dotted_pattern_receiver(cnode.children[pi])
+            if recv_o.is_none() { continue }
+            if sw_type.is(Type.Enum).not().or(sname.len() == 0) {
+                cnode.children[pi].type_error("a leading-dot pattern needs an enum subject: the elided name is the subject's enum, and this switch's subject is not one -- write the pattern out in full (issue #341)", ctx)
+            }
+            // Fill in the subject's name even when it is not an enum: the
+            // error above already says what is wrong, and leaving the empty
+            // marker in place makes the follow-on diagnostics talk about a
+            // symbol named "" -- which reads like a compiler bug.
+            mut recv_name := sname.clone()
+            if recv_name.len() == 0 { recv_name = type_to_name(sw_type) }
+            ref mut recv : Expr = recv_o.unwrap()
+            recv.node_type = ident_node(recv_name)
+        }
+    }
+}
+
 priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize, in_func: I32, in_loop: I32, returns_ref: I32, ctx: Context) returns Bool {
     ref mut stmt : Expr = body.children[stmt_idx]
     ref mut sw_expr : Expr = stmt.children[0]
@@ -9464,6 +9522,11 @@ priv infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, stmt_idx: USize
     if sw_expr.til_type().is(Type.Enum) {
         note_cross_file_type_use(scope, ctx, til_type_name(sw_expr.til_type()))
     }
+    // #341: `case .Body:` -- fill in the enum the parser could not know.
+    // Must sit here: after the subject is inferred (that is where the name
+    // comes from) and before the clike dispatch below, which returns early
+    // for payload-free enums.
+    qualify_dotted_case_patterns(stmt, sw_expr.til_type(), ctx)
     if switch_is_clike(scope, stmt, sw_expr, is_match) {
         infer_clike_switch(scope, stmt, in_func, in_loop, returns_ref, ctx)
         return false

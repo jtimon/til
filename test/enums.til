@@ -1239,3 +1239,95 @@ test_option_ref_payload_in_set := test() {
     assert_eq(Str, a, "alpha")
     assert_eq(Str, b, "beta")
 }
+
+// --- #341: leading-dot variant patterns -----------------------------
+//
+// The enum name is implied by the switch subject, so a case may elide it:
+// `case .Red:` means `case Color.Red:`. Jai has this and Odin picked it
+// up. The typer fills the name in once the subject is inferred, so every
+// later pass sees the fully qualified pattern it always saw.
+
+DotShape := enum { Circle: I64, Square: I64, Nothing }
+
+DotHolder := struct {
+    kind := DotShape.Nothing
+}
+
+test_dot_pattern_payloads := test() {
+    s := DotShape.Circle(3)
+    mut got := ""
+    switch s {
+    case .Circle(r): got = format("circle ", r.to_str())
+    case .Square(w): got = format("square ", w.to_str())
+    case .Nothing:   got = "nothing"
+    }
+    assert_eq(Str, got, "circle 3")
+}
+
+test_dot_pattern_mixed_with_qualified := test() {
+    s := DotShape.Square(4)
+    mut got := ""
+    switch s {
+    case DotShape.Circle(r): got = format("ci ", r.to_str())
+    case .Square(w):         got = format("sq ", w.to_str())
+    case:                    got = "other"
+    }
+    assert_eq(Str, got, "sq 4")
+}
+
+test_dot_pattern_payload_free_enum := test() {
+    // Payload-free enums lower through the clike switch path, which returns
+    // early -- the qualification has to happen before that dispatch.
+    c := Color.Green
+    mut got := ""
+    switch c {
+    case .Red:   got = "red"
+    case .Green: got = "green"
+    case .Blue:  got = "blue"
+    }
+    assert_eq(Str, got, "green")
+}
+
+test_dot_pattern_shared_and_guarded := test() {
+    c := Color.Blue
+    mut got := ""
+    switch c {
+    case .Red, .Blue: got = "warm-ish"
+    case .Green:      got = "green"
+    }
+    assert_eq(Str, got, "warm-ish")
+
+    // A guard rides after a dotted pattern like any other.
+    h := DotHolder(kind = DotShape.Square(9))
+    mut sized := ""
+    switch h.kind {
+    case .Square(w) if w > 5: sized = format("big ", w.to_str())
+    case .Square:             sized = "small"
+    case:                     sized = "other"
+    }
+    assert_eq(Str, sized, "big 9")
+}
+
+test_dot_pattern_in_match := test() {
+    // match types its arms before the shared switch desugar runs, so it
+    // needs its own qualification pass.
+    s := DotShape.Square(4)
+    n := match s {
+    case .Circle(r): r
+    case .Square(w): w.mul(2)
+    case .Nothing:   0
+    }
+    assert_eq(I64, n, 8)
+}
+
+test_dot_pattern_template_enum := test() {
+    // The subject's name is the MONOMORPHIZED one (Option__I64), which is
+    // exactly what the pattern needs -- no special casing for templates.
+    o := Option(I64).Some(42)
+    mut got := 0
+    switch o {
+    case .Some(v): got = v
+    case .None:    got = -1
+    }
+    assert_eq(I64, got, 42)
+}
