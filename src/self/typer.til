@@ -3266,6 +3266,35 @@ priv infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
             }
         }
     }
+    // A call to something that is NOT callable. Every callable shape has
+    // returned or been recognised by now: functions and signatures have a
+    // func_def, funcptr values carry a funcptr type, a Body value its own,
+    // struct constructors and cast/array/vec returned earlier. What is
+    // left is a plain value with a call's syntax -- `x := 0` then `x(5)`
+    // -- which the typer used to accept silently and the interpreter then
+    // walked into with a NULL callee def and segfaulted on.
+    if callee_bind_o.is_some() {
+        ref nc_bind : TypeBinding = callee_bind_o.unwrap()
+        if scope.lookup_func(nc_bind.name).is_none() {
+            ref nc_type : Type = nc_bind.type
+            mut nc_callable := nc_type.is_funcptr().or(nc_type.is(Type.Body))
+            // An unresolved binding already produced its own diagnostic;
+            // adding a second one here would just be noise.
+            if nc_type.is(Type.Unknown) { nc_callable = true }
+            // A value binding that merely SHADOWS a function of the same
+            // name is not this bug: both backends resolve the call to the
+            // function and it runs (`foo := 0` next to a global `foo` has
+            // always called the global). Only a name with no function
+            // behind it at all reaches the NULL callee def.
+            if scope.any_func_def(name) { nc_callable = true }
+            if nc_callable.not() {
+                e.type_error(format("'", name, "' is not callable: it is a ",
+                    type_to_name(nc_type), " value, not a function"), ctx)
+                e.set_til_type(Type.Unknown)
+                return
+            }
+        }
+    }
     validate_fcall_own_args(scope, e, callee_bind_o, ctx)
     resolve_fcall_return_type(scope, e, name, callee_bind_o, in_func, ctx)
     return

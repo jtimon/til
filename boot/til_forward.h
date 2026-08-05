@@ -2116,6 +2116,8 @@ Option__ref_Expr TypeScope_struct_def_of(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_struct_def_of_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_lookup_func(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_lookup_func_fp(TypeScope * self, Str * name, U64 * fp);
+Bool TypeScope_any_func_def(TypeScope * self, Str * name);
+Bool TypeScope_any_func_def_fp(TypeScope * self, Str * name, U64 fp);
 Option__ref_Expr TypeScope_local_struct_def_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_local_func_def_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_lookup_func_symbol(TypeScope * self, Str * name);

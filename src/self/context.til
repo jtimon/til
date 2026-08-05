@@ -316,6 +316,25 @@ namespace:
         case Option(ref TypeScope).None: return Option(ref Expr).None
         }
     }
+    // Is ANY function named `name` reachable, IGNORING value bindings
+    // that shadow it? The mirror image of lookup_func, which stops at
+    // the first scope that binds the name. Needed by the not-callable
+    // diagnostic: infer_type_def_expr binds a struct's FIELDS in the
+    // very scope its namespace methods are typed in, so a field named
+    // `format` (vendor/bindings/raylib.til's Image/Texture) shadows the
+    // global `format` function that the generated `to_str` body calls
+    // and actually reaches at run time.
+    any_func_def := func(self: TypeScope, name: Str) returns Bool {
+        return self.any_func_def_fp(name, name_fingerprint(name))
+    }
+    any_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Bool {
+        if func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name).is_some() { return true }
+        switch self.parent {
+        case Option(ref TypeScope).Some(p): return p.any_func_def_fp(name, fp)
+        case Option(ref TypeScope).None: return false
+        }
+        return false
+    }
     // The struct-def / func-def of a name the caller KNOWS this scope
     // binds -- it is iterating self.bindings. struct_def_of and
     // lookup_func both start by probing bindings to find the owning

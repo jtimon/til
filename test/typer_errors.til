@@ -1045,3 +1045,19 @@ case: println("d")
 dot_no_expected_type := .Nowhere
 dot_va341 := func(a: DotErrColor341, _rest: ..Str) returns Str { return a.to_str() }
 dot_va_call341 := dot_va341(.DRed, "x")
+
+// Calling something that is not a function. Every callable shape is
+// recognised before this check -- functions and signatures have a
+// func_def, funcptr and Body values carry their own type, constructors
+// and cast/array/vec return earlier -- so what reaches it is a plain
+// value with a call's syntax. The typer used to accept it silently and
+// the interpreter then walked into a NULL callee def and SEGFAULTED.
+not_callable_int := 0
+not_callable_int_result := not_callable_int(5)
+
+NotCallableP := struct { n := 0 }
+not_callable_struct := NotCallableP()
+not_callable_struct_result := not_callable_struct(5)
+
+not_callable_str := "hi"
+not_callable_str_result := not_callable_str(5)
