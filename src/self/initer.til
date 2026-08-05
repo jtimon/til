@@ -4205,8 +4205,7 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) {
         if init_stmt_is_generic_source(stmt).not() { continue }
         switch stmt.node_type {
         case NodeType.Decl(dd):
-            scope.erase_func_def(dd.name)
-            scope.erase_binding(dd.name)
+            scope.erase_ast_decl(dd.name, true)
         case:
         }
         drop_i : I64 = i.to_i64()

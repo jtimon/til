@@ -432,6 +432,15 @@ namespace:
     erase_struct_def := func(mut self: TypeScope, name: Str) {
         self.struct_defs.remove(name)
     }
+    // Retire every AST-backed registry entry for one declaration before its
+    // Expr is freed. Some consumers still need the binding's type metadata
+    // after removing the AST (the scavenger); callers that remove the name
+    // semantically too request binding erasure.
+    erase_ast_decl := func(mut self: TypeScope, name: Str, erase_decl_binding: Bool) {
+        self.erase_func_def(name)
+        self.erase_struct_def(name)
+        if erase_decl_binding { self.erase_binding(name) }
+    }
     set := func(mut self: TypeScope, name: Str, type: Type,
         is_mut: Bool,
         path: Str,

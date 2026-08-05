@@ -1218,8 +1218,7 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     // resolves types through them at runtime -- erasing them broke
     // test/hashes.til's funcptr-typed global.
     for swept_n : Str in swept_names {
-        lp.ctx.scope.erase_func_def(swept_n)
-        lp.ctx.scope.erase_struct_def(swept_n)
+        lp.ctx.scope.erase_ast_decl(swept_n, false)
     }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by
