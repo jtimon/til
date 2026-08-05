@@ -392,12 +392,12 @@ typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpret
 typedef struct FFIEntry FFIEntry;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
+typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 enum {
     Option__ref_HeapBinding_TAG_None,
     Option__ref_HeapBinding_TAG_Some
 };
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
-typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Vec__DynPtrBox Vec__DynPtrBox;
 enum {
     Option__ref_ffi_type_TAG_None,
@@ -2232,6 +2232,10 @@ Bool is_aggregate(Type * t);
 Bool is_range_new_call(Expr * e);
 USize fcall_kwargs_count(Expr * fcall);
 USize fcall_variadic_count(Expr * fcall, USize nparam, Bool callee_has_kwargs);
+I64 priv___src_self_context_til__qname_part_cmp(Str * key, USize off, Str * part);
+I64 qname_cmp(Str * key, Str * a, Str * sep, Str * b);
+I64 qname_keys_index(Vec__Str * keys, Str * a, Str * sep, Str * b);
+Bool qname_in_set(Set__Str * s, Str * a, Str * sep, Str * b);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
@@ -3100,6 +3104,8 @@ Bool priv___src_self_constfolder_til__constfolder_known_has(Context * ctx, Str *
 OwnType * priv___src_self_constfolder_til__known_bind_own_type(Type t, Context * ctx);
 void priv___src_self_constfolder_til__collect_assign_targets(Expr * e, Set__Str * names);
 Bool priv___src_self_constfolder_til__constfolder_has_macro(Context * ctx, Str * name);
+Bool priv___src_self_constfolder_til__constfolder_has_macro_q(Context * ctx, Str * sname, Str * mname);
+Bool priv___src_self_constfolder_til__constfolder_has_func_q(Context * ctx, Str * sname, Str * mname);
 Bool priv___src_self_constfolder_til__constfolder_has_func(Context * ctx, Str * name);
 U8 priv___src_self_constfolder_til__hex_digit_value(I8 b);
 Str * priv___src_self_constfolder_til__from_source_form(Str * s);
@@ -3875,6 +3881,7 @@ void populate_cached_aggregate_defs(Context * ctx, Expr * program);
 void interpreter_init_ns(Context * ctx, Scope * global, Expr * program);
 Str * priv___src_self_interpreter_til__ns_qname(Str * sname, Str * fname);
 Scope * priv___src_self_interpreter_til__ns_scope(Context * ctx);
+Option__ref_HeapBinding priv___src_self_interpreter_til__scope_lookup_ns_binding(Scope * s, Str * sname, Str * fname);
 Option__ref_Dynamic ns_get(Str * sname, Str * fname, Context * ctx);
 void priv___src_self_interpreter_til__ns_set(Str * sname, Str * fname, void * raw, Type supplied_type, Context * ctx);
 Type * priv___src_self_interpreter_til__ns_decl_raw_type(Declaration * decl);
@@ -4048,14 +4055,14 @@ void priv___src_self_interpreter_til__ffi_register(Str * name, void * fn, Expr *
 void ffi_init_scan_program(Expr * program, Context * ctx);
 I32 priv___src_self_interpreter_til__ffi_init(Expr * program, Str * fwd_path, Str * user_c_path, Str * ext_c_path, Str * link_flags, Context * ctx);
 void ffi_cleanup(Context * ctx);
-Bool Option__ref_HeapBinding_is_some(Option__ref_HeapBinding self);
-Bool Option__ref_HeapBinding_is_none(Option__ref_HeapBinding self);
-HeapBinding * Option__ref_HeapBinding_unwrap(Option__ref_HeapBinding * self);
 Map__Str_HeapBinding * Map__Str_HeapBinding_new(void);
 HeapBinding * Map__Str_HeapBinding_get(Map__Str_HeapBinding * self, Str * key, I64 * _err_kind);
 void Map__Str_HeapBinding_set(Map__Str_HeapBinding * self, Str * key, HeapBinding * val);
 void Map__Str_HeapBinding_delete(Map__Str_HeapBinding * self, Bool call_free);
 Map__Str_HeapBinding * Map__Str_HeapBinding_clone(Map__Str_HeapBinding * self);
+Bool Option__ref_HeapBinding_is_some(Option__ref_HeapBinding self);
+Bool Option__ref_HeapBinding_is_none(Option__ref_HeapBinding self);
+HeapBinding * Option__ref_HeapBinding_unwrap(Option__ref_HeapBinding * self);
 Vec__DynPtrBox * Vec__DynPtrBox_new(void);
 USize Vec__DynPtrBox_len(Vec__DynPtrBox * self);
 void Vec__DynPtrBox_clear(Vec__DynPtrBox * self);

@@ -4679,13 +4679,34 @@ priv ns_scope := func(ctx: Context) returns ref Scope {
     }
 }
 
+// scope_lookup_heap_binding for a `sname.fname` key, without building
+// it: the ns tables are the interpreter's hottest joined-key probe
+// (29.7K per first_class translate), and the join was allocated and
+// dropped on every one.
+priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) returns Option(ref HeapBinding) {
+    if to_ptr(s).is_null() { return Option(ref HeapBinding).None }   // REM: nullable scope ARG, see scope_get
+    ref mut cur : Scope = s
+    mut walking := true
+    while walking {
+        at := qname_keys_index(cur.heap_bindings.keys, sname, ".", fname)
+        if at >= 0 {
+            ref b : HeapBinding = cur.heap_bindings.values.unsafe_get(at.to_usize())
+            return Option(ref HeapBinding).Some(b)
+        }
+        switch cur.parent {
+        case Option(ref Scope).Some(p): cur = p
+        case Option(ref Scope).None: walking = false
+        }
+    }
+    return Option(ref HeapBinding).None
+}
+
 ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dynamic) {
     ref mut c : Context = ctx
-    qn := ns_qname(sname, fname)
     // An un-built table and a miss answer the same here: absence is a real
     // state for lookups, so no ns_scope panic.
     if c.ns_fields.is_none() { return Option(ref Dynamic).None }
-    hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
+    hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
     if hb_o.is_none() { return Option(ref Dynamic).None }
     ref hb : HeapBinding = hb_o.unwrap()
     ref slot : Dynamic = to_ptr(hb.ptr)
@@ -4721,10 +4742,9 @@ priv ns_field_type := func(sname: Str, fname: Str, ctx: Context) returns Type {
             if enum_variant_type(namespace_def, variant_idx).len() == 0 { return Type.Enum(sname.clone()) }
         }
     }
-    qn := ns_qname(sname, fname)
-    if ctx.ns_fields.is_none() { panic("namespace field type not found: ", qn) }
-    hb_o := scope_lookup_heap_binding(ns_scope(ctx), qn)
-    if hb_o.is_none() { panic("namespace field type not found: ", qn) }
+    if ctx.ns_fields.is_none() { panic("namespace field type not found: ", ns_qname(sname, fname)) }
+    hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fname)
+    if hb_o.is_none() { panic("namespace field type not found: ", ns_qname(sname, fname)) }
     ref hb : HeapBinding = hb_o.unwrap()
     return hb_type(hb).clone()
 }

@@ -10477,7 +10477,7 @@ priv builder_ns_method_inlined_away := func(type_name: Str, member: Str, ctx: Co
     // coarse test kept every inline accessor in the two dyn-heaviest
     // fixtures.
     if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    return builder_needs_reflect("dyn_call_m".concat3(".", member), ctx).not()
+    return qname_in_set(ctx.builder_reflect_inventory, "dyn_call_m", ".", member).not()
 }
 priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     // Not restricted to the AUTO-GENERATED ones: core writes `size` by
@@ -10495,8 +10495,8 @@ priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Conte
     // core/tuple.til dispatches `delete` and `clone` in programs that never
     // dispatch `size`.
     if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
-    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
+    if qname_in_set(ctx.builder_reflect_inventory, "dyn_call_m", ".", member) { return false }
+    return qname_in_set(ctx.builder_ns_member_sites, type_name, ".", member).not()
 }
 priv builder_variant_ctor_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     bvco_def_o := find_struct_def(type_name, ctx)
@@ -10533,8 +10533,8 @@ priv builder_pod_lifecycle_omitted := func(type_name: Str, member: Str, ctx: Con
     if ctx.builder_keep_all_exports { return false }
     if ctx.builder_collection_elem_types.has(type_name) { return false }
     if builder_dyn_fn_target_kept(type_name, member, ctx) { return false }
-    if builder_needs_reflect("dyn_call_m".concat3(".", member), ctx) { return false }
-    return ctx.builder_ns_member_sites.has(type_name.concat3(".", member)).not()
+    if qname_in_set(ctx.builder_reflect_inventory, "dyn_call_m", ".", member) { return false }
+    return qname_in_set(ctx.builder_ns_member_sites, type_name, ".", member).not()
 }
 priv builder_ns_method_omitted := func(type_name: Str, member: Str, ctx: Context) returns Bool {
     if builder_ns_method_inlined_away(type_name, member, ctx) { return true }
@@ -10548,12 +10548,12 @@ priv builder_variant_ctor_kept := func(ename: Str, enum_def: Expr, vname: Str, c
     // The generated dispatch that calls the real constructor, asked per
     // METHOD exactly as the auto-`size` gate asks it.
     if builder_dyn_fn_target_kept(ename, vname, ctx) { return true }
-    if builder_needs_reflect("dyn_call_m".concat3(".", vname), ctx) { return true }
-    return ctx.builder_ns_member_sites.has(ename.concat3(".", vname))
+    if qname_in_set(ctx.builder_reflect_inventory, "dyn_call_m", ".", vname) { return true }
+    return qname_in_set(ctx.builder_ns_member_sites, ename, ".", vname)
 }
 priv builder_dyn_fn_target_kept := func(type_name: Str, member: Str, ctx: Context) returns Bool {
-    if ctx.builder_dyn_fn_targets.has("*.".concat3(member, "")) { return true }
-    return ctx.builder_dyn_fn_targets.has(type_name.concat3(".", member))
+    if qname_in_set(ctx.builder_dyn_fn_targets, "*.", member, "") { return true }
+    return qname_in_set(ctx.builder_dyn_fn_targets, type_name, ".", member)
 }
 priv builder_needs_reflect := func(name: Str, ctx: Context) returns Bool {
     return ctx.builder_reflect_inventory.has(name)

@@ -337,8 +337,10 @@ priv scavenge_members_in_place := func(mut decls: Vec(Declaration), mut idx: Map
     memset(marks, 0, n)
     mut dropped_any := false
     for q in 0..idx.keys.count {
-        scv_qn := qualified_name(type_name, idx.keys.unsafe_get(q))
-        if visited.has(scv_qn).not() {
+        // Probed without joining: the visited set is sorted, so the
+        // "Type.method" key is compared part by part instead of being
+        // built and dropped once per member of every type.
+        if qname_in_set(visited, type_name, ".", idx.keys.unsafe_get(q)).not() {
             p := idx.values.unsafe_get(q).clone()
             memset(ptr_add(marks, p), 1, 1)
             dropped_any = true

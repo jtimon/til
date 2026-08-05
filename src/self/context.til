@@ -1490,7 +1490,16 @@ type_is_primitive := func(t: Type, p: Primitive) returns Bool {
 // so those correctly compare false. Replaces the cross-variant
 // `t.eq(Type.Enum("Type"))` comparisons that needed the bespoke Type.eq.
 is_type_metatype := func(t: Type) returns Bool {
-    return til_type_name(t) == "Type"
+    // Compared in place, not via til_type_name: that clones the payload
+    // to hand back an owned Str, and this predicate ran 28K times per
+    // first_class translate just to test four bytes.
+    switch t {
+    case Type.Struct(mts):     return mts == "Type"
+    case Type.Enum(mte):       return mte == "Type"
+    case Type.Custom(mtc):     return mtc == "Type"
+    case Type.FuncPtrSig(mtf): return mtf == "Type"
+    case: return false
+    }
 }
 
 // Issue #58 / #147 step 5: two FuncPtr-family types are call-compatible
@@ -2530,3 +2539,75 @@ fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool
 // precedent rhs_is_allocator_call set in #303.
 
 
+
+// --- Two-part key probes (perf) -------------------------------------
+//
+// The compiler's hot predicates ask "is `Type.method` registered?" of a
+// Str-keyed table, and used to BUILD that key to ask: 82K joined Strs
+// per test/first_class.til translate, each one a malloc for the box and
+// one for the bytes, thrown away on the next line. Every such table is
+// a sorted array searched by Str.cmp, so the join can be compared
+// against a stored key part by part instead -- the same binary search,
+// no allocation at all.
+
+// Str.cmp(key, a + sep + b) without materialising the right-hand side.
+priv qname_part_cmp := func(key: Str, off: USize, part: Str) returns I64 {
+    avail := key.len().sub(off)
+    mut m := avail
+    if part.len() < m { m = part.len() }
+    c := memcmp(ptr_add(key.c_str, off), part.c_str, m)
+    if c < 0 { return -1 }
+    if c > 0 { return 1 }
+    // Common prefix equal: the key running out first orders before the
+    // join, which continues with this part's remaining bytes.
+    if avail < part.len() { return -1 }
+    return 0
+}
+
+qname_cmp := func(key: Str, a: Str, sep: Str, b: Str) returns I64 {
+    ca := qname_part_cmp(key, 0, a)
+    if ca != 0 { return ca }
+    cs := qname_part_cmp(key, a.len(), sep)
+    if cs != 0 { return cs }
+    off := a.len().add(sep.len())
+    cb := qname_part_cmp(key, off, b)
+    if cb != 0 { return cb }
+    // Every part matched; a longer key orders after the join.
+    if key.len() > off.add(b.len()) { return 1 }
+    return 0
+}
+
+// Index of `a + sep + b` in a sorted Vec(Str) of keys, -1 when absent.
+// Map(Str, V) hands over its `keys` vec, so one search serves every
+// value type.
+qname_keys_index := func(keys: Vec(Str), a: Str, sep: Str, b: Str) returns I64 {
+    mut lo : USize = 0
+    mut hi : USize = keys.count
+    while lo < hi {
+        mid : USize = lo.add(hi.sub(lo) / 2)
+        c := qname_cmp(keys.unsafe_get(mid), a, sep, b)
+        if c < 0 { lo = mid + 1 }
+        else {
+            if c > 0 { hi = mid }
+            else { return mid.to_i64() }
+        }
+    }
+    return -1
+}
+
+// The Set(Str) twin: its elements are the sorted array itself.
+qname_in_set := func(s: Set(Str), a: Str, sep: Str, b: Str) returns Bool {
+    mut lo : USize = 0
+    mut hi : USize = s.count
+    while lo < hi {
+        mid : USize = lo.add(hi.sub(lo) / 2)
+        ref cur : Str = ptr_add(s.data, mid.mul(Str.size()))
+        c := qname_cmp(cur, a, sep, b)
+        if c < 0 { lo = mid + 1 }
+        else {
+            if c > 0 { hi = mid }
+            else { return true }
+        }
+    }
+    return false
+}
