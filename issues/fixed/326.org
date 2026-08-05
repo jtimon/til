@@ -29,8 +29,8 @@ lifecycle methods; macro signatures and field defaults are not edges;
 libraries are scavenged with their exported ABI as roots; ns values
 sweep like ns funcs; and the roots are defined centrally per mode in
 ~scavenge_visited_imported~ (FFI boundary = exactly the three symbols
-~nm -u~ reports on ext.o; interpreted programs add the ~*.size~
-wildcard; cli roots main plus its exact argv converters; test roots the
+~nm -u~ reports on ext.o; the runtime-name ~*.size~ wildcard is
+unconditional; cli roots main plus its exact argv converters; test roots the
 selected tests; script/cli/test root executable top-level statements;
 libraries their exports).  Holes the sweep exposed got source-level
 fixes: ~collect_refs~ now records assignment targets, and REPL full-load
@@ -364,10 +364,14 @@ Landed (suite green, `make test_two_pass`):
   namespace: ~UPtr := U64~ means ~UPtr.size~ must root ~U64.size~, which
   also retires the hardcoded USize->U32 / UPtr->U64 pair's job in
   ~collect_refs~ (that one is only right at the default build width).
-  The interpreter resolves ~T.size()~ by RUNTIME name (~get_elem_size~,
-  for element widths and ~dyn_size_of~), so a program that will be
-  interpreted roots ~size~ on every type through the existing ~*.method~
-  wildcard; a compile-only program does not.
+  ~T.size()~ is resolved by RUNTIME NAME (~get_elem_size~, for element
+  widths and ~dyn_size_of~), so it is rooted on every type through the
+  existing ~*.method~ wildcard.  (This root was at first conditioned on
+  ~ctx.compile_mode~ -- skipped for a compile-only program, on the
+  grounds that emitted C reads widths from ~sizeof~.  That was the
+  scavenger asking which backend was coming, which it must not do: the
+  root is unconditional now, and the C-side "sizeof makes it dead" fact
+  lives in ~builder_size_method_omitted~.  See the closing note.)
   ~println("minimal")~ went 681 -> 276 lines of C (50 -> 12 emitted
   functions) and ~test/constfold.c~ 2,075 -> 1,542.
 
@@ -559,7 +563,7 @@ Landed (suite green, `make test_two_pass`):
 - [X] Step 4's root policy is defined centrally per mode.
   ~scavenge_visited_imported~ now reads as the policy table: the
   unconditional roots (Str, the three-symbol ext.c FFI boundary, the
-  interpreter's ~*.size~ wildcard) followed by one seeding function per
+  runtime-name ~*.size~ wildcard) followed by one seeding function per
   mode -- ~seed_library_roots~, ~seed_cli_main_arg_roots~ +
   ~seed_executable_stmt_roots~, ~seed_test_roots~ +
   ~seed_executable_stmt_roots~, or ~seed_executable_stmt_roots~ alone --
@@ -583,6 +587,55 @@ Resolved by the close (see the post-mortem):
   own definition (executable top-level statements ARE the program in
   script mode); dropping just the binding while keeping effect and
   cleanup needs #302's ownership authority and saves one global slot.
+
+*** Closing note: where each half of the answer lives
+
+The issue is one question in the text but two in the code, and the
+difference only became clear at the end.
+
+The SCAVENGER answers "is this declaration used" -- once, for every
+backend, with no knowledge of who consumes the AST.  Dynamic references
+count: ~T.size()~ resolved by runtime name is a real edge, so its root
+is unconditional.  A first version conditioned that root on
+~ctx.compile_mode~ and a later one moved C lowering predicates
+(~is_pod_struct~, ~fcall_is_shallow_return~, the splice mirror) into
+~scavenger.til~ outright; both were wrong in the same direction, and
+both are undone.  More backends than C are coming, and none of them
+should inherit C's rules.
+
+The C BACKEND answers a question only it can ask: having spliced
+~Color.Red~ into a compound literal and folded ~T.size()~ to a literal
+at every site, does any emitted C still CALL the function?  That is a
+fact about C lowering, so the emit inventory, the omission gates and
+the splice mirror live in ~builder.til~ (~builder_fill_emit_inventory~).
+A second backend writes its own; it does not reuse this one.
+
+One constraint worth recording, because it looks like a layering
+mistake and is not: the gate runs from ~build()~, not from
+~scavenge_imported~, because its queries read the C-symbol aliases
+~build_register_func_symbols_lp~ installs.  Asking earlier returns a
+different answer -- ~EvalHeap_clone~ and ~CtorArg_clone~ became implicit
+declarations when it ran at sweep time.
+
+*** One loose end this work depends on (measured 2026-08-04)
+
+The site collector mirrors the emitter's stack-storage answer for the
+POD-struct ctor Decl (~bvs_ctor_stack~ in
+~builder_collect_ns_member_sites~) instead of reading ~gc_storage~,
+because on that path the garbager records ~HeapBox~ while the builder's
+compound-literal shortcut emits a stack value.  ~assert_gc_stack~'s
+comment calls this one of the paths that "stay unasserted until stages
+4/6 collapse the compensation".
+
+#302 is now FIXED, and the divergence outlived it: deleting the mirror
+and rebuilding brings ~Point_clone~ straight back into
+~test/aliases.til~'s output (3 occurrences), so the record is still
+dishonest for that shape.  The mirror is therefore load-bearing, not
+belt-and-braces, and it is the last place in #326's work that
+re-derives a decision another pass already made.  Whoever makes the
+record honest can delete it and read ~gc_storage~ alone -- the same
+goes for the ~can_hoist~ ~_hp~ deref copies and the POD-struct
+user-clone value copy named in that comment.
 
 *** Related issues
 

@@ -128,6 +128,13 @@ Two modules sit underneath every phase below:
   centrally per mode in ~scavenge_visited_imported~ (#326). Libraries
   are scavenged like every other mode, with their exported ABI as
   roots.
+- BACKEND-AGNOSTIC, deliberately: it answers "is this declaration
+  used" once, for whoever consumes the AST afterwards, and never asks
+  which back end is coming. A reference made by RUNTIME NAME counts as
+  a real edge -- ~get_elem_size~ builds ~T.size()~ from a name it only
+  learns at runtime, so ~*.size~ is an unconditional root rather than
+  something the interpreter opts into. See the back end below for the
+  question this pass does NOT answer.
 - Skipped where the open-world premise breaks static reachability:
   REPL sessions (the next turn can name anything;
   ~repl_finish_prepare_program~) and typed-AST-only paths like
@@ -149,6 +156,25 @@ There are two main back ends.
   - `build(ast, mode, run_tests, path, c_path)`
   - [[file:../src/self/builder.til][src/self/builder.til]]
   - emits C, headers, and optional til bindings
+  - runs its own emit-reachability pass first
+    (~builder_fill_emit_inventory~, #326). This is NOT a second
+    scavenge: it answers a question only a C emitter can ask, because
+    only the C emitter knows what it splices. `Color.Red` becomes a
+    compound literal, `T.size()` was folded to a literal, a POD
+    `p.clone()` becomes a struct copy -- each is a live reference the
+    scavenger correctly kept, and none of them leaves a CALL in the C,
+    so the out-of-line function must not be emitted. The pass builds
+    the call-site inventory, iterates it to a fixpoint (a site inside a
+    body that is itself omitted is not a call), and the emitters gate
+    on the result.
+  - a future back end needing the same cleanup writes its own version:
+    the splicing rules are C's, not the language's. Only the
+    reachability half above is shared.
+  - the pass runs from `build`, after
+    `build_register_func_symbols_lp`, not from `scavenge_imported` --
+    its lowering queries read the C-symbol aliases that registration
+    installs, and answering them earlier gives a different (wrong)
+    result.
   - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
   - target/platform selection (the `Target` and `Lang` enums) lives in
     [[file:../src/self/targets.til][src/self/targets.til]]
