@@ -65,12 +65,58 @@
   Route 1 is the cheap one and route 2 is the correct one; they are not
   exclusive (1 can ship first and stay as a runtime backstop).
 
-  Worth verifying before either: that EVERY allocating Str path really
-  does write the NUL.  doc/ffi.org asserts it for ~clone~, and
-  ~str.til~'s ~append~ does it explicitly, but ~format~, ~readfile~ and
-  the builder's string construction have not been audited.  A check that
-  trusts a false invariant is worse than no check.
+*** The NUL audit (done)
 
-  No known live bug: nothing in the tree passes a view to a C string
-  parameter today, and test/ext_libc.til pins the safe shapes.  This is
-  about the hole staying open for the next binding somebody writes.
+  A check that trusts a false invariant is worse than no check, so every
+  allocating Str path was audited before choosing a route.  Result: the
+  invariant holds everywhere EXCEPT one place, now fixed.
+
+  Verified to terminate:
+
+  - core/str.til: ~with_capacity~ (mallocs n+1, NUL at 0), ~push_str~
+    (NUL at the new count), ~clone~, ~from_byte~.  ~format~, ~concat3~,
+    ~join~, ~replace~ and ~split~ are all built out of those two, so they
+    inherit it.
+  - The interpreter's string-literal evaluation (~eval_expr_raw~), which
+    NULs explicitly and carries a comment about the same bug class.
+  - ext.c: ~F32_to_str~ / ~F32_to_repr~ / ~F64_to_str~ / ~F64_to_repr~ /
+    ~U64_to_str_ext~ (memcpy len+1, terminator included),
+    ~str_from_bytes~, ~doc_blob_lookup~, ~cfile_read_n~, ~in_read_line~,
+    ~repl_str_assign~, ~til_str_left~, and everything routed through
+    ~Str_clone~ (which is the compiled core/str.til ~clone~).
+
+  The exception was ~cfile_read_all~ -- File.readfile, the single biggest
+  Str producer in the tree.  It malloc'd exactly ~len~ bytes, wrote no
+  terminator, and reported ~count = len~ rather than what ~fread~
+  returned.  Reading its ~c_str~ as a C string ran off the end of the
+  allocation (garbage past the file's last byte, heap-buffer-overflow
+  under ASAN), and a short read published bytes that were never written.
+  Fixed: malloc len+1, ~buf[got] = '\0'~, count from ~fread~'s return.
+  Pinned by ~test_file_readfile_is_nul_terminated~ (test/files.til),
+  which reads a file back through ~Str.from_c_str(content.c_str)~ and
+  covers the empty-file edge.
+
+  Note this was an OWNED Str breaking the invariant, not a view -- so the
+  hazard this issue is about had a second source that no view-shaped
+  check would have caught.
+
+*** Constraint on route 1: CAP_VIEW does not imply "no NUL"
+
+  Returning a literal from a til function emits
+  ~if (_r->cap == TIL_CAP_LIT) { _r->cap = TIL_CAP_VIEW; }~ -- the Str
+  struct is heap-boxed while ~c_str~ keeps pointing at the static C
+  literal, and the cap is downgraded so ~delete~ frees the box but not
+  the static.  Consequently every literal returned from a function, and
+  every empty string (~clone~ of an empty returns ~""~ that way), carries
+  ~cap == CAP_VIEW~ while being perfectly NUL-terminated.
+
+  So the naive ext-boundary check -- panic when ~cap == CAP_VIEW~ --
+  would fire on entirely safe values, starting with ~get_env~'s own ""
+  return.  Route 1 needs a discriminator that separates "view into the
+  middle of a til buffer" from "view onto a C literal", which the cap
+  field alone does not provide.  Worth settling before any code.
+
+  No known live bug on the view side: nothing in the tree passes a view
+  to a C string parameter today, and test/ext_libc.til pins the safe
+  shapes.  This is about the hole staying open for the next binding
+  somebody writes.

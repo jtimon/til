@@ -36,6 +36,28 @@ test_file_multiple_writes := test() {
     assert_eq(Str, content, "0 1 2 3 4 ")
 }
 
+// readfile's result is an OWNED Str, so it must carry the NUL every owned
+// Str carries: reading it back as a C string has to stop at the file's
+// last byte. cfile_read_all used to malloc exactly count bytes and write
+// no terminator, so c_str_len walked off the end of the allocation --
+// garbage length here, and a heap-buffer-overflow read under ASAN.
+test_file_readfile_is_nul_terminated := test() {
+    path := "tmp/_test_file_readfile_nul.txt"
+    File.writefile(path, "abcdef")
+
+    content := File.readfile(path)
+    assert_eq(USize, content.len(), 6)
+    assert_eq(Str, Str.from_c_str(content.c_str), "abcdef")
+
+    // The empty file is the edge case: a zero-length read still needs the
+    // terminator byte, and the buffer is malloc'd for it.
+    empty_path := "tmp/_test_file_readfile_nul_empty.txt"
+    File.writefile(empty_path, "")
+    empty := File.readfile(empty_path)
+    assert_eq(USize, empty.len(), 0)
+    assert_eq(Str, Str.from_c_str(empty.c_str), "")
+}
+
 test_file_fwrite := test() {
     path := "tmp/_test_file_fwrite.txt"
     f := File.new(path, true)

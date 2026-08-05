@@ -2054,12 +2054,21 @@ Str *cfile_read_all(const void *handle) {
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char *buf = malloc(len);
-    fread(buf, 1, len, f);
+    // +1 for the terminator, and count from the bytes fread actually
+    // delivered. Every owned Str in the tree carries a NUL one byte past
+    // its count -- that is what lets .c_str reach a C string API at all --
+    // and readfile, the tree's biggest Str producer, was the one place
+    // that did not: it sized the buffer at exactly len and wrote no
+    // terminator, so reading c_str as a C string ran off the allocation.
+    // Trusting len over fread's return also published bytes a short read
+    // never wrote (cfile_read_n below already got both of these right).
+    char *buf = malloc((size_t)len + 1);
+    size_t got = fread(buf, 1, (size_t)len, f);
+    buf[got] = '\0';
     Str *s = malloc(sizeof(Str));
     s->c_str = (I8 *)buf;
-    s->count = len;
-    s->cap = len;
+    s->count = (USize)got;
+    s->cap = (USize)len;
     return s;
 }
 
