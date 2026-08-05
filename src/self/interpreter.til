@@ -1312,6 +1312,14 @@ priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: U
         if raw_is_ref {
             write_ptr(dst, raw)
         } else if raw_is_place.or(raw_type.is(Type.Dynamic)) {
+            // #321: a null-literal value IS the null word, not a block
+            // holding one -- raw_arg_pointer states the same rule for
+            // arguments. An `own data : U8 = 0` field initialises
+            // straight to null, and there is nothing to load through.
+            if raw.is_null() {
+                write_ptr(dst, raw)
+                return
+            }
             ref pointed : Dynamic = deref(raw)
             write_ptr(dst, pointed)
             if raw_is_place.not() { raw_block_free(raw) }

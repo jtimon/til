@@ -603,33 +603,29 @@ GC-AUDIT site 149 delete Str.delete(hoisted__Str_#23) call_free=0
 GC-AUDIT site 156 delete Str.delete(hoisted__Str_#24) call_free=0
 GC-CFG body test/gc_audit.til:24:9 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=24:9 span=0..5 succs=0
+GC-CFG block 1 body=24:9 span=0..4 succs=0
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U8_#0 entry=I exit=M out=M,M
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=O out=O,O
-GC-AUDIT body test/gc_audit.til:24:9 locals=4
-GC-AUDIT local hoisted__I64_#0 type=I64 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#0 type=U32 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U8_#0 type=U8 decl=0 last_use=3 own_transfer=3 heap=1 skip=0
-GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=3 last_use=4 own_transfer=-1 heap=1 skip=0
+GC-AUDIT body test/gc_audit.til:24:9 locals=3
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=2 last_use=3 own_transfer=-1 heap=1 skip=0
 GC-CFG body test/gc_audit.til:34:21 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=34:21 span=0..5 succs=0
+GC-CFG block 1 body=34:21 span=0..4 succs=0
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U8_#0 entry=I exit=M out=M,M
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=O out=O,O
-GC-AUDIT body test/gc_audit.til:34:21 locals=4
-GC-AUDIT local hoisted__I64_#0 type=I64 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#0 type=U32 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U8_#0 type=U8 decl=0 last_use=3 own_transfer=3 heap=1 skip=0
-GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=3 last_use=4 own_transfer=-1 heap=1 skip=0
+GC-AUDIT body test/gc_audit.til:34:21 locals=3
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=2 last_use=3 own_transfer=-1 heap=1 skip=0
 GC-CFG body test/gc_audit.til:34:9 blocks=4
 GC-CFG block 0 exit
 GC-CFG block 1 body=34:9 span=0..3 succs=3,2
 GC-CFG block 2 body=34:9 span=3..8 succs=0
-GC-CFG block 3 body=34:21 span=0..5 succs=0
+GC-CFG block 3 body=34:21 span=0..4 succs=0
 GC-FLOW local hoisted__Bool_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I
@@ -1650,16 +1646,14 @@ GC-AUDIT site 1 free(<expr>) own=1
 GC-AUDIT site 2.if0.0 free(self) own=1
 GC-CFG body test/gc_audit.til:301:28 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=301:28 span=0..5 succs=0
+GC-CFG block 1 body=301:28 span=0..4 succs=0
 GC-FLOW local hoisted__I64_#0 entry=I exit=O out=O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
-GC-FLOW local hoisted__U8_#0 entry=I exit=M out=M,M
 GC-FLOW local hoisted__Vec__I64_#0 entry=I exit=O out=O,O
-GC-AUDIT body test/gc_audit.til:301:28 locals=4
-GC-AUDIT local hoisted__I64_#0 type=I64 decl=2 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#0 type=U32 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U8_#0 type=U8 decl=0 last_use=3 own_transfer=3 heap=1 skip=0
-GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=3 last_use=4 own_transfer=-1 heap=1 skip=0
+GC-AUDIT body test/gc_audit.til:301:28 locals=3
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__Vec__I64_#0 type=Vec__I64 decl=2 last_use=3 own_transfer=-1 heap=1 skip=0
 GC-CFG body test/gc_audit.til:303:13 blocks=5
 GC-CFG block 0 exit
 GC-CFG block 1 body=303:13 span=0..2 succs=3,4
@@ -1739,7 +1733,7 @@ GC-CFG body test/gc_audit.til:301:9 blocks=21
 GC-CFG block 0 exit
 GC-CFG block 1 body=301:9 span=0..3 succs=3,2
 GC-CFG block 2 body=301:9 span=3..6 succs=5
-GC-CFG block 3 body=301:28 span=0..5 succs=0
+GC-CFG block 3 body=301:28 span=0..4 succs=0
 GC-CFG block 4 body=301:9 span=6..8 succs=0
 GC-CFG block 5 body=303:13 span=0..4 succs=7,14
 GC-CFG block 6 body=303:13 span=4..4 succs=4

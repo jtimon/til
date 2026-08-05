@@ -1042,7 +1042,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 if ctx.auto_gen_depth == 0 { ctor_fld.used = true }
                 // #321: a 0 arg for a Dynamic field is the null spelling.
                 if arg.children.len() > 0 {
-                    rewrite_zero_to_null(arg.children[0], type_from_name(ctor_fld.explicit_type, scope, ctx))
+                    rewrite_zero_to_null(arg.children[0], type_from_name(ctor_fld.explicit_type, scope, ctx), ctor_fld.own_type.is(OwnType.Own))
                 }
                 // #321 step 4: null only fills quarantine-labeled fields.
                 if arg.children.len().gt(0).and(arg.children[0].node_type.is_literal_null()) {
@@ -3479,7 +3479,7 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
                     if fd.default_value.is_some() {
                         // #321: a 0 default on a Dynamic field is the null
                         // spelling (a hoisted-literal borrow otherwise).
-                        rewrite_zero_to_null(fd.default_expr(), fd.til_type)
+                        rewrite_zero_to_null(fd.default_expr(), fd.til_type, fd.own_type.is(OwnType.Own))
                         if fd.default_expr().node_type.is_literal_num().and(is_numeric_type(fd.til_type)) {
                             fd.default_expr().set_til_type(fd.til_type)
                         }
@@ -4199,7 +4199,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // #321: a `p: Dynamic = 0` param default is the null spelling;
             // the fill clones the rewritten node into call sites.
             if param.default_value.is_some().and(param.til_type.is(Type.Dynamic).or(til_type_from_explicit_type(param.explicit_type).is(Type.Dynamic))) {
-                rewrite_zero_to_null(param.default_expr(), Type.Dynamic)
+                rewrite_zero_to_null(param.default_expr(), Type.Dynamic, param.own_type.is(OwnType.Own))
             }
             ptype_name := param.explicit_type.clone()
             ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
@@ -4844,7 +4844,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
         // #321: `return 0` from a returns-Dynamic function is the null
         // spelling.
         if ctx.typer_return_type_name.len() > 0 {
-            rewrite_zero_to_null(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx))
+            rewrite_zero_to_null(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx), false)
         }
         // #321 step 4: a typed function cannot return null; the
         // maybe-absent return is an Option. Quarantine returns
@@ -5120,7 +5120,7 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                         }
                     }
                     // #321: `x.f = 0` on a Dynamic field is the null spelling.
-                    rewrite_zero_to_null(rhs, fld_type)
+                    rewrite_zero_to_null(rhs, fld_type, false)
                     // #321 step 4: null only overwrites quarantine slots.
                     if rhs.node_type.is_literal_null().and(type_is_null_quarantine(fld_type).not()) {
                         rhs.type_error(format("cannot assign a null pointer to field '", fname, "'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option field for a real absent state (#321)"), ctx)
@@ -5537,7 +5537,7 @@ priv infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr, in_func: I
             stmt.type_error(format("undefined type '", sdecl.explicit_type, "'"), ctx)
         } else if val.node_type.is_literal_num().and(declared.is(Type.Dynamic)) {
             // #321: `x : Dynamic = 0` -- 0 IS the null spelling now.
-            rewrite_zero_to_null(val, declared)
+            rewrite_zero_to_null(val, declared, false)
             if val.node_type.is_literal_null().not() {
                 val.set_til_type(declared)
             }
@@ -6931,7 +6931,7 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     }
     existing := scope.get_type(aname)
     // #321: `x = 0` on a Dynamic target is the null spelling.
-    rewrite_zero_to_null(rhs, existing)
+    rewrite_zero_to_null(rhs, existing, false)
     // #321 step 4: null only overwrites quarantine-labeled slots.
     if rhs.node_type.is_literal_null().and(existing.is(Type.Unknown).not()) {
         if type_is_null_quarantine(existing).not() {
@@ -7707,8 +7707,18 @@ priv type_is_null_quarantine := func(shallow t: Type) returns Bool {
 // arguments spell to_ptr(0) -- the 0 boxes into to_ptr's param and
 // derefs back out as the null word in both backends. U8/I8-typed 0
 // stays an ordinary integer everywhere (raw slots use to_ptr(0) too).
-priv rewrite_zero_to_null := func(mut e: Expr, shallow target: Type) {
-    if target.is(Type.Dynamic).not() { return }
+// `owned` widens the rule from Dynamic to the whole null quarantine
+// (Dynamic / U8 / I8). An OWN slot of a raw-buffer type holds a
+// POINTER, so its `= 0` is the lazily-absent state this file's
+// quarantine comment already names by example (`own data : U8 = 0`).
+// Without it the zero was an ordinary byte: every empty container
+// constructor hoisted it into a one-byte heap box that the first grow
+// immediately threw away -- 663K of them per test/first_class.til
+// translate. A NON-own `b : U8 = 0` field keeps meaning the number 0.
+priv rewrite_zero_to_null := func(mut e: Expr, shallow target: Type, owned: Bool) {
+    mut null_slot := target.is(Type.Dynamic)
+    if null_slot.not().and(owned) { null_slot = type_is_null_quarantine(target) }
+    if null_slot.not() { return }
     mut is_zero := false
     switch e.node_type {
     case NodeType.Literal(Literal.Num(zn)):
