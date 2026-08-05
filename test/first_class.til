@@ -195,6 +195,30 @@ test_vec_funcsig_cast_call_inline := test() {
     assert_eq(I64, cast(raw1, BinaryOp)(3, 4), 12)
 }
 
+// Calling a call's RESULT, without binding it first. The signature comes
+// off the inner call's own Type.FuncPtrSig payload -- the same name
+// `cast(raw, BinaryOp)(3, 4)` spells out in an argument -- so both shapes
+// share one validation path in the typer and one indirect-call emit in
+// the builder. This used to crash the compiler on an UNREACHABLE, then
+// (once that became a diagnostic) was rejected outright.
+PickOp := func(I64) returns I64
+pick_double := func(x: I64) returns I64 { return x.mul(2) }
+pick_op := func() returns PickOp { return pick_double }
+pick_binop := func(flag: Bool) returns BinaryOp {
+    if flag { return fn_add }
+    return fn_mul
+}
+
+test_call_a_call_result := test() {
+    assert_eq(I64, pick_op()(5), 10)
+    assert_eq(I64, pick_binop(true)(3, 4), 7)
+    assert_eq(I64, pick_binop(false)(3, 4), 12)
+}
+
+test_call_a_call_result_nested := test() {
+    assert_eq(I64, pick_op()(pick_op()(3)), 12)
+}
+
 // --- First-class Body values (issue #55) ---
 
 run_body_twice := proc(b: Body) {

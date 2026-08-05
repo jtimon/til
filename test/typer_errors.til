@@ -969,13 +969,6 @@ borrow_esc_bad := func() returns Option(ref BorrowEscCell) {
     return Option(ref BorrowEscCell).Some(borrow_esc_local)
 }
 
-// Calling a call's result directly is not supported yet; it used to hit
-// UNREACHABLE() and crash the COMPILER instead of reporting an error.
-CallOp328 := func(I64) returns I64
-call_double328 := func(x: I64) returns I64 { return x.mul(2) }
-call_pick328 := func() returns CallOp328 { return call_double328 }
-call_result_direct := call_pick328()(5)
-
 // #324: a `ref` FIELD names storage its holder does not own, so passing
 // it to an `own` parameter transfers an ownership the field never had --
 // the callee (or a drain) would free through a borrow. The Ident arm has

@@ -463,6 +463,18 @@ resolve_fn_sig := func(fcall: Expr, scope: TypeScope) returns Option(ref Expr) {
     if fcall.children.len() == 0 { return Option(ref Expr).None }
     ref callee : Expr = fcall.children[0]
     switch callee.node_type {
+    case NodeType.FCall:
+        // Calling a call's result: the inner call's own type names the
+        // signature. Without this the builder's indirect-call emit had no
+        // signature to work from and fell through to its Ident-only path.
+        sig_nm := til_type_name(callee.til_type())
+        if sig_nm.len() == 0 { return Option(ref Expr).None }
+        snb_o := scope.get_binding(sig_nm)
+        if snb_o.is_none() { return Option(ref Expr).None }
+        snb_fd_o := scope.lookup_func(snb_o.unwrap().name)
+        if snb_fd_o.is_none() { return Option(ref Expr).None }
+        if snb_fd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
+        return snb_fd_o
     case NodeType.Ident(name):
         cb_o := scope.get_binding(name.ident_name())
         if cb_o.is_none() { return Option(ref Expr).None }
@@ -2350,18 +2362,27 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
     ref callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FCall).not() { return false }
     if callee.til_type().is_funcptr().not() { return false }
-    if callee.children.len() != 3 { return false }
-    switch callee.children[0].node_type {
-    case NodeType.Ident(cn):
-        if cn.ident_name().eq("cast").not() { return false }
-    case:
-        return false
-    }
+    // `cast(raw, Sig)(args)` names its signature in child(2). Any OTHER
+    // funcptr-typed call result -- `pick()(5)` where `pick returns Sig` --
+    // carries the same name in its own Type.FuncPtrSig payload, so both
+    // shapes resolve to a signature here and share the validation below.
     mut sig_name := ""
-    switch callee.children[2].node_type {
-    case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
-    case:
-        return false
+    mut is_cast := false
+    if callee.children.len() == 3 {
+        switch callee.children[0].node_type {
+        case NodeType.Ident(cn): is_cast = cn.ident_name().eq("cast")
+        case:
+        }
+    }
+    if is_cast {
+        switch callee.children[2].node_type {
+        case NodeType.Ident(tn): sig_name = Str.clone(tn.ident_name())
+        case:
+            return false
+        }
+    } else {
+        sig_name = til_type_name(callee.til_type())
+        if sig_name.len() == 0 { return false }
     }
     sig_bind_o := scope.get_binding(sig_name)
     if sig_bind_o.is_none() { return false }
