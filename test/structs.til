@@ -625,3 +625,44 @@ test_field_type_derived_through_new_call := test() {
     // derived through `DerivedFieldInner.new()`.
     assert_eq(Str, o.to_str(), "DerivedFieldOuter(label=x, inner=Inner(7))")
 }
+
+// --- #340: field init shorthand -------------------------------------
+//
+// In a struct literal a bare identifier that names a field stands for
+// `field = field`, exactly as in Rust (RFC 1682): purely name
+// coincidence, freely mixed with explicit `field = value` args, and
+// order never mattered because a struct literal is name-keyed.
+
+ShorthandUser := struct {
+    su_name := ""
+    su_pass := ""
+    su_age := 0
+}
+
+test_field_init_shorthand := test() {
+    su_name := "jorge"
+    su_pass := "hunter2"
+    u := ShorthandUser(su_name, su_pass, su_age = 41)
+    assert_eq(Str, u.to_str(), "ShorthandUser(su_name=jorge, su_pass=hunter2, su_age=41)")
+}
+
+test_field_init_shorthand_order_and_mixing := test() {
+    su_pass := "pw"
+    su_name := "nm"
+    // shorthand after an explicit arg, and in a different order than the
+    // fields are declared: both are fine.
+    v := ShorthandUser(su_age = 7, su_pass, su_name)
+    assert_eq(Str, v.to_str(), "ShorthandUser(su_name=nm, su_pass=pw, su_age=7)")
+}
+
+test_field_init_shorthand_matches_longhand := test() {
+    su_name := "same"
+    su_other := "same"
+    // Only a BARE identifier is the shorthand: `su_name.clone()` stays a
+    // positional argument and is still rejected. The shorthand also
+    // transfers its variable exactly like the longhand does, which is why
+    // each literal below gets its own source.
+    a := ShorthandUser(su_name)
+    b := ShorthandUser(su_name = su_other)
+    assert_eq(Bool, a.eq(b), true)
+}

@@ -42,20 +42,28 @@ typer/builder disagreement.
 
 ** Interpreter read_field returns dangling StructInstance.struct_name
 
-~src/self/interpreter.til:read_field~ for an inline-struct field does:
+Fixed as [[../issues/fixed/239.org][#239]].
+
+Historical: ~StructInstance~ no longer exists, and the spellings below
+are the ones of the time -- ~NULL~ was still a keyword (#321 retired it;
+an absent borrow is ~Option(ref T).None~ now).
+
+~src/self/interpreter.til:read_field~ for an inline-struct field did:
 
   mut ftype := dd.explicit_type
   ...
   return make_struct_value(ftype, sdef3, ptr, true)
 
-Then ~make_struct_value~ stores ~ftype~ into the returned
-~StructInstance.struct_name~ field, which is declared
-~ref mut struct_name : Str = NULL~ -- a borrow.  But ~ftype~ is a
+Then ~make_struct_value~ stored ~ftype~ into the returned
+~StructInstance.struct_name~ field, declared
+~ref mut struct_name : Str = NULL~ -- a borrow.  But ~ftype~ was a
 local Str, cloned from ~dd.explicit_type~ via the typer's auto-clone
-for Ident/FieldAccess Struct-typed RHSes.  When ~read_field~ returns,
-~ftype~ goes out of scope and its destructor frees its ~c_str~ buffer
--- the returned ~StructInstance.struct_name~ now points at freed
-memory.
+for Ident/FieldAccess Struct-typed RHSes.  When ~read_field~ returned,
+~ftype~ went out of scope and its destructor freed its ~c_str~ buffer
+-- the returned ~StructInstance.struct_name~ then pointed at freed
+memory.  #239's fix was a central ~stable_type_name~ lookup, so the
+name is rooted in the scope's bindings rather than in a per-field
+declaration; the "long-term answer" below is what it did.
 
 Today's auto-gen ~Line_clone~ never trips this in the interpreter
 because the AST for each field wraps the read in

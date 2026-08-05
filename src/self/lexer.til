@@ -49,12 +49,6 @@ TokenType := enum {
     KwReturn, KwThrow, KwCatch,
     KwBreak, KwContinue, KwDefer,
     KwTrue, KwFalse,
-    // #321: NULL left the language -- nothing lexes to KwNull anymore (a
-    // Dynamic-typed 0 is the null pointer; the raw layer spells it
-    // bits_word(0)). The variant SLOT stays: TokenType tag values are
-    // baked into the committed boot, so dropping it would shift every
-    // later tag.
-    KwNull,
     KwPriv,
 
     // Error tokens

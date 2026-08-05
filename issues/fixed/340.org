@@ -1,0 +1,62 @@
+# priority: medium
+# category: features
+** FIXED #340 Field init shorthand: User(name, pass) instead of User(name=name, pass=pass)
+
+*** Post-mortem
+
+    A struct literal in til is a C compound literal with nicer syntax:
+    name-keyed, defaults allowed, and spelled with the type's name.
+    Because it is name-keyed, ~User(name = name, pass = pass)~ repeats
+    every identifier twice whenever the local already carries the field's
+    name -- which is the common case at the boundary where a struct is
+    assembled from freshly parsed or freshly computed parts.
+
+    Fix: in a struct literal, a bare identifier that names a field now
+    stands for ~field = field~, so ~User(name, pass)~ means
+    ~User(name = name, pass = pass)~.
+
+    The rule is Rust's, verbatim (RFC 1682): purely name coincidence,
+    shorthand and explicit ~field = value~ args mix freely in one
+    literal, and order never mattered because the literal is name-keyed,
+    not positional. There is NO "shorthand args must come first"
+    restriction -- checked against the RFC rather than assumed.
+
+    Where it lives: ~rewrite_ctor_field_shorthand~ in
+    [[file:../../src/self/typer.til][src/self/typer.til]], called from
+    ~infer_struct_constructor_fcall_impl~ before the ctor argument walk.
+    Deliberately NOT the parser: the parser cannot tell ~User(name)~ (a
+    struct literal) from ~f(name)~ (an ordinary call), and only the ctor
+    path knows the callee is a struct with a field of that name. The
+    rewrite produces an ordinary ~NamedArg~ node, so everything
+    downstream -- priv checks, the null quarantine, interface boxing,
+    duplicate detection, ownership transfer -- sees exactly what the
+    longhand produces and needed no changes.
+
+    Nothing can change meaning: positional struct arguments have never
+    been accepted ("struct instantiation requires named arguments"), so
+    the rewrite only fills a slot that was an error. A bare identifier
+    that matches no field keeps that same error; a field name with no
+    matching variable in scope gives "undefined symbol", which is what
+    Rust reports too.
+
+    Regression tests: ~test_field_init_shorthand~,
+    ~test_field_init_shorthand_order_and_mixing~ and
+    ~test_field_init_shorthand_matches_longhand~ in
+    [[file:../../test/structs.til][test/structs.til]].
+
+*** Original report
+
+   Instead of:
+
+   #+begin_example
+   u := User(name = name, pass = pass)
+   #+end_example
+
+   just:
+
+   #+begin_example
+   u := User(name, pass)
+   #+end_example
+
+   like other languages do -- they use ~{}~ instead of ~()~ for some
+   reason we do not yet understand.

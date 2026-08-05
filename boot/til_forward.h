@@ -232,7 +232,6 @@ enum {
     TokenType_TAG_KwDefer,
     TokenType_TAG_KwTrue,
     TokenType_TAG_KwFalse,
-    TokenType_TAG_KwNull,
     TokenType_TAG_KwPriv,
     TokenType_TAG_Error
 };
@@ -2565,6 +2564,7 @@ void priv___src_self_typer_til__validate_fcall_own_args_for_fdef(TypeScope * sco
 void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr * e, Option__ref_TypeBinding callee_bind_o, Context * ctx);
 void priv___src_self_typer_til__set_fcall_own_args_for_own_params(Expr * e, FunctionDef * fdef_data);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
+void priv___src_self_typer_til__rewrite_ctor_field_shorthand(StructDef * ctor_sdd, Expr * e);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall_impl(TypeScope * scope, Expr * sdef, Expr * e, Str * name, I32 in_func, Context * ctx);
 Expr * resolve_default_value(Expr * default_value, Expr * call_expr, Context * ctx);
 Bool priv___src_self_typer_til__name_is_interface(Str * name, TypeScope * scope);

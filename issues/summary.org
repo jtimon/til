@@ -40,6 +40,7 @@
 *** [[./open/329.org][#329]] Add borrowed Slice(T) views and slicing
 *** [[./open/330.org][#330]] Parse Jai/Odin-style Array, Slice, and Vec type sugar
 *** [[./open/332.org][#332]] REPL line editing and history, without an external dependency
+*** [[./open/341.org][#341]] Leading-dot enum variants in switch/match cases: `case .Body:`
 ** Low
 *** [[./open/54.org][#54]] Explicit capture syntax (closures)
 *** [[./open/63.org][#63]] User-defined modes

@@ -640,7 +640,7 @@ priv check_ref_field_owned_default := proc(fname: Str, fd: Declaration, scope: T
     if fd.default_expr().node_type.is_literal_null() {
         if fd.explicit_type.len().gt(0)
             .and(type_from_name(fd.explicit_type, scope, ctx).is(Type.Dynamic)) { return }
-        fd.default_expr().type_error(format("ref field '", fname, "' cannot default to NULL -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
+        fd.default_expr().type_error(format("ref field '", fname, "' cannot default to a null pointer (`0` at a Dynamic slot) -- use Option(ref T) for a real absent state, drop the default to make the field mandatory, or 'ref Dynamic' at a raw C boundary"), ctx)
         return
     }
     if fd.default_expr().node_type.is(NodeType.FCall).not() { return }
@@ -660,21 +660,25 @@ priv check_ref_assign_owned_rhs := proc(stmt: Expr, target_name: Str, rhs: Expr,
     , ctx)
 }
 
-// #168 step 1b / #177: ref bindings cannot be initialized to NULL. A
-// `ref` slot initialized to NULL is structurally an uninitialized
+// #168 step 1b / #177: ref bindings cannot be initialized to null. A
+// `ref` slot initialized to null is structurally an uninitialized
 // borrow; every legitimate use is rewritable as the borrow at the
 // point you actually have it, as a sentinel value, or as a Context
 // field on a longer-lived owner.
 //
 // Struct field defaults used to be the allowed exception (no
 // instance to point at yet); #321 step 2 closed it --
-// check_ref_field_owned_default rejects `= NULL` there too, Dynamic
-// quarantine fields excepted.
+// check_ref_field_owned_default rejects a null default there too,
+// Dynamic quarantine fields excepted.
 //
 // Module-scope globals were the original conservative carve-out; the
 // 8 remaining sites flagged in #177 (interpreter cached_*_def/_name,
 // builder current_fdef, typer current_struct_def) all migrated to
 // Context fields. Module scope now enforces the same rule as locals.
+//
+// #321: the NULL keyword is gone, so the only source spelling that
+// reaches here is `ref x : Dynamic = 0` -- the message names that, not
+// a keyword the user cannot type.
 priv check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
     if stmt.children.len() == 0 { return }
     switch stmt.node_type {
@@ -682,7 +686,7 @@ priv check_ref_local_null_init := proc(stmt: Expr, ctx: Context) {
         if sdecl.own_type.is(OwnType.Ref).not() { return }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is_literal_null().not() { return }
-        stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized to NULL -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
+        stmt.type_error(format("ref binding '", sdecl.name, "' cannot be initialized to a null pointer (`0` at a Dynamic slot) -- borrow the source directly, or use a non-ref shape (own/mut + sentinel)"), ctx)
     case:
     }
 }
@@ -859,7 +863,7 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
                     arg.type_error("cannot pass null to 'shallow' parameter", ctx)
                 }
             }
-            // #321 step 4: NULL is the quarantine's literal. A borrowed
+            // #321 step 4: null is the quarantine's literal. A borrowed
             // param of any other type cannot receive it -- the maybe-absent
             // argument is an Option(ref T). (own/shallow params error above
             // on ownership grounds; this closes the remaining ref/plain
@@ -867,7 +871,7 @@ priv validate_fcall_own_args_for_fdef := proc(scope: TypeScope, e: Expr, fdef_da
             if pp2.own_type.is(OwnType.Own).not().and(pp2.own_type.is(OwnType.Shallow).not()) {
                 if arg.node_type.is_literal_null() {
                     if type_is_null_quarantine(type_from_name(pp2.explicit_type, scope, ctx)).not() {
-                        arg.type_error(format("cannot pass NULL to typed parameter '", pp2.name, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- pass an Option(ref T) instead (#321)"), ctx)
+                        arg.type_error(format("cannot pass a null pointer to typed parameter '", pp2.name, "'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- pass an Option(ref T) instead (#321)"), ctx)
                     }
                 }
             }
@@ -927,6 +931,41 @@ priv infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name:
     return infer_struct_constructor_fcall_impl(scope, sdef, e, name, in_func, ctx)
 }
 
+// Field init shorthand: in a struct literal, a bare identifier that
+// names a field stands for `field = field`, so `User(name, pass)` means
+// `User(name = name, pass = pass)`. Same rule as Rust's (RFC 1682): it
+// is purely name coincidence -- shorthand and explicit `field = value`
+// args mix freely and order never mattered, because a struct literal is
+// name-keyed, not positional.
+//
+// Rewriting into NamedArg here, rather than in the parser, is what makes
+// the rule safe: the parser cannot tell `User(name)` (a struct literal)
+// from `f(name)` (an ordinary call), and only this path knows the callee
+// is a struct with a field of that name. Everything downstream -- priv
+// checks, the null quarantine, interface boxing, duplicate detection --
+// then sees an ordinary named argument.
+//
+// A bare identifier that matches NO field is left alone and still gets
+// "struct instantiation requires named arguments": positional struct
+// args have never been accepted, so there is no spelling this rewrite
+// can silently change the meaning of.
+priv rewrite_ctor_field_shorthand := func(ctor_sdd: StructDef, mut e: Expr) {
+    for i in 1..e.children.len() {
+        mut fname := ""
+        switch e.children[i].node_type {
+        case NodeType.Ident(id):
+            if ctor_sdd.fields_index.has(id.ident_name()) { fname = Str.clone(id.ident_name()) }
+        case:
+        }
+        if fname.len() == 0 { continue }
+        line := e.children[i].line
+        col := e.children[i].col
+        mut named := Expr.new(NodeType.NamedArg(fname.clone()), line, col)
+        named.add_child(own e.children[i].clone())
+        e.children[i] = named
+    }
+}
+
 priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, mut e: Expr, name: Str, in_func: I32, ctx: Context) returns Bool {
     // #187 step 1: mark the struct binding as used so a priv struct
     // that is only ever instantiated (no namespace method calls) is
@@ -966,6 +1005,7 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
 
     ref ctor_sdd : StructDef = structdef_of(sdef)
     nfields := ctor_sdd.fields.len()
+    rewrite_ctor_field_shorthand(ctor_sdd, e)
     mut field_vals := Vec(CtorArg).new()
     for _ in 0..nfields {
         field_vals.push(own CtorArg.Unfilled())
@@ -992,10 +1032,10 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 if arg.children.len() > 0 {
                     rewrite_zero_to_null(arg.children[0], type_from_name(ctor_fld.explicit_type, scope, ctx))
                 }
-                // #321 step 4: NULL only fills quarantine-labeled fields.
+                // #321 step 4: null only fills quarantine-labeled fields.
                 if arg.children.len().gt(0).and(arg.children[0].node_type.is_literal_null()) {
                     if type_is_null_quarantine(type_from_name(ctor_fld.explicit_type, scope, ctx)).not() {
-                        arg.type_error(format("cannot initialize field '", aname, "' with NULL; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option field for a real absent state (#321)"), ctx)
+                        arg.type_error(format("cannot initialize field '", aname, "' with a null pointer; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option field for a real absent state (#321)"), ctx)
                     }
                 }
                 ref slot_arg : CtorArg = field_vals[slot.to_usize()]
@@ -4723,7 +4763,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
         if ctx.typer_return_type_name.len() > 0 {
             rewrite_zero_to_null(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx))
         }
-        // #321 step 4: a typed function cannot return NULL; the
+        // #321 step 4: a typed function cannot return null; the
         // maybe-absent return is an Option. Quarantine returns
         // (returns Dynamic) keep it. Exempt: generated members
         // (auto_gen_depth -- niche variant ctors legitimately return the
@@ -4733,7 +4773,7 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
         if stmt.children[0].node_type.is_literal_null().and(ctx.typer_return_type_name.len().gt(0))
             .and(ctx.auto_gen_depth == 0).and(returns_ref == 0) {
             if type_is_null_quarantine(type_from_name(ctx.typer_return_type_name, scope, ctx)).not() {
-                stmt.type_error("cannot return NULL from a typed function; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- return an Option for a real absent state (#321)", ctx)
+                stmt.type_error("cannot return a null pointer from a typed function; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- return an Option for a real absent state (#321)", ctx)
             }
         }
         if returns_ref == 0 {
@@ -4998,9 +5038,9 @@ priv infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: 
                     }
                     // #321: `x.f = 0` on a Dynamic field is the null spelling.
                     rewrite_zero_to_null(rhs, fld_type)
-                    // #321 step 4: NULL only overwrites quarantine slots.
+                    // #321 step 4: null only overwrites quarantine slots.
                     if rhs.node_type.is_literal_null().and(type_is_null_quarantine(fld_type).not()) {
-                        rhs.type_error(format("cannot assign NULL to field '", fname, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option field for a real absent state (#321)"), ctx)
+                        rhs.type_error(format("cannot assign a null pointer to field '", fname, "'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option field for a real absent state (#321)"), ctx)
                     }
                     mut handled_lit := false
                     switch rhs.node_type {
@@ -5677,7 +5717,7 @@ priv finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, in_type_bod
             // structs and `*p = (Str){...}` for Str literals).
             if rhs_is_payload_binding(rhs) { decl_b.is_alias = true }
             if expr_is_ref_decl_source(rhs, scope).not().and(raw_alloc_rhs.not()) {
-                stmt.type_error("'ref' declaration requires null, a ref-returning function, or ref/param variable", ctx)
+                stmt.type_error("'ref' declaration requires a ref-returning function, a ref/param variable, or a raw allocation", ctx)
             }
             if sdecl.is_mut {
                 switch rhs.node_type {
@@ -6809,10 +6849,10 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
     existing := scope.get_type(aname)
     // #321: `x = 0` on a Dynamic target is the null spelling.
     rewrite_zero_to_null(rhs, existing)
-    // #321 step 4: NULL only overwrites quarantine-labeled slots.
+    // #321 step 4: null only overwrites quarantine-labeled slots.
     if rhs.node_type.is_literal_null().and(existing.is(Type.Unknown).not()) {
         if type_is_null_quarantine(existing).not() {
-            rhs.type_error(format("cannot assign NULL to '", aname, "'; NULL is quarantine-only (Dynamic / the U8-I8 raw labels) -- use an Option for a real absent state (#321)"), ctx)
+            rhs.type_error(format("cannot assign a null pointer to '", aname, "'; null is quarantine-only (Dynamic / the U8-I8 raw labels, where it is spelled `0`) -- use an Option for a real absent state (#321)"), ctx)
         }
     }
     if existing.is(Type.Unknown) {
@@ -7562,7 +7602,7 @@ priv is_enum_variant_ctor_with_payload := func(expr: Expr, scope: TypeScope) ret
 // Dynamic (the type-erased raw pointer), U8 (the raw-buffer label, the
 // Vec.data `own data : U8 = 0` form where integer zero is a legal
 // lazily-absent state) and I8 (the C-string pointer, Str.c_str). Both
-// the is_null read rule (step 3) and the NULL literal write rule
+// the is_null read rule (step 3) and the null literal write rule
 // (step 4) gate on this set.
 priv type_is_null_quarantine := func(shallow t: Type) returns Bool {
     if t.is(Type.Dynamic) { return true }
