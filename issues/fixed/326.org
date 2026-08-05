@@ -617,25 +617,43 @@ mistake and is not: the gate runs from ~build()~, not from
 different answer -- ~EvalHeap_clone~ and ~CtorArg_clone~ became implicit
 declarations when it ran at sweep time.
 
-*** One loose end this work depends on (measured 2026-08-04)
+*** The loose end this work depends on -- and why it is not a small fix
+    (attempted and measured 2026-08-04)
 
 The site collector mirrors the emitter's stack-storage answer for the
 POD-struct ctor Decl (~bvs_ctor_stack~ in
 ~builder_collect_ns_member_sites~) instead of reading ~gc_storage~,
 because on that path the garbager records ~HeapBox~ while the builder's
-compound-literal shortcut emits a stack value.  ~assert_gc_stack~'s
-comment calls this one of the paths that "stay unasserted until stages
-4/6 collapse the compensation".
+compound-literal shortcut emits a stack value.  ~assert_gc_stack~ calls
+it one of the paths that "stay unasserted until stages 4/6 collapse the
+compensation".  #302 closed with it intact, and it is load-bearing:
+deleting the mirror brings ~Point_clone~ straight back into
+~test/aliases.til~'s output.
 
-#302 is now FIXED, and the divergence outlived it: deleting the mirror
-and rebuilding brings ~Point_clone~ straight back into
-~test/aliases.til~'s output (3 occurrences), so the record is still
-dishonest for that shape.  The mirror is therefore load-bearing, not
-belt-and-braces, and it is the last place in #326's work that
-re-derives a decision another pass already made.  Whoever makes the
-record honest can delete it and read ~gc_storage~ alone -- the same
-goes for the ~can_hoist~ ~_hp~ deref copies and the POD-struct
-user-clone value copy named in that comment.
+The obvious fix does NOT work, and the reason is worth recording so the
+next attempt does not repeat it.  Teaching ~record_storage_decisions~ to
+recognise the shape and record ~Stack~ builds and passes the fixture --
+and then fails the suite on ~test/forward_refs.til~, ~test/constfold.til~,
+~test/first_class.til~ and three more, all with the transition assert
+firing.  ~record_storage_decisions~ runs PER BODY, DURING TYPING, so a
+struct declared later in the file is not registered yet: ~is_pod_struct~
+answers false, the record says ~HeapBox~, and the builder -- which runs
+with the whole program resolved -- answers true and takes the shortcut.
+The garbager cannot answer a whole-program type-shape question at the
+time it currently records.
+
+So the real fix is a pass-ordering change: settle ~gc_storage~ after
+typing completes, when every declaration is resolvable, rather than
+inside the per-body walk.  Only then can the mirror go, the ctor path
+join the asserted set, and the ~is_pod_struct~ /
+~pod_ctor_args_are_safe~ pair be shared with the garbager instead of
+being re-derived behind its back.
+
+A second path is knowingly divergent and will NOT be fixed this way even
+then: the POD-struct user-clone value copy.  The builder's predicate for
+it (~is_pod_struct_user_clone~) reads emit-time state -- ~stack_locals~,
+which only exists once the body is being walked -- so no earlier pass has
+anything to record from.
 
 *** Related issues
 
