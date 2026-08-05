@@ -2075,23 +2075,61 @@ Str *cfile_read_all(const void *handle) {
         exit(1);
     }
     FILE *f = (FILE *)handle;
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
+    // "Entire contents" per File.read_all's contract: start at the top
+    // whatever the cursor was. On a stream that cannot seek this fails and
+    // leaves the cursor alone, which for a freshly opened handle is the
+    // same place.
     fseek(f, 0, SEEK_SET);
-    // +1 for the terminator, and count from the bytes fread actually
-    // delivered. Every owned Str in the tree carries a NUL one byte past
-    // its count -- that is what lets .c_str reach a C string API at all --
-    // and readfile, the tree's biggest Str producer, was the one place
-    // that did not: it sized the buffer at exactly len and wrote no
-    // terminator, so reading c_str as a C string ran off the allocation.
-    // Trusting len over fread's return also published bytes a short read
-    // never wrote (cfile_read_n below already got both of these right).
-    char *buf = malloc((size_t)len + 1);
-    size_t got = fread(buf, 1, (size_t)len, f);
-    buf[got] = '\0';
+    // Read to EOF instead of sizing one allocation from ftell. ftell only
+    // answers correctly for a regular seekable file: it is -1 on a FIFO or
+    // /dev/stdin and on a file past LONG_MAX (long is 32-bit on Windows),
+    // and it reports 0 for a /proc entry that has content waiting. The
+    // -1 cases produced a bogus malloc size; the 0 case silently returned
+    // "" for a file that was not empty, which no amount of checking the
+    // ftell result would have caught. Growing to EOF has none of those
+    // cases -- the count is what fread delivered, by construction -- so
+    // the failure mode is gone rather than guarded. 64K start: one
+    // allocation covers most sources, and the final realloc trims to the
+    // exact size so the Str keeps the usual cap == count.
+    size_t cap = 65536, len = 0;
+    char *buf = malloc(cap);
+    if (!buf) {
+        fprintf(stderr, "cfile_read_all: allocation failed\n");
+        exit(1);
+    }
+    for (;;) {
+        // One byte of headroom always stays reserved for the terminator.
+        if (len + 1 == cap) {
+            cap *= 2;
+            char *grown = realloc(buf, cap);
+            if (!grown) {
+                fprintf(stderr, "cfile_read_all: allocation failed\n");
+                exit(1);
+            }
+            buf = grown;
+        }
+        size_t got = fread(buf + len, 1, cap - len - 1, f);
+        len += got;
+        if (got == 0) break;
+    }
+    // fread reports a mid-file read error as a short read, which would
+    // hand back a silently truncated file.
+    if (ferror(f)) {
+        fprintf(stderr, "cfile_read_all: read error\n");
+        exit(1);
+    }
+    char *exact = realloc(buf, len + 1);
+    if (!exact) {
+        fprintf(stderr, "cfile_read_all: allocation failed\n");
+        exit(1);
+    }
+    buf = exact;
+    // Every owned Str carries a NUL one byte past its count -- that is what
+    // lets .c_str reach a C string API at all.
+    buf[len] = '\0';
     Str *s = malloc(sizeof(Str));
     s->c_str = (I8 *)buf;
-    s->count = (USize)got;
+    s->count = (USize)len;
     s->cap = (USize)len;
     return s;
 }

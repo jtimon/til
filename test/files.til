@@ -58,6 +58,26 @@ test_file_readfile_is_nul_terminated := test() {
     assert_eq(Str, Str.from_c_str(empty.c_str), "")
 }
 
+// readfile grows its buffer to EOF rather than sizing it from ftell, so a
+// file past the initial capacity (64K) exercises the realloc path: the
+// result must be the whole file, still terminated, with no byte lost at a
+// chunk boundary.
+test_file_readfile_larger_than_one_chunk := test() {
+    path := "tmp/_test_file_readfile_big.txt"
+    line := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde\n"
+    mut expected := Str.with_capacity(line.len().mul(4096))
+    f := File.new(path, true)
+    for _ in 0..4096 {
+        f.write(line)
+        expected.push_str(line)
+    }
+
+    content := File.readfile(path)
+    assert_eq(USize, content.len(), 262144)
+    assert_eq(Str, content, expected)
+    assert_eq(USize, Str.from_c_str(content.c_str).len(), 262144)
+}
+
 test_file_fwrite := test() {
     path := "tmp/_test_file_fwrite.txt"
     f := File.new(path, true)
