@@ -1,0 +1,76 @@
+# priority: medium
+# category: bugs
+** OPEN #343 A view reaching a C string parameter reads past its end, unchecked
+
+  ~Str~ is pointer + count, and C strings are NUL-terminated, so the two
+  worlds only line up for values that happen to carry a NUL one byte past
+  their count.  Owned Strs do (the allocating paths reserve count+1) and
+  C literals do.  A VIEW does not, by construction: ~substr~ returns a
+  ~CAP_VIEW~ pointing into the middle of a bigger buffer, and the byte at
+  ~c_str[count]~ is whatever the backing buffer holds next -- usually more
+  of the original string, sometimes heap garbage.
+
+  Nothing checks this.  Passing ~view.c_str~ to an ext binding's ~I8~
+  parameter compiles clean and runs; the callee just keeps reading past
+  the count.  ~setenv(name.substr(0, 19).c_str, ...)~ stores a longer name
+  than asked for, and there is no diagnostic at any stage.
+
+  What exists today is convention only:
+
+  - doc/ffi.org ("Passing a Str to a C string parameter") says to
+    ~clone()~ first, because an owned copy always carries the NUL.
+  - Individual bindings repeat it per call site.  std/sys.til's
+    ~get_env~ carries a ~///~ comment saying it is not view-compatible,
+    which is exactly the band-aid this issue exists to replace: it puts
+    the burden on every caller to know something the type system knows
+    and does not say.
+
+  The reason it bites harder than an ordinary documented footgun is that
+  views are TRANSPARENT.  ~substr~ hands back a ~Str~, the same type an
+  owned string has; nothing in the signature, the name, or the printed
+  value says "this one has no NUL".  A caller cannot tell from reading
+  til code whether the ~Str~ it holds is safe to pass to C, and a
+  function taking ~name : Str~ cannot tell what its caller chose.  So the
+  documented rule degenerates to "clone defensively at every boundary",
+  which is what ~get_env~ did until the clone was removed as dead weight.
+
+  Directions, none of them chosen -- this needs a decision before work:
+
+  1. *Check at the ext-call boundary.*  The builder already knows the
+     shape (a Str expression's ~c_str~ feeding an ext binding's ~I8~
+     param), so it could emit a macro that panics when ~cap == CAP_VIEW~
+     instead of a bare member read -- the same trick ~DEREF~ uses for
+     null.  Loud at the real site, and wrappers stop cloning just in
+     case.  Costs: the interpreter's FFI marshalling needs the mirror
+     check or the backends diverge, and it only catches the direct
+     ~expr.c_str~ form (a pointer laundered through an ~I8~ local first
+     escapes it, which is fine -- that covers every real call site in
+     the tree).
+  2. *Make the NUL guarantee visible in the type.*  A distinct type (or
+     qualifier) for "NUL-terminated Str" that ~clone~ produces and
+     ~substr~ does not, checked at typecheck rather than runtime.  The
+     honest fix, and much the largest: it touches every signature that
+     currently says ~Str~ and means "C-ready".
+  3. *Auto-clone views at the boundary.*  Rejected on sight, recorded so
+     it is not re-proposed: it hides an allocation inside what reads as a
+     field access, and it still dangles for a callee that RETAINS the
+     pointer past the call (doc/ffi.org's actual hazard).
+  4. *Panic inside ~.c_str~ itself.*  Also rejected: ~.c_str~ is how til
+     code reaches the bytes, and core/str.til reads it on views
+     constantly and legitimately -- ~eq~'s ~memcmp~, ~substr~ building
+     the next view, indexing, ~hash~.  Those uses carry the count and
+     never need the NUL; panicking there would kill the string library to
+     catch the rare hostile case.
+
+  Route 1 is the cheap one and route 2 is the correct one; they are not
+  exclusive (1 can ship first and stay as a runtime backstop).
+
+  Worth verifying before either: that EVERY allocating Str path really
+  does write the NUL.  doc/ffi.org asserts it for ~clone~, and
+  ~str.til~'s ~append~ does it explicitly, but ~format~, ~readfile~ and
+  the builder's string construction have not been audited.  A check that
+  trusts a false invariant is worse than no check.
+
+  No known live bug: nothing in the tree passes a view to a C string
+  parameter today, and test/ext_libc.til pins the safe shapes.  This is
+  about the hole staying open for the next binding somebody writes.

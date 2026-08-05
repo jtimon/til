@@ -831,6 +831,13 @@ main := proc(args: ..Str) {
     add_both(tests, "test/mut_capture_str_lit.til", flags)
     add_both(tests, "test/literal_field_access.til", flags)
     add_both(tests, "test/float_literals.til", flags)
+    // Issue #176: binding libc functions like setenv/getenv directly must
+    // compile under -Werror and produce the expected behaviour; also covers
+    // std/sys's get_env wrapper over that same libc getenv. On both
+    // backends because they marshal the bindings separately -- the
+    // interpreter goes through libffi and its own `returns ref` handling,
+    // which is what borrows the environ pointer.
+    add_both(tests, "test/ext_libc.til", flags)
     add_both(tests, "examples/priv_demo.til", flags)
     add_both(tests, "test/imports.til", flags)
     add_both(tests, "test/arrays.til", flags)
@@ -876,13 +883,6 @@ main := proc(args: ..Str) {
     File.writefile(ffi_scavenge_exp, "ok")
     add_single(tests, "ffi_scavenge_link_c_run", "ffi", 0, ffi_scavenge_exp,
         format(til_bin, " run", asan_flag, " test/ffi_scavenge_link_c.til"))
-    // Issue #176: binding libc functions like setenv/getenv directly must
-    // compile under -Werror and produce the expected behaviour. Also covers
-    // std/sys's get_env wrapper over that same libc getenv.
-    ext_libc_exp := "gen/out/expected/ext_libc.out"
-    File.writefile(ext_libc_exp, format("ok", NL))
-    add_single(tests, "ext_libc_run", "ffi", 0, ext_libc_exp,
-        format(til_bin, " run", asan_flag, " test/ext_libc.til"))
     // Issue #283: a real dlopen failure must be reported loudly at RUNTIME.
     // The diagnostic's eprint_single/ffi_last_error are ext_proc so the
     // const-folder never executes them at build time (which printed a bogus

@@ -1,6 +1,7 @@
 * Bugs
 ** Medium
 *** [[./open/342.org][#342]] Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
+*** [[./open/343.org][#343]] A view reaching a C string parameter reads past its end, unchecked
 * Cleanups
 ** High
 *** [[./open/116.org][#116]] Imported files are parsed in isolation

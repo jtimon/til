@@ -24,18 +24,15 @@ unsetenv := ext_proc(name: I8) returns shallow I32 {}
 main := proc() {
     rc1 := setenv("TIL_ISSUE_176".c_str, "expected".c_str, 1)
     if rc1.neq(0) {
-        println("setenv failed")
-        return
+        panic("setenv failed")
     }
     ref v : I8 = getenv("TIL_ISSUE_176".c_str)
     if is_null(v) {
-        println("getenv returned NULL")
-        return
+        panic("getenv returned NULL")
     }
     rc2 := unsetenv("TIL_ISSUE_176".c_str)
     if rc2.neq(0) {
-        println("unsetenv failed")
-        return
+        panic("unsetenv failed")
     }
 
     // A CHAINED clone reaching a C string parameter. The clone is a
@@ -52,17 +49,14 @@ main := proc() {
     name := backed.substr(0, 19)
     rc3 := setenv(name.clone().c_str, "chained".c_str, 1)
     if rc3.neq(0) {
-        println("chained setenv failed")
-        return
+        panic("chained setenv failed")
     }
     ref v2 : I8 = getenv("TIL_ISSUE_176_CHAIN".c_str)
     if is_null(v2) {
-        println("chained getenv returned NULL")
-        return
+        panic("chained getenv returned NULL")
     }
     if Str.from_c_str(v2).neq("chained") {
-        println("chained setenv stored the wrong value")
-        return
+        panic("chained setenv stored the wrong value")
     }
     _rc4 := unsetenv("TIL_ISSUE_176_CHAIN".c_str)
 
@@ -73,22 +67,18 @@ main := proc() {
     // unsetenv still reads correctly after it (a borrowed view would not).
     rc5 := setenv("TIL_ISSUE_176_WRAP".c_str, "wrapped".c_str, 1)
     if rc5.neq(0) {
-        println("wrapper setenv failed")
-        return
+        panic("wrapper setenv failed")
     }
     got := get_env("TIL_ISSUE_176_WRAP")
     if got.neq("wrapped") {
-        println("get_env returned the wrong value: ", got)
-        return
+        panic("get_env returned the wrong value: ", got)
     }
     _rc6 := unsetenv("TIL_ISSUE_176_WRAP".c_str)
     if got.neq("wrapped") {
-        println("get_env result did not survive unsetenv: ", got)
-        return
+        panic("get_env result did not survive unsetenv: ", got)
     }
     if get_env("TIL_ISSUE_176_WRAP").neq("") {
-        println("get_env did not report an unset variable as empty")
-        return
+        panic("get_env did not report an unset variable as empty")
     }
 
     println("ok")
