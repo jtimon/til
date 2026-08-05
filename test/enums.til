@@ -1331,3 +1331,37 @@ test_dot_pattern_template_enum := test() {
     }
     assert_eq(I64, got, 42)
 }
+
+// --- #341 follow-up: the dot form wherever the enum type is known ------
+//
+// The parser accepts a leading dot anywhere; the typer fills the name in at
+// each position that knows what type it expects. A position with no known
+// enum type says so (see test/typer_errors.til) instead of reporting a
+// symbol named "".
+
+DotWideHolder := struct {
+    kind : DotShape = .Nothing
+    n := 0
+}
+
+dot_wide_name_of := func(sh: DotShape) returns Str { return sh.to_str() }
+dot_wide_make := func() returns DotShape { return .Circle(7) }
+
+test_dot_typed_decl_and_assign := test() {
+    s : DotShape = .Nothing
+    assert_eq(Str, s.to_str(), "Nothing")
+    mut m : DotShape = .Nothing
+    m = .Circle(5)
+    assert_eq(Str, m.to_str(), "Circle(5)")
+}
+
+test_dot_call_arg_and_return := test() {
+    assert_eq(Str, dot_wide_name_of(.Circle(3)), "Circle(3)")
+    assert_eq(Str, dot_wide_make().to_str(), "Circle(7)")
+}
+
+test_dot_field_default_and_ctor_arg := test() {
+    assert_eq(Str, DotWideHolder().to_str(), "DotWideHolder(kind=Nothing, n=0)")
+    h := DotWideHolder(kind = .Circle(9), n = 1)
+    assert_eq(Str, h.to_str(), "DotWideHolder(kind=Circle(9), n=1)")
+}

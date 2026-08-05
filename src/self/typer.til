@@ -1043,6 +1043,9 @@ priv infer_struct_constructor_fcall_impl := proc(scope: TypeScope, sdef: Expr, m
                 // #321: a 0 arg for a Dynamic field is the null spelling.
                 if arg.children.len() > 0 {
                     rewrite_zero_to_null(arg.children[0], type_from_name(ctor_fld.explicit_type, scope, ctx), ctor_fld.own_type.is(OwnType.Own))
+                    // #341: `Holder(kind = .Nothing)` -- the field's declared
+                    // type is the expected enum.
+                    qualify_dotted_expr(arg.children[0], type_from_name(ctor_fld.explicit_type, scope, ctx))
                 }
                 // #321 step 4: null only fills quarantine-labeled fields.
                 if arg.children.len().gt(0).and(arg.children[0].node_type.is_literal_null()) {
@@ -1456,7 +1459,31 @@ priv infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee
     // first container method to call a generic.)
     mut cb_name := ""
     if callee_bind_o.is_some() { cb_name = callee_bind_o.unwrap().name.clone() }
+    // #341: `f(.Nothing)` -- an argument at an enum-typed parameter. The
+    // param type names are snapshotted BEFORE the loop for the same reason
+    // cb_name is (see above). Only a call whose arguments line up one for
+    // one with the params is qualified: with a variadic or kwargs block the
+    // positional mapping is not reliable, and qualifying against the wrong
+    // param could silently name a DIFFERENT enum that happens to have the
+    // variant. Those keep needing the name written out.
+    mut qparam_types := Vec(Str).new()
+    if cb_name.len() > 0 {
+        qf_o := scope.lookup_func(cb_name)
+        if qf_o.is_some() {
+            ref qfd : FunctionDef = funcdef_of(qf_o.unwrap())
+            if qfd.variadic_index.lt(0).and(qfd.kwargs_index.lt(0))
+                .and(qfd.params.len().eq(e.children.len() - 1)) {
+                for qp : Declaration in qfd.params {
+                    qparam_types.push(own qp.explicit_type.clone())
+                }
+            }
+        }
+    }
     for i in 1..e.children.len() {
+        if i - 1 < qparam_types.len() {
+            ref qtn : Str = qparam_types[i - 1]
+            if qtn.len() > 0 { qualify_dotted_expr(e.children[i], type_from_name(qtn, scope, ctx)) }
+        }
         infer_expr(scope, e.children[i], in_func, ctx)
     }
     if callee_bind_o.is_none() { return }
@@ -3280,7 +3307,15 @@ priv infer_ident_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context) {
     case NodeType.Ident(id_name):
         type := scope.get_type(id_name.ident_name())
         if type.is(Type.Unknown) {
-            expr.type_error(format("undefined symbol '", Str.clone(id_name.ident_name()), "'"), ctx)
+            // #341: the empty receiver a leading-dot variant parses to. One
+            // that survives to here sat in a position with no expected enum
+            // type to fill it from, so say that instead of reporting a
+            // symbol named "" -- which reads like a compiler bug.
+            if id_name.ident_name().len() == 0 {
+                expr.type_error("a leading-dot enum variant needs a known enum type in this position; write the enum name out (issue #341)", ctx)
+            } else {
+                expr.type_error(format("undefined symbol '", Str.clone(id_name.ident_name()), "'"), ctx)
+            }
         }
         expr.set_til_type(type)
         ib_o := scope.get_binding(id_name.ident_name())
@@ -3470,6 +3505,11 @@ priv infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr, ctx: Context)
             // default-fill (resolve_default_value) to the CALLER's location.
             if fd.default_value.is_some()
                 .and(fd.default_expr().node_type.is(NodeType.Loc).not()) {
+                // #341: `kind : Shape = .Nothing` -- same rule as a typed
+                // local, with the field's annotation as the expectation.
+                if fd.explicit_type.len() > 0 {
+                    qualify_dotted_expr(fd.default_expr(), type_from_name(fd.explicit_type, inner, ctx))
+                }
                 infer_expr(inner, fd.default_expr(), 0, ctx)
                 check_ref_field_owned_default(tc_fname, fd, inner, ctx)
             }
@@ -4834,6 +4874,11 @@ priv infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, r
         // helper because it must snapshot the raw value BEFORE inference
         // desugars a struct ctor's named args. Non-interface returns infer
         // normally and pay nothing.
+        // #341: `return .Nothing` -- the declared return type is the
+        // expected enum.
+        if ctx.typer_return_type_name.len() > 0 {
+            qualify_dotted_expr(stmt.children[0], type_from_name(ctx.typer_return_type_name, scope, ctx))
+        }
         if ctx.typer_return_type_name.len().gt(0).and(name_is_interface(ctx.typer_return_type_name, scope)) {
             box_return_value(scope, stmt, in_func, ctx)
         } else {
@@ -5941,6 +5986,15 @@ priv infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, in_
         // -- rewrite_til_type_arg replaces the literal `Ident T` arg with a
         // runtime Type expression, so the syntactic shape is gone afterwards.
         dv_elem = dynvec_elem_from_new(stmt.children[0])
+        // #341: `s : Shape = .Nothing` -- the annotation is the expected
+        // enum, so fill the elided name in before the RHS is inferred.
+        switch stmt.node_type {
+        case NodeType.Decl(qdd):
+            if qdd.explicit_type.len() > 0 {
+                qualify_dotted_expr(stmt.children[0], type_from_name(qdd.explicit_type, scope, ctx))
+            }
+        case:
+        }
         infer_expr(scope, stmt.children[0], in_func, ctx)
         if tracked_func {
             ctx.current_top_func_name = saved_top_func
@@ -6899,9 +6953,6 @@ priv type_bodies_file := proc(path: Str, ctx: Context) returns I32 {
 }
 
 priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, ctx: Context) {
-    infer_expr(scope, stmt.children[0], in_func, ctx)
-    ref mut rhs : Expr = stmt.children[0]
-    stmt.set_til_type(rhs.til_type())
     mut aname := ""
     switch stmt.node_type {
     case NodeType.Assign(adata):
@@ -6910,6 +6961,12 @@ priv infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, in_func: I32, c
         UNREACHABLE("expected Assign, got ", stmt.node_type.head_str())
         return
     }
+    // #341: `s = .Nothing` -- the target's own type is the expected enum,
+    // so fill the elided name in before the RHS is inferred.
+    qualify_dotted_expr(stmt.children[0], scope.get_type(aname))
+    infer_expr(scope, stmt.children[0], in_func, ctx)
+    ref mut rhs : Expr = stmt.children[0]
+    stmt.set_til_type(rhs.til_type())
     // A write isn't a read. Don't flip `used = true` on the assign
     // target for plain mut locals -- that's the accidental exception
     // that masks write-only locals like `mut y := x; y = 99` as
@@ -9439,6 +9496,23 @@ priv dotted_pattern_receiver := func(mut pat: Expr) returns Option(ref Expr) {
     case:
     }
     return Option(ref Expr).None
+}
+
+// #341: fill in the enum name a leading-dot expression elided, taking it
+// from the type the position expects (`s : Shape = .Nothing`, an argument
+// at an enum-typed parameter, a return, an enum-typed field). A no-op when
+// `e` is not a dotted expression or the expectation is not an enum -- the
+// position's own type check reports the mismatch, and a dotted expression
+// with no enum to resolve against is caught by infer_ident_expr's "needs a
+// known enum type in this position".
+priv qualify_dotted_expr := func(mut e: Expr, expected: Type) {
+    recv_o := dotted_pattern_receiver(e)
+    if recv_o.is_none() { return }
+    if expected.is(Type.Enum).not() { return }
+    ename := til_type_name(expected)
+    if ename.len() == 0 { return }
+    ref mut recv : Expr = recv_o.unwrap()
+    recv.node_type = ident_node(ename)
 }
 
 // #341: rewrite every `case .Variant:` in this switch/match into the fully

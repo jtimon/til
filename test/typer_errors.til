@@ -1036,3 +1036,12 @@ switch dot_err_c {
 case .DPurple: println("no")
 case: println("d")
 }
+
+// #341 follow-up: a leading dot in a position with no known enum type has
+// nothing to resolve against. Says so, rather than reporting a symbol named
+// "" -- which is what the empty receiver the parser builds would otherwise
+// surface as. A variadic callee is deliberately included: the positional
+// arg-to-param mapping is not reliable there, so the name stays required.
+dot_no_expected_type := .Nowhere
+dot_va341 := func(a: DotErrColor341, _rest: ..Str) returns Str { return a.to_str() }
+dot_va_call341 := dot_va341(.DRed, "x")

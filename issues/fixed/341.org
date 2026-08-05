@@ -43,32 +43,50 @@
     call must also sit BEFORE the ~switch_is_clike~ dispatch, which
     returns early for payload-free enums.
 
-    Scope: switch/match case patterns only -- the smaller change, and the
-    position that actually hurts. Other positions where an enum type is
-    implied (a typed declaration's RHS, an enum-typed parameter, a return,
-    an enum-typed struct field) still need the name written out; Rust does
-    not have the shorthand at all, Swift has it everywhere. The parser
-    accepts the leading dot anywhere, so widening later is a typer-only
-    change; one that reaches the typer outside a case pattern is a hard
-    error, not a silent fallthrough.
+    Scope: the first commit did switch/match case patterns only; the
+    follow-up widened it to every position that knows the type it expects,
+    which is Swift's answer rather than Rust's (Rust has no shorthand at
+    all). ~qualify_dotted_expr~ is the shared "fill the name in from the
+    expected type" step, called from six places:
+
+    - a typed declaration's RHS -- ~s : Shape = .Nothing~
+    - an assignment to a typed target -- ~s = .Circle(5)~
+    - an argument at an enum-typed parameter -- ~f(.Nothing)~
+    - a return in an enum-returning function -- ~return .Nothing~
+    - an enum-typed struct field default -- ~kind : Shape = .Nothing~
+    - a constructor argument -- ~Holder(kind = .Nothing)~
+
+    Not the argument of a VARIADIC or kwargs callee: there the positional
+    argument-to-parameter mapping is not reliable, and qualifying against
+    the wrong parameter could silently name a different enum that happens
+    to have a variant of that name. Those still need the name written out,
+    and say so.
 
     Template enums need no special casing: by the time the typer runs,
     ~Option(I64)~ is already ~Option__I64~, which is exactly the name the
     pattern wants.
 
-    A non-enum subject is rejected ("a leading-dot pattern needs an enum
-    subject"), and the receiver is then filled with the subject's type
-    name anyway -- purely so the follow-on diagnostic reads "struct 'I64'
-    has no field 'Nope'" instead of talking about a symbol named "",
-    which looks like a compiler bug.
+    Failure modes, both of which used to surface as a symbol named "" --
+    the empty receiver leaking into a diagnostic, which reads like a
+    compiler bug:
 
-    Regression tests: ~test_dot_pattern_payloads~,
-    ~test_dot_pattern_mixed_with_qualified~,
+    - In a case pattern over a non-enum subject: "a leading-dot pattern
+      needs an enum subject". The receiver is then filled with the
+      subject's type name anyway, purely so the follow-on diagnostic reads
+      "struct 'I64' has no field 'Nope'".
+    - Anywhere with no known enum type (~x := .Nothing~, a variadic
+      argument): ~infer_ident_expr~ recognises a surviving empty receiver
+      and reports "a leading-dot enum variant needs a known enum type in
+      this position". One catch-all, so no position can leak the marker.
+
+    Regression tests in [[file:../../test/enums.til][test/enums.til]]:
+    ~test_dot_pattern_payloads~, ~test_dot_pattern_mixed_with_qualified~,
     ~test_dot_pattern_payload_free_enum~,
-    ~test_dot_pattern_shared_and_guarded~, ~test_dot_pattern_in_match~ and
-    ~test_dot_pattern_template_enum~ in
-    [[file:../../test/enums.til][test/enums.til]]; the non-enum-subject
-    and unknown-variant cases in
+    ~test_dot_pattern_shared_and_guarded~, ~test_dot_pattern_in_match~,
+    ~test_dot_pattern_template_enum~, ~test_dot_typed_decl_and_assign~,
+    ~test_dot_call_arg_and_return~ and
+    ~test_dot_field_default_and_ctor_arg~; the non-enum-subject,
+    unknown-variant, no-expected-type and variadic-argument cases in
     [[file:../../test/typer_errors.til][test/typer_errors.til]].
 
 *** Original report

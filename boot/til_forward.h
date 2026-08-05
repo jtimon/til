@@ -2793,6 +2793,7 @@ void priv___src_self_typer_til__steal_payload_returns(Expr * body, Str * bind_na
 Bool priv___src_self_typer_til__steal_own_param_payload_returns(TypeScope * scope, Expr * sw_expr, Expr * case_node, Str * sw_sname, Context * ctx);
 void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 Option__ref_Expr priv___src_self_typer_til__dotted_pattern_receiver(Expr * pat);
+void priv___src_self_typer_til__qualify_dotted_expr(Expr * e, Type * expected);
 void priv___src_self_typer_til__qualify_dotted_case_patterns(Expr * stmt, Type * sw_type, Context * ctx);
 Bool priv___src_self_typer_til__infer_switch_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 Bool priv___src_self_typer_til__desugar_for_in_range_stmt(TypeScope * scope, Expr * body, USize stmt_idx, I32 in_func, Context * ctx);
