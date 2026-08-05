@@ -107,6 +107,42 @@
   produce no blank line after the final prompt, and the SIGINT session's
   captured output must end in a line break rather than in a prompt.
 
+*Follow-up: the acceptance items that still had no test, and the bug the
+first of them found.*
+
+  Four lines of the acceptance list were implemented but never
+  exercised. Writing the tests found a real defect behind the first one:
+
+  - *Resume from a stop that did not go through our own handler was
+    broken.* The plan asked for "after SIGCONT, re-enter edit mode and
+    force a redraw"; what shipped only did that on the way back out of
+    the SIGTSTP handler. SIGSTOP is uncatchable and SIGTTIN/SIGTTOU
+    never reach that handler either, so a job-control shell would hand
+    the terminal back in ITS state -- canonical, echoing -- while the
+    editor went on believing it was raw. Demonstrated both ways against
+    a pty: with the merged binary, ~kill -STOP~ then ~fg~ produced no
+    redraw and left the user typing blind; with a ~SIGCONT~ handler that
+    re-applies raw mode and requests a redraw, the line comes back and
+    the session continues. That handler is the fix.
+
+  Four new pty sessions, all of them things the issue asked for:
+
+  - Suspend and resume through a REAL interactive shell (job control is
+    the only way Ctrl-Z and ~fg~ mean anything). It proves the tty is
+    exactly as found WHILE the REPL is stopped, that ~fg~ redraws the
+    half-typed line, that submitting it still evaluates, and that Ctrl-\
+    still kills the process and still leaves the terminal alone.
+  - The SIGSTOP/~fg~ cycle above, stopped from outside the pty.
+  - ~TERM=dumb~: no escape byte, no history file, the line still
+    evaluates -- the plain ~in_read_line~ path on a real terminal.
+  - A history location that cannot be created (a regular file sits where
+    the directory would go): the concrete path is named, the warning
+    says history is session-only, and the session keeps working.
+
+  The driver grew one step type for this: a step that runs on the test's
+  side of the pty rather than being typed into it, which is the only way
+  to reach the REPL with a signal the terminal cannot send.
+
   ~til repl~ has no line editing and no history. ~in_read_line~
   (~src/c/ext.c~) reads bytes with ~fgetc~ in the terminal's canonical
   mode, so the tty driver gives backspace and nothing else:

@@ -1723,6 +1723,7 @@ static const int repl_term_sig_list[] = {
 #define REPL_TERM_SIG_COUNT ((int)(sizeof(repl_term_sig_list) / sizeof(repl_term_sig_list[0])))
 static struct sigaction repl_term_sig_prev[REPL_TERM_SIG_COUNT];
 static struct sigaction repl_term_winch_prev;
+static struct sigaction repl_term_cont_prev;
 static int repl_term_sig_armed = 0;
 
 Bool repl_term_is_interactive(void) {
@@ -1757,12 +1758,29 @@ static void repl_term_restore_signals(void) {
         sigaction(repl_term_sig_list[i], &repl_term_sig_prev[i], NULL);
     }
     sigaction(SIGWINCH, &repl_term_winch_prev, NULL);
+    sigaction(SIGCONT, &repl_term_cont_prev, NULL);
     repl_term_sig_armed = 0;
 }
 
 static void repl_term_on_winch(int sig) {
     (void)sig;
     repl_term_redraw = 1;
+}
+
+/* Resumed from a stop that did NOT go through repl_term_on_signal -- an
+ * uncatchable SIGSTOP, or the SIGTTIN/SIGTTOU a background read/write
+ * earns. Whoever stopped us left the terminal in whatever state it
+ * pleased (a job-control shell restores its own), so re-enter edit mode
+ * and redraw rather than keep reading a tty that is canonical again while
+ * the editor believes it is raw. The SIGTSTP path does its own resume
+ * work after raise() returns, and it has already uninstalled this
+ * handler by then, so the two never both fire. */
+static void repl_term_on_cont(int sig) {
+    (void)sig;
+    if (repl_term_active) {
+        repl_term_apply_raw();
+        repl_term_redraw = 1;
+    }
 }
 
 static void repl_term_on_signal(int sig) {
@@ -1812,6 +1830,12 @@ static void repl_term_install_signals(void) {
     sigemptyset(&wa.sa_mask);
     wa.sa_flags = 0;
     sigaction(SIGWINCH, &wa, &repl_term_winch_prev);
+    struct sigaction ca;
+    memset(&ca, 0, sizeof(ca));
+    ca.sa_handler = repl_term_on_cont;
+    sigemptyset(&ca.sa_mask);
+    ca.sa_flags = 0;
+    sigaction(SIGCONT, &ca, &repl_term_cont_prev);
     repl_term_sig_armed = 1;
 }
 

@@ -29,6 +29,9 @@ POLL_LIMIT := "240"
 // trailing space included, since command substitution strips trailing
 // NEWLINES only and the row ends in the prompt's own space.
 PROMPT_TAIL := "til[script]> "
+// The prompt of the interactive shell session 4 drives, set from a
+// generated rcfile so it is the same on every host's bash.
+BASH_TAIL := "tilbash> "
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -52,11 +55,15 @@ esc_seq := func(rest: Str) returns Str {
     return format(byte_str(27), rest)
 }
 
-// One `script` session running `cmd` under a pty, fed by `drive`.
-// TERM is pinned so the editor is never disabled by an inherited
-// TERM=dumb, and the state/home directories are isolated under tmp/.
-session_cmd := proc(drive: Str, inner: Str, out_path: Str) returns Str {
-    env := format("TERM=xterm XDG_STATE_HOME=", DIR, "/state HOME=", DIR, "/home ")
+// The environment one session runs under. TERM decides whether the
+// editor engages at all, and the state/home directories are isolated
+// under tmp/ so the suite never reads or writes a real ~/.local/state.
+env_for := func(term: Str, state: Str) returns Str {
+    return format("TERM=", term, " XDG_STATE_HOME=", DIR, "/", state, " HOME=", DIR, "/home ")
+}
+
+// One `script` session running `inner` under a pty, fed by `drive`.
+session_cmd := proc(env: Str, drive: Str, inner: Str, out_path: Str) returns Str {
     mut runner := format("script -q -e -c \"sh -c '", inner, "'\" /dev/null")
     if host_os() == "macos" {
         runner = format("script -q /dev/null sh -c '", inner, "'")
@@ -65,52 +72,65 @@ session_cmd := proc(drive: Str, inner: Str, out_path: Str) returns Str {
 }
 
 // Write the chunk files and the shell driver that paces them into the
-// pty. `tag` namespaces one session's files.
+// pty. `tag` namespaces one session's files; `waits[i]` is the text the
+// captured session must END with before chunk i+1 is sent, and an empty
+// one means "send and stop waiting" (the chunk that ends the session).
 //
-// Pacing waits for the editor to be READY -- the captured session has
-// grown since the last chunk, stopped growing, and ends with a freshly
-// drawn empty prompt row. Nothing weaker works: the editor leaves
-// terminal mode before the REPL parses and evaluates a line, and it is
-// silent for seconds while the base program loads, so both a fixed sleep
-// and plain output quiescence let a chunk land in the canonical-mode
-// window -- where the tty line discipline eats it (^R is REPRINT, ^D is
-// EOF) instead of the editor seeing it. Waiting on the prompt also
-// adapts to whatever the machine's per-turn cost happens to be.
-write_drive := proc(tag: Str, chunks: Vec(Str), out_path: Str) returns Str {
+// Pacing waits for a READY prompt -- the session has grown since the last
+// chunk, stopped growing, and now ends with the expected text. Nothing
+// weaker works: the editor leaves terminal mode before the REPL parses
+// and evaluates a line, and it is silent for seconds while the base
+// program loads, so both a fixed sleep and plain output quiescence let a
+// chunk land in the canonical-mode window -- where the tty line
+// discipline eats it (^R is REPRINT, ^D is EOF) instead of the editor
+// seeing it. Waiting on the prompt also adapts to whatever the machine's
+// per-turn cost happens to be.
+write_drive := proc(tag: Str, chunks: Vec(Str), waits: Vec(Str), start_wait: Str, out_path: Str) returns Str {
     mut script_src := format(
-        "wait_prompt() {\n",
+        "wait_tail() {\n",
         "  prev=-1\n",
         "  n=0\n",
         "  while [ $n -lt ", POLL_LIMIT, " ]; do\n",
         "    sleep ", POLL_SECONDS, "\n",
         "    cur=`wc -c < ", out_path, " 2>/dev/null || echo 0`\n",
-        "    if [ \"$cur\" = \"$prev\" ] && [ \"$cur\" -gt \"$1\" ]; then\n",
-        "      case `tail -c 40 ", out_path, " 2>/dev/null` in\n",
-        "        *\"", PROMPT_TAIL, "\") return 0 ;;\n",
+        "    if [ \"$cur\" = \"$prev\" ] && [ \"$cur\" -gt \"$2\" ]; then\n",
+        "      case `tail -c 60 ", out_path, " 2>/dev/null` in\n",
+        "        *\"$1\") return 0 ;;\n",
         "      esac\n",
         "    fi\n",
         "    prev=$cur\n",
         "    n=`expr $n + 1`\n",
         "  done\n",
+        "  echo \"repl_pty: timed out waiting for [$1]\" >&2\n",
         "}\n",
         "send() {\n",
         "  base=`wc -c < ", out_path, " 2>/dev/null || echo 0`\n",
         "  cat $1\n",
-        "  wait_prompt $base\n",
+        "  if [ -n \"$2\" ]; then wait_tail \"$2\" $base; fi\n",
         "}\n",
-        "wait_prompt 0\n")
-    last := chunks.len() - 1
+        "wait_tail \"", start_wait, "\" 0\n")
     for i in 0..chunks.len() {
         ref c : Str = chunks[i]
+        ref w : Str = waits[i]
+        if c.starts_with("!") {
+            // A step that runs on THIS side of the pty instead of being
+            // typed into it -- the only way to reach the REPL with a
+            // signal the terminal cannot send (session 7's SIGSTOP).
+            script_src = format(script_src,
+                "base=`wc -c < ", out_path, " 2>/dev/null || echo 0`\n",
+                c.substr(1, c.len().sub(1)), "\n",
+                "wait_tail \"", w, "\" $base\n")
+            continue
+        }
         path := format(DIR, "/", tag, "_", i.to_str())
         File.writefile(path, c)
-        if i == last {
-            // The last chunk ends the session (Ctrl-D or Ctrl-C), so
-            // there is no prompt to wait for -- just leave the pipe open
-            // long enough for the REPL to act on it and exit.
+        if w.len() == 0 {
+            // The session ends on this chunk (Ctrl-D, Ctrl-C, `exit`):
+            // there is no prompt left to wait for, so just hold the pipe
+            // open long enough for it to be acted on.
             script_src = format(script_src, "cat ", path, "\nsleep 3\n")
         } else {
-            script_src = format(script_src, "send ", path, "\n")
+            script_src = format(script_src, "send ", path, " \"", w, "\"\n")
         }
     }
     drive := format(DIR, "/", tag, "_drive.sh")
@@ -118,10 +138,21 @@ write_drive := proc(tag: Str, chunks: Vec(Str), out_path: Str) returns Str {
     return drive
 }
 
-run_session := proc(tag: Str, chunks: Vec(Str), inner: Str, out_path: Str) returns I64 {
-    drive := write_drive(tag, chunks, out_path)
-    pid := spawn_cmd(session_cmd(drive, inner, out_path))
+run_session := proc(tag: Str, chunks: Vec(Str), waits: Vec(Str), start_wait: Str,
+                    env: Str, inner: Str, out_path: Str) returns I64 {
+    drive := write_drive(tag, chunks, waits, start_wait, out_path)
+    pid := spawn_cmd(session_cmd(env, drive, inner, out_path))
     return wait_cmd(pid)
+}
+
+// Every chunk but the last waits for the ordinary prompt; the last ends
+// the session. The shape sessions 1-3 all have.
+prompt_waits := func(n: USize) returns Vec(Str) {
+    mut waits := Vec(Str).new()
+    for i in 0..n {
+        if i.add(1) == n { waits.push(own "") } else { waits.push(own PROMPT_TAIL.clone()) }
+    }
+    return waits
 }
 
 // `stty -g` around the REPL, inside the pty. `trap : INT` keeps the
@@ -149,6 +180,14 @@ main := proc() {
 
     _rm := system_cmd(format("rm -rf ", DIR))
     _mk := system_cmd(format("mkdir -p ", DIR, "/state ", DIR, "/home"))
+    // A regular FILE where session 6's history directory would go, so
+    // creating it cannot succeed.
+    File.writefile(format(DIR, "/blocked"), "not a directory\n")
+    // Job control needs a real interactive shell (session 4). The rcfile
+    // pins a prompt the driver can wait on and turns off bracketed paste,
+    // which would otherwise trail an escape sequence after every prompt.
+    File.writefile(format(DIR, "/bashrc"),
+        format("PS1='", BASH_TAIL, "'\nbind 'set enable-bracketed-paste off' 2>/dev/null\n"))
 
     cr := byte_str(13)
     ctrl_c := byte_str(3)
@@ -182,7 +221,8 @@ main := proc() {
     // Ctrl-D on an empty line ends the session.
     p1.push(own ctrl_d.clone())
 
-    rc1 := run_session("p1", p1, stty_wrapper("p1"), format(DIR, "/out1"))
+    rc1 := run_session("p1", p1, prompt_waits(p1.len()), PROMPT_TAIL,
+                       env_for("xterm", "state"), stty_wrapper("p1"), format(DIR, "/out1"))
     out1 := File.readfile(format(DIR, "/out1"))
 
     // A second process, same isolated state directory: Up must recall
@@ -190,7 +230,8 @@ main := proc() {
     mut p2 := Vec(Str).new()
     p2.push(own format(up, cr))
     p2.push(own ctrl_d.clone())
-    rc2 := run_session("p2", p2, stty_wrapper("p2"), format(DIR, "/out2"))
+    rc2 := run_session("p2", p2, prompt_waits(p2.len()), PROMPT_TAIL,
+                       env_for("xterm", "state"), stty_wrapper("p2"), format(DIR, "/out2"))
     out2 := File.readfile(format(DIR, "/out2"))
 
     // SIGINT: the REPL dies the way it always has, and leaves the
@@ -198,8 +239,76 @@ main := proc() {
     mut p3 := Vec(Str).new()
     p3.push(own format("println(format(\"A\",\"9\"))", cr))
     p3.push(own ctrl_c.clone())
-    _rc3 := run_session("p3", p3, stty_wrapper("p3"), format(DIR, "/out3"))
+    _rc3 := run_session("p3", p3, prompt_waits(p3.len()), PROMPT_TAIL,
+                       env_for("xterm", "state"), stty_wrapper("p3"), format(DIR, "/out3"))
     out3 := File.readfile(format(DIR, "/out3"))
+
+    // Suspend and resume, through a REAL interactive shell -- job control
+    // is the only way to get Ctrl-Z and `fg` to mean what they mean.
+    // Proves the whole cycle: the tty is handed back exactly as found
+    // while the REPL is stopped, `fg` re-enters edit mode and REDRAWS the
+    // half-typed line (so the edit survived), submitting it evaluates,
+    // and Ctrl-\ still kills the process and still leaves the terminal
+    // alone. `ulimit -c 0` keeps SIGQUIT from dropping a core file.
+    mut p4 := Vec(Str).new()
+    mut w4 := Vec(Str).new()
+    p4.push(own format("ulimit -c 0; stty -g > ", DIR, "/p4_before\n"))   w4.push(own BASH_TAIL.clone())
+    p4.push(own "bin/til repl\n")                                        w4.push(own PROMPT_TAIL.clone())
+    p4.push(own "1 + 41")                                                 w4.push(own "1 + 41")
+    p4.push(own byte_str(26))                                             w4.push(own BASH_TAIL.clone())
+    p4.push(own format("stty -g > ", DIR, "/p4_stopped\n"))              w4.push(own BASH_TAIL.clone())
+    p4.push(own "fg\n")                                                  w4.push(own "1 + 41")
+    p4.push(own cr.clone())                                               w4.push(own PROMPT_TAIL.clone())
+    p4.push(own "2 + 2")                                                  w4.push(own "2 + 2")
+    p4.push(own byte_str(28))                                             w4.push(own BASH_TAIL.clone())
+    p4.push(own format("stty -g > ", DIR, "/p4_after\n"))                w4.push(own BASH_TAIL.clone())
+    p4.push(own "exit\n")                                                w4.push(own "")
+    _rc4 := run_session("p4", p4, w4, BASH_TAIL, env_for("xterm", "state4"),
+                        format("exec bash --noprofile --rcfile ", DIR, "/bashrc -i"),
+                        format(DIR, "/out4"))
+    out4 := File.readfile(format(DIR, "/out4"))
+
+    // TERM=dumb on a real terminal: the editor stays out of the way, so
+    // the session is the plain in_read_line path -- no escapes, no
+    // history file, today's prompts and EOF behavior.
+    mut p5 := Vec(Str).new()
+    p5.push(own format("1 + 41", cr))
+    p5.push(own ctrl_d.clone())
+    _rc5 := run_session("p5", p5, prompt_waits(p5.len()), PROMPT_TAIL,
+                        env_for("dumb", "state5"), "bin/til repl", format(DIR, "/out5"))
+    out5 := File.readfile(format(DIR, "/out5"))
+
+    // A history location that cannot be created (a regular file sits
+    // where the directory would go). The REPL must say so, naming the
+    // path, and keep going with session-only history -- never quietly
+    // pretend it persisted anything.
+    mut p6 := Vec(Str).new()
+    p6.push(own format("1 + 41", cr))
+    p6.push(own ctrl_d.clone())
+    _rc6 := run_session("p6", p6, prompt_waits(p6.len()), PROMPT_TAIL,
+                        env_for("xterm", "blocked"), "bin/til repl", format(DIR, "/out6"))
+    out6 := File.readfile(format(DIR, "/out6"))
+
+    // Resumed from a stop that never ran our SIGTSTP handler: SIGSTOP is
+    // uncatchable, so the shell hands the terminal back in ITS state and
+    // only a SIGCONT handler can put the editor back in raw mode. Without
+    // one the REPL resumes reading a canonical tty it believes is raw --
+    // no redraw, no prompt, the user typing blind. The symlinked name
+    // makes the process unmistakable to pkill.
+    _ln := system_cmd(format("ln -sf ../../bin/til ", DIR, "/til_p7"))
+    mut p7 := Vec(Str).new()
+    mut w7 := Vec(Str).new()
+    p7.push(own format(DIR, "/til_p7 repl\n"))          w7.push(own PROMPT_TAIL.clone())
+    p7.push(own "1 + 41")                                w7.push(own "1 + 41")
+    p7.push(own "!pkill -STOP -f \"til_p7 repl\"")      w7.push(own BASH_TAIL.clone())
+    p7.push(own "fg\n")                                 w7.push(own "1 + 41")
+    p7.push(own cr.clone())                              w7.push(own PROMPT_TAIL.clone())
+    p7.push(own ctrl_d.clone())                          w7.push(own BASH_TAIL.clone())
+    p7.push(own "exit\n")                               w7.push(own "")
+    _rc7 := run_session("p7", p7, w7, BASH_TAIL, env_for("xterm", "state7"),
+                        format("exec bash --noprofile --rcfile ", DIR, "/bashrc -i"),
+                        format(DIR, "/out7"))
+    out7 := File.readfile(format(DIR, "/out7"))
 
     hist_path := format(DIR, "/state/til/repl_history")
     mut hist := ""
@@ -244,6 +353,32 @@ main := proc() {
     clean_exit2 := File.exists(format(DIR, "/p2_ok"))
     sigint_survived := File.exists(format(DIR, "/p3_ok"))
 
+    // Suspend/resume: the tty is exactly as found BOTH while the REPL is
+    // stopped and after Ctrl-\ killed it, the half-typed line came back
+    // on the redraw, and submitting it evaluated to 42.
+    before4 := read_if_present(format(DIR, "/p4_before"))
+    stopped4 := read_if_present(format(DIR, "/p4_stopped"))
+    after4 := read_if_present(format(DIR, "/p4_after"))
+    resumed := count_matches(out4, format(PROMPT_TAIL, "1 + 41"))
+    evaluated_after_resume := count_matches(out4, format(nl, "42", nl))
+
+    // TERM=dumb keeps the plain path: no escape, no history file, and
+    // the line still evaluates.
+    dumb_escapes := count_matches(out5, byte_str(27))
+    dumb_evaluated := count_matches(out5, "42")
+    dumb_history := File.exists(format(DIR, "/state5/til/repl_history"))
+
+    // An uncreatable history location is reported, with its path, and
+    // the session keeps working without it.
+    blocked_warned := count_matches(out6, "REPL history is session-only")
+    blocked_path_named := count_matches(out6, "blocked/til")
+    blocked_evaluated := count_matches(out6, format(nl, "42", nl))
+
+    // Twice: once as the line was typed, once as the redraw the SIGCONT
+    // handler forces. Only the second one proves the resume.
+    stop_cont_redraw := count_matches(out7, format(PROMPT_TAIL, "1 + 41"))
+    stop_cont_evaluated := count_matches(out7, format(nl, "42", nl))
+
     if and(edited1.eq(2), edited2.eq(2), edited3.eq(1), persisted.eq(1),
            before_sigint.eq(1), leaked_arrow.eq(0), parse_errors.eq(0),
            hist_count.eq(6), hist_after_sigint.eq(1),
@@ -251,7 +386,13 @@ main := proc() {
            clean_exit1, clean_exit2,
            sigint_survived.not(),
            before1.len().gt(0), before1.eq(after1),
-           before3.len().gt(0), before3.eq(after3)) {
+           before3.len().gt(0), before3.eq(after3),
+           before4.len().gt(0), before4.eq(stopped4), before4.eq(after4),
+           resumed.gte(1), evaluated_after_resume.eq(1),
+           dumb_escapes.eq(0), dumb_evaluated.gte(1), dumb_history.not(),
+           blocked_warned.eq(1), blocked_path_named.gte(1),
+           blocked_evaluated.eq(1),
+           stop_cont_redraw.gte(2), stop_cont_evaluated.eq(1)) {
         println("repl_pty PASS")
         return
     }
@@ -269,13 +410,33 @@ main := proc() {
             " sigint_survived=", sigint_survived.to_str(),
             " rc1=", rc1.to_str(), " rc2=", rc2.to_str(),
             " tty1_same=", before1.eq(after1).to_str(),
-            " tty3_same=", before3.eq(after3).to_str())
+            " tty3_same=", before3.eq(after3).to_str(),
+            " tty4_stopped_same=", before4.eq(stopped4).to_str(),
+            " tty4_same=", before4.eq(after4).to_str(),
+            " resumed=", resumed.to_str(),
+            " evaluated_after_resume=", evaluated_after_resume.to_str(),
+            " dumb_escapes=", dumb_escapes.to_str(),
+            " dumb_evaluated=", dumb_evaluated.to_str(),
+            " dumb_history=", dumb_history.to_str(),
+            " blocked_warned=", blocked_warned.to_str(),
+            " blocked_path_named=", blocked_path_named.to_str(),
+            " blocked_evaluated=", blocked_evaluated.to_str(),
+            " stop_cont_redraw=", stop_cont_redraw.to_str(),
+            " stop_cont_evaluated=", stop_cont_evaluated.to_str())
     println("--- session 1 ---")
     print(out1)
     println("--- session 2 ---")
     print(out2)
     println("--- session 3 ---")
     print(out3)
+    println("--- session 4 (suspend/resume) ---")
+    print(out4)
+    println("--- session 5 (TERM=dumb) ---")
+    print(out5)
+    println("--- session 6 (unwritable history) ---")
+    print(out6)
+    println("--- session 7 (SIGSTOP then fg) ---")
+    print(out7)
     println("--- history ---")
     print(hist)
     exit(1)
