@@ -26,6 +26,11 @@
 #define TIL_O_CREAT _O_CREAT
 #define TIL_O_TRUNC _O_TRUNC
 #define TIL_O_BINARY _O_BINARY
+// fseek/ftell take and return `long`, which is 32-bit on Windows even in
+// 64-bit builds, so a cursor past 2GB truncates silently. The 64-bit
+// variants take the same arguments til already passes as I64.
+#define TIL_FSEEK _fseeki64
+#define TIL_FTELL _ftelli64
 #else
 #define TIL_DUP dup
 #define TIL_DUP2 dup2
@@ -36,6 +41,9 @@
 #define TIL_O_CREAT O_CREAT
 #define TIL_O_TRUNC O_TRUNC
 #define TIL_O_BINARY 0
+// fseeko/ftello carry off_t rather than long: 64-bit wherever the host is.
+#define TIL_FSEEK fseeko
+#define TIL_FTELL ftello
 #endif
 
 static int stdio_capture_stdout_fd = -1;
@@ -1444,16 +1452,35 @@ I64 cfile_tell(const void *handle) {
         fprintf(stderr, "cfile_tell: file not open\n");
         exit(1);
     }
-    return (I64)ftell((FILE *)handle);
+    // -1 is ftell's error report, not a position. Passing it through made
+    // File.tell answer "-1 bytes from the start", which callers then use
+    // as a size (seek_end(0) + tell() is how a file's length is measured
+    // here) or as a seek target.
+    I64 pos = (I64)TIL_FTELL((FILE *)handle);
+    if (pos < 0) {
+        fprintf(stderr, "cfile_tell: %s\n", strerror(errno));
+        exit(1);
+    }
+    return pos;
 }
 
 // Move the cursor to an absolute byte offset from the start of the file.
+//
+// A failed seek leaves the cursor exactly where it was, so discarding the
+// return does not lose an error -- it turns it into a read of the wrong
+// region. `f.seek(6); f.read(5)` would come back with five real bytes
+// from offset 0 and no indication anything went wrong, which is why all
+// three of these report and exit instead.
 void cfile_seek(const void *handle, I64 pos) {
     if (!handle) {
         fprintf(stderr, "cfile_seek: file not open\n");
         exit(1);
     }
-    fseek((FILE *)handle, (long)pos, SEEK_SET);
+    if (TIL_FSEEK((FILE *)handle, pos, SEEK_SET) != 0) {
+        fprintf(stderr, "cfile_seek: to %lld: %s\n",
+                (long long)pos, strerror(errno));
+        exit(1);
+    }
 }
 
 // Move the cursor by `delta` bytes relative to its current position
@@ -1463,7 +1490,11 @@ void cfile_seek_cur(const void *handle, I64 delta) {
         fprintf(stderr, "cfile_seek_cur: file not open\n");
         exit(1);
     }
-    fseek((FILE *)handle, (long)delta, SEEK_CUR);
+    if (TIL_FSEEK((FILE *)handle, delta, SEEK_CUR) != 0) {
+        fprintf(stderr, "cfile_seek_cur: by %lld: %s\n",
+                (long long)delta, strerror(errno));
+        exit(1);
+    }
 }
 
 // Move the cursor to `delta` bytes relative to the end of the file
@@ -1474,7 +1505,11 @@ void cfile_seek_end(const void *handle, I64 delta) {
         fprintf(stderr, "cfile_seek_end: file not open\n");
         exit(1);
     }
-    fseek((FILE *)handle, (long)delta, SEEK_END);
+    if (TIL_FSEEK((FILE *)handle, delta, SEEK_END) != 0) {
+        fprintf(stderr, "cfile_seek_end: by %lld: %s\n",
+                (long long)delta, strerror(errno));
+        exit(1);
+    }
 }
 
 // Read up to `count` bytes starting at the current cursor position. The
