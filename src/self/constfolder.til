@@ -216,6 +216,25 @@ priv str_to_source_form := func(s: Str) returns Str {
     return out
 }
 
+// The variant ctor's declared payload ownership, read from the
+// generated ctor itself so this shares the initer's answer instead of
+// re-deriving it.
+priv rebuilt_ctor_payload_is_own := func(ename: Str, vname: Str, ctx: Context) returns Bool {
+    edef_o := lookup_interp_type_def(ename, ctx)
+    if edef_o.is_none() { return false }
+    ref edef : Expr = edef_o.unwrap()
+    fd_o := def_ns_get(edef, vname)
+    if fd_o.is_none() { return false }
+    ref fd : Declaration = fd_o.unwrap()
+    if fd.default_value.is_none() { return false }
+    switch fd.default_expr().node_type {
+    case .FuncDef(vfd):
+        if vfd.params.len() == 0 { return false }
+        return vfd.params[0].own_type.is(OwnType.Own)
+    case: return false
+    }
+}
+
 priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Option(Expr) {
     switch t {
     case .Primitive(prim):
@@ -301,6 +320,14 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
                 call.add_child(own variant)
                 call.add_child(own payload)
                 call.set_til_type(t)
+                // A fresh FCallData starts with an EMPTY own_args bitmap,
+                // so the rebuilt call must be re-stamped with the
+                // ownership the typer put on the call it replaces --
+                // the backend reads that bit to decide whether the
+                // payload is handed over as a heap box or by address.
+                // Without it the backend had to re-derive the answer
+                // itself, and the two rules could disagree.
+                if rebuilt_ctor_payload_is_own(ename, vname, ctx) { set_own_arg(call, 1) }
                 return Option(Expr).Some(own call)
             }
             mut variant_recv := Expr.new(ident_node(ename), src.line, src.col)

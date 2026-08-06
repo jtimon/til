@@ -3117,6 +3117,7 @@ U8 priv___src_self_constfolder_til__hex_digit_value(I8 b);
 Str * priv___src_self_constfolder_til__from_source_form(Str * s);
 Bool priv___src_self_constfolder_til__needs_source_escape(Str * s);
 Str * priv___src_self_constfolder_til__str_to_source_form(Str * s);
+Bool priv___src_self_constfolder_til__rebuilt_ctor_payload_is_own(Str * ename, Str * vname, Context * ctx);
 Option__Expr priv___src_self_constfolder_til__raw_to_expr(void * raw, Type t, Expr * src, Context * ctx);
 void * priv___src_self_constfolder_til__expr_to_known_raw(Expr * e, Context * ctx);
 Bool priv___src_self_constfolder_til__result_type_can_fold_to_expr(Type * t, Context * ctx);
@@ -3416,9 +3417,6 @@ Str * priv___src_self_builder_til__builder_variadic_array_type_name(Context * ct
 Str * priv___src_self_builder_til__builder_variadic_vec_type_name(Context * ctx, Str * elem_type);
 Str * priv___src_self_builder_til__builder_variadic_array_ctype(Context * ctx, Str * elem_type);
 Str * priv___src_self_builder_til__builder_variadic_vec_ctype(Context * ctx, Str * elem_type);
-Bool priv___src_self_builder_til__enum_ctor_payload_is_own(Str * callee_name, Expr * fcall, Context * ctx);
-Bool priv___src_self_builder_til__templated_container_method_arg_is_own(Str * sname, Str * method, USize arg_index);
-Bool priv___src_self_builder_til__templated_container_fcall_arg_is_own(Str * callee_name, USize arg_index);
 File * priv___src_self_builder_til__emit_usize(File * f, USize v);
 File * priv___src_self_builder_til__emit_i32(File * f, I32 v);
 File * priv___src_self_builder_til__emit_indent(File * f, I32 depth);

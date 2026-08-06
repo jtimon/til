@@ -920,64 +920,6 @@ priv builder_variadic_vec_ctype := func(ctx: Context, elem_type: Str) returns St
     return type_name_to_c(builder_variadic_vec_type_name(ctx, elem_type), ctx)
 }
 
-priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Context) returns Bool {
-    if fcall.children.len() != 2 { return false }
-    ename_o := expr_type_name_ref(fcall)
-    if ename_o.is_none() { return false }
-    ref ename : Str = ename_o.unwrap()
-    prefix := format(ename, "_")
-    if callee_name.starts_with(prefix).not() { return false }
-    def_o := ctx.scope.get_struct(ename)
-    if def_o.is_none() { return false }
-    ref def : Expr = def_o.unwrap()
-    if def.node_type.is(NodeType.EnumDef).not() { return false }
-    vname := callee_name.substr(prefix.len(), callee_name.len() - prefix.len())
-    switch def.node_type {
-    case .EnumDef(edd):
-        for i in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[i]
-            if vd.name.eq(vname).not() { continue }
-            vt := enum_variant_type(def, i.to_i32())
-            if vt.len() == 0 { return false }
-            if is_primitive_type(vt) { return false }
-            // A payload-less enum payload is a VALUE, like a primitive:
-            // no heap inside it, nothing to transfer. Treated as own it
-            // made every construction box the value for a ctor that
-            // copies it straight back out.
-            if is_pod_enum(vt, ctx) { return false }
-            if is_funcsig_type(vt, ctx).or(vt.eq("Dynamic")) { return false }
-            // #320: a ref payload is borrowed, never an ownership transfer.
-            if enum_variant_payload_ref(def, i.to_i32()) { return false }
-            return true
-        }
-    case:
-    }
-    return false
-}
-
-priv templated_container_method_arg_is_own := func(sname: Str, method: Str, arg_index: USize) returns Bool {
-    if sname.starts_with("Vec").and(method.eq("push")).and(arg_index.eq(1)) { return true }
-    if sname.starts_with("Set").and(method.eq("add")).and(arg_index.eq(1)) { return true }
-    if sname.starts_with("Array").and(method.eq("set")).and(arg_index.eq(2)) { return true }
-    if sname.starts_with("Map").and(method.eq("set")).and(arg_index.eq(2)) { return true }
-    return false
-}
-
-priv templated_container_fcall_arg_is_own := func(callee_name: Str, arg_index: USize) returns Bool {
-    if callee_name.starts_with("Vec__").and(callee_name.ends_with("_push")).and(arg_index.eq(1)) { return true }
-    if callee_name.starts_with("Set__").and(callee_name.ends_with("_add")).and(arg_index.eq(1)) { return true }
-    if callee_name.starts_with("Array__").and(callee_name.ends_with("_set")).and(arg_index.eq(2)) { return true }
-    if callee_name.starts_with("Map__").and(callee_name.ends_with("_set")).and(arg_index.eq(2)) { return true }
-    if callee_name.eq("push").and(arg_index.eq(1)) { return true }
-    if callee_name.eq("add").and(arg_index.eq(1)) { return true }
-    if callee_name.eq("set").and(arg_index.eq(2)) { return true }
-    if callee_name.ends_with(".push").and(arg_index.eq(1)) { return true }
-    if callee_name.ends_with(".add").and(arg_index.eq(1)) { return true }
-    if callee_name.ends_with(".set").and(arg_index.eq(2)) { return true }
-    return false
-}
-
-// Returns ref File so `f.emit_usize(v).write(...)` chains via UFCS.
 priv emit_usize := proc(f: File, shallow v: USize) returns ref File {
     f.write(v.to_str())
     return f
@@ -1249,8 +1191,7 @@ priv emit_user_fcall_args := proc(f: File, e: Expr, callee_name: Str, depth: I32
         } else if callee_param_is_uptr(callee_name, i - 1, ctx).and(callee_param_is_own(callee_name, i - 1, ctx).not()).and(callee_param_writes_back(callee_name, i - 1, ctx).not()) {
             f.write("UPTR_REF(").emit_deref(arg, depth, ctx).write(")")
         } else {
-            mut own_arg := get_own_arg(e, i)
-            if templated_container_fcall_arg_is_own(callee_name, i - 1) { own_arg = true }
+            own_arg := get_own_arg(e, i)
             saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
             if own_arg.and(callee_param_explicit_type(callee_name, i - 1, ctx).eq("Dynamic")) {
                 ctx.builder_func.force_heap_stack_lit_str_own = true
@@ -3562,9 +3503,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
                     } else if callee_param_is_uptr(flat, i - 1, ctx).and(callee_param_is_own(flat, i - 1, ctx).not()).and(callee_param_writes_back(flat, i - 1, ctx).not()) {
                         f.write("UPTR_REF(").emit_deref(e.children[i], depth, ctx).write(")")
                     } else {
-                        mut own_arg := get_own_arg(e, i)
-                        if i.eq(1).and(enum_ctor_payload_is_own(flat, e, ctx)) { own_arg = true }
-                        if templated_container_method_arg_is_own(sname, mname.field_access_name(), i - 1) { own_arg = true }
+                        own_arg := get_own_arg(e, i)
                         saved_force_heap := ctx.builder_func.force_heap_stack_lit_str_own
                         if own_arg.and(callee_param_explicit_type(flat, i - 1, ctx).eq("Dynamic")) {
                             ctx.builder_func.force_heap_stack_lit_str_own = true
@@ -3962,12 +3901,7 @@ priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) retur
         } else {
             // User-defined function call
             fc := func_to_c(name.ident_name())
-            if enum_ctor_payload_is_own(name.ident_name(), e, ctx) {
-                f.write(fc)
-                f.write("(")
-                emit_as_ptr(f, e.children[1], depth, true, ctx)
-                f.write(")")
-            } else if fcall_has_inline_capturing_func_arg(e) {
+            if fcall_has_inline_capturing_func_arg(e) {
                 emit_user_fcall_with_inline_closure_cleanup(f, e, name.ident_name(), fc, depth, ctx)
             } else {
                 f.write(fc)
