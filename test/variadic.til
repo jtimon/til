@@ -160,3 +160,35 @@ test_splat_empty := test() {
     assert_eq(I64, double_sum(), 0)
     assert_eq(Str, my_format(), "")
 }
+
+// #342: a `..` splat may share the variadic block with other arguments. The
+// splatted array's elements expand in place among them, in source order --
+// the parser records WHICH argument carried the `..` (FCallData.splat_args)
+// and the desugar folds the block into one Array with Array.concat, handing
+// the call the pure-splat form. Before this, the splatted Array was wrapped
+// as a single element and the callee read its header bytes as the element
+// type (garbage output), and latterly the whole shape was a type error.
+test_mixed_splat := test() {
+    arr := array(Str, "a", "b")
+    assert_eq(Str, format("<", ..arr), "<ab")
+    assert_eq(Str, format(..arr, ">"), "ab>")
+    assert_eq(Str, format("[", ..arr, "]"), "[ab]")
+}
+
+test_mixed_splat_multiple := test() {
+    a := array(Str, "a", "b")
+    b := array(Str, "y", "z")
+    assert_eq(Str, format(..a, "-", ..b), "ab-yz")
+    assert_eq(Str, format(..a, ..b), "abyz")
+}
+
+// concat clones, so a splatted array is not moved out of the caller and can
+// be splatted again.
+test_mixed_splat_source_intact := test() {
+    a := array(Str, "a", "b")
+    assert_eq(Str, format("<", ..a), "<ab")
+    assert_eq(Str, format("<", ..a), "<ab")
+    ref a0 : Str = a[0]
+    assert_eq(Str, a0, "a")
+    assert_eq(USize, a.len(), 2)
+}

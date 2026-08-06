@@ -65,6 +65,28 @@ namespace:
         if call_free { free(own self) }
     }
 
+    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
+    /// Both sources keep theirs -- every element is cloned, exactly as
+    /// `clone` does -- so neither is moved out from under its owner. The
+    /// mixed-splat variadic lowering builds its collector with this: the
+    /// fixed arguments become one Array, the splatted Array is the other,
+    /// and the call is then the pure-splat form the desugar already handles.
+    concat := func(self: Array(T), other: Array(T)) returns Array(T) {
+        total : USize = self.cap.add(other.cap)
+        new_data : U8 = malloc(total.mul(T.size()))
+        for i in 0..self.cap {
+            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            mut cloned : T = T.clone(src)
+            adopt(T, ptr_add(new_data, i.mul(T.size())), own cloned)
+        }
+        for j in 0..other.cap {
+            ref osrc : T = ptr_add(other.data, j.mul(T.size()))
+            mut ocloned : T = T.clone(osrc)
+            adopt(T, ptr_add(new_data, self.cap.add(j).mul(T.size())), own ocloned)
+        }
+        return Array(T)(data = new_data, cap = total)
+    }
+
     clone := func(self: Array(T)) returns Array(T) {
         new_data : U8 = malloc(self.cap.mul(T.size()))
         for i in 0..self.cap {

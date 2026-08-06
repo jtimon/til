@@ -2,7 +2,6 @@
 ** High
 *** [[./open/344.org][#344]] One-sided mut enforcement: non-mut writes compile, backends disagree, accessors launder writes
 ** Medium
-*** [[./open/342.org][#342]] Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
 *** [[./open/343.org][#343]] A view reaching a C string parameter reads past its end, unchecked
 * Cleanups
 ** High

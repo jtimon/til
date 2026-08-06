@@ -997,18 +997,12 @@ probe_ufcs321 := func(p: NullProbe321) returns Bool { return p.is_null() }
 // then derived its count by subtracting the param count from the SHORTER
 // list -- USize, so it underflowed and the setter loop read past the end.
 // `expect()` reaches it the same way. One error, then the run continues.
+// #342: the mixed splat this once had to work around (the nested
+// `format(mv_head, format(..mv_rest))`) lowers directly again.
 mv_variadic_callee := func(mv_head: Str, mv_rest: ..Str) returns Str {
-    return format(mv_head, format(..mv_rest))
+    return format(mv_head, ..mv_rest)
 }
 mv_missing_required := mv_variadic_callee()
-
-// A `..` splat sharing the variadic block with other arguments cannot be
-// lowered: is_splat is one flag on the whole call, so which argument carried
-// the `..` is not recorded. The desugar used to wrap the splatted Array as a
-// single element, and the callee read its bytes as the element type --
-// `format("<", ..a)` printed "<\xa0"" instead of "<ab". Rejected now.
-sp_arr := array(Str, "a", "b")
-sp_mixed := format("<", ..sp_arr)
 
 // A struct field's default has to agree with its explicit type, exactly
 // like a local declaration's. The check was missing on the field path, so

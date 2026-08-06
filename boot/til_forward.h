@@ -523,6 +523,7 @@ typedef struct FCallData {
     Type til_type;
     Bool noreturn_call;
     U64 ref_args;
+    U64 splat_args;
 } FCallData;
 
 
@@ -2068,6 +2069,7 @@ NodeType * literal_num_node(Str * text);
 NodeType * field_access_node(Str * name);
 void set_own_arg(Expr * fcall, USize arg_index);
 Bool get_own_arg(Expr * fcall, USize arg_index);
+void set_splat_arg(Expr * fcall, USize arg_index);
 void set_ref_arg(Expr * fcall, USize arg_index);
 Bool get_ref_arg(Expr * fcall, USize arg_index);
 Bool fcall_has_ref_args(Expr * fcall);
@@ -2930,7 +2932,7 @@ Expr * priv___src_self_desugarer_til__build_variadic_array_decl(Expr * fcall, Ty
 Str * priv___src_self_desugarer_til__variadic_err_slot_name(Str * va_name, Str * suffix);
 void priv___src_self_desugarer_til__build_variadic_err_slots(Str * va_name, Vec__Expr * new_ch, TypeScope * scope, Context * ctx, U32 line, U32 col);
 void priv___src_self_desugarer_til__narrow_literal_to_elem(Expr * val, Type * elem_t);
-Expr * priv___src_self_desugarer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, I32 vi, USize j, Context * ctx);
+Expr * priv___src_self_desugarer_til__build_variadic_array_set(Expr * fcall, TypeScope * scope, Str * elem_type, Str * va_name, USize src_idx, USize j, Context * ctx);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_decl(Expr * fcall, Str * elem_type, Str * vec_name);
 Expr * priv___src_self_desugarer_til__build_builtin_vec_push(Expr * fcall, TypeScope * scope, Str * elem_type, Str * vec_name, USize j, Context * ctx);
 void priv___src_self_desugarer_til__rewrite_collection_fcall_to_ident(Expr * fcall, Str * coll_name, Type * coll_type);
@@ -2954,6 +2956,8 @@ void priv___src_self_desugarer_til__hoist_field_assign_rhs(Context * ctx, Expr *
 void priv___src_self_desugarer_til__hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 void priv___src_self_desugarer_til__rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, Str * array_type, I32 vi, USize vc);
 I32 priv___src_self_desugarer_til__derive_fcall_kwargs_index(Expr * _fcall, FunctionDef * fdef_data);
+Bool priv___src_self_desugarer_til__fcall_arg_is_splat(Expr * fcall, USize idx);
+Bool priv___src_self_desugarer_til__desugar_mixed_splat_variadic_call(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Str * elem_type, Str * array_type, I32 vi, USize vc);
 Bool priv___src_self_desugarer_til__desugar_pure_splat_variadic_call(Expr * fcall, Str * array_type, I32 vi, USize vc);
 void priv___src_self_desugarer_til__rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool priv___src_self_desugarer_til__field_assign_needs_delete(Expr * stmt, TypeScope * scope);

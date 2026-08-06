@@ -3762,7 +3762,10 @@ priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
     }
 }
 
-priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, vi: I32, j: USize, ctx: Context) returns Expr {
+// `src_idx` is the ABSOLUTE child index of the argument to store and `j` the
+// destination slot. They coincide only for a contiguous block; #342's mixed
+// splat fills a collector from a SUBSET of the block, so the two are separate.
+priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, src_idx: USize, j: USize, ctx: Context) returns Expr {
     array_type := variadic_array_type_name(scope, elem_type)
     // Issue #225: the variadic-arg collector fills its temp Array with the
     // throwing `set`. This desugar runs after throws-lowering, so the call
@@ -3780,7 +3783,7 @@ priv build_variadic_array_set := func(fcall: Expr, scope: TypeScope, elem_type: 
     idx.set_til_type(usize_type(scope, ctx))
     set_call.add_child(own idx)
 
-    ref val_in : Expr = fcall.children[vi.add(j.to_i32()).to_usize()]
+    ref val_in : Expr = fcall.children[src_idx]
     mut val := val_in.clone()
     // A variadic arg is MOVED into the owned collector Array: unsafe_set
     // memcpy's the bytes into the slot and memsets the source to zero. An
@@ -3926,7 +3929,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             new_ch.push(own arr_decl)
             build_variadic_err_slots(arr_name, new_ch, scope, ctx, fcall.line, fcall.col)
             for j in 0..count {
-                mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, 2, j, ctx)
+                mut setter := build_variadic_array_set(fcall, scope, elem_type, arr_name, j.add(2), j, ctx)
                 new_ch.push(own setter)
             }
             rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
@@ -3985,7 +3988,7 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             new_ch.push(own arr_decl)
             build_variadic_err_slots(var_name, new_ch, scope, ctx, rhs.line, rhs.col)
             for j in 0..count {
-                mut setter := build_variadic_array_set(rhs, scope, elem_type, var_name, 2, j, ctx)
+                mut setter := build_variadic_array_set(rhs, scope, elem_type, var_name, j.add(2), j, ctx)
                 new_ch.push(own setter)
             }
             return true
@@ -4188,6 +4191,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     ref elem_type : Str = fd.params[fd.variadic_index.to_usize()].explicit_type
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
+    if desugar_mixed_splat_variadic_call(ctx, e, new_ch, scope, elem_type, array_type, vi, vc) { return }
     va_name := format("_va_Array_", ctx.va_counter.to_str())
     ctx.va_counter++
     mut va_decl := build_variadic_array_decl(e, scope, elem_type, va_name, vc, ctx)
@@ -4195,7 +4199,7 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     new_ch.push(own va_decl)
     build_variadic_err_slots(va_name, new_ch, scope, ctx, e.line, e.col)
     for j in 0..vc {
-        mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi, j, ctx)
+        mut setter := build_variadic_array_set(e, scope, elem_type, va_name, vi.to_usize().add(j), j, ctx)
         new_ch.push(own setter)
     }
     rewrite_variadic_fcall_args(e, va_name, array_type, vi, vc)
@@ -4902,6 +4906,109 @@ priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) ret
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
+// #342: is the block argument at absolute index `idx` a `..` splat? Reads the
+// splat_args bitmap the parser records (is_splat only says SOME arg was).
+priv fcall_arg_is_splat := func(fcall: Expr, idx: USize) returns Bool {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..idx { bit = bit * 2 }
+        return fcd.splat_args.band(bit).neq(0)
+    case:
+        return false
+    }
+}
+
+// #342: lower a MIXED variadic block -- a `..` splat beside other arguments.
+// The block is walked in source order; each run of consecutive non-splat
+// arguments becomes its own collector Array (the ordinary machinery, just
+// filled from a subset), and each splatted Array is taken as is. The pieces
+// are then folded left to right with Array.concat, which clones every element
+// so no source is moved out from under its owner, and the call is handed the
+// single combined Array -- exactly the pure-splat shape the desugar already
+// knows how to pass. Returns false for a block with no splat, leaving the
+// ordinary path to it.
+priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
+        mut new_ch: Vec(Expr), mut scope: TypeScope, elem_type: Str,
+        array_type: Str, vi: I32, vc: USize) returns Bool {
+    if vc < 2 { return false }
+    mut has_splat := false
+    switch e.node_type {
+    case NodeType.FCall(fcd):
+        if fcd.is_splat.not() { return false }
+    case:
+        return false
+    }
+    vi_u := vi.to_usize()
+    for k in 0..vc {
+        if fcall_arg_is_splat(e, vi_u.add(k)) { has_splat = true }
+    }
+    if has_splat.not() { return false }
+
+    // Build the pieces, in source order.
+    mut pieces := Vec(Expr).new()
+    mut k : USize = 0
+    while k < vc {
+        idx := vi_u.add(k)
+        if fcall_arg_is_splat(e, idx) {
+            pieces.push(own e.children[idx].clone())
+            k++
+            continue
+        }
+        // A run of plain elements -> one collector Array.
+        mut run : USize = 0
+        while k.add(run) < vc {
+            if fcall_arg_is_splat(e, vi_u.add(k).add(run)) { break }
+            run++
+        }
+        grp_name := format("_va_Array_", ctx.va_counter.to_str())
+        ctx.va_counter++
+        mut grp_decl := build_variadic_array_decl(e, scope, elem_type, grp_name, run, ctx)
+        scope.set(grp_name, Type.Struct(array_type.clone()), false, ctx.path, e.line, e.col, false, OwnType.Own)
+        new_ch.push(own grp_decl)
+        build_variadic_err_slots(grp_name, new_ch, scope, ctx, e.line, e.col)
+        for r in 0..run {
+            mut setter := build_variadic_array_set(e, scope, elem_type, grp_name, vi_u.add(k).add(r), r, ctx)
+            new_ch.push(own setter)
+        }
+        mut grp_id := Expr.new(ident_node(grp_name), e.line, e.col)
+        grp_id.set_til_type(Type.Struct(array_type.clone()))
+        pieces.push(own grp_id)
+        k = k.add(run)
+    }
+
+    // Fold the pieces with concat.
+    mut combined := Expr.new(NodeType.Literal(Literal.Null), e.line, e.col)
+    for pi in 0..pieces.len() {
+        if pi == 0 {
+            combined = pieces[0].clone()
+            continue
+        }
+        mut cc := make_ns_call(array_type, "concat", Type.Struct(array_type.clone()), e)
+        cc.add_child(own combined.clone())
+        cc.add_child(own pieces[pi].clone())
+        combined = cc.clone()
+    }
+
+    // Replace the whole block with the single combined Array, in the shape
+    // the pure-splat path produces: one owned array argument, no splat flag.
+    mut old_args := e.children.take()
+    mut fresh := Vec(Expr).new()
+    for j in 0..old_args.len() {
+        if j < vi_u { fresh.push_take(old_args, j); continue }
+        if j == vi_u { fresh.push(own combined.clone()); continue }
+        if j < vi_u.add(vc) { continue }          // the rest of the block is folded in
+        fresh.push_take(old_args, j)
+    }
+    e.children.move_from(own fresh)
+    switch e.node_type {
+    case NodeType.FCall(fcd2): fcd2.is_splat = false
+    case:
+    }
+    set_own_arg(e, vi_u)
+    return true
+}
+
 priv desugar_pure_splat_variadic_call := func(mut fcall: Expr, array_type: Str, vi: I32, vc: USize) returns Bool {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
