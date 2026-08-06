@@ -82,9 +82,13 @@ test_file_fwrite := test() {
     path := "tmp/_test_file_fwrite.txt"
     f := File.new(path, true)
     f.fwrite("x=", 3, ", y=", 4, "\n")
+    parts := array(Str, "a", "b")
+    f.fwrite(..parts)
+    tail_parts := array(Str, "a", "b")
+    f.write("").fwrite(..tail_parts)
 
     content := File.readfile(path)
-    assert_eq(Str, content, "x=3, y=4\n")
+    assert_eq(Str, content, "x=3, y=4\nabab")
 }
 
 test_file_seek_tell_read := test() {

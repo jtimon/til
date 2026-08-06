@@ -297,7 +297,8 @@ namespace:
 /// derive from the resolved callee's param layout plus the structural
 /// markers in fcall.children:
 ///   - kwargs_count : trailing-NamedArg count (fcall_kwargs_count).
-///   - kwargs_index : derived position via fcall_kwargs_index_via_scope.
+///   - kwargs_index : resolved FuncDef param count
+///     (derive_fcall_kwargs_index).
 ///   - variadic_count : children layout + nparam + has-kwargs
 ///     (fcall_variadic_count).
 ///   - variadic_index : implicit at `1 + fdef_data.variadic_index`

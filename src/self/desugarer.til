@@ -4169,10 +4169,11 @@ priv desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec(Expr), mut sco
 // `e`'s args to the single array. Extracted from process_call_desugars so the
 // same lowering can run as a standalone post-constfold pass (see loader.til):
 // the constfolder folds comptime variadic calls while they are still raw, and
-// only the survivors reach this lowering. Resolves everything via `scope`
-// (callee FuncDef, OutOfBounds struct, Array.set ns func), which works against
-// either the per-body TypeScope (typecheck-time) or the global one (post-fold).
-priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope) {
+// only the survivors reach this lowering. The caller supplies the resolved
+// callee FuncDef; the remaining OutOfBounds / Array.set lookups use `scope`,
+// which works against either the per-body TypeScope (typecheck-time) or the
+// global one (post-fold).
+priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, fdef: Expr) {
     mut skip := false
     switch e.children[0].node_type {
     case NodeType.Ident(cn):
@@ -4181,16 +4182,10 @@ priv desugar_one_variadic_fcall := func(mut ctx: Context, mut e: Expr, mut new_c
     case:
     }
     if skip { return }
-    // Resolve callee once via scope to derive the per-call variadic block
-    // position and arg count; thread them into both the pure-splat detector
-    // and the array-wrapping rewrite so neither needs to re-resolve.
-    vi := fcall_variadic_index_via_scope(e, scope)
-    vc := fcall_variadic_count_via_scope(e, scope)
-    elem_type_o := resolve_variadic_elem_type(e, scope)
-    // A None here means the typer already reported an error upstream;
-    // just leave the fcall raw rather than emit a half-formed wrap.
-    if elem_type_o.is_none() { return }
-    ref elem_type : Str = elem_type_o.unwrap()
+    ref fd : FunctionDef = funcdef_of(fdef)
+    vi := fd.variadic_index + 1
+    vc := fcall_variadic_count(e, fd.params.len(), fd.kwargs_index >= 0)
+    ref elem_type : Str = fd.params[fd.variadic_index.to_usize()].explicit_type
     array_type := variadic_array_type_name(scope, elem_type)
     if desugar_pure_splat_variadic_call(e, array_type, vi, vc) { return }
     va_name := format("_va_Array_", ctx.va_counter.to_str())
@@ -4226,11 +4221,15 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
         if has_array_vec {
             if desugar_array_vec_fcall(ctx, e, new_ch, scope) { return }
         }
-        if has_variadic.and(fcall_callee_has_variadic_via_scope(e, scope)) {
-            desugar_one_variadic_fcall(ctx, e, new_ch, scope)
+        if has_variadic.not().and(has_kwargs.not()) { return }
+        fdef_o := fcall_callee_fdef(e, scope)
+        if fdef_o.is_none() { return }
+        ref fdef : Expr = fdef_o.unwrap()
+        if has_variadic.and(fdef_is_variadic(fdef)) {
+            desugar_one_variadic_fcall(ctx, e, new_ch, scope, fdef)
         }
         if has_kwargs {
-            ki := fcall_kwargs_index_via_scope(e, scope)
+            ki := fdef_kwargs_index(e, fdef)
             if ki >= 0 {
                 kc := fcall_kwargs_count(e)
                 kw_name := format("_kw", ctx.kw_counter.to_str())
@@ -4887,81 +4886,6 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
 // first then kwargs to the same stmt before pushing, matching the
 // original sequential order so the kwargs handling sees the
 // variadic-rewritten fcall.
-// Scope-resolving wrapper around fcall_variadic_count: looks up the
-// callee FuncDef the same way resolve_variadic_elem_type does (Ident
-// binding, or Type.method namespace lookup) to recover its param count,
-// then derives the per-call variadic arg count. Used by the variadic
-// desugar sites (process_call_desugars and the helpers it threads into)
-// that don't have the callee fdef_data on hand the way validate/
-// infer_and_validate_fcall_args do. Returns 0 if the callee can't be
-// resolved -- the desugar then skips the rewrite, same as the
-// elem-type-null branch a few lines below.
-priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns USize {
-    fdef_o := fcall_callee_fdef(fcall, scope)
-    if fdef_o.is_some() {
-        switch fdef_o.unwrap().node_type {
-        case NodeType.FuncDef(fd):
-            return fcall_variadic_count(fcall, fd.params.len(), fd.kwargs_index >= 0)
-        case:
-        }
-    }
-    return 0
-}
-
-// True if the resolved callee declares a variadic parameter.
-// Used by find_variadic_fcall and process_call_desugars as the
-// per-FCall predicate "needs variadic-block rewrite". No stored
-// FCallData state is needed: variadic_index has been derived away,
-// and process_call_desugars is the only thing that triggers the
-// rewrite, runs at most once per FCall, so distinguishing pre- vs
-// post-rewrite is unnecessary at this site.
-priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) returns Bool {
-    fdef_o := fcall_callee_fdef(fcall, scope)
-    if fdef_o.is_none() { return false }
-    return fdef_is_variadic(fdef_o.unwrap())
-}
-
-// Per-call position of the variadic block start in fcall.children.
-// Derived from the callee: position = 1 + fdef_data.variadic_index
-// (callee + params before the variadic param, each contributing one
-// child). Returns -1 when the callee has no variadic param. Note this
-// is the *expected* position in the post-desugar param-aligned layout;
-// it stays meaningful pre-variadic-rewrite (block contains vc args)
-// and as a single-child slot post-variadic-rewrite (collapsed to a
-// _va_Array_N or splat ident). Caller is responsible for not querying
-// after the kwargs rewrite has further shifted children.
-priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 {
-    fdef_o := fcall_callee_fdef(fcall, scope)
-    if fdef_o.is_some() {
-        switch fdef_o.unwrap().node_type {
-        case NodeType.FuncDef(fd):
-            if fd.variadic_index < 0 { return -1 }
-            return fd.variadic_index + 1
-        case:
-        }
-    }
-    return -1
-}
-
-// Scope-resolving derivation of an FCall's kwargs block position.
-// kwargs is always the callee's last parameter (parser invariant), so
-// post-desugar param-aligned children layout puts the kwargs block at
-// `nparam` when the callee has a kwargs param: variadic (if any) has
-// already been collapsed by the variadic rewrite that runs first in
-// process_call_desugars, so this single formula covers both the
-// no-variadic and the post-variadic-rewrite cases. The body-pre-pass
-// caller (find_kwargs_fcall) only uses the sign of the result as a
-// "has kwargs block" predicate, so the pre-variadic-rewrite position
-// being "off" there is harmless. Returns -1 when the callee has no
-// kwargs param. Callee resolution mirrors
-// resolve_variadic_elem_type's Ident-binding / Type.method namespace
-// shapes.
-priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 {
-    fdef_o := fcall_callee_fdef(fcall, scope)
-    if fdef_o.is_none() { return -1 }
-    return fdef_kwargs_index(fcall, fdef_o.unwrap())
-}
-
 // Shared derivation given a resolved callee FuncDef payload.
 // Always returns the post-variadic-rewrite (or no-variadic) kwargs
 // position: `nparam` when the callee has a kwargs param, else -1. The
@@ -4974,21 +4898,6 @@ priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns
 priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) returns I32 {
     if fdef_data.kwargs_index < 0 { return -1 }
     return fdef_data.params.len().to_i32()
-}
-
-priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns Option(ref Str) {
-    fdef_o := fcall_callee_fdef(fcall, scope)
-    if fdef_o.is_some() {
-        switch fdef_o.unwrap().node_type {
-        case NodeType.FuncDef(fd):
-            if fd.variadic_index >= 0 {
-                ref param : Declaration = fd.params[fd.variadic_index.to_usize()]
-                return Option(ref Str).Some(param.explicit_type)
-            }
-        case:
-        }
-    }
-    return Option(ref Str).None
 }
 
 // Returns true if it rewrote fcall in place. Caller is responsible for

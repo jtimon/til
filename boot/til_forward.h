@@ -2938,7 +2938,7 @@ Bool priv___src_self_desugarer_til__desugar_array_vec_fcall(Context * ctx, Expr 
 Bool priv___src_self_desugarer_til__desugar_array_vec_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
 Bool priv___src_self_desugarer_til__desugar_set_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
 Bool priv___src_self_desugarer_til__desugar_map_literal_decl(Expr * stmt, Vec__Expr * new_ch, TypeScope * scope, Context * ctx);
-void priv___src_self_desugarer_til__desugar_one_variadic_fcall(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope);
+void priv___src_self_desugarer_til__desugar_one_variadic_fcall(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Expr * fdef);
 void priv___src_self_desugarer_til__process_call_desugars(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Bool has_array_vec, Bool has_variadic, Bool has_kwargs);
 Bool body_pre_passes(Context * ctx, Expr * body, TypeScope * scope, I32 owns_scope);
 void priv___src_self_desugarer_til__apply_hoist_to_stmt(Context * ctx, Expr * stmt, Vec__Expr * new_ch, TypeScope * scope);
@@ -2953,12 +2953,7 @@ void priv___src_self_desugarer_til__hoist_assign_rhs(Context * ctx, Expr * stmt,
 void priv___src_self_desugarer_til__hoist_field_assign_rhs(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 void priv___src_self_desugarer_til__hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 void priv___src_self_desugarer_til__rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, Str * array_type, I32 vi, USize vc);
-USize priv___src_self_desugarer_til__fcall_variadic_count_via_scope(Expr * fcall, TypeScope * scope);
-Bool priv___src_self_desugarer_til__fcall_callee_has_variadic_via_scope(Expr * fcall, TypeScope * scope);
-I32 priv___src_self_desugarer_til__fcall_variadic_index_via_scope(Expr * fcall, TypeScope * scope);
-I32 priv___src_self_desugarer_til__fcall_kwargs_index_via_scope(Expr * fcall, TypeScope * scope);
 I32 priv___src_self_desugarer_til__derive_fcall_kwargs_index(Expr * _fcall, FunctionDef * fdef_data);
-Option__ref_Str priv___src_self_desugarer_til__resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
 Bool priv___src_self_desugarer_til__desugar_pure_splat_variadic_call(Expr * fcall, Str * array_type, I32 vi, USize vc);
 void priv___src_self_desugarer_til__rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
 Bool priv___src_self_desugarer_til__field_assign_needs_delete(Expr * stmt, TypeScope * scope);
