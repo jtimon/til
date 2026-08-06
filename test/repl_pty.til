@@ -427,6 +427,22 @@ main := proc() {
             " blocked_evaluated=", blocked_evaluated.to_str(),
             " stop_cont_redraw=", stop_cont_redraw.to_str(),
             " stop_cont_evaluated=", stop_cont_evaluated.to_str())
+    // A `tty*_same=false` above says the terminal came back different
+    // without saying HOW, which is exactly as useful as no message at
+    // all. Dump the snapshots themselves: a MISSING file means the
+    // wrapper never got to run `stty -g` (the session was torn down
+    // under it), while two present-and-different strings name the flag
+    // the REPL failed to put back.
+    println("--- tty (stty -g) ---")
+    println("p1_after exists=", File.exists(format(DIR, "/p1_after")).to_str(),
+            " p3_after exists=", File.exists(format(DIR, "/p3_after")).to_str())
+    println("before1: ", before1)
+    println("after1:  ", after1)
+    println("before3: ", before3)
+    println("after3:  ", after3)
+    println("before4: ", before4)
+    println("stopped4:", stopped4)
+    println("after4:  ", after4)
     println("--- session 1 ---")
     print(out1)
     println("--- session 2 ---")
