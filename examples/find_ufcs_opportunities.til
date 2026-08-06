@@ -28,10 +28,10 @@ is_target := func(name: Str) returns Bool {
 
 walk := proc(e: Expr, path: Str) {
     switch e.node_type {
-    case NodeType.FCall(_):
+    case .FCall(_):
         if e.children.len().gt(1) {
             switch e.children[0].node_type {
-            case NodeType.Ident(id):
+            case .Ident(id):
                 if is_target(id.name) {
                     if e.children.len().gt(2) {
                         println(path, ":", e.line.to_str(), ":", e.col.to_str(),

@@ -20,6 +20,62 @@ capture := proc(cmd: Str) returns Str {
     return content
 }
 
+// How much of the build log to show when the suite fails.
+LOG_TAIL_LINES : USize = 40
+LOG_MAX_MARKED : USize = 40
+
+// Lines carrying a failure marker, up to LOG_MAX_MARKED of them.
+//
+// This scans line by line with unsafe_get rather than find()-ing over the
+// remaining text: the old reporter called `remaining.find("FAIL")` on the
+// whole tail of the log, so a single hit anywhere dumped the entire log,
+// and -- far worse -- a failure whose output says neither "FAIL" nor
+// "error:" (a mismatch, a make error, a panic) matched nothing and exited
+// with "Tests: FAILED" as the only output.
+collect_marked_lines := func(log: Str) returns Str {
+    mut out := ""
+    mut found : USize = 0
+    mut start : USize = 0
+    mut i : USize = 0
+    while i.lt(log.len()) {
+        ref ch : I8 = log.unsafe_get(i)
+        if ch.eq('\n') {
+            line := log.substr(start, i.sub(start))
+            if line.find("FAIL").neq(-1).or(line.find("error:").neq(-1))
+                .or(line.find("Error ").neq(-1)).or(line.find("panic").neq(-1))
+                .or(line.find("mismatch").neq(-1)).or(line.find("Assertion").neq(-1)) {
+                if found.lt(LOG_MAX_MARKED) {
+                    out = format(out, line, "\n")
+                    found = found.add(1)
+                }
+            }
+            start = i.add(1)
+        }
+        i = i.add(1)
+    }
+    if found == 0 { return "" }
+    return out
+}
+
+// The last `n` lines of `log`. Walks backwards from the end so a multi-MB
+// build log costs one pass, not one substr per line.
+tail_lines := func(log: Str, n: USize) returns Str {
+    if log.len() == 0 { return "" }
+    mut seen : USize = 0
+    mut i : USize = log.len()
+    while i.gt(0) {
+        i = i.sub(1)
+        ref ch : I8 = log.unsafe_get(i)
+        if ch.eq('\n') {
+            seen = seen.add(1)
+            if seen.gt(n) {
+                return log.substr(i.add(1), log.len().sub(i).sub(1))
+            }
+        }
+    }
+    return log.clone()
+}
+
 count_subject_end := func(s: Str) returns USize {
     nl := s.find("\n")
     if nl.eq(-1) { return s.len() }
@@ -111,17 +167,19 @@ main := proc(args: ..Str) {
     build_log := File.readfile("tmp/build.log")
     if build_log.find("all tests passed").eq(-1) {
         eprint_single("Tests: FAILED\n")
-        mut i : USize = 0
-        while i.lt(build_log.len()) {
-            remaining : Str = build_log.substr(i, build_log.len().sub(i))
-            if remaining.find("FAIL").neq(-1).or(remaining.find("error:").neq(-1)) {
-                eprint_single(remaining)
-                exit(1)
-            }
-            nl := remaining.find("\n")
-            if nl.eq(-1) { break }
-            i = i.add(nl.to_usize()).add(1)
+        marked := collect_marked_lines(build_log)
+        if marked.len() > 0 {
+            eprint_single("\n--- lines mentioning a failure ---\n")
+            eprint_single(marked)
+        } else {
+            eprint_single("\n(no line mentions FAIL/error:/panic/mismatch)\n")
         }
+        // Always show the tail, even when a marker matched: the marked lines
+        // say WHAT broke, the tail says where the run stopped. Reporting only
+        // the markers is how a failure with no marker printed nothing at all.
+        eprint_single("\n--- last 40 lines of tmp/build.log ---\n")
+        eprint_single(tail_lines(build_log, LOG_TAIL_LINES))
+        eprint_single("\n(full log: tmp/build.log)\n")
         exit(1)
     }
     print("Tests: PASSED\n")

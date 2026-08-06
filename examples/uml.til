@@ -290,13 +290,13 @@ split_enum_variants := proc(lines: Vec(Str)) returns Vec(Str) {
         if tok.type.is(TokenType.Eof) { break }
 
         switch tok.type {
-        case TokenType.LParen:
+        case .LParen:
             paren_depth++
             current = append_token_text(current, tok, body)
-        case TokenType.RParen:
+        case .RParen:
             paren_depth--
             current = append_token_text(current, tok, body)
-        case TokenType.Comma:
+        case .Comma:
             if paren_depth.eq(0) {
                 variant := trim_trailing_comma(current)
                 if variant.len().gt(0) {
@@ -355,7 +355,7 @@ extract_types_from_file := proc(path: Str) returns Vec(UmlType) {
 
     for stmt : Expr in ast.children {
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if stmt.children.len().gt(0) {
                 ref rhs : Expr = stmt.children[0]
 
