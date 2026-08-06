@@ -1,0 +1,174 @@
+# priority: high
+# category: cleanups
+** OPEN #346 Keep owned aggregates in place instead of heap-boxing locals and returns
+
+  Follow-up to [[../fixed/110.org][#110]] and the active implementation issue
+  for the remaining work described by [[./143.org][#143]]. #110's memory-safety
+  half is complete: [[../fixed/111.org][#111]] removed the original UAF,
+  [[../fixed/109.org][#109]] reached a leak-clean full-ASAN suite, and ~make
+  test~ now runs that suite through ~bin/til_asan~.
+
+  The stack-allocation half is not complete in the current compiler. #110 was
+  closed on 2026-04-09, but the 2026-04-21 work recorded in #143 deliberately
+  promoted compound locals back to heap boxes to avoid the worse
+  malloc-copy-free round trip imposed by the pointer-return C ABI. The
+  promotion fixed the immediate codegen cost but regressed [[../fixed/50.org][#50]]'s
+  end state.
+
+*** Current code and root cause
+
+  The current implementation has all the pieces needed to distinguish
+  ownership from storage, but does not use them as one model:
+
+  - ~promote_own_transferred_locals~ in ~src/self/garbager.til~ changes every
+    ordinary aggregate declaration to ~OwnType.Own~ and sets
+    ~LocalInfo.is_heap = true~. This conflates "owns the value's nested
+    resources" with "the outer value needs a heap box".
+  - ~record_storage_decisions~ records the resulting choice as
+    ~Declaration.gc_storage~, but ~emit_stmt_decl~ in
+    ~src/self/builder.til~ still re-derives most storage choices from
+    ~own_type~, the RHS shape, POD tests, and its mutable ~stack_locals~ set.
+    ~assert_gc_stack~ only checks a few special paths; ~GcStorage~ is not yet
+    the general emission authority.
+  - A non-POD constructor declaration still emits
+    ~T *x = malloc(sizeof(T))~. A normal aggregate-returning til function is
+    declared as ~T *f(...)~, and constructor returns allocate the same outer
+    box. The generated compiler demonstrates the common case directly:
+    ~Expr_new~ returns ~Expr *~, allocates ~sizeof(Expr)~, and callers keep
+    locals as ~Expr *~.
+  - The builder already supports stack values at all important boundaries:
+    dot field access, ~&x~ for borrowed/mut arguments, a one-time heap box for
+    an ~own~ argument, ~delete(&x, false)~, value globals, stack-local
+    assignment, and boxing a value when a pointer-return ABI requires it.
+    Those paths are currently reached only by primitives, literals,
+    shallow-return calls, and selected POD enum/struct shortcuts.
+
+  The root cause is therefore not a missing per-type exception. It is the
+  pointer-return ABI plus the use of ~OwnType~ as a storage selector. Merely
+  stopping the promotion would restore stack slots but would turn every call
+  result into the #143 round trip:
+
+  #+begin_src c
+  T x;
+  { T *_hp = f(...); x = *_hp; free(_hp); }
+  #+end_src
+
+  The real fix must change the return and local-storage decisions together.
+
+*** Target invariant
+
+  - ~OwnType~ describes semantic ownership only. An owned local may live in
+    a stack slot and still own all nested buffers referenced by its value.
+  - ~GcStorage~ is the sole outer-storage decision. Ordinary primitive,
+    struct, enum, and ~Str~ locals are ~Stack~. ~HeapBox~ is reserved for an
+    actual raw allocation or a boundary whose contract transfers/frees an
+    outer pointer.
+  - Ordinary til ~func~ calls return owned aggregates by C value. This only
+    removes the outer wrapper; the returned value still owns its nested
+    resources and the garbager still schedules its destructor.
+  - ~returns ref T~ stays pointer-returning. Bodyless ~ext_*~ and ~core_*~
+    declarations keep their fixed C ABI. Calls crossing that boundary adapt
+    once by copying the pointed result into value storage and releasing only
+    the outer wrapper when the ext contract says the caller owns it.
+  - Passing a stack value to an ~own~ pointer parameter or storing it in an
+    ~own~ pointer field allocates the outer box at that escape boundary, not
+    at the declaration. A borrow or ~mut~ call receives ~&x~. Existing
+    escaping-borrow diagnostics for closures remain the lifetime proof; do
+    not keep all aggregates heap-resident as a substitute for it.
+  - Destruction follows storage: ~T.delete(&x, false)~ for stack/value
+    storage and ~T.delete(x, true)~ for a real heap box. A move stands down
+    the source destructor in either case.
+
+*** Implementation plan
+
+  Land this as one atomic ~Two-pass:~ commit, not one commit per type or per
+  emitter arm. The local representation, return ABI, call sites, function
+  pointer signatures, and generated compiler must not spend a commit in a
+  mixed state.
+
+  1. Make one internal predicate answer whether a callable returns a C value.
+     It should cover ordinary til funcs/methods and matching FuncSig/closure
+     trampolines for owned aggregate returns, while preserving pointer returns
+     for ~ref~ and the declared ABI for direct ~ext_*~ / ~core_*~ calls. Route
+     ~func_return_ctype~, forward declarations, definitions, function-pointer
+     typedefs/casts, closure calls, dynamic dispatch wrappers, and call-result
+     emission through that predicate. Where an ext function is used through a
+     value-returning til FuncSig, generate one adapter that consumes the ext
+     pointer result and returns its value; do not make direct ext declarations
+     lie about their hand-written C signature.
+
+  2. Emit owned aggregate returns in place. Constructor returns build a local
+     ~T result~ (zero-initialize it, then reuse ~emit_ctor_fields~) and return
+     the value. Returning an existing local moves its bytes out without
+     deleting its nested ownership. Returning a field, enum variant, clone,
+     or nested call uses the same value path. Delete ~emit_return_box~ and the
+     CAP-laundering/outer-wrapper branches that become unreachable; retain any
+     Str tag conversion only at a real static-to-owned pointer boundary.
+
+  3. Make the garbager choose stack storage for ordinary aggregate locals.
+     Stop changing ~Declaration.own_type~ merely to request a heap box.
+     Compute ~LocalInfo.is_heap~ from real outer-allocation provenance, record
+     it in ~gc_storage~, and derive ~call_free~ from that record. Raw allocator
+     locals, callable environment objects, ~Dynamic~ quarantine cases, and
+     explicit pointer-owning boundaries keep their existing specialized
+     storage rules. Ownership transfer, borrow edges, save-old-delete, and the
+     CFG path verdicts stay semantic and should not be rewritten.
+
+  4. Make ~emit_stmt_decl~ consume ~dd.gc_storage~ directly. Register a Stack
+     declaration before initializing it so constructor field writes use dot
+     access. Emit all normal constructors and call results as ~T x~, collapse
+     the literal/POD/shallow-return cases into that general path, and keep
+     ~stack_locals~ only as scoped name-to-C-shape state for downstream
+     emission. Heap declarations should be limited to a recorded ~HeapBox~.
+     Then audit Assign, FieldAssign, ctor-field initialization, discarded call
+     results, returns, ~emit_deref~, and ~emit_as_ptr~ so they branch on the
+     recorded/value ABI fact instead of re-recognizing RHS syntax.
+
+  5. Remove the compensation after the general path is active: the ~_hp~
+     malloc-copy-free declaration/assignment blocks, POD-only constructor and
+     clone shortcuts that now duplicate ordinary value emission, storage
+     mismatch asserts, and stack-delete rewrites whose decision is already in
+     ~GcStorage~. Keep an exception only if removing it changes generated C for
+     a boundary that genuinely remains pointer-shaped; document that boundary
+     at the exception.
+
+  6. Add regressions in the existing test files for a managed struct, a
+     payload enum, and ~Str~ covering construction, clone, reassignment,
+     mutation through a ~mut~ parameter, a live borrowed alias, conditional
+     early return, move to an ~own~ argument, move to an ~own~ field, ordinary
+     return, FuncSig/closure return, and a bodyless ext return. Add generated-C
+     checks for representative declarations and ~Expr_new~: normal locals and
+     ordinary returns must be values, no outer ~malloc(sizeof(T))~ or ~_hp~
+     round trip may remain, while own-field/own-argument and ext boundaries
+     must still show the required box.
+
+  7. Update ~doc/qualifiers.org~ so the local table says aggregates are owned
+     stack values by default and explains that nested ownership is independent
+     of outer storage. Close #143 in the same implementation commit; it is the
+     same pointer-return/round-trip defect, not a separate follow-up cleanup.
+
+*** Bootstrap and verification
+
+  This changes how the compiler emits its own C, so the commit uses
+  ~make clean && make test_two_pass~ and the subject starts with
+  ~Two-pass:~ as required by ~doc/self.org~. A preparation commit should not
+  be needed: pass 1's old ~til_boot~ can compile the changed til sources using
+  the old, internally consistent pointer ABI; pass 2 applies the new emitter
+  and changes all generated declarations/callers together. Only if pass 1
+  produces a real C-boundary prototype conflict should this become exactly
+  two substantive commits: a dormant adapter/preparation commit, merge it,
+  then the atomic value-ABI/storage flip. Do not split it by primitive/enum/
+  struct class or by individual builder helpers.
+
+  Completion requires all of:
+
+  - ~make clean && make test_two_pass~ passes the full ASAN suite;
+  - a further self-translation by the pass-2 compiler is byte-identical to
+    pass 2, proving the new emitter is self-stable;
+  - the generated-C assertions show stack/value storage and preserve the
+    pointer-shaped FFI and true ownership-escape boundaries;
+  - focused ASAN runs for the new ownership cases report zero leaks and no
+    invalid frees;
+  - self-translate time and outer-allocation counts do not regress from the
+    pre-change baseline. The expected result is a material reduction because
+    both the persistent heap boxes and #143's temporary return boxes disappear.

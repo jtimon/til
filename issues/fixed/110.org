@@ -1,6 +1,8 @@
 ** #110 Stack allocation and memory leak roadmap
-  Meta-issue organizing [[./111.org][#111]] and #109. With [[./111.org][#111]] fixed (original UAF gone)
-  and [[./109.org][#109]] as the active leak-reduction tracker, this roadmap is absorbed.
-  The remaining goal (switch ~make test~ to always use ~bin/til_asan~) is
-  now noted in #109.
+  Meta-issue organizing [[./111.org][#111]] and [[./109.org][#109]]. With #111
+  fixed (original UAF gone) and #109 completing the leak-clean full-ASAN
+  suite, this roadmap is absorbed.
 
+  Follow-up: [[../open/346.org][#346]] tracks the stack-allocation regression
+  that landed after this issue was closed, together with the pointer-return
+  ABI work needed to fix it without restoring malloc-copy-free round trips.

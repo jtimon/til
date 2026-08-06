@@ -2,19 +2,122 @@
 # category: cleanups
 ** OPEN #101 Deterministic temp variable names in generated C
 
-:DEPENDENCY_OF: [[./77.org][#77]]
-  The builder/typer generates temp variable names (e.g. ~_t4253~,
-  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
-  order or memory layout, making the output non-deterministic.
-  Two identical ~til build~ runs on the same source can produce
-  different C files (same logic, different temp names).
+:DEPENDENCY_OF: [[../fixed/77.org][#77]]
+  The original symptom was generated names such as ~_t4253~,
+  ~_rc4617~, and ~_wcond4618~ changing between equivalent compiler runs.
+  That made generated-C diffs noisy and prevented the self-build from being
+  used as a byte-exact correctness check.
 
-  This blocks [[./77.org][#77]]: ~til build src/til.til~ must be idempotent --
-  the self-built binary must produce identical output to the
-  bootstrap binary. Without deterministic names, we can't diff
-  generated C to verify correctness.
+*** Current status
 
-  Fix: ensure temp variable counters are reset or seeded
-  deterministically per translation unit, so the same input
-  always produces the same output.
+  Most of the original fix has already landed incidentally through later
+  compiler-state cleanups:
 
+  - ~anon_type_counter~, ~lambda_counter~, ~bang_counter~, ~ctor_seq~,
+    ~hoist_counter~, ~va_counter~, ~kw_counter~, and ~coll_counter~ now live
+    on ~Context~. A fresh ~LoadedProgram~ therefore starts them from the same
+    zero state, and their increments follow AST/source-order walks.
+  - ~Map~ is an ordered map and ~LoadedProgram.unit_paths()~ walks the
+    deterministic ~core_units~ then ~units~ Vecs. Generated declaration,
+    string-pool, generic-instantiation, and helper order is not based on hash
+    bucket or pointer order.
+  - [[../fixed/77.org][#77]] is complete and records a byte-identical
+    self-build.
+  - Rechecked on 2026-08-06: two consecutive
+    ~bin/til translate src/til.til~ runs emitted byte-identical ~til.c~ and
+    ~til_forward.h~.
+
+  One real counter is still outside that model. ~src/self/loader.til~ has the
+  module-global mutable ~lazy_stmt_temp_counter~. ~lazy_build_prelude~ uses it
+  for the ~_lzr_N~ result introduced when a lazy function has a statement
+  prelude before its inlinable tail. It is initialized once per compiler
+  PROCESS, not once per ~LoadedProgram~. Two independent programs compiled in
+  one process therefore receive names based on whatever lazy calls the first
+  program happened to contain. Separate CLI invocations both start at zero,
+  which is why the ordinary repeat test passes and why this state leak stayed
+  hidden.
+
+  The issue is thus no longer "make all counters deterministic". The root fix
+  is to finish making generated-name state program-owned, then install a
+  regression guard that always runs instead of relying on occasional manual
+  self-build diffs.
+
+*** Determinism contract
+
+  - A fresh ~LoadedProgram~ plus identical source/options must emit identical
+    bytes, regardless of earlier compilations in the process, allocator
+    addresses, or scheduling outside that compilation.
+  - Counters may be monotonic across one program when uniqueness spans units;
+    they must be fields of that program's ~Context~, never module globals.
+  - Counter increments and indexed names must follow ordered AST, Vec, or
+    sorted-Map walks. Do not derive names or emission order from addresses.
+  - The contract covers every generated artifact, not only the main C file:
+    for the compiler self-build that is ~til.c~ and ~til_forward.h~.
+  - Bootstrap self-application is a separate half of the same check: the
+    compiler built by ~til_boot~ must regenerate the bytes that pass 1
+    produced. Comparisons must use artifacts generated under the same HEAD,
+    because ~VERSION~ deliberately embeds the current git commit.
+
+*** Implementation plan
+
+  Land all of this in one normal commit; do not split counter migration,
+  audit, and regression coverage into tiny commits.
+
+  1. Add ~lazy_stmt_temp_counter : I64 = 0~ to ~Context~ beside the other
+     synthesized-name counters. Delete the module-global declaration in
+     ~loader.til~, pass the existing ~ctx~ from ~lazy_stmt_inline_body~ into
+     ~lazy_build_prelude~, and mint/increment ~ctx.lazy_stmt_temp_counter~
+     there. A new ~LoadedProgram~ then resets the family naturally, while a
+     REPL session that intentionally keeps one Context continues to allocate
+     collision-free names across cumulative turns.
+
+  2. Audit all generated-name producers in parser, loader, desugarer, initer,
+     typer, and builder. Classify each suffix source as one of: a Context
+     counter, a deterministic source location, an ordered-loop index, or a
+     Vec length populated by an ordered AST walk. The current inventory
+     includes anonymous types; lifted lambdas/closures; bang, collection,
+     variadic, kwargs, hoist, while/switch/range/for-in, match, payload, and
+     lazy-result temps; constructor temps; and pooled string indexes. Remove
+     or migrate any other module-global counter found by the audit rather than
+     documenting an exception.
+
+  3. Upgrade the existing ~self_translate~ entry in ~src/tests.til~ instead of
+     adding a manual-only Make target. Have the selected test compiler
+     (~til_bin~, which is ~bin/til_asan~ under the default suite) translate
+     ~src/til.til~ twice to two unique paths under ~tmp/~, then use ~cmp~ to
+     require equality of both the ~.c~ files and both ~_forward.h~ files. Also
+     compare one result with the pass-1 ~boot/til.c~ and
+     ~boot/til_forward.h~ that the build just produced. This keeps the existing
+     largest-input coverage and makes both same-compiler repeatability and
+     bootstrap self-application part of every ~make test~ run. Use unique
+     output paths so the parallel suite cannot race another translation.
+
+  4. Keep one focused lazy statement-inlining witness in ~test/lazy.til~ with
+     at least two ~_lzr_N~ sites in one body/program. Its runtime assertions
+     prove the migrated names remain unique and substitution still targets
+     the right result. The self-translate byte comparison is the regression
+     for global determinism; the lazy fixture is the semantic regression for
+     the counter that moved.
+
+  5. Close #101 in the same commit with a post-mortem naming the historical
+     Context migrations, the final ~lazy_stmt_temp_counter~ state leak, and
+     the strengthened ~self_translate~ regression. Update #77's dependency
+     link only if needed; #77 itself remains fixed.
+
+*** Commit and verification shape
+
+  This is a source-state fix, not a change to how the compiler emits a given
+  AST construct. HEAD's ~til_boot~ already understands Context fields and the
+  existing lazy lowering, so ~doc/self.org~ says no preparation commit and no
+  ~Two-pass:~ prefix are needed. The one commit contains the Context/loader
+  change, existing-test updates, generated ~boot/~ artifacts, and the #101
+  FIXED move/post-mortem.
+
+  Before committing, run ~make clean && make test~. Completion requires:
+
+  - the focused lazy tests pass in interpret and compiled modes;
+  - both repeated self-translate artifact comparisons pass;
+  - pass-1 ~boot/~ equals the fresh self-translation for both generated files;
+  - the full default ASAN suite passes;
+  - no synthesized-name counter remains as module-level mutable state under
+    ~src/self/~.
