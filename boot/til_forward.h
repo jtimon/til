@@ -3189,6 +3189,7 @@ Vec__Str * priv___src_self_loader_til__resolve_import_disps(Vec__Str * import_pa
 void priv___src_self_loader_til__extract_one_import(Expr * imp_stmt, Str * path, Vec__Str * paths);
 Vec__Str * priv___src_self_loader_til__extract_imports(Expr * body, Str * path);
 I32 priv___src_self_loader_til__resolve_imports(Vec__Str * import_paths, Str * base_dir, Set__Str * resolved_set, Vec__Expr * stack, Vec__ProgramUnit * units, Str * lib_dir, Context * ctx, Str * default_mode, Str * cwd);
+Vec__Str * LoadedProgram_unit_paths(LoadedProgram * self);
 void LoadedProgram_delete(LoadedProgram * self, Bool call_free);
 LoadedProgram * LoadedProgram_clone(LoadedProgram * self);
 Str * priv___src_self_loader_til__find_alias_rhs_in_ast(Expr * ast, Str * name);

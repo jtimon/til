@@ -280,6 +280,22 @@ LoadedProgram := struct {
     // stamps the alias widths.
     usize_override_bits : I64 = 0
 namespace:
+    // Every unit path a pass should walk: the core units first, unless this
+    // program skips core, then the program's own units.
+    //
+    // Passes used to spell this out as two loops -- `if skip_core.not() { for
+    // core_units ... }` followed by `for units ...` -- with the body pasted
+    // into both and skip_core re-tested at each site. Nothing in those bodies
+    // wanted the ProgramUnit itself; every one of them immediately looked up
+    // ctx.imported[u.path], so the sequence of paths is the whole interface.
+    unit_paths := func(self: LoadedProgram) returns Vec(Str) {
+        paths := Vec(Str).new()
+        if self.skip_core.not() {
+            for u : ProgramUnit in self.core_units { paths.push(own u.path.clone()) }
+        }
+        for u : ProgramUnit in self.units { paths.push(own u.path.clone()) }
+        return paths
+    }
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
         // Raw-address probes through the to_ptr launder (#321 step 3):
         // the #302 drain contract hands deletes zeroed/moved-out slots.
@@ -402,27 +418,16 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
     // Issue #109: populate ctx.cached_str_name BEFORE
     // constfolder_register_fold_scope, so the raw Str path inside the
     // fold-scope walk has the field layout needed to clone and drop strings.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
+    for upath : Str in lp.unit_paths() {
+        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[upath].ast)
     }
     // Issue #158: one walk per unit builds the runtime fold scope
     // (struct/enum/func defs + literal global constants). Name
     // classification is no longer done here -- it was shared from the
     // typer's walk and lives on Context.
     global := scope_new(Option(ref Scope).None)
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            constfolder_register_fold_scope(global, iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         constfolder_register_fold_scope(global, iu.ast, lp.ctx)
     }
     // Nothing to fold? Skip the FFI/fold setup, but still free the
@@ -435,27 +440,15 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // win over any like-named definition (e.g. CAP_VIEW for Str ops).
         constfolder_register_core_constants(global, lp.ctx.target_usize_pname, lp.ctx)
 
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u.path].ast)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u.path].ast)
+        for upath : Str in lp.unit_paths() {
+            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[upath].ast)
         }
 
         // 2b) Init FFI for the interpreter used by constfolder.
         // Scan per-file ASTs directly to avoid merged-AST cloning.
         ffi_reset(lp.ctx)
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
-                ffi_init_struct_defs_append(iu.ast, lp.ctx)
-                ffi_init_scan_program(iu.ast, lp.ctx)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for upath : Str in lp.unit_paths() {
+            ref iu : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu.ast, lp.ctx)
             ffi_init_scan_program(iu.ast, lp.ctx)
         }
@@ -467,15 +460,9 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
 
         // 3) Fold calls in every file. The known-fold map lives on ctx
         // (ctx.constfolder_known); constfolder_reset_state below clears it.
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                context_enter_file(lp.ctx, u.path)
-                process_body(global, lp.ctx.imported[u.path].ast, lp.ctx, true)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            context_enter_file(lp.ctx, u.path)
-            process_body(global, lp.ctx.imported[u.path].ast, lp.ctx, true)
+        for upath : Str in lp.unit_paths() {
+            context_enter_file(lp.ctx, upath)
+            process_body(global, lp.ctx.imported[upath].ast, lp.ctx, true)
         }
     }
 
@@ -496,13 +483,8 @@ priv repl_classify_foldables_program := func(ctx: Context, program: Expr) {
 }
 
 priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            repl_classify_foldables_program(lp.ctx, lp.ctx.imported[u.path].ast)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        repl_classify_foldables_program(lp.ctx, lp.ctx.imported[u.path].ast)
+    for upath : Str in lp.unit_paths() {
+        repl_classify_foldables_program(lp.ctx, lp.ctx.imported[upath].ast)
     }
     for mf : Str in lp.mode_files {
         repl_classify_foldables_program(lp.ctx, lp.ctx.imported[mf].ast)
@@ -510,13 +492,8 @@ priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
 }
 
 priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            reregister_repl_scope_defs(lp.ctx.imported[u.path].ast, lp.ctx.scope)
-        }
-    }
-    for u2 : ProgramUnit in lp.units {
-        reregister_repl_scope_defs(lp.ctx.imported[u2.path].ast, lp.ctx.scope)
+    for upath : Str in lp.unit_paths() {
+        reregister_repl_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
     for mf : Str in lp.mode_files {
         reregister_repl_scope_defs(lp.ctx.imported[mf].ast, lp.ctx.scope)
@@ -526,13 +503,8 @@ priv repl_reregister_scope_defs_loaded := func(lp: LoadedProgram) {
 priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     constfolder_clear_known(lp.ctx)
     lp.ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[u.path].ast)
+    for upath : Str in lp.unit_paths() {
+        populate_cached_aggregate_defs(lp.ctx, lp.ctx.imported[upath].ast)
     }
     populate_cached_aggregate_defs(lp.ctx, delta)
 
@@ -553,13 +525,8 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     if has_fold {
         constfolder_register_core_constants(global, lp.ctx.target_usize_pname, lp.ctx)
 
-        if lp.skip_core.not() {
-            for u4 : ProgramUnit in lp.core_units {
-                interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u4.path].ast)
-            }
-        }
-        for u5 : ProgramUnit in lp.units {
-            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[u5.path].ast)
+        for upath : Str in lp.unit_paths() {
+            interpreter_init_ns(lp.ctx, global, lp.ctx.imported[upath].ast)
         }
         interpreter_init_ns(lp.ctx, global, delta)
 
@@ -1224,13 +1191,8 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     // Body-level DCE: drop unreferenced hoisted temps left behind by
     // constfolder's constant folding. Runs over every imported unit (cores
     // included) so the codegen no longer needs `(void)<name>;` guards.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            dce_program_bodies(lp.ctx.imported[u.path].ast)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        dce_program_bodies(lp.ctx.imported[u.path].ast)
+    for upath : Str in lp.unit_paths() {
+        dce_program_bodies(lp.ctx.imported[upath].ast)
     }
 }
 
@@ -4537,13 +4499,8 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     mut lazy_sigs := Set(Str).new()
     mut seen := Set(Str).new()
     mut seen_fo := Set(Str).new()
-    if lp.skip_core.not() {
-        for cu : ProgramUnit in lp.core_units {
-            lazy_thunk_lower_unit(lp, cu.path, lowered, lazy_sigs, seen, seen_fo)
-        }
-    }
-    for uu : ProgramUnit in lp.units {
-        lazy_thunk_lower_unit(lp, uu.path, lowered, lazy_sigs, seen, seen_fo)
+    for upath : Str in lp.unit_paths() {
+        lazy_thunk_lower_unit(lp, upath, lowered, lazy_sigs, seen, seen_fo)
     }
     for mf : Str in lp.mode_files {
         lazy_thunk_lower_unit(lp, mf, lowered, lazy_sigs, seen, seen_fo)
@@ -4554,13 +4511,8 @@ priv expand_lazy_thunks_in_program := func(mut lp: LoadedProgram) {
     // func_def/struct_def pointer registered into that AST now dangles.
     // Re-point them before anything (the wrap phase's scope.lookup_func, the
     // typer) reads through them.
-    if lp.skip_core.not() {
-        for cur : ProgramUnit in lp.core_units {
-            init_refresh_seeded_scope_defs(lp.ctx.imported[cur.path].ast, lp.ctx.scope)
-        }
-    }
-    for uur : ProgramUnit in lp.units {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[uur.path].ast, lp.ctx.scope)
+    for upath : Str in lp.unit_paths() {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
     for mfr : Str in lp.mode_files {
         init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)
@@ -4593,25 +4545,15 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
     expand_lazy_thunks_in_program(lp)
     // Pass 1: statement-inline non-inlinable (local-binding) lazy bodies so
     // their inlinable tails are left for pass 2.
-    if lp.skip_core.not() {
-        for cu : ProgramUnit in lp.core_units {
-            lazy_stmt_inline_walk(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0, lp.ctx)
-        }
-    }
-    for uu : ProgramUnit in lp.units {
-        lazy_stmt_inline_walk(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0, lp.ctx)
+    for upath : Str in lp.unit_paths() {
+        lazy_stmt_inline_walk(lp.ctx.imported[upath].ast, lp.ctx.scope, 0, lp.ctx)
     }
     for mf : Str in lp.mode_files {
         lazy_stmt_inline_walk(lp.ctx.imported[mf].ast, lp.ctx.scope, 0, lp.ctx)
     }
     // Pass 2: expression inlining of (now exposed) inlinable lazy calls.
-    if lp.skip_core.not() {
-        for cu : ProgramUnit in lp.core_units {
-            expand_lazy_in_expr(lp.ctx.imported[cu.path].ast, lp.ctx.scope, 0, lp.ctx)
-        }
-    }
-    for uu : ProgramUnit in lp.units {
-        expand_lazy_in_expr(lp.ctx.imported[uu.path].ast, lp.ctx.scope, 0, lp.ctx)
+    for upath : Str in lp.unit_paths() {
+        expand_lazy_in_expr(lp.ctx.imported[upath].ast, lp.ctx.scope, 0, lp.ctx)
     }
     for mf : Str in lp.mode_files {
         expand_lazy_in_expr(lp.ctx.imported[mf].ast, lp.ctx.scope, 0, lp.ctx)
@@ -4729,13 +4671,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
 
     // Desugar namespace imports BEFORE init_file runs, so the initer
     // only ever sees direct references to the original decls.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        desugar_namespace_imports(u.path, lp.ctx.imported[u.path], lp.ctx)
+    for upath : Str in lp.unit_paths() {
+        desugar_namespace_imports(upath, lp.ctx.imported[upath], lp.ctx)
     }
     // An `alias.member` the alias does not export is left unrewritten, so the
     // initer would walk a FieldAccess whose base names no value. Stop here:
@@ -4763,18 +4700,10 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
 
     // Global init steps: these generate methods/layouts that later phases
     // assume exist (e.g. comparison helpers on USize).
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            lp.ctx.mode = iu.mode.clone()
-            context_enter_file(lp.ctx, u.path)
-            init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         lp.ctx.mode = iu.mode.clone()
-        context_enter_file(lp.ctx, u.path)
+        context_enter_file(lp.ctx, upath)
         init_declarations_global(lp.ctx, iu.ast, lp.ctx.scope)
     }
 
@@ -4806,13 +4735,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // params already err-out-extended -- for every call site in the
     // program. extend_throwing_func_sigs is idempotent, so the
     // per-unit call in the bodies sweep is a no-op re-walk.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[u.path].ast)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[u.path].ast)
+    for upath : Str in lp.unit_paths() {
+        extend_throwing_func_sigs(lp.ctx, lp.ctx.imported[upath].ast)
     }
 
     // #303 / #321: settle core/exit.til's noreturn chain first (see
@@ -4838,13 +4762,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // Issue #187 steps 2-3: priv struct fields and namespace members
     // that no code in the struct's own namespace ever reads. Walk
     // every loaded unit's AST.
-    if lp.skip_core.not() {
-        for cu : ProgramUnit in lp.core_units {
-            type_errors = type_errors + check_unused_priv_members_in_program(lp.ctx.imported[cu.path].ast, cu.path, lp.ctx)
-        }
-    }
-    for uu : ProgramUnit in lp.units {
-        type_errors = type_errors + check_unused_priv_members_in_program(lp.ctx.imported[uu.path].ast, uu.path, lp.ctx)
+    for upath : Str in lp.unit_paths() {
+        type_errors = type_errors + check_unused_priv_members_in_program(lp.ctx.imported[upath].ast, upath, lp.ctx)
     }
     for mode_file : Str in lp.mode_files {
         type_errors = type_errors + type_file(mode_file, lp.ctx)
@@ -4855,15 +4774,9 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // failed: a rejected inference leaves its callee generic on purpose,
     // and reporting it twice would bury the focused diagnostic.
     if type_errors == 0 {
-        if lp.skip_core.not() {
-            for cus : ProgramUnit in lp.core_units {
-                context_enter_file(lp.ctx, cus.path)
-                type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[cus.path].ast, lp.ctx.scope, lp.ctx)
-            }
-        }
-        for uus : ProgramUnit in lp.units {
-            context_enter_file(lp.ctx, uus.path)
-            type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[uus.path].ast, lp.ctx.scope, lp.ctx)
+        for upath : Str in lp.unit_paths() {
+            context_enter_file(lp.ctx, upath)
+            type_errors = type_errors + init_scan_unresolved_generic_calls(lp.ctx.imported[upath].ast, lp.ctx.scope, lp.ctx)
         }
         for mfs : Str in lp.mode_files {
             context_enter_file(lp.ctx, mfs)
@@ -4875,13 +4788,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // no call can still be bound to a generic source. Retire the source
     // templates (AST declaration plus scope entries) before the pointer
     // refresh below, so the backends only ever see concrete declarations.
-    if lp.skip_core.not() {
-        for cug : ProgramUnit in lp.core_units {
-            init_retire_generic_sources(lp.ctx.imported[cug.path].ast, lp.ctx.scope)
-        }
-    }
-    for uug : ProgramUnit in lp.units {
-        init_retire_generic_sources(lp.ctx.imported[uug.path].ast, lp.ctx.scope)
+    for upath : Str in lp.unit_paths() {
+        init_retire_generic_sources(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
     for mfg : Str in lp.mode_files {
         init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope)
@@ -4892,13 +4800,8 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // children Vec moves every node in it, dangling the func_def /
     // struct_def pointers the scope registered against the old storage.
     // Re-point them all so the builder's emit-time lookups are fresh.
-    if lp.skip_core.not() {
-        for cur : ProgramUnit in lp.core_units {
-            init_refresh_seeded_scope_defs(lp.ctx.imported[cur.path].ast, lp.ctx.scope)
-        }
-    }
-    for uur : ProgramUnit in lp.units {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[uur.path].ast, lp.ctx.scope)
+    for upath : Str in lp.unit_paths() {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
     for mfr : Str in lp.mode_files {
         init_refresh_seeded_scope_defs(lp.ctx.imported[mfr].ast, lp.ctx.scope)

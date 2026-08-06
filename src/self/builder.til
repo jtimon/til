@@ -1663,14 +1663,8 @@ priv builder_register_dyn_type_to_str_lits := func(lp: LoadedProgram) {
 
 priv builder_register_str_lits := proc(lp: LoadedProgram) {
     builder_reset_str_lit_pool(lp.ctx)
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            builder_register_str_lits_for_expr(iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         builder_register_str_lits_for_expr(iu.ast, lp.ctx)
     }
     builder_register_dyn_type_to_str_lits(lp)
@@ -4749,21 +4743,8 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         }
         emit_ns_inits(f, 1, lp)
         if lp.ctx.script_globals.len() > 0 {
-            if lp.skip_core.not() {
-                for u : ProgramUnit in lp.core_units {
-                    ref iu : ImportUnit = lp.ctx.imported[u.path]
-                    for gs : Expr in iu.ast.children {
-                        if gs.node_type.is(NodeType.Decl) {
-                            ref rhs : Expr = gs.children[0]
-                            if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { continue }
-                            if gs.til_type().is(Type.None).and(rhs.node_type.is(NodeType.Ident)) { continue }
-                        } else if gs.node_type.is(NodeType.FCall).not() { continue }
-                        emit_stmt(f, gs, 1, lp.ctx)
-                    }
-                }
-            }
-            for u : ProgramUnit in lp.units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
+            for upath : Str in lp.unit_paths() {
+                ref iu : ImportUnit = lp.ctx.imported[upath]
                 for gs : Expr in iu.ast.children {
                     if gs.node_type.is(NodeType.Decl) {
                         ref rhs : Expr = gs.children[0]
@@ -5049,14 +5030,8 @@ emit_capturing_closures_in_expr := proc(f: File, e: Expr, mut emitted: Set(Str),
 
 emit_capturing_closures_lp := proc(f: File, lp: LoadedProgram) {
     mut emitted := Set(Str).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            emit_capturing_closures_in_expr(f, iu.ast, emitted, lp)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         emit_capturing_closures_in_expr(f, iu.ast, emitted, lp)
     }
 }
@@ -5657,26 +5632,8 @@ emit_funcsig_typedefs_prog := proc(f: File, prog: Expr, ctx: Context) {
 }
 
 priv emit_funcsig_typedefs_lp := proc(f: File, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).not() { continue }
-                if stmt.children.len() == 0 { continue }
-                ref dd : Declaration = decl_of(stmt)
-                ref rhs : Expr = stmt.children[0]
-                if rhs.node_type.is(NodeType.FuncDef) {
-                    if rhs.children.len() == 0 {
-                        emit_funcsig_typedef(f, dd.name, rhs, lp.ctx)
-                    }
-                } else {
-                    emit_funcsig_alias_typedef(f, stmt, rhs, dd, lp)
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len() == 0 { continue }
@@ -5940,23 +5897,8 @@ priv emit_header_defs_and_funcs_lp := proc(f: File, lp: LoadedProgram) {
 }
 
 priv emit_header_global_decls_lp := proc(f: File, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_exported_top_level_global(stmt).not() { continue }
-                ref dd : Declaration = decl_of(stmt)
-                ctype := extern_decl_ctype(stmt.til_type(), stmt.children[0].til_type(), lp.ctx)
-                if dd.own_type.is(OwnType.Ref) {
-                    f.write("extern ").write(ctype).write(" *").write(dd.name).write(";\n")
-                } else {
-                    f.write("extern ").write(ctype).write(" ").write(dd.name).write(";\n")
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_exported_top_level_global(stmt).not() { continue }
             ref dd : Declaration = decl_of(stmt)
@@ -6792,28 +6734,16 @@ priv emit_global_inits_prog := proc(f: File, prog: Expr, ctx: Context) {
 
 priv emit_global_inits := proc(f: File, lp: LoadedProgram) {
     if lp.ctx.script_globals.len() == 0 { return }
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            emit_global_inits_prog(f, iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         emit_global_inits_prog(f, iu.ast, lp.ctx)
     }
 }
 
 priv build_register_funcsig_names_lp := func(lp: LoadedProgram) {
         lp.ctx.funcsig_names = Set(Str).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            register_funcsig_prog(iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         register_funcsig_prog(iu.ast, lp.ctx)
     }
 }
@@ -6863,14 +6793,8 @@ priv register_func_symbols_prog := func(prog: Expr, ctx: Context) {
 }
 
 priv build_register_func_symbols_lp := func(lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            register_func_symbols_prog(iu.ast, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         register_func_symbols_prog(iu.ast, lp.ctx)
     }
 }
@@ -6906,14 +6830,8 @@ collect_closure_value_names := proc(e: Expr, mut names: Set(Str), ctx: Context) 
 
 build_register_closure_values_lp := proc(lp: LoadedProgram) {
     lp.ctx.closure_value_names = Set(Str).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, lp.ctx)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_closure_value_names(iu.ast, lp.ctx.closure_value_names, lp.ctx)
     }
 }
@@ -7191,14 +7109,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
 
     // Forward declarations for dyn_call dispatch functions
     mut dyn_methods := Vec(DynCallInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_dyn_methods(iu.ast, dyn_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_dyn_methods(iu.ast, dyn_methods)
     }
     for info : DynCallInfo in dyn_methods {
@@ -7217,23 +7129,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
         }
     }
     mut has_dyn_type_to_str := false
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            if has_dyn_type_to_str { break }
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_func_decl(stmt).not() { continue }
-                ref sdd : Declaration = decl_of(stmt)
-                if sdd.name == "dyn_type_to_str" {
-                    has_dyn_type_to_str = true
-                    break
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
+    for upath : Str in lp.unit_paths() {
         if has_dyn_type_to_str { break }
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_func_decl(stmt).not() { continue }
             ref sdd : Declaration = decl_of(stmt)
@@ -7285,24 +7183,9 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
 
     // Forward declarations for dyn_has_method dispatch functions
     mut dyn_has_shallow := false
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            if dyn_has_shallow { break }
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_func_decl(stmt).not() { continue }
-                ref sdd : Declaration = decl_of(stmt)
-                if sdd.name == "dyn_has_method" {
-                    ref fd : FunctionDef = funcdef_of(stmt.children[0])
-                    dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
-                    break
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
+    for upath : Str in lp.unit_paths() {
         if dyn_has_shallow { break }
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_func_decl(stmt).not() { continue }
             ref sdd : Declaration = decl_of(stmt)
@@ -7316,14 +7199,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
     mut has_methods := Vec(Str).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_dyn_has_methods(iu.ast, has_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
@@ -7333,14 +7210,8 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
 
     // Forward declarations for array/vec builtin helpers
     mut coll_infos := Vec(CollectionInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_collection_builtins(iu.ast, coll_infos)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_collection_builtins(iu.ast, coll_infos)
     }
     for ci : CollectionInfo in coll_infos {
@@ -7599,18 +7470,8 @@ priv emit_dyn_size_of_body := proc(f: File, lp: LoadedProgram) {
     for alias_name : Str in WIDTH_ALIAS_NAMES { emit_dyn_size_of_arm(f, alias_name) }
     emit_dyn_name_return_branch(f, "Fn", "sizeof(TilClosure *)")
     emit_dyn_name_return_branch(f, "Body", "sizeof(TilClosure *)")
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_struct_or_enum(stmt).not() { continue }
-                ref dd : Declaration = decl_of(stmt)
-                emit_dyn_size_of_arm(f, dd.name)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
             ref dd : Declaration = decl_of(stmt)
@@ -7742,16 +7603,8 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
 }
 
 priv emit_struct_field_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                emit_struct_field_branch_for_stmt(f, stmt, kind, lp.ctx)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             emit_struct_field_branch_for_stmt(f, stmt, kind, lp.ctx)
         }
@@ -7824,16 +7677,8 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, c
 }
 
 priv emit_enum_variant_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                emit_enum_variant_branch_for_stmt(f, stmt, kind, lp.ctx)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             emit_enum_variant_branch_for_stmt(f, stmt, kind, lp.ctx)
         }
@@ -7921,16 +7766,8 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, ctx: C
 }
 
 priv emit_funcsig_branches := proc(f: File, kind: I32, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                emit_funcsig_branch_for_stmt(f, stmt, kind, lp.ctx)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             emit_funcsig_branch_for_stmt(f, stmt, kind, lp.ctx)
         }
@@ -8073,14 +7910,8 @@ priv emit_dyn_type_to_str_body := proc(f: File, lp: LoadedProgram) {
 
 priv emit_dyn_call_bodies := proc(f: File, lp: LoadedProgram) {
     mut dyn_methods := Vec(DynCallInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_dyn_methods(iu.ast, dyn_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_dyn_methods(iu.ast, dyn_methods)
     }
     for info : DynCallInfo in dyn_methods {
@@ -8260,25 +8091,9 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
 
     // Find dyn_has_method to check return_is_shallow
     mut dyn_has_shallow := false
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            if dyn_has_shallow { break }
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
-                    ref dd : Declaration = decl_of(stmt)
-                    if dd.name == "dyn_has_method" {
-                        ref fd : FunctionDef = funcdef_of(stmt.children[0])
-                        dyn_has_shallow = fd.return_own_type.is(OwnType.Shallow)
-                        break
-                    }
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
+    for upath : Str in lp.unit_paths() {
         if dyn_has_shallow { break }
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).and(stmt.children[0].node_type.is(NodeType.FuncDef)) {
                 ref dd : Declaration = decl_of(stmt)
@@ -8293,39 +8108,14 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
     mut dyn_has_ret := "Bool *"
     if dyn_has_shallow { dyn_has_ret = "Bool" }
     mut has_methods := Vec(Str).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_dyn_has_methods(iu.ast, has_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_dyn_has_methods(iu.ast, has_methods)
     }
     for method : Str in has_methods {
         f.write(dyn_has_ret).write(" dyn_has_").write(method).write("(Str *type_name) {\n    (void)type_name;\n")
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                ref iu : ImportUnit = lp.ctx.imported[u.path]
-                for e_i : Expr in iu.ast.children {
-                    ref stmt : Expr = e_i
-                    if is_struct_or_enum(stmt).not() { continue }
-                    ref rhs : Expr = stmt.children[0]
-                    ref dd : Declaration = decl_of(stmt)
-                    mut found := false
-                    found = def_ns_has(rhs, method)
-                    if found.not() { continue }
-                    if dyn_has_shallow {
-                        f.write("    if (type_name->count == "); emit_usize(f, dd.name.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, dd.name.len()); f.write("ULL) == 0) return 1;\n")
-                    } else {
-                        f.write("    if (type_name->count == "); emit_usize(f, dd.name.len()); f.write("ULL && memcmp(type_name->c_str, \"").write(dd.name).write("\", "); emit_usize(f, dd.name.len()); f.write("ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n")
-                    }
-                }
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
+        for upath : Str in lp.unit_paths() {
+            ref iu : ImportUnit = lp.ctx.imported[upath]
             for e_i : Expr in iu.ast.children {
                 ref stmt : Expr = e_i
                 if is_struct_or_enum(stmt).not() { continue }
@@ -8349,14 +8139,8 @@ priv emit_dyn_has_bodies := proc(f: File, lp: LoadedProgram) {
 
 priv emit_collection_helpers := proc(f: File, lp: LoadedProgram) {
     mut coll_infos := Vec(CollectionInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            collect_collection_builtins(iu.ast, coll_infos)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         collect_collection_builtins(iu.ast, coll_infos)
     }
     for ci : CollectionInfo in coll_infos {
@@ -8507,16 +8291,8 @@ priv emit_ns_const_defs_for_stmt := proc(f: File, stmt: Expr) {
 }
 
 priv emit_ns_const_global_defs := proc(f: File, lp: LoadedProgram) {
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                emit_ns_const_defs_for_stmt(f, stmt)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             emit_ns_const_defs_for_stmt(f, stmt)
         }
@@ -8638,19 +8414,8 @@ priv emit_top_level_definitions := proc(f: File, rhs: Expr, dd: Declaration, mod
 
 priv emit_function_bodies := proc(f: File, mode: Mode, lp: LoadedProgram) {
     emit_capturing_closures_lp(f, lp)
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).not() { continue }
-                ref dd : Declaration = decl_of(stmt)
-                ref rhs : Expr = stmt.children[0]
-                emit_top_level_definitions(f, rhs, dd, mode, lp)
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref dd : Declaration = decl_of(stmt)
@@ -8717,13 +8482,8 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     // top-level decls to a unit AST; an append that reallocs a children Vec
     // moves every node, dangling the scope's registered func_def/struct_def
     // pointers. Re-point them all so emit-time lookups read live nodes.
-    if lp.skip_core.not() {
-        for bru : ProgramUnit in lp.core_units {
-            init_refresh_seeded_scope_defs(lp.ctx.imported[bru.path].ast, lp.ctx.scope)
-        }
-    }
-    for bruu : ProgramUnit in lp.units {
-        init_refresh_seeded_scope_defs(lp.ctx.imported[bruu.path].ast, lp.ctx.scope)
+    for upath : Str in lp.unit_paths() {
+        init_refresh_seeded_scope_defs(lp.ctx.imported[upath].ast, lp.ctx.scope)
     }
     for brm : Str in lp.mode_files {
         init_refresh_seeded_scope_defs(lp.ctx.imported[brm].ast, lp.ctx.scope)
@@ -8797,23 +8557,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     if builder_needs_reflect("enum_variant_", lp.ctx) { emit_enum_introspection_bodies(f, lp) }
     if builder_needs_reflect("func_sig_", lp.ctx) { emit_funcsig_introspection_bodies(f, lp) }
     mut has_dyn_type_to_str2 := false
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            if has_dyn_type_to_str2 { break }
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_func_decl(stmt).not() { continue }
-                ref sdd : Declaration = decl_of(stmt)
-                if sdd.name == "dyn_type_to_str" {
-                    has_dyn_type_to_str2 = true
-                    break
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
+    for upath : Str in lp.unit_paths() {
         if has_dyn_type_to_str2 { break }
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_func_decl(stmt).not() { continue }
             ref sdd : Declaration = decl_of(stmt)
@@ -10967,19 +10713,11 @@ priv builder_fill_emit_inventory := proc(lp: LoadedProgram) {
     mut inv_stack_names := Set(Str).new()
     mut inv_dup_names := Set(Str).new()
     mut inv_coll_infos := Vec(CollectionInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
-            builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-            builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
-            collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        builder_collect_reflect_inventory(lp.ctx.imported[u.path].ast, lp.ctx.builder_reflect_inventory)
-        builder_collect_dyn_fn_targets(lp.ctx.imported[u.path].ast, lp.ctx.builder_dyn_fn_targets)
-        builder_collect_lit_guard_use(lp.ctx.imported[u.path].ast, lp.ctx.builder_lit_guard_used)
-        collect_collection_builtins(lp.ctx.imported[u.path].ast, inv_coll_infos)
+    for upath : Str in lp.unit_paths() {
+        builder_collect_reflect_inventory(lp.ctx.imported[upath].ast, lp.ctx.builder_reflect_inventory)
+        builder_collect_dyn_fn_targets(lp.ctx.imported[upath].ast, lp.ctx.builder_dyn_fn_targets)
+        builder_collect_lit_guard_use(lp.ctx.imported[upath].ast, lp.ctx.builder_lit_guard_used)
+        collect_collection_builtins(lp.ctx.imported[upath].ast, inv_coll_infos)
     }
     // Which METHODS the dyn_call/dyn_call_ret bodies dispatch, not just that
     // the family exists. Every `dyn_call_<m>` body calls the real
@@ -10990,13 +10728,8 @@ priv builder_fill_emit_inventory := proc(lp: LoadedProgram) {
     // it cannot collide with the plain feature names in the same set;
     // the emitters rebuild the same list from the same walker.
     mut inv_dyn_methods := Vec(DynCallInfo).new()
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        collect_dyn_methods(lp.ctx.imported[u.path].ast, inv_dyn_methods)
+    for upath : Str in lp.unit_paths() {
+        collect_dyn_methods(lp.ctx.imported[upath].ast, inv_dyn_methods)
     }
     for inv_dm : DynCallInfo in inv_dyn_methods {
         key := "dyn_call_m".concat3(".", inv_dm.method)
@@ -11014,13 +10747,8 @@ priv builder_fill_emit_inventory := proc(lp: LoadedProgram) {
         inv_stack_names = Set(Str).new()
         inv_dup_names = Set(Str).new()
         mut inv_param_names := Set(Str).new()
-        if lp.skip_core.not() {
-            for u : ProgramUnit in lp.core_units {
-                builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
-            }
-        }
-        for u : ProgramUnit in lp.units {
-            builder_collect_ns_member_sites(lp.ctx.imported[u.path].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
+        for upath : Str in lp.unit_paths() {
+            builder_collect_ns_member_sites(lp.ctx.imported[upath].ast, inv_round_sites, inv_stack_names, inv_dup_names, inv_param_names, "", false, lp.ctx)
         }
         n_sites := inv_round_sites.len()
         lp.ctx.builder_ns_member_sites = inv_round_sites.clone()
