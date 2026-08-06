@@ -50,6 +50,40 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     return count
 }
 
+// macOS `stty -g` prints the termios words raw, and two bits of c_lflag
+// are kernel STATE rather than settings: PENDIN (0x20000000, "retype
+// pending input") and FLUSHO (0x00800000). The kernel owns them -- the
+// REPL writes back the exact struct it read, PENDIN clear, and `stty -g`
+// still reports it SET afterwards -- and it raises PENDIN the moment
+// input arrives while echo is off, which is the whole job of a raw-mode
+// line editor. So the bit differs after ANY editing session and says
+// nothing about whether the terminal was restored: mac CI read
+// lflag=5cb before and lflag=200005cb after, with every other word and
+// every control char identical.
+//
+// Compare the settings, then. Linux's `stty -g` is positional, with no
+// field names and none of this state reaching it, so a dump without
+// "lflag=" is compared exactly as it was.
+TTY_LFLAG_KEY := "lflag="
+// ~(PENDIN|FLUSHO), within the 32 bits c_lflag occupies.
+TTY_LFLAG_SETTINGS := 0xdf7fffff
+
+tty_settings := func(g: Str) returns Str {
+    pos := g.find(TTY_LFLAG_KEY)
+    if pos == -1 { return g.clone() }
+    start : USize = pos.to_usize().add(TTY_LFLAG_KEY.len())
+    rest := g.substr(start, g.len().sub(start))
+    end := rest.find(":")
+    // Every gfmt1 dump keeps ispeed/ospeed after lflag. A layout where
+    // the word runs to the end of the string is one this does not know,
+    // so fall back to comparing the dumps whole -- the stricter answer.
+    if end == -1 { return g.clone() }
+    len : USize = end.to_usize()
+    flags := format("0x", rest.substr(0, len)).to_i64().band(TTY_LFLAG_SETTINGS)
+    return format(g.substr(0, start), flags.to_str(),
+                  rest.substr(len, rest.len().sub(len)))
+}
+
 byte_str := func(v: I64) returns Str {
     return Str.from_byte(v.to_u8())
 }
@@ -366,6 +400,13 @@ main := proc() {
     resumed := count_matches(out4, format(PROMPT_TAIL, "1 + 41"))
     evaluated_after_resume := count_matches(out4, format(nl, "42", nl))
 
+    // "As it was found" means the SETTINGS, not the kernel's own state
+    // bits -- see tty_settings above.
+    tty1_same := tty_settings(before1).eq(tty_settings(after1))
+    tty3_same := tty_settings(before3).eq(tty_settings(after3))
+    tty4_stopped_same := tty_settings(before4).eq(tty_settings(stopped4))
+    tty4_same := tty_settings(before4).eq(tty_settings(after4))
+
     // TERM=dumb keeps the plain path: no escape, no history file, and
     // the line still evaluates.
     dumb_escapes := count_matches(out5, byte_str(27))
@@ -389,9 +430,9 @@ main := proc() {
            blank_on_exit.eq(0), row_ended_on_sigint,
            clean_exit1, clean_exit2,
            sigint_survived.not(),
-           before1.len().gt(0), before1.eq(after1),
-           before3.len().gt(0), before3.eq(after3),
-           before4.len().gt(0), before4.eq(stopped4), before4.eq(after4),
+           before1.len().gt(0), tty1_same,
+           before3.len().gt(0), tty3_same,
+           before4.len().gt(0), tty4_stopped_same, tty4_same,
            resumed.gte(1), evaluated_after_resume.eq(1),
            dumb_escapes.eq(0), dumb_evaluated.gte(1), dumb_history.not(),
            blocked_warned.eq(1), blocked_path_named.gte(1),
@@ -413,10 +454,10 @@ main := proc() {
             " clean_exit2=", clean_exit2.to_str(),
             " sigint_survived=", sigint_survived.to_str(),
             " rc1=", rc1.to_str(), " rc2=", rc2.to_str(),
-            " tty1_same=", before1.eq(after1).to_str(),
-            " tty3_same=", before3.eq(after3).to_str(),
-            " tty4_stopped_same=", before4.eq(stopped4).to_str(),
-            " tty4_same=", before4.eq(after4).to_str(),
+            " tty1_same=", tty1_same.to_str(),
+            " tty3_same=", tty3_same.to_str(),
+            " tty4_stopped_same=", tty4_stopped_same.to_str(),
+            " tty4_same=", tty4_same.to_str(),
             " resumed=", resumed.to_str(),
             " evaluated_after_resume=", evaluated_after_resume.to_str(),
             " dumb_escapes=", dumb_escapes.to_str(),
