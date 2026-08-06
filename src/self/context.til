@@ -420,16 +420,16 @@ namespace:
     // entries, not re-point them -- init_refresh_seeded_scope_defs only
     // refreshes names that are still declared, so an obsolete one would
     // keep a dangling FuncDef pointer for the backends to find.
-    erase_func_def := func(mut self: TypeScope, name: Str) {
+    priv erase_func_def := func(mut self: TypeScope, name: Str) {
         self.func_defs.remove(name)
     }
-    erase_binding := func(mut self: TypeScope, name: Str) {
+    priv erase_binding := func(mut self: TypeScope, name: Str) {
         self.bindings.remove(name)
     }
     // #326: the struct_defs twin of erase_func_def, for the scavenger --
     // a swept type declaration's AST is freed, so its registry entry must
     // go with it or a later by-name lookup reads a freed Expr.
-    erase_struct_def := func(mut self: TypeScope, name: Str) {
+    priv erase_struct_def := func(mut self: TypeScope, name: Str) {
         self.struct_defs.remove(name)
     }
     // Retire every AST-backed registry entry for one declaration before its
