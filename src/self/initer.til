@@ -1209,19 +1209,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
 
         emit_guard := guard_every.or(j.lt(variant_names.len() - 1))
         if emit_guard {
-            mut cond := Expr.new(NodeType.Literal(Literal.Null), line, col)
-            if has_payloads {
-                cond = make_is_tag_check_fcall("self", ename, vname, enum_tag_size(enum_def), line, col)
-            } else {
-                mut self_id := Expr.new(ident_node("self"), line, col)
-                mut cond_call := make_method_call_fcall(own self_id, "eq", line, col)
-
-                mut en2 := Expr.new(ident_node(ename), line, col)
-                mut va2 := Expr.new(field_access_node(vname), line, col)
-                va2.add_child(own en2)
-                cond_call.add_child(own va2)
-                cond = cond_call
-            }
+            mut cond := make_is_tag_check_fcall("self", ename, vname, enum_tag_size(enum_def), line, col)
 
             mut then_body := Expr.new(NodeType.Body, line, col)
             if has_pd {

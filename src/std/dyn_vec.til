@@ -113,10 +113,10 @@ namespace:
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
             self.cap = new_cap
         }
-        // Callable values arrive as direct closure pointers. Store the pointer
-        // value itself into the slot and leave cleanup to til_closure_slot_delete.
+        // Move the callable box into the slot; the interpreter's owning
+        // Dynamic parameter must not reclaim the transferred box on return.
         if self.elem_kind == ELEM_FN {
-            write_ptr(ptr_add(self.data, self.count.mul(self.elem_size)), val)
+            til_closure_slot_take(ptr_add(self.data, self.count.mul(self.elem_size)), val)
             self.count = self.count + 1
             return
         }
@@ -284,7 +284,7 @@ namespace:
             self.elem_delete(self.unsafe_get(i), false)
         } else if self.elem_kind == ELEM_FN {
             til_closure_slot_delete(self.unsafe_get(i))
-            write_ptr(self.unsafe_get(i), val)
+            til_closure_slot_take(self.unsafe_get(i), val)
             return
         }
         memcpy(self.unsafe_get(i), val, self.elem_size)

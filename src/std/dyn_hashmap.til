@@ -158,10 +158,7 @@ namespace:
         }
         if existing >= 0 {
             slot_idx : USize = existing.to_usize()
-            slot_off : USize = slot_idx * self.values.elem_size
-            self.values.elem_delete(ptr_add(self.values.data, slot_off), false)
-            memcpy(ptr_add(self.values.data, slot_off), val, self.values.elem_size)
-            free(own val)
+            self.values.unsafe_set(slot_idx, own val)
         } else {
             new_idx : I64 = self.keys.count.to_i64()
             ref head2 : I64 = self.buckets.unsafe_get(bi)
@@ -238,7 +235,11 @@ namespace:
         values_off : USize = idx_u * self.values.elem_size
 
         self.keys.elem_delete(ptr_add(self.keys.data, keys_off), false)
-        self.values.elem_delete(ptr_add(self.values.data, values_off), false)
+        if self.values.elem_kind == ELEM_FN {
+            til_closure_slot_delete(ptr_add(self.values.data, values_off))
+        } else if self.values.elem_kind == ELEM_BOXED {
+            self.values.elem_delete(ptr_add(self.values.data, values_off), false)
+        }
 
         ref nxt_of_idx : I64 = self.nexts.unsafe_get(idx_u)
         nxt_val : I64 = nxt_of_idx.clone()

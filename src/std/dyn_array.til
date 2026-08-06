@@ -62,7 +62,7 @@ namespace:
             self.elem_delete(self.unsafe_get(i), false)
         } else if self.elem_kind == ELEM_FN {
             til_closure_slot_delete(self.unsafe_get(i))
-            write_ptr(self.unsafe_get(i), val)
+            til_closure_slot_take(self.unsafe_get(i), val)
             return
         }
         memcpy(self.unsafe_get(i), val, self.elem_size)

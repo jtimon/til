@@ -4025,6 +4025,7 @@ ffi_type * priv___src_self_interpreter_til__build_struct_ffi_type(Expr * struct_
 Bool priv___src_self_interpreter_til__h_free(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_til_closure_delete(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_til_closure_slot_delete(Scope * s, Expr * e, void * _r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_til_closure_slot_take(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_ptr_add(Scope * s, Expr * e, void * r, Context * ctx);

@@ -2,6 +2,7 @@ mode test
 
 import("../src/std/dyn_vec")
 import("../src/std/dyn_map")
+import("../src/std/dyn_hashmap")
 
 // --- Lambda functions: anonymous inline FuncDef literals (issue #61) ---
 // A lambda is the same syntax as a named function definition, just
@@ -329,6 +330,23 @@ test_dyn_map_body_value := test() {
     ref raw2 : Dynamic = bodies["run"]
     cast(raw2, Body)()
     assert_eq(I64, x, 9)
+}
+
+test_dyn_hashmap_body_value := test() {
+    mut x := 0
+    mut bodies := DynHashMap.new(Str, Body)
+    b : Body = [mut x] { x = x.add(6) }
+    bodies.set("run", own b)
+    ref raw : Dynamic = bodies.get("run")!
+    cast(raw, Body)()
+    assert_eq(I64, x, 6)
+
+    b2 : Body = [mut x] { x = x.add(7) }
+    bodies.set("run", own b2)
+    ref raw2 : Dynamic = bodies.get("run")!
+    cast(raw2, Body)()
+    assert_eq(I64, x, 13)
+    bodies.remove("run")
 }
 
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---

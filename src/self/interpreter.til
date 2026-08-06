@@ -6906,6 +6906,34 @@ priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Cont
     return true
 }
 
+priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
+    ref slot_expr : Expr = e.children[1]
+    slot_raw : Dynamic = eval_expr_raw(s, slot_expr, ctx)
+    dst : Dynamic = raw_arg_pointer(s, slot_expr, slot_raw, ctx)
+    ref source_expr : Expr = e.children[2]
+    switch source_expr.node_type {
+    case NodeType.Ident(id):
+        source_hb_o := scope_lookup_heap_binding(s, id.ident_name())
+        if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name()) }
+        ref source_hb : HeapBinding = source_hb_o.unwrap()
+        if source_hb.moved_out { panic("til_closure_slot_take: source binding already moved: ", id.ident_name()) }
+        if hb_type(source_hb).is(Type.Dynamic).not().or(source_hb.is_erased_dynamic) {
+            panic("til_closure_slot_take: source is not an owned callable Dynamic: ", id.ident_name())
+        }
+        source_slot : Dynamic = source_hb.ptr
+        ref stored : Dynamic = deref(source_slot)
+        write_ptr(dst, stored)
+        mut owned_source_slot : Dynamic = source_slot
+        EvalHeap.heap_free(own owned_source_slot)
+        source_hb.ptr = bits_word(0)
+        source_hb.moved_out = true
+    case:
+        panic("til_closure_slot_take: callable source must be a binding")
+    }
+    raw_result_drop(slot_expr.til_type(), slot_raw, expr_raw_is_ref(s, slot_expr, ctx), ctx)
+    return true
+}
+
 priv h_cfile_close := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
     handle_raw : Dynamic = eval_expr_raw(s, handle_expr, ctx)
@@ -7185,6 +7213,7 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("free", h_free, ctx)
     reg_dispatch("til_closure_delete", h_til_closure_delete, ctx)
     reg_dispatch("til_closure_slot_delete", h_til_closure_slot_delete, ctx)
+    reg_dispatch("til_closure_slot_take", h_til_closure_slot_take, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)
     reg_dispatch("is_null", h_is_null, ctx)
     reg_dispatch("is_n", h_is_n, ctx)

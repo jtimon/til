@@ -92,6 +92,7 @@ test_dyn_array_overwrite := test() {
 test_dyn_array_body_call_set := test() {
     mut x := 0
     a := DynArray.new(Body, 1)
+    assert_eq(USize, a.elem_kind, ELEM_FN)
     b : Body = [mut x] { x = x.add(1) }
     a.set(0, own b)!
     ref raw : Dynamic = a[0]

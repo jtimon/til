@@ -603,6 +603,7 @@ Bool Bool_clone(const Bool *v) { return *v; }
 void *to_ptr(void *a) { return a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
+void til_closure_slot_take(void *slot, void *closure) { *(void **)slot = closure; }
 /* #211 follow-up: write a typed primitive into raw bytes. Used by the
  * AST interpreter to mirror writes through a payload-aliased binding
  * into the underlying enum's payload memory. */
