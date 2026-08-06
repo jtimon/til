@@ -246,8 +246,18 @@ static int copy_file_cstr(const char *src, const char *dst) {
             return 1;
         }
     }
+    // A read error ends the loop exactly the way a clean EOF does, so
+    // without ferror a half-read source copies as a complete file.
+    int bad = ferror(in) != 0;
+    // fclose(in) is not checked: the bytes were already read, and ferror
+    // above is what says whether they were all of them.
     fclose(in);
-    fclose(out);
+    // The destination is where a failure actually lands. Writes are
+    // buffered, so a full disk typically leaves every fwrite above happy
+    // and fails here at the flush -- which is how a truncated copy used to
+    // be reported as success.
+    if (fclose(out) != 0) bad = 1;
+    if (bad) return 1;
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
     struct stat st;
     if (stat(src, &st) == 0) {
