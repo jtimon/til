@@ -1679,10 +1679,10 @@ priv expr_root_ident_name := func(e: Expr) returns Str {
 //   2. Ref-capturing closures (FuncDef/BodyValue capture lists): each
 //      ref-captured local lives as long as the closure binding.
 //   3. `ref x := src` / `ref x := src.field` / `ref x := f(args)`:
-//      the borrow source (the FieldAccess root / each FCall arg's
-//      ident root) lives as long as x's reach -- x's last textual use
-//      after its decl, max'd with x's own (possibly extended)
-//      last_use.
+//      the borrow source (the FieldAccess root / each non-transferred
+//      FCall arg's ident root) lives as long as x's reach -- x's last
+//      textual use after its decl, max'd with x's own (possibly
+//      extended) last_use.
 //   4. #320: an enum-variant ctor with a ref payload borrows its arg
 //      into the enum value (`o := Opt.Some(src)`): src stays alive
 //      through scope exit, the same conservative bound as rule 1.
@@ -1805,6 +1805,10 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         }
         if rhs.node_type.is(NodeType.FCall).not() { continue }
         for a in 1..rhs.children.len() {
+            // An own arg moved into the callee cannot back the returned ref
+            // through its caller-side local. keep_outer marks destructor
+            // calls that retain the outer shell, so those remain borrowers.
+            if get_own_arg(rhs, a).and(get_keep_outer_arg(rhs, a).not()) { continue }
             ref mut arg : Expr = rhs.children[a]
             while arg.node_type.is(NodeType.FieldAccess).and(arg.children.len().gt(0)) {
                 arg = arg.children[0]

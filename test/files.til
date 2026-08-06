@@ -85,10 +85,10 @@ test_file_fwrite := test() {
     parts := array(Str, "a", "b")
     f.fwrite(..parts)
     tail_parts := array(Str, "a", "b")
-    f.write("").fwrite(..tail_parts)
+    f.fwrite(..parts).fwrite(..tail_parts)
 
     content := File.readfile(path)
-    assert_eq(Str, content, "x=3, y=4\nabab")
+    assert_eq(Str, content, "x=3, y=4\nababab")
 }
 
 test_file_seek_tell_read := test() {
