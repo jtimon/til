@@ -143,6 +143,15 @@ first of them found.*
   side of the pty rather than being typed into it, which is the only way
   to reach the REPL with a signal the terminal cannot send.
 
+*Follow-up: a shorter end wait in the pty test.*
+
+  The pty driver's per-session end wait -- the pause that holds the input
+  pipe open after the chunk that ends a session -- came down from 3s to
+  0.5s. It only has to outlive the REPL acting on those final bytes,
+  which takes milliseconds; the driver has already waited for a ready
+  prompt before sending them, so the REPL is blocked in a read. That is
+  ~15s off the test (49s -> 34s here).
+
   ~til repl~ has no line editing and no history. ~in_read_line~
   (~src/c/ext.c~) reads bytes with ~fgetc~ in the terminal's canonical
   mode, so the tty driver gives backspace and nothing else:

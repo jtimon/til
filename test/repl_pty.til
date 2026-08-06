@@ -25,6 +25,9 @@ DIR := "tmp/repl_pty"
 // and lets the assertions report what actually happened.
 POLL_SECONDS := "0.25"
 POLL_LIMIT := "240"
+// How long the driver holds the input pipe open after the chunk that
+// ends a session, so the REPL acts on it before `script` sees EOF.
+END_WAIT := "0.5"
 // What a redrawn, empty, waiting-for-input prompt row ends with --
 // trailing space included, since command substitution strips trailing
 // NEWLINES only and the row ends in the prompt's own space.
@@ -127,8 +130,9 @@ write_drive := proc(tag: Str, chunks: Vec(Str), waits: Vec(Str), start_wait: Str
         if w.len() == 0 {
             // The session ends on this chunk (Ctrl-D, Ctrl-C, `exit`):
             // there is no prompt left to wait for, so just hold the pipe
-            // open long enough for it to be acted on.
-            script_src = format(script_src, "cat ", path, "\nsleep 3\n")
+            // open long enough for it to be acted on. Closing it early
+            // would let `script` tear the session down first.
+            script_src = format(script_src, "cat ", path, "\nsleep ", END_WAIT, "\n")
         } else {
             script_src = format(script_src, "send ", path, " \"", w, "\"\n")
         }
