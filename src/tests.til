@@ -396,11 +396,22 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64, mut suite_en
                     if t.category != "self" { suite_end_ms = clock_ms() }
 
                     if status != 0 {
+                        // Everything the runner said, minus the
+                        // machine-readable RESULT line already parsed
+                        // above. Relaying ONLY the FAIL/MISMATCH lines
+                        // dropped the one thing a reader needs: the
+                        // block print_captured_err writes -- the til
+                        // panic, the ASAN report, the cc error, the
+                        // test's own assertion dump. A failure that
+                        // reproduces locally survives that filter; a
+                        // CI-only one does not, and `FAIL: repl_pty
+                        // exit=1 expected=0` with no second line is all
+                        // the mac jobs could say for twenty red runs.
                         runner_lines := runner_out.split(NL)
                         mut li : USize = 0
                         while li < runner_lines.len() {
                             ref ln : Str = runner_lines[li]
-                            if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
+                            if ln.starts_with("RESULT ").not() {
                                 println(ln)
                             }
                             li++
