@@ -21,6 +21,8 @@
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core
 *** [[./open/275.org][#275]] Interpreter manufactures double-ownership at construction; should only interpret the AST's delete/free
 *** [[./open/338.org][#338]] Unify type inference: fields use real inference, typer stamps inferred types into the AST
+** Medium
+*** [[./open/345.org][#345]] Move build orchestration from Makefile into make.til
 ** Low
 *** [[./open/70.org][#70]] Constfolder: constant folding for all types (not just scalars)
 *** [[./open/90.org][#90]] Til libraries: avoid symbol conflicts between independent libs
