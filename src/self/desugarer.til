@@ -47,7 +47,7 @@ priv slot_default_index := func(code: I32) returns USize {
 // last diagnostic that can return false. That ordering is deliberate:
 // on an error path the call keeps its original children intact for the
 // passes that keep walking after a type error.
-desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, ctx: Context) returns Bool {
+desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: USize, ctx: Context) returns Bool {
     nparam := fdef_data.params.len()
     vi := fdef_data.variadic_index
     kwi := fdef_data.kwargs_index
@@ -148,7 +148,9 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     }
     if vi < 0 {
         if pos_idx > max_pos {
-            e.type_error(format("too many arguments: expected ", nparam.to_str(), ", got ", pos_idx.to_str()), ctx)
+            expected_count := nparam - implicit_arg_count
+            actual_count := pos_idx - implicit_arg_count
+            e.type_error(format("too many arguments: expected ", expected_count.to_str(), ", got ", actual_count.to_str()), ctx)
         }
     }
     // Rebuilt call args: callee + (per-param) one arg, or the expanded
@@ -190,7 +192,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
 desugar_user_func_fcall_args := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, ctx: Context) {
     fdef_o := scope.lookup_func(callee_bind.name)
     ref fdef_data : FunctionDef = funcdef_of(fdef_o.unwrap())
-    _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, ctx)
+    _ : Bool = desugar_fcall_args_for_fdef(e, name, fdef_data, 0, ctx)
 }
 
 priv typer_is_lambda_target := func(e: Expr) returns Bool {
@@ -4890,43 +4892,13 @@ priv rewrite_variadic_fcall_args := func(mut fcall: Expr, va_name: Str, array_ty
 // resolved -- the desugar then skips the rewrite, same as the
 // elem-type-null branch a few lines below.
 priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) returns USize {
-    if fcall.children.len() == 0 { return 0 }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(callee_name):
-        cb_o := scope.get_binding(callee_name.ident_name())
-        if cb_o.is_some() {
-            ref cb : TypeBinding = cb_o.unwrap()
-            cb_fd_o := scope.lookup_func(cb.name)
-            if cb_fd_o.is_some() {
-                switch cb_fd_o.unwrap().node_type {
-                case NodeType.FuncDef(cb_fdef):
-                    return fcall_variadic_count(fcall, cb_fdef.params.len(), cb_fdef.kwargs_index >= 0)
-                case:
-                }
-            }
+    fdef_o := fcall_callee_fdef(fcall, scope)
+    if fdef_o.is_some() {
+        switch fdef_o.unwrap().node_type {
+        case NodeType.FuncDef(fd):
+            return fcall_variadic_count(fcall, fd.params.len(), fd.kwargs_index >= 0)
+        case:
         }
-    case NodeType.FieldAccess(method_name):
-        if fa_is_ns(callee, scope) {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case NodeType.Ident(type_name):
-                sdef_o := scope.get_struct(type_name.ident_name())
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    nd_o := def_ns_get(sdef, method_name.field_access_name())
-                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
-                        switch nd_o.unwrap().default_expr().node_type {
-                        case NodeType.FuncDef(ffd):
-                            return fcall_variadic_count(fcall, ffd.params.len(), ffd.kwargs_index >= 0)
-                        case:
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    case:
     }
     return 0
 }
@@ -4939,45 +4911,9 @@ priv fcall_variadic_count_via_scope := func(fcall: Expr, scope: TypeScope) retur
 // rewrite, runs at most once per FCall, so distinguishing pre- vs
 // post-rewrite is unnecessary at this site.
 priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) returns Bool {
-    if fcall.children.len() == 0 { return false }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(callee_name):
-        cb_o := scope.get_binding(callee_name.ident_name())
-        if cb_o.is_some() {
-            ref cb : TypeBinding = cb_o.unwrap()
-            cb_fd_o := scope.lookup_func(cb.name)
-            if cb_fd_o.is_some() {
-                switch cb_fd_o.unwrap().node_type {
-                case NodeType.FuncDef(cb_fdef):
-                    return cb_fdef.variadic_index >= 0
-                case:
-                }
-            }
-        }
-    case NodeType.FieldAccess(method_name):
-        if fa_is_ns(callee, scope) {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case NodeType.Ident(type_name):
-                sdef_o := scope.get_struct(type_name.ident_name())
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    nd_o := def_ns_get(sdef, method_name.field_access_name())
-                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
-                        switch nd_o.unwrap().default_expr().node_type {
-                        case NodeType.FuncDef(ffd):
-                            return ffd.variadic_index >= 0
-                        case:
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    case:
-    }
-    return false
+    fdef_o := fcall_callee_fdef(fcall, scope)
+    if fdef_o.is_none() { return false }
+    return fdef_is_variadic(fdef_o.unwrap())
 }
 
 // Per-call position of the variadic block start in fcall.children.
@@ -4990,47 +4926,14 @@ priv fcall_callee_has_variadic_via_scope := func(fcall: Expr, scope: TypeScope) 
 // _va_Array_N or splat ident). Caller is responsible for not querying
 // after the kwargs rewrite has further shifted children.
 priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 {
-    if fcall.children.len() == 0 { return -1 }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(callee_name):
-        cb_o := scope.get_binding(callee_name.ident_name())
-        if cb_o.is_some() {
-            ref cb : TypeBinding = cb_o.unwrap()
-            cb_fd_o := scope.lookup_func(cb.name)
-            if cb_fd_o.is_some() {
-                switch cb_fd_o.unwrap().node_type {
-                case NodeType.FuncDef(cb_fdef):
-                    fvi := cb_fdef.variadic_index
-                    if fvi < 0 { return -1 }
-                    return fvi + 1
-                case:
-                }
-            }
+    fdef_o := fcall_callee_fdef(fcall, scope)
+    if fdef_o.is_some() {
+        switch fdef_o.unwrap().node_type {
+        case NodeType.FuncDef(fd):
+            if fd.variadic_index < 0 { return -1 }
+            return fd.variadic_index + 1
+        case:
         }
-    case NodeType.FieldAccess(method_name):
-        if fa_is_ns(callee, scope) {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case NodeType.Ident(type_name):
-                sdef_o := scope.get_struct(type_name.ident_name())
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    nd_o := def_ns_get(sdef, method_name.field_access_name())
-                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
-                        switch nd_o.unwrap().default_expr().node_type {
-                        case NodeType.FuncDef(ffd):
-                            fvi := ffd.variadic_index
-                            if fvi < 0 { return -1 }
-                            return fvi + 1
-                        case:
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    case:
     }
     return -1
 }
@@ -5049,45 +4952,9 @@ priv fcall_variadic_index_via_scope := func(fcall: Expr, scope: TypeScope) retur
 // resolve_variadic_elem_type's Ident-binding / Type.method namespace
 // shapes.
 priv fcall_kwargs_index_via_scope := func(fcall: Expr, scope: TypeScope) returns I32 {
-    if fcall.children.len() == 0 { return -1 }
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(callee_name):
-        cb_o := scope.get_binding(callee_name.ident_name())
-        if cb_o.is_some() {
-            ref cb : TypeBinding = cb_o.unwrap()
-            cb_fd_o := scope.lookup_func(cb.name)
-            if cb_fd_o.is_some() {
-                switch cb_fd_o.unwrap().node_type {
-                case NodeType.FuncDef(cb_fdef):
-                    return derive_fcall_kwargs_index(fcall, cb_fdef)
-                case:
-                }
-            }
-        }
-    case NodeType.FieldAccess(method_name):
-        if fa_is_ns(callee, scope) {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case NodeType.Ident(type_name):
-                sdef_o := scope.get_struct(type_name.ident_name())
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    nd_o := def_ns_get(sdef, method_name.field_access_name())
-                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
-                        switch nd_o.unwrap().default_expr().node_type {
-                        case NodeType.FuncDef(ffd):
-                            return derive_fcall_kwargs_index(fcall, ffd)
-                        case:
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    case:
-    }
-    return -1
+    fdef_o := fcall_callee_fdef(fcall, scope)
+    if fdef_o.is_none() { return -1 }
+    return fdef_kwargs_index(fcall, fdef_o.unwrap())
 }
 
 // Shared derivation given a resolved callee FuncDef payload.
@@ -5105,50 +4972,16 @@ priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) ret
 }
 
 priv resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns Option(ref Str) {
-    ref callee : Expr = fcall.children[0]
-    switch callee.node_type {
-    case NodeType.Ident(callee_name):
-        cb_o := scope.get_binding(callee_name.ident_name())
-        if cb_o.is_some() {
-            ref cb : TypeBinding = cb_o.unwrap()
-            cb_fd_o := scope.lookup_func(cb.name)
-            if cb_fd_o.is_some() {
-                switch cb_fd_o.unwrap().node_type {
-                case NodeType.FuncDef(cb_fdef):
-                    fvi := cb_fdef.variadic_index
-                    if fvi >= 0 {
-                        ref param : Declaration = cb_fdef.params[fvi.to_usize()]
-                        return Option(ref Str).Some(param.explicit_type)
-                    }
-                case:
-                }
+    fdef_o := fcall_callee_fdef(fcall, scope)
+    if fdef_o.is_some() {
+        switch fdef_o.unwrap().node_type {
+        case NodeType.FuncDef(fd):
+            if fd.variadic_index >= 0 {
+                ref param : Declaration = fd.params[fd.variadic_index.to_usize()]
+                return Option(ref Str).Some(param.explicit_type)
             }
+        case:
         }
-    case NodeType.FieldAccess(method_name):
-        if fa_is_ns(callee, scope) {
-            ref type_node : Expr = callee.children[0]
-            switch type_node.node_type {
-            case NodeType.Ident(type_name):
-                sdef_o := scope.get_struct(type_name.ident_name())
-                if sdef_o.is_some() {
-                    ref sdef : Expr = sdef_o.unwrap()
-                    nd_o := def_ns_get(sdef, method_name.field_access_name())
-                    if nd_o.is_some().and(nd_o.unwrap().default_value.is_some()) {
-                        switch nd_o.unwrap().default_expr().node_type {
-                        case NodeType.FuncDef(ffd):
-                            fvi := ffd.variadic_index
-                            if fvi >= 0 {
-                                ref param : Declaration = ffd.params[fvi.to_usize()]
-                                return Option(ref Str).Some(param.explicit_type)
-                            }
-                        case:
-                        }
-                    }
-                }
-            case:
-            }
-        }
-    case:
     }
     return Option(ref Str).None
 }

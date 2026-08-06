@@ -1389,7 +1389,7 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
 // is usually an Ident, but may be a StructDef literal for anonymous-struct
 // instantiation (`struct { ... }(args)`).
 priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_col: U32) returns Expr {
-    advance(p) // consume '('
+    expect_token(p, TokenType.LParen)
 
     mut call := Expr.new(NodeType.FCall(FCallData()), call_line, call_col)
     call.add_child(own callee)
@@ -1887,21 +1887,9 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         fname := expect_text(p, TokenType.Ident)
         if check(p, TokenType.LParen) {
             // Method call: e.method(args)
-            advance(p) // consume '('
             mut callee := Expr.new(field_access_node(fname), f_line, f_col)
             callee.add_child(own take_expr(e))
-            mut mcall := Expr.new(NodeType.FCall(FCallData()), f_line, f_col)
-            mcall.add_child(own callee)
-            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                if parse_named_arg(p, mcall) { continue }
-                mut is_own_arg := false
-                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                append_arg(p, mcall, own parse_expression(p), is_own_arg)
-                if check(p, TokenType.Comma) { advance(p) }
-            }
-            expect_token(p, TokenType.RParen)
-            parse_throw_bang_suffix(p, mcall)
-            e = nest_nary_and_or(own mcall)
+            e = parse_call(p, own callee, f_line, f_col)
         } else {
             mut access := Expr.new(field_access_node(fname), f_line, f_col)
             access.add_child(own take_expr(e))
@@ -2186,19 +2174,9 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         }
         // Method call: name.method(args)
         if check(p, TokenType.LParen) {
-            advance(p) // consume '('
             mut callee := Expr.new(field_access_node(last_field), last_line, last_col)
             callee.add_child(own obj.clone())
-            mut mcall := Expr.new(NodeType.FCall(FCallData()), last_line, last_col)
-            mcall.add_child(own callee)
-            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                if parse_named_arg(p, mcall) { continue }
-                mut is_own_arg := false
-                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
-                append_arg(p, mcall, own parse_expression(p), is_own_arg)
-                if check(p, TokenType.Comma) { advance(p) }
-            }
-            expect_token(p, TokenType.RParen)
+            mut mcall := parse_call(p, own callee, last_line, last_col)
             // Chain further `.method(args)` calls: `f.write("a").write("b")`.
             // Statement-level kicks off this branch; the expression-level
             // parser (parse_primary) handles its own chain loop, but
@@ -2210,28 +2188,12 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 chain_line := peek_line(p)
                 chain_col := peek_col(p)
                 chain_name := expect_text(p, TokenType.Ident)
-                expect_token(p, TokenType.LParen)
                 mut chain_callee := Expr.new(field_access_node(chain_name), chain_line, chain_col)
                 chain_callee.add_child(own mcall.clone())
-                mut next_call := Expr.new(NodeType.FCall(FCallData()), chain_line, chain_col)
-                next_call.add_child(own chain_callee)
-                while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
-                    if parse_named_arg(p, next_call) { continue }
-                    mut is_own_arg2 := false
-                    if check(p, TokenType.KwOwn) { advance(p); is_own_arg2 = true }
-                    append_arg(p, next_call, own parse_expression(p), is_own_arg2)
-                    if check(p, TokenType.Comma) { advance(p) }
-                }
-                expect_token(p, TokenType.RParen)
-                mcall = next_call
+                mcall = parse_call(p, own chain_callee, chain_line, chain_col)
             }
-            // Statement-level throwing method call: `obj.m(args)?` /
-            // `obj.m(args)!`. The free-call statement path gets this via
-            // parse_call; the method-call path did not, so a bare throwing
-            // method call (e.g. the `a.set(b, own c)!` that subscript
-            // assignment lowers to) could only appear in expression
-            // position. Parse the suffix here so it works as a statement too.
-            parse_throw_bang_suffix(p, mcall)
+            // parse_call handles a final `?` / `!` suffix for statement-level
+            // method calls just as it does for free calls.
             return mcall
         }
         // Postfix increment/decrement on field: obj.field++ or obj.field--

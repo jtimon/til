@@ -2052,7 +2052,9 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
     }
     switch ns_func2.node_type {
     case NodeType.FuncDef(ns_fdef):
-        if desugar_fcall_args_for_fdef(e, "", ns_fdef, ctx).not() {
+        mut implicit_arg_count : USize = 0
+        if ufcs_desugared { implicit_arg_count = 1 }
+        if desugar_fcall_args_for_fdef(e, "", ns_fdef, implicit_arg_count, ctx).not() {
             // Missing-argument diagnostic was already emitted above.
             return true
         }
@@ -2730,7 +2732,7 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
 // Unknown and null establish nothing at all.
 priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), display_name: Str, in_func: I32, ctx: Context) returns Bool {
     vo := generic_value_only_fdef(gfd)
-    if desugar_fcall_args_for_fdef(e, display_name, vo, ctx).not() { return false }
+    if desugar_fcall_args_for_fdef(e, display_name, vo, 0, ctx).not() { return false }
     for ai in 1..e.children.len() {
         infer_expr(scope, e.children[ai], in_func, ctx)
     }
@@ -3010,7 +3012,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     }
     ref cfd : FunctionDef = funcdef_of(cfd_o.unwrap())
     if explicit {
-        if desugar_fcall_args_for_fdef(e, mono, cfd, ctx).not() {
+        if desugar_fcall_args_for_fdef(e, mono, cfd, 0, ctx).not() {
             e.set_til_type(Type.Unknown)
             return
         }

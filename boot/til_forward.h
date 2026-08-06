@@ -2834,7 +2834,7 @@ void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_type
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
 I32 priv___src_self_desugarer_til__slot_default_code(USize defaults_index);
 USize priv___src_self_desugarer_til__slot_default_index(I32 code);
-Bool desugar_fcall_args_for_fdef(Expr * e, Str * display_name, FunctionDef * fdef_data, Context * ctx);
+Bool desugar_fcall_args_for_fdef(Expr * e, Str * display_name, FunctionDef * fdef_data, USize implicit_arg_count, Context * ctx);
 void desugar_user_func_fcall_args(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, Context * ctx);
 Bool priv___src_self_desugarer_til__typer_is_lambda_target(Expr * e);
 I64 priv___src_self_desugarer_til__typer_lift_one_default_value(Declaration * dd, Vec__Expr * top_level, I64 * counter);

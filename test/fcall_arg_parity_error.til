@@ -1,0 +1,49 @@
+mode cli
+
+parity_args := func(a: I64, b: I64 = 0) returns I64 {
+    return a.add(b)
+}
+
+ParityArgs := struct {
+    namespace:
+        args := func(_self: ParityArgs, a: I64, b: I64 = 0) returns I64 {
+            return a.add(b)
+        }
+}
+
+parity_obj := ParityArgs()
+
+parity_args(a = 1, a = 2)
+parity_obj.args(a = 1, a = 2)
+
+parity_args()
+parity_obj.args()
+
+parity_args(1, 2, 3)
+parity_obj.args(1, 2, 3)
+
+parity_args(a = 1, 2)
+parity_obj.args(a = 1, 2)
+
+parity_args("bad")
+parity_obj.args("bad")
+
+ParityOwnItem := struct { n := 0 }
+
+parity_take := func(own item: ParityOwnItem) returns I64 {
+    return item.n
+}
+
+ParityTake := struct {
+    namespace:
+        take := func(_self: ParityTake, own item: ParityOwnItem) returns I64 {
+            return item.n
+        }
+}
+
+direct_item := ParityOwnItem(n = 1)
+parity_take(direct_item)
+
+take_obj := ParityTake()
+method_item := ParityOwnItem(n = 2)
+take_obj.take(method_item)

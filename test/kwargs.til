@@ -198,6 +198,8 @@ test_method_combo_default_between_variadic_and_kwargs := test() {
     assert_eq(Str, box.combo(1, 2, 3), "default:6")
     assert_eq(Str, box.combo(1, 2, 3, bias = 100), "default:106")
     assert_eq(Str, box.combo(1, 2, 3, label = "override", bias = 100), "override:106")
+    arr := array(I64, 10, 20, 30)
+    assert_eq(Str, box.combo(..arr, label = "splat", bias = 100), "splat:160")
 }
 
 // --- merged from test/optional_args.til ---

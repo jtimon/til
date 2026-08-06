@@ -967,6 +967,20 @@ main := proc(args: ..Str) {
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "error:", 190,
         format(til_bin, " interpret test/typer_errors.til"))
+    parity_cmd := format(til_bin, " interpret test/fcall_arg_parity_error.til")
+    add_count(tests, "fcall_arg_parity_total", "typer", "error:", 12, parity_cmd)
+    add_count(tests, "fcall_arg_parity_duplicate", "typer",
+        "duplicate argument for parameter", 2, parity_cmd)
+    add_count(tests, "fcall_arg_parity_missing", "typer",
+        "missing argument for parameter", 2, parity_cmd)
+    add_count(tests, "fcall_arg_parity_extra", "typer",
+        "too many arguments: expected 2, got 3", 2, parity_cmd)
+    add_count(tests, "fcall_arg_parity_named_order", "typer",
+        "positional argument after named argument", 2, parity_cmd)
+    add_count(tests, "fcall_arg_parity_type", "typer",
+        "argument type mismatch", 2, parity_cmd)
+    add_count(tests, "fcall_arg_parity_own", "typer",
+        "must be marked", 2, parity_cmd)
     add_count(tests, "capture_block_error", "typer",
         "is not captured", 2,
         format(til_bin, " interpret test/capture_block_error.til"))
