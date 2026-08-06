@@ -1950,8 +1950,11 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                 if ftype.len() == 0 {
                     if fd.default_value.is_some() {
                         ref def_val : Expr = fd.default_expr()
-                        if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
-                        else if def_val.node_type.is(NodeType.FCall) {
+                        def_tname_o := expr_type_name_ref(def_val)
+                        if def_tname_o.is_some() {
+                            ref def_tname : Str = def_tname_o.unwrap()
+                            ftype = def_tname.clone()
+                        } else if def_val.node_type.is(NodeType.FCall) {
                             set_ftype_from_call_callee(def_val, ftype)
                         } else if def_val.node_type.is(NodeType.FieldAccess) {
                             if def_val.children.len() > 0 {
@@ -2027,16 +2030,21 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                         }
                         else if def_val.node_type.is_literal_str() { ftype = "Str" }
                         else if def_val.node_type.is_literal_bool() { ftype = "Bool" }
-                        else if til_type_name(def_val.til_type()).len() > 0 { ftype = til_type_name(def_val.til_type()) }
-                        else if def_val.node_type.is(NodeType.FCall) {
-                            set_ftype_from_call_callee(def_val, ftype)
-                        } else if def_val.node_type.is(NodeType.FieldAccess) {
-                            if def_val.children.len() > 0 {
-                                ref type_node : Expr = def_val.children[0]
-                                switch type_node.node_type {
-                                case NodeType.Ident(ft):
-                                    ftype = Str.clone(ft.ident_name())
-                                case:
+                        else {
+                            def_tname_o := expr_type_name_ref(def_val)
+                            if def_tname_o.is_some() {
+                                ref def_tname : Str = def_tname_o.unwrap()
+                                ftype = def_tname.clone()
+                            } else if def_val.node_type.is(NodeType.FCall) {
+                                set_ftype_from_call_callee(def_val, ftype)
+                            } else if def_val.node_type.is(NodeType.FieldAccess) {
+                                if def_val.children.len() > 0 {
+                                    ref type_node : Expr = def_val.children[0]
+                                    switch type_node.node_type {
+                                    case NodeType.Ident(ft):
+                                        ftype = Str.clone(ft.ident_name())
+                                    case:
+                                    }
                                 }
                             }
                         }
@@ -2335,27 +2343,37 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
         if rhs.children.len() > 0 {
             ref io1 : Expr = rhs.children[0]
             if io1.node_type.is(NodeType.Ident) {
-                if til_type_name(io1.til_type()).eq("StructDef").or(til_type_name(io1.til_type()).eq("EnumDef")) {
-                    init_ns1 = true
+                io1_tname_o := expr_type_name_ref(io1)
+                if io1_tname_o.is_some() {
+                    ref io1_tname : Str = io1_tname_o.unwrap()
+                    if io1_tname.eq("StructDef").or(io1_tname.eq("EnumDef")) {
+                        init_ns1 = true
+                    }
                 }
             }
         }
         if init_ns1.and(rhs.til_type().is(Type.Enum)) {
-            mut enum_name := ""
             if rhs.children.len() > 0 {
-                enum_name = til_type_name(rhs.children[0].til_type())
+                enum_name_o := expr_type_name_ref(rhs.children[0])
+                if enum_name_o.is_some() {
+                    ref enum_name : Str = enum_name_o.unwrap()
+                    out_type = Type.Enum(enum_name.clone())
+                    return true
+                }
             }
-            out_type = Type.Enum(enum_name.clone())
-            return true
         }
         return false
     case NodeType.FCall:
         ref callee : Expr = rhs.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn):
-            if til_type_name(rhs.til_type()).len().gt(0).and(cn.ident_name().eq(til_type_name(rhs.til_type()))) {
-                out_type = Type.Struct(til_type_name(rhs.til_type()))
-                return true
+            rhs_tname_o := expr_type_name_ref(rhs)
+            if rhs_tname_o.is_some() {
+                ref rhs_tname : Str = rhs_tname_o.unwrap()
+                if cn.ident_name().eq(rhs_tname) {
+                    out_type = Type.Struct(rhs_tname.clone())
+                    return true
+                }
             }
             fb_o := scope.get_binding(cn.ident_name())
             if fb_o.is_none() { return false }
@@ -2367,14 +2385,22 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
             if callee.children.len() > 0 {
                 ref io2 : Expr = callee.children[0]
                 if io2.node_type.is(NodeType.Ident) {
-                    if til_type_name(io2.til_type()).eq("StructDef").or(til_type_name(io2.til_type()).eq("EnumDef")) {
-                        init_ns2 = true
+                    io2_tname_o := expr_type_name_ref(io2)
+                    if io2_tname_o.is_some() {
+                        ref io2_tname : Str = io2_tname_o.unwrap()
+                        if io2_tname.eq("StructDef").or(io2_tname.eq("EnumDef")) {
+                            init_ns2 = true
+                        }
                     }
                 }
             }
-            if init_ns2.and(til_type_name(rhs.til_type()).len().gt(0)).and(rhs.til_type().is(Type.Enum)) {
-                out_type = Type.Enum(til_type_name(rhs.til_type()))
-                return true
+            if init_ns2.and(rhs.til_type().is(Type.Enum)) {
+                rhs_tname_o := expr_type_name_ref(rhs)
+                if rhs_tname_o.is_some() {
+                    ref rhs_tname : Str = rhs_tname_o.unwrap()
+                    out_type = Type.Enum(rhs_tname.clone())
+                    return true
+                }
             }
             return false
         case:
@@ -5172,7 +5198,12 @@ clone_call_type_name := func(e: Expr) returns Str {
     case NodeType.Ident(n): return Str.clone(n.ident_name())
     case:
     }
-    return til_type_name(e.children[1].til_type())
+    tname_o := expr_type_name_ref(e.children[1])
+    if tname_o.is_some() {
+        ref tname : Str = tname_o.unwrap()
+        return tname.clone()
+    }
+    return ""
 }
 
 // AST-only half of is_pod_enum_clone_call / is_pod_enum_clone_wrap.

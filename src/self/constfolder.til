@@ -796,11 +796,14 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // skip it for non-macro folds. Macros (require_known) may run compile-time
     // effects and must still evaluate.
     if require_known.not() {
-        ret_tname := til_type_name(fcall.til_type())
-        is_container := ret_tname.starts_with("Vec__")
-        .or(ret_tname.starts_with("Array__"))
-        .or(ret_tname.starts_with("Map__"))
-        if is_container { return Option(Expr).None }
+        ret_tname_o := expr_type_name_ref(fcall)
+        if ret_tname_o.is_some() {
+            ref ret_tname : Str = ret_tname_o.unwrap()
+            is_container := ret_tname.starts_with("Vec__")
+            .or(ret_tname.starts_with("Array__"))
+            .or(ret_tname.starts_with("Map__"))
+            if is_container { return Option(Expr).None }
+        }
     }
 
     // Build a call with literal args for the interpreter

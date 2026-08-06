@@ -8,12 +8,15 @@ priv scav_fa_is_ns := func(e: Expr) returns Bool {
     ref obj : Expr = e.children[0]
     switch obj.node_type {
     case NodeType.Ident(id):
-        obj_type_name := til_type_name(obj.til_type())
-        if obj_type_name.eq("StructDef").or(obj_type_name.eq("EnumDef")) {
-            return true
+        obj_type_name_o := expr_type_name_ref(obj)
+        if obj_type_name_o.is_some() {
+            ref obj_type_name : Str = obj_type_name_o.unwrap()
+            if obj_type_name.eq("StructDef").or(obj_type_name.eq("EnumDef")) {
+                return true
+            }
+            // Also check: if ident name matches struct_name, it's a type reference
+            if obj_type_name.eq(id.ident_name()) { return true }
         }
-        // Also check: if ident name matches struct_name, it's a type reference
-        if obj_type_name.len().gt(0).and(obj_type_name.eq(id.ident_name())) { return true }
         // #326: a SCALAR type name as receiver -- `U32.size()` /
         // `I64.delete(...)`, which is what a monomorphized generic body
         // leaves behind once `T.size()` has T substituted to a primitive.
@@ -61,11 +64,15 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case NodeType.FCall(cr_fcd):
         if cr_fcd.swap_replace.and(e.children.len().gte(2)) {
-            if til_type_name(e.children[1].til_type()).eq("Str") {
-                for cr_swi in 1..e.children.len() {
-                    collect_refs(e.children[cr_swi], refs)
+            swap_tname_o := expr_type_name_ref(e.children[1])
+            if swap_tname_o.is_some() {
+                ref swap_tname : Str = swap_tname_o.unwrap()
+                if swap_tname.eq("Str") {
+                    for cr_swi in 1..e.children.len() {
+                        collect_refs(e.children[cr_swi], refs)
+                    }
+                    return
                 }
-                return
             }
         }
     case:
@@ -81,16 +88,18 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
     switch e.node_type {
     case NodeType.Assign(dr_ad):
         if dr_ad.save_old_delete.and(e.children.len().gt(0)) {
-            dr_tn := til_type_name(e.children[0].til_type())
-            if dr_tn.len() > 0 {
+            dr_tn_o := expr_type_name_ref(e.children[0])
+            if dr_tn_o.is_some() {
+                ref dr_tn : Str = dr_tn_o.unwrap()
                 vec_push_str(refs, dr_tn)
                 push_qn(refs, dr_tn, "delete")
             }
         }
     case NodeType.FieldAssign(dr_fad):
         if dr_fad.save_old_delete.and(e.children.len().gt(1)) {
-            dr_tn2 := til_type_name(e.children[1].til_type())
-            if dr_tn2.len() > 0 {
+            dr_tn2_o := expr_type_name_ref(e.children[1])
+            if dr_tn2_o.is_some() {
+                ref dr_tn2 : Str = dr_tn2_o.unwrap()
                 vec_push_str(refs, dr_tn2)
                 push_qn(refs, dr_tn2, "delete")
             }
@@ -885,5 +894,3 @@ dce_program_bodies := proc(mut program: Expr) {
         }
     }
 }
-
-

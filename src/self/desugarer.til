@@ -4567,7 +4567,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     // be force-expanded against the temp.
     if is_macro_call(expr, ctx) { return }
 
-    expr_sname := til_type_name(expr.til_type())
+    expr_sname_o := expr_type_name_ref(expr)
     mut is_dyn_call := false
     mut is_array_vec := false
     mut is_ctor_call := false
@@ -4577,8 +4577,9 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         ref callee : Expr = expr.children[0]
         switch callee.node_type {
         case NodeType.Ident(cn):
-            if expr_sname.len().gt(0).and(cn.ident_name().eq(expr_sname)) {
-                is_ctor_call = true
+            if expr_sname_o.is_some() {
+                ref expr_sname : Str = expr_sname_o.unwrap()
+                if cn.ident_name().eq(expr_sname) { is_ctor_call = true }
             }
             ref cn_str : Str = cn.ident_name()
             switch cn_str {
@@ -4596,7 +4597,11 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         case:
         }
     }
-    hoist_sdef_o := scope.get_struct(expr_sname)
+    mut hoist_sdef_o := Option(ref Expr).None
+    if expr_sname_o.is_some() {
+        ref expr_sname : Str = expr_sname_o.unwrap()
+        hoist_sdef_o = scope.get_struct(expr_sname)
+    }
 
     mut fi : USize = 0
     for i in 1..expr.children.len() {

@@ -1628,8 +1628,9 @@ priv enum_ref_payload_borrow_src := func(e: Expr, scope: TypeScope) returns Str 
     case NodeType.Ident, NodeType.FieldAccess:
     case: return ""
     }
-    ename := til_type_name(e.til_type())
-    if ename.len() == 0 { return "" }
+    ename_o := expr_type_name_ref(e)
+    if ename_o.is_none() { return "" }
+    ref ename : Str = ename_o.unwrap()
     mut vname := ""
     switch e.children[0].node_type {
     case NodeType.Ident(ci):
@@ -2912,8 +2913,9 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
         // call nor its args survive to codegen. Ordinary calls consume
         // exactly their own-arg slots.
         mut is_ctor := false
-        ctor_name := til_type_name(e.til_type())
-        if ctor_name.len().gt(0).and(e.children.len().gt(0)) {
+        ctor_name_o := expr_type_name_ref(e)
+        if ctor_name_o.is_some().and(e.children.len().gt(0)) {
+            ref ctor_name : Str = ctor_name_o.unwrap()
             switch e.children[0].node_type {
             case NodeType.Ident(tc_cn):
                 if tc_cn.ident_name() == ctor_name { is_ctor = true }
