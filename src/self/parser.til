@@ -1599,9 +1599,14 @@ priv make_binop_call := func(lhs: Expr, method: Str, op_line: U32, op_col: U32, 
 // warning in desugarer.til). Public since #334: the typer's multi-pattern
 // or() fold needs the same move.
 take_expr := func(mut e: Expr) returns Expr {
-    taken := e
-    e.node_type = NodeType.Body
-    e.children = Vec(Expr).new()
+    // Swapped out, not copied: `taken := e` binds an owned local to a
+    // borrowed value, which deep-CLONES the whole subtree -- and the
+    // two lines that used to follow immediately blanked the original,
+    // so every node of that copy was thrown away. The swap leaves `e`
+    // holding the same empty Body it was left holding before, with its
+    // own line and col.
+    mut taken := Expr.new(NodeType.Body, e.line, e.col)
+    swap(Expr, e, taken)
     return taken
 }
 

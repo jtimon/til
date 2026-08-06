@@ -2098,6 +2098,7 @@ void Vec__Bool_push(Vec__Bool * self, Bool * val);
 Bool * Vec__Bool_unsafe_get(Vec__Bool * self, USize * i);
 Bool * Vec__Bool_get(Vec__Bool * self, USize * i, I64 * _err_kind);
 void Vec__Bool_delete(Vec__Bool * self, Bool call_free);
+void swap__Expr(Expr * a, Expr * b);
 void adopt__Bool(void * dest, Bool * src);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);

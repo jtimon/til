@@ -2920,22 +2920,28 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                         ref nsv_fdef : Expr = callable_raw_func_def(nsv)
                         if nsv_fdef.ptr_eq(func_def) {
                             fp_flat := qn.replace(".", "_")
-                            orig_callee := callee_expr.clone()
                             orig_result_type := e.til_type().clone()
                             mut concrete_result_type := Type.None
                             mut concrete_return_own_type := OwnType.Shallow
                             ref concrete_fd : FunctionDef = funcdef_of(nsv_fdef)
                             concrete_return_own_type = concrete_fd.return_own_type
                             if concrete_fd.return_type.len() > 0 { concrete_result_type = type_from_name_init(concrete_fd.return_type, ctx.scope) }
-                            mut flat_ident := callee_expr.clone()
-                            flat_ident.node_type = ident_node(fp_flat)
-                            e.children[0] = flat_ident
+                            // Swapped in, not cloned: the dispatch only
+                            // needs the callee slot to hold a flat Ident
+                            // for the duration of the call, and the old
+                            // callee has to come back afterwards. Cloning
+                            // it (twice: the replacement AND the backup)
+                            // deep-copied a whole callee subtree per
+                            // dispatch.
+                            mut flat_ident := Expr.new(ident_node(fp_flat), callee_expr.line, callee_expr.col)
+                            flat_ident.set_til_type(callee_expr.til_type())
+                            swap(Expr, e.children[0], flat_ident)
                             e.set_til_type(concrete_result_type)
                             mut concrete_destination : Dynamic = 0
                             if til_type_name_c(concrete_result_type) == til_type_name_c(orig_result_type) { concrete_destination = destination }
                             mut result : Dynamic = eval_call(scope, e, ctx, concrete_destination)
                             e.set_til_type(orig_result_type)
-                            e.children[0] = orig_callee
+                            swap(Expr, e.children[0], flat_ident)
                             callable_raw_free(fn_raw, ctx)
                             if concrete_return_own_type.is(OwnType.Ref).not() {
                                 result = raw_coerce_value(result, concrete_result_type, orig_result_type, ctx, concrete_return_own_type)
@@ -3002,17 +3008,16 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                 }
                 // If the receiver type is unknown (eg Dynamic), fall back to
                 // the unqualified top-level name. Required for and/or/not.
-                orig_callee_val := callee_expr.clone()
                 orig_direct_result_type := e.til_type().clone()
-                mut flat_ident2 := callee_expr.clone()
-                flat_ident2.node_type = ident_node(flat_str)
-                e.children[0] = flat_ident2
+                mut flat_ident2 := Expr.new(ident_node(flat_str), callee_expr.line, callee_expr.col)
+                flat_ident2.set_til_type(callee_expr.til_type())
+                swap(Expr, e.children[0], flat_ident2)
                 e.set_til_type(direct_result_type)
                 mut direct_destination : Dynamic = 0
                 if til_type_name_c(direct_result_type) == til_type_name_c(orig_direct_result_type) { direct_destination = destination }
                 mut result : Dynamic = eval_call(scope, e, ctx, direct_destination)
                 e.set_til_type(orig_direct_result_type)
-                e.children[0] = orig_callee_val
+                swap(Expr, e.children[0], flat_ident2)
                 callable_raw_free(fn_raw, ctx)
                 if direct_return_own_type.is(OwnType.Ref).not() {
                     result = raw_coerce_value(result, direct_result_type, orig_direct_result_type, ctx, direct_return_own_type)
