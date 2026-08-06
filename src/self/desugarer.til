@@ -2706,37 +2706,60 @@ priv lookup_variant_payload_type := func(scope: TypeScope, enum_name: Str, varia
 // throws lookup falls back to suffix-matching ".get", picking the
 // wrong throw type (Array.get's OutOfBounds instead of Map.get's
 // KeyNotFound).
-collect_switch_case_bindings := proc(mut ctx: Context, e: Expr) {
-    if e.node_type.is(NodeType.Case).and(e.children.len().gte(1)) {
-        ref pat : Expr = e.children[0]
-        // Pattern shape: FCall(<EnumName>.<Variant>, <binding_ident>)
-        if pat.node_type.is(NodeType.FCall).and(pat.children.len().eq(2)) {
-            ref callee : Expr = pat.children[0]
-            ref bind : Expr = pat.children[1]
-            if callee.node_type.is(NodeType.FieldAccess).and(callee.children.len().gt(0))
-              .and(bind.node_type.is(NodeType.Ident)) {
-                ref enum_recv : Expr = callee.children[0]
-                switch enum_recv.node_type {
-                case NodeType.Ident(en_id):
-                    switch callee.node_type {
-                    case NodeType.FieldAccess(fa):
-                        switch bind.node_type {
-                        case NodeType.Ident(b_id):
-                            payload_type := lookup_variant_payload_type(ctx.scope, en_id.ident_name(), fa.field_access_name())
-                            if payload_type.len() > 0 {
-                                ctx.lowering_param_types.set(b_id.ident_name(), own payload_type)
-                            }
-                        case:
-                        }
-                    case:
-                    }
-                case:
+// One case's payload binding. `subject_enum` is the enclosing switch's
+// enum name, used when the pattern elides it (#341's `case .V(x):`): such
+// a pattern carries an EMPTY receiver until the typer fills it in, which
+// happens later than this pass runs. Without it the binding goes unseeded
+// and the throws lookup falls back to suffix-matching the method name,
+// picking Array.get's OutOfBounds over Map.get's KeyNotFound -- the exact
+// failure this seeding exists to prevent, just reached by a new route.
+priv collect_one_case_binding := func(mut ctx: Context, e: Expr, subject_enum: Str) {
+    if e.node_type.is(NodeType.Case).not() { return }
+    if e.children.len() < 1 { return }
+    ref pat : Expr = e.children[0]
+    // Pattern shape: FCall(<EnumName>.<Variant>, <binding_ident>)
+    if pat.node_type.is(NodeType.FCall).and(pat.children.len().eq(2)).not() { return }
+    ref callee : Expr = pat.children[0]
+    ref bind : Expr = pat.children[1]
+    if callee.node_type.is(NodeType.FieldAccess).and(callee.children.len().gt(0))
+      .and(bind.node_type.is(NodeType.Ident)).not() { return }
+    ref enum_recv : Expr = callee.children[0]
+    switch enum_recv.node_type {
+    case NodeType.Ident(en_id):
+        mut ename := Str.clone(en_id.ident_name())
+        if ename.len() == 0 { ename = subject_enum.clone() }
+        if ename.len() == 0 { return }
+        switch callee.node_type {
+        case NodeType.FieldAccess(fa):
+            switch bind.node_type {
+            case NodeType.Ident(b_id):
+                payload_type := lookup_variant_payload_type(ctx.scope, ename, fa.field_access_name())
+                if payload_type.len() > 0 {
+                    ctx.lowering_param_types.set(b_id.ident_name(), own payload_type)
                 }
+            case:
+            }
+        case:
+        }
+    case:
+    }
+}
+
+collect_switch_case_bindings := proc(mut ctx: Context, e: Expr, body: Expr) {
+    // Seed from the SUBJECT's type, so a pattern that names no enum still
+    // resolves. resolve_value_type is the same best-effort receiver
+    // resolution the throws lookup itself uses, so a dotted pattern is
+    // seeded exactly when a qualified one would have resolved anyway.
+    if e.node_type.is(NodeType.Switch).or(e.node_type.is(NodeType.Match)) {
+        if e.children.len() > 0 {
+            subject_enum := resolve_value_type(ctx, e.children[0], body)
+            for ci in 1..e.children.len() {
+                collect_one_case_binding(ctx, e.children[ci], subject_enum)
             }
         }
     }
     for c : Expr in e.children {
-        collect_switch_case_bindings(ctx, c)
+        collect_switch_case_bindings(ctx, c, body)
     }
 }
 

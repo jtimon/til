@@ -1365,3 +1365,34 @@ test_dot_field_default_and_ctor_arg := test() {
     h := DotWideHolder(kind = .Circle(9), n = 1)
     assert_eq(Str, h.to_str(), "DotWideHolder(kind=Circle(9), n=1)")
 }
+
+// --- #341 follow-up: a dotted pattern's payload binding, pre-inference ---
+//
+// The throw/catch lowering runs BEFORE inference and resolves a case
+// payload binding's type by reading the enum name out of the pattern. A
+// dotted pattern has no name there yet -- the typer fills it in later --
+// so the binding went unseeded and the throws lookup fell back to
+// suffix-matching the method name, reporting Array.get's OutOfBounds for
+// a Map.get and rejecting the matching `catch (e: KeyNotFound)`.
+// collect_switch_case_bindings seeds from the SUBJECT's type now, so a
+// dotted pattern resolves exactly where a qualified one did.
+
+DotThrowHolder := struct { dth_idx := Map(Str, USize).new() }
+DotThrowNode := enum { Held: DotThrowHolder, Empty }
+
+dot_throw_probe := func(n: DotThrowNode, k: Str) returns USize {
+    switch n {
+    case .Held(h):
+        ref p : USize = h.dth_idx.get(k)? catch (e: KeyNotFound) { return 0 }
+        return p.add(0)
+    case:
+    }
+    return 0
+}
+
+test_dot_pattern_binding_resolves_throws := test() {
+    mut h := DotThrowHolder()
+    h.dth_idx.set("a", own 7)
+    assert_eq(USize, dot_throw_probe(DotThrowNode.Held(own h), "a"), 7)
+    assert_eq(USize, dot_throw_probe(DotThrowNode.Empty, "a"), 0)
+}

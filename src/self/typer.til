@@ -4455,7 +4455,7 @@ priv infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr, mut ctx: Cont
             // exist yet at this stage (they are emitted inside infer_body
             // by make_switch_case_condition), so the throw/catch walk
             // can't see their explicit_type via the body-Decl scan.
-            collect_switch_case_bindings(ctx, expr.children[0])
+            collect_switch_case_bindings(ctx, expr.children[0], expr.children[0])
             process_throw_catch_in_func_body(ctx, expr.children[0], fdef.throw_types, fdef.return_type, fdef.return_own_type)
         }
         if macro_is_template.not() {
@@ -6754,7 +6754,7 @@ priv type_check_unit := proc(path: Str, program: Expr, scope: TypeScope, ctx: Co
     if toplevel_needs_throw_lowering(program) {
         unit_no_throws := Vec(Str).new()
         ctx.lowering_param_types = Map(Str, Str).new()
-        collect_switch_case_bindings(ctx, program)
+        collect_switch_case_bindings(ctx, program, program)
         process_throw_catch_in_func_body(ctx, program, unit_no_throws, "", OwnType.Shallow)
     }
     // For per-file units, we do not switch modes per statement.

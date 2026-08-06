@@ -2905,7 +2905,8 @@ void process_throw_catch_in_func_body(Context * ctx, Expr * body, Vec__Str * fde
 Bool stmt_contains_match(Expr * e);
 void splice_stmts_before(Expr * body, USize idx, Vec__Expr * pre);
 Str * priv___src_self_desugarer_til__lookup_variant_payload_type(TypeScope * scope, Str * enum_name, Str * variant_name);
-void collect_switch_case_bindings(Context * ctx, Expr * e);
+void priv___src_self_desugarer_til__collect_one_case_binding(Context * ctx, Expr * e, Str * subject_enum);
+void collect_switch_case_bindings(Context * ctx, Expr * e, Expr * body);
 Expr * priv___src_self_desugarer_til__fold_and_chain(Vec__Expr * conds, U32 line, U32 col);
 Expr * priv___src_self_desugarer_til__make_nested_subject(Expr * subj, Type payload_t, Bool in_slot, U32 line, U32 col);
 Expr * make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr * match_expr, Expr * sw_ref, U32 sw_line, U32 sw_col);
