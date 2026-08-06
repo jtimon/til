@@ -509,15 +509,9 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
     populate_cached_aggregate_defs(lp.ctx, delta)
 
     global := scope_new(Option(ref Scope).None)
-    if lp.skip_core.not() {
-        for u2 : ProgramUnit in lp.core_units {
-            ref iu2 : ImportUnit = lp.ctx.imported[u2.path]
-            constfolder_register_fold_scope(global, iu2.ast, lp.ctx)
-        }
-    }
-    for u3 : ProgramUnit in lp.units {
-        ref iu3 : ImportUnit = lp.ctx.imported[u3.path]
-        constfolder_register_fold_scope(global, iu3.ast, lp.ctx)
+    for upath : Str in lp.unit_paths() {
+        ref iu2 : ImportUnit = lp.ctx.imported[upath]
+        constfolder_register_fold_scope(global, iu2.ast, lp.ctx)
     }
     constfolder_register_fold_scope(global, delta, lp.ctx)
 
@@ -531,17 +525,10 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, delta: Expr) {
         interpreter_init_ns(lp.ctx, global, delta)
 
         ffi_reset(lp.ctx)
-        if lp.skip_core.not() {
-            for u6 : ProgramUnit in lp.core_units {
-                ref iu6 : ImportUnit = lp.ctx.imported[u6.path]
-                ffi_init_struct_defs_append(iu6.ast, lp.ctx)
-                ffi_init_scan_program(iu6.ast, lp.ctx)
-            }
-        }
-        for u7 : ProgramUnit in lp.units {
-            ref iu7 : ImportUnit = lp.ctx.imported[u7.path]
-            ffi_init_struct_defs_append(iu7.ast, lp.ctx)
-            ffi_init_scan_program(iu7.ast, lp.ctx)
+        for upath : Str in lp.unit_paths() {
+            ref iu6 : ImportUnit = lp.ctx.imported[upath]
+            ffi_init_struct_defs_append(iu6.ast, lp.ctx)
+            ffi_init_scan_program(iu6.ast, lp.ctx)
         }
         ffi_init_struct_defs_append(delta, lp.ctx)
         ffi_init_scan_program(delta, lp.ctx)

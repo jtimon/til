@@ -5403,30 +5403,15 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     // allocated 8-byte temp, copies the pointer bytes, then frees the temp.
     mut items := Vec(Dynamic).new()
     // Collect pointers to all struct/enum decl statements in stable order.
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                    ref decl_value : Expr = stmt.children[0]
-                    if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
-                        tmp : UPtr = malloc(UPtr.size())
-                        write_ptr(tmp, stmt)
-                        items.push(own tmp)
-                    }
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-                ref decl_value2 : Expr = stmt.children[0]
-                if decl_value2.node_type.is(NodeType.StructDef).or(decl_value2.node_type.is(NodeType.EnumDef)) {
-                    tmp2 : UPtr = malloc(UPtr.size())
-                    write_ptr(tmp2, stmt)
-                    items.push(own tmp2)
+                ref decl_value : Expr = stmt.children[0]
+                if decl_value.node_type.is(NodeType.StructDef).or(decl_value.node_type.is(NodeType.EnumDef)) {
+                    tmp : UPtr = malloc(UPtr.size())
+                    write_ptr(tmp, stmt)
+                    items.push(own tmp)
                 }
             }
         }
@@ -7536,30 +7521,12 @@ priv emit_dyn_storage_kind_body := proc(f: File, lp: LoadedProgram) {
     emit_dyn_name_return_branch(f, "Bool", "0")
     emit_dyn_name_return_branch(f, "Fn", "2")
     emit_dyn_name_return_branch(f, "Body", "2")
-    if lp.skip_core.not() {
-        for ufs : ProgramUnit in lp.core_units {
-            ref iufs : ImportUnit = lp.ctx.imported[ufs.path]
-            emit_dyn_funcsig_storage_branches_prog(f, iufs.ast, lp.ctx)
-        }
+    for upath : Str in lp.unit_paths() {
+        ref iufs : ImportUnit = lp.ctx.imported[upath]
+        emit_dyn_funcsig_storage_branches_prog(f, iufs.ast, lp.ctx)
     }
-    for ufs2 : ProgramUnit in lp.units {
-        ref iufs2 : ImportUnit = lp.ctx.imported[ufs2.path]
-        emit_dyn_funcsig_storage_branches_prog(f, iufs2.ast, lp.ctx)
-    }
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if is_struct_or_enum(stmt).not() { continue }
-                switch stmt.node_type {
-                case .Decl(dd): emit_dyn_name_return_branch(f, dd.name, "1")
-                case: UNREACHABLE()
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
             if is_struct_or_enum(stmt).not() { continue }
             switch stmt.node_type {
