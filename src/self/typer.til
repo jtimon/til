@@ -91,10 +91,11 @@ make_til_type_expr := func(src: Expr, t: Type) returns Expr {
         mut call := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
         call.add_child(own type_prim_fa)
         call.add_child(own prim_fa)
-        // The Type.Primitive(p) constructor takes ownership of its payload
-        // (it frees the boxed Primitive), so the payload arg (child 1) must
-        // be emitted as an owned heap box, not a stack compound literal.
-        set_own_arg(call, 1)
+        // No own marking: Primitive is a payload-less enum, so the
+        // ctor COPIES the value out of the caller's storage and frees
+        // nothing. Marking it own made this emit a heap box the ctor
+        // read once and dropped -- and now that the ctor keeps its
+        // hands off, an own arg here would leak the box.
         call.set_til_type(Type.Enum("Type"))
         return call
     }

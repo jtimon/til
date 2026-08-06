@@ -940,6 +940,11 @@ priv enum_ctor_payload_is_own := func(callee_name: Str, fcall: Expr, ctx: Contex
             vt := enum_variant_type(def, i.to_i32())
             if vt.len() == 0 { return false }
             if is_primitive_type(vt) { return false }
+            // A payload-less enum payload is a VALUE, like a primitive:
+            // no heap inside it, nothing to transfer. Treated as own it
+            // made every construction box the value for a ctor that
+            // copies it straight back out.
+            if is_pod_enum(vt, ctx) { return false }
             if is_funcsig_type(vt, ctx).or(vt.eq("Dynamic")) { return false }
             // #320: a ref payload is borrowed, never an ownership transfer.
             if enum_variant_payload_ref(def, i.to_i32()) { return false }
@@ -5237,7 +5242,10 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, lp: L
                 // #320: borrow -- store the caller's pointer, no move,
                 // no free; the enum does not own the pointee.
                 f.write("    r->data.").write(vn).write(" = val;\n")
-            } else if is_primitive_type(vt) {
+            } else if is_primitive_type(vt).or(is_pod_enum(vt, lp.ctx)) {
+                // Value payloads (primitives and payload-less enums):
+                // copied out of the caller's storage, never owned, so
+                // no free -- the caller passes `&value`, not a box.
                 f.write("    r->data.").write(vn).write(" = *val;\n")
             } else if is_funcsig_type(vt, lp.ctx).or(vt.eq("Dynamic")) {
                 f.write("    r->data.").write(vn).write(" = val;\n")

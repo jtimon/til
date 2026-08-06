@@ -2435,6 +2435,7 @@ void priv___src_self_initer_til__generate_enum_to_str_method(Expr * enum_def, St
 Bool priv___src_self_initer_til__init_ns_has_func(Expr * def, Str * method);
 Bool priv___src_self_initer_til__init_type_supports_generated_method(Str * type_name, Str * method, TypeScope * scope);
 Bool priv___src_self_initer_til__enum_payloads_support_generated_method(Vec__Str * variant_types, Str * method, TypeScope * scope);
+Bool priv___src_self_initer_til__init_payload_is_pod_enum(Str * vtype, TypeScope * scope);
 void priv___src_self_initer_til__generate_enum_clone_method(Expr * enum_def, Str * ename, U32 line, U32 col, Vec__Str * variant_names, Vec__Str * variant_types, Bool has_payloads, TypeScope * scope);
 I32 priv___src_self_initer_til__register_enum_def_for_stmt(Context * ctx, Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__gen_enum_nonclone_methods_for_stmt(Expr * stmt, TypeScope * scope);

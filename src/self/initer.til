@@ -634,6 +634,7 @@ priv generate_enum_variant_constructors := func(enum_def: Expr, ename: Str, line
             if vtype == "Dynamic" { payload_own_type = OwnType.Ref }
             if resolved.is_funcptr().or(resolved.is(Type.Body)) { payload_own_type = OwnType.Ref }
             if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
+            if init_payload_is_pod_enum(vtype, scope) { payload_own_type = OwnType.Ref }
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
@@ -1141,6 +1142,14 @@ priv enum_payloads_support_generated_method := func(variant_types: Vec(Str), met
     return true
 }
 
+priv init_payload_is_pod_enum := func(vtype: Str, scope: TypeScope) returns Bool {
+    pod_o := scope.get_struct(vtype)
+    if pod_o.is_none() { return false }
+    ref pod_def : Expr = pod_o.unwrap()
+    if pod_def.node_type.is(NodeType.EnumDef).not() { return false }
+    return enum_has_payloads(pod_def).not()
+}
+
 priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope) {
     mut func_body := Expr.new(NodeType.Body, line, col)
     // Tag-only enums (no variant carries a payload) need an if-guard
@@ -1192,6 +1201,7 @@ priv generate_enum_clone_method := func(enum_def: Expr, ename: Str, line: U32, c
                                        resolved_pc.is_funcptr().not(),
                                        resolved_pc.is(Type.Body).not(),
                                        vtype.starts_with("_Fn_").not(),
+                                       init_payload_is_pod_enum(vtype, scope).not(),
                                        payload_is_borrowed.not())
             if payload_needs_clone {
                 mut clone_call := make_method_call_fcall(own p_id, "clone", line, col)
