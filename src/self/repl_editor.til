@@ -759,20 +759,20 @@ repl_editor_read_line := proc(mut ed: ReplEditor, prompt: Str, mut eof: Bool) re
         }
         action := repl_editor_apply_key(ed, key)
         switch action {
-        case EditAction.Submit:
+        case .Submit:
             accepted = ed.line.clone()
             done = true
-        case EditAction.Eof:
+        case .Eof:
             at_eof = true
             done = true
-        case EditAction.Bell:
+        case .Bell:
             term_write(byte_str(7))
             editor_render(ed)
-        case EditAction.ClearScreen:
+        case .ClearScreen:
             term_write(csi("H"))
             term_write(csi("2J"))
             editor_render(ed)
-        case EditAction.Continue:
+        case .Continue:
             editor_render(ed)
         }
     }

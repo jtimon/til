@@ -46,10 +46,10 @@ dyn_type_to_str := ext_func(type: Type) returns Str {}
 // assemblers below take the name this returns.
 til_type_name := func(t: Type) returns Str {
     switch t {
-    case Type.Struct(s):     return s.clone()
-    case Type.Enum(s):       return s.clone()
-    case Type.Custom(s):     return s.clone()
-    case Type.FuncPtrSig(s): return s.clone()
+    case .Struct(s):     return s.clone()
+    case .Enum(s):       return s.clone()
+    case .Custom(s):     return s.clone()
+    case .FuncPtrSig(s): return s.clone()
     case: return ""
     }
 }

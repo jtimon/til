@@ -27,8 +27,8 @@ constfolder_reset_state := func(mut ctx: Context) {
 // invariant, not a state to absorb.
 priv known_scope := func(ctx: Context) returns ref Scope {
     switch ctx.constfolder_known {
-    case Option(Scope).Some(ks): return ks
-    case Option(Scope).None: panic(__LOC__, "constfolder_known read outside reset/clear")
+    case .Some(ks): return ks
+    case .None: panic(__LOC__, "constfolder_known read outside reset/clear")
     }
 }
 
@@ -55,7 +55,7 @@ priv known_bind_own_type := func(shallow t: Type, ctx: Context) returns OwnType 
 // optimisation (the scope-read fold), never macro folding via constfolder_known.
 priv collect_assign_targets := proc(e: Expr, mut names: Set(Str)) {
     switch e.node_type {
-    case NodeType.Assign(ad):
+    case .Assign(ad):
         names.add(own ad.name.clone())
     case:
     }
@@ -218,34 +218,34 @@ priv str_to_source_form := func(s: Str) returns Str {
 
 priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context) returns Option(Expr) {
     switch t {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         // Primitive values arrive as inline words (nested field/payload
         // callers load them from storage before recursing here).
         switch prim {
-        case Primitive.Bool:
+        case .Bool:
             return Option(Expr).Some(Expr.new(NodeType.Literal(Literal.Bool(word_bits(raw) != 0)), src.line, src.col))
-        case Primitive.F32:
+        case .F32:
             n := word_f32(word_bits(raw))
             mut e := Expr.new(literal_num_node(n.to_repr()), src.line, src.col)
             e.set_til_type(t)
             return Option(Expr).Some(own e)
-        case Primitive.F64:
+        case .F64:
             // Bake the folded double as a round-trippable literal. The bits
             // travel as a U64 word (this source predates F64 in its own
             // bootstrap); ext.c renders them at 17 significant digits.
             mut fe := Expr.new(literal_num_node(f64_bits_to_repr(word_bits(raw))), src.line, src.col)
             fe.set_til_type(t)
             return Option(Expr).Some(own fe)
-        case Primitive.U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
-        case Primitive.I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U8:  n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U16: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U32: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .U64: n := word_bits(raw); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I8:  n := word_bits(raw).cast(I64).to_u8().cast(I8).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I16: n := word_bits(raw).cast(I64).to_u16().cast(I16).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
+        case .I32: n := word_bits(raw).cast(I64).to_u32().cast(I32).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         case: n := word_bits(raw).cast(I64); mut e := Expr.new(literal_num_node(n.to_str()), src.line, src.col); e.set_til_type(t); return Option(Expr).Some(own e)
         }
-    case Type.Enum(ename):
+    case .Enum(ename):
         edef_o := lookup_interp_type_def(ename, ctx)
         if edef_o.is_none() { return Option(Expr).None }
         ref edef : Expr = edef_o.unwrap()
@@ -275,7 +275,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         }
         if tag < 0 { return Option(Expr).None }
         switch edef.node_type {
-        case NodeType.EnumDef(edd):
+        case .EnumDef(edd):
             if tag.to_usize() >= edd.variants.len() { return Option(Expr).None }
             ref cf_vd : VariantDef = edd.variants[tag.to_usize()]
             ref vname : Str = cf_vd.name
@@ -320,7 +320,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         case:
             return Option(Expr).None
         }
-    case Type.Struct(sname):
+    case .Struct(sname):
         if sname == "Str" {
             ref s : Str = to_ptr(raw)
             count := str_count_at(raw, ctx)
@@ -332,7 +332,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         }
         ref sdef : Expr = lookup_interp_type_def(sname, ctx).unwrap()
         switch sdef.node_type {
-        case NodeType.StructDef(sfd):
+        case .StructDef(sfd):
             mut ctor := Expr.new(NodeType.FCall(FCallData()), src.line, src.col)
             mut callee := Expr.new(ident_node(sname), src.line, src.col)
             callee.set_til_type(t)
@@ -357,7 +357,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
         case:
             return Option(Expr).None
         }
-    case Type.Custom(name):
+    case .Custom(name):
         return raw_to_expr(raw, type_from_name_init(name, ctx.scope), src, ctx)
     case:
         return Option(Expr).None
@@ -366,30 +366,30 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, ctx: Context)
 
 priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
     switch e.node_type {
-    case NodeType.Literal(Literal.Num(num)):
+    case .Literal(Literal.Num(num)):
         ref t : Type = e.til_type()
         result : Dynamic = dispatch_result_alloc(t, ctx)
         switch t {
-        case Type.Primitive(Primitive.I64): write_i64(result, num.to_i64())
-        case Type.Primitive(Primitive.U8):  write_u8(result, num.to_u8())
-        case Type.Primitive(Primitive.I8):  write_i8(result, num.to_i8())
-        case Type.Primitive(Primitive.I16): write_i16(result, num.to_i16())
-        case Type.Primitive(Primitive.U16): write_u16(result, num.to_u16())
-        case Type.Primitive(Primitive.I32): write_i32(result, num.to_i32())
-        case Type.Primitive(Primitive.U32): write_u32(result, num.to_u32())
-        case Type.Primitive(Primitive.U64): write_u64(result, num.to_u64())
-        case Type.Primitive(Primitive.F32): write_f32(result, num.to_f32())
-        case Type.Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(num.text))
+        case .Primitive(Primitive.I64): write_i64(result, num.to_i64())
+        case .Primitive(Primitive.U8):  write_u8(result, num.to_u8())
+        case .Primitive(Primitive.I8):  write_i8(result, num.to_i8())
+        case .Primitive(Primitive.I16): write_i16(result, num.to_i16())
+        case .Primitive(Primitive.U16): write_u16(result, num.to_u16())
+        case .Primitive(Primitive.I32): write_i32(result, num.to_i32())
+        case .Primitive(Primitive.U32): write_u32(result, num.to_u32())
+        case .Primitive(Primitive.U64): write_u64(result, num.to_u64())
+        case .Primitive(Primitive.F32): write_f32(result, num.to_f32())
+        case .Primitive(Primitive.F64): write_u64(result, str_parse_f64_bits(num.text))
         case:
             panic("numeric known value has non-numeric type ", til_type_name_c(t))
         }
         return result
-    case NodeType.Literal(Literal.Str(s)):
+    case .Literal(Literal.Str(s)):
         decoded := from_source_form(s)
         result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
         str_copy_into(result, decoded, ctx)
         return result
-    case NodeType.Literal(Literal.Bool(b)):
+    case .Literal(Literal.Bool(b)):
         result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
         write_bool(result, b)
         return result
@@ -401,11 +401,11 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
 
 priv result_type_can_fold_to_expr := func(t: Type, ctx: Context) returns Bool {
     switch t {
-    case Type.Primitive, Type.Enum:
+    case .Primitive, .Enum:
         return true
-    case Type.Struct(sname):
+    case .Struct(sname):
         return struct_result_can_fold_to_expr(sname, ctx)
-    case Type.Custom(sname):
+    case .Custom(sname):
         return struct_result_can_fold_to_expr(sname, ctx)
     case:
         return false
@@ -418,7 +418,7 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
-    case NodeType.StructDef(sfd):
+    case .StructDef(sfd):
         for fd : Declaration in sfd.fields {
             if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)) { return false }
             if result_type_can_fold_to_expr(fd.til_type, ctx).not() { return false }
@@ -431,13 +431,13 @@ priv struct_result_can_fold_to_expr := func(sname: Str, ctx: Context) returns Bo
 
 priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
     switch e.node_type {
-    case NodeType.Literal(Literal.Num):
+    case .Literal(Literal.Num):
         return expr_to_known_raw(e, ctx)
-    case NodeType.Literal(Literal.Str):
+    case .Literal(Literal.Str):
         return expr_to_known_raw(e, ctx)
-    case NodeType.Literal(Literal.Bool):
+    case .Literal(Literal.Bool):
         return expr_to_known_raw(e, ctx)
-    case NodeType.Ident(id):
+    case .Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
             // is_known gated this branch, so the binding is there.
             ref known_hb : HeapBinding = scope_lookup_heap_binding(known_scope(ctx), id.ident_name()).unwrap()
@@ -464,7 +464,7 @@ priv is_known := func(ctx: Context, e: Expr) returns Dynamic {
 // category signal -- no name list needed.
 priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
     switch fdef.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         if fd.return_type == "Dynamic" { return true }
         for p : Declaration in fd.params {
             if p.explicit_type == "Dynamic" { return true }
@@ -477,10 +477,10 @@ priv func_sig_has_dynamic := func(fdef: Expr) returns Bool {
 // Cheap is_known check that doesn't clone a raw block.
 priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Literal(Literal.Num):  return true
-    case NodeType.Literal(Literal.Str):  return true
-    case NodeType.Literal(Literal.Bool): return true
-    case NodeType.Ident(id):   return constfolder_known_has(ctx, id.ident_name())
+    case .Literal(Literal.Num):  return true
+    case .Literal(Literal.Str):  return true
+    case .Literal(Literal.Bool): return true
+    case .Ident(id):   return constfolder_known_has(ctx, id.ident_name())
     case:                      return false
     }
 }
@@ -490,9 +490,9 @@ priv is_known_check := func(ctx: Context, e: Expr) returns Bool {
 // can skip flagging them as unknown globals.
 priv body_has_local := proc(body: Expr, name: Str) returns Bool {
     switch body.node_type {
-    case NodeType.Decl(dd):
+    case .Decl(dd):
         if dd.name == name { return true }
-    case NodeType.ForIn(fd):
+    case .ForIn(fd):
         // for-in loop variables live in the ForIn payload, not as a Decl
         // child. The interpreter binds them when it walks the loop, so
         // they are body-locals just like a Decl name -- don't flag them
@@ -500,7 +500,7 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
         // binds name2 as well.
         if fd.name == name { return true }
         if fd.name2 == name { return true }
-    case NodeType.FuncDef:
+    case .FuncDef:
         return false
     case:
     }
@@ -518,9 +518,9 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
 // scope can't see.
 priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scope: Scope, body_root: Expr, lenient: Bool, mut visiting: Set(Str), ctx: Context) returns Bool {
     switch e.node_type {
-    case NodeType.FuncDef:
+    case .FuncDef:
         return false
-    case NodeType.Ident(name):
+    case .Ident(name):
         // No side-effect name list: a foldable `func` cannot call a
         // proc/ext_proc (the type checker enforces purity), so an
         // external effect can never reach here. A diverging abort
@@ -529,7 +529,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         // eval_aborted instead of terminating), so it is not a
         // static blocker either.
         switch func_def.node_type {
-        case NodeType.FuncDef(fd):
+        case .FuncDef(fd):
             for p : Declaration in fd.params {
                 if p.name == name.ident_name() { return false }
             }
@@ -555,7 +555,7 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
                 if visiting.has(name.ident_name()).not() {
                     visiting.add(own Str.clone(name.ident_name()))
                     switch fdef.node_type {
-                    case NodeType.FuncDef:
+                    case .FuncDef:
                         if fdef.children.len() > 0 {
                             ref called_body : Expr = fdef.children[0]
                             if func_uses_unknown_globals(called_body, fdef, constfolder_scope, called_body, lenient, visiting, ctx) {
@@ -569,16 +569,16 @@ priv func_uses_unknown_globals := proc(e: Expr, func_def: Expr, constfolder_scop
         }
         if lenient.and(body_has_local(body_root, name.ident_name())) { return false }
         return true
-    case NodeType.Assign(ad):
+    case .Assign(ad):
         // Assign carries the LHS name as the node payload, not as an Ident
         // child. If the LHS isn't a body-local, the function mutates a
         // global -- never fold (eval would crash on missing bindings, or
         // worse, silently mutate constfolder's interpreter scope).
         if body_has_local(body_root, ad.name).not() { return true }
-    case NodeType.FieldAccess(mname):
+    case .FieldAccess(mname):
         if mname.field_access_name().eq("new").and(e.children.len().gt(0)) {
             switch e.children[0].node_type {
-            case NodeType.Ident(type_name):
+            case .Ident(type_name):
                 if type_name.ident_name() == "Vec" { return true }
             case:
             }
@@ -617,10 +617,10 @@ priv extract_trivial_literal_return := func(fdef: Expr) returns Option(ref Expr)
         if decl.children.len() == 0 { return Option(ref Expr).None }
         if ret.children.len() == 0 { return Option(ref Expr).None }
         switch decl.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             ref ret_val : Expr = ret.children[0]
             switch ret_val.node_type {
-            case NodeType.Ident(ret_name):
+            case .Ident(ret_name):
                 if ret_name.ident_name().eq(dd.name).not() { return Option(ref Expr).None }
                 ref rhs : Expr = decl.children[0]
                 if rhs.node_type.is_literal_num()
@@ -666,7 +666,7 @@ priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns Str {
     if callee.children.len() == 0 { return "" }
     ref recv : Expr = callee.children[0]
     switch recv.node_type {
-    case NodeType.Ident(ident):
+    case .Ident(ident):
         // If the Ident names a known type (`Str`/`I64`/...), use it.
         // Otherwise it's a value and we fall back to its til_type.
         if ns_get(ident.ident_name(), "size", ctx).is_some() { return Str.clone(ident.ident_name()) }
@@ -682,7 +682,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
     ref fc_callee : Expr = fcall.children[0]
     mut fc_fp : Dynamic = 0
     switch fc_callee.node_type {
-    case NodeType.Ident(ci):
+    case .Ident(ci):
         ref slot : Dynamic = scope_get(scope, ci.ident_name())? catch (knf: KeyNotFound) {
             // REM: an unbound name is an expected miss -- the callee may be a
             // builtin or a typer-flattened name absent from scope. slot stays
@@ -695,7 +695,7 @@ priv try_fast_fold_call := func(scope: Scope, fcall: Expr, ctx: Context) returns
             flat_o := ns_lookup_flat(ci.ident_name(), ctx)
             if flat_o.is_some() { fc_fp = flat_o.unwrap() }
         }
-    case NodeType.FieldAccess(mn):
+    case .FieldAccess(mn):
         if fc_callee.children.len() > 0 {
             sn := fa_recv_type_name(fc_callee, ctx)
             if sn.is_empty().not() {
@@ -733,18 +733,18 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     mut is_macro_mode := require_known
     mut fp : Dynamic = 0
     switch callee.node_type {
-    case NodeType.Ident(callee_ident):
+    case .Ident(callee_ident):
         ref fn_slot : Dynamic = scope_get(scope, callee_ident.ident_name())? catch (knf: KeyNotFound) {
             // REM: an unbound name is an expected miss -- the callee may be a
             // builtin/ext with no scope binding. fn_slot stays NULL and the guard
             // below leaves fp at 0 (probe found nothing).
         }
         if fn_slot.is_null().not() { fp = fn_slot }
-    case NodeType.FieldAccess(mname):
+    case .FieldAccess(mname):
         if callee.children.len() > 0 {
             ref recv : Expr = callee.children[0]
             switch recv.node_type {
-            case NodeType.Ident(ri):
+            case .Ident(ri):
                 if ns_get(ri.ident_name(), "size", ctx).is_none() {
                     if constfolder_known_has(ctx, ri.ident_name()).not() { return Option(Expr).None }
                 }
@@ -761,7 +761,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     if fp.is_null().not() {
         ref fdef : Expr = deref(fp)
         switch fdef.node_type {
-        case NodeType.FuncDef(fd):
+        case .FuncDef(fd):
             if fd.return_own_type.is(OwnType.Ref) { return Option(Expr).None }
             // A raw-memory primitive (Dynamic in its signature) is pure but
             // unsound to fold -- the interpreter can't model the pointer
@@ -822,7 +822,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
         // initial value), not the runtime value, so folding it is unsound.
         if arg_is_known.not() {
             switch arg.node_type {
-            case NodeType.Ident(arg_id):
+            case .Ident(arg_id):
                 ref slot : Dynamic = scope_get(scope, arg_id.ident_name())? catch (knf: KeyNotFound) {
                     // REM: an unbound arg name is an expected miss -- a builtin/ext
                     // or a not-yet-bound global. slot stays NULL and the guard
@@ -869,10 +869,10 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
             //     variant is constructed.
             if is_type_metatype(arg.til_type()) {
                 switch arg.node_type {
-                case NodeType.FCall:
+                case .FCall:
                     ec.add_child(own arg.clone())
                     continue
-                case NodeType.Ident(atok_id):
+                case .Ident(atok_id):
                     atok_name := Str.clone(atok_id.ident_name())
                     if atok_name.len().gt(0).and(atok_name.eq("Type").not()) {
                         mut atok_recv := Expr.new(ident_node("Type"), arg.line, arg.col)
@@ -942,7 +942,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
 
     mut can_convert := false
     switch fcall.til_type() {
-    case Type.Primitive, Type.Enum, Type.Struct, Type.Custom: can_convert = true
+    case .Primitive, .Enum, .Struct, .Custom: can_convert = true
     case:
     }
     if can_convert.not() {
@@ -998,9 +998,9 @@ is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
-    case NodeType.Ident(cname):
+    case .Ident(cname):
         return constfolder_has_macro(ctx, cname.ident_name())
-    case NodeType.FieldAccess(mname):
+    case .FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         return constfolder_has_macro_q(ctx, sname, mname.field_access_name())
@@ -1014,9 +1014,9 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.children.len() == 0 { return false }
     ref callee : Expr = e.children[0]
     switch callee.node_type {
-    case NodeType.Ident(cname):
+    case .Ident(cname):
         return constfolder_has_func(ctx, cname.ident_name())
-    case NodeType.FieldAccess(mname):
+    case .FieldAccess(mname):
         sname := fa_recv_type_name(callee, ctx)
         if sname.is_empty() { return false }
         return constfolder_has_func_q(ctx, sname, mname.field_access_name())
@@ -1039,7 +1039,7 @@ priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
 
 priv is_va_array_decl := func(stmt: Expr) returns Bool {
     switch stmt.node_type {
-    case NodeType.Decl(dd):
+    case .Decl(dd):
         if dd.is_mut { return false }
         if dd.name.starts_with("_va_Array_").not() { return false }
         if stmt.children.len() == 0 { return false }
@@ -1054,13 +1054,13 @@ priv is_va_set := func(stmt: Expr, va: Str) returns Bool {
     if stmt.node_type.is(NodeType.FCall).not() { return false }
     if stmt.children.len() < 2 { return false }
     switch stmt.children[0].node_type {
-    case NodeType.FieldAccess(m):
+    case .FieldAccess(m):
         if m.field_access_name().eq("set").not() { return false }
     case:
         return false
     }
     switch stmt.children[1].node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         return id.ident_name() == va
     case:
         return false
@@ -1102,7 +1102,7 @@ priv va_elements_known := func(body: Expr, decl_idx: USize, va: Str, ctx: Contex
 // idents are left.
 priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
     switch e.node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         if constfolder_known_has(ctx, id.ident_name()) {
             ref hb : HeapBinding = scope_lookup_heap_binding(known_scope(ctx), id.ident_name()).unwrap()
             mut raw : Dynamic = scope_read_bound_raw(known_scope(ctx), id.ident_name(), ctx)
@@ -1121,7 +1121,7 @@ priv bind_known_idents_in := proc(scope: Scope, e: Expr, ctx: Context) {
 // eval_expr resolve the runtime `c` and raise "undefined variable 'c'".
 priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ctx: Context) {
     switch stmt.node_type {
-    case NodeType.Decl(dd):
+    case .Decl(dd):
         if dd.name.eq(va).or(dd.name.eq(ek)) {
             if stmt.children.len() > 0 {
                 bind_known_idents_in(scope, stmt.children[0], ctx)
@@ -1130,7 +1130,7 @@ priv interp_va_build_stmt := proc(scope: Scope, stmt: Expr, va: Str, ek: Str, ct
                 scope_set_raw_owned(scope, dd.name, raw, interp_intern_type(stmt.children[0].til_type(), ctx), dd.own_type, ctx)
             }
         }
-    case NodeType.FCall:
+    case .FCall:
         if is_va_set(stmt, va) {
             bind_known_idents_in(scope, stmt, ctx)
             result : Dynamic = eval_expr_raw(scope, stmt, ctx)
@@ -1178,7 +1178,7 @@ priv va_consumer_args_ok := func(call: Expr, va: Str, ctx: Context) returns Bool
         ref a : Expr = call.children[ai]
         if is_known_check(ctx, a) { continue }
         switch a.node_type {
-        case NodeType.Ident(id):
+        case .Ident(id):
             if id.ident_name() == va { continue }
         case:
         }
@@ -1229,13 +1229,13 @@ priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
     if s.node_type.is(NodeType.FCall).not() { return false }
     if s.children.len() < 2 { return false }
     switch s.children[0].node_type {
-    case NodeType.FieldAccess(m):
+    case .FieldAccess(m):
         if m.field_access_name().eq("delete").not() { return false }
     case:
         return false
     }
     switch s.children[1].node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         return id.ident_name() == name
     case:
         return false
@@ -1250,7 +1250,7 @@ priv is_delete_call_on := func(s: Expr, name: Str) returns Bool {
 //  -1  -> a LIVE use (e.g. an unfolded consumer) -- DCE must abort for this va.
 priv va_stmt_class := func(s: Expr, va: Str, ek: Str, ctx: Context) returns I32 {
     switch s.node_type {
-    case NodeType.Decl(dd):
+    case .Decl(dd):
         if dd.name.eq(va).or(dd.name.eq(ek)) { return 1 }
     case:
     }
@@ -1320,7 +1320,7 @@ priv restamp_folded_decl_storage := func(mut e: Expr, i: USize, ctx: Context) {
     }
     if folded_stack.not() { return }
     switch e.node_type {
-    case NodeType.Decl(dd):
+    case .Decl(dd):
         if dd.gc_storage.is(GcStorage.HeapBox) { dd.gc_storage = GcStorage.Stack }
     case:
     }
@@ -1340,9 +1340,9 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
             mut snapshot_fd := Option(Scope).None
             swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
             switch snapshot_fd {
-            case Option(Scope).Some(real_known):
+            case .Some(real_known):
                 ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).Some(real_known)))
-            case Option(Scope).None:
+            case .None:
                 ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
             }
             fold_subtree(scope, child, ctx)
@@ -1386,7 +1386,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         // tracker so body-local payloads don't get aliased into `scope`
         // (which would dangle when the FuncDef restore frees them).
         switch child.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             // Don't track a variable that is assigned somewhere: even if its
             // `mut` flag was cleared (e.g. by a redundant-mut pass), a
             // reassigned variable is not a compile-time constant.
@@ -1406,7 +1406,7 @@ priv fold_subtree := proc(scope: Scope, mut e: Expr, ctx: Context) {
         if is_va_array_decl(e.children[m]) {
             mut vn := ""
             switch e.children[m].node_type {
-            case NodeType.Decl(dd): vn = dd.name.clone()
+            case .Decl(dd): vn = dd.name.clone()
             case:
             }
             if vn.is_empty().not().and(va_name_in(va_done, vn).not()).and(va_elements_known(e, m, vn, ctx)) {
@@ -1471,7 +1471,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         }
         if at_global.not() { continue }
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if dd.is_mut { continue }
             if dd.own_type.is(OwnType.Ref) { continue }
             if ctx.constfolder_assigned.has(dd.name) { continue }
@@ -1493,7 +1493,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
         ref dstmt : Expr = body.children[di]
         mut drop := false
         switch dstmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if dd.name.starts_with("hoisted__") {
                 if dstmt.children.len() > 0 {
                     ref drhs : Expr = dstmt.children[0]
@@ -1520,7 +1520,7 @@ process_body := proc(scope: Scope, body: Expr, ctx: Context, at_global: Bool) {
 
 priv expr_uses_var_p := func(e: Expr, name: Str, ctx: Context) returns Bool {
     switch e.node_type {
-    case NodeType.Ident(eid):
+    case .Ident(eid):
         if eid.ident_name() == name { return true }
     case:
     }
@@ -1551,7 +1551,7 @@ constfolder_register_fold_scope := func(global: Scope, prog: Expr, ctx: Context)
         .or(rhs.node_type.is(NodeType.StructDef))
         .or(rhs.node_type.is(NodeType.EnumDef))
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if is_def {
                 raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                 write_ptr(raw, rhs)

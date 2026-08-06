@@ -173,16 +173,16 @@ namespace:
         // empty-level skip -- an empty registry filters everything).
         if self.bindings_filt.band(fp) == 0 {
             switch self.parent {
-            case Option(ref TypeScope).Some(pe): return pe.get_binding_fp(name, fp)
-            case Option(ref TypeScope).None: return Option(ref TypeBinding).None
+            case .Some(pe): return pe.get_binding_fp(name, fp)
+            case .None: return Option(ref TypeBinding).None
             }
         }
         ref b : TypeBinding = self.bindings.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
-            case Option(ref TypeScope).Some(p):
+            case .Some(p):
                 return p.get_binding_fp(name, fp)
-            case Option(ref TypeScope).None:
+            case .None:
                 return Option(ref TypeBinding).None
             }
         }
@@ -198,8 +198,8 @@ namespace:
     in_function := func(self: TypeScope) returns Bool {
         if self.is_func_root { return true }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.in_function()
-        case Option(ref TypeScope).None: return false
+        case .Some(p): return p.in_function()
+        case .None: return false
         }
         return false
     }
@@ -210,8 +210,8 @@ namespace:
         if self.bindings_filt.band(fp).neq(0).and(self.bindings.has(name)) { return true }
         if self.is_func_root { return false }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.bound_in_this_func_fp(name, fp)
-        case Option(ref TypeScope).None: return false
+        case .Some(p): return p.bound_in_this_func_fp(name, fp)
+        case .None: return false
         }
         return false
     }
@@ -256,15 +256,15 @@ namespace:
         // below is a call plus a search plus the KeyNotFound catch.
         if self.struct_defs_filt.band(fp) == 0 {
             switch self.parent {
-            case Option(ref TypeScope).Some(pe): return pe.get_struct_fp(name, fp)
-            case Option(ref TypeScope).None: return Option(ref Expr).None
+            case .Some(pe): return pe.get_struct_fp(name, fp)
+            case .None: return Option(ref Expr).None
             }
         }
         ref slot : Dynamic = self.struct_defs.get(name)?
         catch (e: KeyNotFound) {
             switch self.parent {
-            case Option(ref TypeScope).Some(p): return p.get_struct_fp(name, fp)
-            case Option(ref TypeScope).None: return Option(ref Expr).None
+            case .Some(p): return p.get_struct_fp(name, fp)
+            case .None: return Option(ref Expr).None
             }
         }
         ref sd : Expr = deref(slot)
@@ -285,8 +285,8 @@ namespace:
             return func_defs_lookup_one(self.struct_defs_filt, fp, self.struct_defs, name)
         }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.struct_def_of_fp(name, fp)
-        case Option(ref TypeScope).None: return Option(ref Expr).None
+        case .Some(p): return p.struct_def_of_fp(name, fp)
+        case .None: return Option(ref Expr).None
         }
     }
     // Issue #147: name -> FuncDef Expr. Mirrors get_struct's parent-
@@ -312,8 +312,8 @@ namespace:
             return func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.lookup_func_fp(name, fp)
-        case Option(ref TypeScope).None: return Option(ref Expr).None
+        case .Some(p): return p.lookup_func_fp(name, fp)
+        case .None: return Option(ref Expr).None
         }
     }
     // Is ANY function named `name` reachable, IGNORING value bindings
@@ -330,8 +330,8 @@ namespace:
     any_func_def_fp := func(self: TypeScope, name: Str, fp: U64) returns Bool {
         if func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name).is_some() { return true }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.any_func_def_fp(name, fp)
-        case Option(ref TypeScope).None: return false
+        case .Some(p): return p.any_func_def_fp(name, fp)
+        case .None: return false
         }
         return false
     }
@@ -361,8 +361,8 @@ namespace:
         local := func_defs_lookup_one(self.func_defs_filt, fp, self.func_defs, name)
         if local.is_some() { return local }
         switch self.parent {
-        case Option(ref TypeScope).Some(p): return p.lookup_func_symbol_fp(name, fp)
-        case Option(ref TypeScope).None: return Option(ref Expr).None
+        case .Some(p): return p.lookup_func_symbol_fp(name, fp)
+        case .None: return Option(ref Expr).None
         }
     }
     // Issue #147: register a binding's FuncDef Expr in the scope-side
@@ -510,7 +510,7 @@ type_binding_is_type_token := func(scope: TypeScope, b: TypeBinding) returns Boo
 // all need ONE source-classification rule.
 init_func_is_generic := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         gok := fd.func_type.is_plain()
         if gok.not() { return false }
         // A `P: Type` param is a generic TYPE-PARAMETER only if its name
@@ -574,7 +574,7 @@ type_name_mentions_param := func(name: Str, pname: Str) returns Bool {
 // throw type has no such problem and takes the ordinary path.
 generic_source_throws_depend_on_type := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         for p : Declaration in fd.params {
             if p.explicit_type.eq("Type").not() { continue }
             for t : Str in fd.throw_types {
@@ -615,7 +615,7 @@ namespace:
 // from regular funcs at the binding level.
 func_def_type := func(fdef: Expr) returns shallow FuncType {
     switch fdef.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         return fd.func_type
     case:
     }
@@ -1141,16 +1141,16 @@ note_cross_file_type_use := func(scope: TypeScope, ctx: Context, type_name: Str)
 
 scope_target_usize_pname := func(scope: TypeScope) returns ref Str {
     switch scope.parent {
-    case Option(ref TypeScope).Some(p): return scope_target_usize_pname(p)
-    case Option(ref TypeScope).None:
+    case .Some(p): return scope_target_usize_pname(p)
+    case .None:
     }
     return scope.target_usize_pname
 }
 
 scope_target_uptr_pname := func(scope: TypeScope) returns ref Str {
     switch scope.parent {
-    case Option(ref TypeScope).Some(p): return scope_target_uptr_pname(p)
-    case Option(ref TypeScope).None:
+    case .Some(p): return scope_target_uptr_pname(p)
+    case .None:
     }
     return scope.target_uptr_pname
 }
@@ -1226,17 +1226,17 @@ resolved_type_name := func(t: Type) returns Str {
     name := til_type_name(t)
     if name.len() > 0 { return name }
     switch t {
-    case Type.Primitive(Primitive.I8): return "I8"
-    case Type.Primitive(Primitive.U8): return "U8"
-    case Type.Primitive(Primitive.I16): return "I16"
-    case Type.Primitive(Primitive.U16): return "U16"
-    case Type.Primitive(Primitive.I32): return "I32"
-    case Type.Primitive(Primitive.U32): return "U32"
-    case Type.Primitive(Primitive.I64): return "I64"
-    case Type.Primitive(Primitive.U64): return "U64"
-    case Type.Primitive(Primitive.F32): return "F32"
-    case Type.Primitive(Primitive.F64): return "F64"
-    case Type.Primitive(Primitive.Bool): return "Bool"
+    case .Primitive(Primitive.I8): return "I8"
+    case .Primitive(Primitive.U8): return "U8"
+    case .Primitive(Primitive.I16): return "I16"
+    case .Primitive(Primitive.U16): return "U16"
+    case .Primitive(Primitive.I32): return "I32"
+    case .Primitive(Primitive.U32): return "U32"
+    case .Primitive(Primitive.I64): return "I64"
+    case .Primitive(Primitive.U64): return "U64"
+    case .Primitive(Primitive.F32): return "F32"
+    case .Primitive(Primitive.F64): return "F64"
+    case .Primitive(Primitive.Bool): return "Bool"
     case: return ""
     }
 }
@@ -1310,9 +1310,9 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
 constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if dd.name.eq("dyn_size_of").and(size_intrinsics_use_sizeof(ctx)) {
                 // Issue #309: leave dyn_size_of unfolded on a width-mismatched
                 // target so a constant-arg call reaches the runtime
@@ -1326,16 +1326,16 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
             }
         case:
         }
-    case NodeType.StructDef(sdd_data):
+    case .StructDef(sdd_data):
         switch stmt.node_type {
-        case NodeType.Decl(sdd):
+        case .Decl(sdd):
             mut mi : USize = 0
             for fdd : Declaration in sdd_data.ns_decls {
                 ref mname : Str = sdd_data.member_name_at(mi)
                 mi = mi + 1
                 if fdd.default_value.is_none() { continue }
                 switch fdd.default_expr().node_type {
-                case NodeType.FuncDef(ffd):
+                case .FuncDef(ffd):
                     if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated size method on a
                         // width-mismatched target so the emitted X_size()
@@ -1354,16 +1354,16 @@ constfolder_classify_stmt := func(stmt: Expr, ctx: Context) {
             }
         case:
         }
-    case NodeType.EnumDef(pc_edd):
+    case .EnumDef(pc_edd):
         switch stmt.node_type {
-        case NodeType.Decl(sdd):
+        case .Decl(sdd):
             mut mi : USize = 0
             for nsd : Declaration in pc_edd.ns_decls {
                 ref mname : Str = pc_edd.member_name_at(mi)
                 mi = mi + 1
                 if nsd.default_value.is_none() { continue }
                 switch nsd.default_expr().node_type {
-                case NodeType.FuncDef(ffd):
+                case .FuncDef(ffd):
                     if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_use_sizeof(ctx)) {
                         // Issue #309: skip the auto-generated enum size method on
                         // a width-mismatched target (emitted X_size() -> sizeof).
@@ -1449,7 +1449,7 @@ make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U
 // True when `name` occurs as an Ident anywhere in `e`.
 priv expr_contains_ident_named := func(e: Expr, name: Str) returns Bool {
     switch e.node_type {
-    case NodeType.Ident(idn):
+    case .Ident(idn):
         if idn.ident_name() == name { return true }
     case:
     }
@@ -1490,7 +1490,7 @@ make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, v
 // ~til_type_name_c(t).eq("X")~ (no Str build/compare).
 type_is_primitive := func(t: Type, p: Primitive) returns Bool {
     switch t {
-    case Type.Primitive(tp): return tp.is(p)
+    case .Primitive(tp): return tp.is(p)
     case: return false
     }
 }
@@ -1506,10 +1506,10 @@ is_type_metatype := func(t: Type) returns Bool {
     // to hand back an owned Str, and this predicate ran 28K times per
     // first_class translate just to test four bytes.
     switch t {
-    case Type.Struct(mts):     return mts == "Type"
-    case Type.Enum(mte):       return mte == "Type"
-    case Type.Custom(mtc):     return mtc == "Type"
-    case Type.FuncPtrSig(mtf): return mtf == "Type"
+    case .Struct(mts):     return mts == "Type"
+    case .Enum(mte):       return mte == "Type"
+    case .Custom(mtc):     return mtc == "Type"
+    case .FuncPtrSig(mtf): return mtf == "Type"
     case: return false
     }
 }
@@ -1602,21 +1602,21 @@ priv type_application_name := func(callee: Expr) returns Str {
     // Already monomorphized by the initer (`Vec__Str.new()`): the
     // receiver is a bare type name, which is the answer.
     switch recv.node_type {
-    case NodeType.Ident(mn): return Str.clone(mn.ident_name())
+    case .Ident(mn): return Str.clone(mn.ident_name())
     case:
     }
     if recv.node_type.is(NodeType.FCall).not() { return "" }
     if recv.children.len() < 2 { return "" }
     mut base := ""
     switch recv.children[0].node_type {
-    case NodeType.Ident(bn): base = Str.clone(bn.ident_name())
+    case .Ident(bn): base = Str.clone(bn.ident_name())
     case: return ""
     }
     mut out := base.format("(")
     for i in 1..recv.children.len() {
         if i > 1 { out = out.format(", ") }
         switch recv.children[i].node_type {
-        case NodeType.Ident(an): out = out.format(an.ident_name())
+        case .Ident(an): out = out.format(an.ident_name())
         case: return ""
         }
     }
@@ -1628,14 +1628,14 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
     if fd.default_value.is_none() { return "" }
     ref def_val : Expr = fd.default_expr()
     switch def_val.node_type {
-    case NodeType.Literal(Literal.Num):  return "I64"
-    case NodeType.Literal(Literal.Bool): return "Bool"
-    case NodeType.Literal(Literal.Str):  return "Str"
-    case NodeType.FCall:
+    case .Literal(Literal.Num):  return "I64"
+    case .Literal(Literal.Bool): return "Bool"
+    case .Literal(Literal.Str):  return "Str"
+    case .FCall:
         if def_val.children.len() == 0 { return "" }
         switch def_val.children[0].node_type {
-        case NodeType.Ident(cn): return Str.clone(cn.ident_name())
-        case NodeType.FieldAccess:
+        case .Ident(cn): return Str.clone(cn.ident_name())
+        case .FieldAccess:
             // A template instance built through its own constructor:
             // `lines := Vec(Str).new()`. The callee is a FieldAccess
             // (`Vec(Str).new`) whose RECEIVER is the type application
@@ -1668,7 +1668,7 @@ field_inferred_type_name := func(fd: Declaration) returns Str {
 array_vec_elem_type_name := func(fcall: Expr) returns Str {
     if fcall.children.len() < 2 { return "" }
     switch fcall.children[1].node_type {
-    case NodeType.Ident(tn): return Str.clone(tn.ident_name())
+    case .Ident(tn): return Str.clone(tn.ident_name())
     case:
         return ""
     }
@@ -1683,7 +1683,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
     if sdef_o.is_none() { return false }
     ref sdef : Expr = sdef_o.unwrap()
     switch sdef.node_type {
-    case NodeType.StructDef(sdd):
+    case .StructDef(sdd):
         if sdd.fields.len() == 0 { return false }
         for fd : Declaration in sdd.fields {
             if fd.own_type.is(OwnType.Own) { return false }
@@ -1692,7 +1692,7 @@ is_pod_type_for_clone := func(type_name: Str, scope: TypeScope) returns Bool {
             if is_pod_type_for_clone(ftn, scope).not() { return false }
         }
         return true
-    case NodeType.EnumDef(edd):
+    case .EnumDef(edd):
         for vd : VariantDef in edd.variants {
             ref pt : Str = vd.payload_type
             if pt.len().gt(0).and(is_pod_type_for_clone(pt, scope).not()) { return false }
@@ -1749,9 +1749,9 @@ member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns
 // member lookup.
 def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
     switch sdef.node_type {
-    case NodeType.StructDef(sd):
+    case .StructDef(sd):
         return sd.ns_decls
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         return ed.ns_decls
     case:
         panic(__LOC__, "def_ns_decls: node is neither a StructDef nor an EnumDef")
@@ -1761,9 +1761,9 @@ def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
 // Member name at declaration-order position i (the map key).
 def_ns_name_at := func(sdef: Expr, i: USize) returns ref Str {
     switch sdef.node_type {
-    case NodeType.StructDef(sd):
+    case .StructDef(sd):
         return sd.member_name_at(i)
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         return ed.member_name_at(i)
     case:
         panic(__LOC__, "def_ns_name_at: node is neither a StructDef nor an EnumDef")
@@ -1772,9 +1772,9 @@ def_ns_name_at := func(sdef: Expr, i: USize) returns ref Str {
 
 def_ns_has := func(sdef: Expr, name: Str) returns Bool {
     switch sdef.node_type {
-    case NodeType.StructDef(sd):
+    case .StructDef(sd):
         return sd.ns_index.has(name)
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         return ed.ns_index.has(name)
     case:
         UNREACHABLE("unexpected ", sdef.node_type.head_str())
@@ -1786,9 +1786,9 @@ def_ns_has := func(sdef: Expr, name: Str) returns Bool {
 // Single probe via member_get.
 def_ns_get := func(sdef: Expr, name: Str) returns Option(ref Declaration) {
     switch sdef.node_type {
-    case NodeType.StructDef(sd):
+    case .StructDef(sd):
         return member_get(sd.ns_index, sd.ns_decls, name)
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         return member_get(ed.ns_index, ed.ns_decls, name)
     case:
         UNREACHABLE("unexpected ", sdef.node_type.head_str())
@@ -1806,9 +1806,9 @@ priv member_pos := func(idx: Map(Str, USize), name: Str) returns I64 {
 
 def_ns_pos := func(sdef: Expr, name: Str) returns I64 {
     switch sdef.node_type {
-    case NodeType.StructDef(sd):
+    case .StructDef(sd):
         return member_pos(sd.ns_index, name)
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         return member_pos(ed.ns_index, name)
     case:
         UNREACHABLE("unexpected ", sdef.node_type.head_str())
@@ -1867,10 +1867,10 @@ priv ns_const_order_visit := func(tname: Str, sdef: Expr, pos: USize, mut state:
 // references and visit each first.
 priv ns_const_order_deps := func(tname: Str, sdef: Expr, e: Expr, mut state: Vec(I64), mut order: Vec(I64)) {
     switch e.node_type {
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         if e.children.len() > 0 {
             switch e.children[0].node_type {
-            case NodeType.Ident(rid):
+            case .Ident(rid):
                 if rid.ident_name() == tname {
                     p := def_ns_pos(sdef, fa.field_access_name())
                     if p >= 0 { ns_const_order_visit(tname, sdef, p.to_usize(), state, order) }
@@ -2090,7 +2090,7 @@ enum_payload_is_pointer_slot := func(enum_def: Expr, idx: I32) returns Bool {
 // as much a borrow source as a `returns ref` function is.
 enum_has_ref_payload := func(enum_def: Expr) returns Bool {
     switch enum_def.node_type {
-    case NodeType.EnumDef(edd):
+    case .EnumDef(edd):
         for vi in 0..edd.variants.len() {
             ref vd : VariantDef = edd.variants[vi]
             if vd.payload_ref { return true }
@@ -2124,7 +2124,7 @@ rhs_is_allocator_call := func(e: Expr) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if e.children.len() < 1 { return false }
     switch e.children[0].node_type {
-    case NodeType.Ident(fid):
+    case .Ident(fid):
         return fid.ident_name().eq("malloc").or(fid.ident_name().eq("calloc")).or(fid.ident_name().eq("realloc"))
     case:
         return false
@@ -2136,9 +2136,9 @@ rhs_is_allocator_call := func(e: Expr) returns Bool {
 // recursion stops at FuncDef/BodyValue boundaries.
 priv contains_return := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Return:
+    case .Return:
         return true
-    case NodeType.FuncDef, NodeType.BodyValue:
+    case .FuncDef, .BodyValue:
         return false
     case:
         for c : Expr in e.children {
@@ -2161,7 +2161,7 @@ fn_never_returns := func(body: Expr) returns Bool {
 
 priv is_literal_true := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Literal(Literal.Bool(b)):
+    case .Literal(Literal.Bool(b)):
         return b
     case:
         return false
@@ -2175,9 +2175,9 @@ priv is_literal_true := func(e: Expr) returns Bool {
 // so recursion stops at those.
 priv has_unnested_break := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Break:
+    case .Break:
         return true
-    case NodeType.While, NodeType.ForIn, NodeType.FuncDef, NodeType.BodyValue:
+    case .While, .ForIn, .FuncDef, .BodyValue:
         return false
     case:
         for c : Expr in e.children {
@@ -2191,26 +2191,26 @@ priv has_unnested_break := func(e: Expr) returns Bool {
 // inside a Return or a Decl, not as a bare statement.
 stmt_always_diverges := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Return:
+    case .Return:
         return true
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         // #303: the typer stamps noreturn_call after resolving the callee
         // to a FunctionDef with noreturn set -- no name matching, so a
         // user function shadowing panic/exit/etc. does not count unless
         // it is itself inferred noreturn.
         return fcd.noreturn_call
-    case NodeType.Body:
+    case .Body:
         // Never falls through iff one statement doesn't: control cannot reach
         // anything past a diverging statement.
         for c : Expr in e.children {
             if stmt_always_diverges(c) { return true }
         }
         return false
-    case NodeType.If:
+    case .If:
         // Needs an else branch (children[2]) AND both branches diverging.
         if e.children.len() <= 2 { return false }
         return stmt_always_diverges(e.children[1]).and(stmt_always_diverges(e.children[2]))
-    case NodeType.Switch:
+    case .Switch:
         // Exhaustive (a `case:` wildcard -> C default) and every arm diverges.
         // A pattern arm is [pattern x N, body]; the wildcard arm is [body].
         // The body is always the last child.
@@ -2221,7 +2221,7 @@ stmt_always_diverges := func(e: Expr) returns Bool {
             if stmt_always_diverges(cn.children[cn.children.len() - 1]).not() { return false }
         }
         return has_default
-    case NodeType.While:
+    case .While:
         // `while true { ... }` with no break targeting it never falls through:
         // it exits only via a return inside the body (or loops forever). Any
         // other condition may go false and let control past the loop.
@@ -2272,9 +2272,9 @@ priv lazy_stmts_inlinable := func(body: Expr, start: USize) returns Bool {
     ref last : Expr = body.children[n - 1]
     if start == n - 1 {
         switch last.node_type {
-        case NodeType.Return:
+        case .Return:
             return last.children.len() >= 1
-        case NodeType.If:
+        case .If:
             if last.children.len() < 3 { return false }
             return lazy_single_return_body(last.children[1])
                 .and(lazy_single_return_body(last.children[2]))
@@ -2301,7 +2301,7 @@ lazy_body_inlinable := func(body: Expr) returns Bool {
 // and returns are excluded (an early return or a loop can't be flattened).
 priv lazy_is_safe_prelude := func(stmt: Expr) returns Bool {
     switch stmt.node_type {
-    case NodeType.Decl, NodeType.Assign, NodeType.FieldAssign, NodeType.FCall: return true
+    case .Decl, .Assign, .FieldAssign, .FCall: return true
     case:                      return false
     }
 }
@@ -2335,8 +2335,8 @@ lazy_body_stmt_inlinable := func(body: Expr) returns Bool {
 // variadic param is consumed ONLY by the for-in loops that get unrolled.
 priv lazy_mentions_ident := func(e: Expr, name: Str) returns Bool {
     switch e.node_type {
-    case NodeType.Ident(idd):  if idd.ident_name() == name { return true }
-    case NodeType.Assign(ad):  if ad.name == name { return true }
+    case .Ident(idd):  if idd.ident_name() == name { return true }
+    case .Assign(ad):  if ad.name == name { return true }
     case:
     }
     for c : Expr in e.children {
@@ -2368,11 +2368,11 @@ lazy_variadic_body_unrollable := func(body: Expr, vname: Str) returns Bool {
         ref stmt : Expr = body.children[i]
         mut is_unroll_loop := false
         switch stmt.node_type {
-        case NodeType.ForIn(fid):
+        case .ForIn(fid):
             if stmt.children.len() < 2 { return false }
             mut iter_is_vname := false
             switch stmt.children[0].node_type {
-            case NodeType.Ident(itn): iter_is_vname = itn.ident_name() == vname
+            case .Ident(itn): iter_is_vname = itn.ident_name() == vname
             case:
             }
             if iter_is_vname.not() { return false }        // a foreign loop: not unrollable
@@ -2435,12 +2435,12 @@ is_range_new_call := func(e: Expr) returns Bool {
     // Pre-inference the callee is `Range.new` (FieldAccess); the constructor
     // rewrite later collapses it to a bare `Range` (Ident). Accept both.
     switch callee.node_type {
-    case NodeType.Ident(id): return id.ident_name() == "Range"
-    case NodeType.FieldAccess(fa):
+    case .Ident(id): return id.ident_name() == "Range"
+    case .FieldAccess(fa):
         if fa.field_access_name().eq("new").not() { return false }
         if callee.children.len() == 0 { return false }
         switch callee.children[0].node_type {
-        case NodeType.Ident(bid): return bid.ident_name() == "Range"
+        case .Ident(bid): return bid.ident_name() == "Range"
         case: return false
         }
     case: return false
@@ -2459,19 +2459,19 @@ ast_print := proc(e: Expr, indent: U32) {
         print(":", til_type_name_c(et))
     }
     switch e.node_type {
-    case NodeType.Ident(s):      print(" \"", s.ident_name(), "\"")
-    case NodeType.Literal(Literal.Str(s)): print(" \"", s, "\"")
-    case NodeType.Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
-    case NodeType.Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
-    case NodeType.ForIn(fi):
+    case .Ident(s):      print(" \"", s.ident_name(), "\"")
+    case .Literal(Literal.Str(s)): print(" \"", s, "\"")
+    case .Literal(Literal.Num(s)): print(" \"", s.literal_num_text(), "\"")
+    case .Literal(Literal.Bool(b)): if b { print(" true") } else { print(" false") }
+    case .ForIn(fi):
         if fi.is_mut { print(" mut") }
         print(" \"", fi.name, "\"")
-    case NodeType.Decl(decl):
+    case .Decl(decl):
         if decl.is_mut { print(" mut") }
         print(" ", decl.name)
-    case NodeType.Assign(a):     print(" ", a.name)
-    case NodeType.NamedArg(s):   print(" ", s)
-    case NodeType.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
+    case .Assign(a):     print(" ", a.name)
+    case .NamedArg(s):   print(" ", s)
+    case .FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
     case: // nothing
     }
     if e.children.len() > 0 {
@@ -2497,7 +2497,7 @@ ast_print := proc(e: Expr, indent: U32) {
 // NamedArg children with a single KwargsMap-setter ident).
 fcall_kwargs_count := func(fcall: Expr) returns USize {
     switch fcall.node_type {
-    case NodeType.FCall:
+    case .FCall:
         mut count : USize = 0
         ref ch : Vec(Expr) = fcall.children
         mut i : USize = ch.len()
@@ -2536,7 +2536,7 @@ fcall_kwargs_count := func(fcall: Expr) returns USize {
 // FCallData.variadic_index has been derived away).
 fcall_variadic_count := func(fcall: Expr, nparam: USize, callee_has_kwargs: Bool) returns USize {
     switch fcall.node_type {
-    case NodeType.FCall:
+    case .FCall:
         if callee_has_kwargs {
             kc := fcall_kwargs_count(fcall)
             return fcall.children.len().add(1).sub(nparam) - kc

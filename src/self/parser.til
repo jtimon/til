@@ -139,14 +139,14 @@ builtin_primitive_from_name := func(name: Str, mut out: Primitive) returns Bool 
 
 builtin_primitive_size_align := func(prim: Primitive, mut sz: USize, mut al: USize) {
     switch prim {
-    case Primitive.I64:  sz = 8; al = 8
-    case Primitive.U8, Primitive.I8: sz = 1; al = 1
-    case Primitive.I16, Primitive.U16: sz = 2; al = 2
-    case Primitive.I32, Primitive.U32: sz = 4; al = 4
-    case Primitive.U64:  sz = 8; al = 8
-    case Primitive.F32:  sz = 4; al = 4
-    case Primitive.F64:  sz = 8; al = 8
-    case Primitive.Bool: sz = 1; al = 1
+    case .I64:  sz = 8; al = 8
+    case .U8, .I8: sz = 1; al = 1
+    case .I16, .U16: sz = 2; al = 2
+    case .I32, .U32: sz = 4; al = 4
+    case .U64:  sz = 8; al = 8
+    case .F32:  sz = 4; al = 4
+    case .F64:  sz = 8; al = 8
+    case .Bool: sz = 1; al = 1
     }
 }
 
@@ -231,7 +231,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration) returns Str {
 
 priv anon_def_key := func(def: Expr) returns Str {
     switch def.node_type {
-    case NodeType.StructDef(sdd):
+    case .StructDef(sdd):
         mut k := "struct{"
         mut fr : USize = 0
         for fd : Declaration in sdd.fields {
@@ -245,7 +245,7 @@ priv anon_def_key := func(def: Expr) returns Str {
             nr = nr + 1
         }
         return format(k, "}")
-    case NodeType.EnumDef(edd):
+    case .EnumDef(edd):
         mut k := "enum"
         // #264: tag width is part of the type identity.
         if edd.tag_type.len() > 0 { k = format(k, "(", edd.tag_type, ")") }
@@ -562,17 +562,17 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     ref kw : Token = advance(p)
     mut ft := FuncType.Func
     switch kw.type {
-    case TokenType.KwFunc: ft = FuncType.Func
-    case TokenType.KwProc: ft = FuncType.Proc
-    case TokenType.KwTest: ft = FuncType.Test
-    case TokenType.KwMacro: ft = FuncType.Macro
-    case TokenType.KwExtFunc: ft = FuncType.ExtFunc
-    case TokenType.KwExtProc: ft = FuncType.ExtProc
-    case TokenType.KwCoreFunc: ft = FuncType.CoreFunc
-    case TokenType.KwCoreLazyFunc: ft = FuncType.CoreLazyFunc
-    case TokenType.KwCoreProc: ft = FuncType.CoreProc
-    case TokenType.KwLazyFunc: ft = FuncType.LazyFunc
-    case TokenType.KwLazyProc: ft = FuncType.LazyProc
+    case .KwFunc: ft = FuncType.Func
+    case .KwProc: ft = FuncType.Proc
+    case .KwTest: ft = FuncType.Test
+    case .KwMacro: ft = FuncType.Macro
+    case .KwExtFunc: ft = FuncType.ExtFunc
+    case .KwExtProc: ft = FuncType.ExtProc
+    case .KwCoreFunc: ft = FuncType.CoreFunc
+    case .KwCoreLazyFunc: ft = FuncType.CoreLazyFunc
+    case .KwCoreProc: ft = FuncType.CoreProc
+    case .KwLazyFunc: ft = FuncType.LazyFunc
+    case .KwLazyProc: ft = FuncType.LazyProc
     case: parse_fail(p, peek_line(p), peek_col(p), "expected function keyword")
     }
 
@@ -1255,7 +1255,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 // ast.til (unlike set_own_arg, which the typer/initer also use).
 priv set_fcall_throw := func(mut fcall: Expr) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         fcd.does_throw = true
     case:
         UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
@@ -1264,7 +1264,7 @@ priv set_fcall_throw := func(mut fcall: Expr) {
 
 priv set_fcall_bang := func(mut fcall: Expr) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         fcd.is_bang = true
     case:
         UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
@@ -1273,7 +1273,7 @@ priv set_fcall_bang := func(mut fcall: Expr) {
 
 priv set_fcall_splat := func(mut fcall: Expr) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         fcd.is_splat = true
     case:
         UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
@@ -1361,7 +1361,7 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     if lhs.node_type.is(NodeType.FCall).not() { return lhs }
     mut is_bang := false
     switch lhs.node_type {
-    case NodeType.FCall(fcd): is_bang = fcd.is_bang
+    case .FCall(fcd): is_bang = fcd.is_bang
     case:
     }
     if is_bang.not() { return lhs }
@@ -1370,14 +1370,14 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
     mut is_get := false
     switch callee.node_type {
-    case NodeType.FieldAccess(fad): is_get = fad.name == "get"
+    case .FieldAccess(fad): is_get = fad.name == "get"
     case:
     }
     if is_get.not() { return lhs }
     advance(p) // consume '='
     mut rhs := parse_expression(p)
     switch callee.node_type {
-    case NodeType.FieldAccess(fad2): fad2.name = "set"
+    case .FieldAccess(fad2): fad2.name = "set"
     case: UNREACHABLE("expected FieldAccess, got ", callee.node_type.head_str())
     }
     set_own_arg(lhs, lhs.children.len())
@@ -1469,8 +1469,8 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
     mut name := ""
     mut first : USize = 1
     switch call.children[0].node_type {
-    case NodeType.Ident(cn): name = Str.clone(cn.ident_name())
-    case NodeType.FieldAccess(fa):
+    case .Ident(cn): name = Str.clone(cn.ident_name())
+    case .FieldAccess(fa):
         // Method form `a.and(b)`: the receiver is the first operand.
         if call.children[0].children.len() == 1 {
             name = Str.clone(fa.name)
@@ -1481,7 +1481,7 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
     is_and := name.eq("and")
     if is_and.or(name.eq("or")).not() { return call }
     switch call.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         if fcd.is_splat.or(fcd.own_args.neq(0)).or(fcd.ref_args.neq(0)) { return call }
     case:
     }
@@ -1492,7 +1492,7 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
         ref recv : Expr = call.children[0].children[0]
         if recv.node_type.is_literal_bool().not() { return call }
         switch recv.node_type {
-        case NodeType.Literal(Literal.Bool(rb)):
+        case .Literal(Literal.Bool(rb)):
             if is_and { acc = acc.and(rb) } else { acc = acc.or(rb) }
         case:
         }
@@ -1502,7 +1502,7 @@ priv fold_const_and_or := func(own call: Expr) returns Expr {
         ref a : Expr = call.children[i]
         if a.node_type.is_literal_bool().not() { return call }
         switch a.node_type {
-        case NodeType.Literal(Literal.Bool(ab)):
+        case .Literal(Literal.Bool(ab)):
             if is_and { acc = acc.and(ab) } else { acc = acc.or(ab) }
         case:
         }
@@ -1519,11 +1519,11 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     mut is_and_or := false
     mut keep : USize = 1        // plain form keeps args[1] as the first operand
     switch call.children[0].node_type {
-    case NodeType.Ident(cn):
+    case .Ident(cn):
         is_and_or = cn.ident_name().eq("and").or(cn.ident_name().eq("or"))
     // Method form (`a.and(b, c)`): the receiver is the first operand, so
     // every argument folds into the single second one.
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         if call.children[0].children.len() == 1 {
             is_and_or = fa.name.eq("and").or(fa.name.eq("or"))
             keep = 0
@@ -1537,7 +1537,7 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     // a shape this rewrite cannot preserve.
     mut plain := true
     switch call.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         if fcd.is_splat { plain = false }
         if fcd.own_args != 0 { plain = false }
         if fcd.ref_args != 0 { plain = false }
@@ -1550,8 +1550,8 @@ priv nest_nary_and_or := func(own call: Expr) returns Expr {
     if plain.not() { return call }
     mut name := ""
     switch call.children[0].node_type {
-    case NodeType.Ident(cn2):      name = Str.clone(cn2.ident_name())
-    case NodeType.FieldAccess(fa2): name = Str.clone(fa2.name)
+    case .Ident(cn2):      name = Str.clone(cn2.ident_name())
+    case .FieldAccess(fa2): name = Str.clone(fa2.name)
     case: UNREACHABLE("unexpected ", call.children[0].node_type.head_str())
     }
     // Fold from the tail: c, then and(b, c), then and(a, and(b, c)). The
@@ -1614,7 +1614,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
     mut e_set := false
 
     switch t.type {
-    case TokenType.Dot:
+    case .Dot:
         // #341: leading-dot enum variant -- `.Body`, `.Decl(dd)`. The enum
         // name is elided because the context implies it, so the parser
         // cannot supply it: it emits the ordinary qualified shape with an
@@ -1628,15 +1628,15 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         // survives to the typer outside a case pattern is a hard error.
         e = Expr.new(ident_node(""), t_line, t_col)
         e_set = true
-    case TokenType.StringTok:
+    case .StringTok:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Str(tok_text(p, t).clone())), t_line, t_col)
         e_set = true
-    case TokenType.Number:
+    case .Number:
         advance(p)
         e = Expr.new(literal_num_node(tok_text(p, t)), t_line, t_col)
         e_set = true
-    case TokenType.Minus:
+    case .Minus:
         // Unary minus: -N (literal) parses as a single negative numeric
         // literal so it narrows like any other literal (args, decls, assigns,
         // returns); -expr desugars to expr.neg(). A trailing '-' with no
@@ -1658,7 +1658,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
                 e_set = true
             }
         }
-    case TokenType.Bang:
+    case .Bang:
         advance(p) // consume '!'
         mut operand := parse_primary(p)
         mut not_access := Expr.new(field_access_node("not"), t_line, t_col)
@@ -1667,7 +1667,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         not_call.add_child(own not_access)
         e = not_call
         e_set = true
-    case TokenType.Char:
+    case .Char:
         advance(p)
         // Parse char literal to byte value
         ch := tok_text(p, t)
@@ -1689,15 +1689,15 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         e = Expr.new(literal_num_node(byte_val.to_str()), t_line, t_col)
         e.set_til_type(Type.Primitive(Primitive.U8))
         e_set = true
-    case TokenType.KwTrue:
+    case .KwTrue:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Bool(true)), t_line, t_col)
         e_set = true
-    case TokenType.KwFalse:
+    case .KwFalse:
         advance(p)
         e = Expr.new(NodeType.Literal(Literal.Bool(false)), t_line, t_col)
         e_set = true
-    case TokenType.Ident:
+    case .Ident:
         advance(p)
         name := tok_text(p, t).clone()
         // Compile-time directives
@@ -1728,12 +1728,12 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         }
     // Function literals and ext_struct return directly, bypassing the
     // postfix chain below.
-    case TokenType.KwFunc, TokenType.KwProc, TokenType.KwTest, TokenType.KwMacro,
-         TokenType.KwExtFunc, TokenType.KwExtProc, TokenType.KwCoreFunc,
-         TokenType.KwCoreLazyFunc, TokenType.KwCoreProc, TokenType.KwLazyFunc,
-         TokenType.KwLazyProc: return parse_func_def(p)
-    case TokenType.KwInterface: return parse_interface_def(p)
-    case TokenType.KwStruct:
+    case .KwFunc, .KwProc, .KwTest, .KwMacro,
+         .KwExtFunc, .KwExtProc, .KwCoreFunc,
+         .KwCoreLazyFunc, .KwCoreProc, .KwLazyFunc,
+         .KwLazyProc: return parse_func_def(p)
+    case .KwInterface: return parse_interface_def(p)
+    case .KwStruct:
         mut sdef := parse_struct_def(p, "")
         // Anonymous struct instantiation: `struct { ... }(args)`. Lift the
         // literal to a top-level AnonStructN decl (issue #56) and call the
@@ -1746,7 +1746,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             return sdef
         }
-    case TokenType.KwExtStruct:
+    case .KwExtStruct:
         advance(p)
         mut tag := "@anon"
         if check(p, TokenType.LParen) {
@@ -1764,7 +1764,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             expect_token(p, TokenType.RParen)
         }
         return parse_struct_def(p, tag)
-    case TokenType.KwEnum:
+    case .KwEnum:
         // Anonymous enum variant: `enum { ... }.Variant` (or
         // `.Variant(payload)`). Lift the literal to a top-level AnonEnumN
         // decl (issue #57) and let the postfix `.field` loop attach the
@@ -1778,7 +1778,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         } else {
             return edef
         }
-    case TokenType.LBrace:
+    case .LBrace:
         advance(p)
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
@@ -1806,15 +1806,15 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         }
         expect_token(p, TokenType.RBrace)
         e_set = true
-    case TokenType.LParen:
+    case .LParen:
         // Grouping parentheses: (expr)
         advance(p) // consume '('
         e = parse_expression(p)
         expect_token(p, TokenType.RParen)
         e_set = true
-    case TokenType.LBracket:
+    case .LBracket:
         return parse_body_value(p)
-    case TokenType.KwMatch:
+    case .KwMatch:
         // Issue #244: `match` is the value-producing selection form. Same arm
         // syntax as `switch`, but each arm body is a single expression and the
         // whole `match` yields a value. Returns directly (bypassing the
@@ -1835,7 +1835,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         }
         expect_token(p, TokenType.RBrace)
         return node
-    case TokenType.KwSwitch:
+    case .KwSwitch:
         // Issue #244: `switch` parses here too (symmetric with `match`), so a
         // `switch` written in value position (e.g. `x := switch ...`) becomes a
         // node the typer rejects with a message pointing at `match`.
@@ -1935,37 +1935,37 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
 //   1  ||               or
 priv binop_prec := func(tt: TokenType) returns I64 {
     switch tt {
-    case TokenType.Star, TokenType.Slash, TokenType.Percent: return 8
-    case TokenType.Plus, TokenType.Minus: return 7
-    case TokenType.EqEq, TokenType.Neq, TokenType.Lt, TokenType.LtEq, TokenType.Gt,
-         TokenType.GtEq: return 6
-    case TokenType.Ampersand: return 5
-    case TokenType.Caret:     return 4
-    case TokenType.Pipe:      return 3
-    case TokenType.AmpAmp:    return 2
-    case TokenType.PipePipe:  return 1
+    case .Star, .Slash, .Percent: return 8
+    case .Plus, .Minus: return 7
+    case .EqEq, .Neq, .Lt, .LtEq, .Gt,
+         .GtEq: return 6
+    case .Ampersand: return 5
+    case .Caret:     return 4
+    case .Pipe:      return 3
+    case .AmpAmp:    return 2
+    case .PipePipe:  return 1
     case: return -1
     }
 }
 
 priv binop_method := func(tt: TokenType) returns Str {
     switch tt {
-    case TokenType.Star:      return "mul"
-    case TokenType.Slash:     return "div"
-    case TokenType.Percent:   return "mod"
-    case TokenType.Plus:      return "add"
-    case TokenType.Minus:     return "sub"
-    case TokenType.EqEq:      return "eq"
-    case TokenType.Neq:       return "neq"
-    case TokenType.Lt:        return "lt"
-    case TokenType.LtEq:      return "lte"
-    case TokenType.Gt:        return "gt"
-    case TokenType.GtEq:      return "gte"
-    case TokenType.Ampersand: return "band"
-    case TokenType.Caret:     return "bxor"
-    case TokenType.Pipe:      return "bor"
-    case TokenType.AmpAmp:    return "and"
-    case TokenType.PipePipe:  return "or"
+    case .Star:      return "mul"
+    case .Slash:     return "div"
+    case .Percent:   return "mod"
+    case .Plus:      return "add"
+    case .Minus:     return "sub"
+    case .EqEq:      return "eq"
+    case .Neq:       return "neq"
+    case .Lt:        return "lt"
+    case .LtEq:      return "lte"
+    case .Gt:        return "gt"
+    case .GtEq:      return "gte"
+    case .Ampersand: return "band"
+    case .Caret:     return "bxor"
+    case .Pipe:      return "bor"
+    case .AmpAmp:    return "and"
+    case .PipePipe:  return "or"
     case: UNREACHABLE("expected a binary operator token, got ", tt.to_str())
     }
     return ""
@@ -2039,7 +2039,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
                 mut stmt := parse_statement(p)
                 switch stmt.node_type {
-                case NodeType.Decl(dd):
+                case .Decl(dd):
                     mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
                         explicit_type = dd.explicit_type.clone(), til_type = dd.til_type.clone(), own_type = dd.own_type)
                     if stmt.children.len() > 0 {
@@ -2258,7 +2258,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             if check(p, TokenType.Eq) {
                 mut fa_name := ""
                 switch chained.node_type {
-                case NodeType.FieldAccess(fan):
+                case .FieldAccess(fan):
                     fa_name = Str.clone(fan.field_access_name())
                 case:
                     parse_fail(p, t_line, t_col, "left side of '=' is not a field access")
@@ -2327,7 +2327,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
     stmt := parse_statement_body(p)
     if is_priv {
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             // #179 steps 1-3, 6: priv is allowed on any top-level
             // declaration (func/proc, struct, enum, or value/let
             // global). Steps 4-5 (struct fields, namespace methods)
@@ -2339,7 +2339,7 @@ priv parse_statement := proc(mut p: Parser) returns Expr {
     }
     if p.pending_doc.is_empty().not() {
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             dd.doc = p.pending_doc.clone()
         case:
         }
@@ -2396,7 +2396,7 @@ priv parse_case_head := proc(mut p: Parser) returns Expr {
         }
     }
     switch cn.node_type {
-    case NodeType.Case(cd): cd.pattern_count = pattern_count
+    case .Case(cd): cd.pattern_count = pattern_count
     case:
     }
     expect_token(p, TokenType.Colon)
@@ -2433,9 +2433,9 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     ref t : Token = peek(p)
 
     switch t.type {
-    case TokenType.Ident:
+    case .Ident:
         return parse_statement_ident(p, false, OwnType.Shallow)
-    case TokenType.KwTest:
+    case .KwTest:
         if p.pos + 1 < p.tokens.len() {
             ref nt : Token = p.tokens[p.pos + 1]
             if nt.type.is(TokenType.ColonEq).or(nt.type.is(TokenType.Colon))
@@ -2444,7 +2444,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
         }
         return parse_expression(p)
-    case TokenType.KwRef:
+    case .KwRef:
         advance(p)
         mut ref_mut := false
         if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
@@ -2463,26 +2463,26 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         mut decl := Expr.new(NodeType.Decl(dd), i_line, i_col)
         decl.add_child(own parse_expression(p))
         return decl
-    case TokenType.KwMut:
+    case .KwMut:
         advance(p)
         return parse_statement_ident(p, true, OwnType.Shallow)
-    case TokenType.KwShallow:
+    case .KwShallow:
         // No return: parse_fail records the diagnostic and parks on Eof, then
         // the "expected statement" fail below counts the same token again --
         // exactly what the old if-chain did by falling through.
         advance(p)
         parse_fail(p, t_line, t_col, "locals cannot use 'shallow'; locals are owned by default")
-    case TokenType.KwConst:
+    case .KwConst:
         advance(p)
         parse_fail(p, t_line, t_col, "redundant 'const' on local: locals are immutable by default; drop it")
-    case TokenType.KwReturn:
+    case .KwReturn:
         advance(p)
         mut ret := Expr.new(NodeType.Return, t_line, t_col)
         if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()).and(check(p, TokenType.KwCase).not()) {
             ret.add_child(own parse_expression(p))
         }
         return ret
-    case TokenType.KwIf:
+    case .KwIf:
         advance(p)
         mut node := Expr.new(NodeType.If, t_line, t_col)
         node.add_child(own parse_expression(p))
@@ -2503,10 +2503,10 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     // A statement that opens with a value token is an expression statement.
     // Issue #244: `match` lands here too; the typer then reports its unused
     // value and points at `switch`.
-    case TokenType.StringTok, TokenType.Number, TokenType.KwTrue, TokenType.KwFalse,
-         TokenType.LParen, TokenType.Minus, TokenType.KwMacro,
-         TokenType.KwMatch: return parse_expression(p)
-    case TokenType.LBrace:
+    case .StringTok, .Number, .KwTrue, .KwFalse,
+         .LParen, .Minus, .KwMacro,
+         .KwMatch: return parse_expression(p)
+    case .LBrace:
         advance(p)
         return parse_block(p)
     // Issue #54: bare capture block `[a, mut b] { ... }`. The bracket list
@@ -2514,21 +2514,21 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
     // is otherwise only a postfix index token, so a leading `[` is an
     // unambiguous capture block. Modifiers: bare (const ref), `mut`,
     // `shallow` (private value copy) and `own` (the block consumes it).
-    case TokenType.LBracket:
+    case .LBracket:
         mut cbd := CaptureBlockData()
         cbd.captures = parse_capture_list(p)
         mut cb := Expr.new(NodeType.CaptureBlock(cbd), t_line, t_col)
         expect_token(p, TokenType.LBrace)
         cb.add_child(own parse_block(p))
         return cb
-    case TokenType.KwWhile:
+    case .KwWhile:
         advance(p)
         mut node := Expr.new(NodeType.While, t_line, t_col)
         node.add_child(own parse_expression(p))
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
         return node
-    case TokenType.KwFor:
+    case .KwFor:
         advance(p)
         mut for_is_mut := false
         if check(p, TokenType.KwMut) {
@@ -2564,9 +2564,9 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.LBrace)
         node.add_child(own parse_block(p))
         return node
-    case TokenType.KwSwitch:
+    case .KwSwitch:
         return parse_switch(p)
-    case TokenType.KwOwn:
+    case .KwOwn:
         advance(p)
         if check(p, TokenType.Ident).or(check(p, TokenType.KwMut)) {
             mut own_mut := false
@@ -2595,21 +2595,21 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
             }
         }
         return expr
-    case TokenType.KwBreak:
+    case .KwBreak:
         advance(p)
         return Expr.new(NodeType.Break, t_line, t_col)
-    case TokenType.KwContinue:
+    case .KwContinue:
         advance(p)
         return Expr.new(NodeType.Continue, t_line, t_col)
     // Issue #198: `throw <expr>`. One child = thrown expression.
-    case TokenType.KwThrow:
+    case .KwThrow:
         advance(p)
         mut tn := Expr.new(NodeType.Throw, t_line, t_col)
         tn.add_child(own parse_expression(p))
         return tn
     // Issue #198: `catch (err: T) { body }`.
     // Three children: Ident var name, Ident type name, Body block.
-    case TokenType.KwCatch:
+    case .KwCatch:
         advance(p)
         expect_token(p, TokenType.LParen)
         v_line := peek_line(p)
@@ -2709,75 +2709,75 @@ parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut
 expr_type_name_ref := func(e: Expr) returns Option(ref Str) {
     ref t : Type = e.til_type()
     switch t {
-    case Type.Struct(s):     return Option(ref Str).Some(s)
-    case Type.Enum(s):       return Option(ref Str).Some(s)
-    case Type.Custom(s):     return Option(ref Str).Some(s)
-    case Type.FuncPtrSig(s): return Option(ref Str).Some(s)
+    case .Struct(s):     return Option(ref Str).Some(s)
+    case .Enum(s):       return Option(ref Str).Some(s)
+    case .Custom(s):     return Option(ref Str).Some(s)
+    case .FuncPtrSig(s): return Option(ref Str).Some(s)
     case: return Option(ref Str).None
     }
 }
 
 til_type_name_c := func(t: Type) returns Str {
     switch t {
-    case Type.Unknown:   return "unknown"
-    case Type.None:      return "None"
-    case Type.Primitive(Primitive.I64):       return "I64"
-    case Type.Primitive(Primitive.U8):        return "U8"
-    case Type.Primitive(Primitive.I8):        return "I8"
-    case Type.Primitive(Primitive.I16):       return "I16"
-    case Type.Primitive(Primitive.U16):       return "U16"
-    case Type.Primitive(Primitive.I32):       return "I32"
-    case Type.Primitive(Primitive.U32):       return "U32"
-    case Type.Primitive(Primitive.U64):       return "U64"
-    case Type.Primitive(Primitive.F32):       return "F32"
-    case Type.Primitive(Primitive.F64):       return "F64"
-    case Type.Primitive(Primitive.Bool):      return "Bool"
-    case Type.Struct:    return "Struct"
-    case Type.StructDef: return "StructDef"
-    case Type.Enum:      return "Enum"
-    case Type.EnumDef:   return "EnumDef"
-    case Type.FuncDef:   return "FunctionDef"
-    case Type.FuncPtr, Type.FuncPtrSig: return "Fn"
-    case Type.Body:      return "Body"
-    case Type.Dynamic:   return "Dynamic"
-    case Type.Custom(name): return name.clone()
+    case .Unknown:   return "unknown"
+    case .None:      return "None"
+    case .Primitive(Primitive.I64):       return "I64"
+    case .Primitive(Primitive.U8):        return "U8"
+    case .Primitive(Primitive.I8):        return "I8"
+    case .Primitive(Primitive.I16):       return "I16"
+    case .Primitive(Primitive.U16):       return "U16"
+    case .Primitive(Primitive.I32):       return "I32"
+    case .Primitive(Primitive.U32):       return "U32"
+    case .Primitive(Primitive.U64):       return "U64"
+    case .Primitive(Primitive.F32):       return "F32"
+    case .Primitive(Primitive.F64):       return "F64"
+    case .Primitive(Primitive.Bool):      return "Bool"
+    case .Struct:    return "Struct"
+    case .StructDef: return "StructDef"
+    case .Enum:      return "Enum"
+    case .EnumDef:   return "EnumDef"
+    case .FuncDef:   return "FunctionDef"
+    case .FuncPtr, .FuncPtrSig: return "Fn"
+    case .Body:      return "Body"
+    case .Dynamic:   return "Dynamic"
+    case .Custom(name): return name.clone()
     }
 }
 
 // Lowercase/snake_case NodeType tag name, for ast_print and test output.
 node_name := func(data: NodeType) returns Str {
     switch data {
-    case NodeType.Body:        return "body"
-    case NodeType.Literal(Literal.Str):  return "str"
-    case NodeType.Literal(Literal.Num):  return "num"
-    case NodeType.Literal(Literal.Bool): return "bool"
-    case NodeType.Literal(Literal.Null): return "null"
-    case NodeType.Ident:       return "ident"
-    case NodeType.Decl:        return "decl"
-    case NodeType.Assign:      return "assign"
-    case NodeType.FCall:       return "fcall"
-    case NodeType.FuncDef:     return "func_def"
-    case NodeType.StructDef:   return "struct_def"
-    case NodeType.EnumDef:     return "enum_def"
-    case NodeType.FieldAccess: return "field_access"
-    case NodeType.FieldAssign: return "field_assign"
-    case NodeType.Return:      return "return"
-    case NodeType.If:          return "if"
-    case NodeType.While:       return "while"
-    case NodeType.ForIn:       return "for_in"
-    case NodeType.NamedArg:    return "named_arg"
-    case NodeType.Break:       return "break"
-    case NodeType.Continue:    return "continue"
-    case NodeType.Literal(Literal.MapLit):      return "map_lit"
-    case NodeType.Literal(Literal.SetLit):      return "set_lit"
-    case NodeType.Switch:      return "switch"
-    case NodeType.Match:       return "match"
-    case NodeType.Case:        return "case"
-    case NodeType.Loc:         return "loc"
-    case NodeType.Throw:       return "throw"
-    case NodeType.Catch:       return "catch"
-    case NodeType.CaptureBlock: return "capture_block"
-    case NodeType.BodyValue: return "body_value"
+    case .Body:        return "body"
+    case .Literal(Literal.Str):  return "str"
+    case .Literal(Literal.Num):  return "num"
+    case .Literal(Literal.Bool): return "bool"
+    case .Literal(Literal.Null): return "null"
+    case .Ident:       return "ident"
+    case .Decl:        return "decl"
+    case .Assign:      return "assign"
+    case .FCall:       return "fcall"
+    case .FuncDef:     return "func_def"
+    case .StructDef:   return "struct_def"
+    case .EnumDef:     return "enum_def"
+    case .FieldAccess: return "field_access"
+    case .FieldAssign: return "field_assign"
+    case .Return:      return "return"
+    case .If:          return "if"
+    case .While:       return "while"
+    case .ForIn:       return "for_in"
+    case .NamedArg:    return "named_arg"
+    case .Break:       return "break"
+    case .Continue:    return "continue"
+    case .Literal(Literal.MapLit):      return "map_lit"
+    case .Literal(Literal.SetLit):      return "set_lit"
+    case .Switch:      return "switch"
+    case .Match:       return "match"
+    case .Case:        return "case"
+    case .Loc:         return "loc"
+    case .Throw:       return "throw"
+    case .Catch:       return "catch"
+    case .CaptureBlock: return "capture_block"
+    case .BodyValue: return "body_value"
     case: return "?"
     }
 }
@@ -2796,7 +2796,7 @@ field_access_node := func(name: Str) returns NodeType {
 
 set_own_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.own_args = fcd.own_args.bor(bit)
@@ -2817,7 +2817,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 // #342: record WHICH argument carried `..`, beside is_splat's "some did".
 set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.splat_args = fcd.splat_args.bor(bit)
@@ -2828,7 +2828,7 @@ set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
 
 set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.ref_args = fcd.ref_args.bor(bit)
@@ -2851,7 +2851,7 @@ fcall_has_ref_args := func(fcall: Expr) returns Bool {
 
 set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
-    case NodeType.FCall(fcd):
+    case .FCall(fcd):
         mut bit : U64 = 1
         for _ in 0..arg_index { bit = bit * 2 }
         fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)
@@ -2872,16 +2872,16 @@ get_keep_outer_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 // returns the enum variant spelling for Expr.to_str output.
 func_type_name := func(ft: FuncType) returns Str {
     switch ft {
-    case FuncType.Func:    return "func"
-    case FuncType.Proc:    return "proc"
-    case FuncType.Test:    return "test"
-    case FuncType.Macro:   return "macro"
-    case FuncType.ExtFunc: return "ext_func"
-    case FuncType.ExtProc: return "ext_proc"
-    case FuncType.LazyFunc: return "lazy_func"
-    case FuncType.LazyProc: return "lazy_proc"
-    case FuncType.CoreFunc: return "core_func"
-    case FuncType.CoreProc: return "core_proc"
-    case FuncType.CoreLazyFunc: return "core_lazy_func"
+    case .Func:    return "func"
+    case .Proc:    return "proc"
+    case .Test:    return "test"
+    case .Macro:   return "macro"
+    case .ExtFunc: return "ext_func"
+    case .ExtProc: return "ext_proc"
+    case .LazyFunc: return "lazy_func"
+    case .LazyProc: return "lazy_proc"
+    case .CoreFunc: return "core_func"
+    case .CoreProc: return "core_proc"
+    case .CoreLazyFunc: return "core_lazy_func"
     }
 }

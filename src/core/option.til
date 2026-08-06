@@ -15,7 +15,7 @@ Option := macro(T: Type) returns EnumDef {
     namespace:
         is_some := func(self: Option(T)) returns Bool {
             switch self {
-            case Option(T).Some(_v): return true
+            case .Some(_v): return true
             case: return false
             }
         }
@@ -24,7 +24,7 @@ Option := macro(T: Type) returns EnumDef {
         }
         unwrap_or := func(self: Option(T), default_v: T) returns T {
             switch self {
-            case Option(T).Some(v): return v
+            case .Some(v): return v
             case: return default_v
             }
         }
@@ -37,7 +37,7 @@ Option := macro(T: Type) returns EnumDef {
         /// stops being true.
         unwrap := func(self: Option(T)) returns T {
             switch self {
-            case Option(T).Some(v): return v
+            case .Some(v): return v
             case: panic(__LOC__, "unwrap of a None Option")
             }
         }
@@ -50,7 +50,7 @@ Option := macro(T: Type) returns EnumDef {
         /// a clone would copy a whole subtree and break node identity.
         take := func(own self: Option(T)) returns T {
             switch self {
-            case Option(T).Some(v): return v
+            case .Some(v): return v
             case: panic(__LOC__, "take of a None Option")
             }
         }

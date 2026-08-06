@@ -15,9 +15,9 @@ Lang := enum {
 
 priv lang_to_str := func(lang: Lang) returns Str {
     switch lang {
-    case Lang.C:     return "c"
-    case Lang.HolyC: return "holyc"
-    case Lang.TIL:   return "til"
+    case .C:     return "c"
+    case .HolyC: return "holyc"
+    case .TIL:   return "til"
     }
     return ""
 }
@@ -60,26 +60,26 @@ target_from_str := func(s: Str) returns Target {
 
 priv target_to_str := func(target: Target) returns Str {
     switch target {
-    case Target.LinuxX64:     return "linux-x64"
-    case Target.LinuxArm64:   return "linux-arm64"
-    case Target.LinuxRiscv64: return "linux-riscv64"
-    case Target.LinuxX86:     return "linux-x86"
-    case Target.LinuxArm32:   return "linux-arm32"
-    case Target.LinuxRiscv32: return "linux-riscv32"
-    case Target.WindowsX64:   return "windows-x64"
-    case Target.WindowsX86:   return "windows-x86"
-    case Target.MacosX64:     return "macos-x64"
-    case Target.MacosArm64:   return "macos-arm64"
-    case Target.Wasm32:       return "wasm32"
-    case Target.TempleosX86:  return "templeos-x86"
+    case .LinuxX64:     return "linux-x64"
+    case .LinuxArm64:   return "linux-arm64"
+    case .LinuxRiscv64: return "linux-riscv64"
+    case .LinuxX86:     return "linux-x86"
+    case .LinuxArm32:   return "linux-arm32"
+    case .LinuxRiscv32: return "linux-riscv32"
+    case .WindowsX64:   return "windows-x64"
+    case .WindowsX86:   return "windows-x86"
+    case .MacosX64:     return "macos-x64"
+    case .MacosArm64:   return "macos-arm64"
+    case .Wasm32:       return "wasm32"
+    case .TempleosX86:  return "templeos-x86"
     }
     return ""
 }
 
 priv target_is_32bit := func(target: Target) returns Bool {
     switch target {
-    case Target.LinuxX86, Target.LinuxArm32, Target.LinuxRiscv32, Target.WindowsX86,
-         Target.Wasm32, Target.TempleosX86: return true
+    case .LinuxX86, .LinuxArm32, .LinuxRiscv32, .WindowsX86,
+         .Wasm32, .TempleosX86: return true
     case: return false
     }
 }
@@ -114,7 +114,7 @@ target_usize_name := func(target: Target) returns Str {
 
 priv default_lang_for_target := func(target: Target) returns Lang {
     switch target {
-    case Target.TempleosX86: return Lang.HolyC
+    case .TempleosX86: return Lang.HolyC
     case: return Lang.C
     }
 }
@@ -139,33 +139,33 @@ priv validate_lang_for_target := func(lang: Lang, target: Target) {
 toolchain_command := proc(target: Target, lang: Lang) returns Str {
     validate_lang_for_target(lang, target)
     switch target {
-    case Target.LinuxX64:     return "gcc"
-    case Target.LinuxArm64:   return "aarch64-linux-gnu-gcc"
-    case Target.LinuxRiscv64: return "riscv64-linux-gnu-gcc"
-    case Target.LinuxX86:     return "gcc"
-    case Target.LinuxArm32:   return "arm-linux-gnueabihf-gcc"
-    case Target.LinuxRiscv32: return "riscv32-linux-gnu-gcc"
+    case .LinuxX64:     return "gcc"
+    case .LinuxArm64:   return "aarch64-linux-gnu-gcc"
+    case .LinuxRiscv64: return "riscv64-linux-gnu-gcc"
+    case .LinuxX86:     return "gcc"
+    case .LinuxArm32:   return "arm-linux-gnueabihf-gcc"
+    case .LinuxRiscv32: return "riscv32-linux-gnu-gcc"
     // mingw's gcc is the cross-prefixed x86_64-w64-mingw32-gcc when
     // building windows FROM another host, but plain "gcc" when running
     // natively ON windows (mingw installs it unprefixed in PATH).
-    case Target.WindowsX64:
+    case .WindowsX64:
         if host_os() == "windows" { return "gcc" }
         return "x86_64-w64-mingw32-gcc"
-    case Target.WindowsX86:
+    case .WindowsX86:
         if host_os() == "windows" { return "gcc" }
         return "i686-w64-mingw32-gcc"
-    case Target.MacosX64, Target.MacosArm64, Target.Wasm32: return "clang"
-    case Target.TempleosX86:  return "holyc"
+    case .MacosX64, .MacosArm64, .Wasm32: return "clang"
+    case .TempleosX86:  return "holyc"
     }
     return ""
 }
 
 priv target_prefix_args := func(target: Target) returns Str {
     switch target {
-    case Target.LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
-    case Target.MacosArm64: return " -target arm64-apple-macos11"
-    case Target.MacosX64:   return " -target x86_64-apple-macos10.12"
-    case Target.Wasm32:     return " --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all"
+    case .LinuxX86:     return " -m32 -I/usr/include/x86_64-linux-gnu"
+    case .MacosArm64: return " -target arm64-apple-macos11"
+    case .MacosX64:   return " -target x86_64-apple-macos10.12"
+    case .Wasm32:     return " --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all"
     case: return ""
     }
 }
@@ -220,16 +220,16 @@ toolchain_extra_args := proc(target: Target) returns Str {
 
 executable_extension := func(target: Target) returns Str {
     switch target {
-    case Target.WindowsX64, Target.WindowsX86: return ".exe"
-    case Target.Wasm32:     return ".wasm"
+    case .WindowsX64, .WindowsX86: return ".exe"
+    case .Wasm32:     return ".wasm"
     case: return ""
     }
 }
 
 shared_lib_extension := func(target: Target) returns Str {
     switch target {
-    case Target.WindowsX64, Target.WindowsX86: return ".dll"
-    case Target.MacosX64, Target.MacosArm64: return ".dylib"
+    case .WindowsX64, .WindowsX86: return ".dll"
+    case .MacosX64, .MacosArm64: return ".dylib"
     case: return ".so"
     }
 }
@@ -239,14 +239,14 @@ shared_lib_extension := func(target: Target) returns Str {
 // EnumProcessModules from psapi; mingw's CRT provides the rest inline.
 target_system_libs := func(target: Target) returns Str {
     switch target {
-    case Target.LinuxX64, Target.LinuxArm64, Target.LinuxRiscv64, Target.LinuxX86,
-         Target.LinuxArm32, Target.LinuxRiscv32: return "-ldl -lrt -lm -lpthread"
-    case Target.WindowsX64, Target.WindowsX86: return "-lpsapi"
+    case .LinuxX64, .LinuxArm64, .LinuxRiscv64, .LinuxX86,
+         .LinuxArm32, .LinuxRiscv32: return "-ldl -lrt -lm -lpthread"
+    case .WindowsX64, .WindowsX86: return "-lpsapi"
     // On darwin, libm/libpthread are pure aliases of libSystem, which
     // clang's darwin driver always links implicitly -- and the vendored
     // cross toolchain (vendor/macos) ships ONLY libSystem.tbd, so the
     // aliases must not be requested: empty works for native and cross.
-    case Target.MacosX64, Target.MacosArm64, Target.Wasm32, Target.TempleosX86: return ""
+    case .MacosX64, .MacosArm64, .Wasm32, .TempleosX86: return ""
     }
     return ""
 }
@@ -257,21 +257,21 @@ target_system_libs := func(target: Target) returns Str {
 // platforms come online.
 target_ffi_lib := func(target: Target) returns Str {
     switch target {
-    case Target.LinuxX64:     return "vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
+    case .LinuxX64:     return "vendor/libffi/x86_64-pc-linux-gnu/.libs/libffi.a"
     // Native builds only for the entries below: configure names its
     // build dir with an unpredictable triple (version-suffixed on mac,
     // vendor-dependent on arm64 linux), so the Makefile copies the
     // result to these stable paths on the matching hosts.
-    case Target.LinuxArm64:   return "vendor/libffi/libffi-linux-arm64.a"
-    case Target.MacosX64, Target.MacosArm64: return "vendor/libffi/libffi-macos.a"
+    case .LinuxArm64:   return "vendor/libffi/libffi-linux-arm64.a"
+    case .MacosX64, .MacosArm64: return "vendor/libffi/libffi-macos.a"
     // mingw's target triple is fixed (no version suffix), so this path
     // is stable and usable from any host that has the win64 libffi
     // built -- unlike the mac/arm64 stable-path copies. This unlocks
     // windows AS A HOST (til.exe links libffi for its ext_func
     // interpreter dispatch) and runtime ext_func in cross-built user
     // programs (issue #25).
-    case Target.WindowsX64:   return "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
-    case Target.WindowsX86:   return "vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
+    case .WindowsX64:   return "vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a"
+    case .WindowsX86:   return "vendor/libffi/i686-w64-mingw32/.libs/libffi.a"
     case: return ""
     }
     return ""
@@ -283,23 +283,23 @@ target_ffi_lib := func(target: Target) returns Str {
 // cross-builds don't exist yet.
 target_gui_libs := proc(target: Target) returns Str {
     switch target {
-    case Target.LinuxX64:
+    case .LinuxX64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
     // Native arm64 linux hosts build the same vendor paths natively,
     // exactly like the macos entries below (issue #25).
-    case Target.LinuxArm64:
+    case .LinuxArm64:
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a"
-    case Target.LinuxX86:
+    case .LinuxX86:
         return "vendor/raylib/src/libraylib-x86.a vendor/tinyfiledialogs/libtinyfd-x86.a"
-    case Target.LinuxArm32:
+    case .LinuxArm32:
         return "vendor/raylib/src/libraylib-arm32.a vendor/tinyfiledialogs/libtinyfd-arm32.a"
-    case Target.LinuxRiscv32:
+    case .LinuxRiscv32:
         return "vendor/raylib/src/libraylib-riscv32.a vendor/tinyfiledialogs/libtinyfd-riscv32.a"
-    case Target.WindowsX64:
+    case .WindowsX64:
         return "vendor/raylib/src/libraylib-win64.a vendor/tinyfiledialogs/libtinyfd-win64.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
-    case Target.WindowsX86:
+    case .WindowsX86:
         return "vendor/raylib/src/libraylib-win32.a vendor/tinyfiledialogs/libtinyfd-win32.a -lgdi32 -lopengl32 -lwinmm -lole32 -luuid -lcomdlg32 -limm32"
-    case Target.Wasm32:
+    case .Wasm32:
         return "vendor/raylib/src/libraylib-web.a -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html"
     // macOS. On a mac HOST (native) the vendored raylib/tinyfd recipes
     // produce mac-native .a files at the same paths as on Linux, and the
@@ -313,12 +313,12 @@ target_gui_libs := proc(target: Target) returns Str {
     // bind at runtime on the target mac (issue #25 phase 3). The *.tbd
     // glob is expanded by the shell (system_cmd runs the link via
     // system()).
-    case Target.MacosX64:
+    case .MacosX64:
         if macos_is_cross(target) {
             return "vendor/raylib/src/libraylib-macos-x64.a vendor/tinyfiledialogs/libtinyfd-macos-x64.a vendor/macos/frameworks/*.tbd"
         }
         return "vendor/raylib/src/libraylib.a vendor/tinyfiledialogs/libtinyfd.a -framework OpenGL -framework Cocoa -framework IOKit -framework CoreAudio -framework CoreVideo"
-    case Target.MacosArm64:
+    case .MacosArm64:
         if macos_is_cross(target) {
             return "vendor/raylib/src/libraylib-macos-arm64.a vendor/tinyfiledialogs/libtinyfd-macos-arm64.a vendor/macos/frameworks/*.tbd"
         }

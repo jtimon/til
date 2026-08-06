@@ -93,24 +93,24 @@ namespace:
     // (src/self/parser.til) which returns the til keyword (snake_case).
     variant_name := func(self: FuncType) returns Str {
         switch self {
-        case FuncType.Func:    return "Func"
-        case FuncType.Proc:    return "Proc"
-        case FuncType.Test:    return "Test"
-        case FuncType.Macro:   return "Macro"
-        case FuncType.ExtFunc: return "ExtFunc"
-        case FuncType.ExtProc: return "ExtProc"
-        case FuncType.LazyFunc: return "LazyFunc"
-        case FuncType.LazyProc: return "LazyProc"
-        case FuncType.CoreFunc: return "CoreFunc"
-        case FuncType.CoreProc: return "CoreProc"
-        case FuncType.CoreLazyFunc: return "CoreLazyFunc"
+        case .Func:    return "Func"
+        case .Proc:    return "Proc"
+        case .Test:    return "Test"
+        case .Macro:   return "Macro"
+        case .ExtFunc: return "ExtFunc"
+        case .ExtProc: return "ExtProc"
+        case .LazyFunc: return "LazyFunc"
+        case .LazyProc: return "LazyProc"
+        case .CoreFunc: return "CoreFunc"
+        case .CoreProc: return "CoreProc"
+        case .CoreLazyFunc: return "CoreLazyFunc"
         }
     }
     // ext_func / ext_proc: the FFI boundary. The body is user-written C, so
     // nothing here is emitted, walked, or auto-cleaned.
     is_ext := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.ExtFunc, FuncType.ExtProc: return true
+        case .ExtFunc, .ExtProc: return true
         case: return false
         }
     }
@@ -119,7 +119,7 @@ namespace:
     // indirected through a FuncPtr or dyn_fn.
     is_core := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.CoreFunc, FuncType.CoreProc, FuncType.CoreLazyFunc: return true
+        case .CoreFunc, .CoreProc, .CoreLazyFunc: return true
         case: return false
         }
     }
@@ -132,7 +132,7 @@ namespace:
     // would send and/or down the user-lazy path. It lives in is_core.
     is_lazy := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.LazyFunc, FuncType.LazyProc: return true
+        case .LazyFunc, .LazyProc: return true
         case: return false
         }
     }
@@ -140,7 +140,7 @@ namespace:
     // auto-shallow inference and auto-generated methods.
     is_plain := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.Func, FuncType.Proc: return true
+        case .Func, .Proc: return true
         case: return false
         }
     }
@@ -153,7 +153,7 @@ namespace:
     // runs.
     is_proc := func(self: FuncType) returns Bool {
         switch self {
-        case FuncType.Proc, FuncType.ExtProc, FuncType.CoreProc: return true
+        case .Proc, .ExtProc, .CoreProc: return true
         case: return false
         }
     }
@@ -233,8 +233,8 @@ namespace:
     /// the definition). Prefer a switch when the None arm does real work.
     default_expr := func(self: Declaration) returns ref Expr {
         switch self.default_value {
-        case Option__Expr.Some(dv): return dv
-        case Option__Expr.None: panic(__LOC__, "default_expr on a Declaration with no default: ", self.name)
+        case .Some(dv): return dv
+        case .None: panic(__LOC__, "default_expr on a Declaration with no default: ", self.name)
         }
     }
 }
@@ -860,9 +860,9 @@ namespace:
     // needs separate handling.
     is_nonnull_literal := func(self: NodeType) returns Bool {
         switch self {
-        case NodeType.Literal(Literal.Str):  return true
-        case NodeType.Literal(Literal.Num):  return true
-        case NodeType.Literal(Literal.Bool): return true
+        case .Literal(Literal.Str):  return true
+        case .Literal(Literal.Num):  return true
+        case .Literal(Literal.Bool): return true
         case: return false
         }
     }
@@ -871,28 +871,28 @@ namespace:
     // name, etc.). Names are kept as written in the enum (no case conversion).
     head_str := func(self: NodeType) returns Str {
         switch self {
-        case NodeType.Body:           return "Body"
-        case NodeType.Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
-        case NodeType.Literal(Literal.Num(s)):  return format("LiteralNum ", Str.clone(s.literal_num_text()))
-        case NodeType.Literal(Literal.Bool(b)):
+        case .Body:           return "Body"
+        case .Literal(Literal.Str(s)):  return format("LiteralStr \"", s, "\"")
+        case .Literal(Literal.Num(s)):  return format("LiteralNum ", Str.clone(s.literal_num_text()))
+        case .Literal(Literal.Bool(b)):
             if b { return "LiteralBool true" }
             return "LiteralBool false"
-        case NodeType.Literal(Literal.Null):    return "LiteralNull"
-        case NodeType.Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
-        case NodeType.Decl(d):
+        case .Literal(Literal.Null):    return "LiteralNull"
+        case .Ident(s):       return format("Ident ", Str.clone(s.ident_name()))
+        case .Decl(d):
             if d.is_mut { return format("Decl mut ", d.name) }
             return format("Decl ", d.name)
-        case NodeType.Assign(a):      return format("Assign ", a.name)
-        case NodeType.FCall:          return "FCall"
-        case NodeType.FuncDef(f):     return format("FuncDef ", f.func_type.variant_name())
-        case NodeType.StructDef:      return "StructDef"
-        case NodeType.EnumDef:        return "EnumDef"
-        case NodeType.FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
-        case NodeType.FieldAssign(fad): return format("FieldAssign ", fad.name)
-        case NodeType.Return:         return "Return"
-        case NodeType.If:             return "If"
-        case NodeType.While:          return "While"
-        case NodeType.ForIn(fi):
+        case .Assign(a):      return format("Assign ", a.name)
+        case .FCall:          return "FCall"
+        case .FuncDef(f):     return format("FuncDef ", f.func_type.variant_name())
+        case .StructDef:      return "StructDef"
+        case .EnumDef:        return "EnumDef"
+        case .FieldAccess(s): return format("FieldAccess ", Str.clone(s.field_access_name()))
+        case .FieldAssign(fad): return format("FieldAssign ", fad.name)
+        case .Return:         return "Return"
+        case .If:             return "If"
+        case .While:          return "While"
+        case .ForIn(fi):
             mut head := "ForIn "
             if fi.is_mut { head = "ForIn mut " }
             if fi.name2.len() > 0 {
@@ -901,22 +901,22 @@ namespace:
                 return format(head, fi.name, tail)
             }
             return format(head, fi.name)
-        case NodeType.NamedArg(s):    return format("NamedArg ", s)
-        case NodeType.Break:          return "Break"
-        case NodeType.Continue:       return "Continue"
-        case NodeType.Literal(Literal.MapLit):         return "MapLit"
-        case NodeType.Literal(Literal.SetLit):         return "SetLit"
-        case NodeType.Switch:         return "Switch"
-        case NodeType.Match:          return "Match"
-        case NodeType.Case:           return "Case"
-        case NodeType.NoDefaultArg:   return "NoDefaultArg"
-        case NodeType.Loc:            return "Loc"
-        case NodeType.Throw:          return "Throw"
-        case NodeType.Catch:          return "Catch"
-        case NodeType.CaptureBlock:   return "CaptureBlock"
-        case NodeType.BodyValue:      return "BodyValue"
-        case NodeType.RestPattern:    return "RestPattern"
-        case NodeType.ListPattern:    return "ListPattern"
+        case .NamedArg(s):    return format("NamedArg ", s)
+        case .Break:          return "Break"
+        case .Continue:       return "Continue"
+        case .Literal(Literal.MapLit):         return "MapLit"
+        case .Literal(Literal.SetLit):         return "SetLit"
+        case .Switch:         return "Switch"
+        case .Match:          return "Match"
+        case .Case:           return "Case"
+        case .NoDefaultArg:   return "NoDefaultArg"
+        case .Loc:            return "Loc"
+        case .Throw:          return "Throw"
+        case .Catch:          return "Catch"
+        case .CaptureBlock:   return "CaptureBlock"
+        case .BodyValue:      return "BodyValue"
+        case .RestPattern:    return "RestPattern"
+        case .ListPattern:    return "ListPattern"
         }
     }
 }
@@ -1012,9 +1012,9 @@ namespace:
     // only read. Callers that store the result clone at their site.
     til_type := func(self: Expr) returns ref Type {
         switch self.node_type {
-        case NodeType.Body:        return TYPE_NONE
-        case NodeType.Literal(Literal.Str):  return TYPE_STR
-        case NodeType.Literal(Literal.Num(nd)):
+        case .Body:        return TYPE_NONE
+        case .Literal(Literal.Str):  return TYPE_STR
+        case .Literal(Literal.Num(nd)):
             // An un-narrowed numeric literal reports its DEFAULT type. That
             // default follows the text: a fractional or exponent literal is a
             // float, everything else an integer. Answering I64 for `1.5` made
@@ -1027,63 +1027,63 @@ namespace:
                 return TYPE_I64
             }
             return nd.til_type
-        case NodeType.Literal(Literal.Bool): return TYPE_BOOL
-        case NodeType.Literal(Literal.Null): return TYPE_DYNAMIC
-        case NodeType.Ident(id):   return id.til_type
-        case NodeType.Decl(dd):    return dd.til_type
-        case NodeType.Assign:
+        case .Literal(Literal.Bool): return TYPE_BOOL
+        case .Literal(Literal.Null): return TYPE_DYNAMIC
+        case .Ident(id):   return id.til_type
+        case .Decl(dd):    return dd.til_type
+        case .Assign:
             if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
-        case NodeType.Literal(Literal.MapLit):      return TYPE_MAP
-        case NodeType.Literal(Literal.SetLit):      return TYPE_SET
-        case NodeType.NamedArg:
+        case .Literal(Literal.MapLit):      return TYPE_MAP
+        case .Literal(Literal.SetLit):      return TYPE_SET
+        case .NamedArg:
             if self.children.len() == 0 { return TYPE_UNKNOWN }
             return self.children[0].til_type()
-        case NodeType.FCall(fcd):  return fcd.til_type
-        case NodeType.FuncDef:     return TYPE_FUNCPTR
-        case NodeType.BodyValue:   return TYPE_BODY
-        case NodeType.StructDef:   return TYPE_STRUCTDEF
-        case NodeType.EnumDef:     return TYPE_ENUMDEF
-        case NodeType.FieldAccess(fd): return fd.til_type
-        case NodeType.FieldAssign: return TYPE_NONE
-        case NodeType.Return:
+        case .FCall(fcd):  return fcd.til_type
+        case .FuncDef:     return TYPE_FUNCPTR
+        case .BodyValue:   return TYPE_BODY
+        case .StructDef:   return TYPE_STRUCTDEF
+        case .EnumDef:     return TYPE_ENUMDEF
+        case .FieldAccess(fd): return fd.til_type
+        case .FieldAssign: return TYPE_NONE
+        case .Return:
             if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
-        case NodeType.If, NodeType.While: return TYPE_NONE
-        case NodeType.ForIn(fd):   return fd.til_type
-        case NodeType.Break, NodeType.Continue, NodeType.Switch: return TYPE_NONE
-        case NodeType.Match(md):   return md.til_type
-        case NodeType.Case:        return TYPE_NONE
-        case NodeType.NoDefaultArg:return TYPE_UNKNOWN
+        case .If, .While: return TYPE_NONE
+        case .ForIn(fd):   return fd.til_type
+        case .Break, .Continue, .Switch: return TYPE_NONE
+        case .Match(md):   return md.til_type
+        case .Case:        return TYPE_NONE
+        case .NoDefaultArg:return TYPE_UNKNOWN
         // Issue #281: the __LOC__ sentinel stands in for a Str location literal
         // until infer_expr / the default-fill resolves it, so it types as Str.
-        case NodeType.Loc:         return TYPE_STR
-        case NodeType.Throw:
+        case .Loc:         return TYPE_STR
+        case .Throw:
             if self.children.len() == 0 { return TYPE_NONE }
             return self.children[0].til_type()
-        case NodeType.Catch:       return TYPE_NONE
-        case NodeType.RestPattern, NodeType.ListPattern: return TYPE_UNKNOWN
-        case NodeType.CaptureBlock: return TYPE_NONE
+        case .Catch:       return TYPE_NONE
+        case .RestPattern, .ListPattern: return TYPE_UNKNOWN
+        case .CaptureBlock: return TYPE_NONE
         }
         return TYPE_UNKNOWN
     }
     set_til_type := func(mut self: Expr, shallow t: Type) {
         switch self.node_type {
-        case NodeType.Literal(Literal.Num(nd)):
+        case .Literal(Literal.Num(nd)):
             nd.til_type = t
-        case NodeType.Ident(id):
+        case .Ident(id):
             id.til_type = t
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             dd.til_type = t
-        case NodeType.FCall(fcd):
+        case .FCall(fcd):
             fcd.til_type = t
-        case NodeType.FieldAccess(fd):
+        case .FieldAccess(fd):
             fd.til_type = t
-        case NodeType.ForIn(fd):
+        case .ForIn(fd):
             fd.til_type = t
-        case NodeType.Match(md):
+        case .Match(md):
             md.til_type = t
-        case NodeType.Throw:
+        case .Throw:
             if self.children.len() > 0 {
                 self.children[0].set_til_type(t)
             }
@@ -1139,7 +1139,7 @@ namespace:
 
 ident_of := func(e: Expr, loc: Str = __LOC__) returns ref IdentData {
     switch e.node_type {
-    case NodeType.Ident(d):
+    case .Ident(d):
         return d
     case:
         UNREACHABLE("expected Ident, got ", e.node_type.head_str(), loc = loc)
@@ -1148,7 +1148,7 @@ ident_of := func(e: Expr, loc: Str = __LOC__) returns ref IdentData {
 
 decl_of := func(e: Expr, loc: Str = __LOC__) returns ref Declaration {
     switch e.node_type {
-    case NodeType.Decl(d):
+    case .Decl(d):
         return d
     case:
         UNREACHABLE("expected Decl, got ", e.node_type.head_str(), loc = loc)
@@ -1157,7 +1157,7 @@ decl_of := func(e: Expr, loc: Str = __LOC__) returns ref Declaration {
 
 fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
     switch e.node_type {
-    case NodeType.FCall(d):
+    case .FCall(d):
         return d
     case:
         UNREACHABLE("expected FCall, got ", e.node_type.head_str(), loc = loc)
@@ -1166,7 +1166,7 @@ fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
 
 funcdef_of := func(e: Expr, loc: Str = __LOC__) returns ref FunctionDef {
     switch e.node_type {
-    case NodeType.FuncDef(d):
+    case .FuncDef(d):
         return d
     case:
         UNREACHABLE("expected FuncDef, got ", e.node_type.head_str(), loc = loc)
@@ -1175,7 +1175,7 @@ funcdef_of := func(e: Expr, loc: Str = __LOC__) returns ref FunctionDef {
 
 fieldaccess_of := func(e: Expr, loc: Str = __LOC__) returns ref FieldAccessData {
     switch e.node_type {
-    case NodeType.FieldAccess(d):
+    case .FieldAccess(d):
         return d
     case:
         UNREACHABLE("expected FieldAccess, got ", e.node_type.head_str(), loc = loc)
@@ -1184,7 +1184,7 @@ fieldaccess_of := func(e: Expr, loc: Str = __LOC__) returns ref FieldAccessData 
 
 structdef_of := func(e: Expr, loc: Str = __LOC__) returns ref StructDef {
     switch e.node_type {
-    case NodeType.StructDef(d):
+    case .StructDef(d):
         return d
     case:
         UNREACHABLE("expected StructDef, got ", e.node_type.head_str(), loc = loc)
@@ -1193,7 +1193,7 @@ structdef_of := func(e: Expr, loc: Str = __LOC__) returns ref StructDef {
 
 enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
     switch e.node_type {
-    case NodeType.EnumDef(d):
+    case .EnumDef(d):
         return d
     case:
         UNREACHABLE("expected EnumDef, got ", e.node_type.head_str(), loc = loc)
@@ -1202,7 +1202,7 @@ enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
 
 case_of := func(e: Expr, loc: Str = __LOC__) returns ref CaseData {
     switch e.node_type {
-    case NodeType.Case(d):
+    case .Case(d):
         return d
     case:
         UNREACHABLE("expected Case, got ", e.node_type.head_str(), loc = loc)

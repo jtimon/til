@@ -162,11 +162,11 @@ repl_source_line_count := func(s: Str) returns U32 {
 
 repl_ast_has_loader_directive := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.FCall:
+    case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
-            case NodeType.Ident(name):
+            case .Ident(name):
                 ref cname : Str = name.ident_name()
                 if cname.eq("import").or(cname.eq("link")).or(cname.eq("link_c")) { return true }
             case:
@@ -182,7 +182,7 @@ repl_ast_has_loader_directive := func(e: Expr) returns Bool {
 
 repl_ast_has_lazy_def := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         if fd.func_type.is_lazy() { return true }
     case:
     }
@@ -194,11 +194,11 @@ repl_ast_has_lazy_def := func(e: Expr) returns Bool {
 
 repl_ast_has_known_variadic_call := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.FCall:
+    case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
-            case NodeType.Ident(name):
+            case .Ident(name):
                 ref cname : Str = name.ident_name()
                 if or(cname.eq("println"), cname.eq("print"),
                       cname.eq("format"),
@@ -276,16 +276,16 @@ repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
     if peek_ast.children.len() == 0 { return false }
     ref puser : Expr = peek_ast.children[peek_ast.children.len() - 1]
     switch puser.node_type {
-    case NodeType.Decl, NodeType.Assign, NodeType.FieldAssign, NodeType.FuncDef,
-         NodeType.StructDef, NodeType.EnumDef, NodeType.Return, NodeType.If, NodeType.While,
-         NodeType.ForIn, NodeType.Switch, NodeType.Case, NodeType.Break, NodeType.Continue,
-         NodeType.Body: return false
+    case .Decl, .Assign, .FieldAssign, .FuncDef,
+         .StructDef, .EnumDef, .Return, .If, .While,
+         .ForIn, .Switch, .Case, .Break, .Continue,
+         .Body: return false
     // A `catch` block (and a bare `throw`) is a statement, and it is the LAST
     // one on the only line shape that can express a catch at the prompt:
     // `ref r : I64 = a.get(5)? catch (err: T) { ... }`. Missing from this list,
     // it fell through to "wrap it as an expression" and the turn died on
     // "unexpected token 'ref'" inside the generated `(...).to_str()`.
-    case NodeType.Catch, NodeType.Throw: return false
+    case .Catch, .Throw: return false
     case:
     }
     return true
@@ -293,11 +293,11 @@ repl_parse_allows_wrap := func(peek_ast: Expr) returns Bool {
 
 repl_ast_has_help_call := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.FCall:
+    case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
-            case NodeType.Ident(name):
+            case .Ident(name):
                 if name.ident_name() == "help" { return true }
             case:
             }
@@ -312,12 +312,12 @@ repl_ast_has_help_call := func(e: Expr) returns Bool {
 
 repl_ast_updates_doc_cache := func(e: Expr) returns Bool {
     switch e.node_type {
-    case NodeType.Decl, NodeType.FuncDef, NodeType.StructDef, NodeType.EnumDef: return true
-    case NodeType.FCall:
+    case .Decl, .FuncDef, .StructDef, .EnumDef: return true
+    case .FCall:
         if e.children.len() > 0 {
             ref callee : Expr = e.children[0]
             switch callee.node_type {
-            case NodeType.Ident(name):
+            case .Ident(name):
                 if name.ident_name() == "import" { return true }
             case:
             }

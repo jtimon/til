@@ -259,6 +259,11 @@ typedef struct InternedTypes InternedTypes;
 typedef struct Context Context;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 enum {
+    Option__ref_TypeScope_TAG_None,
+    Option__ref_TypeScope_TAG_Some
+};
+typedef struct Option__ref_TypeScope Option__ref_TypeScope;
+enum {
     Option__ref_TypeBinding_TAG_None,
     Option__ref_TypeBinding_TAG_Some
 };
@@ -284,11 +289,6 @@ typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
-enum {
-    Option__ref_TypeScope_TAG_None,
-    Option__ref_TypeScope_TAG_Some
-};
-typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 enum {
     Option__ref_Declaration_TAG_None,
     Option__ref_Declaration_TAG_Some
@@ -773,6 +773,10 @@ typedef struct GenericFuncSource {
 } GenericFuncSource;
 
 
+struct Option__ref_TypeScope {
+    TypeScope *data;
+};
+
 struct Option__ref_TypeBinding {
     TypeBinding *data;
 };
@@ -810,10 +814,6 @@ typedef struct Vec__FFITypePtrBox {
     USize cap;
 } Vec__FFITypePtrBox;
 
-
-struct Option__ref_TypeScope {
-    TypeScope *data;
-};
 
 struct Option__ref_Declaration {
     Declaration *data;
@@ -2247,6 +2247,8 @@ void Map__Str_TypeBinding_set(Map__Str_TypeBinding * self, Str * key, TypeBindin
 Bool Map__Str_TypeBinding_remove(Map__Str_TypeBinding * self, Str * key);
 void Map__Str_TypeBinding_delete(Map__Str_TypeBinding * self, Bool call_free);
 Map__Str_TypeBinding * Map__Str_TypeBinding_clone(Map__Str_TypeBinding * self);
+Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self);
+Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self);
 Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
 Bool Option__ref_TypeBinding_is_none(Option__ref_TypeBinding self);
 TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
@@ -2332,8 +2334,6 @@ FFITypePtrBox * Vec__FFITypePtrBox_unsafe_get(Vec__FFITypePtrBox * self, USize *
 FFITypePtrBox * Vec__FFITypePtrBox_get(Vec__FFITypePtrBox * self, USize * i, I64 * _err_kind);
 void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free);
 Vec__FFITypePtrBox * Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self);
-Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self);
-Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self);
 Bool Option__ref_Declaration_is_some(Option__ref_Declaration self);
 Bool Option__ref_Declaration_is_none(Option__ref_Declaration self);
 Declaration * Option__ref_Declaration_unwrap(Option__ref_Declaration * self);

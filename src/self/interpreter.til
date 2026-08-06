@@ -71,9 +71,9 @@ priv struct_def_shallow_safe := func(sdef_data: StructDef, ctx: Context) returns
         if fsd_o.is_some() {
             ref fsd : Expr = fsd_o.unwrap()
             switch fsd.node_type {
-            case NodeType.EnumDef:
+            case .EnumDef:
                 if enum_has_payloads(fsd) { return false }
-            case NodeType.StructDef(nested_sdef):
+            case .StructDef(nested_sdef):
                 if struct_def_shallow_safe(nested_sdef, ctx).not() { return false }
             case:
             }
@@ -193,7 +193,7 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                 ref nested_def : Expr = nested_def_o.unwrap()
                 if nested_def.node_type.is(NodeType.EnumDef).not() {
                     switch nested_def.node_type {
-                    case NodeType.StructDef:
+                    case .StructDef:
                         ref stable_ftype2 : Str = stable_type_name(ftype, ctx)
                         cloned_ptr2 : Dynamic = heap_clone(stable_ftype2, ptr_add(data, foff), ctx)
                         memcpy(ptr_add(dst_data, foff), cloned_ptr2, ctx_total_size(ftype, ctx))
@@ -342,7 +342,7 @@ priv enum_variant_index_for_tag_key := func(enum_name: Str, etag: I64, ctx: Cont
     if edef_o.is_none() { return -1 }
     ref edef : Expr = edef_o.unwrap()
     switch edef.node_type {
-    case NodeType.EnumDef(edd):
+    case .EnumDef(edd):
         for i in 0..edd.variants.len() {
             ref vd : VariantDef = edd.variants[i]
             if vd.tag_value == etag { return i.to_i32() }
@@ -407,7 +407,7 @@ priv enum_payload_type_ref := func(enum_name: Str, data: Dynamic, ctx: Context) 
     if edef_o.is_none() { return Option(ref Str).None }
     ref edef : Expr = edef_o.unwrap()
     switch edef.node_type {
-    case NodeType.EnumDef(edd):
+    case .EnumDef(edd):
         idx := enum_variant_index_for_tag_key(enum_name, enum_data_tag_key(data, edef), ctx)
         if idx < 0 { return Option(ref Str).None }
         ref vd : VariantDef = edd.variants[idx.to_usize()]
@@ -441,8 +441,8 @@ priv enum_name_is_niche := func(enum_name: Str, ctx: Context) returns Bool {
 priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context) {
     mut payload_type := ""
     switch enum_payload_type_ref(enum_name, data, ctx) {
-    case Option(ref Str).Some(pt): payload_type = pt.clone()
-    case Option(ref Str).None: return
+    case .Some(pt): payload_type = pt.clone()
+    case .None: return
     }
     // #320: a ref payload is a borrowed pointer -- nothing to free.
     if enum_payload_is_ref(enum_name, data, ctx) { return }
@@ -463,9 +463,9 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
         // binding cannot be handed to an own parameter.
         mut niche_box : Dynamic = niche_slot
         switch payload_def.node_type {
-        case NodeType.StructDef:
+        case .StructDef:
             heap_drop_struct(payload_type, niche_box, ctx)
-        case NodeType.EnumDef:
+        case .EnumDef:
             enum_payload_deep_free(payload_type, niche_box, ctx)
         case:
             panic("enum payload is not a struct or enum: ", payload_type)
@@ -476,9 +476,9 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
     }
     ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
     switch payload_def.node_type {
-    case NodeType.StructDef:
+    case .StructDef:
         heap_drop_struct(payload_type, payload_data, ctx)
-    case NodeType.EnumDef:
+    case .EnumDef:
         enum_payload_deep_free(payload_type, payload_data, ctx)
     case:
         panic("enum payload is not a struct or enum: ", payload_type)
@@ -488,8 +488,8 @@ priv enum_payload_deep_free := func(enum_name: Str, data: Dynamic, ctx: Context)
 priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context) {
     mut payload_type := ""
     switch enum_payload_type_ref(enum_name, data, ctx) {
-    case Option(ref Str).Some(pt): payload_type = pt.clone()
-    case Option(ref Str).None: return
+    case .Some(pt): payload_type = pt.clone()
+    case .None: return
     }
     // #320: a ref payload is a borrowed pointer -- the copy shares the
     // pointee; never deep-clone it.
@@ -512,11 +512,11 @@ priv enum_payload_deep_clone := func(enum_name: Str, data: Dynamic, ctx: Context
     }
     ref payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
     switch payload_def.node_type {
-    case NodeType.StructDef:
+    case .StructDef:
         cloned_payload : Dynamic = heap_clone(payload_type, payload_data, ctx)
         memcpy(payload_data, cloned_payload, ctx_total_size(payload_type, ctx))
         EvalHeap.heap_free(own cloned_payload)
-    case NodeType.EnumDef:
+    case .EnumDef:
         enum_payload_deep_clone(payload_type, payload_data, ctx)
     case:
         panic("enum payload is not a struct or enum: ", payload_type)
@@ -545,13 +545,13 @@ priv write_enum_flat := func(data: Dynamic, enum_name: Str, etag: I64, payload_d
     // enum_method_dispatch), so here None just zeroes the slot.
     mut tag_w : USize = 4
     switch tedef_o {
-    case Option(ref Expr).Some(tedef):
+    case .Some(tedef):
         if enum_is_niche(tedef) {
             write_ptr(data, bits_word(0))
             return
         }
         tag_w = enum_tag_size(tedef)
-    case Option(ref Expr).None:
+    case .None:
     }
     memcpy(data, etag, tag_w.cast(UPtr))
     if payload_data.is_null().not() {
@@ -656,22 +656,22 @@ priv call_result_is_ref := func(e: Expr, ctx: Context) returns Bool {
 priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     if call_result_is_ref(e, ctx).not() { return false }
     switch e.til_type() {
-    case Type.Struct(name):
+    case .Struct(name):
         if name != "Str" { return false }
     case:
         return false
     }
     switch e.children[0].node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         ref slot : Dynamic = scope_get(scope, id.ident_name())?
         catch (missing: KeyNotFound) { return false }
         ref raw : Dynamic = slot
         ref fn_def : Expr = callable_raw_func_def(raw)
         switch fn_def.node_type {
-        case NodeType.FuncDef(fd): return ext_fdef_copies_str(fd)
+        case .FuncDef(fd): return ext_fdef_copies_str(fd)
         case: return false
         }
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         ref receiver : Expr = e.children[0].children[0]
         type_name_o := expr_type_name_ref(receiver)
         if type_name_o.is_some() {
@@ -680,7 +680,7 @@ priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bo
             if fn_raw_o.is_none() { return false }
             ref fn_def : Expr = callable_raw_func_def(fn_raw_o.unwrap())
             switch fn_def.node_type {
-            case NodeType.FuncDef(fd): return ext_fdef_copies_str(fd)
+            case .FuncDef(fd): return ext_fdef_copies_str(fd)
             case: return false
             }
         }
@@ -689,7 +689,7 @@ priv call_copies_ref_str := func(scope: Scope, e: Expr, ctx: Context) returns Bo
         if fn_raw_o.is_none() { return false }
         ref fn_def : Expr = callable_raw_func_def(fn_raw_o.unwrap())
         switch fn_def.node_type {
-        case NodeType.FuncDef(fd): return ext_fdef_copies_str(fd)
+        case .FuncDef(fd): return ext_fdef_copies_str(fd)
         case: return false
         }
     case:
@@ -721,8 +721,8 @@ priv call_raw_result_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns
 
 raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
     switch t {
-    case Type.Primitive: return true
-    case Type.Custom(name): return raw_type_is_prim(type_from_name_init(name, ctx.scope), ctx)
+    case .Primitive: return true
+    case .Custom(name): return raw_type_is_prim(type_from_name_init(name, ctx.scope), ctx)
     case:
     }
     return false
@@ -733,21 +733,21 @@ raw_type_is_prim := func(shallow t: Type, ctx: Context) returns Bool {
 // can trust the high bits.
 priv scalar_word_encode := func(shallow t: Type, bits: U64, ctx: Context) returns Dynamic {
     switch t {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         switch prim {
-        case Primitive.U8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
-        case Primitive.I8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
-        case Primitive.I16: return bits_word(bits.cast(I64).to_u16().cast(U64))
-        case Primitive.U16: return bits_word(bits.cast(I64).to_u16().cast(U64))
-        case Primitive.I32: return bits_word(bits.to_u32().cast(U64))
-        case Primitive.U32: return bits_word(bits.to_u32().cast(U64))
-        case Primitive.F32: return bits_word(bits.to_u32().cast(U64))
-        case Primitive.Bool:
+        case .U8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
+        case .I8:  return bits_word(bits.cast(I64).to_u8().cast(U64))
+        case .I16: return bits_word(bits.cast(I64).to_u16().cast(U64))
+        case .U16: return bits_word(bits.cast(I64).to_u16().cast(U64))
+        case .I32: return bits_word(bits.to_u32().cast(U64))
+        case .U32: return bits_word(bits.to_u32().cast(U64))
+        case .F32: return bits_word(bits.to_u32().cast(U64))
+        case .Bool:
             if bits == 0 { return bits_word(0) }
             return bits_word(1)
         case: return bits_word(bits)
         }
-    case Type.Custom(name): return scalar_word_encode(type_from_name_init(name, ctx.scope), bits, ctx)
+    case .Custom(name): return scalar_word_encode(type_from_name_init(name, ctx.scope), bits, ctx)
     case:
     }
     panic("scalar_word_encode on non-primitive: ", til_type_name_c(t))
@@ -757,19 +757,19 @@ priv scalar_word_encode := func(shallow t: Type, bits: U64, ctx: Context) return
 // Load a scalar's bytes at `addr` into a canonical inline word.
 scalar_word_load := func(shallow t: Type, addr: Dynamic, ctx: Context) returns Dynamic {
     switch t {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         switch prim {
-        case Primitive.U8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
-        case Primitive.I8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
-        case Primitive.I16:  ref v : U16 = addr; return bits_word(v.cast(U64))
-        case Primitive.U16:  ref v : U16 = addr; return bits_word(v.cast(U64))
-        case Primitive.I32:  ref v : U32 = addr; return bits_word(v.cast(U64))
-        case Primitive.U32:  ref v : U32 = addr; return bits_word(v.cast(U64))
-        case Primitive.F32:  ref v : U32 = addr; return bits_word(v.cast(U64))
-        case Primitive.Bool: ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case .U8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case .I8:   ref v : U8 = addr;  return bits_word(v.cast(U64))
+        case .I16:  ref v : U16 = addr; return bits_word(v.cast(U64))
+        case .U16:  ref v : U16 = addr; return bits_word(v.cast(U64))
+        case .I32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case .U32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case .F32:  ref v : U32 = addr; return bits_word(v.cast(U64))
+        case .Bool: ref v : U8 = addr;  return bits_word(v.cast(U64))
         case: ref v : U64 = addr; return bits_word(v.clone())
         }
-    case Type.Custom(name): return scalar_word_load(type_from_name_init(name, ctx.scope), addr, ctx)
+    case .Custom(name): return scalar_word_load(type_from_name_init(name, ctx.scope), addr, ctx)
     case:
     }
     panic("scalar_word_load on non-primitive: ", til_type_name_c(t))
@@ -794,20 +794,20 @@ field_word_type := func(shallow ft: Type, field_size: USize, ctx: Context) retur
 priv scalar_word_store := func(shallow t: Type, addr: Dynamic, w: Dynamic, ctx: Context) {
     bits := word_bits(w)
     switch t {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         switch prim {
-        case Primitive.U8:   write_u8(addr, bits.cast(I64).to_u8())
-        case Primitive.I8:   write_u8(addr, bits.cast(I64).to_u8())
-        case Primitive.I16:  write_u16(addr, bits.cast(I64).to_u16())
-        case Primitive.U16:  write_u16(addr, bits.cast(I64).to_u16())
-        case Primitive.I32:  write_u32(addr, bits.to_u32())
-        case Primitive.U32:  write_u32(addr, bits.to_u32())
-        case Primitive.F32:  write_u32(addr, bits.to_u32())
-        case Primitive.Bool: write_u8(addr, bits.cast(I64).to_u8())
+        case .U8:   write_u8(addr, bits.cast(I64).to_u8())
+        case .I8:   write_u8(addr, bits.cast(I64).to_u8())
+        case .I16:  write_u16(addr, bits.cast(I64).to_u16())
+        case .U16:  write_u16(addr, bits.cast(I64).to_u16())
+        case .I32:  write_u32(addr, bits.to_u32())
+        case .U32:  write_u32(addr, bits.to_u32())
+        case .F32:  write_u32(addr, bits.to_u32())
+        case .Bool: write_u8(addr, bits.cast(I64).to_u8())
         case: write_u64(addr, bits)
         }
         return
-    case Type.Custom(name): scalar_word_store(type_from_name_init(name, ctx.scope), addr, w, ctx); return
+    case .Custom(name): scalar_word_store(type_from_name_init(name, ctx.scope), addr, w, ctx); return
     case:
     }
     panic("scalar_word_store on non-primitive: ", til_type_name_c(t))
@@ -836,10 +836,10 @@ scalar_block_from_word := func(shallow t: Type, w: Dynamic, ctx: Context) return
 // malloc/calloc/realloc name set the garbager's LocalInfo model keys on).
 priv rhs_is_raw_alloc_call := func(rhs: Expr) returns Bool {
     switch rhs.node_type {
-    case NodeType.FCall:
+    case .FCall:
         if rhs.children.len() == 0 { return false }
         switch rhs.children[0].node_type {
-        case NodeType.Ident(cid):
+        case .Ident(cid):
             return cid.ident_name().eq("malloc").or(cid.ident_name().eq("calloc")).or(cid.ident_name().eq("realloc"))
         case:
         }
@@ -904,7 +904,7 @@ priv word_ring_slot := func(shallow t: Type, w: Dynamic, ctx: Context) returns D
 // Idents are never word-shaped.
 priv expr_word_shaped := func(_s: Scope, e: Expr, ctx: Context) returns Bool {
     switch e.node_type {
-    case NodeType.Ident: return false
+    case .Ident: return false
     case:
     }
     return raw_type_is_prim(e.til_type(), ctx)
@@ -948,7 +948,7 @@ priv expr_raw_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall) { return call_raw_result_is_ref(scope, e, ctx) }
     if e.node_type.is(NodeType.FieldAccess) { return field_access_returns_ref(scope, e, ctx) }
     switch e.node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         hb_o := scope_lookup_heap_binding(scope, id.ident_name())
         if hb_o.is_none() { panic("reference query binding not found: ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
@@ -979,8 +979,8 @@ priv raw_result_reframe := func(shallow t: Type, raw: Dynamic, from_ref: Bool, t
 priv raw_result_move_into := proc(shallow t: Type, dst: Dynamic, src: Dynamic, return_is_ref: Bool, ctx: Context) {
     mut size : USize = 0
     switch t {
-    case Type.None: return
-    case Type.Primitive(prim):
+    case .None: return
+    case .Primitive(prim):
         // A ref result is a BARE target address: deref-copy the scalar
         // out; the target still owns its block. A value result is the
         // inline word itself.
@@ -992,14 +992,14 @@ priv raw_result_move_into := proc(shallow t: Type, dst: Dynamic, src: Dynamic, r
         }
         scalar_word_store(t, dst, src, ctx)
         return
-    case Type.Struct(name):
+    case .Struct(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = ctx_total_size(name, ctx) }
-    case Type.Enum(name):
+    case .Enum(name):
         if return_is_ref { size = Dynamic.size() }
         else { size = dispatch_enum_size(name, ctx) }
-    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: size = Dynamic.size()
-    case Type.Custom(name):
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: size = Dynamic.size()
+    case .Custom(name):
         raw_result_move_into(type_from_name_init(name, ctx.scope), dst, src, return_is_ref, ctx)
         return
     case:
@@ -1017,13 +1017,13 @@ priv raw_result_finish := proc(shallow t: Type, raw: Dynamic, destination: Dynam
 
 priv raw_result_drop_nested := proc(shallow t: Type, raw: Dynamic, return_is_ref: Bool, ctx: Context) {
     switch t {
-    case Type.Struct(name):
+    case .Struct(name):
         if return_is_ref.not() { heap_drop_struct(name, raw, ctx) }
-    case Type.Enum(name):
+    case .Enum(name):
         if return_is_ref.not() { heap_drop_enum(name, raw, ctx) }
-    case Type.FuncPtr, Type.FuncPtrSig, Type.Body:
+    case .FuncPtr, .FuncPtrSig, .Body:
         heap_drop_by_type(t, raw, ctx)
-    case Type.Custom(name):
+    case .Custom(name):
         raw_result_drop_nested(type_from_name_init(name, ctx.scope), raw, return_is_ref, ctx)
     case:
     }
@@ -1064,14 +1064,14 @@ priv raw_widen_numeric := func(raw: Dynamic, shallow source_type: Type, target_n
     bits := word_bits(raw)
     mut is_unsigned := false
     switch source_type {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         switch prim {
-        case Primitive.U8: unsigned_value = bits; is_unsigned = true
-        case Primitive.I8: signed_value = bits.cast(I64).to_u8().cast(I8).cast(I64)
-        case Primitive.I16: signed_value = bits.cast(I64).to_u16().cast(I16).cast(I64)
-        case Primitive.U16: unsigned_value = bits; is_unsigned = true
-        case Primitive.I32: signed_value = bits.cast(I64).to_u32().cast(I32).cast(I64)
-        case Primitive.U32: unsigned_value = bits; is_unsigned = true
+        case .U8: unsigned_value = bits; is_unsigned = true
+        case .I8: signed_value = bits.cast(I64).to_u8().cast(I8).cast(I64)
+        case .I16: signed_value = bits.cast(I64).to_u16().cast(I16).cast(I64)
+        case .U16: unsigned_value = bits; is_unsigned = true
+        case .I32: signed_value = bits.cast(I64).to_u32().cast(I32).cast(I64)
+        case .U32: unsigned_value = bits; is_unsigned = true
         case:
             return raw
         }
@@ -1099,9 +1099,9 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
         return wrapper
     }
     switch source_type {
-    case Type.Custom(name):
+    case .Custom(name):
         return raw_coerce_value(raw, type_from_name_init(name, ctx.scope), target_type, ctx, target_own_type)
-    case Type.Dynamic:
+    case .Dynamic:
         if target_type.is(Type.Dynamic).not() {
             if heap_type_is_callable(target_type).and(callable_box_is(deref(raw))) { return raw }
             ref pointed : Dynamic = deref(raw)
@@ -1128,16 +1128,16 @@ priv raw_coerce_value := func(raw: Dynamic, shallow source_type: Type, shallow t
 
 priv raw_type_size := func(shallow t: Type, ctx: Context) returns USize {
     switch t {
-    case Type.None: return 1
-    case Type.Primitive(prim):
+    case .None: return 1
+    case .Primitive(prim):
         mut size : USize = 0
         mut align : USize = 0
         builtin_primitive_size_align(prim, size, align)
         return size
-    case Type.Struct(name): return ctx_total_size(name, ctx)
-    case Type.Enum(name): return dispatch_enum_size(name, ctx)
-    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: return Dynamic.size()
-    case Type.Custom(name): return raw_type_size(type_from_name_init(name, ctx.scope), ctx)
+    case .Struct(name): return ctx_total_size(name, ctx)
+    case .Enum(name): return dispatch_enum_size(name, ctx)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return Dynamic.size()
+    case .Custom(name): return raw_type_size(type_from_name_init(name, ctx.scope), ctx)
     case:
         panic("cannot size raw type ", til_type_name_c(t))
         return 0
@@ -1149,21 +1149,21 @@ priv raw_to_u64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns U64
     // signed types re-extend from their width.
     bits := word_bits(raw)
     switch t {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         switch prim {
-        case Primitive.I64: return bits
-        case Primitive.U8: return bits
-        case Primitive.I8: return bits.cast(I64).to_u8().cast(I8).cast(I64).cast(U64)
-        case Primitive.I16: return bits.cast(I64).to_u16().cast(I16).cast(I64).cast(U64)
-        case Primitive.U16: return bits
-        case Primitive.I32: return bits.cast(I64).to_u32().cast(I32).cast(I64).cast(U64)
-        case Primitive.U32: return bits
-        case Primitive.U64: return bits
-        case Primitive.F32: panic("cannot convert F32 raw bits to U64")
-        case Primitive.F64: panic("cannot convert F64 raw bits to U64")
-        case Primitive.Bool: return bits
+        case .I64: return bits
+        case .U8: return bits
+        case .I8: return bits.cast(I64).to_u8().cast(I8).cast(I64).cast(U64)
+        case .I16: return bits.cast(I64).to_u16().cast(I16).cast(I64).cast(U64)
+        case .U16: return bits
+        case .I32: return bits.cast(I64).to_u32().cast(I32).cast(I64).cast(U64)
+        case .U32: return bits
+        case .U64: return bits
+        case .F32: panic("cannot convert F32 raw bits to U64")
+        case .F64: panic("cannot convert F64 raw bits to U64")
+        case .Bool: return bits
         }
-    case Type.Custom(name): return raw_to_u64(type_from_name_init(name, ctx.scope), raw, ctx)
+    case .Custom(name): return raw_to_u64(type_from_name_init(name, ctx.scope), raw, ctx)
     case:
     }
     panic("raw value is not numeric: ", til_type_name_c(t))
@@ -1176,7 +1176,7 @@ priv raw_to_i64 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns I64
 
 priv raw_to_f32 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns F32 {
     switch t {
-    case Type.Primitive(Primitive.F32): return word_f32(word_bits(raw))
+    case .Primitive(Primitive.F32): return word_f32(word_bits(raw))
     case:
         return raw_to_i64(t, raw, ctx).to_f32()
     }
@@ -1189,7 +1189,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
     if e.node_type.is_literal_null() { return bits_word(0) }
     if expr_raw_is_ref(scope, e, ctx) {
         switch e.node_type {
-        case NodeType.Ident(id):
+        case .Ident(id):
             hb_o := scope_lookup_heap_binding(scope, id.ident_name())
             if hb_o.is_none() { panic("argument binding not found: ", id.ident_name()) }
             ref hb : HeapBinding = hb_o.unwrap()
@@ -1209,7 +1209,7 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
     mut value_raw : Dynamic = raw
     ref mut value_type : Type = e.til_type()
     switch e.node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         hb_o := scope_lookup_heap_binding(scope, id.ident_name())
         if hb_o.is_none() { panic("argument binding not found: ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
@@ -1221,14 +1221,14 @@ priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, ctx: Context) 
         if raw_type_is_prim(value_type, ctx) { return word_ring_slot(value_type, raw, ctx) }
     }
     switch value_type {
-    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body: return deref(value_raw)
-    case Type.Custom(name):
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(value_raw)
+    case .Custom(name):
         alias_type := type_from_name_init(name, ctx.scope)
         switch alias_type {
-        case Type.Dynamic: return deref(value_raw)
-        case Type.FuncPtr: return deref(value_raw)
-        case Type.FuncPtrSig: return deref(value_raw)
-        case Type.Body: return deref(value_raw)
+        case .Dynamic: return deref(value_raw)
+        case .FuncPtr: return deref(value_raw)
+        case .FuncPtrSig: return deref(value_raw)
+        case .Body: return deref(value_raw)
         case:
         }
         return value_raw
@@ -1274,7 +1274,7 @@ priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: U
         return
     }
     switch dd.til_type {
-    case Type.Struct(name):
+    case .Struct(name):
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
                 write_ptr(dst, heap_clone(name, raw, ctx))
@@ -1294,7 +1294,7 @@ priv init_field_raw := func(inst_data: Dynamic, dd: Declaration, field_offset: U
             }
         }
         return
-    case Type.Enum(name):
+    case .Enum(name):
         if dd.own_type.is(OwnType.Own) {
             if raw_is_ref.or(raw_is_place) {
                 write_ptr(dst, heap_clone_enum(name, raw, dispatch_enum_size(name, ctx), ctx))
@@ -1373,7 +1373,7 @@ priv field_access_sname := func(e: Expr) returns Str {
         return sname.clone()
     }
     switch e.children[0].node_type {
-    case NodeType.Ident(id): return Str.clone(id.ident_name())
+    case .Ident(id): return Str.clone(id.ident_name())
     case: return til_type_name_c(e.children[0].til_type())
     }
 }
@@ -1384,20 +1384,20 @@ priv field_access_decl := func(e: Expr, ctx: Context) returns Option(ref Declara
     if sdef_o.is_none() { return Option(ref Declaration).None }
     ref sdef : Expr = sdef_o.unwrap()
     switch e.node_type {
-    case NodeType.FieldAccess(fa): return find_field_decl(sdef, fa.field_access_name())
+    case .FieldAccess(fa): return find_field_decl(sdef, fa.field_access_name())
     case: return Option(ref Declaration).None
     }
 }
 
 priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns Type {
     switch e.node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         hb_o := scope_lookup_heap_binding(scope, id.ident_name())
         if hb_o.is_none() { panic("scalar source binding not found: ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
         if hb_type(hb).is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type().clone() }
         return hb_type(hb).clone()
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
             return ns_field_type(field_access_sname(e), fa.field_access_name(), ctx)
         }
@@ -1425,8 +1425,8 @@ priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns
 // evaluating or copying its intermediate aggregates.
 priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Option(ref Dynamic) {
     switch obj.node_type {
-    case NodeType.Ident: return resolve_field_assign_base(scope, obj)
-    case NodeType.FieldAccess(fa):
+    case .Ident: return resolve_field_assign_base(scope, obj)
+    case .FieldAccess(fa):
         parent_o := field_access_base(scope, obj.children[0], ctx)
         if parent_o.is_none() { return Option(ref Dynamic).None }
         ref parent : Dynamic = parent_o.unwrap()
@@ -1444,7 +1444,7 @@ priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Op
         // today, and step 1's forbid removes the case entirely.
         ref stored : Dynamic = deref(slot)
         return Option(ref Dynamic).Some(stored)
-    case NodeType.FCall:
+    case .FCall:
         if call_raw_result_is_ref(scope, obj, ctx) {
             raw_base : Dynamic = eval_expr_raw(scope, obj, ctx)
             ref call_base : Dynamic = to_ptr(raw_base)
@@ -1472,7 +1472,7 @@ priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) retur
 
 priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     switch e.node_type {
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
             sname := field_access_sname(e)
             namespace_def_o := lookup_interp_type_def(sname, ctx)
@@ -1570,53 +1570,53 @@ priv write_runtime_type := func(result: Dynamic, shallow t: Type, ctx: Context) 
     ref type_def : Expr = type_def_o.unwrap()
     mut variant := ""
     switch t {
-    case Type.Unknown: variant = "Unknown"
-    case Type.None: variant = "None"
-    case Type.Struct(name):
+    case .Unknown: variant = "Unknown"
+    case .None: variant = "None"
+    case .Struct(name):
         variant = "Struct"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    case Type.StructDef: variant = "StructDef"
-    case Type.Enum(name):
+    case .StructDef: variant = "StructDef"
+    case .Enum(name):
         variant = "Enum"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    case Type.EnumDef: variant = "EnumDef"
-    case Type.FuncDef: variant = "FuncDef"
-    case Type.FuncPtr: variant = "FuncPtr"
-    case Type.Dynamic: variant = "Dynamic"
-    case Type.Custom(name):
+    case .EnumDef: variant = "EnumDef"
+    case .FuncDef: variant = "FuncDef"
+    case .FuncPtr: variant = "FuncPtr"
+    case .Dynamic: variant = "Dynamic"
+    case .Custom(name):
         variant = "Custom"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         variant = "Primitive"
         primitive_def_o := lookup_interp_type_def("Primitive", ctx)
         if primitive_def_o.is_none() { panic("runtime Primitive definition not registered") }
         ref primitive_def : Expr = primitive_def_o.unwrap()
         mut primitive_variant := ""
         switch prim {
-        case Primitive.I16: primitive_variant = "I16"
-        case Primitive.U16: primitive_variant = "U16"
-        case Primitive.I8: primitive_variant = "I8"
-        case Primitive.U8: primitive_variant = "U8"
-        case Primitive.U32: primitive_variant = "U32"
-        case Primitive.I32: primitive_variant = "I32"
-        case Primitive.U64: primitive_variant = "U64"
-        case Primitive.I64: primitive_variant = "I64"
-        case Primitive.F32: primitive_variant = "F32"
-        case Primitive.F64: primitive_variant = "F64"
-        case Primitive.Bool: primitive_variant = "Bool"
+        case .I16: primitive_variant = "I16"
+        case .U16: primitive_variant = "U16"
+        case .I8: primitive_variant = "I8"
+        case .U8: primitive_variant = "U8"
+        case .U32: primitive_variant = "U32"
+        case .I32: primitive_variant = "I32"
+        case .U64: primitive_variant = "U64"
+        case .I64: primitive_variant = "I64"
+        case .F32: primitive_variant = "F32"
+        case .F64: primitive_variant = "F64"
+        case .Bool: primitive_variant = "Bool"
         }
         write_i32(ptr_add(result, ENUM_PAYLOAD_OFFSET), enum_variant_tag(primitive_def, primitive_variant).to_i32())
-    case Type.FuncPtrSig(name):
+    case .FuncPtrSig(name):
         variant = "FuncPtrSig"
         dispatch_write_str(ptr_add(result, ENUM_PAYLOAD_OFFSET), name.c_str, name.count, ctx)
-    case Type.Body: variant = "Body"
+    case .Body: variant = "Body"
     }
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())
 }
 
 eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     switch e.node_type {
-    case NodeType.Literal(Literal.Str(text)):
+    case .Literal(Literal.Str(text)):
         mut result : Dynamic = destination
         if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
         buf : I8 = malloc(text.count.add(1))
@@ -1696,34 +1696,34 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         write_ptr(result, pooled2.c_str)
         str_write_count_cap(result, j, CAP_LIT, ctx)
         return result
-    case NodeType.Literal(Literal.Num(num_str)):
+    case .Literal(Literal.Num(num_str)):
         // Numeric literals are inline words: parse, canonicalize, done --
         // no allocation. A caller-provided destination gets the scalar
         // stored at its width instead.
         mut num_word : Dynamic = 0
         switch e.til_type() {
-        case Type.Primitive(Primitive.U8):  num_word = bits_word(num_str.to_u8().cast(U64))
-        case Type.Primitive(Primitive.I8):  num_word = scalar_word_encode(e.til_type(), num_str.to_i8().cast(U8).cast(U64), ctx)
-        case Type.Primitive(Primitive.I16): num_word = scalar_word_encode(e.til_type(), num_str.to_i16().cast(U16).cast(U64), ctx)
-        case Type.Primitive(Primitive.U16): num_word = bits_word(num_str.to_u16().cast(U64))
-        case Type.Primitive(Primitive.I32): num_word = scalar_word_encode(e.til_type(), num_str.to_i32().cast(U32).cast(U64), ctx)
-        case Type.Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
-        case Type.Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
-        case Type.Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
-        case Type.Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(num_str.text))
+        case .Primitive(Primitive.U8):  num_word = bits_word(num_str.to_u8().cast(U64))
+        case .Primitive(Primitive.I8):  num_word = scalar_word_encode(e.til_type(), num_str.to_i8().cast(U8).cast(U64), ctx)
+        case .Primitive(Primitive.I16): num_word = scalar_word_encode(e.til_type(), num_str.to_i16().cast(U16).cast(U64), ctx)
+        case .Primitive(Primitive.U16): num_word = bits_word(num_str.to_u16().cast(U64))
+        case .Primitive(Primitive.I32): num_word = scalar_word_encode(e.til_type(), num_str.to_i32().cast(U32).cast(U64), ctx)
+        case .Primitive(Primitive.U32): num_word = bits_word(num_str.to_u32().cast(U64))
+        case .Primitive(Primitive.U64): num_word = bits_word(num_str.to_u64())
+        case .Primitive(Primitive.F32): num_word = bits_word(f32_word(num_str.to_f32()))
+        case .Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(num_str.text))
         case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
         if destination.is_null() { return num_word }
         scalar_word_store(e.til_type(), destination, num_word, ctx)
         return destination
-    case NodeType.Literal(Literal.Bool(b)):
+    case .Literal(Literal.Bool(b)):
         if destination.is_null().not() {
             write_bool(destination, b)
             return destination
         }
         if b { return bits_word(1) }
         return bits_word(0)
-    case NodeType.Literal(Literal.Null):
+    case .Literal(Literal.Null):
         // A primitive-typed null is the zero word -- and so is a
         // DYNAMIC-typed one (#321: the typer rewrites literal 0 to this
         // node for Dynamic targets; the null IS the word, allocating a
@@ -1732,17 +1732,17 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         if destination.is_null().not() { return destination }
         if raw_type_is_prim(e.til_type(), ctx).or(e.til_type().is(Type.Dynamic)) { return bits_word(0) }
         return raw_unit_result(e.til_type(), ctx)
-    case NodeType.Ident(ident):
+    case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
         if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
         mut expr_type := e.til_type().clone()
         switch expr_type {
-        case Type.Custom(expr_type_name): expr_type = type_from_name_init(expr_type_name, ctx.scope)
+        case .Custom(expr_type_name): expr_type = type_from_name_init(expr_type_name, ctx.scope)
         case:
         }
         switch expr_type {
-        case Type.Enum(type_name):
+        case .Enum(type_name):
             if (type_name == "Type").and(hb.is_static_callable) {
                 mut result : Dynamic = destination
                 if result.is_null() { result = dispatch_result_alloc(e.til_type(), ctx) }
@@ -1763,9 +1763,9 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         }
         result : Dynamic = place
         return result
-    case NodeType.FCall:
+    case .FCall:
         return eval_call(scope, e, ctx, destination)
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         if fd.captures.len().gt(0) {
             closure : Dynamic = make_interp_closure(e, scope, ctx)
             return raw_result_finish(e.til_type(), closure, destination, false, ctx)
@@ -1774,15 +1774,15 @@ eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyna
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
         write_ptr(result, e)
         return result
-    case NodeType.BodyValue:
+    case .BodyValue:
         closure : Dynamic = make_interp_closure(e, scope, ctx)
         return raw_result_finish(e.til_type(), closure, destination, false, ctx)
-    case NodeType.StructDef, NodeType.EnumDef:
+    case .StructDef, .EnumDef:
         mut result : Dynamic = destination
         if result.is_null() { result = EvalHeap.heap_alloc(Dynamic.size()) }
         write_ptr(result, e)
         return result
-    case NodeType.FieldAccess:
+    case .FieldAccess:
         return eval_expr_field_raw(scope, e, ctx, destination)
     case:
         interp_lang_error(e, "cannot evaluate node as expression", ctx)
@@ -1804,12 +1804,12 @@ priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) 
 
 priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns Option(ref Dynamic) {
     switch obj_expr.node_type {
-    case NodeType.Ident(ident):
+    case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
         if hb_o.is_none() { return Option(ref Dynamic).None }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
-        case Type.Struct:
+        case .Struct:
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
             ref base : Dynamic = to_ptr(hb.ptr)
             return Option(ref Dynamic).Some(base)
@@ -1822,12 +1822,12 @@ priv resolve_field_assign_base := func(scope: Scope, obj_expr: Expr) returns Opt
 
 priv resolve_field_assign_sname := func(scope: Scope, obj_expr: Expr) returns Str {
     switch obj_expr.node_type {
-    case NodeType.Ident(ident):
+    case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
         if hb_o.is_none() { return "" }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
-        case Type.Struct(sname):
+        case .Struct(sname):
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name()) }
             return sname.clone()
         case: return ""
@@ -1846,14 +1846,14 @@ priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr, ctx: Contex
 priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
     raw_type := scalar_raw_source_type(scope, e, ctx)
     switch raw_type {
-    case Type.Custom(name):
+    case .Custom(name):
         mut resolved := e.clone()
         resolved.set_til_type(type_from_name_init(name, ctx.scope))
         return raw_switch_key(scope, resolved, ctx)
     case:
     }
     switch raw_type {
-    case Type.Enum(enum_name):
+    case .Enum(enum_name):
         raw : Dynamic = eval_expr_raw(scope, e, ctx)
         tag_ptr : Dynamic = raw_arg_pointer(scope, e, raw, ctx)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
@@ -1862,9 +1862,9 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
         result := enum_data_tag_key(tag_ptr, enum_def)
         raw_result_drop(raw_type, raw, expr_raw_is_ref(scope, e, ctx), ctx)
         return result
-    case Type.Primitive:
+    case .Primitive:
         return raw_to_i64(raw_type, eval_scalar_arg_word(scope, e, raw_type, ctx), ctx)
-    case Type.Dynamic:
+    case .Dynamic:
         // An erased scalar subject: the value is a Dynamic slot; read the
         // pointed scalar as I64 (the pre-word behavior read through the
         // arg pointer the same way).
@@ -1887,11 +1887,11 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
 // a payload binding `Type.V(x)` (FCall whose FieldAccess callee names V).
 priv clike_case_variant_name := func(pat: Expr) returns Str {
     switch pat.node_type {
-    case NodeType.FieldAccess(fa): return Str.clone(fa.field_access_name())
-    case NodeType.FCall:
+    case .FieldAccess(fa): return Str.clone(fa.field_access_name())
+    case .FCall:
         if pat.children.len() > 0 {
             switch pat.children[0].node_type {
-            case NodeType.FieldAccess(fa2): return Str.clone(fa2.field_access_name())
+            case .FieldAccess(fa2): return Str.clone(fa2.field_access_name())
             case:
             }
         }
@@ -1969,7 +1969,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
     // decl_type stays the owned working copy for the value logic below.
     bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
     switch rhs.node_type {
-    case NodeType.Ident(rhs_ident):
+    case .Ident(rhs_ident):
         source_hb_o := scope_lookup_heap_binding(scope, rhs_ident.ident_name())
         if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name()) }
         ref source_hb : HeapBinding = source_hb_o.unwrap()
@@ -1977,7 +1977,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         ref source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name())
         ref source_raw : Dynamic = to_ptr(source_hb.ptr)
         switch decl_type {
-        case Type.Enum(type_name):
+        case .Enum(type_name):
             if (type_name == "Type").and(source_hb.is_static_callable) {
                 runtime_type : Dynamic = eval_expr_raw(scope, rhs, ctx)
                 scope_set_raw_owned(scope, dd.name, runtime_type, bind_type_w, dd.own_type, ctx)
@@ -2062,7 +2062,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         mut destination : Dynamic = 0
         mut destination_is_raw_block := false
         switch decl_type {
-        case Type.Primitive: destination_is_raw_block = dd.own_type.is(OwnType.Own).or(rhs_is_raw_alloc_call(rhs))
+        case .Primitive: destination_is_raw_block = dd.own_type.is(OwnType.Own).or(rhs_is_raw_alloc_call(rhs))
         case:
         }
         if is_ref.not().and(destination_is_raw_block.not()).and(til_type_name_c(rhs_type) == til_type_name_c(decl_type)) {
@@ -2073,7 +2073,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             pointed : Dynamic = raw
             mut borrowed_pointer_field := false
             switch rhs.node_type {
-            case NodeType.FieldAccess:
+            case .FieldAccess:
                 source_field_o := field_access_decl(rhs, ctx)
                 if source_field_o.is_some() {
                     ref source_field : Declaration = source_field_o.unwrap()
@@ -2162,11 +2162,11 @@ priv eval_fcall := proc(scope: Scope, stmt: Expr, fcd: FCallData, mut ctx: Conte
         mut sw_target := ""
         mut sw_src := ""
         switch stmt.children[1].node_type {
-        case NodeType.Ident(sw_t): sw_target = Str.clone(sw_t.ident_name())
+        case .Ident(sw_t): sw_target = Str.clone(sw_t.ident_name())
         case:
         }
         switch stmt.children[2].node_type {
-        case NodeType.Ident(sw_s): sw_src = Str.clone(sw_s.ident_name())
+        case .Ident(sw_s): sw_src = Str.clone(sw_s.ident_name())
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
@@ -2232,9 +2232,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
         if c.eval_aborted { return }
         ref mut stmt : Expr = e_i
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             eval_declaration(scope, stmt, dd, ctx)
-        case NodeType.Assign(ad):
+        case .Assign(ad):
             ref rhs : Expr = stmt.children[0]
             assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
@@ -2242,7 +2242,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             mut new_raw : Dynamic = 0
             if stmt.til_type().is(Type.Dynamic).and(rhs.node_type.is(NodeType.Ident)) {
                 switch rhs.node_type {
-                case NodeType.Ident(rhs_ident): new_raw = scope_move_bound_raw(scope, rhs_ident.ident_name(), ctx)
+                case .Ident(rhs_ident): new_raw = scope_move_bound_raw(scope, rhs_ident.ident_name(), ctx)
                 case:
                 }
             } else {
@@ -2286,7 +2286,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 assign_hb.ptr = to_ptr(new_raw)
             }
             assign_hb.moved_out = false
-        case NodeType.FieldAssign(fad):
+        case .FieldAssign(fad):
             fname := fad.name
             ref mut val_expr : Expr = stmt.children[1]
             // #302 stage 4: a marked move consumes the clone's ARG -- the
@@ -2302,7 +2302,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             mut val_is_ref := false
             if fad.transfers_own {
                 switch val_expr.node_type {
-                case NodeType.Ident(val_id):
+                case .Ident(val_id):
                     val_raw = scope_move_bound_raw(scope, val_id.ident_name(), ctx)
                 case:
                     val_raw = eval_expr_raw(scope, val_expr, ctx)
@@ -2310,7 +2310,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 }
             } else {
                 switch val_expr.node_type {
-                case NodeType.Ident(val_id):
+                case .Ident(val_id):
                     source_hb_o := scope_lookup_heap_binding(scope, val_id.ident_name())
                     if source_hb_o.is_none() { panic("field assignment source not found: ", val_id.ident_name()) }
                     ref source_hb : HeapBinding = source_hb_o.unwrap()
@@ -2327,7 +2327,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 mut sname_o := expr_type_name_ref(stmt.children[0])
                 if sname_o.is_none() {
                     switch stmt.children[0].node_type {
-                    case NodeType.Ident(oi): sname_o = Option(ref Str).Some(oi.ident_name())
+                    case .Ident(oi): sname_o = Option(ref Str).Some(oi.ident_name())
                     case:
                     }
                 }
@@ -2378,14 +2378,14 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     ref mut cur : Expr = stmt.children[0]
                     while cur.node_type.is(NodeType.FieldAccess) {
                         switch cur.node_type {
-                        case NodeType.FieldAccess(fa_link):
+                        case .FieldAccess(fa_link):
                             chain_names.push(own Str.clone(fa_link.field_access_name()))
                         case:
                         }
                         cur = cur.children[0]
                     }
                     switch cur.node_type {
-                    case NodeType.Ident:
+                    case .Ident:
                         // A root that does not resolve leaves `base` as the
                         // caller found it; the is_null check below reports it.
                         base_ident_o := resolve_field_assign_base(scope, cur)
@@ -2430,35 +2430,35 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 ref wf_fl : FieldLayout = ctx_field_layout(cur_sname, fname, ctx)
                 write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_expr.til_type(), val_is_ref, fad.save_old_delete, ctx)
             }
-        case NodeType.FCall(fcd):
+        case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
-        case NodeType.Body:
+        case .Body:
             block_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(block_scope, stmt, ctx)
             scope_free(own block_scope)
-        case NodeType.CaptureBlock:
+        case .CaptureBlock:
             // Issue #54: a capture block runs its body inline -- the typer
             // already enforced the capture restriction, so at runtime it
             // behaves exactly like a bare `{ ... }` block.
             cb_scope := scope_new(Option(ref Scope).Some(scope))
             eval_body(cb_scope, stmt.children[0], ctx)
             scope_free(own cb_scope)
-        case NodeType.If:
+        case .If:
             eval_if(scope, stmt, ctx)
-        case NodeType.While:
+        case .While:
             eval_while(scope, stmt, ctx)
-        case NodeType.Break:
+        case .Break:
             c.has_break = true
-        case NodeType.Continue:
+        case .Continue:
             c.has_continue = true
-        case NodeType.Return:
+        case .Return:
             if stmt.children.len() > 0 {
                 ref ret_expr : Expr = stmt.children[0]
                 mut return_raw : Dynamic = 0
                 mut return_source_type := ret_expr.til_type().clone()
                 mut return_source_is_ref := false
                 switch ret_expr.node_type {
-                case NodeType.Ident(ret_ident):
+                case .Ident(ret_ident):
                     return_hb_o := scope_lookup_heap_binding(scope, ret_ident.ident_name())
                     if return_hb_o.is_none() { panic("return binding not found: ", ret_ident.ident_name()) }
                     ref return_hb : HeapBinding = return_hb_o.unwrap()
@@ -2512,11 +2512,11 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         return_raw = scope_read_bound_raw(scope, ret_ident.ident_name(), ctx)
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.interp_ret_is_ref, ctx)
-                case NodeType.FCall:
+                case .FCall:
                     return_raw = eval_call(scope, ret_expr, ctx, c.interp_ret_dest)
                     inner_is_ref := call_raw_result_is_ref(scope, ret_expr, ctx)
                     return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_is_ref, c.interp_ret_is_ref, ctx)
-                case NodeType.FieldAccess:
+                case .FieldAccess:
                     if c.interp_ret_is_ref {
                         // field_access_returns_ref gated this branch, so the
                         // base resolves.
@@ -2548,7 +2548,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 // A bare return carries the null None word: no allocation.
                 context_return_set(c, bits_word(0))
             }
-        case NodeType.Switch:
+        case .Switch:
             eval_switch(scope, stmt, ctx)
         case:
             interp_lang_error(stmt, "unexpected statement type", ctx)
@@ -2560,7 +2560,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
 priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
     if is_variadic { return source_type_w }
     switch param.til_type {
-    case Type.Custom(name):
+    case .Custom(name):
         binding_o := ctx.scope.get_binding(name)
         if binding_o.is_none() { panic("interpreter parameter type is not registered: ", name) }
         ref binding : TypeBinding = binding_o.unwrap()
@@ -2588,7 +2588,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         arg_transfers := get_own_arg(e, pi + 1).and(get_keep_outer_arg(e, pi + 1).not())
         is_variadic_param := fdef_params.variadic_index == pi.to_i32()
         switch arg_expr.node_type {
-        case NodeType.Ident(arg_ident):
+        case .Ident(arg_ident):
             source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name())
             if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name()) }
             ref source_hb : HeapBinding = source_hb_o.unwrap()
@@ -2717,7 +2717,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     arg_raw = raw_coerce_value(arg_raw, arg_expr.til_type(), bind_type, ctx, param.own_type)
                     if param.own_type.is(OwnType.Ref) {
                         switch arg_expr.node_type {
-                        case NodeType.Literal(Literal.Null): borrowed = true
+                        case .Literal(Literal.Null): borrowed = true
                         case:
                         }
                     }
@@ -2746,7 +2746,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     mut callee_ret_is_ref := false
     mut use_return_destination := true
     switch func_def.node_type {
-    case NodeType.FuncDef(ret_fd):
+    case .FuncDef(ret_fd):
         callee_ret_is_ref = ret_fd.return_own_type.is(OwnType.Ref)
         c.interp_ret_type = Option(ref Str).Some(ret_fd.return_type)
         c.interp_ret_own_type = ret_fd.return_own_type
@@ -2775,7 +2775,7 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
         if result.is_null() { result = raw_unit_result(e.til_type(), ctx) }
     }
     switch func_def.node_type {
-    case NodeType.FuncDef(result_fd):
+    case .FuncDef(result_fd):
         if result_fd.return_type.len() > 0 {
             source_result_type := type_from_name_init(result_fd.return_type, ctx.scope)
             if callee_ret_is_ref.not() {
@@ -2803,11 +2803,11 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
     if callee_ret_is_ref.not() {
         mut return_type := e.til_type().clone()
         switch return_type {
-        case Type.Custom(return_type_name): return_type = type_from_name_init(return_type_name, ctx.scope)
+        case .Custom(return_type_name): return_type = type_from_name_init(return_type_name, ctx.scope)
         case:
         }
         switch return_type {
-        case Type.Struct(return_sname):
+        case .Struct(return_sname):
             if return_sname == "Str" {
                 ref returned_str : Str = to_ptr(result)
                 if str_cap_at(result, ctx).gte(CAP_VIEW) {
@@ -2833,13 +2833,13 @@ priv eval_callable_call := proc(caller_scope: Scope, e: Expr, callable: Dynamic,
     ref func_def : Expr = callable_raw_func_def(callable)
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
-    case NodeType.BodyValue:
+    case .BodyValue:
         body_scope := scope_new(Option(ref Scope).Some(parent_scope))
         eval_body(body_scope, func_def.children[0], ctx)
         scope_free(own body_scope)
         if destination.is_null().not() { return destination }
         return raw_unit_result(e.til_type(), ctx)
-    case NodeType.FuncDef:
+    case .FuncDef:
         return eval_user_func_call(caller_scope, e, func_def, parent_scope, ctx, destination)
     case:
         interp_error(e, "callee did not evaluate to a function", ctx)
@@ -2855,7 +2855,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
     // Namespace method call: Struct.method(args)
     if callee_expr.node_type.is(NodeType.FieldAccess) {
         switch callee_expr.node_type {
-        case NodeType.FieldAccess(callee_field):
+        case .FieldAccess(callee_field):
             enum_name := field_access_sname(callee_expr)
             enum_def_o := lookup_interp_type_def(enum_name, ctx)
             if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
@@ -3006,7 +3006,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
 
     // Direct ident call
     switch callee_expr.node_type {
-    case NodeType.Ident(name):
+    case .Ident(name):
 
         // Ext/core dispatch writes raw bytes sized by this call's result Type.
         ref ext_slot : Dynamic = scope_get(scope, name.ident_name())?
@@ -3023,15 +3023,15 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
             ref ext_binding_raw : Dynamic = ext_slot
             ref ext_def : Expr = callable_raw_func_def(ext_binding_raw)
             switch ext_def.node_type {
-            case NodeType.FuncDef(ext_fd):
+            case .FuncDef(ext_fd):
                 if ext_fd.return_type.len() == 0 { ext_result_type = Type.None }
                 else { ext_result_type = type_from_name_init(ext_fd.return_type, ctx.scope) }
                 ext_return_own_type = ext_fd.return_own_type
                 ext_variadic_index = ext_fd.variadic_index
-            case NodeType.BodyValue:
+            case .BodyValue:
                 ext_result_type = Type.None
-            case NodeType.StructDef:
-            case NodeType.EnumDef:
+            case .StructDef:
+            case .EnumDef:
             case:
                 UNREACHABLE("unexpected ", ext_def.node_type.head_str())
             }
@@ -3060,7 +3060,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                 if get_own_arg(e, oi) {
                     if oi.sub(1).to_i32() == ext_variadic_index { continue }
                     switch e.children[oi].node_type {
-                    case NodeType.Ident(oa_ident):
+                    case .Ident(oa_ident):
                         arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name())
                         if arg_hb_o.is_some() {
                             ref arg_hb : HeapBinding = arg_hb_o.unwrap()
@@ -3118,7 +3118,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         // evaluation aborted so try_eval_call leaves the call for runtime;
         // outside constfold, reaching an unregistered ext_func is invalid.
         switch fn_def.node_type {
-            case NodeType.FuncDef(ext_fd):
+            case .FuncDef(ext_fd):
                 // ExtProc gets the same treatment as ExtFunc. It used to fall
                 // through and run as an ordinary body-less function, which
                 // silently produced a zero result -- so an unresolved
@@ -3165,14 +3165,14 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                         mut arg_is_ref := false
                         mut arg_is_place := false
                         switch arg.node_type {
-                        case NodeType.Ident(arg_ident):
+                        case .Ident(arg_ident):
                             ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
                             mut move_iface_val := false
                             if cur_fpos == iface_val_pos {
                                 if iface_owned_pos < sdd.fields.len() {
                                     switch e.children[iface_owned_pos + 1].node_type {
-                                    case NodeType.Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
-                                    case NodeType.Ident(owned_id):
+                                    case .Literal(Literal.Bool(owned_flag)): move_iface_val = owned_flag
+                                    case .Ident(owned_id):
                                         ref owned_hb : HeapBinding = scope_lookup_heap_binding(scope, owned_id.ident_name()).unwrap()
                                         ref owned_raw : Dynamic = to_ptr(owned_hb.ptr)
                                         ref owned_flag2 : Bool = owned_raw
@@ -3187,8 +3187,8 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                 mut preserve_outer := get_keep_outer_arg(e, cur_idx)
                                 if fdd.own_type.is(OwnType.Shallow) {
                                     switch hb_type(source_hb) {
-                                    case Type.Struct: preserve_outer = true
-                                    case Type.Enum: preserve_outer = true
+                                    case .Struct: preserve_outer = true
+                                    case .Enum: preserve_outer = true
                                     case:
                                     }
                                 }
@@ -3202,7 +3202,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                     mut clone_source := source_hb.is_borrowed.or(heap_slot_is_static_callable(hb_type(source_hb), source_ptr))
                                     mut promote_str_view := false
                                     switch hb_type(source_hb) {
-                                    case Type.Struct(source_name):
+                                    case .Struct(source_name):
                                         if (source_name == "Str").and(str_cap_at(source_ptr, ctx).gte(CAP_VIEW)) {
                                             clone_source = true
                                             promote_str_view = true
@@ -3212,7 +3212,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                                     if clone_source {
                                         arg_raw = heap_clone_by_type(hb_type(source_hb), source_ptr, source_hb.ctx)
                                         switch hb_type(source_hb) {
-                                        case Type.Struct(source_name2):
+                                        case .Struct(source_name2):
                                             if (source_name2 == "Str").and(promote_str_view) {
                                                 cnt := str_count_at(source_ptr, ctx)
                                                 if cnt == 0 {
@@ -3272,7 +3272,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
                         ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                         mut arg_is_null := false
                         switch arg.node_type {
-                        case NodeType.Literal(Literal.Null): arg_is_null = true
+                        case .Literal(Literal.Null): arg_is_null = true
                         case:
                         }
                         if fdd.own_type.is(OwnType.Ref).and(arg_is_null) {
@@ -3289,7 +3289,7 @@ priv eval_call := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dyn
         result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
         callable_raw_free(fn_raw, ctx)
         return result
-    case NodeType.FCall:
+    case .FCall:
         // Issue #58: postfix call on a sub-expression callee, e.g.
         // `cast(raw, BinaryOp)(3, 4)`. Eval the callee (the cast) to
         // get the function pointer, then dispatch with the call's args.
@@ -3353,12 +3353,12 @@ priv container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
     resolved := type_from_name_init(elem_type, ctx.scope)
     if type_is_callable_storage(resolved) { return 8 }
     switch resolved {
-    case Type.Primitive(p):
+    case .Primitive(p):
         mut sz : USize = 0
         mut al : USize = 0
         builtin_primitive_size_align(p, sz, al)
         return sz
-    case Type.Dynamic:
+    case .Dynamic:
         return 8
     case:
     }
@@ -3404,9 +3404,9 @@ priv container_elem_deep_free := func(elem_type: Str, slot: Dynamic, ctx: Contex
     if elem_def_o.is_none() { panic("container element has no registered type def: ", elem_type) }
     ref elem_def : Expr = elem_def_o.unwrap()
     switch elem_def.node_type {
-    case NodeType.StructDef:
+    case .StructDef:
         heap_drop_struct(elem_type, slot, ctx)
-    case NodeType.EnumDef:
+    case .EnumDef:
         if enum_has_payloads(elem_def) {
             enum_payload_deep_free(elem_type, slot, ctx)
         }
@@ -3430,11 +3430,11 @@ priv container_elem_clone_into := func(elem_type: Str, dst: Dynamic, src: Dynami
     if elem_def_o.is_none() { panic("container element has no registered type def: ", elem_type) }
     ref elem_def : Expr = elem_def_o.unwrap()
     switch elem_def.node_type {
-    case NodeType.StructDef:
+    case .StructDef:
         cloned_ptr : Dynamic = heap_clone(elem_type, src, ctx)
         memcpy(dst, cloned_ptr, elem_size)
         EvalHeap.heap_free(own cloned_ptr)
-    case NodeType.EnumDef:
+    case .EnumDef:
         memcpy(dst, src, elem_size)
         if enum_has_payloads(elem_def) {
             enum_payload_deep_clone(elem_type, dst, ctx)
@@ -3824,8 +3824,8 @@ priv clone_dyn_set_buffer := func(src_data: Dynamic, dst_data: Dynamic, ctx: Con
 // eval_user_func_call has set it -- a None here is a broken invariant.
 priv interp_ret_type_name := func(ctx: Context) returns ref Str {
     switch ctx.interp_ret_type {
-    case Option(ref Str).Some(rt): return rt
-    case Option(ref Str).None:
+    case .Some(rt): return rt
+    case .None:
         panic(__LOC__, "return type read outside a call")
     }
 }
@@ -3843,8 +3843,8 @@ scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFoun
         ref hb : HeapBinding = cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             switch cur.parent {
-            case Option(ref Scope).Some(p): cur = p
-            case Option(ref Scope).None: walking = false
+            case .Some(p): cur = p
+            case .None: walking = false
             }
             continue
         }
@@ -3862,8 +3862,8 @@ priv scope_return_move_is_local := func(mut s: Scope, name: Str) returns Bool {
         catch (e: KeyNotFound) {
             if cur.is_call_scope { return false }
             switch cur.parent {
-            case Option(ref Scope).Some(p): cur = p
-            case Option(ref Scope).None: walking = false
+            case .Some(p): cur = p
+            case .None: walking = false
             }
             continue
         }
@@ -3908,8 +3908,8 @@ priv scope_get_binding_scope := func(mut s: Scope, name: Str) returns ref Scope 
         cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             switch cur.parent {
-            case Option(ref Scope).Some(p): cur = p
-            case Option(ref Scope).None: walking = false
+            case .Some(p): cur = p
+            case .None: walking = false
             }
             continue
         }
@@ -3941,8 +3941,8 @@ scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref He
         ref b : HeapBinding = cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             switch cur.parent {
-            case Option(ref Scope).Some(p): cur = p
-            case Option(ref Scope).None: walking = false
+            case .Some(p): cur = p
+            case .None: walking = false
             }
             continue
         }
@@ -3966,21 +3966,21 @@ priv heap_slot_is_static_callable := func(shallow til_type: Type, ptr: Dynamic) 
 priv heap_drop_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Context) {
     if ptr.is_null() { return }
     switch til_type {
-    case Type.Primitive:
-    case Type.Struct(sname):
+    case .Primitive:
+    case .Struct(sname):
         heap_drop_struct(sname, ptr, ctx)
-    case Type.Enum(ename):
+    case .Enum(ename):
         heap_drop_enum(ename, ptr, ctx)
-    case Type.FuncPtr:
+    case .FuncPtr:
         ref stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { callable_storage_free(stored_callable) }
-    case Type.FuncPtrSig:
+    case .FuncPtrSig:
         ref stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { callable_storage_free(stored_callable2) }
-    case Type.Body:
+    case .Body:
         ref stored_callable3 : Dynamic = deref(ptr)
         if stored_callable3.is_null().not() { callable_storage_free(stored_callable3) }
-    case Type.Custom(name):
+    case .Custom(name):
         heap_drop_by_type(type_from_name_init(name, ctx.scope), ptr, ctx)
     case:
     }
@@ -3997,34 +3997,34 @@ priv primitive_heap_clone := func(prim: Primitive, ptr: Dynamic) returns Dynamic
 
 priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Context) returns Dynamic {
     switch til_type {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         return primitive_heap_clone(prim, ptr)
-    case Type.Dynamic:
+    case .Dynamic:
         dst0 : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref dynamic_value : Dynamic = deref(ptr)
         write_ptr(dst0, dynamic_value)
         return dst0
-    case Type.Struct(sname):
+    case .Struct(sname):
         return heap_clone(sname, ptr, ctx)
-    case Type.Enum(ename):
+    case .Enum(ename):
         total : USize = ctx_total_size(ename, ctx)
         return heap_clone_enum(ename, ptr, total, ctx)
-    case Type.FuncPtr:
+    case .FuncPtr:
         dst : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable : Dynamic = deref(ptr)
         if stored_callable.is_null().not() { write_ptr(dst, callable_storage_clone(stored_callable)) }
         return dst
-    case Type.FuncPtrSig:
+    case .FuncPtrSig:
         dst2 : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable2 : Dynamic = deref(ptr)
         if stored_callable2.is_null().not() { write_ptr(dst2, callable_storage_clone(stored_callable2)) }
         return dst2
-    case Type.Body:
+    case .Body:
         dst3 : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
         ref stored_callable3 : Dynamic = deref(ptr)
         if stored_callable3.is_null().not() { write_ptr(dst3, callable_storage_clone(stored_callable3)) }
         return dst3
-    case Type.Custom(name):
+    case .Custom(name):
         return heap_clone_by_type(type_from_name_init(name, ctx.scope), ptr, ctx)
     case:
         panic("cannot clone raw binding of type ", til_type_name_c(til_type))
@@ -4040,7 +4040,7 @@ priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Conte
 // routes both cases through the same flag.
 priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: Dynamic, ctx: Context, drop_old: Bool = true) returns Bool {
     switch til_type {
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         mut sz : USize = 0
         mut al : USize = 0
         builtin_primitive_size_align(prim, sz, al)
@@ -4048,13 +4048,13 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         owned_src : Dynamic = src
         EvalHeap.heap_free(own owned_src)
         return true
-    case Type.Struct(sname):
+    case .Struct(sname):
         if drop_old { heap_drop_struct(sname, dst, ctx) }
         memcpy(dst, src, ctx_total_size(sname, ctx).cast(U64))
         owned_src2 : Dynamic = src
         EvalHeap.heap_free(own owned_src2)
         return true
-    case Type.Enum(ename):
+    case .Enum(ename):
         if drop_old { heap_drop_enum(ename, dst, ctx) }
         mut total : USize = ctx_total_size(ename, ctx)
         if total < 8 { total = 8 }
@@ -4062,7 +4062,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         owned_src3 : Dynamic = src
         EvalHeap.heap_free(own owned_src3)
         return true
-    case Type.FuncPtr:
+    case .FuncPtr:
         ref old_callable : Dynamic = deref(dst)
         if old_callable.is_null().not() { callable_storage_free(old_callable) }
         ref moved_callable : Dynamic = deref(src)
@@ -4071,7 +4071,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         owned_src4 : Dynamic = src
         EvalHeap.heap_free(own owned_src4)
         return true
-    case Type.FuncPtrSig:
+    case .FuncPtrSig:
         ref old_callable2 : Dynamic = deref(dst)
         if old_callable2.is_null().not() { callable_storage_free(old_callable2) }
         ref moved_callable2 : Dynamic = deref(src)
@@ -4080,7 +4080,7 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, dst: Dynamic, src: 
         owned_src5 : Dynamic = src
         EvalHeap.heap_free(own owned_src5)
         return true
-    case Type.Body:
+    case .Body:
         ref old_callable3 : Dynamic = deref(dst)
         if old_callable3.is_null().not() { callable_storage_free(old_callable3) }
         ref moved_callable3 : Dynamic = deref(src)
@@ -4154,14 +4154,14 @@ priv scope_move_bound_raw := func(scope: Scope, name: Str, ctx: Context) returns
 // Fixed slot per payload-less Type variant in InternedTypes.simples.
 priv intern_simple_index := func(shallow t: Type) returns USize {
     switch t {
-    case Type.Unknown: return 0
-    case Type.None: return 1
-    case Type.StructDef: return 2
-    case Type.EnumDef: return 3
-    case Type.FuncDef: return 4
-    case Type.FuncPtr: return 5
-    case Type.Dynamic: return 6
-    case Type.Body: return 7
+    case .Unknown: return 0
+    case .None: return 1
+    case .StructDef: return 2
+    case .EnumDef: return 3
+    case .FuncDef: return 4
+    case .FuncPtr: return 5
+    case .Dynamic: return 6
+    case .Body: return 7
     case:
         panic("intern_simple_index: variant carries a payload")
     }
@@ -4170,17 +4170,17 @@ priv intern_simple_index := func(shallow t: Type) returns USize {
 // Fixed slot per Primitive in InternedTypes.prims.
 priv intern_prim_index := func(p: Primitive) returns USize {
     switch p {
-    case Primitive.I16: return 0
-    case Primitive.U16: return 1
-    case Primitive.I8: return 2
-    case Primitive.U8: return 3
-    case Primitive.U32: return 4
-    case Primitive.I32: return 5
-    case Primitive.U64: return 6
-    case Primitive.I64: return 7
-    case Primitive.F32: return 8
-    case Primitive.Bool: return 9
-    case Primitive.F64: return 10
+    case .I16: return 0
+    case .U16: return 1
+    case .I8: return 2
+    case .U8: return 3
+    case .U32: return 4
+    case .I32: return 5
+    case .U64: return 6
+    case .I64: return 7
+    case .F32: return 8
+    case .Bool: return 9
+    case .F64: return 10
     }
 }
 
@@ -4231,11 +4231,11 @@ priv intern_slot := func(mut v: Vec(Dynamic), idx: USize, shallow t: Type) retur
 // Context teardown.
 interp_intern_type := func(shallow t: Type, mut ctx: Context) returns Dynamic {
     switch t {
-    case Type.Struct(name): return intern_named(ctx.interned_types.structs, name, t)
-    case Type.Enum(name): return intern_named(ctx.interned_types.enums, name, t)
-    case Type.Custom(name): return intern_named(ctx.interned_types.customs, name, t)
-    case Type.FuncPtrSig(name): return intern_named(ctx.interned_types.funcsigs, name, t)
-    case Type.Primitive(p): return intern_slot(ctx.interned_types.prims, intern_prim_index(p), t)
+    case .Struct(name): return intern_named(ctx.interned_types.structs, name, t)
+    case .Enum(name): return intern_named(ctx.interned_types.enums, name, t)
+    case .Custom(name): return intern_named(ctx.interned_types.customs, name, t)
+    case .FuncPtrSig(name): return intern_named(ctx.interned_types.funcsigs, name, t)
+    case .Primitive(p): return intern_slot(ctx.interned_types.prims, intern_prim_index(p), t)
     case: return intern_slot(ctx.interned_types.simples, intern_simple_index(t), t)
     }
 }
@@ -4329,8 +4329,8 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
     if source_name.len() > 0 { s.heap_aliases.set(name, own source_name.clone()) }
     if to_ptr(source_scope).is_null() {
         switch s.parent {
-        case Option(ref Scope).Some(p): source_scope = p
-        case Option(ref Scope).None: panic("borrowed binding without source scope: ", name)
+        case .Some(p): source_scope = p
+        case .None: panic("borrowed binding without source scope: ", name)
         }
     }
     source_hb_o := scope_lookup_heap_binding(source_scope, source_name)
@@ -4364,8 +4364,8 @@ scope_free := func(own s: Scope) {
 
 priv scope_root_ref := func(s: Scope) returns ref Scope {
     switch s.parent {
-    case Option(ref Scope).Some(p): return scope_root_ref(p)
-    case Option(ref Scope).None: return s
+    case .Some(p): return scope_root_ref(p)
+    case .None: return s
     }
 }
 
@@ -4411,11 +4411,11 @@ priv capture_raw_binding := func(env: Scope, source: Scope, cap: Declaration, ct
 priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) returns Dynamic {
     mut env := scope_new_owned(Option(ref Scope).Some(scope_root_ref(scope)))
     switch func_def.node_type {
-    case NodeType.FuncDef(fd):
+    case .FuncDef(fd):
         for cap : Declaration in fd.captures {
             capture_raw_binding(env, scope, cap, ctx)
         }
-    case NodeType.BodyValue(bd):
+    case .BodyValue(bd):
         for cap2 : Declaration in bd.captures {
             capture_raw_binding(env, scope, cap2, ctx)
         }
@@ -4437,8 +4437,8 @@ priv make_interp_closure := func(func_def: Expr, scope: Scope, ctx: Context) ret
 // absent env on a magic-checked box is a broken invariant.
 priv callable_env := func(b: InterpCallableBox) returns ref Scope {
     switch b.env {
-    case Option(Scope).Some(e): return e
-    case Option(Scope).None: panic(__LOC__, "callable box env absent")
+    case .Some(e): return e
+    case .None: panic(__LOC__, "callable box env absent")
     }
 }
 
@@ -4480,9 +4480,9 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     mut has_inst := false
     has_ns := def_ns_has(sdef, fname)
     switch sdef.node_type {
-    case NodeType.StructDef(ins_sdd):
+    case .StructDef(ins_sdd):
         has_inst = ins_sdd.fields_index.has(fname)
-    case NodeType.EnumDef(ins_edd):
+    case .EnumDef(ins_edd):
         for vd : VariantDef in ins_edd.variants {
             if vd.name == fname { has_inst = true }
         }
@@ -4505,7 +4505,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     if has_ns.not() {
         if has_inst.not() {
             switch obj_expr.node_type {
-            case NodeType.Ident(ident):
+            case .Ident(ident):
                 if ident.ident_name() == sname { return true }
                 if ident.len() > 0 {
                     if ident.unsafe_get(0) >= 65 {
@@ -4520,7 +4520,7 @@ priv interp_fa_is_ns_with_fname := func(obj_expr: Expr, sname: Str, sdef: Expr, 
     if has_ns {
         if has_inst {
             switch obj_expr.node_type {
-            case NodeType.Ident(ident):
+            case .Ident(ident):
                 if ident.ident_name() == sname { return true }
                 if ident.len() > 0 {
                     if ident.unsafe_get(0) >= 65 {
@@ -4558,9 +4558,9 @@ priv interp_fa_is_ns_def := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr
         if sdef.node_type.is(NodeType.EnumDef).not() { return false }
     }
     switch e.node_type {
-    case NodeType.FieldAccess(fname):
+    case .FieldAccess(fname):
         return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fname.field_access_name())
-    case NodeType.FieldAssign(fad):
+    case .FieldAssign(fad):
         return interp_fa_is_ns_with_fname(obj_expr, sname, sdef, fad.name)
     case:
         return false
@@ -4570,7 +4570,7 @@ priv interp_fa_is_ns_def := func(obj_expr: Expr, e: Expr, sname: Str, sdef: Expr
 priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
     ref obj_expr : Expr = e.children[0]
     switch obj_expr.node_type {
-    case NodeType.Ident(type_ident):
+    case .Ident(type_ident):
         type_hb_o := scope_lookup_heap_binding(scope, type_ident.ident_name())
         if type_hb_o.is_some().and(heap_type_is_callable(hb_type(type_hb_o.unwrap()))) {
             ref type_hb : HeapBinding = type_hb_o.unwrap()
@@ -4593,7 +4593,7 @@ priv interp_fa_is_ns := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
         return interp_fa_is_ns_inner(scope, e, sname, ctx)
     }
     switch obj_expr.node_type {
-    case NodeType.Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name(), ctx)
+    case .Ident(ident): return interp_fa_is_ns_inner(scope, e, ident.ident_name(), ctx)
     case:
     }
     // Primitive receivers (`0.sub(1)`, recv = LiteralNum I64): til_type_name
@@ -4634,7 +4634,7 @@ priv build_argv_array := func(argv: Vec(Str), offset: USize, count: USize, elem_
 populate_cached_aggregate_defs := func(mut ctx: Context, program: Expr) {
     for stmt : Expr in program.children {
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if stmt.children.len() == 0 { continue }
             ref sdef : Expr = stmt.children[0]
             if sdef.node_type.is(NodeType.StructDef).not() {
@@ -4657,7 +4657,7 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
     }
     for stmt : Expr in program.children {
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             if stmt.children.len() == 0 { continue }
             ref sdef : Expr = stmt.children[0]
             if sdef.node_type.is(NodeType.StructDef).not() {
@@ -4723,8 +4723,8 @@ priv ns_qname := func(sname: Str, fname: Str) returns Str {
 // switch on the field instead.
 priv ns_scope := func(ctx: Context) returns ref Scope {
     switch ctx.ns_fields {
-    case Option(Scope).Some(nsf): return nsf
-    case Option(Scope).None: panic(__LOC__, "ns_fields read before interpreter_init_ns")
+    case .Some(nsf): return nsf
+    case .None: panic(__LOC__, "ns_fields read before interpreter_init_ns")
     }
 }
 
@@ -4743,8 +4743,8 @@ priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) retur
             return Option(ref HeapBinding).Some(b)
         }
         switch cur.parent {
-        case Option(ref Scope).Some(p): cur = p
-        case Option(ref Scope).None: walking = false
+        case .Some(p): cur = p
+        case .None: walking = false
         }
     }
     return Option(ref HeapBinding).None
@@ -4886,7 +4886,7 @@ priv str_usize_field_at := func(str_base: Dynamic, offset: USize, size: USize) r
 
 priv find_field_decl := func(struct_def: Expr, fname: Str) returns Option(ref Declaration) {
     switch struct_def.node_type {
-    case NodeType.StructDef(ffd_sdd):
+    case .StructDef(ffd_sdd):
         return member_get(ffd_sdd.fields_index, ffd_sdd.fields, fname)
     case:
         return Option(ref Declaration).None
@@ -4956,7 +4956,7 @@ priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USiz
         return
     }
     switch dd.til_type {
-    case Type.Struct(name):
+    case .Struct(name):
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
             if drop_old { free_owned_struct_slot(dst, name, ctx) }
@@ -4972,7 +4972,7 @@ priv write_field := proc(inst_data: Dynamic, dd: Declaration, field_offset: USiz
         }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
-    case Type.Enum(name):
+    case .Enum(name):
         mut source : Dynamic = raw
         if dd.own_type.is(OwnType.Own) {
             if drop_old { free_owned_enum_slot(dst, name, ctx) }
@@ -5026,7 +5026,7 @@ priv interpret_register_defs := func(global: Scope, prog: Expr, mut ctx: Context
             .or(decl_value.node_type.is(NodeType.StructDef))
             .or(decl_value.node_type.is(NodeType.EnumDef)) {
                 switch stmt.node_type {
-                case NodeType.Decl(dd):
+                case .Decl(dd):
                     raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                     write_ptr(raw, stmt.children[0])
                     scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
@@ -5044,13 +5044,13 @@ priv interpret_register_aliases := func(mut global: Scope, prog: Expr, mut ctx: 
         else if stmt.children.len() == 0 { }
         else {
             switch stmt.children[0].node_type {
-            case NodeType.Ident(rhs_ident):
+            case .Ident(rhs_ident):
                 ref src_slot : Dynamic = scope_get(global, rhs_ident.ident_name())!
                 ref src_raw : Dynamic = src_slot
                 ref sdef : Expr = callable_raw_func_def(src_raw)
                         if sdef.node_type.is(NodeType.StructDef).or(sdef.node_type.is(NodeType.EnumDef)) {
                             switch stmt.node_type {
-                            case NodeType.Decl(dd):
+                            case .Decl(dd):
                                 raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
                                 write_ptr(raw, sdef)
                                 scope_set_raw_owned(global, dd.name, raw, interp_intern_type(Type.Body, ctx), dd.own_type, ctx)
@@ -5070,9 +5070,9 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
         else if stmt.children.len() == 0 { }
         else {
             switch stmt.children[0].node_type {
-            case NodeType.Ident(rhs_ident):
+            case .Ident(rhs_ident):
                 switch stmt.node_type {
-                case NodeType.Decl(dd):
+                case .Decl(dd):
                     ref tc : Dynamic = scope_get(global, rhs_ident.ident_name())!
                     ref tc_raw : Dynamic = tc
                     ref sdef : Expr = callable_raw_func_def(tc_raw)
@@ -5102,8 +5102,8 @@ priv interpret_copy_alias_ns := func(prog: Expr, global: Scope, ctx: Context) {
 // global is a broken invariant, not a state to absorb.
 priv session_global := func(session: InterpSession) returns ref Scope {
     switch session.global {
-    case Option(Scope).Some(g): return g
-    case Option(Scope).None: panic(__LOC__, "session global read outside start/free")
+    case .Some(g): return g
+    case .None: panic(__LOC__, "session global read outside start/free")
     }
 }
 
@@ -5347,7 +5347,7 @@ priv interp_lowering_preamble_count := func(program: Expr, limit: USize) returns
     while n < limit {
         mut is_slot := false
         switch program.children[n].node_type {
-        case NodeType.Decl(dd): is_slot = dd.name.starts_with("_err_")
+        case .Decl(dd): is_slot = dd.name.starts_with("_err_")
         case:
         }
         if is_slot.not() { return n }
@@ -5414,10 +5414,10 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             for stmt : Expr in iu.ast.children {
                 if is_func_decl(stmt) {
                     switch stmt.children[0].node_type {
-                    case NodeType.FuncDef(fd):
+                    case .FuncDef(fd):
                         if fd.func_type.is(FuncType.Test) {
                             switch stmt.node_type {
-                            case NodeType.Decl(dd):
+                            case .Decl(dd):
                                 test_count++
                                 test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
                                 context_enter_file(lp.ctx, u.path)
@@ -5437,7 +5437,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     ref rhs : Expr = stmt.children[0]
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
-                        case NodeType.Decl(sdd):
+                        case .Decl(sdd):
                             ref tni_ns : Vec(Declaration) = def_ns_decls(rhs)
                             mut tni : USize = 0
                             for nsd : Declaration in tni_ns {
@@ -5446,7 +5446,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                                 if nsd.default_value.is_none() { continue }
                                 ref nsfdef : Expr = nsd.default_expr()
                                 switch nsfdef.node_type {
-                                case NodeType.FuncDef(nsfd):
+                                case .FuncDef(nsfd):
                                     if nsfd.func_type.is(FuncType.Test).not() { continue }
                                     test_count++
                                     test_scope := scope_new(Option(ref Scope).Some(session_global(session)))
@@ -5873,7 +5873,7 @@ ffi_init_struct_defs_append := func(program: Expr, ctx: Context) {
             continue
         }
         switch stmt.node_type {
-        case NodeType.Decl(dd):
+        case .Decl(dd):
             key := Str(c_str = dd.name.c_str, count = dd.name.count, cap = CAP_VIEW)
             box := ExprPtrBox(ptr = sdef)
             ctx.ffi_struct_defs.set(key, own box)
@@ -5923,7 +5923,7 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
     if size < 8 { size = 8 }
     ref enum_def : Expr = lookup_interp_type_def(name, ctx).unwrap()
     switch enum_def.node_type {
-    case NodeType.EnumDef(ed):
+    case .EnumDef(ed):
         for i in 0..ed.variants.len() {
             payload_type := enum_variant_type(enum_def, i.to_i32())
             if payload_type.len() > 0 {
@@ -5951,18 +5951,18 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
 dispatch_result_alloc := func(t: Type, ctx: Context) returns Dynamic {
     mut size : USize = 0
     switch t {
-    case Type.None:
+    case .None:
         size = 1
-    case Type.Primitive(prim):
+    case .Primitive(prim):
         mut align : USize = 0
         builtin_primitive_size_align(prim, size, align)
-    case Type.Struct(name):
+    case .Struct(name):
         size = ctx_total_size(name, ctx)
-    case Type.Enum(name):
+    case .Enum(name):
         size = dispatch_enum_size(name, ctx)
-    case Type.Dynamic, Type.FuncPtr, Type.FuncPtrSig, Type.Body:
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body:
         size = Dynamic.size()
-    case Type.Custom(name):
+    case .Custom(name):
         return dispatch_result_alloc(type_from_name_init(name, ctx.scope), ctx)
     case:
         panic("cannot allocate dispatch result for type ", til_type_name_c(t))
@@ -6637,7 +6637,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) retu
     if result.not() {
         ref type_tag : I32 = to_ptr(type_data)
         switch arg.node_type {
-        case NodeType.Ident(type_arg_id):
+        case .Ident(type_arg_id):
             ref type_arg_hb : HeapBinding = scope_lookup_heap_binding(s, type_arg_id.ident_name()).unwrap()
             panic("dyn_type_to_str: invalid Type for ", type_arg_id.ident_name(), ": tag=", type_tag.to_str(), " binding=", til_type_name_c(hb_type(type_arg_hb)), " ref=", type_arg_hb.own_type.is(OwnType.Ref).to_str(), " borrowed=", type_arg_hb.is_borrowed.to_str())
         case:
@@ -6760,7 +6760,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
         ctx.ffi_type_cache_inited = true
     }
     switch struct_def.node_type {
-    case NodeType.StructDef(bsf_sdd):
+    case .StructDef(bsf_sdd):
         nfields := bsf_sdd.fields.len()
         elements : Dynamic = malloc(nfields.add(1) * Dynamic.size())
         mut i : USize = 0
@@ -6794,7 +6794,7 @@ priv build_struct_ffi_type := func(struct_def: Expr, ctx: Context) returns ref f
 
 priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     switch e.children[1].node_type {
-    case NodeType.Ident(ident):
+    case .Ident(ident):
         hb_o := scope_lookup_heap_binding(s, ident.ident_name())
         if hb_o.is_none() { panic("free binding not found: ", ident.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
@@ -6827,7 +6827,7 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
 
 priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     switch e.children[1].node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         hb_o := scope_lookup_heap_binding(s, id.ident_name())
         if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
@@ -6842,11 +6842,11 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
             hb.ptr = bits_word(0)
             hb.moved_out = true
         }
-    case NodeType.FieldAccess(fa):
+    case .FieldAccess(fa):
         if e.children[1].children.len().gt(0) {
             ref obj_expr : Expr = e.children[1].children[0]
             switch obj_expr.node_type {
-            case NodeType.Ident:
+            case .Ident:
                 base_o := resolve_field_assign_base(s, obj_expr)
                 if base_o.is_some() {
                     ref base : Dynamic = base_o.unwrap()
@@ -6905,7 +6905,7 @@ priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Contex
     dst : Dynamic = raw_arg_pointer(s, slot_expr, slot_raw, ctx)
     ref source_expr : Expr = e.children[2]
     switch source_expr.node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         source_hb_o := scope_lookup_heap_binding(s, id.ident_name())
         if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name()) }
         ref source_hb : HeapBinding = source_hb_o.unwrap()
@@ -6976,7 +6976,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref be : Expr = e.children[2]
     a : Dynamic = eval_expr_raw(s, ae, ctx)
     switch be.node_type {
-    case NodeType.FieldAccess(variant):
+    case .FieldAccess(variant):
         enum_name := field_access_sname(be)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
@@ -6985,7 +6985,7 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
             raw_result_drop(ae.til_type(), a, expr_raw_is_ref(s, ae, ctx), ctx)
             return true
         }
-    case NodeType.Ident(other_id):
+    case .Ident(other_id):
         other_hb_o := scope_lookup_heap_binding(s, other_id.ident_name())
         if other_hb_o.is_some().and(other_hb_o.unwrap().is_static_callable) {
             ref other_hb : HeapBinding = other_hb_o.unwrap()
@@ -7036,17 +7036,17 @@ priv get_payload_field_addr := func(s: Scope, arg: Expr, ctx: Context) returns D
     if arg.children.len() != 1 { return bits_word(0) }
     mut fname := ""
     switch arg.node_type {
-    case NodeType.FieldAccess(fan):
+    case .FieldAccess(fan):
         fname = Str.clone(fan.field_access_name())
     case:
     }
     switch arg.children[0].node_type {
-    case NodeType.Ident(base_id):
+    case .Ident(base_id):
         hb_o := scope_lookup_heap_binding(s, base_id.ident_name())
         if hb_o.is_none() { return bits_word(0) }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
-        case Type.Struct(sname):
+        case .Struct(sname):
             ref data : Dynamic = to_ptr(hb.ptr)
             ref fl : FieldLayout = ctx_field_layout(sname, fname, ctx)
             if fl.is_enum.not() { return bits_word(0) }
@@ -7289,7 +7289,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     ref arity_expr : Expr = e.children[3]
     mut nargs : USize = 0
     switch arity_expr.node_type {
-    case NodeType.Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
+    case .Literal(Literal.Num(arity_str)): nargs = arity_str.literal_num_text().to_u32()
     case:
         UNREACHABLE("expected LiteralNum, got ", arity_expr.node_type.head_str())
     }
@@ -7304,7 +7304,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
         if call_free {
             EvalHeap.heap_free(own recv_ptr)
             switch recv_expr.node_type {
-            case NodeType.FieldAccess(recv_fa):
+            case .FieldAccess(recv_fa):
                 recv_base_o := field_access_base(s, recv_expr.children[0], ctx)
                 if recv_base_o.is_some() {
                     ref recv_base : Dynamic = recv_base_o.unwrap()
@@ -7354,7 +7354,7 @@ priv get_elem_size := proc(s: Scope, type_name: Str, src: Expr, ctx: Context) re
 priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Dynamic, ctx: Context) returns Bool {
     if method == "is" {
         switch e.children[2].node_type {
-        case NodeType.FieldAccess(variant):
+        case .FieldAccess(variant):
             ref subject : Expr = e.children[1]
             subject_raw : Dynamic = eval_expr_raw(scope, subject, ctx)
             write_bool(result, enum_data_tag_key(raw_arg_pointer(scope, subject, subject_raw, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
@@ -7391,7 +7391,7 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 mut transferred_ident := false
                 if payload_transfers {
                     switch payload_expr.node_type {
-                    case NodeType.Ident(payload_id):
+                    case .Ident(payload_id):
                         payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name())
                         if payload_hb_o.is_none() { panic("enum payload binding not found: ", payload_id.ident_name()) }
                         ref payload_hb : HeapBinding = payload_hb_o.unwrap()
@@ -7517,7 +7517,7 @@ priv ffi_write_shallow_arg := func(scope: Scope, e: Expr, raw: Dynamic, atype: D
     if source_type.is(Type.Dynamic) {
         mut expr_type := e.til_type().clone()
         switch expr_type {
-        case Type.Custom(name): expr_type = type_from_name_init(name, ctx.scope)
+        case .Custom(name): expr_type = type_from_name_init(name, ctx.scope)
         case:
         }
         if expr_type.is(Type.Dynamic).not().and(expr_raw_is_ref(scope, e, ctx).not()) { source = deref(source) }
@@ -7565,7 +7565,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
         write_ptr(ptr_add(arg_raws, i.mul(8)), arg_raw)
         mut arg_type := arg_expr.til_type().clone()
         switch arg_type {
-        case Type.Custom(type_name): arg_type = type_from_name_init(type_name, ctx.scope)
+        case .Custom(type_name): arg_type = type_from_name_init(type_name, ctx.scope)
         case:
         }
         arg_is_callable := heap_type_is_callable(arg_type)
@@ -7599,7 +7599,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
                 if param_dynamic { pass_pointer = true }
             }
             switch arg_expr.node_type {
-            case NodeType.Ident(arg_id):
+            case .Ident(arg_id):
                 arg_hb_o := scope_lookup_heap_binding(scope, arg_id.ident_name())
                 if arg_hb_o.is_none() { panic("FFI argument binding not found: ", arg_id.ident_name()) }
                 ref arg_hb : HeapBinding = arg_hb_o.unwrap()
@@ -7612,14 +7612,14 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
                 write_ptr(ptr_add(args, i.mul(8)), pointer)
             } else {
                 switch arg_expr.til_type() {
-                case Type.Primitive:
+                case .Primitive:
                     size := raw_type_size(arg_expr.til_type(), ctx)
                     dp = malloc(size)
                     memcpy(dp, raw_arg_pointer(scope, arg_expr, arg_raw, ctx), size)
-                case Type.Custom(name):
+                case .Custom(name):
                     alias_type := type_from_name_init(name, ctx.scope)
                     switch alias_type {
-                    case Type.Primitive:
+                    case .Primitive:
                         size := raw_type_size(alias_type, ctx)
                         dp = malloc(size)
                         memcpy(dp, raw_arg_pointer(scope, arg_expr, arg_raw, ctx), size)
@@ -7651,7 +7651,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
     if ret_sdef_o.is_some() {
         ref ret_sdef : Expr = ret_sdef_o.unwrap()
         switch ret_sdef.node_type {
-        case NodeType.StructDef:
+        case .StructDef:
             ffi_call(fe.cif, fe.fn, result, arg_ptrs)
         case:
             ffi_call(fe.cif, fe.fn, raw, arg_ptrs)
@@ -7933,7 +7933,7 @@ priv scalar_step_cell := proc(scope: Scope, e: Expr, type_str: Str, delta: I64, 
     cur : Dynamic = scalar_read_arg(scope, arg, scalar_type, ctx)
     nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
     switch e.children[1].node_type {
-    case NodeType.Ident(id):
+    case .Ident(id):
         hb_o := scope_lookup_heap_binding(scope, id.ident_name())
         if hb_o.is_none() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
@@ -8188,10 +8188,10 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
             if stmt.children[0].node_type.is(NodeType.FuncDef) {
                 ref fdef : Expr = stmt.children[0]
                 switch fdef.node_type {
-                case NodeType.FuncDef(fd):
+                case .FuncDef(fd):
                     if fd.func_type.is_ext() {
                         switch stmt.node_type {
-                        case NodeType.Decl(dname):
+                        case .Decl(dname):
                             ref fn_ptr : U8 = ffi_dlsym(dname.name)
                             if fn_ptr.is_null().not() {
                                 ffi_register(dname.name, fn_ptr, fdef, ctx)
@@ -8214,7 +8214,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                     ref fdef : Expr = fdd.default_expr()
                     mut fd_func_type := FuncType.Func
                     switch fdef.node_type {
-                    case NodeType.FuncDef(fd):
+                    case .FuncDef(fd):
                         fd_func_type = fd.func_type
                     case:
                         continue
@@ -8235,7 +8235,7 @@ ffi_init_scan_program := proc(program: Expr, ctx: Context) {
                             if inner.node_type.is(NodeType.Decl).and(inner.children.len().gt(0)) {
                                 ref idef : Expr = inner.children[0]
                                 switch idef.node_type {
-                                case NodeType.FuncDef(ifd):
+                                case .FuncDef(ifd):
                                     if ifd.func_type.is_ext() {
                                         ref iname : Declaration = decl_of(inner)
                                         ref ifn : U8 = ffi_dlsym(iname.name)

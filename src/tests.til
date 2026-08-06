@@ -253,7 +253,7 @@ Slot := struct {
 
 print_test_result := proc(t: Test) {
     switch t.kind {
-    case TestKind.Both(md):
+    case .Both(md):
         mut line := pad_right(t.label, 42)
         if t.has_interp == 1 { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
         if t.has_run == 1 { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
@@ -373,7 +373,7 @@ run_all_parallel := proc(tests: Vec(Test), j: USize, mut fail: I64, mut suite_en
                     t.mem = parse_kv(result_line, "mem")
                     // Parse both-specific fields into payload
                     switch t.kind {
-                    case TestKind.Both(md):
+                    case .Both(md):
                         md.interp_ms = parse_kv(result_line, "interp_ms")
                         md.interp_ok = parse_kv(result_line, "interp_ok")
                         md.interp_mem = parse_kv(result_line, "interp_mem")
@@ -1313,7 +1313,7 @@ main := proc(args: ..Str) {
     while pi < tests.len() {
         ref t : Test = tests[pi]
         switch t.kind {
-        case TestKind.Both(md):
+        case .Both(md):
             both_total++
             if t.has_interp == 1 {
                 total_interp_ms = total_interp_ms + md.interp_ms
@@ -1455,7 +1455,7 @@ main := proc(args: ..Str) {
     while bi < tests.len() {
         ref bt : Test = tests[bi]
         switch bt.kind {
-        case TestKind.Both(bmd):
+        case .Both(bmd):
             bench.push_str(format(commit, ",", bt.label, ",",
                 bmd.interp_ms.to_str(), ",", bmd.compile_ms.to_str(), ",",
                 bmd.run_ms.to_str(), ",",
