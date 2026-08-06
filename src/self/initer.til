@@ -3554,10 +3554,33 @@ priv init_synthesize_variadic_arrays := func(mut program: Expr, ctx: Context) {
     }
 }
 
+priv init_decl_owns_scope_ast := func(stmt: Expr, scope: TypeScope) returns Bool {
+    if stmt.node_type.is(NodeType.Decl).not() { return false }
+    if stmt.children.len() == 0 { return false }
+    switch stmt.node_type {
+    case NodeType.Decl(dd):
+        ref rhs : Expr = stmt.children[0]
+        sd_o := scope.struct_def_of(dd.name)
+        if sd_o.is_some() {
+            if sd_o.unwrap().ptr_eq(rhs) { return true }
+        }
+        fd_o := scope.lookup_func(dd.name)
+        if fd_o.is_some() {
+            if fd_o.unwrap().ptr_eq(rhs) { return true }
+        }
+    case:
+    }
+    return false
+}
+
 // Parser-synthesized type-position instantiations are emitted as direct
 // deterministic decls (`Name__Arg := Name(Arg)`). Keep only the first one
 // across all initialized units, but leave user aliases (`Alias := Name(Arg)`)
-// alone because their LHS is intentionally not the deterministic name.
+// alone because their LHS is intentionally not the deterministic name. These
+// declarations still have FCall RHS nodes and are not registered by the seed
+// pass. A same-name scope entry belongs to a surviving expansion in another
+// unit and must remain; assert pointer identity before removal rather than
+// erasing registry state by name.
 priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str, Expr), scope: TypeScope, ctx: Context) {
     mut last_direct := Map(Str, I64).new()
     for i in 0..program.children.len() {
@@ -3611,6 +3634,8 @@ priv init_dedup_direct_type_gen_decls := func(mut program: Expr, macros: Map(Str
             }
         }
         if keep.not() {
+            expect(init_decl_owns_scope_ast(stmt, scope).not(),
+                "type-generator dedup cannot remove a registered AST declaration")
             drop_i : I64 = i.to_i64()
             drop_idxs.push(own drop_i)
         }

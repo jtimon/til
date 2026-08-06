@@ -2494,6 +2494,7 @@ Str * priv___src_self_initer_til__init_set_literal_elem_type(Expr * e);
 Str * priv___src_self_initer_til__init_literal_child_type(Expr * e);
 void priv___src_self_initer_til__init_collect_variadic_arrays(TypeScope * scope, Expr * e, Vec__Expr * synthesized, Map__Str_Str * seen, Bool synth_array, Bool synth_vec, Bool synth_set, Bool synth_map);
 void priv___src_self_initer_til__init_synthesize_variadic_arrays(Expr * program, Context * ctx);
+Bool priv___src_self_initer_til__init_decl_owns_scope_ast(Expr * stmt, TypeScope * scope);
 void priv___src_self_initer_til__init_dedup_direct_type_gen_decls(Expr * program, Map__Str_Expr * macros, TypeScope * scope, Context * ctx);
 void init_refresh_seeded_scope_defs(Expr * program, TypeScope * scope);
 Map__Str_Str * priv___src_self_initer_til__init_seed_local_type_tokens(Expr * program, TypeScope * scope, Context * ctx);
