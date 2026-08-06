@@ -488,6 +488,32 @@ main := proc(args: ..Str) {
     add_single(tests, "self_translate", "self", 0, "",
         format(til_bin, " translate src/til.til"))
 
+    // The two REPL drivers, registered EARLY for the same reason
+    // self_translate is: run_all_parallel dispatches strictly in
+    // registration order, so a long job listed last runs with nothing left
+    // to overlap it and its whole duration lands on wall_ms. Both of these
+    // are long in ELAPSED time while costing almost no CPU -- they spend it
+    // waiting on a piped or pseudo-terminal REPL -- so started early they
+    // hide entirely behind the rest of the suite. (Their durations still
+    // sum into cli_ms, which measures elapsed time, not work.)
+    //
+    // repl_help drives bin/til's REPL over a piped script and self-checks,
+    // exiting 0 on PASS / 1 on FAIL. It used to be a separate hand-run
+    // `make test_repl_help` target outside the suite, so the suite could
+    // pass green while the REPL was broken (it did, twice, during the
+    // doc.til core->std move). Registered here it runs wherever bin/tests
+    // runs -- make test, linux CI, and the mac jobs that invoke bin/tests
+    // directly. Exit-code-only check (no expected_out).
+    add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til"))
+
+    // #332: the REPL line editor's real-terminal half. Drives bin/til
+    // through a pseudo-terminal with actual escape/control bytes and an
+    // isolated XDG_STATE_HOME, and self-checks like repl_help does. The
+    // pure state machine is test/repl_editor.til, in the both-backend list;
+    // neither is a hand-run target, so the feature cannot regress behind
+    // one again.
+    add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
+
     // Issue #302 stage 0: the garbager decision-audit golden. Translating
     // the frozen fixture with TIL_GC_AUDIT set dumps the asap pass's
     // per-binding decisions and destructor sites; the byte-exact compare
@@ -1267,23 +1293,6 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "examples/hello_cli.til", "extra", 1, "", til_bin, asan_flag)
     // Bad Bool value: both backends print the diagnostic and exit(1).
     add_cli_pair(tests, "cli_bool_err", "examples/cli_variadic_bool.til", "true maybe", 1, "", til_bin, asan_flag)
-
-    // REPL help() smoke test. It drives bin/til's REPL over a piped script
-    // and self-checks, exiting 0 on PASS / 1 on FAIL. It used to be a
-    // separate hand-run `make test_repl_help` target outside the suite, so
-    // the suite could pass green while the REPL was broken (it did, twice,
-    // during the doc.til core->std move). Registering it here runs it
-    // wherever bin/tests runs -- make test, linux CI, and the mac jobs that
-    // invoke bin/tests directly. Exit-code-only check (no expected_out).
-    add_single(tests, "repl_help", "cli", 0, "", format(TIL, " run test/repl_help.til"))
-
-    // #332: the REPL line editor's real-terminal half. Drives bin/til
-    // through a pseudo-terminal with actual escape/control bytes and an
-    // isolated XDG_STATE_HOME, and self-checks like repl_help does. The
-    // pure state machine is test/repl_editor.til, in the both-backend
-    // list above; neither is a hand-run target, so the feature cannot
-    // regress behind one again.
-    add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
 
     // === Run all tests in parallel ===
     mut suite_end_ms := 0
