@@ -3094,4 +3094,27 @@ static void til_leak_probe(void) {
     if (&__sanitizer_get_current_allocated_bytes)
         fprintf(stderr, "TIL_TRUE_LEAK=%lu\n", __sanitizer_get_current_allocated_bytes());
 }
+
+// A program's real output can still be sitting in libc's stdout buffer when
+// main returns: the flush happens inside exit, after every til-level write
+// has already reported success. If it fails -- a full disk or a quota on a
+// redirected stdout -- those bytes are gone and the process would still
+// exit 0, handing the caller a truncated file it believes is complete.
+// Every write beneath a til-visible call is checked now (cfile_write_str,
+// cfile_close, copy_file); this is the last unchecked one, and it belongs
+// to libc rather than to any til call.
+//
+// Defined AFTER til_leak_probe deliberately: same-priority destructors run
+// in reverse order of definition, so this one runs FIRST, while stdout is
+// still open. The probe closes it, and fflush on a closed stream would be
+// undefined.
+static void til_flush_stdout(void) __attribute__((destructor));
+static void til_flush_stdout(void) {
+    if (fflush(stdout) == 0) return;
+    fprintf(stderr, "til: could not write stdout: %s\n", strerror(errno));
+    // A destructor runs after the exit status is decided, so replacing it is
+    // the only way to report. _Exit (C99, unlike _exit) skips the remaining
+    // destructors, which is right here: they only measure and diagnose.
+    _Exit(1);
+}
 #endif  // __GLIBC__
