@@ -1365,7 +1365,20 @@ void *cfile_open(const Str *path, Bool is_write) {
 }
 
 void cfile_close(const void *handle) {
-    if (handle) fclose((FILE *)handle);
+    if (!handle) {
+        fprintf(stderr, "cfile_close: file not open\n");
+        exit(1);
+    }
+    // Where a failed write actually surfaces. Writes are buffered, so a
+    // full disk or a quota limit usually leaves fwrite happy and fails at
+    // the flush fclose performs -- checking only the write would miss it.
+    // The buffer is gone either way: fclose frees the stream even when it
+    // reports failure, so there is nothing to retry, only something to
+    // report before the caller believes its data is on disk.
+    if (fclose((FILE *)handle) != 0) {
+        fprintf(stderr, "cfile_close: %s\n", strerror(errno));
+        exit(1);
+    }
 }
 
 void cfile_write_str(const void *handle, const Str *s) {
@@ -1373,7 +1386,16 @@ void cfile_write_str(const void *handle, const Str *s) {
         fprintf(stderr, "cfile_write_str: file not open\n");
         exit(1);
     }
-    fwrite(s->c_str, 1, s->count, (FILE *)handle);
+    // A short write means the bytes did not go out -- disk full, quota
+    // exceeded, a broken pipe. Discarding fwrite's return let writefile
+    // report success having written nothing (copy_file above already
+    // compares it; this was the one write path that did not).
+    size_t put = fwrite(s->c_str, 1, (size_t)s->count, (FILE *)handle);
+    if (put != (size_t)s->count) {
+        fprintf(stderr, "cfile_write_str: wrote %zu of %zu bytes: %s\n",
+                put, (size_t)s->count, strerror(errno));
+        exit(1);
+    }
 }
 
 // Open a file for in-place update ("r+b"): reads and writes are both
@@ -1467,6 +1489,14 @@ Str *cfile_read_n(const void *handle, I64 count) {
     if (count < 0) count = 0;
     char *buf = malloc((size_t)count + 1);
     size_t got = fread(buf, 1, (size_t)count, f);
+    // A short read is the documented near-EOF result here, so it cannot
+    // distinguish success from an I/O error on its own -- only ferror
+    // separates the two. Without it a failing disk hands back a short Str
+    // that reads exactly like a normal end-of-file.
+    if (ferror(f)) {
+        fprintf(stderr, "cfile_read_n: %s\n", strerror(errno));
+        exit(1);
+    }
     buf[got] = '\0';
     Str *s = malloc(sizeof(Str));
     s->c_str = (I8 *)buf;
