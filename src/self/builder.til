@@ -405,7 +405,7 @@ priv subst_ident_expr := proc(e: Expr, name: Str, val: Expr) {
 // expression; with no temps this is the original single-return splice.
 priv emit_inline_accessor := proc(f: File, e: Expr, fdef: Expr, depth: I32, ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
-    mut bodyc := fdef.children[0].clone()
+    bodyc := fdef.children[0].clone()
     n := bodyc.children.len()
     for si in 0..n.sub(1) {
         if builder_is_temp_delete(bodyc.children[si]) { continue }
@@ -3274,8 +3274,15 @@ priv num_lit_to_c := func(text: Str) returns Str {
     // Hex / decimal / float: drop '_' separators (the rest is valid C).
     mut out := body.clone()
     if body.contains("_") { out = body.replace("_", "") }
-    if neg { return format("-", out) }
-    return out
+    if neg.not() { return out }
+    // I64's minimum has no C literal spelling: `-9223372036854775808` is
+    // unary minus applied to a constant one past LLONG_MAX, which C types
+    // as unsigned and `cc -Werror` rejects outright. The constfolder can
+    // reach the value (I64_MAX negated minus one), so emit the standard
+    // one-less-then-subtract form instead. Same class as the ULL suffix
+    // #219 added for U64 literals above LLONG_MAX.
+    if out == "9223372036854775808" { return "(-9223372036854775807LL - 1)" }
+    return format("-", out)
 }
 
 priv emit_expr := proc(f: File, e: Expr, shallow depth: I32, ctx: Context) returns ref File {
@@ -5383,7 +5390,7 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), lp: L
     }
 
     mut remaining := items.len()
-    mut done := Array(Bool).new(items.len())
+    done := Array(Bool).new(items.len())
     for di in 0..items.len() {
         mut f_val := false
         done[di] = f_val

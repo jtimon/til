@@ -482,7 +482,7 @@ priv repl_classify_foldables_program := func(ctx: Context, program: Expr) {
     }
 }
 
-priv repl_classify_foldables_loaded := func(mut lp: LoadedProgram) {
+priv repl_classify_foldables_loaded := func(lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         repl_classify_foldables_program(lp.ctx, lp.ctx.imported[upath].ast)
     }
@@ -1353,7 +1353,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     core_units := Vec(ProgramUnit).new()
     for mode_file : Str in lp.mode_files {
         ref miu_temp : ImportUnit = lp.ctx.imported[mode_file]
-        mut mode_imports := extract_imports(miu_temp.ast, mode_file)
+        mode_imports := extract_imports(miu_temp.ast, mode_file)
         mut auto_disp := ""
         if miu_temp.mode.auto_import.len() > 0 {
             mut auto_path := bin_dir.format("/", miu_temp.mode.auto_import, ".til")
@@ -1466,7 +1466,7 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     }
     imports := extract_imports(user_ast, path)
     mode_str = normalize_mode_name(mode_str)
-    ref mut cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
+    ref cur_mode : Mode = require_mode(lp.ctx, path, mode_str)
     context_register_path_mode(lp.ctx, path, cur_mode)
     lp.ctx.mode = cur_mode.clone()
 
@@ -3645,7 +3645,7 @@ priv lazy_autoforce_body := func(mut body: Expr, pnames: Set(Str),
 // append that reallocs it turns them into use-after-free. The caller flushes
 // `pending` (append + scope registration) at unit end, when no refs are live.
 // Deduped per name through `seen` and the existing scope binding.
-priv lazy_register_fn_ret_alias := func(mut lp: LoadedProgram,
+priv lazy_register_fn_ret_alias := func(lp: LoadedProgram,
         ret_type: Str, line: U32, col: U32, mut seen: Set(Str), mut pending: Vec(Expr)) {
     name := format("_Fn_ret_", ret_type)
     if seen.has(name) { return }
@@ -3815,7 +3815,7 @@ priv lazy_build_force_once_def := func(ret_type: Str, line: U32, col: U32) retur
 // flush appends it to the unit AST and registers the scope binding against the
 // PUSHED node -- see lazy_register_fn_ret_alias for why appending mid-pass is
 // forbidden (use-after-free through the pass's live refs).
-priv lazy_register_force_once := func(mut lp: LoadedProgram,
+priv lazy_register_force_once := func(lp: LoadedProgram,
         ret_type: Str, line: U32, col: U32, mut seen_fo: Set(Str), mut pending: Vec(Expr)) {
     name := format("_force_once_", ret_type)
     if seen_fo.has(name) { return }
@@ -3831,7 +3831,7 @@ priv lazy_register_force_once := func(mut lp: LoadedProgram,
 // invisible to the typer. Runs at unit end when no refs into the children Vec
 // are live; the appends can still realloc the Vec and dangle EARLIER
 // registrations, which the caller repairs via init_refresh_seeded_scope_defs.
-priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, mut pending: Vec(Expr)) {
+priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pending: Vec(Expr)) {
     if pending.len() == 0 { return }
     ref unit_ast : Expr = lp.ctx.imported[unit_path].ast
     for i in 0..pending.len() {

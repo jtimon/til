@@ -3,6 +3,24 @@ mode lib
 import("parser")
 import("eval_heap")
 
+// #344: one storage that a borrow reaches. A ref binding -- or a binding
+// whose value carries a borrowed payload -- records the bindings its value
+// aliases, so a write through the alias can be credited to them. Identity
+// is the name PLUS the declaration site: a nested block that shadows the
+// name is a different binding and must not absorb the write, so a bare
+// name would redirect the credit to the wrong storage.
+BorrowRoot := struct {
+    name := ""
+    path := ""
+    line : U32 = 0
+    col : U32 = 0
+namespace:
+    eq := func(a: BorrowRoot, b: BorrowRoot) returns Bool {
+        return a.line.eq(b.line).and(a.col == b.col).and(a.name == b.name).and(a.path == b.path)
+    }
+    to_str := func(self: BorrowRoot) returns Str { return self.name.clone() }
+}
+
 TypeBinding := struct {
     name := ""
     type := Type.Unknown
@@ -66,6 +84,17 @@ TypeBinding := struct {
     // provenance). Appended at the END so the committed boot's layout
     // stays stable.
     declared_type_name := ""
+    // #344: the storages this binding's value BORROWS -- the whole chain,
+    // since a write through an alias writes every alias along the way, and
+    // each alias's own `mut` is what permits it. Empty for ordinary owned
+    // locals and for parameters (they ARE the storage);
+    // non-empty for a `ref` local, a switch payload alias, and any binding
+    // bound to a ref-returning call -- the accessor forms that used to
+    // launder a write away from the binding it really lands on. The write
+    // marker (mark_written_through) credits every root here, so a `mut`
+    // whose only write goes through an accessor is no longer "redundant".
+    // Appended at the END so the committed boot's layout stays stable.
+    borrow_roots := Vec(BorrowRoot).new()
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -89,7 +118,7 @@ ScopeFind := enum { NotFound, Found: TypeBinding }
 // divide-by-zero guard, and the byte goes through cast(U8) so the
 // widening is a C cast rather than the sign-extending I8_to_u64 call.
 name_fingerprint := func(name: Str) returns U64 {
-    mut one : U64 = 1
+    one : U64 = 1
     return one.shl(name.len().mul(31).add(name.unsafe_get(0).cast(U8).to_usize()).band(63).to_u64())
 }
 

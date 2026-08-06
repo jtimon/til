@@ -457,7 +457,7 @@ test_i64_safe_add_overflow := test() {
 
 test_i64_safe_add_underflow := test() {
     mut caught := false
-    mut mx : I64 = 9223372036854775807
+    mx : I64 = 9223372036854775807
     min_i64 := mx.neg().sub(1)
     _ := min_i64.safe_add(-1)?
     catch (err: IntegerOverflow) {
@@ -477,7 +477,7 @@ test_i64_safe_sub_ok := test() {
 test_i64_safe_sub_underflow := test() {
     mut caught := false
     mut emsg := ""
-    mut mx : I64 = 9223372036854775807
+    mx : I64 = 9223372036854775807
     min_i64 := mx.neg().sub(1)
     _ := min_i64.safe_sub(1)?
     catch (err: IntegerOverflow) {

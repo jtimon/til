@@ -60,7 +60,7 @@ make_named_view := func(salt: USize) returns Holder {
     mut src := Str.with_capacity(salt + 32)
     src.push_str("bug258-named-view-value")
     mut h := Holder()
-    mut v := src.substr(0, 6)
+    v := src.substr(0, 6)
     h.s = v.clone()
     return h
 }
@@ -85,7 +85,7 @@ make_own_field := func(salt: USize) returns OwnHolder {
 make_owned_field := func(salt: USize) returns Holder {
     mut seed := Str.with_capacity(salt + 32)
     seed.push_str("bug258-moved-owned-value")
-    mut src := seed.clone()
+    src := seed.clone()
     mut h := Holder()
     h.s = src.clone()
     return h
@@ -99,7 +99,7 @@ make_owned_field := func(salt: USize) returns Holder {
 make_owned_assign := func(salt: USize) returns Str {
     mut seed := Str.with_capacity(salt + 32)
     seed.push_str("bug258-moved-assign-value")
-    mut src := seed.clone()
+    src := seed.clone()
     mut out := ""
     out = src.clone()
     return out

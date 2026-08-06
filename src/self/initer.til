@@ -979,7 +979,7 @@ priv generate_enum_delete_method := func(enum_def: Expr, ename: Str, line: U32, 
     if_node.add_child(own then_body)
     proc_body.add_child(own if_node)
 
-    mut default_true := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
+    default_true := Expr.new(NodeType.Literal(Literal.Bool(true)), line, col)
 
     mut fdecl := FunctionDef(auto_generated = true)
     fdecl.func_type = FuncType.Func

@@ -247,6 +247,7 @@ typedef struct Set__Str Set__Str;
 typedef struct Map__Str_Str Map__Str_Str;
 typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
+typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
 enum {
     ScopeFind_TAG_NotFound,
@@ -260,6 +261,7 @@ typedef struct BuilderFuncScratch BuilderFuncScratch;
 typedef struct InternedTypes InternedTypes;
 typedef struct SymbolPool SymbolPool;
 typedef struct Context Context;
+typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct Map__Str_TypeBinding Map__Str_TypeBinding;
 enum {
     Option__ref_TypeScope_TAG_None,
@@ -347,6 +349,7 @@ typedef struct FactIndex FactIndex;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__U64 Vec__U64;
 typedef struct Vec__CtorArg Vec__CtorArg;
+typedef struct Map__Str_U64 Map__Str_U64;
 typedef struct Vec__CoverageNode Vec__CoverageNode;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
@@ -750,29 +753,12 @@ typedef struct EvalHeap {
 } EvalHeap;
 
 
-typedef struct TypeBinding {
+typedef struct BorrowRoot {
     Str name;
-    Type type;
-    Bool is_mut;
-    Bool is_priv;
     Str path;
     U32 line;
     U32 col;
-    Bool is_param;
-    OwnType own_type;
-    Bool is_alias;
-    Bool is_type_alias;
-    Bool is_func_decl;
-    Str alias_target;
-    FuncType func_type;
-    Bool is_builtin;
-    Bool used;
-    Bool written;
-    Bool mut_explicit;
-    Str orig_name;
-    Str dynvec_elem;
-    Str declared_type_name;
-} TypeBinding;
+} BorrowRoot;
 
 
 struct ScopeFind {
@@ -784,6 +770,13 @@ typedef struct GenericFuncSource {
     Str path;
     Bool is_priv;
 } GenericFuncSource;
+
+
+typedef struct Vec__BorrowRoot {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__BorrowRoot;
 
 
 struct Option__ref_TypeScope {
@@ -943,6 +936,12 @@ typedef struct Vec__CtorArg {
     USize count;
     USize cap;
 } Vec__CtorArg;
+
+
+typedef struct Map__Str_U64 {
+    Vec__Str keys;
+    Vec__U64 values;
+} Map__Str_U64;
 
 
 typedef struct Vec__CoverageNode {
@@ -1346,6 +1345,7 @@ typedef struct FunctionDef {
     Vec__Declaration captures;
     Str closure_name;
     Bool noreturn;
+    U64 ref_return_params;
 } FunctionDef;
 
 
@@ -1437,6 +1437,32 @@ typedef struct priv___src_self_parser_til__Parser {
     Str error_msg;
     Str source;
 } priv___src_self_parser_til__Parser;
+
+
+typedef struct TypeBinding {
+    Str name;
+    Type type;
+    Bool is_mut;
+    Bool is_priv;
+    Str path;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    OwnType own_type;
+    Bool is_alias;
+    Bool is_type_alias;
+    Bool is_func_decl;
+    Str alias_target;
+    FuncType func_type;
+    Bool is_builtin;
+    Bool used;
+    Bool written;
+    Bool mut_explicit;
+    Str orig_name;
+    Str dynvec_elem;
+    Str declared_type_name;
+    Vec__BorrowRoot borrow_roots;
+} TypeBinding;
 
 
 typedef struct ImportUnit {
@@ -2154,6 +2180,9 @@ void swap__Expr(Expr * a, Expr * b);
 void adopt__Bool(void * dest, Bool * src);
 void * EvalHeap_heap_alloc(USize size);
 void EvalHeap_heap_free(void * ptr);
+Bool BorrowRoot_eq(BorrowRoot * a, BorrowRoot * b);
+BorrowRoot * BorrowRoot_clone(BorrowRoot * self);
+void BorrowRoot_delete(BorrowRoot * self, Bool call_free);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool call_free);
 U64 name_fingerprint(Str * name);
@@ -2296,6 +2325,13 @@ I64 priv___src_self_context_til__qname_part_cmp(Str * key, USize off, Str * part
 I64 qname_cmp(Str * key, Str * a, Str * sep, Str * b);
 I64 qname_keys_index(Vec__Str * keys, Str * a, Str * sep, Str * b);
 Bool qname_in_set(Set__Str * s, Str * a, Str * sep, Str * b);
+Vec__BorrowRoot * Vec__BorrowRoot_new(void);
+USize Vec__BorrowRoot_len(Vec__BorrowRoot * self);
+void Vec__BorrowRoot_clear(Vec__BorrowRoot * self);
+void Vec__BorrowRoot_push(Vec__BorrowRoot * self, BorrowRoot * val);
+BorrowRoot * Vec__BorrowRoot_unsafe_get(Vec__BorrowRoot * self, USize * i);
+void Vec__BorrowRoot_delete(Vec__BorrowRoot * self, Bool call_free);
+Vec__BorrowRoot * Vec__BorrowRoot_clone(Vec__BorrowRoot * self);
 Map__Str_TypeBinding * Map__Str_TypeBinding_new(void);
 Bool Map__Str_TypeBinding_has(Map__Str_TypeBinding * self, Str * key);
 TypeBinding * Map__Str_TypeBinding_get(Map__Str_TypeBinding * self, Str * key, I64 * _err_kind);
@@ -2458,6 +2494,7 @@ ExprPtrBox * Vec__ExprPtrBox_unsafe_get(Vec__ExprPtrBox * self, USize * i);
 void Vec__ExprPtrBox_unsafe_set(Vec__ExprPtrBox * self, USize i, ExprPtrBox * val);
 void Vec__ExprPtrBox_delete(Vec__ExprPtrBox * self, Bool call_free);
 Vec__ExprPtrBox * Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self);
+void adopt__BorrowRoot(void * dest, BorrowRoot * src);
 void adopt__TypeBinding(void * dest, TypeBinding * src);
 void adopt__U32(void * dest, U32 * src);
 void adopt__Mode(void * dest, Mode * src);
@@ -2746,7 +2783,6 @@ void priv___src_self_typer_til__infer_return_stmt(TypeScope * scope, Expr * stmt
 void priv___src_self_typer_til__infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref, Context * ctx);
 void priv___src_self_typer_til__resolve_fa_receiver_alias(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func, Context * ctx);
-void priv___src_self_typer_til__mark_field_assign_root_written(TypeScope * scope, Expr * obj);
 void priv___src_self_typer_til__infer_field_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_while_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref, Context * ctx);
 Bool priv___src_self_typer_til__infer_decl_type_def(TypeScope * scope, Expr * stmt, Context * ctx);
@@ -2844,6 +2880,27 @@ void expr_collect_stmt_facts(Expr * e, TypeScope * scope, Bool want_transfers, B
 Bool priv___src_self_typer_til__expr_is_borrow_source(Expr * e, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_stable_field_base(Expr * e, TypeScope * scope);
 Bool priv___src_self_typer_til__expr_is_ref_decl_source(Expr * e, TypeScope * scope);
+U64 priv___src_self_typer_til__summary_param_bit(USize i);
+Option__ref_Expr priv___src_self_typer_til__fcall_callee_fdef(Expr * fcall, TypeScope * scope);
+Option__ref_Expr priv___src_self_typer_til__fcall_arg_for_param(Expr * fcall, USize * pi, TypeScope * scope);
+Bool priv___src_self_typer_til__binding_is_storage(TypeScope * scope, TypeBinding * b);
+Option__ref_Expr priv___src_self_typer_til__raw_borrow_source(Expr * rhs);
+BorrowRoot * priv___src_self_typer_til__borrow_root_of_binding(TypeBinding * b);
+void priv___src_self_typer_til__push_root_unique(Vec__BorrowRoot * out, BorrowRoot * r);
+Vec__BorrowRoot * priv___src_self_typer_til__expr_borrow_roots(TypeScope * scope, Expr * e, I32 depth);
+Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(TypeScope * scope, BorrowRoot * r);
+void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec__BorrowRoot * roots);
+void priv___src_self_typer_til__mark_name_written(TypeScope * scope, Str * name);
+void priv___src_self_typer_til__mark_written_through(TypeScope * scope, Expr * obj);
+void priv___src_self_typer_til__summary_bind_case(Expr * cn, U64 subj_bits, Map__Str_U64 * roots);
+Str * priv___src_self_typer_til__summary_base_type_name(Str * tn);
+Str * priv___src_self_typer_til__summary_receiver_type(Expr * recv, TypeScope * scope, Str * self_type, I32 depth);
+Option__ref_Expr priv___src_self_typer_til__summary_self_method(Expr * e, TypeScope * scope, Str * self_type);
+U64 priv___src_self_typer_til__summary_expr_bits(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type, I32 depth);
+U64 priv___src_self_typer_til__summary_walk(Expr * e, Map__Str_U64 * roots, TypeScope * scope, Str * self_type, I32 depth);
+Bool priv___src_self_typer_til__update_ref_return_summary(Expr * fd_expr, TypeScope * scope, Str * self_type);
+Bool priv___src_self_typer_til__summarize_unit_walk(Expr * e, TypeScope * scope, Str * self_type, I32 depth);
+void priv___src_self_typer_til__compute_ref_return_summaries(Expr * program, TypeScope * scope);
 void priv___src_self_typer_til__infer_literal_expr(Expr * expr);
 void priv___src_self_typer_til__narrow_dynamic(Expr * expr, Type * target);
 Bool fcall_is_get_method(Expr * fcall);
@@ -2885,6 +2942,7 @@ Vec__U64 * Vec__U64_new(void);
 Vec__U64 * Vec__U64_with_capacity(USize n);
 void Vec__U64_clear(Vec__U64 * self);
 U64 * Vec__U64_unsafe_get(Vec__U64 * self, USize * i);
+void Vec__U64_unsafe_set(Vec__U64 * self, USize i, U64 * val);
 void Vec__U64_delete(Vec__U64 * self, Bool call_free);
 Vec__CtorArg * Vec__CtorArg_new(void);
 USize Vec__CtorArg_len(Vec__CtorArg * self);
@@ -2895,12 +2953,18 @@ priv___src_self_typer_til__CtorArg * Vec__CtorArg_get(Vec__CtorArg * self, USize
 void Vec__CtorArg_unsafe_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val);
 void Vec__CtorArg_set(Vec__CtorArg * self, USize i, priv___src_self_typer_til__CtorArg * val, I64 * _err_kind);
 void Vec__CtorArg_delete(Vec__CtorArg * self, Bool call_free);
+Map__Str_U64 * Map__Str_U64_new(void);
+Bool Map__Str_U64_has(Map__Str_U64 * self, Str * key);
+U64 * Map__Str_U64_get(Map__Str_U64 * self, Str * key, I64 * _err_kind);
+void Map__Str_U64_set(Map__Str_U64 * self, Str * key, U64 * val);
+void Map__Str_U64_delete(Map__Str_U64 * self, Bool call_free);
 Vec__CoverageNode * Vec__CoverageNode_new(void);
 void Vec__CoverageNode_clear(Vec__CoverageNode * self);
 void Vec__CoverageNode_push(Vec__CoverageNode * self, priv___src_self_typer_til__CoverageNode * val);
 priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_unsafe_get(Vec__CoverageNode * self, USize * i);
 priv___src_self_typer_til__CoverageNode * Vec__CoverageNode_get(Vec__CoverageNode * self, USize * i, I64 * _err_kind);
 void Vec__CoverageNode_delete(Vec__CoverageNode * self, Bool call_free);
+void adopt__U64(void * dest, U64 * src);
 void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_self_typer_til__CtorArg * src);
 void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
 I32 priv___src_self_desugarer_til__slot_default_code(USize defaults_index);

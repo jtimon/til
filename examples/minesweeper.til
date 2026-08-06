@@ -15,9 +15,9 @@ main := proc() {
 
     // State arrays
     total_us : USize = TOTAL.to_usize()
-    mut mines := Array(I32).new(total_us)
-    mut counts := Array(I32).new(total_us)
-    mut state := Array(I32).new(total_us)
+    mines := Array(I32).new(total_us)
+    counts := Array(I32).new(total_us)
+    state := Array(I32).new(total_us)
     // state: 0=hidden, 1=revealed, 2=flagged
 
     mut game_over := false

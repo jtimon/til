@@ -757,7 +757,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     // only reach try_eval_call as a macro body call (macros may run effects
     // at compile time, like rstil). A diverging abort during the eval is
     // recovered via ctx.constfold_active in the interpreter's h_exit.
-    mut is_macro_mode := require_known
+    is_macro_mode := require_known
     mut fp : Dynamic = 0
     switch callee.node_type {
     case .Ident(callee_ident):
@@ -842,7 +842,7 @@ priv try_eval_call := proc(scope: Scope, fcall: Expr, require_known: Bool, ctx: 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
         mut arg_raw : Dynamic = is_known(ctx, arg)
-        mut arg_is_known := arg_raw.is_null().not()
+        arg_is_known := arg_raw.is_null().not()
         // Issue #191: also check interpreter scope for arg values. Skip
         // names that are assigned somewhere -- their scope value is just
         // the constfolder interpreter's last write (e.g. a mut loop counter's
@@ -1230,7 +1230,7 @@ priv fold_va_calls := proc(scope: Scope, mut e: Expr, va: Str, ctx: Context) {
             ctx.eval_aborted = false
             result : Dynamic = eval_expr_raw(scope, child, ctx)
             ctx.constfold_active = false
-            mut aborted := ctx.eval_aborted
+            aborted := ctx.eval_aborted
             ctx.eval_aborted = false
             if aborted.not() {
                 mut lit_o := raw_to_expr(result, child.til_type(), child, ctx)

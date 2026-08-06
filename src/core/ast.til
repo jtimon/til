@@ -285,6 +285,16 @@ FunctionDef := struct {
     // qualify too. Read at FCall infer time to stamp
     // FCallData.noreturn_call.
     noreturn := false
+    // #344: parameter-indexed summary of the borrow this function hands
+    // back. Bit i is set when parameter i's storage -- or a borrow that
+    // parameter i carries -- can reach the returned value, on ANY return
+    // path. Same indexing as FCallData's own_args / ref_args bitmaps, so a
+    // call site maps the bits onto its actual arguments and learns which
+    // caller storage the result aliases. Zero for the overwhelming majority
+    // of functions (only `returns ref T` and enum-with-ref-payload returns
+    // can carry one), and zero is also the conservative answer for a
+    // callee the summary pass could not resolve.
+    ref_return_params : U64 = 0
 namespace:
     eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type == b.return_type }
     to_str := func(self: FunctionDef) returns Str { return self.return_type }

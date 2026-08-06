@@ -143,3 +143,85 @@ test_ref_mut_primitive_assign := test() {
     got := ref226_param_rhs(42)
     assert_eq(U32, got, 42)
 }
+
+# --- #344: a write through a returned borrow credits its root ---
+#
+# The three shapes the borrow-provenance tracking has to follow. Each
+# function's only write to its `mut` parameter goes through a borrow some
+# other function handed back, so the honest `mut` used to be reported as
+# "never written through" and the only spelling that compiled was the
+# non-mut one -- exactly the form the two backends disagree about. The
+# assertions below prove the write really lands in the caller's storage,
+# under both backends.
+
+Bp344Inner := struct {
+    n := 0
+}
+
+Bp344Outer := struct {
+    inner := Bp344Inner()
+    other := Bp344Inner()
+}
+
+# One parameter, one root: the accessor from issue #344's probe 2.
+bp344_inner_of := func(o: Bp344Outer) returns ref Bp344Inner {
+    return o.inner
+}
+
+bp344_bump := func(mut o: Bp344Outer) {
+    ref mut i : Bp344Inner = bp344_inner_of(o)
+    i.n = i.n + 1
+}
+
+test_borrow_root_through_accessor := test() {
+    mut o := Bp344Outer()
+    bp344_bump(o)
+    bp344_bump(o)
+    assert_eq(I64, o.inner.n, 2)
+    assert_eq(I64, o.other.n, 0)
+}
+
+# Two parameters, both reachable from the return: provenance is a SET, so
+# writing through the result must credit whichever argument the branch
+# picked -- both `mut` qualifiers below are load-bearing.
+bp344_pick := func(a: Bp344Inner, b: Bp344Inner, take_a: Bool) returns ref Bp344Inner {
+    if take_a { return a }
+    return b
+}
+
+bp344_bump_both := func(mut x: Bp344Inner, mut y: Bp344Inner) {
+    ref mut first : Bp344Inner = bp344_pick(x, y, true)
+    first.n = first.n + 1
+    ref mut second : Bp344Inner = bp344_pick(x, y, false)
+    second.n = second.n + 10
+}
+
+test_borrow_root_multi_root_return := test() {
+    mut x := Bp344Inner()
+    mut y := Bp344Inner()
+    bp344_bump_both(x, y)
+    assert_eq(I64, x.n, 1)
+    assert_eq(I64, y.n, 10)
+}
+
+# A borrow carried through an Option payload and unwrapped by a switch:
+# the payload binding inherits the scrutinee's roots, so wrapping the
+# accessor result does not launder the write away from `o`.
+bp344_maybe_inner := func(o: Bp344Outer) returns Option(ref Bp344Inner) {
+    return Option(ref Bp344Inner).Some(o.other)
+}
+
+bp344_bump_payload := func(mut o: Bp344Outer) {
+    switch bp344_maybe_inner(o) {
+    case .Some(got):
+        got.n = got.n + 5
+    case .None:
+    }
+}
+
+test_borrow_root_through_payload := test() {
+    mut o := Bp344Outer()
+    bp344_bump_payload(o)
+    assert_eq(I64, o.other.n, 5)
+    assert_eq(I64, o.inner.n, 0)
+}

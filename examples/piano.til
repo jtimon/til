@@ -40,17 +40,17 @@ main := proc() {
     fnt := LoadFontEx("img/DejaVuSans.ttf".c_str, 48, Option(ref I32).None, 0)
 
     // Key state tracking
-    mut key_down := Array(I32).new(NUM_KEYS)
-    mut prev_down := Array(I32).new(NUM_KEYS)
+    key_down := Array(I32).new(NUM_KEYS)
+    prev_down := Array(I32).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
         key_down[i] = 0
         prev_down[i] = 0
     }
 
     // Note events (circular buffer)
-    mut ev_note := Array(I32).new(MAX_NOTES)
-    mut ev_start := Array(I64).new(MAX_NOTES)
-    mut ev_end := Array(I64).new(MAX_NOTES)
+    ev_note := Array(I32).new(MAX_NOTES)
+    ev_start := Array(I64).new(MAX_NOTES)
+    ev_end := Array(I64).new(MAX_NOTES)
     for i in 0..MAX_NOTES {
         ev_note[i] = 0
         ev_start[i] = 0
@@ -64,8 +64,8 @@ main := proc() {
     mut song_timer : I64 = 0
 
     // Pre-generate all 36 sounds for polyphony.
-    mut sounds := Array(Sound).new(NUM_KEYS)
-    mut nathex_sounds := Array(Sound).new(NUM_KEYS)
+    sounds := Array(Sound).new(NUM_KEYS)
+    nathex_sounds := Array(Sound).new(NUM_KEYS)
     for i in 0..NUM_KEYS {
         ref freq : I64 = piano_key_freq(false, i)
         s := make_tone(freq, 10000, 0.1)
