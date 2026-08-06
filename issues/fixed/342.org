@@ -1,6 +1,48 @@
 # priority: medium
 # category: bugs
-** OPEN #342 Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
+** FIXED #342 Restore mixed-splat variadic calls (a `..` splat beside other args in the block)
+
+*** Post-mortem
+
+Restored in three commits, staged because ~FCallData~'s layout is
+committed-boot ABI.
+
+1. PREPARATION -- record the position. ~splat_args~, a ~U64~ bitmap indexed
+   like ~own_args~ / ~ref_args~ and appended at the END of ~FCallData~ so
+   the committed boot's layout stays stable. ~is_splat~ says only THAT some
+   argument carried ~..~; this says WHICH, which is the fact the lowering
+   was missing.
+
+2. The helper. Of the issue's two candidate lowerings, the concat route won
+   over a runtime-capacity collector plus a hand-built copy loop, because
+   ~desugar_one_variadic_fcall~ runs inside ~infer_body~ and its emitted
+   nodes are never re-inferred -- a loop built there must carry correct
+   til_types, throwing-call err slots and ownership by hand, while
+   ~Array.concat~ written in til is typed and lowered by the ordinary
+   pipeline. concat clones every element exactly as ~clone~ does, which
+   settles question 3: nothing is moved out of either source, so no double
+   free and no shredded elements, and a splatted array stays reusable.
+
+3. The wiring. ~desugar_mixed_splat_variadic_call~ walks the block in source
+   order: each run of consecutive non-splat arguments becomes its own
+   collector Array (the ordinary machinery, filled from a SUBSET -- which is
+   why ~build_variadic_array_set~ now takes an absolute source index and a
+   separate destination slot instead of assuming a contiguous block), each
+   splatted Array is taken as is, and the pieces fold left to right with
+   concat. The call is then handed the single combined Array, i.e. exactly
+   the pure-splat shape the desugar already knew how to pass. The typer
+   stopgap is gone.
+
+Question 4 (the comptime path) needed nothing: the constfolder folds
+all-comptime variadic calls while they are still raw, and a splat of a
+runtime array is not comptime, so it never reaches that path.
+
+Tests: test_mixed_splat / _multiple / _source_intact in test/variadic.til
+(splat first, last, middle; two splats; a splatted array reused afterwards),
+both backends and ASAN-clean. The ~sp_mixed~ rejection fixture is removed
+from test/typer_errors.til (count 184 -> 183) and ~mv_variadic_callee~ is
+back to the direct ~format(mv_head, ..mv_rest)~ the stopgap had forced into
+a nested workaround.
 
 A ~..~ splat passed alongside other arguments in the same variadic
 block is currently a type error:
@@ -62,11 +104,15 @@ limitation is present throughout.)
 
 *** What restoring it needs (solution to be decided)
 
-1. Record the splat's position. The natural shape is a ~splat_args~
-   bitmap on ~FCallData~ indexed like ~own_args~ / ~ref_args~;
-   ~is_splat~ could eventually become the derived ~splat_args != 0~.
-   FCallData's layout is committed-boot ABI, so the field is appended
-   at the end and the migration is staged per doc/self.org.
+1. Record the splat's position. DONE (2026-08-03), as the preparation
+   commit this staging calls for: ~splat_args~ is a ~U64~ bitmap on
+   ~FCallData~ indexed like ~own_args~ / ~ref_args~, appended at the END
+   so the committed boot's layout stays stable (the same placement
+   ~ref_args~ documents). The parser sets it in the same branch that
+   sets ~is_splat~, via ~set_splat_arg~ beside ~set_ref_arg~. Nothing
+   READS it yet -- that is step 2 -- so behaviour is unchanged and the
+   stopgap error still stands; ~is_splat~ can become the derived
+   ~splat_args != 0~ once the reader lands.
 
 2. Lower a block whose total length is not compile-time known. Today's
    collector is ~Array.new(<literal cap>)~ + one ~set~ per element.
@@ -79,6 +125,26 @@ limitation is present throughout.)
    - have the desugar do what the current error message tells the user
      to do by hand: build the combined array first (concat helper),
      then feed the call the pure-splat form it already handles.
+     CHOSEN, and its helper has landed (2026-08-03): ~Array.concat~
+     (src/core/array.til) returns a fresh Array of self's elements then
+     other's, cloning each so both sources stay intact -- the same
+     element discipline ~clone~ uses, which answers question 3 for this
+     route (every element is copied, nothing is moved out of the
+     caller's array, so no double free). Written in til, so it types and
+     lowers normally: the desugar never hand-builds a loop, which the
+     runtime-capacity alternative would have required in a pass whose
+     emitted nodes are not re-inferred. Tests: test_concat /
+     test_concat_empty in test/arrays.til, ASAN-clean.
+
+     STILL TO DO -- the wiring: in ~desugar_one_variadic_fcall~, when the
+     block is mixed (~is_splat~ and ~vc > 1~), walk the block in source
+     order grouping consecutive non-splat args into their own collector
+     Array and taking each splatted Array as-is, fold the groups with
+     ~concat~, and hand the call the single-splat form. The existing
+     ~build_variadic_array_decl~ / ~build_variadic_array_set~ index off
+     ~fcall.children[vi + j]~ and so assume the block is contiguous
+     elements; they need a subset-aware variant. Then remove the typer
+     stopgap and flip ~sp_mixed~ per "Where the stopgap lives" below.
 
 3. Define ownership for the mixed form. The pure-splat path
    clone-wraps an Ident splat because moving it would zero the

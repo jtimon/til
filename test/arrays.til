@@ -159,3 +159,35 @@ test_str_vec_literal := test() {
     assert_eq(Str, svec[1], "bar")
     assert_eq(Str, svec[2], "baz")
 }
+
+// #342: Array.concat -- a fresh Array with self's elements then other's, every
+// element cloned so both sources stay intact. The mixed-splat variadic
+// lowering is built on it (fixed args become one Array, the splatted Array is
+// the other, and the call becomes the pure-splat form the desugar handles).
+test_concat := test() {
+    a := array(Str, "a", "b")
+    b := array(Str, "c")
+    c := a.concat(b)
+    assert_eq(USize, c.len(), 3)
+    ref c0 : Str = c[0]
+    ref c1 : Str = c[1]
+    ref c2 : Str = c[2]
+    assert_eq(Str, c0, "a")
+    assert_eq(Str, c1, "b")
+    assert_eq(Str, c2, "c")
+    // sources keep their own elements
+    ref a0 : Str = a[0]
+    ref b0 : Str = b[0]
+    assert_eq(Str, a0, "a")
+    assert_eq(Str, b0, "c")
+    assert_eq(USize, a.len(), 2)
+}
+
+test_concat_empty := test() {
+    a := array(I64, 1, 2)
+    e := Array(I64).new(0)
+    c := a.concat(e)
+    assert_eq(USize, c.len(), 2)
+    d := e.concat(a)
+    assert_eq(USize, d.len(), 2)
+}

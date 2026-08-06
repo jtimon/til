@@ -344,6 +344,15 @@ FCallData := struct {
     // the typer rejects any call that still carries a bit after init.
     // Appended at the END so the committed boot's layout stays stable.
     ref_args : U64 = 0
+    // #342: bitmap of `..`-splatted arguments, mirroring own_args' /
+    // ref_args' indexing. `is_splat` records only THAT some argument
+    // carried `..`; this records WHICH, which is what a mixed variadic
+    // block (`format("<", ..arr)`) needs in order to lower -- without it
+    // the desugar cannot tell the splatted array from an ordinary
+    // element and wraps it as one, so the callee reads the Array
+    // header's bytes as its element type.
+    // Appended at the END so the committed boot's layout stays stable.
+    splat_args : U64 = 0
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

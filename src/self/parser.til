@@ -1428,7 +1428,10 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
             advance(p)
             set_ref_arg(call, call.children.len())
         }
-        if is_splat { set_fcall_splat(call) }
+        if is_splat {
+            set_fcall_splat(call)
+            set_splat_arg(call, call.children.len())
+        }
         // Issue #56/#57: append_arg resolves a bare anonymous
         // `struct { ... }` / `enum { ... }` argument through anon_lift to
         // its generated AnonStructN/AnonEnumN type -- as an Ident type-ref,
@@ -2811,6 +2814,18 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 
 // #320: ref-qualified TYPE argument markers (`make_opt(ref T)`), same
 // bit indexing as own_args.
+// #342: record WHICH argument carried `..`, beside is_splat's "some did".
+set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
+    switch fcall.node_type {
+    case NodeType.FCall(fcd):
+        mut bit : U64 = 1
+        for _ in 0..arg_index { bit = bit * 2 }
+        fcd.splat_args = fcd.splat_args.bor(bit)
+    case:
+        UNREACHABLE("expected FCall, got ", fcall.node_type.head_str())
+    }
+}
+
 set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
     case NodeType.FCall(fcd):
