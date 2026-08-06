@@ -150,10 +150,9 @@ TypeScope := struct {
     // compiler's largest CPU cost (Map__Str_TypeBinding_get and
     // Map__Str_Dynamic_get together are ~57% of all Str_cmp).
     //
-    // Erasing a name leaves its bit set: a stale bit only costs the
-    // search it could have skipped, never a wrong answer. The filters
-    // saturate on big scopes (the global one), which is exactly where
-    // lookups tend to HIT anyway.
+    // Erasing a name temporarily leaves its bit set: a stale bit only costs
+    // the search it could have skipped, never a wrong answer. Batch retirement
+    // callers rebuild all three filters once after their removals.
     bindings_filt : U64 = 0
     func_defs_filt : U64 = 0
     struct_defs_filt : U64 = 0
@@ -440,6 +439,20 @@ namespace:
         self.erase_func_def(name)
         self.erase_struct_def(name)
         if erase_decl_binding { self.erase_binding(name) }
+    }
+    refresh_lookup_filters := func(mut self: TypeScope) {
+        self.bindings_filt = 0
+        self.func_defs_filt = 0
+        self.struct_defs_filt = 0
+        for binding_name : Str in self.bindings.keys {
+            self.bindings_filt = self.bindings_filt.bor(name_fingerprint(binding_name))
+        }
+        for func_name : Str in self.func_defs.keys {
+            self.func_defs_filt = self.func_defs_filt.bor(name_fingerprint(func_name))
+        }
+        for struct_name : Str in self.struct_defs.keys {
+            self.struct_defs_filt = self.struct_defs_filt.bor(name_fingerprint(struct_name))
+        }
     }
     set := func(mut self: TypeScope, name: Str, type: Type,
         is_mut: Bool,

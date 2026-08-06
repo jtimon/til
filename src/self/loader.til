@@ -1174,6 +1174,7 @@ priv scavenge_imported := proc(mut lp: LoadedProgram) {
     for swept_n : Str in swept_names {
         lp.ctx.scope.erase_ast_decl(swept_n, false)
     }
+    if swept_names.len() > 0 { lp.ctx.scope.refresh_lookup_filters() }
 
     // Body-level DCE: drop unreferenced hoisted temps left behind by
     // constfolder's constant folding. Runs over every imported unit (cores

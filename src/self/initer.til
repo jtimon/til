@@ -4265,6 +4265,7 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) {
         di = di - 1
         program.children.remove_at(drop_idxs[di].to_usize())!
     }
+    if drop_idxs.len() > 0 { scope.refresh_lookup_filters() }
 }
 
 priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ctx: Context) {

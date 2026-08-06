@@ -2132,6 +2132,7 @@ void TypeScope_erase_func_def(TypeScope * self, Str * name);
 void TypeScope_erase_binding(TypeScope * self, Str * name);
 void TypeScope_erase_struct_def(TypeScope * self, Str * name);
 void TypeScope_erase_ast_decl(TypeScope * self, Str * name, Bool erase_decl_binding);
+void TypeScope_refresh_lookup_filters(TypeScope * self);
 void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut, Str * path, U32 line, U32 col, Bool is_param, OwnType own_type);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool call_free);
