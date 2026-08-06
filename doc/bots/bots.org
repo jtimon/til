@@ -396,12 +396,9 @@ Merging to master (local sessions), only when explicitly asked::
   git checkout master
   git cherry-pick <worktree-branch-name>
 
-  # 2. Only now remove the worktree.
-  git worktree remove <path>
-  git worktree prune
-
-Teardown when no merge to master is needed is the same
-`git worktree remove <path>` + `git worktree prune`.
+Keep the task worktree after a merge or when no merge is needed so it
+remains available for follow-up fixes. Remove and prune it only when the
+human explicitly asks for teardown.
 
 ## Build & Run
 
