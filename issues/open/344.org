@@ -70,36 +70,152 @@ reason -- the ~set_fcall_throw~ / ~set_own_arg~ family,
 typer/desugarer passes that rewrite the node handed to them. Each is
 five lines doing what one accessor line should.
 
-*** What a fix must decide (solution open)
+*** Code analysis and decision
 
-The three faces share one root: mutability is only policed on the
-"too much mut" side. Candidate directions, not exclusive:
+Choose symmetric enforcement and keep one ~ref~ borrow flavor. Do not
+change argument passing to make the interpreter copy every plain
+aggregate, and do not add const-ref syntax or duplicate read/write
+accessors.
 
-- Symmetric enforcement: writing through a non-mut param -- directly,
-  via a method taking ~mut self~, or through a ~ref~ borrowed from it
-  -- becomes a type error. Needs ~written~-style tracking to follow
-  borrows: a ~ref~-returning call rooted at param X, written through,
-  counts as a write of X. The same tracking, run on the redundancy
-  side, fixes probe 2 (honest ~mut~ stops being flagged).
-- Mut-aware borrows: a ~ref~ return rooted at a non-mut param is a
-  read-only borrow; writing through it is the error, and an accessor
-  that wants to hand out writable borrows must take its param ~mut~
-  (two accessor flavors, the C++ const model). Heavier, but makes the
-  intent explicit at the signature.
-- Backend agreement regardless: whichever rule is chosen, the two
-  backends must stop disagreeing on any accepted program -- either the
-  typer rejects every divergent form, or argument passing is unified
-  so non-mut aggregates behave the same interpreted and compiled.
+This follows the language contract already documented in
+~doc/qualifiers.org~: a plain parameter is a read-only borrow and a
+~mut~ parameter is a writable borrow. Auto-shallow (#223) changes the
+representation of eligible plain parameters to a value copy; it does
+not make the source-level parameter writable. Therefore probe 1 is an
+invalid program, not a program whose compiled result should be copied
+into the interpreter.
 
-Whatever is chosen unblocks #253's remaining 24 switches: with honest
-~mut~ compiling (or read/write borrow flavors), they convert to the
-accessors like the other 200+ did.
+The current holes are all in the typer:
 
-*** Test notes
+- ~infer_assign_stmt~ checks ~scope.is_mut~ for ~param = rhs~, but
+  ~infer_field_assign_stmt~ only calls
+  ~mark_field_assign_root_written~ for ~param.f = rhs~. That helper
+  sets the redundancy bit and never checks whether the root is
+  writable.
+- ~infer_and_validate_fcall_args_for_fdef~ marks an Ident/FieldAccess
+  passed to a ~mut~ parameter as written, but never rejects an
+  immutable argument. The UFCS path is less precise still:
+  ~infer_fcall_expr~ marks every method receiver written before it has
+  resolved whether ~self~ is ~mut~.
+- ~infer_decl_typed_value~ checks a ~ref mut~ source only when the RHS
+  is a direct Ident. A ref-returning FCall, field chain, or another ref
+  binding carries no source provenance in ~TypeBinding~, so writes
+  through the result cannot be attributed to the original binding.
+- ~check_unused_mut_params~ and ~check_unused_mut_locals~ consume the
+  same one-bit ~written~ fact. They cannot distinguish taking a borrow
+  from actually writing through it, and they cannot propagate a write
+  back through an accessor.
+- The backend split is then expected. The builder emits an auto-shallow
+  plain ~Flat~ parameter by value but a ~mut Flat~ parameter by pointer.
+  ~eval_user_func_call~ currently aliases an Ident argument in both
+  cases. Rejecting writes through the plain parameter makes that
+  storage difference unobservable in every accepted program while
+  preserving the existing value ABI.
 
-The suite runs interpret-vs-compiled comparisons (~add_both~), so a
-single fixture shaped like probe 1 would have caught the divergence;
-none existed. The fix should add: the divergence probe as a matched
-pair, the honest-mut accessor writer (probe 2) as a positive case
-once tracking follows borrows, and whichever rejection the chosen
-rule introduces to test/typer_errors.til.
+Borrow provenance must be a set, not one name: a ref function may
+return either of several parameters. Roots must identify the exact
+binding (name plus declaration identity), not just its spelling, so a
+nested shadow cannot redirect a write. The same analysis must cover a
+borrow carried through ~Option(ref T)~ and a switch payload; otherwise
+wrapping the accessor result would immediately reopen the laundering
+path. Raw ~Dynamic~ pointer operations remain the explicit unchecked
+boundary and must not manufacture typed provenance.
+
+*** Plan
+
+This needs two substantial commits across master merges, not a string
+of per-file commits. Both are ordinary single-pass commits. There is no
+emitter change, so neither needs a ~Two-pass:~ prefix.
+
+**** A. Preparation: make write tracking follow borrows
+
+1. Add internal borrow-root facts to typer metadata. A ~TypeBinding~
+   records the terminal binding roots borrowed by its value. A
+   ref-carrying ~FunctionDef~ records which parameter storage (or
+   borrowed payload carried by a parameter) can reach its return. Keep
+   the function summary parameter-indexed, like the existing FCall
+   bitmaps, and the binding facts keyed by declaration identity.
+
+2. Compute function return-borrow summaries recursively over every
+   return path, excluding nested FuncDefs. Follow direct parameters,
+   field chains, ref locals, ref-returning calls, ref enum constructors,
+   unwrap/payload aliases, and multiple possible return roots. Settle
+   forward calls with a monotone fixed point after signatures are
+   registered; copy/recompute the summary for instantiated generic
+   FuncDefs so source order and late monomorphization cannot change the
+   answer. Bodyless raw/core/FFI refs have no typed root unless their
+   compiler-created operation explicitly preserves one.
+
+3. When typing a ref binding or a value carrying a borrowed payload,
+   map the callee summary's parameter positions onto the call's actual
+   argument roots and store the resulting terminal roots. Field access
+   keeps the base root; an existing ref binding forwards its roots; a
+   compiler-created switch payload binding inherits the scrutinee's
+   borrowed-payload roots. Merely taking the borrow does not set
+   ~written~.
+
+4. Replace the scattered write marking with one root walker. A real
+   write through an alias marks every mutable terminal root written.
+   Use it for field assignment, direct assignment through ~ref mut~,
+   resolved ~mut~ call arguments/method receivers, and both ~for mut~
+   collection paths. Keep ownership-transfer accounting and the
+   conservative ~Dynamic~ lint accounting separate; neither proves a
+   typed mutable-borrow effect.
+
+5. Remove the unconditional "every UFCS receiver is written" mark and
+   the eager "creating a ref-mut alias writes the source" mark. The
+   resolved callee signature and an actual downstream write now provide
+   the fact. Run the self source through the improved redundant-mut
+   checks and remove only qualifiers that were surviving on those two
+   false marks.
+
+6. Add positive regressions in existing test files: an honest
+   ~bump(mut o)~ whose only write is through ~inner_of(o)~, a
+   multi-root ref return, and a borrowed-payload/switch path. They must
+   prove the root's ~mut~ is credited only when the returned borrow is
+   written. Run ~make clean && make test~.
+
+Commit A deliberately does not reject the old one-sided programs and
+does not convert #253's remaining switches. Its job is to bake the
+new tracking into master's next ~til_boot~.
+
+**** B. Use: enforce the contract and finish the accessor migration
+
+1. At the central root walker, reject a write when any typed terminal
+   local/parameter root is non-mut. Report at the attempted write and
+   point to the root declaration. Apply this to direct/nested field
+   assignment, a resolved ~mut~ parameter (including ~mut self~), a
+   ref/ref-payload alias, and ~for mut~. Preserve the existing direct
+   assignment and const-field diagnostics where they are more specific.
+
+2. Sweep core, std, self, examples, and tests under the new checker.
+   Add ~mut~ to bindings/parameters that really expose writable storage;
+   do not paper over reachable-state cases that cross an owned/ref field
+   boundary, and do not add mut to read-only paths. This source migration
+   belongs in the enforcement commit so no intermediate master accepts
+   the new contract while its own sources violate it.
+
+3. In the same commit, convert the approximately 24 single-variant
+   extraction switches left by #253 (the ~set_fcall_*~ / argument-bit
+   setters, ~compute_struct_layout~, and the typer/desugarer mutation
+   sites) to ~X_of(e)~ accessors. Keep genuine conditional and
+   multi-variant switches. Commit A's tracking now sees those accessor
+   writes and accepts their honest ~mut~ parameters.
+
+4. Add negative cases to ~test/typer_errors.til~ for probe 1, an
+   immutable argument passed to a ~mut~ parameter/method, and the
+   accessor/ref-payload laundering forms. Update its expected count.
+   Add an ~add_both~-covered positive case with the honest ~mut~ roots;
+   interpreted and compiled output must match. Run
+   ~make clean && make test~ and close this issue in commit B with the
+   post-mortem.
+
+The master boundary between A and B is required by ~doc/self.org~.
+If the accessor conversions are bundled with the preparation, HEAD's
+old ~til_boot~ sees a ~mut~ parameter whose only write is hidden behind
+the accessor and rejects it as redundant before pass 1 can build the
+new compiler. ~make test_two_pass~ cannot help when pass 1 itself
+fails. After A lands, master's ~til_boot~ understands the propagated
+write and B is an ordinary single-pass use commit. These are the only
+two bootstrap stages; splitting B by subsystem would add history but
+no buildable state.
