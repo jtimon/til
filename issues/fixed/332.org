@@ -143,6 +143,36 @@ first of them found.*
   side of the pty rather than being typed into it, which is the only way
   to reach the REPL with a signal the terminal cannot send.
 
+*Follow-up: SIGWINCH coverage.*
+
+  A window-size change is the third way the editor is asked to redraw,
+  after Enter and a resume, and it had no test. The pty test sends one
+  and waits for the row to be drawn AGAIN, so a lost signal fails the
+  session.
+
+*Follow-up: the mac jobs, red from the day the pty test landed.*
+
+  Both native macOS CI jobs failed from the moment ~test/repl_pty.til~
+  went in until [[../../commit/fb941b9][fb941b9]] -- on two assertions of
+  thirty, ~tty1_same~ and ~tty3_same~, `stty -g` differing before and
+  after the REPL ran. Not the editor: the difference was one bit,
+  ~PENDIN~ (0x20000000), which Darwin's kernel raises when input arrives
+  while echo is off and keeps across ~tcsetattr~. Turning echo off and
+  reading keystrokes IS a raw-mode line editor, so the bit is set by
+  design after any editing session, and no program can put it back. The
+  test was asserting on a field nothing controls; comparing the settings
+  (masking ~PENDIN~ and ~FLUSHO~) is the fix.
+
+  Two process failures behind that, worth recording because they cost
+  days of red CI:
+
+  - The BSD/macOS ~script~ branch was written by ~host_os()~ and never
+    executed anywhere before it shipped. "Selected by host_os" is not
+    coverage.
+  - Nobody looked at CI. The failure was visible in the first run after
+    the test landed; it was found much later, by reading the workflow
+    results rather than by anything in the repo pointing at it.
+
 *Follow-up: a shorter end wait in the pty test.*
 
   The pty driver's per-session end wait -- the pause that holds the input
@@ -526,7 +556,9 @@ first of them found.*
   - [X] ~til repl~ and bare ~til~ provide the editing/key behavior above on a
         real POSIX terminal.
   - [X] Native Windows uses the same editor state/history and equivalent keys
-        (written, not compiled here -- no mingw toolchain in the session).
+        -- compiled and linked (mingw, -Wall -Wextra -Werror, PE32+), never
+        RUN: no Windows machine was available, and CI's windows-host job
+        exercises til.exe's interpret/translate/build, not its REPL.
   - [X] History persists automatically at the documented per-user path with no
         til-specific flag, environment variable, helper executable, or package
         installation.

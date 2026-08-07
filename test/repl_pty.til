@@ -340,6 +340,12 @@ main := proc() {
     p7.push(own "1 + 41")                                w7.push(own "1 + 41")
     p7.push(own "!pkill -STOP -f \"til_p7 repl\"")      w7.push(own BASH_TAIL.clone())
     p7.push(own "fg\n")                                 w7.push(own "1 + 41")
+    // A window-size change is the third way the editor is asked to
+    // redraw (Enter and the resume being the other two): SIGWINCH sets
+    // the redraw flag, the blocked read sees EINTR, and the loop turns
+    // that into a REDRAW event. The wait below only returns once the row
+    // has been drawn AGAIN, so a lost signal fails the session.
+    p7.push(own "!pkill -WINCH -f \"til_p7 repl\"")     w7.push(own "1 + 41")
     p7.push(own cr.clone())                              w7.push(own PROMPT_TAIL.clone())
     p7.push(own ctrl_d.clone())                          w7.push(own BASH_TAIL.clone())
     p7.push(own "exit\n")                               w7.push(own "")
@@ -419,8 +425,8 @@ main := proc() {
     blocked_path_named := count_matches(out6, "blocked/til")
     blocked_evaluated := count_matches(out6, format(nl, "42", nl))
 
-    // Twice: once as the line was typed, once as the redraw the SIGCONT
-    // handler forces. Only the second one proves the resume.
+    // Three times: once as the line was typed, once as the redraw the
+    // SIGCONT handler forces, once as the redraw SIGWINCH forces.
     stop_cont_redraw := count_matches(out7, format(PROMPT_TAIL, "1 + 41"))
     stop_cont_evaluated := count_matches(out7, format(nl, "42", nl))
 
@@ -437,7 +443,7 @@ main := proc() {
            dumb_escapes.eq(0), dumb_evaluated.gte(1), dumb_history.not(),
            blocked_warned.eq(1), blocked_path_named.gte(1),
            blocked_evaluated.eq(1),
-           stop_cont_redraw.gte(2), stop_cont_evaluated.eq(1)) {
+           stop_cont_redraw.gte(3), stop_cont_evaluated.eq(1)) {
         println("repl_pty PASS")
         return
     }
