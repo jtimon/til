@@ -4245,7 +4245,7 @@ init_scan_unresolved_generic_calls := proc(program: Expr, scope: TypeScope, ctx:
 // before the final AST-backed pointer refresh: erase the scope entries
 // first (a refresh only re-points names that are still declared, it never
 // removes obsolete ones), then drop the declarations.
-init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) {
+init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) returns Bool {
     mut drop_idxs := Vec(I64).new()
     for i in 0..program.children.len() {
         ref stmt : Expr = program.children[i]
@@ -4263,7 +4263,7 @@ init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope) {
         di = di - 1
         program.children.remove_at(drop_idxs[di].to_usize())!
     }
-    if drop_idxs.len() > 0 { scope.refresh_lookup_filters() }
+    return drop_idxs.len() > 0
 }
 
 priv init_expand_type_gen_macros := func(mut program: Expr, scope: TypeScope, ctx: Context) {

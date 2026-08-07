@@ -2524,7 +2524,7 @@ void priv___src_self_initer_til__init_generic_walk(Expr * e, GenericSources * gs
 Bool priv___src_self_initer_til__init_expand_generic_funcs(Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__init_scan_generic_calls_in(Expr * e, TypeScope * scope, Context * ctx);
 I32 init_scan_unresolved_generic_calls(Expr * program, TypeScope * scope, Context * ctx);
-void init_retire_generic_sources(Expr * program, TypeScope * scope);
+Bool init_retire_generic_sources(Expr * program, TypeScope * scope);
 void priv___src_self_initer_til__init_expand_type_gen_macros(Expr * program, TypeScope * scope, Context * ctx);
 I32 priv___src_self_initer_til__init_seed_declarations_unit(Str * path, Expr * program, TypeScope * scope, Context * ctx);
 void priv___src_self_initer_til__note_template_decl_use(Declaration * d, TypeScope * scope, Context * ctx);

@@ -4776,12 +4776,20 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // no call can still be bound to a generic source. Retire the source
     // templates (AST declaration plus scope entries) before the pointer
     // refresh below, so the backends only ever see concrete declarations.
+    // All units share the root TypeScope, so rebuild its lookup filters once
+    // after the whole retirement batch rather than once per unit.
+    mut retired_generic_sources := false
     for upath : Str in lp.unit_paths() {
-        init_retire_generic_sources(lp.ctx.imported[upath].ast, lp.ctx.scope)
+        if init_retire_generic_sources(lp.ctx.imported[upath].ast, lp.ctx.scope) {
+            retired_generic_sources = true
+        }
     }
     for mfg : Str in lp.mode_files {
-        init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope)
+        if init_retire_generic_sources(lp.ctx.imported[mfg].ast, lp.ctx.scope) {
+            retired_generic_sources = true
+        }
     }
+    if retired_generic_sources { lp.ctx.scope.refresh_lookup_filters() }
 
     // Typing can APPEND top-level decls to unit ASTs (lifted lambdas,
     // monomorphized Array__T/Vec__T defs); an append that reallocs a
