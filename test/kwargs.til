@@ -202,6 +202,14 @@ test_method_combo_default_between_variadic_and_kwargs := test() {
     assert_eq(Str, box.combo(..arr, label = "splat", bias = 100), "splat:160")
 }
 
+// UFCS inserts self before the parsed arguments. Keep the splat marker on arr
+// when plain arguments share the method's variadic block on both sides.
+test_method_mixed_splat_bitmap := test() {
+    box := MethodCombo(base = 0)
+    arr := array(I64, 10, 20, 30)
+    assert_eq(Str, box.combo(1, ..arr, 2, label = "mixed", bias = 100), "mixed:163")
+}
+
 // --- merged from test/optional_args.til ---
 
 minus := func(a: I64, b: I64) returns I64 { return a.sub(b) }

@@ -2622,6 +2622,7 @@ void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Exp
 Bool priv___src_self_typer_til__is_self_conversion_method(Str * method, Str * type_name);
 Str * priv___src_self_typer_til__obj_method_type_name(Expr * obj);
 Str * priv___src_self_typer_til__numeric_conv_target_name(Str * method);
+U64 priv___src_self_typer_til__shift_fcall_bitmap_for_ufcs(U64 bits);
 Bool priv___src_self_typer_til__infer_field_access_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__check_priv_access(Expr * e, Str * name, TypeBinding * b, Context * ctx);
 void priv___src_self_typer_til__check_priv_type_name(Expr * e, Str * name, TypeScope * scope, Context * ctx);

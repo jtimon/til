@@ -1714,6 +1714,13 @@ priv numeric_conv_target_name := func(method: Str) returns Str {
     return ""
 }
 
+// FCall bitmaps use absolute child positions. UFCS inserts the receiver at
+// child 1, so preserve the callee's bit 0 and move every argument bit right.
+priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
+    mut callee_bit : U64 = 1
+    return bits.band(callee_bit).bor(bits.band(callee_bit.bnot()).shl(1))
+}
+
 priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
     ref mut fa : Expr = e.children[0]
     ref mut obj : Expr = fa.children[0]
@@ -1900,25 +1907,14 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
         mut recv_holder := Vec(Expr).new()
         recv_holder.push_take(fa.children, 0)
         fa.children[0] = type_ident
-        // Shift own_args bitmask: bits at position >=1 move to position+1
-        // (UFCS inserts self at position 1)
+        // Keep every child-indexed call flag aligned with the argument it
+        // describes when UFCS inserts self at position 1.
         switch e.node_type {
         case .FCall(ufcs_fcd):
-            old_own := ufcs_fcd.own_args
-            mut new_own : U64 = 0
-            mut bit : U64 = 1
-            for bi in 0..e.children.len() {
-                if old_own.band(bit) > 0 {
-                    if bi == 0 {
-                        new_own = new_own.bor(bit)
-                    } else {
-                        // Shift this bit left by 1 position
-                        new_own = new_own.bor(bit * 2)
-                    }
-                }
-                bit = bit * 2
-            }
-            ufcs_fcd.own_args = new_own
+            ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
+            ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
+            ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
+            ufcs_fcd.splat_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.splat_args)
         case:
             UNREACHABLE("expected FCall, got ", e.node_type.head_str())
         }
