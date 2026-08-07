@@ -897,6 +897,22 @@ priv word_ring_slot := func(shallow t: Type, w: Dynamic, ctx: Context) returns D
     return ptr_add(word_ring_base(), off)
 }
 
+priv RawResultInfo := struct {
+    ref source_type_p : U8
+    is_ref := false
+    is_word := false
+    arg_deref := false
+}
+
+priv raw_result_info_new := func(mut ctx: Context) returns RawResultInfo {
+    unknown_type_w : Dynamic = interp_intern_type(Type.Unknown, ctx)
+    return RawResultInfo(source_type_p = to_ptr(unknown_type_w))
+}
+
+priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
+    return to_ptr(info.source_type_p)
+}
+
 // Collapse an already-evaluated raw for the scalar-typed expr `e` into an
 // inline word, whatever the eval produced: a word passes through, a ref
 // (a BARE borrowed target address) or an erased Dynamic slot loads
@@ -928,9 +944,15 @@ priv eval_scalar_arg_word := proc(s: Scope, e: Expr, shallow decode_type: Type, 
     return scalar_word_of_raw(raw, is_ref, is_word, decode_type, ctx)
 }
 
+priv eval_scalar_arg_word_info := proc(s: Scope, e: Expr, mut info: RawResultInfo, mut ctx: Context) returns Dynamic {
+    raw : Dynamic = eval_expr_raw_info(s, e, ctx, info)
+    return scalar_word_of_raw(raw, info.is_ref, info.is_word, raw_result_source_type(info), ctx)
+}
+
 // Evaluate a Bool-typed argument to a til-level truth value.
 priv eval_bool_arg := proc(s: Scope, e: Expr, mut ctx: Context) returns Bool {
-    return word_bits(eval_scalar_arg_word(s, e, Type.Primitive(Primitive.Bool), ctx)) != 0
+    mut info := raw_result_info_new(ctx)
+    return word_bits(eval_scalar_arg_word_info(s, e, info, ctx)) != 0
 }
 
 priv expr_raw_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
@@ -1171,58 +1193,32 @@ priv raw_to_f32 := func(shallow t: Type, raw: Dynamic, ctx: Context) returns F32
     }
 }
 
-priv raw_arg_pointer := func(scope: Scope, e: Expr, raw: Dynamic, is_ref: Bool, ctx: Context) returns Dynamic {
-    // #321: a null-literal argument IS the null pointer -- its raw is
-    // the null word (see the Literal.Null eval arm), not a block to
-    // deref.
-    if e.node_type.is_literal_null() { return bits_word(0) }
-    if is_ref {
-        switch e.node_type {
-        case .Ident(id):
-            hb_o := scope_lookup_heap_binding(scope, id.ident_name())
-            if hb_o.is_none() { panic("argument binding not found: ", id.ident_name()) }
-            ref hb : HeapBinding = hb_o.unwrap()
-            if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
-                // A ref Dynamic binding legitimately holds the null
-                // pointer (quarantine); its slot address is null then,
-                // and the value IS null -- nothing to deref.
-                if raw.is_null() { return bits_word(0) }
-                ref dynamic_value_ref : Dynamic = deref(raw)
-                dynamic_value : Dynamic = dynamic_value_ref
-                return dynamic_value
-            }
-        case:
-        }
+priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) returns Dynamic {
+    // A Dynamic null literal and a null ref-Dynamic binding are null
+    // pointer values. Scalar zero is word-shaped and must still get storage.
+    if raw.is_null().and(info.is_word.not()) { return bits_word(0) }
+    if info.is_ref {
+        if info.arg_deref { return deref(raw) }
         return raw
     }
-    mut value_raw : Dynamic = raw
-    ref mut value_type : Type = e.til_type()
-    switch e.node_type {
-    case .Ident(id):
-        hb_o := scope_lookup_heap_binding(scope, id.ident_name())
-        if hb_o.is_none() { panic("argument binding not found: ", id.ident_name()) }
-        ref hb : HeapBinding = hb_o.unwrap()
-        value_raw = to_ptr(hb.ptr)
-        value_type = hb_type(hb)
-    case:
-        // A primitive temp's word has no storage: park the scalar in a
-        // ring slot so raw-memory builtins get a real address.
-        if raw_type_is_prim(value_type, ctx) { return word_ring_slot(value_type, raw, ctx) }
-    }
+    ref value_type : Type = raw_result_source_type(info)
+    // A primitive temp's word has no storage: park the scalar in a ring
+    // slot so raw-memory builtins get a real address.
+    if info.is_word { return word_ring_slot(value_type, raw, ctx) }
     switch value_type {
-    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(value_raw)
+    case .Dynamic, .FuncPtr, .FuncPtrSig, .Body: return deref(raw)
     case .Custom(name):
         alias_type := type_from_name_init(name, ctx.scope)
         switch alias_type {
-        case .Dynamic: return deref(value_raw)
-        case .FuncPtr: return deref(value_raw)
-        case .FuncPtrSig: return deref(value_raw)
-        case .Body: return deref(value_raw)
+        case .Dynamic: return deref(raw)
+        case .FuncPtr: return deref(raw)
+        case .FuncPtrSig: return deref(raw)
+        case .Body: return deref(raw)
         case:
         }
-        return value_raw
+        return raw
     case:
-        return value_raw
+        return raw
     }
 }
 
@@ -1459,13 +1455,13 @@ priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) retur
     return true
 }
 
-priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, mut result_is_ref: Bool, mut result_is_word: Bool, destination: Dynamic = bits_word(0)) returns Dynamic {
-    result_is_ref = false
-    result_is_word = false
+priv eval_expr_field_raw := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+    info.is_ref = false
+    info.is_word = false
     switch e.node_type {
     case .FieldAccess(fa):
         if interp_fa_is_ns(scope, e, ctx) {
-            result_is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
+            info.is_word = destination.is_null().and(raw_type_is_prim(e.til_type(), ctx))
             sname := field_access_sname(e)
             namespace_def_o := lookup_interp_type_def(sname, ctx)
             if namespace_def_o.is_some().and(namespace_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
@@ -1487,13 +1483,15 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, mut result
                     return result
                 }
             }
-            stored_o := ns_get(sname, fa.field_access_name(), ctx)
-            if stored_o.is_none() {
+            stored_hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fa.field_access_name())
+            if stored_hb_o.is_none() {
                 interp_error(e, format("no namespace field '", Str.clone(fa.field_access_name()), "'"), ctx)
                 exit(1)
             }
-            ref stored : Dynamic = stored_o.unwrap()
-            stored_type := ns_field_type(sname, fa.field_access_name(), ctx)
+            ref stored_hb : HeapBinding = stored_hb_o.unwrap()
+            ref stored : Dynamic = to_ptr(stored_hb.ptr)
+            info.source_type_p = stored_hb.til_type_p
+            ref stored_type : Type = hb_type(stored_hb)
             if raw_type_is_prim(stored_type, ctx) {
                 ns_word : Dynamic = scalar_word_load(stored_type, stored, ctx)
                 return raw_result_finish(stored_type, ns_word, destination, false, ctx)
@@ -1507,15 +1505,23 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, mut result
             exit(1)
         }
         ref fdecl : Declaration = fdecl_o.unwrap()
-        result_is_ref = decl_is_funcsig(fdecl, ctx).not()
-        if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { result_is_ref = false }
-        result_is_word = result_is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
+        info.source_type_p = to_ptr(interp_intern_type(fdecl.til_type, ctx))
+        info.is_ref = decl_is_funcsig(fdecl, ctx).not()
+        if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
+        info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(e.til_type(), ctx))
         sname := field_access_sname(e)
         ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
+        if (fdecl.explicit_type == "USize").or(fdecl.explicit_type == "UPtr") {
+            mut field_type := field_word_type(fdecl.til_type, fl.size, ctx)
+            if (sname == ctx.cached_str_name).and(fa.field_access_name() == "cap").and(fl.size == 4) {
+                field_type = Type.Primitive(Primitive.I32)
+            }
+            info.source_type_p = to_ptr(interp_intern_type(field_type, ctx))
+        }
         base_o := field_access_base(scope, e.children[0], ctx)
         if base_o.is_some() {
             ref base : Dynamic = base_o.unwrap()
-            if result_is_ref {
+            if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() { return deref(ptr_add(base, fl.offset)) }
                 return ptr_add(base, fl.offset)
             }
@@ -1541,7 +1547,7 @@ priv eval_expr_field_raw := proc(scope: Scope, e: Expr, ctx: Context, mut result
         if e.children[0].node_type.is_literal_str() {
             tmp_base : Dynamic = eval_expr_raw(scope, e.children[0], ctx)
             mut field_word : Dynamic = 0
-            if result_is_ref {
+            if info.is_ref {
                 field_word = deref(ptr_add(tmp_base, fl.offset))
             } else {
                 field_word = read_field(tmp_base, fdecl, fl.offset, fl.size, ctx)
@@ -1609,9 +1615,11 @@ priv write_runtime_type := func(result: Dynamic, shallow t: Type, ctx: Context) 
     write_i32(result, enum_variant_tag(type_def, variant).to_i32())
 }
 
-priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_is_ref: Bool, mut result_is_word: Bool, destination: Dynamic = bits_word(0)) returns Dynamic {
-    result_is_ref = false
-    result_is_word = false
+priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
+    info.source_type_p = to_ptr(interp_intern_type(e.til_type(), ctx))
+    info.is_ref = false
+    info.is_word = false
+    info.arg_deref = false
     switch e.node_type {
     case .Literal(Literal.Str(text)):
         mut result : Dynamic = destination
@@ -1710,7 +1718,7 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
         case .Primitive(Primitive.F64): num_word = bits_word(str_parse_f64_bits(num_str.text))
         case: num_word = bits_word(num_str.to_i64().cast(U64))
         }
-        if destination.is_null() { result_is_word = true; return num_word }
+        if destination.is_null() { info.is_word = true; return num_word }
         scalar_word_store(e.til_type(), destination, num_word, ctx)
         return destination
     case .Literal(Literal.Bool(b)):
@@ -1718,7 +1726,7 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
             write_bool(destination, b)
             return destination
         }
-        result_is_word = true
+        info.is_word = true
         if b { return bits_word(1) }
         return bits_word(0)
     case .Literal(Literal.Null):
@@ -1729,7 +1737,7 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
         // keep a zeroed block of the type's size (a zeroed aggregate).
         if destination.is_null().not() { return destination }
         if raw_type_is_prim(e.til_type(), ctx).or(e.til_type().is(Type.Dynamic)) {
-            result_is_word = raw_type_is_prim(e.til_type(), ctx)
+            info.is_word = raw_type_is_prim(e.til_type(), ctx)
             return bits_word(0)
         }
         return raw_unit_result(e.til_type(), ctx)
@@ -1737,6 +1745,10 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name())
         if hb_o.is_none() { panic("expression binding not found: ", ident.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
+        if hb_type(hb).is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()).not() {
+            info.source_type_p = hb.til_type_p
+        }
+        info.arg_deref = hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not())
         mut expr_type := e.til_type().clone()
         switch expr_type {
         case .Custom(expr_type_name): expr_type = type_from_name_init(expr_type_name, ctx.scope)
@@ -1762,11 +1774,11 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
             cloned : Dynamic = heap_clone_by_type(hb_type(hb), place, hb.ctx)
             return raw_result_finish(hb_type(hb), cloned, destination, false, ctx)
         }
-        result_is_ref = true
+        info.is_ref = true
         result : Dynamic = place
         return result
     case .FCall:
-        return eval_call_meta(scope, e, ctx, result_is_ref, result_is_word, destination)
+        return eval_call_meta(scope, e, ctx, info.is_ref, info.is_word, destination)
     case .FuncDef(fd):
         if fd.captures.len().gt(0) {
             closure : Dynamic = make_interp_closure(e, scope, ctx)
@@ -1785,7 +1797,7 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
         write_ptr(result, e)
         return result
     case .FieldAccess:
-        return eval_expr_field_raw(scope, e, ctx, result_is_ref, result_is_word, destination)
+        return eval_expr_field_raw(scope, e, ctx, info, destination)
     case:
         interp_lang_error(e, "cannot evaluate node as expression", ctx)
         exit(1)
@@ -1793,10 +1805,17 @@ priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut res
     }
 }
 
+priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_is_ref: Bool, mut result_is_word: Bool, destination: Dynamic = bits_word(0)) returns Dynamic {
+    mut info := raw_result_info_new(ctx)
+    result : Dynamic = eval_expr_raw_info(scope, e, ctx, info, destination)
+    result_is_ref = info.is_ref
+    result_is_word = info.is_word
+    return result
+}
+
 eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
-    mut result_is_ref := false
-    mut result_is_word := false
-    return eval_expr_raw_meta(scope, e, ctx, result_is_ref, result_is_word, destination)
+    mut info := raw_result_info_new(ctx)
+    return eval_expr_raw_info(scope, e, ctx, info, destination)
 }
 
 priv lookup_type_def_helper := func(type_name: Str, scope: Scope, ctx: Context) returns Option(ref Expr) {
@@ -1862,15 +1881,14 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
     }
     switch raw_type {
     case .Enum(enum_name):
-        mut raw_is_ref := false
-        mut raw_is_word := false
-        raw : Dynamic = eval_expr_raw_meta(scope, e, ctx, raw_is_ref, raw_is_word)
-        tag_ptr : Dynamic = raw_arg_pointer(scope, e, raw, raw_is_ref, ctx)
+        mut info := raw_result_info_new(ctx)
+        raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
+        tag_ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_none() { panic("switch enum definition not found: ", enum_name) }
         ref enum_def : Expr = enum_def_o.unwrap()
         result := enum_data_tag_key(tag_ptr, enum_def)
-        raw_result_drop(raw_type, raw, raw_is_ref, ctx)
+        raw_result_drop(raw_type, raw, info.is_ref, ctx)
         return result
     case .Primitive:
         return raw_to_i64(raw_type, eval_scalar_arg_word(scope, e, raw_type, ctx), ctx)
@@ -1878,11 +1896,10 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
         // An erased scalar subject: the value is a Dynamic slot; read the
         // pointed scalar as I64 (the pre-word behavior read through the
         // arg pointer the same way).
-        mut raw_is_ref := false
-        mut raw_is_word := false
-        raw : Dynamic = eval_expr_raw_meta(scope, e, ctx, raw_is_ref, raw_is_word)
-        result := raw_to_i64(Type.Primitive(Primitive.I64), scalar_word_load(Type.Primitive(Primitive.I64), raw_arg_pointer(scope, e, raw, raw_is_ref, ctx), ctx), ctx)
-        raw_result_drop(raw_type, raw, raw_is_ref, ctx)
+        mut info := raw_result_info_new(ctx)
+        raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
+        result := raw_to_i64(Type.Primitive(Primitive.I64), scalar_word_load(Type.Primitive(Primitive.I64), raw_arg_pointer(raw, info, ctx), ctx), ctx)
+        raw_result_drop(raw_type, raw, info.is_ref, ctx)
         return result
     case:
         panic("unsupported switch key type ", til_type_name_c(raw_type))
@@ -2529,10 +2546,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.interp_ret_is_ref, ctx)
                 case .FCall:
-                    mut inner_is_ref := false
-                    mut inner_is_word := false
-                    return_raw = eval_call_meta(scope, ret_expr, ctx, inner_is_ref, inner_is_word, c.interp_ret_dest)
-                    return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_is_ref, c.interp_ret_is_ref, ctx)
+                    mut inner_info := raw_result_info_new(ctx)
+                    return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
+                    return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
                 case .FieldAccess:
                     if c.interp_ret_is_ref {
                         // field_access_returns_ref gated this branch, so the
@@ -2540,21 +2556,19 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         return_raw = field_access_base(scope, ret_expr, ctx).unwrap()
                         return_source_is_ref = true
                     } else {
-                        return_source_type = scalar_raw_source_type(scope, ret_expr, ctx)
-                        mut inner_is_ref := false
-                        mut inner_is_word := false
-                        return_raw = eval_expr_raw_meta(scope, ret_expr, ctx, inner_is_ref, inner_is_word, c.interp_ret_dest)
-                        return_raw = raw_result_reframe(return_source_type, return_raw, inner_is_ref, false, ctx)
+                        mut inner_info := raw_result_info_new(ctx)
+                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
+                        return_source_type = raw_result_source_type(inner_info).clone()
+                        return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, false, ctx)
                     }
                 case:
                     if ret_expr.node_type.is_literal_null().and(c.interp_ret_is_ref) {
                         return_raw = 0
                         return_source_is_ref = true
                     } else {
-                        mut inner_is_ref := false
-                        mut inner_is_word := false
-                        return_raw = eval_expr_raw_meta(scope, ret_expr, ctx, inner_is_ref, inner_is_word, c.interp_ret_dest)
-                        return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_is_ref, c.interp_ret_is_ref, ctx)
+                        mut inner_info := raw_result_info_new(ctx)
+                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.interp_ret_dest)
+                        return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.interp_ret_is_ref, ctx)
                     }
                 }
                 target_return_type := type_from_name_init(interp_ret_type_name(c), ctx.scope)
@@ -5919,13 +5933,15 @@ priv narrow_bool_arg := proc(s: Scope, e: Expr, ctx: Context) returns Bool {
 }
 
 priv eval_i64_arg := proc(s: Scope, e: Expr, ctx: Context) returns I64 {
-    raw_type := scalar_raw_source_type(s, e, ctx)
-    return raw_to_i64(raw_type, eval_scalar_arg_word(s, e, raw_type, ctx), ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
+    return raw_to_i64(raw_result_source_type(info), raw, ctx)
 }
 
 priv eval_u64_arg := proc(s: Scope, e: Expr, ctx: Context) returns U64 {
-    raw_type := scalar_raw_source_type(s, e, ctx)
-    return raw_to_u64(raw_type, eval_scalar_arg_word(s, e, raw_type, ctx), ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_scalar_arg_word_info(s, e, info, ctx)
+    return raw_to_u64(raw_result_source_type(info), raw, ctx)
 }
 
 // Dispatch and call results are raw value bytes.
@@ -6073,26 +6089,25 @@ priv h_U32_from_i64 := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 // raw bits and write them at the target width.
 priv h_cast := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref src_expr : Expr = e.children[1]
-    mut src_is_ref := false
-    mut src_is_word := false
-    src : Dynamic = eval_expr_raw_meta(s, src_expr, ctx, src_is_ref, src_is_word)
+    mut src_info := raw_result_info_new(ctx)
+    src : Dynamic = eval_expr_raw_info(s, src_expr, ctx, src_info)
     tn := til_type_name_c(e.til_type())
     if (tn == "Fn").or(tn == "Body") {
         ref stored_ref : Dynamic = deref(src)
         mut stored : Dynamic = stored_ref
-        if src_expr.til_type().is(Type.Dynamic) {
+        if raw_result_source_type(src_info).is(Type.Dynamic) {
             stored = callable_storage_clone(stored)
         } else {
             write_ptr(src, bits_word(0))
         }
         write_ptr(r, stored)
-        raw_result_drop(src_expr.til_type(), src, src_is_ref, ctx)
+        raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
         return true
     }
-    src_type := scalar_raw_source_type(s, src_expr, ctx)
+    ref src_type : Type = raw_result_source_type(src_info)
     // Collapse the eval to an inline word first: raw_to_u64 is word-based,
     // and the pre-word raw_arg_pointer form fed it an ADDRESS.
-    raw := raw_to_u64(src_type, scalar_word_of_raw(src, src_is_ref, src_is_word, src_type, ctx), ctx)
+    raw := raw_to_u64(src_type, scalar_word_of_raw(src, src_info.is_ref, src_info.is_word, src_type, ctx), ctx)
     switch tn {
     case "I8":  write_i8(r, raw.cast(I64).to_i8()); return true
     case "U8":  write_u8(r, raw.cast(I64).to_u8()); return true
@@ -6245,14 +6260,13 @@ str_copy_into := func(result: Dynamic, src: Str, ctx: Context) {
 }
 
 priv eval_str_owned := proc(s: Scope, arg: Expr, ctx: Context) returns Str {
-    mut raw_is_ref := false
-    mut raw_is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-    value_raw : Dynamic = raw_arg_pointer(s, arg, raw, raw_is_ref, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    value_raw : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref value : Str = to_ptr(value_raw)
     view := Str(c_str = value.c_str, count = str_count_at(value_raw, ctx), cap = CAP_VIEW)
     result := view.clone()
-    raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return result
 }
 
@@ -6646,10 +6660,9 @@ priv dyn_type_to_str_raw := func(type_data: Dynamic, r: Dynamic, ctx: Context) r
 
 priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut raw_is_ref := false
-    mut raw_is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-    type_data : Dynamic = raw_arg_pointer(s, arg, raw, raw_is_ref, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    type_data : Dynamic = raw_arg_pointer(raw, info, ctx)
     result := dyn_type_to_str_raw(type_data, r, ctx)
     if result.not() {
         ref type_tag : I32 = to_ptr(type_data)
@@ -6661,7 +6674,7 @@ priv h_dyn_type_to_str := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) retu
             panic("dyn_type_to_str: invalid Type expression tag=", type_tag.to_str())
         }
     }
-    raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return result
 }
 
@@ -6831,15 +6844,14 @@ priv h_free := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
         }
     case:
         ref arg : Expr = e.children[1]
-        mut raw_is_ref := false
-        mut raw_is_word := false
-        raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-        ptr : Dynamic = raw_arg_pointer(s, arg, raw, raw_is_ref, ctx)
+        mut info := raw_result_info_new(ctx)
+        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+        ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         if ptr.is_null().not() {
             mut owned_ptr : Dynamic = ptr
             EvalHeap.heap_free(own owned_ptr)
         }
-        raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+        raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     }
     return true
 }
@@ -6911,25 +6923,23 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
 
 priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut raw_is_ref := false
-    mut raw_is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-    slot : Dynamic = raw_arg_pointer(s, arg, raw, raw_is_ref, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     ref stored : Dynamic = deref(slot)
     if stored.is_null().not() {
         callable_storage_free(stored)
         write_ptr(slot, bits_word(0))
     }
-    raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
 }
 
 priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref slot_expr : Expr = e.children[1]
-    mut slot_is_ref := false
-    mut slot_is_word := false
-    slot_raw : Dynamic = eval_expr_raw_meta(s, slot_expr, ctx, slot_is_ref, slot_is_word)
-    dst : Dynamic = raw_arg_pointer(s, slot_expr, slot_raw, slot_is_ref, ctx)
+    mut slot_info := raw_result_info_new(ctx)
+    slot_raw : Dynamic = eval_expr_raw_info(s, slot_expr, ctx, slot_info)
+    dst : Dynamic = raw_arg_pointer(slot_raw, slot_info, ctx)
     ref source_expr : Expr = e.children[2]
     switch source_expr.node_type {
     case .Ident(id):
@@ -6950,38 +6960,35 @@ priv h_til_closure_slot_take := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Contex
     case:
         panic("til_closure_slot_take: callable source must be a binding")
     }
-    raw_result_drop(slot_expr.til_type(), slot_raw, slot_is_ref, ctx)
+    raw_result_drop(slot_expr.til_type(), slot_raw, slot_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_close := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    cfile_close(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    cfile_close(raw_arg_pointer(handle_raw, handle_info, ctx))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_write_str := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
     sv := eval_str_owned(s, e.children[2], ctx)
-    cfile_write_str(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx), sv)
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    cfile_write_str(raw_arg_pointer(handle_raw, handle_info, ctx), sv)
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref buf_expr : Expr = e.children[1]
-    mut buf_is_ref := false
-    mut buf_is_word := false
-    buf_raw : Dynamic = eval_expr_raw_meta(s, buf_expr, ctx, buf_is_ref, buf_is_word)
-    write_ptr(r, ptr_add(raw_arg_pointer(s, buf_expr, buf_raw, buf_is_ref, ctx), eval_u64_arg(s, e.children[2], ctx)))
-    raw_result_drop(buf_expr.til_type(), buf_raw, buf_is_ref, ctx)
+    mut buf_info := raw_result_info_new(ctx)
+    buf_raw : Dynamic = eval_expr_raw_info(s, buf_expr, ctx, buf_info)
+    write_ptr(r, ptr_add(raw_arg_pointer(buf_raw, buf_info, ctx), eval_u64_arg(s, e.children[2], ctx)))
+    raw_result_drop(buf_expr.til_type(), buf_raw, buf_info.is_ref, ctx)
     return true
 }
 
@@ -6994,11 +7001,10 @@ priv h_ptr_add := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 // inline in this compiled handler -- no handler recursion.
 priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref arg : Expr = e.children[1]
-    mut raw_is_ref := false
-    mut raw_is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-    write_bool(r, raw_arg_pointer(s, arg, raw, raw_is_ref, ctx).is_null())
-    raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    write_bool(r, raw_arg_pointer(raw, info, ctx).is_null())
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
 }
 
@@ -7009,17 +7015,16 @@ priv h_is_null := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool
 priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref ae : Expr = e.children[1]
     ref be : Expr = e.children[2]
-    mut a_is_ref := false
-    mut a_is_word := false
-    a : Dynamic = eval_expr_raw_meta(s, ae, ctx, a_is_ref, a_is_word)
+    mut a_info := raw_result_info_new(ctx)
+    a : Dynamic = eval_expr_raw_info(s, ae, ctx, a_info)
     switch be.node_type {
     case .FieldAccess(variant):
         enum_name := field_access_sname(be)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
             ref enum_def : Expr = enum_def_o.unwrap()
-            write_bool(r, enum_data_tag_key(raw_arg_pointer(s, ae, a, a_is_ref, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
-            raw_result_drop(ae.til_type(), a, a_is_ref, ctx)
+            write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
+            raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
             return true
         }
     case .Ident(other_id):
@@ -7041,8 +7046,8 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
                         enum_def_o := lookup_interp_type_def(enum_name, ctx)
                         if enum_def_o.is_some().and(enum_def_o.unwrap().node_type.is(NodeType.EnumDef)) {
                             ref enum_def : Expr = enum_def_o.unwrap()
-                            write_bool(r, enum_data_tag_key(raw_arg_pointer(s, ae, a, a_is_ref, ctx), enum_def) == enum_variant_tag(enum_def, variant_name))
-                            raw_result_drop(ae.til_type(), a, a_is_ref, ctx)
+                            write_bool(r, enum_data_tag_key(raw_arg_pointer(a, a_info, ctx), enum_def) == enum_variant_tag(enum_def, variant_name))
+                            raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
                             return true
                         }
                     }
@@ -7051,12 +7056,11 @@ priv h_is_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
         }
     case:
     }
-    mut b_is_ref := false
-    mut b_is_word := false
-    b : Dynamic = eval_expr_raw_meta(s, be, ctx, b_is_ref, b_is_word)
-    write_bool(r, memcmp(raw_arg_pointer(s, ae, a, a_is_ref, ctx), raw_arg_pointer(s, be, b, b_is_ref, ctx), eval_u64_arg(s, e.children[3], ctx)) == 0)
-    raw_result_drop(ae.til_type(), a, a_is_ref, ctx)
-    raw_result_drop(be.til_type(), b, b_is_ref, ctx)
+    mut b_info := raw_result_info_new(ctx)
+    b : Dynamic = eval_expr_raw_info(s, be, ctx, b_info)
+    write_bool(r, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), eval_u64_arg(s, e.children[3], ctx)) == 0)
+    raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
+    raw_result_drop(be.til_type(), b, b_info.is_ref, ctx)
     return true
 }
 
@@ -7135,22 +7139,20 @@ priv h_get_payload := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns 
         return true
     }
     ref arg : Expr = e.children[1]
-    mut raw_is_ref := false
-    mut raw_is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
-    if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(s, arg, raw, raw_is_ref, ctx))) return true }
-    write_ptr(r, ptr_add(raw_arg_pointer(s, arg, raw, raw_is_ref, ctx), gp_off))
-    raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    if gp_is_niche { write_ptr(r, deref(raw_arg_pointer(raw, info, ctx))) return true }
+    write_ptr(r, ptr_add(raw_arg_pointer(raw, info, ctx), gp_off))
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_read_all := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    content := cfile_read_all(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    content := cfile_read_all(raw_arg_pointer(handle_raw, handle_info, ctx))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     dispatch_write_str(r, content.c_str, content.count, ctx)
     return true
 }
@@ -7177,51 +7179,46 @@ priv h_cfile_exists := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns
 
 priv h_cfile_tell := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    write_i64(r, cfile_tell(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx)))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    write_i64(r, cfile_tell(raw_arg_pointer(handle_raw, handle_info, ctx)))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_seek := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    cfile_seek(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    cfile_seek(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_seek_cur := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    cfile_seek_cur(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    cfile_seek_cur(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_seek_end := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    cfile_seek_end(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    cfile_seek_end(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     return true
 }
 
 priv h_cfile_read_n := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
     ref handle_expr : Expr = e.children[1]
-    mut handle_is_ref := false
-    mut handle_is_word := false
-    handle_raw : Dynamic = eval_expr_raw_meta(s, handle_expr, ctx, handle_is_ref, handle_is_word)
-    content := cfile_read_n(raw_arg_pointer(s, handle_expr, handle_raw, handle_is_ref, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
-    raw_result_drop(handle_expr.til_type(), handle_raw, handle_is_ref, ctx)
+    mut handle_info := raw_result_info_new(ctx)
+    handle_raw : Dynamic = eval_expr_raw_info(s, handle_expr, ctx, handle_info)
+    content := cfile_read_n(raw_arg_pointer(handle_raw, handle_info, ctx), eval_u64_arg(s, e.children[2], ctx).cast(I64))
+    raw_result_drop(handle_expr.til_type(), handle_raw, handle_info.is_ref, ctx)
     dispatch_write_str(r, content.c_str, content.count, ctx)
     return true
 }
@@ -7349,10 +7346,9 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
     if method == "delete" {
         if nargs == 0 { panic("dyn_call delete without receiver") }
         ref recv_expr : Expr = e.children[4]
-        mut recv_is_ref := false
-        mut recv_is_word := false
-        recv_raw : Dynamic = eval_expr_raw_meta(s, recv_expr, ctx, recv_is_ref, recv_is_word)
-        recv_ptr : Dynamic = raw_arg_pointer(s, recv_expr, recv_raw, recv_is_ref, ctx)
+        mut recv_info := raw_result_info_new(ctx)
+        recv_raw : Dynamic = eval_expr_raw_info(s, recv_expr, ctx, recv_info)
+        recv_ptr : Dynamic = raw_arg_pointer(recv_raw, recv_info, ctx)
         mut call_free := true
         if nargs > 1 { call_free = narrow_bool_arg(s, e.children[5], ctx) }
         heap_drop_by_type(type_from_name_init(type_name, ctx.scope), recv_ptr, ctx)
@@ -7369,7 +7365,7 @@ priv h_dyn_call := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Boo
             case:
             }
         }
-        raw_result_drop(recv_expr.til_type(), recv_raw, recv_is_ref, ctx)
+        raw_result_drop(recv_expr.til_type(), recv_raw, recv_info.is_ref, ctx)
         return true
     }
     for ai in 0..nargs {
@@ -7411,11 +7407,10 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
         switch e.children[2].node_type {
         case .FieldAccess(variant):
             ref subject : Expr = e.children[1]
-            mut subject_is_ref := false
-            mut subject_is_word := false
-            subject_raw : Dynamic = eval_expr_raw_meta(scope, subject, ctx, subject_is_ref, subject_is_word)
-            write_bool(result, enum_data_tag_key(raw_arg_pointer(scope, subject, subject_raw, subject_is_ref, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
-            raw_result_drop(subject.til_type(), subject_raw, subject_is_ref, ctx)
+            mut subject_info := raw_result_info_new(ctx)
+            subject_raw : Dynamic = eval_expr_raw_info(scope, subject, ctx, subject_info)
+            write_bool(result, enum_data_tag_key(raw_arg_pointer(subject_raw, subject_info, ctx), enum_def) == enum_variant_tag(enum_def, variant.field_access_name()))
+            raw_result_drop(subject.til_type(), subject_raw, subject_info.is_ref, ctx)
             return true
         case:
         }
@@ -7432,15 +7427,14 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                 // #320: ref payload -- the payload word is the SOURCE's
                 // address (a borrow): no clone, no move, no ownership.
                 ref borrow_expr : Expr = e.children[1]
-                mut borrow_is_ref := false
-                mut borrow_is_word := false
-                borrow_raw : Dynamic = eval_expr_raw_meta(scope, borrow_expr, ctx, borrow_is_ref, borrow_is_word)
+                mut borrow_info := raw_result_info_new(ctx)
+                borrow_raw : Dynamic = eval_expr_raw_info(scope, borrow_expr, ctx, borrow_info)
                 write_enum_flat(result, enum_name, ctor_tag, bits_word(0), 0, false, false, ctx)
                 // #320 niche: the borrow IS the whole value (offset 0);
                 // a tagged enum keeps it at the flat payload offset.
                 mut borrow_off : USize = ENUM_PAYLOAD_OFFSET
                 if enum_is_niche(enum_def) { borrow_off = 0 }
-                write_ptr(ptr_add(result, borrow_off), raw_arg_pointer(scope, borrow_expr, borrow_raw, borrow_is_ref, ctx))
+                write_ptr(ptr_add(result, borrow_off), raw_arg_pointer(borrow_raw, borrow_info, ctx))
                 return true
             }
             if has_payload {
@@ -7569,19 +7563,12 @@ priv ffi_shallow_type_info := func(atype: Dynamic, mut type_name: Str, mut size:
 }
 
 // Write a shallow primitive arg into the FFI args buffer at `dst`.
-priv ffi_write_shallow_arg := func(scope: Scope, e: Expr, raw: Dynamic, raw_is_ref: Bool, atype: Dynamic, dst: Dynamic, ctx: Context) returns Bool {
+priv ffi_write_shallow_arg := func(source: Dynamic, info: RawResultInfo, atype: Dynamic, dst: Dynamic, ctx: Context) returns Bool {
     mut tn := ""
     mut sz : USize = 0
     if ffi_shallow_type_info(atype, tn, sz).not() { return false }
-    mut source : Dynamic = raw_arg_pointer(scope, e, raw, raw_is_ref, ctx)
-    mut source_type := scalar_raw_source_type(scope, e, ctx)
+    mut source_type := raw_result_source_type(info).clone()
     if source_type.is(Type.Dynamic) {
-        mut expr_type := e.til_type().clone()
-        switch expr_type {
-        case .Custom(name): expr_type = type_from_name_init(name, ctx.scope)
-        case:
-        }
-        if expr_type.is(Type.Dynamic).not().and(raw_is_ref.not()) { source = deref(source) }
         source_type = type_from_name_init(tn, ctx.scope)
     }
     // `source` is an ADDRESS (raw_arg_pointer materializes words); load
@@ -7622,18 +7609,14 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
 
     for i in 0..nargs {
         ref arg_expr : Expr = e.children[i + 1]
-        mut arg_is_ref := false
-        mut arg_is_word := false
-        arg_raw : Dynamic = eval_expr_raw_meta(scope, arg_expr, ctx, arg_is_ref, arg_is_word)
+        mut arg_info := raw_result_info_new(ctx)
+        arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
+        arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
         arg_raw_off := i.mul(16)
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
-        write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_is_ref)
-        mut arg_type := arg_expr.til_type().clone()
-        switch arg_type {
-        case .Custom(type_name): arg_type = type_from_name_init(type_name, ctx.scope)
-        case:
-        }
-        arg_is_callable := heap_type_is_callable(arg_type)
+        write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
+        write_bool(ptr_add(arg_raws, arg_raw_off.add(9)), arg_pointer.ptr_eq(arg_raw))
+        arg_is_callable := heap_type_is_callable(raw_result_source_type(arg_info))
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
         if is_shallow {
@@ -7645,20 +7628,19 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
             ref atype : Dynamic = deref(at)
             ref ffi_arg_type : ffi_type = to_ptr(atype)
             if ffi_arg_type.type == FFI_TYPE_STRUCT.to_u16() {
-                write_ptr(ptr_add(arg_ptrs, i.mul(8)), raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx))
+                write_ptr(ptr_add(arg_ptrs, i.mul(8)), arg_pointer)
             } else {
                 ref dst : Dynamic = ptr_add(args, i.mul(8))
-                if ffi_write_shallow_arg(scope, arg_expr, arg_raw, arg_is_ref, atype, dst, ctx).not() {
-                    pointer : Dynamic = raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx)
-                    if arg_is_callable.and(callable_box_is(pointer)) { panic("FFI cannot receive captured closures") }
-                    write_ptr(dst, pointer)
+                if ffi_write_shallow_arg(arg_pointer, arg_info, atype, dst, ctx).not() {
+                    if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
+                    write_ptr(dst, arg_pointer)
                 }
                 write_ptr(ptr_add(arg_ptrs, i.mul(8)), dst)
             }
         } else {
             // Deep: pass heap-allocated pointer (FFI callee may free it)
             mut dp : Dynamic = 0
-            mut pass_pointer := arg_is_ref
+            mut pass_pointer := arg_info.is_ref
             if i.lt(fe.nparam) {
                 ref param_dynamic : Bool = ptr_add(fe.param_dynamics, i)
                 if param_dynamic { pass_pointer = true }
@@ -7672,31 +7654,28 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
             case:
             }
             if pass_pointer {
-                pointer : Dynamic = raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx)
-                if arg_is_callable.and(callable_box_is(pointer)) { panic("FFI cannot receive captured closures") }
-                write_ptr(ptr_add(args, i.mul(8)), pointer)
+                if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
+                write_ptr(ptr_add(args, i.mul(8)), arg_pointer)
             } else {
-                switch arg_expr.til_type() {
+                switch raw_result_source_type(arg_info) {
                 case .Primitive:
-                    size := raw_type_size(arg_expr.til_type(), ctx)
+                    size := raw_type_size(raw_result_source_type(arg_info), ctx)
                     dp = malloc(size)
-                    memcpy(dp, raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx), size)
+                    memcpy(dp, arg_pointer, size)
                 case .Custom(name):
                     alias_type := type_from_name_init(name, ctx.scope)
                     switch alias_type {
                     case .Primitive:
                         size := raw_type_size(alias_type, ctx)
                         dp = malloc(size)
-                        memcpy(dp, raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx), size)
+                        memcpy(dp, arg_pointer, size)
                     case:
-                        pointer : Dynamic = raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx)
-                        if arg_is_callable.and(callable_box_is(pointer)) { panic("FFI cannot receive captured closures") }
-                        write_ptr(ptr_add(args, i.mul(8)), pointer)
+                        if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
+                        write_ptr(ptr_add(args, i.mul(8)), arg_pointer)
                     }
                 case:
-                    pointer : Dynamic = raw_arg_pointer(scope, arg_expr, arg_raw, arg_is_ref, ctx)
-                    if arg_is_callable.and(callable_box_is(pointer)) { panic("FFI cannot receive captured closures") }
-                    write_ptr(ptr_add(args, i.mul(8)), pointer)
+                    if arg_is_callable.and(callable_box_is(arg_pointer)) { panic("FFI cannot receive captured closures") }
+                    write_ptr(ptr_add(args, i.mul(8)), arg_pointer)
                 }
             }
             if dp.is_null().not() {
@@ -7802,7 +7781,7 @@ priv ext_dispatch_ffi := proc(name: Str, scope: Scope, e: Expr, result: Dynamic,
         ref arg_raw : Dynamic = deref(ptr_add(arg_raws, arg_raw_off))
         owned_arg_raw : Dynamic = arg_raw
         ref arg_is_ref : Bool = ptr_add(arg_raws, arg_raw_off.add(8))
-        raw_was_passed := raw_arg_pointer(scope, arg_expr, owned_arg_raw, arg_is_ref, ctx).ptr_eq(owned_arg_raw)
+        ref raw_was_passed : Bool = ptr_add(arg_raws, arg_raw_off.add(9))
         if (name == "memcpy").and(i == 1).and(arg_is_ref.not()).and(raw_was_passed) {
             // memcpy transferred the temporary aggregate's nested ownership.
             raw_block_free(owned_arg_raw)
@@ -7979,9 +7958,9 @@ priv scalar_write_raw := func(t: Str, result: Dynamic, v: I64) {
 }
 
 priv scalar_read_arg := proc(scope: Scope, arg: Expr, shallow target_type: Type, ctx: Context) returns Dynamic {
-    source_type := scalar_raw_source_type(scope, arg, ctx)
-    raw : Dynamic = eval_scalar_arg_word(scope, arg, source_type, ctx)
-    return raw_coerce_value(raw, source_type, target_type, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_scalar_arg_word_info(scope, arg, info, ctx)
+    return raw_coerce_value(raw, raw_result_source_type(info), target_type, ctx)
 }
 
 // Step a mut-local scalar in place by delta (+1 for inc, -1 for dec) -- the
@@ -8118,15 +8097,13 @@ priv enum_core_is_eval := proc(name: Str, scope: Scope, e: Expr, result: Dynamic
     if edef.node_type.is(NodeType.EnumDef).not() { return false }
     ref ae : Expr = e.children[1]
     ref be : Expr = e.children[2]
-    mut a_is_ref := false
-    mut a_is_word := false
-    mut b_is_ref := false
-    mut b_is_word := false
-    a : Dynamic = eval_expr_raw_meta(scope, ae, ctx, a_is_ref, a_is_word)
-    b : Dynamic = eval_expr_raw_meta(scope, be, ctx, b_is_ref, b_is_word)
-    write_bool(result, memcmp(raw_arg_pointer(scope, ae, a, a_is_ref, ctx), raw_arg_pointer(scope, be, b, b_is_ref, ctx), enum_tag_size(edef)) == 0)
-    raw_result_drop(ae.til_type(), a, a_is_ref, ctx)
-    raw_result_drop(be.til_type(), b, b_is_ref, ctx)
+    mut a_info := raw_result_info_new(ctx)
+    mut b_info := raw_result_info_new(ctx)
+    a : Dynamic = eval_expr_raw_info(scope, ae, ctx, a_info)
+    b : Dynamic = eval_expr_raw_info(scope, be, ctx, b_info)
+    write_bool(result, memcmp(raw_arg_pointer(a, a_info, ctx), raw_arg_pointer(b, b_info, ctx), enum_tag_size(edef)) == 0)
+    raw_result_drop(ae.til_type(), a, a_info.is_ref, ctx)
+    raw_result_drop(be.til_type(), b, b_info.is_ref, ctx)
     return true
 }
 
