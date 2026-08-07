@@ -2398,6 +2398,26 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
     e.set_til_type(target_type)
 }
 
+// The declared RETURN TYPE NAME of an Ident-callee call (`pick()` ->
+// "Op"), or "" when the callee is not a plain named function. Reads the
+// name straight off the callee's FuncDef, which is authoritative from
+// the moment init registers it -- unlike the callee binding's `type`,
+// which spells a FuncSig return as a nameless Type.FuncPtr until the
+// typer reaches that function's own Decl.
+priv fcall_callee_declared_return_type := func(scope: TypeScope, callee: Expr) returns Str {
+    if callee.children.len() == 0 { return "" }
+    switch callee.children[0].node_type {
+    case .Ident(cn):
+        cf_o := scope.lookup_func(cn.ident_name())
+        if cf_o.is_none() { return "" }
+        ref cfd : FunctionDef = funcdef_of(cf_o.unwrap())
+        if cfd.return_type.len() == 0 { return "" }
+        return resolve_type_alias(scope, cfd.return_type).clone()
+    case:
+    }
+    return ""
+}
+
 // Issue #58: type-check a postfix call where the callee is
 // `cast(value, FuncSig)`. The cast has already been infer'd; this
 // function reads the FuncSig name out of cast's child(2), looks up the
@@ -2406,7 +2426,7 @@ priv infer_cast_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: 
 // false when the callee isn't a cast-to-FuncSig shape so callers can
 // fall back to other paths.
 priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func: I32, ctx: Context) returns Bool {
-    ref callee : Expr = e.children[0]
+    ref mut callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FCall).not() { return false }
     if callee.til_type().is_funcptr().not() { return false }
     // `cast(raw, Sig)(args)` names its signature in child(2). Any OTHER
@@ -2429,9 +2449,31 @@ priv infer_funcptr_call_via_cast := proc(scope: TypeScope, mut e: Expr, in_func:
         }
     } else {
         sig_name_o := expr_type_name_ref(callee)
-        if sig_name_o.is_none() { return false }
-        ref sig_name_ref : Str = sig_name_o.unwrap()
-        sig_name = sig_name_ref.clone()
+        if sig_name_o.is_some() {
+            ref sig_name_ref : Str = sig_name_o.unwrap()
+            sig_name = sig_name_ref.clone()
+        } else {
+            // A NAMELESS Type.FuncPtr: init's type_from_name_init gives a
+            // FuncSig return type that provisional spelling, and the typer
+            // only upgrades the binding to Type.FuncPtrSig once it reaches
+            // the callee's own Decl. A call site typed BEFORE that Decl
+            // still reads the provisional type -- always the case for a
+            // monomorphized generic instance, which is appended after its
+            // caller. The signature is named on the callee's FuncDef the
+            // whole time, and consulting it costs nothing outside this
+            // rare `f(...)(args)` shape.
+            sig_name = fcall_callee_declared_return_type(scope, callee)
+            if sig_name.len() == 0 { return false }
+            // Settle the callee's type HERE, once per call site, so every
+            // later consumer reads the signature straight off it -- in
+            // particular resolve_fn_sig's FCall case, which the builder's
+            // indirect-call emit depends on and which otherwise drops to
+            // its Ident-only path and panics "expected Ident, got FCall".
+            // This is the single Str clone the shape costs; paying it in
+            // type_from_name_init instead taxed every FuncSig-returning
+            // declaration in the program to serve this one call shape.
+            callee.set_til_type(Type.FuncPtrSig(sig_name.clone()))
+        }
     }
     sig_bind_o := scope.get_binding(sig_name)
     if sig_bind_o.is_none() { return false }

@@ -1572,6 +1572,15 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
             // typer.til:type_from_name.
             if scope.lookup_func_fp(b.name, fp).is_none() { return b.type.clone() }
         }
+        // A FuncSig alias (`Op := func(x: I64) returns I64`, registered
+        // bodyless with a bare Type.FuncPtr binding by
+        // register_function_def_for_stmt). The nameless spelling is
+        // deliberate here: this is init's PROVISIONAL answer, the typer
+        // re-registers the binding as Type.FuncPtrSig when it reaches the
+        // function's own Decl, and paying a Str clone per resolution to
+        // pre-empt that would tax every declaration to serve the one call
+        // shape that reads the type early (infer_funcptr_call_via_cast,
+        // which recovers the name from the callee's FuncDef instead).
         if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
             return Type.FuncPtr
         }

@@ -2633,6 +2633,7 @@ USize priv___src_self_typer_til__cast_int_size(Type * t);
 Bool priv___src_self_typer_til__cast_is_signed(Type * t);
 Bool priv___src_self_typer_til__cast_pair_ok(Type * src, Type * target);
 void priv___src_self_typer_til__infer_cast_fcall(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
+Str * priv___src_self_typer_til__fcall_callee_declared_return_type(TypeScope * scope, Expr * callee);
 Bool priv___src_self_typer_til__infer_funcptr_call_via_cast(TypeScope * scope, Expr * e, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__infer_array_vec_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 Str * priv___src_self_typer_til__generic_field_declared_type(TypeScope * scope, Expr * e);

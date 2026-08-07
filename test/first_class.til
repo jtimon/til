@@ -1713,3 +1713,23 @@ test_generic_func_ref_type_arg := test() {
     // The owned instantiation of the same generic coexists.
     assert_eq(I64, gpick_ref(I64, 5), 5)
 }
+
+// A funcptr-returning call, invoked INLINE (`f(...)(args)`) instead of
+// bound first. The result type has to name a signature to validate the
+// inner arg list against, and init's type_from_name_init used to hand
+// back a BARE Type.FuncPtr for a FuncSig name -- the alias name dropped.
+// Any call site typed before the returning function's own Decl then read
+// that nameless binding and got "cannot call this expression directly".
+// `inline_after328` is declared BELOW its caller on purpose: that order is
+// what a monomorphized generic instance always has, which is why the
+// generic form failed even with the source in the obvious order.
+inline_sig328 := func(x: I64) returns I64
+inline_double328 := func(x: I64) returns I64 { return x * 2 }
+
+test_funcptr_return_called_inline := test() {
+    assert_eq(I64, inline_after328()(5), 10)
+    assert_eq(I64, gpick_inline328(inline_sig328, inline_double328)(6), 12)
+}
+
+inline_after328 := func() returns inline_sig328 { return inline_double328 }
+gpick_inline328 := func(T: Type, f: T) returns T { return f }
