@@ -45,6 +45,26 @@
     directly at the weird bootstrap or ownership constraint that would
     otherwise need rediscovery.
 
+** Host-specific code and CI
+
+  - A branch chosen by ~host_os()~ is not covered by anything until a run
+    actually takes it. ~test/repl_pty.til~ shipped with a BSD/macOS
+    ~script~ invocation that no session had ever executed -- only the
+    linux branch had run -- and both mac jobs went red the day it landed.
+    "Selected by host_os" is not coverage; if the branch cannot be run
+    where the work happens, say so in the commit instead of assuming.
+  - After landing anything host-specific, READ the workflow results. That
+    same failure was visible in the first CI run after the commit and was
+    found days later, by opening the run rather than by anything in the
+    repo pointing at it. Nothing notifies a session; go and look.
+  - Do not assert on kernel-owned state. The mac failure was ~stty -g~
+    compared before and after the REPL, differing in one bit: ~PENDIN~,
+    which Darwin raises when input arrives with echo off and keeps across
+    ~tcsetattr~. A raw-mode editor sets it by construction and no program
+    can put it back, so the assertion could never pass. Compare the
+    settings the code owns, and mask the ones it does not (~PENDIN~,
+    ~FLUSHO~).
+
 ** Master vs worktree
 
   - For long serial bootstrap ladders where later commits depend on
