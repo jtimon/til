@@ -1,6 +1,8 @@
 mode test
 
 import("../src/std/file")
+// mkdir_p, for the directory tests at the bottom.
+import("../src/std/sys")
 
 test_file_write_and_read := test() {
     path := "tmp/_test_file_io.txt"
@@ -243,4 +245,109 @@ test_file_append := test() {
     f := File.append(path)
     f.write(" tail")
     assert_eq(Str, File.readfile(path), "reset tail")
+}
+
+// --- Directories and whole-tree operations (issue #345) ---
+
+// exists() answers "is there anything here"; is_dir/is_file answer
+// WHAT is here, which is what a build program needs before deciding
+// whether to walk a path or compile it.
+test_file_path_types := test() {
+    dir := "tmp/_test_path_types"
+    File.remove_tree(dir)
+    mkdir_p(dir)
+    path := format(dir, "/plain.txt")
+    File.writefile(path, "x")
+
+    assert(File.is_dir(dir))
+    assert(File.is_file(dir).not())
+    assert(File.is_file(path))
+    assert(File.is_dir(path).not())
+
+    // A path that is not there is neither -- "does it exist" is a
+    // separate question, with a separate answer.
+    missing := format(dir, "/absent")
+    assert(File.exists(missing).not())
+    assert(File.is_dir(missing).not())
+    assert(File.is_file(missing).not())
+
+    File.remove_tree(dir)
+}
+
+// Dir.list reports the entries themselves, never "." or ".." -- every
+// caller that forgot to skip those walked its own parent.
+test_dir_list := test() {
+    dir := "tmp/_test_dir_list"
+    File.remove_tree(dir)
+    mkdir_p(format(dir, "/sub"))
+    File.writefile(format(dir, "/a.txt"), "a")
+    File.writefile(format(dir, "/b.txt"), "b")
+
+    names := Dir.list(dir)
+    assert_eq(USize, names.len(), 3)
+    mut seen_a := false
+    mut seen_b := false
+    mut seen_sub := false
+    for name : Str in names {
+        if name == "a.txt" { seen_a = true }
+        if name == "b.txt" { seen_b = true }
+        if name == "sub" { seen_sub = true }
+        assert(name != ".")
+        assert(name != "..")
+    }
+    assert(seen_a)
+    assert(seen_b)
+    assert(seen_sub)
+
+    // Streaming one entry at a time reports the same set.
+    d := Dir.open(dir)
+    mut streamed : USize = 0
+    while d.next().is_empty().not() {
+        streamed++
+    }
+    assert_eq(USize, streamed, 3)
+
+    File.remove_tree(dir)
+}
+
+// remove_tree is `rm -rf`: a whole subtree, and a missing path is
+// already removed rather than an error.
+test_file_remove_tree := test() {
+    dir := "tmp/_test_remove_tree"
+    File.remove_tree(dir)
+    mkdir_p(format(dir, "/one/two"))
+    File.writefile(format(dir, "/top.txt"), "top")
+    File.writefile(format(dir, "/one/mid.txt"), "mid")
+    File.writefile(format(dir, "/one/two/deep.txt"), "deep")
+    assert(File.is_dir(dir))
+
+    File.remove_tree(dir)
+    assert(File.exists(dir).not())
+
+    // Removing what is not there is a no-op, not a failure.
+    File.remove_tree(dir)
+
+    // A single file is a tree of one.
+    lone := "tmp/_test_remove_tree_file.txt"
+    File.writefile(lone, "x")
+    File.remove_tree(lone)
+    assert(File.exists(lone).not())
+}
+
+// The self-rebuild primitive: a new file is built beside the old one
+// and then takes its place in a single step.
+test_file_rename := test() {
+    old_path := "tmp/_test_rename_old.txt"
+    new_path := "tmp/_test_rename_new.txt"
+    File.remove(old_path)
+    File.remove(new_path)
+
+    File.writefile(new_path, "replacement")
+    File.writefile(old_path, "original")
+    File.rename(new_path, old_path)
+
+    assert(File.exists(new_path).not())
+    assert_eq(Str, File.readfile(old_path), "replacement")
+
+    File.remove(old_path)
 }

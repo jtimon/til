@@ -846,6 +846,7 @@ main := proc(args: ..Str) {
     add_both(tests, "test/regression.til", flags)
     add_both(tests, "test/repl_editor.til", flags)
     add_both(tests, "test/files.til", flags)
+    add_both(tests, "test/process.til", flags)
     add_both(tests, "test/circular_imports.til", flags)
     add_both(tests, "test/import_diamond.til", flags)
     // macros.til contains a macro that prints during constfolder; the line

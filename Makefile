@@ -210,6 +210,25 @@ bin/til_boot: tmp $(RAYLIB_LIB) $(TINYFD_LIB) $(NNG_LIB) $(FFI_SOS) vendor/libff
 	done
 	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) $(NNG_FLAGS) -o bin/til_boot
 
+# --- The til build program (issue #345) ---
+#
+# make.til is the Nob-style build program: build policy as ordinary til
+# code instead of a second language embedded in this file. bin/make is a
+# generated artifact under the already-ignored bin/ tree -- never
+# committed, never installed, and rebuilt from make.til (by this rule,
+# and by bin/make itself) whenever the source is newer.
+#
+# This rule is the whole chicken-and-egg seam Make has to keep: it owns
+# producing bin/til_boot from the last commit and compiling the build
+# program with it. The prerequisites mirror make.til's own self_sources()
+# so both entry points agree on when bin/make is stale.
+#
+# Deliberately NOT a prerequisite of `all` yet: the migration in issue
+# #345 keeps the recipes below available beside their make.til
+# replacements until every target has been moved and compared.
+bin/make: make.til $(CORE) $(STD) $(wildcard src/c/*.c) $(wildcard src/c/*.h) bin/til_boot
+	bin/til_boot build -o bin/make make.til
+
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
 bin/til: bin/til_boot $(CORE) $(STD) $(SELF) $(LIB_TIL) src/til.til

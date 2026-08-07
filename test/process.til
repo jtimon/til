@@ -1,0 +1,156 @@
+mode test
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// Argv-based process execution (issue #345). The property under test in
+// almost every case below is the same one: an argument means exactly the
+// bytes it holds, because nothing between til and execvp re-parses it.
+// The old spawn_cmd/run_cmd path could not state that -- it built a
+// shell command line out of string concatenation.
+
+test_cmd_runs_and_captures_stdout := test() {
+    c := Cmd.new("echo", "hello")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "hello\n")
+}
+
+// No shell means no expansion: $HOME stays four characters plus a name,
+// and * stays one character. Under system_cmd both would have been
+// rewritten by /bin/sh before the program ever saw them.
+test_cmd_does_not_go_through_a_shell := test() {
+    c := Cmd.new("echo", "$HOME", "*", "`date`")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "$HOME * `date`\n")
+}
+
+// Spaces, both quote characters, and an empty argument -- the four
+// shapes that a quoted-string command line gets wrong. echo joins its
+// arguments with one space each, so the empty one shows up as the
+// double space in the middle.
+test_cmd_passes_awkward_arguments_verbatim := test() {
+    c := Cmd.new("echo", "a b", "c'd", "e\"f", "", "z")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "a b c'd e\"f  z\n")
+}
+
+// A shell is still reachable -- by asking for one explicitly.
+test_cmd_shell_when_asked_for := test() {
+    c := Cmd.new("sh", "-c", "echo one two | tr ' ' '-'")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "one-two\n")
+}
+
+test_cmd_reports_exit_code := test() {
+    c := Cmd.new("sh", "-c", "exit 3")
+    assert_eq(I64, c.run(), 3)
+}
+
+// A signal is not an exit code: the status comes back negated so a
+// killed child cannot be mistaken for one that exited with 128+n.
+test_cmd_reports_signal_death := test() {
+    c := Cmd.new("sh", "-c", "kill -9 $$")
+    assert_eq(I64, c.run(), -9)
+}
+
+test_cmd_keeps_stdout_and_stderr_apart := test() {
+    c := Cmd.new("sh", "-c", "echo to-out; echo to-err 1>&2")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "to-out\n")
+    assert_eq(Str, c.err(), "to-err\n")
+}
+
+// 2>&1 without a shell: stderr lands wherever stdout goes.
+test_cmd_merges_stderr_into_stdout := test() {
+    c := Cmd.new("sh", "-c", "echo to-out; echo to-err 1>&2")
+    c.capture_out()
+    c.stderr_to_stdout()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "to-out\nto-err\n")
+}
+
+test_cmd_redirects_to_files := test() {
+    out_path := "tmp/_test_cmd_out.txt"
+    err_path := "tmp/_test_cmd_err.txt"
+    c := Cmd.new("sh", "-c", "echo file-out; echo file-err 1>&2")
+    c.stdout_to(out_path)
+    c.stderr_to(err_path)
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, File.readfile(out_path), "file-out\n")
+    assert_eq(Str, File.readfile(err_path), "file-err\n")
+}
+
+// Only the child moves: this process's working directory is untouched,
+// which is what lets one build program drive several source trees.
+test_cmd_runs_in_another_directory := test() {
+    dir := "tmp/_test_cmd_cwd"
+    mkdir_p(dir)
+
+    c := Cmd.new("pwd")
+    c.cwd(dir)
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert(c.out().ends_with(format("/", dir, "\n")))
+
+    // ... and this process stayed where it was: the same command
+    // without a cwd answers from the directory the suite runs in.
+    here := Cmd.new("pwd")
+    here.capture()
+    assert_eq(I64, here.run(), 0)
+    assert(here.out().ends_with(format("/", dir, "\n")).not())
+}
+
+// An override replaces one variable and leaves the rest of the
+// environment alone -- the child still has the PATH that found `sh`.
+test_cmd_overrides_one_environment_variable := test() {
+    c := Cmd.new("sh", "-c", "echo \"[$TIL_TEST_VAR]\"; test -n \"$PATH\" && echo path-kept")
+    c.env("TIL_TEST_VAR", "set by the test")
+    c.capture()
+    assert_eq(I64, c.run(), 0)
+    assert_eq(Str, c.out(), "[set by the test]\npath-kept\n")
+
+    // The override belongs to that child only.
+    plain := Cmd.new("sh", "-c", "echo \"[$TIL_TEST_VAR]\"")
+    plain.capture()
+    assert_eq(I64, plain.run(), 0)
+    assert_eq(Str, plain.out(), "[]\n")
+}
+
+// Two captures in flight at once. Each command spools into its own
+// file, so neither sees the other's bytes -- the single shared
+// tmp/_run_cmd_out path could not be used twice at the same time.
+test_cmd_concurrent_captures_stay_separate := test() {
+    first := Cmd.new("sh", "-c", "echo first-output")
+    second := Cmd.new("sh", "-c", "echo second-output")
+    first.capture()
+    second.capture()
+    first.start()
+    second.start()
+    assert_eq(I64, first.wait(), 0)
+    assert_eq(I64, second.wait(), 0)
+    assert_eq(Str, first.out(), "first-output\n")
+    assert_eq(Str, second.out(), "second-output\n")
+}
+
+// poll answers "finished?", never a status, so a child killed by
+// SIGHUP cannot look like "still running".
+test_cmd_poll_then_status := test() {
+    c := Cmd.new("sh", "-c", "exit 7")
+    c.start()
+    while c.poll().not() {
+        sleep_ms(5)
+    }
+    assert_eq(I64, c.status(), 7)
+}
+
+// render() is for logs only. Arguments that would need quoting to be
+// retyped get it; the rest stay bare.
+test_cmd_render_is_readable := test() {
+    c := Cmd.new("cc", "-o", "a b", "main.c")
+    assert_eq(Str, c.render(), "cc -o 'a b' main.c")
+}

@@ -37,6 +37,19 @@ cfile_read_n := ext_proc(handle: Dynamic, shallow count: I64) returns Str {}
 // directories, unlike C's remove(3).
 cfile_remove := ext_proc(path: Str) {}
 
+// Directory reading and the whole-tree operations a build program needs
+// (issue #345). cdir_* is a handle iterator like cfile_*: cdir_next
+// answers "" once the directory is exhausted and never reports "." or
+// "..". The rest are one-shot: what a path IS, removing a tree, and
+// replacing one path with another.
+cdir_open := ext_proc(path: Str) returns ref Dynamic {}
+cdir_next := ext_proc(handle: Dynamic) returns Str {}
+cdir_close := ext_func(handle: Dynamic) {}
+cpath_is_dir := ext_proc(path: Str) returns shallow Bool {}
+cpath_is_file := ext_proc(path: Str) returns shallow Bool {}
+cremove_tree := ext_proc(path: Str) returns shallow I32 {}
+crename_path := ext_proc(src: Str, dst: Str) returns shallow I32 {}
+
 /// File handle for reading or writing on disk.
 File := struct {
     // No default: a File without a live handle is not a state (#321);
@@ -81,6 +94,40 @@ namespace:
     /// or a file the process has no permission to read, still exists.
     exists := proc(path: Str) returns Bool {
         return cfile_exists(path)
+    }
+
+    /// True when `path` names a directory. False for a regular file, and
+    /// false for a path that does not exist -- "is a directory" is one
+    /// question, "exists" is another, and `File.exists` answers that one.
+    is_dir := proc(path: Str) returns Bool {
+        return cpath_is_dir(path)
+    }
+
+    /// True when `path` names a regular file -- not a directory, and not
+    /// a device, fifo or socket either.
+    is_file := proc(path: Str) returns Bool {
+        return cpath_is_file(path)
+    }
+
+    /// Remove `path` and everything under it, like `rm -rf`: a file, or a
+    /// directory with its whole subtree. A path that does not exist is
+    /// already removed and reports success; a symlink is unlinked, never
+    /// followed. Any other failure is fatal.
+    remove_tree := proc(path: Str) {
+        if cremove_tree(path) != 0 {
+            panic("File.remove_tree: could not remove '", path, "'")
+        }
+    }
+
+    /// Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
+    /// replacement is atomic, which is what makes it safe to build a new
+    /// executable beside the running one and swap it in. Fatal on
+    /// failure -- notably when the two paths are on different file
+    /// systems, where a rename cannot happen and a copy is the answer.
+    rename := proc(src: Str, dst: Str) {
+        if crename_path(src, dst) != 0 {
+            panic("File.rename: could not move '", src, "' to '", dst, "'")
+        }
     }
 
     /// Open a file at `path` for reading or writing.
@@ -184,5 +231,55 @@ namespace:
 
     fwrite := proc(self: File, parts: ..Str) returns ref File {
         return self.write(format(..parts))
+    }
+}
+
+/// A directory being read, entry by entry.
+Dir := struct {
+    // Same shape as File: the handle is a live C-side iterator (a DIR*
+    // on POSIX, a find handle on Windows), so a Dir without one is not
+    // a state -- cdir_open exits when the directory cannot be read.
+    ref handle : U8
+
+namespace:
+    /// Start reading the directory at `path`. Exits with an error if it
+    /// cannot be opened.
+    open := proc(path: Str) returns Dir {
+        ref h : Dynamic = cdir_open(path)
+        return Dir(handle = h)
+    }
+
+    /// The next entry's name (not its path), "" once every entry has
+    /// been reported. "." and ".." are never returned. The order is
+    /// whatever the file system gives -- sort if you need a stable one.
+    next := proc(self: Dir) returns Str {
+        return cdir_next(self.handle)
+    }
+
+    /// Every entry in the directory at `path`, in file-system order.
+    /// The whole listing at once, for callers that want to sort or
+    /// filter it rather than stream it.
+    list := proc(path: Str) returns Vec(Str) {
+        mut names := Vec(Str).new()
+        d := Dir.open(path)
+        while true {
+            name := d.next()
+            if name.is_empty() { break }
+            names.push(own name)
+        }
+        return names
+    }
+
+    /// Close the underlying handle. Private: invoked only from `delete`,
+    /// which the garbager inserts after a Dir local's last use.
+    priv close := func(self: Dir) {
+        cdir_close(self.handle)
+    }
+
+    /// Release the Dir: close the handle, then free the struct shell
+    /// unless the caller still owns it.
+    delete := func(own self: Dir, call_free: Bool = true) {
+        Dir.close(self)
+        if call_free { free(own self) }
     }
 }

@@ -62,6 +62,210 @@ wait_cmd := proc(pid: I64) returns I64 {
     }
 }
 
+// Argv-based process execution (issue #345). The raw handle API behind
+// the Cmd struct below; see the header comment in src/c/ext.c for why a
+// command is accumulated on the C side instead of passed as a Vec.
+ccmd_new := ext_proc() returns ref Dynamic {}
+ccmd_arg := ext_proc(handle: Dynamic, arg: Str) {}
+ccmd_cwd := ext_proc(handle: Dynamic, dir: Str) {}
+ccmd_env := ext_proc(handle: Dynamic, name: Str, value: Str) {}
+ccmd_stdout_file := ext_proc(handle: Dynamic, path: Str) {}
+ccmd_stderr_file := ext_proc(handle: Dynamic, path: Str) {}
+ccmd_stderr_to_stdout := ext_proc(handle: Dynamic) {}
+ccmd_capture := ext_proc(handle: Dynamic, shallow out: Bool, shallow err: Bool) {}
+ccmd_render := ext_proc(handle: Dynamic) returns Str {}
+ccmd_start := ext_proc(handle: Dynamic) returns shallow I64 {}
+ccmd_wait := ext_proc(handle: Dynamic) returns shallow I64 {}
+ccmd_poll := ext_proc(handle: Dynamic) returns shallow Bool {}
+ccmd_status := ext_proc(handle: Dynamic) returns shallow I64 {}
+ccmd_out := ext_proc(handle: Dynamic) returns Str {}
+ccmd_err := ext_proc(handle: Dynamic) returns Str {}
+ccmd_free := ext_func(handle: Dynamic) {}
+
+/// A command to run, built from argv elements -- never from shell text.
+///
+/// `system_cmd` / `spawn_cmd` / `run_cmd` above hand a STRING to
+/// /bin/sh or cmd.exe, which re-splits it on whitespace, expands $VAR
+/// and globs it; every caller then has to quote its arguments back out
+/// of that, differently per host. A Cmd passes its elements straight to
+/// execvp / CreateProcess, so an argument means exactly the bytes it
+/// holds -- spaces, quotes, dollars and all. A shell is still reachable
+/// by asking for one: `Cmd.new("sh", "-c", script)`.
+///
+/// Output is inherited by default (the child writes to this process's
+/// stdout/stderr as it goes). `capture()` collects it instead, and
+/// `stdout_to`/`stderr_to` send it to files:
+///
+///     c := Cmd.new("echo", "a b")
+///     c.capture()
+///     if c.run() != 0 { panic("echo failed") }
+///     print(c.out())
+Cmd := struct {
+    // Same shape as File: the handle is a live C-side command, and
+    // ccmd_new exits rather than answering without one.
+    ref handle : U8
+
+namespace:
+    /// A command from its program name and arguments. The program is
+    /// looked up in PATH unless the name contains a separator.
+    new := proc(args: ..Str) returns Cmd {
+        ref h : Dynamic = ccmd_new()
+        mut i : USize = 0
+        while i < args.len() {
+            ref a : Str = args[i]
+            ccmd_arg(h, a)
+            i++
+        }
+        return Cmd(handle = h)
+    }
+
+    /// Append one argument. Returns `self` so calls chain via UFCS.
+    arg := proc(self: Cmd, a: Str) returns ref Cmd {
+        ccmd_arg(self.handle, a)
+        return self
+    }
+
+    /// Append several arguments at once.
+    args := proc(self: Cmd, more: ..Str) returns ref Cmd {
+        mut i : USize = 0
+        while i < more.len() {
+            ref a : Str = more[i]
+            ccmd_arg(self.handle, a)
+            i++
+        }
+        return self
+    }
+
+    /// Run the command in `dir` instead of this process's working
+    /// directory. Only the child moves; this process stays put.
+    cwd := proc(self: Cmd, dir: Str) returns ref Cmd {
+        ccmd_cwd(self.handle, dir)
+        return self
+    }
+
+    /// Set an environment variable for the child only. The rest of the
+    /// environment is inherited; this process's own is never touched.
+    env := proc(self: Cmd, name: Str, value: Str) returns ref Cmd {
+        ccmd_env(self.handle, name, value)
+        return self
+    }
+
+    /// Send the child's stdout to `path`, truncating it first.
+    stdout_to := proc(self: Cmd, path: Str) returns ref Cmd {
+        ccmd_stdout_file(self.handle, path)
+        return self
+    }
+
+    /// Send the child's stderr to `path`, truncating it first.
+    stderr_to := proc(self: Cmd, path: Str) returns ref Cmd {
+        ccmd_stderr_file(self.handle, path)
+        return self
+    }
+
+    /// Merge the child's stderr into wherever its stdout goes -- the
+    /// `2>&1` of build logs, without a shell.
+    stderr_to_stdout := proc(self: Cmd) returns ref Cmd {
+        ccmd_stderr_to_stdout(self.handle)
+        return self
+    }
+
+    /// Collect the child's output instead of letting it through, for
+    /// reading with `out()` and `err()` once it has finished. The two
+    /// streams stay separate; each command captures into its own spool
+    /// file, so concurrent captures never mix.
+    capture := proc(self: Cmd) returns ref Cmd {
+        ccmd_capture(self.handle, true, true)
+        return self
+    }
+
+    /// Collect stdout only, leaving stderr on this process's stderr so
+    /// a compiler's diagnostics still reach the terminal live.
+    capture_out := proc(self: Cmd) returns ref Cmd {
+        ccmd_capture(self.handle, true, false)
+        return self
+    }
+
+    /// The command as a human would type it, for logs and error
+    /// messages. NOTHING executes this string -- it is a rendering, not
+    /// the command.
+    render := proc(self: Cmd) returns Str {
+        return ccmd_render(self.handle)
+    }
+
+    /// Start the child without waiting, returning its pid (POSIX) or
+    /// process handle (Windows). Pair with `wait` or `poll`.
+    start := proc(self: Cmd) returns I64 {
+        return ccmd_start(self.handle)
+    }
+
+    /// Block until the child finishes and return its status: the exit
+    /// code, or MINUS the signal number when a signal killed it (so a
+    /// compiler the OOM killer took reads as -9, not as an ordinary
+    /// exit 137).
+    wait := proc(self: Cmd) returns I64 {
+        return ccmd_wait(self.handle)
+    }
+
+    /// True once the child has finished, false while it is still
+    /// running. Deliberately not a status: every I64 is a legal status.
+    poll := proc(self: Cmd) returns Bool {
+        return ccmd_poll(self.handle)
+    }
+
+    /// The status of a child that has already finished. Use after
+    /// `poll` reports true; `wait` returns the same value directly.
+    status := proc(self: Cmd) returns I64 {
+        return ccmd_status(self.handle)
+    }
+
+    /// Start the command and block until it finishes, returning its
+    /// status. The lower-level runner: a non-zero status is a value
+    /// here, not a failure. Use `run_checked` when it is one.
+    run := proc(self: Cmd) returns I64 {
+        ccmd_start(self.handle)
+        return ccmd_wait(self.handle)
+    }
+
+    /// Run the command, printing it first, and stop the program if it
+    /// fails. The build-script runner: what ran is visible in the log
+    /// and a failure is reported at the command that caused it, with
+    /// its exact status, instead of surfacing later as a missing file.
+    run_checked := proc(self: Cmd) {
+        println(self.render())
+        status := self.run()
+        if status != 0 {
+            mut why := format("exited with ", status.to_str())
+            if status < 0 {
+                why = format("was killed by signal ", (0 - status).to_str())
+            }
+            panic("command failed (", why, "): ", self.render())
+        }
+    }
+
+    /// The child's captured stdout. Requires `capture()` (or
+    /// `capture_out()`) before the run, and a finished child.
+    out := proc(self: Cmd) returns Str {
+        return ccmd_out(self.handle)
+    }
+
+    /// The child's captured stderr. Requires `capture()` before the
+    /// run, and a finished child.
+    err := proc(self: Cmd) returns Str {
+        return ccmd_err(self.handle)
+    }
+
+    /// Release the command. A child still running is waited for first:
+    /// dropping it would leave a process nobody reaps.
+    priv close := func(self: Cmd) {
+        ccmd_free(self.handle)
+    }
+
+    delete := func(own self: Cmd, call_free: Bool = true) {
+        Cmd.close(self)
+        if call_free { free(own self) }
+    }
+}
+
 run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     mut cmd := ""
     mut i : USize = 0

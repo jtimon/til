@@ -14,6 +14,13 @@
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+// The process environment (ccmd_env's child block). macOS does not
+// export `environ` itself; _NSGetEnviron() is its documented address.
+#include <crt_externs.h>
+#define TIL_ENVIRON (*_NSGetEnviron())
+#elif !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+extern char **environ;
+#define TIL_ENVIRON environ
 #endif
 
 #ifdef _WIN32
@@ -2502,6 +2509,898 @@ I32 copy_tree(const Str *src, const Str *dst) {
     free(s);
     free(d);
     return (I32)rc;
+}
+
+// --- Directory reading, path types, tree removal, rename (issue #345) ---
+//
+// The pieces a build program needs that the cfile_* family does not
+// cover: what a path IS (file or directory), what a directory CONTAINS,
+// removing a tree, and replacing one path with another atomically. All
+// of them exist as shell one-liners already (`test -d`, `ls`, `rm -rf`,
+// `mv`), which is exactly why they belong here instead: reaching them
+// through a shell means quoting every path back out of a command string
+// on a host whose shell may not be sh at all.
+
+// A directory being read. Windows' FindFirstFileA hands back the first
+// entry with the handle, so the iterator has to carry one pending name;
+// POSIX readdir does not, and the flag simply stays 0 there.
+typedef struct TilDir {
+#ifdef _WIN32
+    HANDLE h;
+    WIN32_FIND_DATAA data;
+    int pending;
+    int done;
+#elif !defined(__EMSCRIPTEN__)
+    DIR *d;
+#else
+    int unused;
+#endif
+} TilDir;
+
+// static inline, not plain static: the wasm build compiles neither
+// directory walker, and an unused plain static function is -Werror there.
+static inline int path_is_dot_entry(const char *name) {
+    return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
+}
+
+void *cdir_open(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    TilDir *dir = calloc(1, sizeof(TilDir));
+    if (!dir) {
+        fprintf(stderr, "cdir_open: allocation failed\n");
+        exit(1);
+    }
+#ifdef _WIN32
+    normalize_windows_path(p);
+    char *pattern = path_join(p, "*");
+    if (!pattern) {
+        fprintf(stderr, "cdir_open: allocation failed\n");
+        exit(1);
+    }
+    normalize_windows_path(pattern);
+    dir->h = FindFirstFileA(pattern, &dir->data);
+    free(pattern);
+    if (dir->h == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "cdir_open: could not read directory '%s'\n", p);
+        free(p);
+        exit(1);
+    }
+    dir->pending = 1;
+#elif defined(__EMSCRIPTEN__)
+    fprintf(stderr, "cdir_open: directory reading is not available on wasm ('%s')\n", p);
+    exit(1);
+#else
+    dir->d = opendir(p);
+    if (!dir->d) {
+        fprintf(stderr, "cdir_open: could not read directory '%s': %s\n", p, strerror(errno));
+        free(p);
+        exit(1);
+    }
+#endif
+    free(p);
+    return (void *)dir;
+}
+
+// The next entry's name, "" once the directory is exhausted. "." and ".."
+// are skipped: no caller has ever wanted them, and every caller that
+// forgot to skip them walked its own parent.
+Str *cdir_next(const void *handle) {
+    if (!handle) {
+        fprintf(stderr, "cdir_next: directory not open\n");
+        exit(1);
+    }
+    TilDir *dir = (TilDir *)handle;
+#ifdef _WIN32
+    while (!dir->done) {
+        if (!dir->pending) {
+            if (!FindNextFileA(dir->h, &dir->data)) {
+                dir->done = 1;
+                break;
+            }
+        }
+        dir->pending = 0;
+        if (path_is_dot_entry(dir->data.cFileName)) continue;
+        return Str_clone(&(Str){.c_str = (I8 *)dir->data.cFileName,
+                                .count = (USize)strlen(dir->data.cFileName),
+                                .cap = CAP_VIEW});
+    }
+#elif !defined(__EMSCRIPTEN__)
+    struct dirent *ent = NULL;
+    while ((ent = readdir(dir->d)) != NULL) {
+        if (path_is_dot_entry(ent->d_name)) continue;
+        return Str_clone(&(Str){.c_str = (I8 *)ent->d_name,
+                                .count = (USize)strlen(ent->d_name),
+                                .cap = CAP_VIEW});
+    }
+#endif
+    return Str_clone(&(Str){.c_str = (I8 *)"", .count = 0, .cap = CAP_LIT});
+}
+
+void cdir_close(const void *handle) {
+    if (!handle) {
+        fprintf(stderr, "cdir_close: directory not open\n");
+        exit(1);
+    }
+    TilDir *dir = (TilDir *)handle;
+#ifdef _WIN32
+    FindClose(dir->h);
+#elif !defined(__EMSCRIPTEN__)
+    closedir(dir->d);
+#endif
+    free(dir);
+}
+
+Bool cpath_is_dir(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    struct stat st;
+    int rc = stat(p, &st);
+    free(p);
+    if (rc != 0) return false;
+    return (st.st_mode & S_IFMT) == S_IFDIR;
+}
+
+// A regular file: not a directory, and not a device/fifo/socket either.
+Bool cpath_is_file(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    struct stat st;
+    int rc = stat(p, &st);
+    free(p);
+    if (rc != 0) return false;
+    return (st.st_mode & S_IFMT) == S_IFREG;
+}
+
+static int remove_tree_cstr(const char *path) {
+    struct stat st;
+#ifdef _WIN32
+    // A directory symlink must be removed, not walked into. Windows
+    // reports one through the reparse-point attribute rather than stat.
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES) return 0;
+    if (attrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+        if (attrs & FILE_ATTRIBUTE_DIRECTORY) return RemoveDirectoryA(path) ? 0 : 1;
+        return DeleteFileA(path) ? 0 : 1;
+    }
+    if (!(attrs & FILE_ATTRIBUTE_DIRECTORY)) return DeleteFileA(path) ? 0 : 1;
+#else
+    // lstat, not stat: a symlink to a directory is unlinked, never
+    // followed. `rm -rf link-to-tree` removes the link; walking through
+    // it would delete somebody else's files.
+    if (lstat(path, &st) != 0) return 0;
+    if (!S_ISDIR(st.st_mode)) return unlink(path) == 0 ? 0 : 1;
+#endif
+    (void)st;
+
+    int rc = 0;
+#ifdef _WIN32
+    char *pattern = path_join(path, "*");
+    if (!pattern) return 1;
+    normalize_windows_path(pattern);
+    WIN32_FIND_DATAA data;
+    HANDLE h = FindFirstFileA(pattern, &data);
+    free(pattern);
+    if (h == INVALID_HANDLE_VALUE) return 1;
+    do {
+        if (path_is_dot_entry(data.cFileName)) continue;
+        char *child = path_join(path, data.cFileName);
+        if (!child) { rc = 1; break; }
+        rc = remove_tree_cstr(child);
+        free(child);
+        if (rc != 0) break;
+    } while (FindNextFileA(h, &data));
+    FindClose(h);
+    if (rc != 0) return rc;
+    return RemoveDirectoryA(path) ? 0 : 1;
+#elif defined(__EMSCRIPTEN__)
+    (void)rc;
+    return 1;
+#else
+    DIR *dir = opendir(path);
+    if (!dir) return 1;
+    struct dirent *ent = NULL;
+    while ((ent = readdir(dir)) != NULL) {
+        if (path_is_dot_entry(ent->d_name)) continue;
+        char *child = path_join(path, ent->d_name);
+        if (!child) { rc = 1; break; }
+        rc = remove_tree_cstr(child);
+        free(child);
+        if (rc != 0) break;
+    }
+    closedir(dir);
+    if (rc != 0) return rc;
+    return rmdir(path) == 0 ? 0 : 1;
+#endif
+}
+
+// `rm -rf`: remove a file, or a directory with everything under it. A
+// path that does not exist is already removed, so that is success --
+// every other failure (a permission denied halfway down, a non-empty
+// directory left behind) is reported.
+I32 cremove_tree(const Str *path) {
+    char *p = dup_n((const char *)path->c_str, path->count);
+    int rc = remove_tree_cstr(p);
+    if (rc != 0) fprintf(stderr, "remove_tree: failed for '%s': %s\n", p, strerror(errno));
+    free(p);
+    return (I32)rc;
+}
+
+// Move `src` onto `dst`, replacing whatever `dst` was. This is the
+// self-rebuild primitive: on POSIX rename(2) is atomic, so a build
+// program can compile its replacement beside itself and swap it in
+// without ever leaving a half-written executable in place. Windows
+// needs MOVEFILE_REPLACE_EXISTING to overwrite at all, and refuses
+// outright while the target is a RUNNING executable -- callers rename
+// the old binary out of the way first.
+I32 crename_path(const Str *src, const Str *dst) {
+    char *s = dup_n((const char *)src->c_str, src->count);
+    char *d = dup_n((const char *)dst->c_str, dst->count);
+#ifdef _WIN32
+    int rc = MoveFileExA(s, d, MOVEFILE_REPLACE_EXISTING) ? 0 : 1;
+#else
+    int rc = rename(s, d) == 0 ? 0 : 1;
+#endif
+    if (rc != 0) fprintf(stderr, "rename_path: failed from '%s' to '%s': %s\n", s, d, strerror(errno));
+    free(s);
+    free(d);
+    return (I32)rc;
+}
+
+// --- Argv-based process execution (issue #345) ---
+//
+// system_cmd/spawn_cmd above hand a STRING to /bin/sh (or cmd.exe /c):
+// the shell re-splits it on whitespace, expands $VAR, globs, and the
+// caller has to quote every argument back out of that -- differently
+// per host. A build program cannot live with it: one path containing a
+// space either breaks the command or, worse, quietly runs a different
+// one. This family passes an argv VECTOR straight to execvp /
+// CreateProcess, so an argument means exactly the bytes it holds. A
+// shell is still reachable when the caller actually wants one, by
+// asking for it: Cmd.new("sh", "-c", script).
+//
+// The command is accumulated on the C side (nob.h's Nob_Cmd) because a
+// til Vec is a per-instantiation generated type that ext.c, compiled
+// once for every program, cannot name.
+
+typedef struct TilCmd {
+    char **argv;            // NULL-terminated, argc entries used
+    size_t argc;
+    size_t argv_cap;
+    char **env_pairs;       // "NAME=VALUE" overrides, in insertion order
+    size_t envc;
+    size_t env_cap;
+    char *cwd;              // NULL: inherit the parent's
+    char *out_path;         // NULL: inherit the parent's stdout
+    char *err_path;
+    int out_capture;
+    int err_capture;
+    int err_to_out;
+    char *out_tmp;          // capture spool files, unlinked once read
+    char *err_tmp;
+    char *out_text;
+    size_t out_len;
+    char *err_text;
+    size_t err_len;
+    long long child;        // pid (POSIX) / HANDLE (Windows), -1 unstarted
+    long long status;       // exit code, or -signal; valid once reaped
+    int reaped;
+} TilCmd;
+
+static void cmd_oom(void) {
+    fprintf(stderr, "cmd: allocation failed\n");
+    exit(1);
+}
+
+static TilCmd *cmd_of(const void *handle, const char *who) {
+    if (!handle) {
+        fprintf(stderr, "%s: command already released\n", who);
+        exit(1);
+    }
+    return (TilCmd *)handle;
+}
+
+static char *cmd_cstr(const Str *s) {
+    char *p = dup_n((const char *)s->c_str, s->count);
+    if (!p) cmd_oom();
+    return p;
+}
+
+static void cmd_push(char ***vec, size_t *n, size_t *cap, char *s) {
+    if (*n + 2 > *cap) {
+        size_t next = *cap ? *cap * 2 : 8;
+        char **grown = realloc(*vec, next * sizeof(char *));
+        if (!grown) cmd_oom();
+        *vec = grown;
+        *cap = next;
+    }
+    (*vec)[(*n)++] = s;
+    (*vec)[*n] = NULL;
+}
+
+// Growable byte buffer for the rendered command and, on Windows, for the
+// command line and environment block handed to CreateProcess.
+typedef struct CmdBuf {
+    char *data;
+    size_t len;
+    size_t cap;
+} CmdBuf;
+
+static void cmd_buf_put(CmdBuf *b, const char *s, size_t n) {
+    if (b->len + n + 1 > b->cap) {
+        size_t next = b->cap ? b->cap : 128;
+        while (next < b->len + n + 1) next *= 2;
+        char *grown = realloc(b->data, next);
+        if (!grown) cmd_oom();
+        b->data = grown;
+        b->cap = next;
+    }
+    memcpy(b->data + b->len, s, n);
+    b->len += n;
+    b->data[b->len] = '\0';
+}
+
+static void cmd_buf_puts(CmdBuf *b, const char *s) {
+    cmd_buf_put(b, s, strlen(s));
+}
+
+static char *read_file_bytes(const char *path, size_t *len_out) {
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "cmd: could not read captured output '%s': %s\n", path, strerror(errno));
+        exit(1);
+    }
+    size_t cap = 65536, len = 0;
+    char *buf = malloc(cap);
+    if (!buf) cmd_oom();
+    for (;;) {
+        if (len + 1 == cap) {
+            cap *= 2;
+            char *grown = realloc(buf, cap);
+            if (!grown) cmd_oom();
+            buf = grown;
+        }
+        size_t got = fread(buf + len, 1, cap - len - 1, f);
+        len += got;
+        if (got == 0) break;
+    }
+    if (ferror(f)) {
+        fprintf(stderr, "cmd: read error on captured output '%s'\n", path);
+        exit(1);
+    }
+    fclose(f);
+    buf[len] = '\0';
+    *len_out = len;
+    return buf;
+}
+
+void *ccmd_new(void) {
+    TilCmd *c = calloc(1, sizeof(TilCmd));
+    if (!c) cmd_oom();
+    c->child = -1;
+    c->status = -1;
+    return (void *)c;
+}
+
+void ccmd_arg(const void *handle, const Str *arg) {
+    TilCmd *c = cmd_of(handle, "ccmd_arg");
+    cmd_push(&c->argv, &c->argc, &c->argv_cap, cmd_cstr(arg));
+}
+
+void ccmd_cwd(const void *handle, const Str *dir) {
+    TilCmd *c = cmd_of(handle, "ccmd_cwd");
+    free(c->cwd);
+    c->cwd = cmd_cstr(dir);
+}
+
+void ccmd_env(const void *handle, const Str *name, const Str *value) {
+    TilCmd *c = cmd_of(handle, "ccmd_env");
+    char *pair = malloc(name->count + value->count + 2);
+    if (!pair) cmd_oom();
+    memcpy(pair, name->c_str, name->count);
+    pair[name->count] = '=';
+    memcpy(pair + name->count + 1, value->c_str, value->count);
+    pair[name->count + 1 + value->count] = '\0';
+    cmd_push(&c->env_pairs, &c->envc, &c->env_cap, pair);
+}
+
+void ccmd_stdout_file(const void *handle, const Str *path) {
+    TilCmd *c = cmd_of(handle, "ccmd_stdout_file");
+    free(c->out_path);
+    c->out_path = cmd_cstr(path);
+    c->out_capture = 0;
+}
+
+void ccmd_stderr_file(const void *handle, const Str *path) {
+    TilCmd *c = cmd_of(handle, "ccmd_stderr_file");
+    free(c->err_path);
+    c->err_path = cmd_cstr(path);
+    c->err_capture = 0;
+    c->err_to_out = 0;
+}
+
+void ccmd_stderr_to_stdout(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_stderr_to_stdout");
+    c->err_to_out = 1;
+    c->err_capture = 0;
+    free(c->err_path);
+    c->err_path = NULL;
+}
+
+void ccmd_capture(const void *handle, Bool out, Bool err) {
+    TilCmd *c = cmd_of(handle, "ccmd_capture");
+    if (out) {
+        c->out_capture = 1;
+        free(c->out_path);
+        c->out_path = NULL;
+    }
+    if (err) {
+        c->err_capture = 1;
+        c->err_to_out = 0;
+        free(c->err_path);
+        c->err_path = NULL;
+    }
+}
+
+// The command as a human would type it. For LOGS ONLY -- nothing ever
+// executes this string, which is why it can afford to be readable
+// rather than round-trip exact.
+Str *ccmd_render(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_render");
+    CmdBuf b = {0};
+    for (size_t i = 0; i < c->argc; i++) {
+        if (i > 0) cmd_buf_puts(&b, " ");
+        const char *a = c->argv[i];
+        int quote = (*a == '\0');
+        for (const char *p = a; *p && !quote; p++) {
+            if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '"' || *p == '\'' ||
+                *p == '$' || *p == '\\' || *p == '*' || *p == '&' || *p == '|' ||
+                *p == ';' || *p == '<' || *p == '>' || *p == '(' || *p == ')') quote = 1;
+        }
+        if (!quote) {
+            cmd_buf_puts(&b, a);
+            continue;
+        }
+        cmd_buf_puts(&b, "'");
+        for (const char *p = a; *p; p++) {
+            if (*p == '\'') cmd_buf_puts(&b, "'\\''");
+            else cmd_buf_put(&b, p, 1);
+        }
+        cmd_buf_puts(&b, "'");
+    }
+    if (c->cwd) {
+        cmd_buf_puts(&b, "   [cwd ");
+        cmd_buf_puts(&b, c->cwd);
+        cmd_buf_puts(&b, "]");
+    }
+    Str *s = Str_clone(&(Str){.c_str = (I8 *)(b.data ? b.data : ""),
+                              .count = (USize)b.len,
+                              .cap = CAP_VIEW});
+    free(b.data);
+    return s;
+}
+
+static void cmd_slurp(TilCmd *c) {
+    if (c->out_tmp) {
+        c->out_text = read_file_bytes(c->out_tmp, &c->out_len);
+        remove(c->out_tmp);
+        free(c->out_tmp);
+        c->out_tmp = NULL;
+    }
+    if (c->err_tmp) {
+        c->err_text = read_file_bytes(c->err_tmp, &c->err_len);
+        remove(c->err_tmp);
+        free(c->err_tmp);
+        c->err_tmp = NULL;
+    }
+}
+
+#if defined(__EMSCRIPTEN__)
+
+static void cmd_start_impl(TilCmd *c) {
+    fprintf(stderr, "cmd: cannot run '%s': process execution is not available on wasm\n",
+            c->argc ? c->argv[0] : "");
+    exit(1);
+}
+
+static int cmd_reap_impl(TilCmd *c, int block) {
+    (void)c;
+    (void)block;
+    fprintf(stderr, "cmd: process execution is not available on wasm\n");
+    exit(1);
+    return 0;
+}
+
+#elif defined(_WIN32)
+
+// CommandLineToArgvW's rules, which every C runtime's startup code
+// follows in reverse: a backslash run is literal unless a quote follows
+// it, in which case the run is doubled and the quote escaped. An
+// argument needs quoting when it is empty or holds a space, tab or
+// quote. Getting this wrong is how a windows build silently passes
+// C:\path\ as C:\path".
+static char *win_quote_arg(const char *arg) {
+    int needs = (*arg == '\0');
+    for (const char *p = arg; *p && !needs; p++) {
+        if (*p == ' ' || *p == '\t' || *p == '"') needs = 1;
+    }
+    size_t len = strlen(arg);
+    char *out = malloc(len * 2 + 3);
+    if (!out) cmd_oom();
+    if (!needs) {
+        memcpy(out, arg, len + 1);
+        return out;
+    }
+    size_t n = 0;
+    size_t slashes = 0;
+    out[n++] = '"';
+    for (const char *p = arg;; p++) {
+        if (*p == '\\') {
+            slashes++;
+            continue;
+        }
+        if (*p == '\0') {
+            for (size_t i = 0; i < slashes * 2; i++) out[n++] = '\\';
+            break;
+        }
+        if (*p == '"') {
+            for (size_t i = 0; i < slashes * 2 + 1; i++) out[n++] = '\\';
+            slashes = 0;
+            out[n++] = '"';
+            continue;
+        }
+        for (size_t i = 0; i < slashes; i++) out[n++] = '\\';
+        slashes = 0;
+        out[n++] = *p;
+    }
+    out[n++] = '"';
+    out[n] = '\0';
+    return out;
+}
+
+static char *win_env_block(TilCmd *c) {
+    if (c->envc == 0) return NULL;
+    char *parent = GetEnvironmentStringsA();
+    if (!parent) {
+        fprintf(stderr, "cmd: GetEnvironmentStrings failed\n");
+        exit(1);
+    }
+    CmdBuf b = {0};
+    for (const char *e = parent; *e; e += strlen(e) + 1) {
+        const char *eq = strchr(e, '=');
+        if (!eq) continue;
+        size_t nlen = (size_t)(eq - e);
+        int shadowed = 0;
+        for (size_t j = 0; j < c->envc && !shadowed; j++) {
+            const char *oeq = strchr(c->env_pairs[j], '=');
+            size_t olen = (size_t)(oeq - c->env_pairs[j]);
+            // Windows environment names are case-insensitive, so an
+            // override of "path" must displace the inherited "Path".
+            if (olen == nlen && _strnicmp(e, c->env_pairs[j], nlen) == 0) shadowed = 1;
+        }
+        if (shadowed) continue;
+        cmd_buf_put(&b, e, strlen(e) + 1);
+    }
+    FreeEnvironmentStringsA(parent);
+    for (size_t j = 0; j < c->envc; j++) {
+        cmd_buf_put(&b, c->env_pairs[j], strlen(c->env_pairs[j]) + 1);
+    }
+    cmd_buf_put(&b, "", 1);
+    return b.data;
+}
+
+static HANDLE win_out_handle(const char *path) {
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+    HANDLE h = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "cmd: cannot open '%s' for output\n", path);
+        exit(1);
+    }
+    return h;
+}
+
+static char *cmd_temp_path(void) {
+    char dir[MAX_PATH];
+    DWORD n = GetTempPathA((DWORD)sizeof(dir), dir);
+    if (n == 0 || n >= sizeof(dir)) {
+        fprintf(stderr, "cmd: GetTempPath failed\n");
+        exit(1);
+    }
+    char path[MAX_PATH];
+    if (GetTempFileNameA(dir, "til", 0, path) == 0) {
+        fprintf(stderr, "cmd: GetTempFileName failed\n");
+        exit(1);
+    }
+    return dup_n(path, strlen(path));
+}
+
+static void cmd_start_impl(TilCmd *c) {
+    CmdBuf line = {0};
+    for (size_t i = 0; i < c->argc; i++) {
+        if (i > 0) cmd_buf_puts(&line, " ");
+        char *q = win_quote_arg(c->argv[i]);
+        cmd_buf_puts(&line, q);
+        free(q);
+    }
+
+    HANDLE out = INVALID_HANDLE_VALUE;
+    HANDLE err = INVALID_HANDLE_VALUE;
+    if (c->out_capture) {
+        c->out_tmp = cmd_temp_path();
+        out = win_out_handle(c->out_tmp);
+    } else if (c->out_path) {
+        out = win_out_handle(c->out_path);
+    }
+    if (c->err_capture) {
+        c->err_tmp = cmd_temp_path();
+        err = win_out_handle(c->err_tmp);
+    } else if (c->err_path) {
+        err = win_out_handle(c->err_path);
+    }
+
+    STARTUPINFOA si = {0};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = out != INVALID_HANDLE_VALUE ? out : GetStdHandle(STD_OUTPUT_HANDLE);
+    if (c->err_to_out) si.hStdError = si.hStdOutput;
+    else si.hStdError = err != INVALID_HANDLE_VALUE ? err : GetStdHandle(STD_ERROR_HANDLE);
+
+    char *envb = win_env_block(c);
+    PROCESS_INFORMATION pi = {0};
+    BOOL ok = CreateProcessA(NULL, line.data, NULL, NULL, TRUE, 0, envb, c->cwd, &si, &pi);
+    free(envb);
+    if (out != INVALID_HANDLE_VALUE) CloseHandle(out);
+    if (err != INVALID_HANDLE_VALUE) CloseHandle(err);
+    if (!ok) {
+        fprintf(stderr, "cmd: cannot execute '%s' (CreateProcess failed, error %lu)\n",
+                c->argv[0], (unsigned long)GetLastError());
+        free(line.data);
+        exit(1);
+    }
+    free(line.data);
+    CloseHandle(pi.hThread);
+    c->child = (long long)(intptr_t)pi.hProcess;
+}
+
+static int cmd_reap_impl(TilCmd *c, int block) {
+    HANDLE h = (HANDLE)(intptr_t)c->child;
+    DWORD waited = WaitForSingleObject(h, block ? INFINITE : 0);
+    if (waited == WAIT_TIMEOUT) return 0;
+    DWORD code = 0;
+    GetExitCodeProcess(h, &code);
+    CloseHandle(h);
+    c->status = (long long)code;
+    return 1;
+}
+
+#else
+
+static char *cmd_temp_file(int *fd_out) {
+    const char *dir = getenv("TMPDIR");
+    if (!dir || !*dir) dir = "/tmp";
+    char tmpl[PATH_MAX];
+    int written = snprintf(tmpl, sizeof(tmpl), "%s/til_cmd_XXXXXX", dir);
+    if (written < 0 || (size_t)written >= sizeof(tmpl)) {
+        fprintf(stderr, "cmd: temporary directory path too long: '%s'\n", dir);
+        exit(1);
+    }
+    int fd = mkstemp(tmpl);
+    if (fd < 0) {
+        fprintf(stderr, "cmd: could not create a capture file in '%s': %s\n", dir, strerror(errno));
+        exit(1);
+    }
+    *fd_out = fd;
+    return dup_n(tmpl, strlen(tmpl));
+}
+
+static int cmd_out_fd(const char *path) {
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        fprintf(stderr, "cmd: cannot open '%s' for output: %s\n", path, strerror(errno));
+        exit(1);
+    }
+    return fd;
+}
+
+// The child's environment, assembled HERE rather than after the fork:
+// setenv in the child would malloc, and malloc between fork and exec is
+// only safe while nothing else in the process holds the allocator lock.
+// NULL means "inherit unchanged", which is the common case.
+static char **cmd_child_env(TilCmd *c) {
+    if (c->envc == 0) return NULL;
+    char **parent = TIL_ENVIRON;
+    size_t base = 0;
+    while (parent[base]) base++;
+    char **out = malloc((base + c->envc + 1) * sizeof(char *));
+    if (!out) cmd_oom();
+    size_t n = 0;
+    for (size_t i = 0; i < base; i++) {
+        int shadowed = 0;
+        for (size_t j = 0; j < c->envc && !shadowed; j++) {
+            const char *eq = strchr(c->env_pairs[j], '=');
+            size_t nlen = (size_t)(eq - c->env_pairs[j]);
+            if (strncmp(parent[i], c->env_pairs[j], nlen) == 0 && parent[i][nlen] == '=') shadowed = 1;
+        }
+        if (!shadowed) out[n++] = parent[i];
+    }
+    for (size_t j = 0; j < c->envc; j++) out[n++] = c->env_pairs[j];
+    out[n] = NULL;
+    return out;
+}
+
+static void cmd_start_impl(TilCmd *c) {
+    int out_fd = -1;
+    int err_fd = -1;
+    if (c->out_capture) c->out_tmp = cmd_temp_file(&out_fd);
+    else if (c->out_path) out_fd = cmd_out_fd(c->out_path);
+    if (c->err_capture) c->err_tmp = cmd_temp_file(&err_fd);
+    else if (c->err_path && !c->err_to_out) err_fd = cmd_out_fd(c->err_path);
+
+    char **child_env = cmd_child_env(c);
+    // Anything still sitting in this process's stdio buffers would be
+    // duplicated by fork and written twice, once per process.
+    fflush(NULL);
+    pid_t pid = fork();
+    if (pid == 0) {
+        if (c->cwd && chdir(c->cwd) != 0) {
+            fprintf(stderr, "cmd: cannot enter '%s': %s\n", c->cwd, strerror(errno));
+            _exit(127);
+        }
+        if (out_fd >= 0 && dup2(out_fd, STDOUT_FILENO) < 0) _exit(127);
+        if (c->err_to_out) {
+            if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0) _exit(127);
+        } else if (err_fd >= 0 && dup2(err_fd, STDERR_FILENO) < 0) {
+            _exit(127);
+        }
+        if (out_fd > STDERR_FILENO) close(out_fd);
+        if (err_fd > STDERR_FILENO) close(err_fd);
+        if (child_env) TIL_ENVIRON = child_env;
+        execvp(c->argv[0], c->argv);
+        fprintf(stderr, "cmd: cannot execute '%s': %s\n", c->argv[0], strerror(errno));
+        _exit(127);
+    }
+    free(child_env);
+    if (out_fd >= 0) close(out_fd);
+    if (err_fd >= 0) close(err_fd);
+    if (pid < 0) {
+        fprintf(stderr, "cmd: fork failed: %s\n", strerror(errno));
+        exit(1);
+    }
+    c->child = (long long)pid;
+}
+
+// Exit code as it is, or -signal when the child was killed by one: a
+// build that stops because the compiler was OOM-killed must not read as
+// "exited with 137" and be mistaken for an ordinary compiler error.
+static int cmd_reap_impl(TilCmd *c, int block) {
+    int st = 0;
+    pid_t r;
+    do {
+        r = waitpid((pid_t)c->child, &st, block ? 0 : WNOHANG);
+    } while (r < 0 && errno == EINTR);
+    if (r == 0) return 0;
+    if (r < 0) {
+        fprintf(stderr, "cmd: waitpid failed for '%s': %s\n", c->argv[0], strerror(errno));
+        exit(1);
+    }
+    if (WIFEXITED(st)) c->status = (long long)WEXITSTATUS(st);
+    else if (WIFSIGNALED(st)) c->status = -(long long)WTERMSIG(st);
+    else c->status = 127;
+    return 1;
+}
+
+#endif
+
+// Start the command without waiting for it. Returns the child's pid
+// (POSIX) or process handle (Windows) so a caller can report it; the
+// Cmd itself remembers the child, so wait/poll take no pid.
+I64 ccmd_start(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_start");
+    if (c->argc == 0) {
+        fprintf(stderr, "ccmd_start: no program to run -- the command has no arguments\n");
+        exit(1);
+    }
+    if (c->child >= 0) {
+        fprintf(stderr, "ccmd_start: '%s' is already running\n", c->argv[0]);
+        exit(1);
+    }
+    cmd_start_impl(c);
+    return (I64)c->child;
+}
+
+I64 ccmd_wait(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_wait");
+    if (c->reaped) return (I64)c->status;
+    if (c->child < 0) {
+        fprintf(stderr, "ccmd_wait: command was never started\n");
+        exit(1);
+    }
+    cmd_reap_impl(c, 1);
+    c->reaped = 1;
+    cmd_slurp(c);
+    return (I64)c->status;
+}
+
+// True once the child has finished (and its captures have been read).
+// False means still running -- deliberately NOT a status sentinel, since
+// every I64 is a legal status once signals report as negatives.
+Bool ccmd_poll(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_poll");
+    if (c->reaped) return true;
+    if (c->child < 0) {
+        fprintf(stderr, "ccmd_poll: command was never started\n");
+        exit(1);
+    }
+    if (!cmd_reap_impl(c, 0)) return false;
+    c->reaped = 1;
+    cmd_slurp(c);
+    return true;
+}
+
+I64 ccmd_status(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_status");
+    if (!c->reaped) {
+        fprintf(stderr, "ccmd_status: '%s' has not finished yet\n", c->argc ? c->argv[0] : "");
+        exit(1);
+    }
+    return (I64)c->status;
+}
+
+Str *ccmd_out(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_out");
+    if (!c->out_capture) {
+        fprintf(stderr, "ccmd_out: stdout of '%s' was not captured\n", c->argc ? c->argv[0] : "");
+        exit(1);
+    }
+    if (!c->reaped) {
+        fprintf(stderr, "ccmd_out: '%s' has not finished yet\n", c->argv[0]);
+        exit(1);
+    }
+    return Str_clone(&(Str){.c_str = (I8 *)c->out_text, .count = (USize)c->out_len, .cap = CAP_VIEW});
+}
+
+Str *ccmd_err(const void *handle) {
+    TilCmd *c = cmd_of(handle, "ccmd_err");
+    if (!c->err_capture) {
+        fprintf(stderr, "ccmd_err: stderr of '%s' was not captured\n", c->argc ? c->argv[0] : "");
+        exit(1);
+    }
+    if (!c->reaped) {
+        fprintf(stderr, "ccmd_err: '%s' has not finished yet\n", c->argv[0]);
+        exit(1);
+    }
+    return Str_clone(&(Str){.c_str = (I8 *)c->err_text, .count = (USize)c->err_len, .cap = CAP_VIEW});
+}
+
+// Releasing a Cmd whose child is still running JOINS it first: the
+// alternative is a zombie nobody can reap and a capture spool file
+// nobody deletes. Callers that care about the status ask for it before
+// dropping the command.
+void ccmd_free(const void *handle) {
+    if (!handle) {
+        fprintf(stderr, "ccmd_free: command already released\n");
+        exit(1);
+    }
+    TilCmd *c = (TilCmd *)handle;
+    if (c->child >= 0 && !c->reaped) {
+        cmd_reap_impl(c, 1);
+        c->reaped = 1;
+        cmd_slurp(c);
+    }
+    for (size_t i = 0; i < c->argc; i++) free(c->argv[i]);
+    free(c->argv);
+    for (size_t i = 0; i < c->envc; i++) free(c->env_pairs[i]);
+    free(c->env_pairs);
+    free(c->cwd);
+    free(c->out_path);
+    free(c->err_path);
+    free(c->out_tmp);
+    free(c->err_tmp);
+    free(c->out_text);
+    free(c->err_text);
+    free(c);
 }
 
 I64 clock_ms(void) {

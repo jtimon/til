@@ -1,6 +1,6 @@
 # priority: medium
 # category: cleanups
-** OPEN #345 Move build orchestration from Makefile into make.til
+** WIP #345 Move build orchestration from Makefile into make.til
 
 The 825-line Makefile is now a second implementation language inside the
 project. It owns bootstrap isolation, native dependency builds, compiler
@@ -302,13 +302,13 @@ falling through to a later compiler/linker failure.
 
 *** Implementation sequence
 
-1. [ ] Record a target contract table from the current Makefile: public
+1. [X] Record a target contract table from the current Makefile: public
    name, dependencies, inputs, outputs, tracked-file mutations, host/target
    restrictions, environment inputs, and CI call sites.
-2. [ ] Add and test argv-based process execution/capture plus only the
+2. [X] Add and test argv-based process execution/capture plus only the
    portable filesystem primitives required by the build. Follow
    ~doc/self.org~ for any bootstrap-visible C interface migration.
-3. [ ] Add ~make.til~ and ~bin/make~ without changing the default build.
+3. [X] Add ~make.til~ and ~bin/make~ without changing the default build.
    Implement command registration/help, host detection, checked commands,
    mtime checks, per-run step memoization, and Nob-style self-rebuild.
 4. [ ] Establish the minimal Makefile bootstrap seam. Prove which native
@@ -356,3 +356,235 @@ falling through to a later compiler/linker failure.
 - No committed generated artifact changes merely because orchestration moved
   from Make to til. Any intentional generation difference is reviewed as a
   separate behavior change, not hidden in this migration.
+
+*** Target contract table (step 1)
+
+Read off the 825-line Makefile as it stands. Every entry is one public
+name, in the order the migration takes them. "mutates" means TRACKED
+files the target rewrites; untracked outputs under ~bin/~, ~gen/~,
+~tmp/~ and ~vendor/~ are listed as outputs only. "env" lists the
+command-line / environment inputs that reach the recipe.
+
+**** Native dependencies
+
+- ~vendor/raylib/src/libraylib.a~ -- deps: none. inputs:
+  vendor/raylib/src/*.c, vendor/x11/include. outputs: the archive plus
+  raylib's own .o files in its source dir. mutates: nothing. host: any
+  native. env: CURDIR. CI: reached by every job through til_boot.
+- ~vendor/raylib/src/libraylib.so~ -- deps: libraylib.a. inputs: the
+  archive. outputs: the .so twin (dlopen'd by the interpreter for FFI).
+  host: link flags differ Darwin (-force_load, frameworks) vs Linux
+  (--whole-archive, -lrt).
+- ~vendor/tinyfiledialogs/libtinyfd.a~ -- deps: tinyfiledialogs.c AND
+  the Makefile itself (the -fPIC recipe change must rebuild an existing
+  archive). outputs: the archive + .o. host: any native.
+- ~vendor/tinyfiledialogs/libtinyfd.so~ -- deps: libtinyfd.a. Same
+  force-load split as raylib's twin.
+- ~vendor/nng/libnng.a~ -- deps: none. inputs: vendor/nng sources.
+  outputs: vendor/nng/build/ (cmake tree) + the copied archive. tools:
+  cmake. host: -latomic on Linux, nothing extra on Darwin.
+- ~vendor/libffi/.built~ -- deps: none. inputs: the vendored libffi
+  tree. outputs: the configured per-triple build dir, .libs/libffi.a,
+  the stamp, and on Darwin / arm64 Linux a stable-path copy
+  (libffi-macos.a / libffi-linux-arm64.a) because configure's triple
+  dir is not predictable. tools: sh, configure, make.
+
+**** Compiler chain
+
+- ~bin/til_boot~ -- deps: tmp, libraylib.a, libtinyfd.a, libnng.a, both
+  .so twins, libffi/.built. inputs: ~git show HEAD:boot/*~ and
+  ~HEAD:src/c/*~ ONLY (never the worktree copies). outputs:
+  tmp/boot/**, bin/til_boot. mutates: nothing. env: none. Phony-ish: it
+  rebuilds every invocation because its real input is a git commit, not
+  a file. CI: every job.
+- ~all~ = ~bin/til~ -- deps: bin/til_boot + src/core/*.til,
+  src/std/*.til, src/self/*.til, examples/lib/*.til,
+  vendor/bindings/*.til, src/til.til. outputs: gen/til/til.c,
+  gen/til/til_forward.h, bin/til. MUTATES: boot/til.c,
+  boot/til_forward.h. CI: "Build bin/til (native)" in ~12 jobs.
+- ~two_pass~ -- deps: bin/til. Reruns the same build with the fresh
+  bin/til. Same outputs and same boot/ mutation, one pass later.
+- ~bin/til_asan~ -- deps: bin/til + all compiler sources. outputs:
+  bin/til_asan. Delegates the sanitizer flags to src/self/builder.til.
+- ~bin/til_debug~ -- deps: bin/til. Compiles boot/til.c + src/c/*.c
+  with -g -O0 by hand (the one recipe that links the compiler without
+  going through til).
+- ~update_c_libs~ -- deps: bin/til, tmp. MUTATES vendor/bindings/
+  tinyfd.til, libffi.til, nng.til, raylib.til. Manual only; the raylib
+  binding is two generator runs concatenated with the second ~mode lib~
+  stripped. env: none. Not in CI.
+
+**** Test and verification
+
+- ~bin/test_runner~, ~bin/plot~, ~bin/tests~ -- deps: bin/til + core/
+  std/self sources + their own .til. outputs: the binaries.
+- ~test~ -- deps: bin/til, bin/til_asan, bin/test_runner, bin/plot,
+  bin/tests, check_usize64, check_clang. Runs the suite under
+  xvfb-run (Linux only) with ~--til-bin bin/til_asan --asan~.
+  MUTATES test/constfold.c (copied from gen/til/constfold.c). env: J
+  (forwarded as -j). CI: linux-x64, linux-arm64 native.
+- ~test_fast~ -- same without ASAN. Same constfold mutation. env: J.
+- ~test_nogui~ -- deps: bin/til + the three test binaries. Runs
+  ~bin/tests --no-gui~. No xvfb, no constfold copy. env: J.
+- ~test_two_pass~ -- recursive: ~make two_pass~, then an ASAN rebuild,
+  then ~make -o bin/til_boot -o bin/til check_usize64 check_clang~ (the
+  --old-file pins exist only to stop the sub-make re-running pass 1 and
+  overwriting pass-2 boot/), then rebuilds the three test binaries and
+  runs the suite. MUTATES boot/til.c, boot/til_forward.h,
+  test/constfold.c. env: J.
+- ~test_asan~, ~test_asan_full~ -- aliases of ~test~.
+- ~check_usize64~ -- deps: bin/til, bin/til_asan, tmp. Runs the
+  --usize=64 opt-out interpreted and compiled. outputs: tmp/usize64,
+  tmp/usize64_sizes, tmp/usize64_comptime. CI: its own linux-x64 job.
+- ~check_clang~ -- deps: bin/til. Syntax-only pass over boot/til.c with
+  clang -Wall -Wextra -Werror; skipped with a message when clang is
+  absent. Nothing else enforces that the emitted C is clang-clean.
+- ~test_repl_help~ -- deps: bin/til, tmp. Runs test/repl_help.til.
+  Manual (the REPL runs the whole pipeline per turn).
+
+**** Project tools and lifecycle
+
+- ~doc~ -- deps: bin/til. rm -rf doc/gen, then ~til doc src/til.til~
+  and ~til run examples/uml.til~. MUTATES doc/gen/** and the UML
+  outputs. Manual (~1 minute).
+- ~summary~ -- deps: tmp, bin/til. MUTATES issues/summary.org.
+- ~install~ -- deps: bin/til. Runs ~til install src/til.til~. env:
+  PREFIX (read by the til side, default /usr/local).
+- ~tmp~ -- phony mkdir -p tmp, an order-only prerequisite of several
+  targets.
+- ~help~ -- echoes the target list. A second registry of names that has
+  to be kept in step with the recipes by hand.
+- ~clean~ -- rm -rf bin/* gen/* tmp/boot. Leaves vendor/ alone.
+- ~clean_vendor~ -- ~git clean -fdx~ over raylib, tinyfiledialogs, nng
+  and libffi (deliberately not vendor/emscripten, a downloaded SDK).
+
+**** Cross targets
+
+- windows-x64: ~vendor/raylib/src/libraylib-win64.a~ (raylib rebuilt in
+  tmp/raylib-win/ so Linux .o files survive),
+  ~vendor/tinyfiledialogs/libtinyfd-win64.a~,
+  ~vendor/libffi/x86_64-w64-mingw32/.libs/libffi.a~ (deps:
+  libffi/.built), ~vendor/nng/build-win64/libnng.a~ (msvcrt, not UCRT
+  -- the three C11 probes are forced true and ext.c supplies
+  timespec_get). Consumers: ~bin/%.exe~ pattern sweep over
+  examples/*.til minus raylib.til, custom_modes.til, bench_hashmap.til
+  and the four server examples; ~win_server~ (those four, via
+  --extra-modes + libnng); ~build_win~ (= archives + sweep +
+  win_server); ~build_win_host~ = ~bin/til.exe~ (deps: bin/til, win
+  libffi, win nng, all compiler sources). tools: x86_64-w64-mingw32-gcc
+  /-ar, cmake. CI: "windows-x64/x86 (cross-compile on linux)" and
+  "windows-x64 host", which runs ~make build_win_host win_server~ --
+  the multi-goal invocation the delegation seam must keep working.
+- windows-x86: ~libraylib-win32.a~, ~libtinyfd-win32.a~, ~build_win32~
+  (same sweep, -x86 suffixed outputs, no nng). tools: i686-w64-mingw32-*.
+- linux-x86: ~libraylib-x86.a~, ~libtinyfd-x86.a~ (gcc -m32, vendored
+  X11 headers, GLFW dlopens libX11 at run time so no 32-bit sysroot).
+  CI calls the two archive paths as DIRECT GOALS.
+- linux-arm32: ~libraylib-arm32.a~, ~libtinyfd-arm32.a~ via
+  arm-linux-gnueabihf-gcc/-ar. CI calls both as direct goals.
+- linux-riscv32: ~libraylib-riscv32.a~, ~libtinyfd-riscv32.a~. env:
+  RISCV32_CC is REQUIRED (no distro ships the compiler; CI downloads
+  the Bootlin toolchain and passes it on the make command line), and
+  RISCV32_AR is derived from it by string substitution. Both recipes
+  fail with an actionable message when it is unset.
+- macos: ~libtinyfd-macos-arm64.a~, ~libtinyfd-macos-x64.a~,
+  ~libraylib-macos-arm64.a~, ~libraylib-macos-x64.a~ (six raylib
+  modules, RGFW backend, SDK-less shims), ~vendor/macos/frameworks/
+  .stamp~ (generated by examples/gen_framework_stubs.til from the two
+  archives' symbols), and ~check_mac_cross_tools~ (an order-only
+  preflight for clang, ld.lld, llvm-ar, llvm-nm, present on every mac
+  artifact target so a missing tool is named instead of surfacing as a
+  link error). ~build_mac~ is host-split: on Darwin it sweeps every
+  cli|script|pure|lib|gui example natively plus the server examples
+  against the native libnng; elsewhere it cross-builds both arches for
+  the same modes minus server. CI: two native mac jobs, "macos
+  (cross-compile on linux)", and "macos gui" which calls the stamp and
+  the two tinyfd archives as direct goals.
+- wasm: ~vendor/emscripten/upstream/emscripten/emcc~ (git clone + emsdk
+  install/activate -- the one recipe that downloads a toolchain),
+  ~libraylib-web.a~, ~bin/%.html~, ~build_wasm~ (deps: two_pass).
+  env: EMCC, EMAR, EMRANLIB are overridable. Not in CI.
+
+**** Environment and command-line inputs, all together
+
+~J~ (test parallelism, forwarded as -j), ~RISCV32_CC~ (required by the
+riscv32 archives), ~EMCC~/~EMAR~/~EMRANLIB~ (overridable emscripten
+tools), ~PREFIX~ (install, read on the til side), and the two host
+probes ~uname -s~ / ~uname -m~ that pick the frameworks-vs-lrt link
+flags, the force-load spelling, xvfb, the mac stable libffi path, and
+build_mac's native-vs-cross split. ~CURDIR~ is used to pass absolute
+include paths into vendor sub-makes. Nothing else reaches a recipe.
+
+*** Progress
+
+- [X] Step 1: the contract table above.
+- [X] Step 2: argv-based process execution and the filesystem
+  primitives the build needs, in the existing std/C boundary.
+  - ~src/c/ext.c~ / ~src/c/ext.h~: ~ccmd_*~ builds a command out of
+    argv elements and runs it through execvp / CreateProcess -- no
+    shell, so no quoting and no expansion. cwd, per-child environment
+    overrides, stdout/stderr redirection to files, capture into
+    per-command spool files (so concurrent captures cannot mix, which
+    the single ~tmp/_run_cmd_out~ path made impossible), start/wait/
+    poll, exact exit codes with signal deaths reported as negatives,
+    and a render-for-logs that nothing executes. Plus ~cdir_*~
+    (directory iteration), ~cpath_is_dir~/~cpath_is_file~,
+    ~cremove_tree~ (rm -rf) and ~crename_path~ (the atomic swap
+    self-rebuild needs).
+  - ~src/std/sys.til~: the ~Cmd~ struct over that handle API,
+    including ~run~ (status-returning) and ~run_checked~ (prints the
+    command, dies with the exact status).
+  - ~src/std/file.til~: ~Dir~ (open/next/list), ~File.is_dir~,
+    ~File.is_file~, ~File.remove_tree~, ~File.rename~.
+  - ~test/process.til~ covers spaces, both quotes, empty arguments,
+    non-zero exits, signal deaths, stdout/stderr separation and
+    merging, file redirection, cwd, environment overrides, concurrent
+    captures, poll/status and render; ~test/files.til~ covers the
+    filesystem additions. Windows quoting follows
+    CommandLineToArgvW's rules but has no wine regression test yet --
+    that is owed before the API is called multiplatform.
+- [X] Step 3: ~make.til~ and ~bin/make~, beside the Makefile rather
+  than instead of it.
+  - One command table drives dispatch, ~help~ and the alias list, so
+    the three cannot drift apart the way the Makefile's recipes and its
+    hand-written ~help~ echo lines can. An alias is the same handler
+    under a second name, never a copied recipe.
+  - One ~Build~ per invocation carries the host, the options and the
+    set of finished steps. Each step function calls the steps it
+    depends on, asks ~Build~ whether it has already run, and compares
+    its output against explicit inputs (~needs_rebuild~, mtimes only --
+    no manifest, no cache). Multi-goal invocations therefore do shared
+    work once, which is the useful half of a dependency graph without a
+    scheduler.
+  - That memoization is what removes the Makefile's ~$(MAKE) -o
+    bin/til_boot -o bin/til~ trick from ~test_two_pass~: pass 1 has
+    already run, so nothing can re-enter it and overwrite the pass-2
+    ~boot/~ the target exists to produce. The sequence is just
+    statements in order.
+  - Nob-style self-rebuild: ~bin/make~ checks ~make.til~ (plus core,
+    std, ~src/c~ and ~bin/til_boot~) at startup, renames the running
+    program aside, compiles the replacement with ~bin/til_boot~,
+    restores the old one and exits non-zero if that fails, and
+    otherwise runs the replacement with the exact arguments it was
+    given. Verified all three ways: stale source rebuilds and forwards
+    its arguments, a deliberately broken source leaves a working
+    program behind and exits 1, and the interrupted-rebuild leftover is
+    settled on the next run (which is also how Windows, unable to
+    delete a running image, gets its deletion).
+  - The Makefile gains exactly one rule, ~bin/make~, whose
+    prerequisites mirror ~make.til~'s own ~self_sources()~. It is
+    deliberately not a prerequisite of ~all~: nothing about the default
+    build changes yet.
+  - Commands implemented so far: ~til~, ~two_pass~, ~asan~,
+    ~test_runner~, ~plot~, ~tests~, ~test~, ~test_fast~, ~test_nogui~,
+    ~test_two_pass~, ~test_repl_help~, ~check_usize64~, ~check_clang~,
+    ~doc~, ~summary~, ~install~, ~clean~, ~help~, plus the ~all~ and
+    ~test_asan~/~test_asan_full~ aliases. Verified end to end on
+    linux-x64: ~bin/make clean~ (which deletes the running program),
+    then ~make bin/make~ to bootstrap again, then ~bin/make test~ --
+    242/242, the same as ~make clean && make test~.
+- [ ] Steps 4 onwards: not started. Note that steps 5-7 are only
+  PARTLY anticipated by the command list above -- the native vendor
+  artifacts (raylib, tinyfd, nng, libffi and the .so twins),
+  ~bin/til_debug~, ~update_c_libs~, ~clean_vendor~ and every cross
+  target are still Makefile-only, and no Make recipe has been removed.

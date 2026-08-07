@@ -1,0 +1,664 @@
+mode cli
+
+// The til build program (issue #345).
+//
+// Build policy lives here, as ordinary til code, not in a second
+// language embedded in a Makefile. The model is nob.h, not Zig's build
+// system: this is a program that runs commands in order, with mtime
+// checks and explicit dependencies between plain functions -- no
+// dependency graph engine, no build database, no configuration
+// language. What Zig contributes is the part that makes multi-goal
+// invocations cheap: naming an artifact does not build it, and a step
+// that has run once in this process does not run again.
+//
+// The Makefile keeps exactly the chicken-and-egg part it must own:
+// producing bin/til_boot from the last commit, and compiling this file
+// into bin/make with it. Everything else is policy that belongs here.
+//
+// bin/make is a generated artifact under the ignored bin/ tree. It is
+// never committed and never installed; it is rebuilt from this source
+// whenever the source is newer, by Make and by bin/make itself.
+//
+// Run it from the repository root, like make.
+
+import("src/std/sys")
+import("src/std/file")
+
+BOOT := "bin/til_boot"
+TIL := "bin/til"
+ASAN := "bin/til_asan"
+SELF_SRC := "make.til"
+
+// --- Host ---
+
+/// What this build is running ON. Not the target: cross-builds pick
+/// their target explicitly, and every one of them can be produced from
+/// more than one host.
+Host := struct {
+    os := ""
+    arch := ""
+
+namespace:
+    detect := proc() returns Host {
+        return Host(os = host_os(), arch = host_arch())
+    }
+
+    /// What an executable is called here. Windows insists on .exe;
+    /// nothing else adds a suffix.
+    exe_suffix := func(self: Host) returns Str {
+        if self.os == "windows" { return ".exe" }
+        return ""
+    }
+
+    /// The suite opens real windows for the mode-gui tests, so on Linux
+    /// it runs under a virtual X server. macOS has no X11 and runs them
+    /// bare; windows is not a suite host at all.
+    needs_xvfb := func(self: Host) returns Bool {
+        return self.os == "linux"
+    }
+}
+
+// --- Build state ---
+
+/// Everything one invocation of the build program carries: the host it
+/// runs on, the options it was given, and the steps it has already
+/// finished. One Build is shared by every requested goal, which is what
+/// makes `bin/make build_win_host win_server` do the shared work once.
+Build := struct {
+    host : Host
+    // -jN for the test runner. Empty means "the runner's own default".
+    jobs := ""
+    // Names of the steps that have run in THIS process.
+    done : Set(Str)
+
+namespace:
+    new := proc() returns Build {
+        return Build(host = Host.detect(), done = Set(Str).new())
+    }
+
+    /// True the first time a step is reached in this process, false
+    /// every later time. Marking happens on entry, not on exit: a step
+    /// that fails ends the process, so there is no half-finished state
+    /// for a second caller to observe.
+    begin := func(mut self: Build, step: Str) returns Bool {
+        if self.done.has(step) { return false }
+        self.done.add(own step.clone())
+        return true
+    }
+}
+
+// --- Small helpers over the process and filesystem primitives ---
+
+/// Run a command, printing it first, and stop the build if it fails.
+/// The one-liner form of Cmd.run_checked for commands with no options.
+run := proc(parts: ..Str) {
+    mut c := Cmd.new()
+    mut i : USize = 0
+    while i < parts.len() {
+        ref p : Str = parts[i]
+        c.arg(p)
+        i++
+    }
+    c.run_checked()
+}
+
+/// True when `path` names a program this host can run. Probing by
+/// running it is the portable question: `command -v` is shell syntax
+/// and `which` is not everywhere. The probe's own output is captured
+/// so a missing tool stays quiet -- the caller decides what to say.
+have_tool := proc(name: Str) returns Bool {
+    mut probe := Cmd.new(name, "--version")
+    probe.capture()
+    return probe.run() == 0
+}
+
+/// True when `output` is missing, or older than any of `inputs`. The
+/// whole dependency check: no manifest, no hashes, no cache -- the
+/// small description is recomputed every run and mtimes answer it.
+///
+/// A declared input that does not exist is a bug in the description,
+/// not a reason to rebuild: it fails here rather than turning into a
+/// confusing compiler error later.
+needs_rebuild := proc(output: Str, inputs: Vec(Str)) returns Bool {
+    out_time := file_mtime(output)
+    if out_time < 0 { return true }
+    for input : Str in inputs {
+        in_time := file_mtime(input)
+        if in_time < 0 {
+            panic("build input '", input, "' does not exist (needed by '", output, "')")
+        }
+        if in_time > out_time { return true }
+    }
+    return false
+}
+
+/// Append every entry of `dir` ending in `suffix` to `out`, as paths.
+/// The Makefile's $(wildcard src/core/*.til), with the same shallow,
+/// unsorted, one-directory meaning -- these lists feed mtime
+/// comparisons, which do not care about order.
+add_matching := proc(mut out: Vec(Str), dir: Str, suffix: Str) {
+    for name : Str in Dir.list(dir) {
+        if name.ends_with(suffix) {
+            out.push(own format(dir, "/", name))
+        }
+    }
+}
+
+copy := proc(src: Str, dst: Str) {
+    if copy_file(src, dst) != 0 {
+        panic("could not copy '", src, "' to '", dst, "'")
+    }
+}
+
+/// Every .til source the compiler is built from: the Makefile's
+/// CORE + STD + SELF + LIB_TIL + src/til.til.
+compiler_sources := proc() returns Vec(Str) {
+    mut out := Vec(Str).new()
+    add_matching(out, "src/core", ".til")
+    add_matching(out, "src/std", ".til")
+    add_matching(out, "src/self", ".til")
+    add_matching(out, "examples/lib", ".til")
+    add_matching(out, "vendor/bindings", ".til")
+    out.push(own "src/til.til")
+    return out
+}
+
+/// bin/til_boot is the Makefile's to build: it comes from the last
+/// commit through git, not from the working tree, so nothing here can
+/// reconstruct it. Say that instead of failing later on a missing file.
+require_boot := proc() {
+    if File.is_file(BOOT).not() {
+        panic(BOOT, " is missing -- run `make` first: the bootstrap compiler is built from the last commit, which only the Makefile does")
+    }
+}
+
+// --- Steps ---
+//
+// One function per artifact. Each calls the steps it depends on, asks
+// Build whether it has already run, compares its output against its
+// declared inputs, and only then does the work. That is the useful part
+// of a dependency graph -- explicit edges, laziness, and one run per
+// invocation -- without a scheduler to build first.
+
+/// bin/til, and the committed C it regenerates. The single-pass build:
+/// HEAD's compiler translates the current sources.
+build_til := proc(mut b: Build) {
+    if b.begin("til").not() { return }
+    require_boot()
+    mut inputs := compiler_sources()
+    inputs.push(own BOOT.clone())
+    if needs_rebuild(TIL, inputs).not() { return }
+    run(BOOT, "build", "-o", TIL, "src/til.til")
+    regenerate_boot()
+}
+
+/// Pass 2: rebuild with the compiler pass 1 just produced, so the
+/// committed boot/til.c is the new compiler applied to itself.
+///
+/// The Makefile needs `$(MAKE) -o bin/til_boot -o bin/til` here to stop
+/// a recursive make from re-running pass 1 and overwriting exactly the
+/// artifacts this step exists to produce. Nothing like that is needed
+/// in a program: pass 1 already ran, so build_til is a no-op for the
+/// rest of this invocation, and the sequence is just two statements.
+build_two_pass := proc(mut b: Build) {
+    if b.begin("two_pass").not() { return }
+    build_til(b)
+    run(TIL, "build", "-o", TIL, "src/til.til")
+    regenerate_boot()
+}
+
+/// The one source-tree mutation a normal build performs, and the
+/// reason it performs it: the next commit's til_boot is compiled from
+/// this C.
+regenerate_boot := proc() {
+    copy("gen/til/til.c", "boot/til.c")
+    copy("gen/til/til_forward.h", "boot/til_forward.h")
+}
+
+build_asan := proc(mut b: Build) {
+    if b.begin("asan").not() { return }
+    build_til(b)
+    mut inputs := compiler_sources()
+    inputs.push(own TIL.clone())
+    if needs_rebuild(ASAN, inputs).not() { return }
+    run(TIL, "build", "--asan", "-o", ASAN, "src/til.til")
+}
+
+/// A til program built from one source with the default output path,
+/// depending on bin/til and the standard library it was compiled from.
+build_program := proc(mut b: Build, step: Str, source: Str, output: Str) {
+    if b.begin(step).not() { return }
+    build_til(b)
+    mut inputs := compiler_sources()
+    inputs.push(own TIL.clone())
+    inputs.push(own source.clone())
+    if needs_rebuild(output, inputs).not() { return }
+    run(TIL, "build", source)
+}
+
+build_test_runner := proc(mut b: Build) {
+    build_program(b, "test_runner", "src/test_runner.til", "bin/test_runner")
+}
+
+build_plot := proc(mut b: Build) {
+    build_program(b, "plot", "examples/plot.til", "bin/plot")
+}
+
+build_tests := proc(mut b: Build) {
+    build_program(b, "tests", "src/tests.til", "bin/tests")
+}
+
+/// The --usize=64 opt-out (issue #309): the suite runs at the default
+/// U32 container width, so the wide width needs its own pass,
+/// interpreted and compiled, including the compile-time interpreter's
+/// folding at the opposite width under ASAN.
+check_usize64 := proc(mut b: Build) {
+    if b.begin("check_usize64").not() { return }
+    build_til(b)
+    build_asan(b)
+    mkdir_p("tmp")
+    run(TIL, "--usize=64", "test/usize64.til")
+    run(TIL, "build", "--usize=64", "-o", "tmp/usize64", "test/usize64.til")
+    run("tmp/usize64")
+    run(TIL, "build", "--usize=64", "-o", "tmp/usize64_sizes", "test/usize64_sizes.til")
+    run("tmp/usize64_sizes")
+    run(ASAN, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
+    run("tmp/usize64_comptime")
+}
+
+/// The emitted C must compile clean under gcc AND clang: the local
+/// loop is gcc-only, so a diagnostic only clang implements (the
+/// -Wswitch-bool that broke every macOS job) is otherwise invisible
+/// until CI. A syntax-only pass over the freshly emitted compiler
+/// covers the whole class in a couple of seconds.
+check_clang := proc(mut b: Build) {
+    if b.begin("check_clang").not() { return }
+    build_til(b)
+    if have_tool("clang").not() {
+        println("check_clang: clang not installed on this host, skipping")
+        return
+    }
+    run("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Werror", "-fsigned-char",
+        "-Isrc", "-Isrc/c", "-Iboot", "boot/til.c")
+    println("check_clang: generated C is clang-clean")
+}
+
+/// The suite runner, with the host's window server and the caller's
+/// -j. Built here rather than spelled out at each call site so the
+/// three suite commands cannot drift apart.
+suite_cmd := proc(b: Build, extra: ..Str) returns Cmd {
+    mut c := Cmd.new()
+    if b.host.needs_xvfb() {
+        c.arg("xvfb-run")
+        c.arg("--auto-servernum")
+    }
+    c.arg("bin/tests")
+    mut i : USize = 0
+    while i < extra.len() {
+        ref e : Str = extra[i]
+        c.arg(e)
+        i++
+    }
+    if b.jobs.is_empty().not() {
+        c.arg(format("-j", b.jobs))
+    }
+    return c
+}
+
+/// test/constfold.c is a committed fixture regenerated by every suite
+/// run: the constfolder's own emitted C, kept under review as a file
+/// rather than as a golden string inside a test.
+refresh_constfold := proc() {
+    copy("gen/til/constfold.c", "test/constfold.c")
+}
+
+/// The full suite under ASAN. The default before committing.
+run_test := proc(mut b: Build) {
+    if b.begin("test").not() { return }
+    build_til(b)
+    build_asan(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    check_usize64(b)
+    check_clang(b)
+    mut c := suite_cmd(b, "--til-bin", ASAN, "--asan")
+    c.run_checked()
+    refresh_constfold()
+}
+
+/// The suite without ASAN: faster, at the cost of not catching leaks
+/// or heap errors in the compiler or in the programs it builds.
+run_test_fast := proc(mut b: Build) {
+    if b.begin("test_fast").not() { return }
+    build_til(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    check_usize64(b)
+    check_clang(b)
+    mut c := suite_cmd(b)
+    c.run_checked()
+    refresh_constfold()
+}
+
+/// The suite without the GUI tests, for hosts with no window server.
+run_test_nogui := proc(mut b: Build) {
+    if b.begin("test_nogui").not() { return }
+    build_til(b)
+    build_test_runner(b)
+    build_plot(b)
+    build_tests(b)
+    mut c := Cmd.new("bin/tests", "--no-gui")
+    if b.jobs.is_empty().not() { c.arg(format("-j", b.jobs)) }
+    c.run_checked()
+}
+
+/// The two-pass equivalent of `test`: everything runs against the
+/// self-applied compiler. Use for a "Two-pass: "-prefixed commit.
+run_test_two_pass := proc(mut b: Build) {
+    if b.begin("test_two_pass").not() { return }
+    build_two_pass(b)
+    // Deliberately not build_asan: pass 2 replaced bin/til after the
+    // mtime check that step would make, and this ASAN compiler has to
+    // come from the self-applied one.
+    run(TIL, "build", "--asan", "-o", ASAN, "src/til.til")
+    b.begin("asan")
+    check_usize64(b)
+    check_clang(b)
+    run(TIL, "build", "src/test_runner.til")
+    run(TIL, "build", "examples/plot.til")
+    run(TIL, "build", "src/tests.til")
+    b.begin("test_runner")
+    b.begin("plot")
+    b.begin("tests")
+    mut c := suite_cmd(b, "--til-bin", ASAN, "--asan")
+    c.run_checked()
+    refresh_constfold()
+}
+
+/// The REPL help() smoke test. On demand: the REPL runs the whole
+/// compiler pipeline per turn, which is too expensive for the suite.
+run_test_repl_help := proc(mut b: Build) {
+    if b.begin("test_repl_help").not() { return }
+    build_til(b)
+    mkdir_p("tmp")
+    run(TIL, "run", "test/repl_help.til")
+}
+
+/// doc/gen/ and the UML outputs. On demand: doc generation over
+/// src/til.til runs the full init+typer pipeline.
+run_doc := proc(mut b: Build) {
+    if b.begin("doc").not() { return }
+    build_til(b)
+    File.remove_tree("doc/gen")
+    run(TIL, "doc", "src/til.til")
+    run(TIL, "run", "examples/uml.til")
+}
+
+/// issues/summary.org, regenerated from issues/open/. What to run
+/// instead of the suite when only issue files changed.
+run_summary := proc(mut b: Build) {
+    if b.begin("summary").not() { return }
+    build_til(b)
+    mkdir_p("tmp")
+    run(TIL, "run", "examples/issues.til")
+}
+
+run_install := proc(mut b: Build) {
+    if b.begin("install").not() { return }
+    build_til(b)
+    run(TIL, "install", "src/til.til")
+}
+
+/// Remove the build artifacts, leaving vendor/ alone.
+///
+/// bin/make is itself in bin/, so this deletes the running program.
+/// POSIX unlinks a running image without complaint. Windows refuses,
+/// so there the program is renamed aside and the leftover is removed
+/// by the next run, once it is no longer mapped -- a failed deletion
+/// is never skipped quietly.
+run_clean := proc(mut b: Build) {
+    if b.begin("clean").not() { return }
+    self_path := self_bin(b.host)
+    if b.host.os == "windows" {
+        if File.exists(self_path) { File.rename(self_path, self_backup(b.host)) }
+    }
+    clear_dir("bin")
+    clear_dir("gen")
+    File.remove_tree("tmp/boot")
+}
+
+/// `rm -rf <dir>/*`: the entries go, the directory stays.
+clear_dir := proc(dir: Str) {
+    if File.is_dir(dir).not() { return }
+    for name : Str in Dir.list(dir) {
+        File.remove_tree(format(dir, "/", name))
+    }
+}
+
+// --- Command registry ---
+//
+// One table. Dispatch reads it, help prints it, and an alias is the
+// same handler under a second name rather than a copied recipe -- so
+// the three views cannot drift apart the way a Makefile's recipes and
+// its hand-written `help` echo lines do.
+
+Handler := proc(mut Build)
+
+Command := struct {
+    name := ""
+    about := ""
+    // Non-empty when this name is an alias: it runs `alias_of`'s
+    // handler and is listed as an alias rather than as a command.
+    alias_of := ""
+    go : Handler
+}
+
+cmd_help := proc(mut b: Build) {
+    if b.begin("help").not() { return }
+    usage()
+}
+
+commands := func() returns Vec(Command) {
+    mut out := Vec(Command).new()
+    out.push(own Command(name = "til", go = build_til,
+        about = "Build bin/til and regenerate boot/"))
+    out.push(own Command(name = "all", alias_of = "til", go = build_til))
+    out.push(own Command(name = "two_pass", go = build_two_pass,
+        about = "Build, then rebuild with the fresh bin/til"))
+    out.push(own Command(name = "asan", go = build_asan,
+        about = "Build bin/til_asan"))
+    out.push(own Command(name = "test_runner", go = build_test_runner,
+        about = "Build bin/test_runner"))
+    out.push(own Command(name = "plot", go = build_plot,
+        about = "Build bin/plot"))
+    out.push(own Command(name = "tests", go = build_tests,
+        about = "Build bin/tests"))
+    out.push(own Command(name = "test", go = run_test,
+        about = "Build + run the full ASAN suite"))
+    out.push(own Command(name = "test_asan", alias_of = "test", go = run_test))
+    out.push(own Command(name = "test_asan_full", alias_of = "test", go = run_test))
+    out.push(own Command(name = "test_fast", go = run_test_fast,
+        about = "Build + run the suite without ASAN"))
+    out.push(own Command(name = "test_nogui", go = run_test_nogui,
+        about = "Build + run the suite without the GUI tests"))
+    out.push(own Command(name = "test_two_pass", go = run_test_two_pass,
+        about = "two_pass + the full suite (for 'Two-pass: ' commits)"))
+    out.push(own Command(name = "test_repl_help", go = run_test_repl_help,
+        about = "Run the REPL help() smoke test"))
+    out.push(own Command(name = "check_usize64", go = check_usize64,
+        about = "Run the --usize=64 opt-out regression"))
+    out.push(own Command(name = "check_clang", go = check_clang,
+        about = "Check the emitted C compiles clean under clang"))
+    out.push(own Command(name = "doc", go = run_doc,
+        about = "Regenerate doc/gen/ and the UML docs"))
+    out.push(own Command(name = "summary", go = run_summary,
+        about = "Regenerate issues/summary.org from issues/open/"))
+    out.push(own Command(name = "install", go = run_install,
+        about = "Install til under PREFIX (default /usr/local)"))
+    out.push(own Command(name = "clean", go = run_clean,
+        about = "Remove build artifacts"))
+    out.push(own Command(name = "help", go = cmd_help,
+        about = "Print this message"))
+    return out
+}
+
+usage := proc() {
+    println("Usage: bin/make [-jN] [<command>...]")
+    println("")
+    println("The til build program. Run it from the repository root.")
+    println("`make <goals>` builds it and forwards to it; both are the")
+    println("same build.")
+    println("")
+    println("Commands:")
+    for c : Command in commands() {
+        if c.alias_of.is_empty() {
+            println(format("  ", pad(c.name, 16), c.about))
+        }
+    }
+    println("")
+    for c : Command in commands() {
+        if c.alias_of.is_empty().not() {
+            println(format("  ", pad(c.name, 16), "Alias for ", c.alias_of))
+        }
+    }
+    println("")
+    println("Options:")
+    println(format("  ", pad("-jN", 16), "Run the test suite with N jobs"))
+    println("")
+    println("bin/til_boot comes from the last commit and is built by the")
+    println("Makefile; recovery is `git checkout HEAD boot/ && make test`.")
+}
+
+pad := func(s: Str, width: USize) returns Str {
+    mut out := s.clone()
+    while out.len() < width {
+        out = format(out, " ")
+    }
+    return out
+}
+
+dispatch := proc(b: Build, name: Str) {
+    for c : Command in commands() {
+        if c.name == name {
+            c.go(b)
+            return
+        }
+    }
+    println(format("bin/make: unknown command '", name, "'"))
+    println("")
+    usage()
+    exit(1)
+}
+
+// --- Self-rebuild ---
+//
+// nob.h's GO_REBUILD_URSELF: the build program keeps itself current.
+// The previous executable is preserved until the new one exists, so a
+// build that does not compile leaves a program that still runs, and
+// the replacement is exec'd with the arguments this run was given --
+// never continued with the old code.
+
+self_bin := func(host: Host) returns Str {
+    return format("bin/make", host.exe_suffix())
+}
+
+self_backup := func(host: Host) returns Str {
+    return format("bin/make.previous", host.exe_suffix())
+}
+
+/// What bin/make is built from: this file, the library it imports, and
+/// the compiler and C runtime it is compiled with.
+self_sources := proc() returns Vec(Str) {
+    mut out := Vec(Str).new()
+    out.push(own SELF_SRC.clone())
+    add_matching(out, "src/core", ".til")
+    add_matching(out, "src/std", ".til")
+    add_matching(out, "src/c", ".c")
+    add_matching(out, "src/c", ".h")
+    out.push(own BOOT.clone())
+    return out
+}
+
+/// Recover from an interrupted rebuild before deciding anything else:
+/// a backup with no program beside it is the only copy left, and a
+/// backup beside a program is last run's, kept because Windows could
+/// not delete the image that was running.
+settle_previous := proc(host: Host) {
+    backup := self_backup(host)
+    if File.exists(backup).not() { return }
+    if File.exists(self_bin(host)) {
+        File.remove(backup)
+        return
+    }
+    File.rename(backup, self_bin(host))
+}
+
+rebuild_self_if_stale := proc(host: Host, args: ..Str) {
+    settle_previous(host)
+    self_path := self_bin(host)
+    if needs_rebuild(self_path, self_sources()).not() { return }
+    require_boot()
+    println("bin/make: rebuilding the build program from make.til")
+
+    backup := self_backup(host)
+    if File.exists(self_path) { File.rename(self_path, backup) }
+    mut build := Cmd.new(BOOT, "build", "-o", self_path, SELF_SRC)
+    println(build.render())
+    if build.run() != 0 {
+        if File.exists(backup) { File.rename(backup, self_path) }
+        println("bin/make: rebuild failed -- the previous build program is still in place")
+        exit(1)
+    }
+    // Windows cannot delete a running image; there the leftover goes
+    // on the next run's settle_previous, which is no longer running it.
+    if host.os != "windows" { File.remove(backup) }
+
+    mut again := Cmd.new(self_path)
+    mut i : USize = 0
+    while i < args.len() {
+        ref a : Str = args[i]
+        again.arg(a)
+        i++
+    }
+    status := again.run()
+    if status < 0 {
+        println(format("bin/make: killed by signal ", (0 - status).to_str()))
+        exit(1)
+    }
+    exit(status)
+}
+
+// --- Entry point ---
+
+main := proc(args: ..Str) {
+    host := Host.detect()
+    rebuild_self_if_stale(host, ..args)
+
+    mut b := Build.new()
+    mut goals := Vec(Str).new()
+    mut i : USize = 0
+    while i < args.len() {
+        ref arg : Str = args[i]
+        if arg.starts_with("-j") {
+            b.jobs = arg.strip_prefix("-j").clone()
+        } else if arg.eq("-h").or(arg.eq("--help")) {
+            goals.push(own "help")
+        } else if arg.starts_with("-") {
+            println(format("bin/make: unknown option '", arg, "'"))
+            exit(1)
+        } else {
+            goals.push(own arg.clone())
+        }
+        i++
+    }
+    // No goals is the default build, exactly like make.
+    if goals.len() == 0 { goals.push(own "all") }
+
+    // Every goal shares one Build, so a prerequisite reached by two of
+    // them runs once.
+    for goal : Str in goals {
+        dispatch(b, goal)
+    }
+}

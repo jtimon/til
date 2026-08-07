@@ -288,6 +288,38 @@ void cfile_seek_cur(const void *handle, I64 delta);
 void cfile_seek_end(const void *handle, I64 delta);
 Str *cfile_read_n(const void *handle, I64 count);
 
+// Directory reading, path types, tree removal and rename (issue #345).
+// cdir_* follows the cfile_* handle convention above; cdir_next answers
+// "" when the directory is exhausted, never reporting "." or "..".
+void *cdir_open(const Str *path);
+Str *cdir_next(const void *handle);
+void cdir_close(const void *handle);
+Bool cpath_is_dir(const Str *path);
+Bool cpath_is_file(const Str *path);
+I32 cremove_tree(const Str *path);
+I32 crename_path(const Str *src, const Str *dst);
+
+// Argv-based process execution (issue #345). A command is accumulated
+// element by element and then run, so no argument is ever re-parsed by
+// a shell -- see the header comment in ext.c. Same opaque-handle
+// convention as cfile_*.
+void *ccmd_new(void);
+void ccmd_arg(const void *handle, const Str *arg);
+void ccmd_cwd(const void *handle, const Str *dir);
+void ccmd_env(const void *handle, const Str *name, const Str *value);
+void ccmd_stdout_file(const void *handle, const Str *path);
+void ccmd_stderr_file(const void *handle, const Str *path);
+void ccmd_stderr_to_stdout(const void *handle);
+void ccmd_capture(const void *handle, Bool out, Bool err);
+Str *ccmd_render(const void *handle);
+I64 ccmd_start(const void *handle);
+I64 ccmd_wait(const void *handle);
+Bool ccmd_poll(const void *handle);
+I64 ccmd_status(const void *handle);
+Str *ccmd_out(const void *handle);
+Str *ccmd_err(const void *handle);
+void ccmd_free(const void *handle);
+
 // Line input. The til-side binding declares `mut line: Str`, so line
 // is mutated by this call -- keep it non-const.
 Bool in_read_line(Str *line);
