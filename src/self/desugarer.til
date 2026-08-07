@@ -1462,18 +1462,14 @@ priv resolve_value_type := func(ctx: Context, e: Expr, body: Expr) returns Str {
             // FCall form `mut x := some_func(...)` lands here with
             // ng == "some_func". If the name resolves to a function in
             // scope, return its declared return_type instead.
-            fb_o := ctx.scope.get_binding(ng)
-            if fb_o.is_some() {
-                ref fb : TypeBinding = fb_o.unwrap()
-                fb_fd_o := ctx.scope.lookup_func(fb.name)
-                if fb_fd_o.is_some() {
-                    switch fb_fd_o.unwrap().node_type {
-                    case .FuncDef(fdef):
-                        if fdef.return_type.len() > 0 {
-                            return normalize_ctor_type(fdef.return_type)
-                        }
-                    case:
+            fb_fd_o := ctx.scope.lookup_func(ng)
+            if fb_fd_o.is_some() {
+                switch fb_fd_o.unwrap().node_type {
+                case .FuncDef(fdef):
+                    if fdef.return_type.len() > 0 {
+                        return normalize_ctor_type(fdef.return_type)
                     }
+                case:
                 }
             }
             return ""

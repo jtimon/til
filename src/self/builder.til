@@ -30,13 +30,8 @@ priv resolve_decl_fn_sig := func(rhs: Expr, dd: Declaration, scope: TypeScope, c
     case .Ident(rhs_name):
         fdef_o := find_callee_fdef(rhs_name.ident_name(), ctx)
         if fdef_o.is_some() { return fdef_o }
-        sf := scope.find(rhs_name.ident_name())
-        switch sf {
-        case .Found(b):
-            bfd_o := scope.lookup_func(b.name)
-            if bfd_o.is_some() { return bfd_o }
-        case:
-        }
+        bfd_o := scope.lookup_func(rhs_name.ident_name())
+        if bfd_o.is_some() { return bfd_o }
         // A transitive first-class alias `h := g` where `g := f` is itself a
         // local funcptr value (#262): chase `g`'s signature captured at its
         // own emit_stmt_decl into local_fn_sigs, so `h` resolves the same sig.
@@ -9986,16 +9981,10 @@ priv fcall_fn_sig := func(fcall: Expr, ctx: Context) returns Option(ref Expr) {
         case .Ident(tn): sig_name = Str.clone(tn.ident_name())
         case: return Option(ref Expr).None
         }
-        sf := s.find(sig_name)
-        switch sf {
-        case .Found(ftb):
-            ftbfd_o := s.lookup_func(ftb.name)
-            if ftbfd_o.is_none() { return Option(ref Expr).None }
-            if ftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
-            return ftbfd_o
-        case:
-        }
-        return Option(ref Expr).None
+        ftbfd_o := s.lookup_func(sig_name)
+        if ftbfd_o.is_none() { return Option(ref Expr).None }
+        if ftbfd_o.unwrap().children.len() != 0 { return Option(ref Expr).None }
+        return ftbfd_o
     case:
         return Option(ref Expr).None
     }

@@ -1501,40 +1501,35 @@ register_function_def_for_stmt := func(ctx: Context, stmt: Expr, scope: TypeScop
     }
 
     if sdecl.explicit_type.len() > 0 {
-        fs_find := scope.find(sdecl.explicit_type)
-        switch fs_find {
-        case .Found(fsb):
-            fsb_fd_o := scope.lookup_func(fsb.name)
-            if fsb_fd_o.is_some() {
-                ref fsb_fd : Expr = fsb_fd_o.unwrap()
-                if fsb_fd.children.len() == 0 {
-                    ref sig : Expr = fsb_fd
-                    ref fdef : FunctionDef = funcdef_of(def)
-                    ref sigdef : FunctionDef = funcdef_of(sig)
-                    if fdef.params.len() != sigdef.params.len() {
-                        panic(
-                            __LOC__,
-                            ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
-                            ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
-                            " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
-                        )
-                    }
-                    fdef.func_type = sigdef.func_type
-                    for j in 0..sigdef.params.len() {
-                        ref mut dp : Declaration = fdef.params[j]
-                        ref sp : Declaration = sigdef.params[j]
-                        dp.explicit_type = sp.explicit_type
-                        dp.til_type = sp.til_type.clone()
-                        dp.is_mut = sp.is_mut
-                        dp.own_type = sp.own_type
-                    }
-                    fdef.return_type = sigdef.return_type
-                    fdef.return_own_type = sigdef.return_own_type
-                    sdecl.explicit_type = ""
-                    sdecl.til_type = Type.Unknown
+        fsb_fd_o := scope.lookup_func(sdecl.explicit_type)
+        if fsb_fd_o.is_some() {
+            ref fsb_fd : Expr = fsb_fd_o.unwrap()
+            if fsb_fd.children.len() == 0 {
+                ref sig : Expr = fsb_fd
+                ref fdef : FunctionDef = funcdef_of(def)
+                ref sigdef : FunctionDef = funcdef_of(sig)
+                if fdef.params.len() != sigdef.params.len() {
+                    panic(
+                        __LOC__,
+                        ctx.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                        ": error: '", sdecl.name, "' expects ", fdef.params.len().to_str(),
+                        " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.params.len().to_str(),
+                    )
                 }
+                fdef.func_type = sigdef.func_type
+                for j in 0..sigdef.params.len() {
+                    ref mut dp : Declaration = fdef.params[j]
+                    ref sp : Declaration = sigdef.params[j]
+                    dp.explicit_type = sp.explicit_type
+                    dp.til_type = sp.til_type.clone()
+                    dp.is_mut = sp.is_mut
+                    dp.own_type = sp.own_type
+                }
+                fdef.return_type = sigdef.return_type
+                fdef.return_own_type = sigdef.return_own_type
+                sdecl.explicit_type = ""
+                sdecl.til_type = Type.Unknown
             }
-        case:
         }
     }
 
@@ -2106,29 +2101,32 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, scope: TypeScope,
                     if is_prim {
                         fsz = psz
                         falign = pal
-                    } else if type_from_name_init(ftype, scope).is_funcptr().or(type_from_name_init(ftype, scope).is(Type.Body)) {
-                        field_is_funcptr = true
-                        fsz = UPtr.size()
-                        falign = UPtr.size()
                     } else {
-                        nested_def_o := scope.get_struct(ftype)
-                        if nested_def_o.is_some() {
-                            ref nested_def : Expr = nested_def_o.unwrap()
-                            if nested_def.node_type.is(NodeType.EnumDef) {
-                                fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
-                                if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
-                                field_struct_name = ftype.clone()
-                                field_is_enum = true
-                            } else {
-                                compute_struct_layout(ftype, nested_def, scope, ctx)
-                                ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
-                                fsz = nested_layout.total_size
-                                falign = nested_layout.align
-                                field_struct_name = ftype.clone()
-                            }
-                        } else {
+                        resolved_ftype := type_from_name_init(ftype, scope)
+                        if resolved_ftype.is_funcptr().or(resolved_ftype.is(Type.Body)) {
+                            field_is_funcptr = true
                             fsz = UPtr.size()
                             falign = UPtr.size()
+                        } else {
+                            nested_def_o := scope.get_struct(ftype)
+                            if nested_def_o.is_some() {
+                                ref nested_def : Expr = nested_def_o.unwrap()
+                                if nested_def.node_type.is(NodeType.EnumDef) {
+                                    fsz = compute_enum_layout(ftype, nested_def, scope, ctx)
+                                    if enum_has_payloads(nested_def) { falign = 8 } else { falign = 4 }
+                                    field_struct_name = ftype.clone()
+                                    field_is_enum = true
+                                } else {
+                                    compute_struct_layout(ftype, nested_def, scope, ctx)
+                                    ref nested_layout : StructLayout = ctx.struct_layouts[ftype]
+                                    fsz = nested_layout.total_size
+                                    falign = nested_layout.align
+                                    field_struct_name = ftype.clone()
+                                }
+                            } else {
+                                fsz = UPtr.size()
+                                falign = UPtr.size()
+                            }
                         }
                     }
                 }

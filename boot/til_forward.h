@@ -2112,7 +2112,6 @@ Option__ref_TypeBinding TypeScope_get_binding_fp(TypeScope * self, Str * name, U
 Bool TypeScope_in_function(TypeScope * self);
 ScopeFind TypeScope_find(TypeScope * self, Str * name);
 Type * TypeScope_get_type(TypeScope * self, Str * name);
-FuncType TypeScope_get_func_type(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_get_struct(TypeScope * self, Str * name);
 Option__ref_Expr TypeScope_get_struct_fp(TypeScope * self, Str * name, U64 * fp);
 Option__ref_Expr TypeScope_struct_def_of(TypeScope * self, Str * name);
@@ -2599,7 +2598,7 @@ void priv___src_self_typer_til__check_ref_local_null_init(Expr * stmt, Context *
 Bool priv___src_self_typer_til__infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func, Context * ctx);
 Bool is_clone_fcall(Expr * e);
 void priv___src_self_typer_til__validate_fcall_own_args_for_fdef(TypeScope * scope, Expr * e, FunctionDef * fdef_data, Context * ctx);
-void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr * e, Option__ref_TypeBinding callee_bind_o, Context * ctx);
+void priv___src_self_typer_til__validate_fcall_own_args(TypeScope * scope, Expr * e, Option__ref_Expr fdef_o, Context * ctx);
 void priv___src_self_typer_til__set_fcall_own_args_for_own_params(Expr * e, FunctionDef * fdef_data);
 Bool priv___src_self_typer_til__infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func, Context * ctx);
 void priv___src_self_typer_til__rewrite_ctor_field_shorthand(StructDef * ctor_sdd, Expr * e);
@@ -2609,8 +2608,8 @@ Bool priv___src_self_typer_til__name_is_interface(Str * name, TypeScope * scope)
 Bool priv___src_self_typer_til__type_implements_iface(Str * cname, Str * iface, TypeScope * scope);
 void priv___src_self_typer_til__validate_fcall_arg(Expr * arg, Type * ptype, Str * ptype_name, Str * param_name, Context * ctx);
 void priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(TypeScope * scope, Expr * e, FunctionDef * fdef_data, I32 in_func, Context * ctx);
-void priv___src_self_typer_til__infer_and_validate_fcall_args(TypeScope * scope, Expr * e, Option__ref_TypeBinding callee_bind_o, I32 in_func, Context * ctx);
-void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, Option__ref_TypeBinding callee_bind_o, I32 in_func, Context * ctx);
+void priv___src_self_typer_til__infer_and_validate_fcall_args(TypeScope * scope, Expr * e, Option__ref_TypeBinding callee_bind_o, Option__ref_Expr * fdef_o, I32 in_func, Context * ctx);
+void priv___src_self_typer_til__resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, Option__ref_TypeBinding callee_bind_o, Option__ref_Expr fdef_o, I32 in_func, Context * ctx);
 Bool priv___src_self_typer_til__is_self_conversion_method(Str * method, Str * type_name);
 Str * priv___src_self_typer_til__obj_method_type_name(Expr * obj);
 Str * priv___src_self_typer_til__numeric_conv_target_name(Str * method);

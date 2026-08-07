@@ -1556,7 +1556,8 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
     // regardless of the source-alias width.
     if name == "USize" { return type_from_name_init(scope_target_usize_pname(scope), scope) }
     if name == "UPtr" { return type_from_name_init(scope_target_uptr_pname(scope), scope) }
-    b_o := scope.get_binding(name)
+    fp := name_fingerprint(name)
+    b_o := scope.get_binding_fp(name, fp)
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
         if b.is_type_alias {
@@ -1569,13 +1570,13 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns Type {
             // (has a func_def): test "builtin and not a func", and
             // clone the owned Type. See the matching note in
             // typer.til:type_from_name.
-            if scope.lookup_func(b.name).is_none() { return b.type.clone() }
+            if scope.lookup_func_fp(b.name, fp).is_none() { return b.type.clone() }
         }
         if b.is_func_decl.and(b.type.is(Type.FuncPtr)) {
             return Type.FuncPtr
         }
     }
-    sdef_o := scope.get_struct(name)
+    sdef_o := scope.get_struct_fp(name, fp)
     if sdef_o.is_some() {
         ref sdef : Expr = sdef_o.unwrap()
         if sdef.node_type.is(NodeType.EnumDef) {
