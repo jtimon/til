@@ -904,9 +904,8 @@ priv RawResultInfo := struct {
     arg_deref := false
 }
 
-priv raw_result_info_new := func(mut ctx: Context) returns RawResultInfo {
-    unknown_type_w : Dynamic = interp_intern_type(Type.Unknown, ctx)
-    return RawResultInfo(source_type_p = to_ptr(unknown_type_w))
+priv raw_result_info_new := func(_ctx: Context) returns RawResultInfo {
+    return RawResultInfo(source_type_p = to_ptr(TYPE_UNKNOWN))
 }
 
 priv raw_result_source_type := func(info: RawResultInfo) returns ref Type {
@@ -936,14 +935,6 @@ priv scalar_word_of_raw := func(raw: Dynamic, is_ref: Bool, is_word: Bool, shall
     return raw
 }
 
-// Evaluate a scalar-typed argument down to an inline word.
-priv eval_scalar_arg_word := proc(s: Scope, e: Expr, shallow decode_type: Type, mut ctx: Context) returns Dynamic {
-    mut is_ref := false
-    mut is_word := false
-    raw : Dynamic = eval_expr_raw_meta(s, e, ctx, is_ref, is_word)
-    return scalar_word_of_raw(raw, is_ref, is_word, decode_type, ctx)
-}
-
 priv eval_scalar_arg_word_info := proc(s: Scope, e: Expr, mut info: RawResultInfo, mut ctx: Context) returns Dynamic {
     raw : Dynamic = eval_expr_raw_info(s, e, ctx, info)
     return scalar_word_of_raw(raw, info.is_ref, info.is_word, raw_result_source_type(info), ctx)
@@ -953,21 +944,6 @@ priv eval_scalar_arg_word_info := proc(s: Scope, e: Expr, mut info: RawResultInf
 priv eval_bool_arg := proc(s: Scope, e: Expr, mut ctx: Context) returns Bool {
     mut info := raw_result_info_new(ctx)
     return word_bits(eval_scalar_arg_word_info(s, e, info, ctx)) != 0
-}
-
-priv expr_raw_is_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall) { return call_raw_result_is_ref(scope, e, ctx) }
-    if e.node_type.is(NodeType.FieldAccess) { return field_access_returns_ref(scope, e, ctx) }
-    switch e.node_type {
-    case .Ident(id):
-        hb_o := scope_lookup_heap_binding(scope, id.ident_name())
-        if hb_o.is_none() { panic("reference query binding not found: ", id.ident_name()) }
-        ref hb : HeapBinding = hb_o.unwrap()
-        if heap_type_is_callable(hb_type(hb)) { return false }
-        return true
-    case:
-    }
-    return false
 }
 
 priv raw_block_free := func(raw: Dynamic) {
@@ -1374,38 +1350,6 @@ priv field_access_decl := func(e: Expr, ctx: Context) returns Option(ref Declara
     }
 }
 
-priv scalar_raw_source_type := func(scope: Scope, e: Expr, ctx: Context) returns Type {
-    switch e.node_type {
-    case .Ident(id):
-        hb_o := scope_lookup_heap_binding(scope, id.ident_name())
-        if hb_o.is_none() { panic("scalar source binding not found: ", id.ident_name()) }
-        ref hb : HeapBinding = hb_o.unwrap()
-        if hb_type(hb).is(Type.Dynamic).and(e.til_type().is(Type.Dynamic).not()) { return e.til_type().clone() }
-        return hb_type(hb).clone()
-    case .FieldAccess(fa):
-        if interp_fa_is_ns(scope, e, ctx) {
-            return ns_field_type(field_access_sname(e), fa.field_access_name(), ctx)
-        }
-        fdecl_o := field_access_decl(e, ctx)
-        if fdecl_o.is_none() { panic("scalar source field not found: ", fa.field_access_name()) }
-        ref fdecl : Declaration = fdecl_o.unwrap()
-        if (fdecl.explicit_type == "USize").or(fdecl.explicit_type == "UPtr") {
-            sname := field_access_sname(e)
-            ref fl : FieldLayout = ctx_field_layout(sname, fa.field_access_name(), ctx)
-            if fl.size == 4 {
-                if (sname == ctx.cached_str_name).and(fa.field_access_name() == "cap") {
-                    return Type.Primitive(Primitive.I32)
-                }
-                return Type.Primitive(Primitive.U32)
-            }
-            return Type.Primitive(Primitive.U64)
-        }
-        return fdecl.til_type.clone()
-    case:
-        return e.til_type().clone()
-    }
-}
-
 // Resolve storage for an identifier-rooted struct field chain without
 // evaluating or copying its intermediate aggregates.
 priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Option(ref Dynamic) {
@@ -1438,21 +1382,6 @@ priv field_access_base := proc(scope: Scope, obj: Expr, ctx: Context) returns Op
         panic("field access call base is not a reference")
     case: return Option(ref Dynamic).None
     }
-}
-
-priv field_access_returns_ref := func(scope: Scope, e: Expr, ctx: Context) returns Bool {
-    if interp_fa_is_ns(scope, e, ctx) { return false }
-    fdecl_o := field_access_decl(e, ctx)
-    if fdecl_o.is_none() { return false }
-    ref fdecl : Declaration = fdecl_o.unwrap()
-    if decl_is_funcsig(fdecl, ctx) { return false }
-    // A literal base is a VALUE with no storage: eval_expr_field_raw has to
-    // materialize it into a temporary it then frees, so a Shallow field --
-    // whose ref form is a pointer INTO those bytes -- can only be handed back
-    // by value. Own/Ref fields are unaffected: their ref form is the STORED
-    // pointer, which outlives the temporary.
-    if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { return false }
-    return true
 }
 
 priv eval_expr_field_raw := proc(scope: Scope, e: Expr, mut ctx: Context, mut info: RawResultInfo, destination: Dynamic = bits_word(0)) returns Dynamic {
@@ -1805,14 +1734,6 @@ priv eval_expr_raw_info := proc(scope: Scope, e: Expr, mut ctx: Context, mut inf
     }
 }
 
-priv eval_expr_raw_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_is_ref: Bool, mut result_is_word: Bool, destination: Dynamic = bits_word(0)) returns Dynamic {
-    mut info := raw_result_info_new(ctx)
-    result : Dynamic = eval_expr_raw_info(scope, e, ctx, info, destination)
-    result_is_ref = info.is_ref
-    result_is_word = info.is_word
-    return result
-}
-
 eval_expr_raw := proc(scope: Scope, e: Expr, mut ctx: Context, destination: Dynamic = bits_word(0)) returns Dynamic {
     mut info := raw_result_info_new(ctx)
     return eval_expr_raw_info(scope, e, ctx, info, destination)
@@ -1871,18 +1792,16 @@ priv resolve_field_assign_sdef := func(scope: Scope, obj_expr: Expr, ctx: Contex
 }
 
 priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
-    raw_type := scalar_raw_source_type(scope, e, ctx)
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
+    mut raw_type := raw_result_source_type(info).clone()
     switch raw_type {
     case .Custom(name):
-        mut resolved := e.clone()
-        resolved.set_til_type(type_from_name_init(name, ctx.scope))
-        return raw_switch_key(scope, resolved, ctx)
+        raw_type = type_from_name_init(name, ctx.scope)
     case:
     }
     switch raw_type {
     case .Enum(enum_name):
-        mut info := raw_result_info_new(ctx)
-        raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
         tag_ptr : Dynamic = raw_arg_pointer(raw, info, ctx)
         enum_def_o := lookup_interp_type_def(enum_name, ctx)
         if enum_def_o.is_none() { panic("switch enum definition not found: ", enum_name) }
@@ -1891,13 +1810,11 @@ priv raw_switch_key := proc(scope: Scope, e: Expr, ctx: Context) returns I64 {
         raw_result_drop(raw_type, raw, info.is_ref, ctx)
         return result
     case .Primitive:
-        return raw_to_i64(raw_type, eval_scalar_arg_word(scope, e, raw_type, ctx), ctx)
+        return raw_to_i64(raw_type, scalar_word_of_raw(raw, info.is_ref, info.is_word, raw_type, ctx), ctx)
     case .Dynamic:
         // An erased scalar subject: the value is a Dynamic slot; read the
         // pointed scalar as I64 (the pre-word behavior read through the
         // arg pointer the same way).
-        mut info := raw_result_info_new(ctx)
-        raw : Dynamic = eval_expr_raw_info(scope, e, ctx, info)
         result := raw_to_i64(Type.Primitive(Primitive.I64), scalar_word_load(Type.Primitive(Primitive.I64), raw_arg_pointer(raw, info, ctx), ctx), ctx)
         raw_result_drop(raw_type, raw, info.is_ref, ctx)
         return result
@@ -1984,23 +1901,36 @@ priv eval_switch := proc(scope: Scope, stmt: Expr, mut ctx: Context) {
 
 priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx: Context) {
     ref rhs : Expr = stmt.children[0]
-    rhs_type := scalar_raw_source_type(scope, rhs, ctx)
+    if stmt.til_type().is(Type.None) {
+        if rhs.node_type.is(NodeType.Ident) { return }
+    }
+    mut rhs_info := raw_result_info_new(ctx)
+    mut rhs_raw : Dynamic = 0
+    mut source_hb_o := Option(ref HeapBinding).None
+    switch rhs.node_type {
+    case .Ident(rhs_ident):
+        source_hb_o = scope_lookup_heap_binding(scope, rhs_ident.ident_name())
+        if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name()) }
+        ref source_hb : HeapBinding = source_hb_o.unwrap()
+        rhs_info.source_type_p = source_hb.til_type_p
+        if hb_type(source_hb).is(Type.Dynamic).and(rhs.til_type().is(Type.Dynamic).not()) {
+            rhs_info.source_type_p = to_ptr(interp_intern_type(rhs.til_type(), ctx))
+        }
+    case:
+        rhs_raw = eval_expr_raw_info(scope, rhs, ctx, rhs_info)
+    }
+    ref rhs_type : Type = raw_result_source_type(rhs_info)
     mut decl_type := rhs_type.clone()
     if dd.explicit_type.len() > 0 { decl_type = type_from_name_init(dd.explicit_type, ctx.scope) }
     if decl_type.is(Type.Body).and(rhs_type.is(Type.Enum)) { decl_type = rhs_type.clone() }
     if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) {
         decl_type = Type.Body
     }
-    if stmt.til_type().is(Type.None) {
-        if rhs.node_type.is(NodeType.Ident) { return }
-    }
     // Canonical block (as a raw word) for the binding to borrow;
     // decl_type stays the owned working copy for the value logic below.
     bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
     switch rhs.node_type {
     case .Ident(rhs_ident):
-        source_hb_o := scope_lookup_heap_binding(scope, rhs_ident.ident_name())
-        if source_hb_o.is_none() { panic("declaration source not found: ", rhs_ident.ident_name()) }
         ref source_hb : HeapBinding = source_hb_o.unwrap()
         if source_hb.moved_out { panic("declaration from moved binding: ", rhs_ident.ident_name()) }
         ref source_scope : Scope = scope_get_binding_scope(scope, rhs_ident.ident_name())
@@ -2087,17 +2017,8 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
         }
         return
     case:
-        is_ref := expr_raw_is_ref(scope, rhs, ctx)
-        mut destination : Dynamic = 0
-        mut destination_is_raw_block := false
-        switch decl_type {
-        case .Primitive: destination_is_raw_block = dd.own_type.is(OwnType.Own).or(rhs_is_raw_alloc_call(rhs))
-        case:
-        }
-        if is_ref.not().and(destination_is_raw_block.not()).and(til_type_name_c(rhs_type) == til_type_name_c(decl_type)) {
-            destination = dispatch_result_alloc(decl_type, ctx)
-        }
-        mut raw : Dynamic = eval_expr_raw(scope, rhs, ctx, destination)
+        is_ref := rhs_info.is_ref
+        mut raw : Dynamic = rhs_raw
         if is_ref {
             pointed : Dynamic = raw
             mut borrowed_pointer_field := false
@@ -2161,11 +2082,7 @@ priv eval_declaration := proc(scope: Scope, stmt: Expr, dd: Declaration, mut ctx
             } else {
                 raw = raw_coerce_value(raw, rhs_type, decl_type, ctx, dd.own_type)
             }
-            if destination.is_null().not() {
-                raw = raw_result_finish(decl_type, raw, destination, false, ctx)
-            } else {
-                raw = binding_block_from_word(decl_type, raw, rhs_is_pointer, ctx)
-            }
+            raw = binding_block_from_word(decl_type, raw, rhs_is_pointer, ctx)
             scope_set_raw_owned(scope, dd.name, raw, bind_type_w, dd.own_type, ctx)
             if raw_type_is_prim(decl_type, ctx).and(rhs_is_pointer) {
                     ref pointer_hb : HeapBinding = scope_lookup_heap_binding(scope, dd.name).unwrap()
@@ -2277,10 +2194,9 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 case:
                 }
             } else {
-                mut new_is_ref := false
-                mut new_is_word := false
-                new_raw = eval_expr_raw_meta(scope, rhs, ctx, new_is_ref, new_is_word)
-                if new_is_ref {
+                mut new_info := raw_result_info_new(ctx)
+                new_raw = eval_expr_raw_info(scope, rhs, ctx, new_info)
+                if new_info.is_ref {
                     // A ref raw is the bare target address: load the scalar
                     // inline / clone the aggregate; the target keeps its
                     // storage.
@@ -2291,7 +2207,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         new_raw = copied
                     }
                 } else {
-                    new_raw = raw_coerce_value(new_raw, rhs.til_type(), hb_type(assign_hb), ctx, assign_hb.own_type)
+                    new_raw = raw_coerce_value(new_raw, raw_result_source_type(new_info), hb_type(assign_hb), ctx, assign_hb.own_type)
                 }
             }
             if raw_type_is_prim(hb_type(assign_hb), ctx).and(assign_hb.own_type.is(OwnType.Own).not()).and(stmt.til_type().is(Type.Dynamic).not()) {
@@ -2333,13 +2249,16 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
             }
             mut val_raw : Dynamic = 0
             mut val_is_ref := false
+            mut val_source_type := val_expr.til_type().clone()
             if fad.transfers_own {
                 switch val_expr.node_type {
                 case .Ident(val_id):
                     val_raw = scope_move_bound_raw(scope, val_id.ident_name(), ctx)
                 case:
-                    mut val_is_word := false
-                    val_raw = eval_expr_raw_meta(scope, val_expr, ctx, val_is_ref, val_is_word)
+                    mut val_info := raw_result_info_new(ctx)
+                    val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
+                    val_is_ref = val_info.is_ref
+                    val_source_type = raw_result_source_type(val_info).clone()
                 }
             } else {
                 switch val_expr.node_type {
@@ -2351,9 +2270,12 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     ref source_raw : Dynamic = to_ptr(source_hb.ptr)
                     val_raw = source_raw
                     val_is_ref = true
+                    val_source_type = hb_type(source_hb).clone()
                 case:
-                    mut val_is_word := false
-                    val_raw = eval_expr_raw_meta(scope, val_expr, ctx, val_is_ref, val_is_word)
+                    mut val_info := raw_result_info_new(ctx)
+                    val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
+                    val_is_ref = val_info.is_ref
+                    val_source_type = raw_result_source_type(val_info).clone()
                 }
             }
             if interp_fa_is_ns(scope, stmt, ctx) {
@@ -2371,7 +2293,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         owned : Dynamic = heap_clone_by_type(target_type, val_raw, ctx)
                         val_raw = owned
                     } else {
-                        val_raw = raw_coerce_value(val_raw, val_expr.til_type(), target_type, ctx)
+                        val_raw = raw_coerce_value(val_raw, val_source_type, target_type, ctx)
                         // ns storage is a binding: a scalar word needs a block.
                         val_raw = binding_block_from_word(target_type, val_raw, false, ctx)
                     }
@@ -2382,7 +2304,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                         owned : Dynamic = heap_clone_by_type(target_type, val_raw, ctx)
                         val_raw = owned
                     } else {
-                        val_raw = raw_coerce_value(val_raw, val_expr.til_type(), target_type, ctx)
+                        val_raw = raw_coerce_value(val_raw, val_source_type, target_type, ctx)
                     }
                     // ns storage is a binding: a scalar word needs a block.
                     val_raw = binding_block_from_word(target_type, val_raw, false, ctx)
@@ -2461,7 +2383,7 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                 // here is a broken layout, not a state.
                 ref fdecl : Declaration = find_field_decl(cur_sdef, fname).unwrap()
                 ref wf_fl : FieldLayout = ctx_field_layout(cur_sname, fname, ctx)
-                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_expr.til_type(), val_is_ref, fad.save_old_delete, ctx)
+                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, fad.save_old_delete, ctx)
             }
         case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
@@ -2496,8 +2418,8 @@ priv eval_body := proc(scope: Scope, body: Expr, mut ctx: Context) {
                     if return_hb_o.is_none() { panic("return binding not found: ", ret_ident.ident_name()) }
                     ref return_hb : HeapBinding = return_hb_o.unwrap()
                     return_source_type = hb_type(return_hb).clone()
-                    // Same rule as expr_raw_is_ref: a callable-typed binding
-                    // never reads back as a borrow -- a static callable comes
+                    // A callable-typed binding never reads back as a borrow --
+                    // a static callable comes
                     // out as a fresh OWNED box, a closure as a clone. Deriving
                     // ref-ness from own_type alone made `return v` on a
                     // FuncSig-typed Ref param reframe that owned box as if
@@ -2712,11 +2634,11 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 }
             }
         case:
-            mut arg_is_ref := false
-            mut arg_is_word := false
-            mut arg_raw : Dynamic = eval_expr_raw_meta(caller_scope, arg_expr, ctx, arg_is_ref, arg_is_word)
+            mut arg_info := raw_result_info_new(ctx)
+            mut arg_raw : Dynamic = eval_expr_raw_info(caller_scope, arg_expr, ctx, arg_info)
+            ref arg_source_type : Type = raw_result_source_type(arg_info)
             if is_variadic_param.not().and(param.explicit_type == "Dynamic") {
-                if arg_expr.til_type().is(Type.Dynamic) {
+                if arg_source_type.is(Type.Dynamic) {
                     if param.own_type.is(OwnType.Ref) {
                         scope_set_heap_owned(call_scope, param.name, arg_raw, dynamic_type_w, param.own_type, ctx, false, true, true)
                     } else {
@@ -2724,19 +2646,19 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     }
                 } else if param.own_type.is(OwnType.Ref) {
                     mut pointed : Dynamic = arg_raw
-                    if arg_is_ref.not().and(arg_is_word) {
+                    if arg_info.is_ref.not().and(arg_info.is_word) {
                         // A scalar word has no storage: box it so the
                         // borrowed Dynamic view has bytes to point at.
-                        pointed = scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx)
+                        pointed = scalar_block_from_word(arg_source_type, arg_raw, ctx)
                     }
                     scope_set_heap_owned(call_scope, param.name, pointed, dynamic_type_w, param.own_type, ctx, false, true, true)
                 } else {
                     dynamic_slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-                    if arg_is_ref { write_ptr(dynamic_slot, arg_raw) }
-                    else if arg_is_word {
+                    if arg_info.is_ref { write_ptr(dynamic_slot, arg_raw) }
+                    else if arg_info.is_word {
                         // Box the scalar word: the Dynamic slot points at
                         // real bytes (C's &x), as the block model did.
-                        write_ptr(dynamic_slot, scalar_block_from_word(arg_expr.til_type(), arg_raw, ctx))
+                        write_ptr(dynamic_slot, scalar_block_from_word(arg_source_type, arg_raw, ctx))
                     }
                     else { write_ptr(dynamic_slot, arg_raw) }
                     scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
@@ -2745,10 +2667,10 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                 bind_type_w : Dynamic = interp_param_bind_type(param, interp_intern_type(param.til_type, ctx), is_variadic_param, ctx)
                 ref bind_type : Type = to_ptr(bind_type_w)
                 mut borrowed := false
-                if arg_is_ref {
+                if arg_info.is_ref {
                     borrowed = true
                 } else {
-                    arg_raw = raw_coerce_value(arg_raw, arg_expr.til_type(), bind_type, ctx, param.own_type)
+                    arg_raw = raw_coerce_value(arg_raw, arg_source_type, bind_type, ctx, param.own_type)
                     if param.own_type.is(OwnType.Ref) {
                         switch arg_expr.node_type {
                         case .Literal(Literal.Null): borrowed = true
@@ -2759,12 +2681,12 @@ priv eval_user_func_call := proc(caller_scope: Scope, e: Expr, func_def: Expr, p
                     // binding slot. The Dynamic-source own/ref-target
                     // coercion transfers a pointer (#302) and stays.
                     mut arg_word := raw_type_is_prim(bind_type, ctx).and(borrowed.not())
-                    if arg_expr.til_type().is(Type.Dynamic).and(param.own_type.is(OwnType.Shallow).not()) { arg_word = false }
+                    if arg_source_type.is(Type.Dynamic).and(param.own_type.is(OwnType.Shallow).not()) { arg_word = false }
                     // A prim-stamped eval can still be a BLOCK (an Own-prim
                     // binding read: a #302 raw-alloc pointer datum). That is
                     // already storage-shaped; boxing it would store the
                     // block ADDRESS as the scalar.
-                    if raw_type_is_prim(arg_expr.til_type(), ctx).and(arg_is_word.not()) { arg_word = false }
+                    if raw_type_is_prim(arg_source_type, ctx).and(arg_info.is_word.not()) { arg_word = false }
                     if arg_word { arg_raw = scalar_block_from_word(bind_type, arg_raw, ctx) }
                 }
                 scope_set_raw_owned(call_scope, param.name, arg_raw, bind_type_w, param.own_type, ctx, borrowed)
@@ -3205,9 +3127,13 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                         mut arg_raw : Dynamic = 0
                         mut arg_is_ref := false
                         mut arg_is_place := false
+                        mut arg_source_type := arg.til_type().clone()
                         switch arg.node_type {
                         case .Ident(arg_ident):
                             ref source_hb : HeapBinding = scope_lookup_heap_binding(scope, arg_ident.ident_name()).unwrap()
+                            if hb_type(source_hb).is(Type.Dynamic).and(arg.til_type().is(Type.Dynamic).not()).not() {
+                                arg_source_type = hb_type(source_hb).clone()
+                            }
                             mut move_iface_val := false
                             if cur_fpos == iface_val_pos {
                                 if iface_owned_pos < sdd.fields.len() {
@@ -3296,8 +3222,10 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                                 arg_is_place = heap_type_is_callable(hb_type(source_hb)).not()
                             }
                         case:
-                            mut arg_is_word := false
-                            arg_raw = eval_expr_raw_meta(scope, arg, ctx, arg_is_ref, arg_is_word)
+                            mut arg_info := raw_result_info_new(ctx)
+                            arg_raw = eval_expr_raw_info(scope, arg, ctx, arg_info)
+                            arg_is_ref = arg_info.is_ref
+                            arg_source_type = raw_result_source_type(arg_info).clone()
                             arg_is_place = arg_is_ref
                         }
                         // A SHALLOW prim field takes a value WORD: a
@@ -3305,11 +3233,11 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                         // the scalar out first (the source keeps its
                         // storage), then widen like any value word.
                         if raw_type_is_prim(fdd.til_type, ctx).and(fdd.own_type.is(OwnType.Shallow)).and(arg_is_ref.or(arg_is_place)) {
-                            arg_raw = scalar_word_load(arg.til_type(), arg_raw, ctx)
+                            arg_raw = scalar_word_load(arg_source_type, arg_raw, ctx)
                             arg_is_ref = false
                             arg_is_place = false
                         }
-                        arg_raw = raw_widen_numeric(arg_raw, arg.til_type(), fdd.explicit_type, ctx)
+                        arg_raw = raw_widen_numeric(arg_raw, arg_source_type, fdd.explicit_type, ctx)
                         ref ctor_fl : FieldLayout = ctor_sl.fields.unsafe_get(cur_fpos)
                         mut arg_is_null := false
                         switch arg.node_type {
@@ -3321,7 +3249,7 @@ priv eval_call_meta := proc(scope: Scope, e: Expr, mut ctx: Context, mut result_
                             write_ptr(ptr_add(inst_data, ctor_fl.offset), bits_word(0))
                             continue
                         }
-                        init_field_raw(inst_data, fdd, ctor_fl.offset, ctor_fl.size, arg_raw, arg.til_type(), arg_is_ref, arg_is_place, ctx)
+                        init_field_raw(inst_data, fdd, ctor_fl.offset, ctor_fl.size, arg_raw, arg_source_type, arg_is_ref, arg_is_place, ctx)
                     }
                 callable_raw_free(fn_raw, ctx)
                 return inst_data
@@ -4744,13 +4672,12 @@ interpreter_init_ns := proc(mut ctx: Context, global: Scope, program: Expr) {
             for nci_pos : I64 in const_order {
                 cur_nci := nci_pos.to_usize()
                 ref nsd : Declaration = reg_ns.unsafe_get(cur_nci)
-                mut raw_is_ref := false
-                mut raw_is_word := false
-                mut raw : Dynamic = eval_expr_raw_meta(global, nsd.default_expr(), ctx, raw_is_ref, raw_is_word)
-                if raw_is_ref {
+                mut info := raw_result_info_new(ctx)
+                mut raw : Dynamic = eval_expr_raw_info(global, nsd.default_expr(), ctx, info)
+                if info.is_ref {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
                     raw = owned
-                } else if raw_is_word {
+                } else if info.is_word {
                     // ns storage is a binding: a scalar word needs a block.
                     raw = scalar_block_from_word(ns_decl_raw_type(nsd), raw, ctx)
                 }
@@ -6903,20 +6830,18 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
             }
         }
         ref arg : Expr = e.children[1]
-        mut raw_is_ref := false
-        mut raw_is_word := false
-        raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
+        mut info := raw_result_info_new(ctx)
+        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
-        raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+        raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     case:
         ref arg : Expr = e.children[1]
-        mut raw_is_ref := false
-        mut raw_is_word := false
-        raw : Dynamic = eval_expr_raw_meta(s, arg, ctx, raw_is_ref, raw_is_word)
+        mut info := raw_result_info_new(ctx)
+        raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
         ref stored : Dynamic = deref(raw)
         if stored.is_null().not() { callable_storage_free(stored); write_ptr(raw, bits_word(0)) }
-        raw_result_drop(arg.til_type(), raw, raw_is_ref, ctx)
+        raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     }
     return true
 }
@@ -7465,12 +7390,15 @@ priv enum_method_dispatch := proc(method: Str, scope: Scope, enum_def: Expr, enu
                     case:
                     }
                 }
-                mut pdata_eval_is_word := false
-                if transferred_ident.not() { pdata = eval_expr_raw_meta(scope, payload_expr, ctx, pdata_is_ref, pdata_eval_is_word) }
+                mut pdata_info := raw_result_info_new(ctx)
+                if transferred_ident.not() {
+                    pdata = eval_expr_raw_info(scope, payload_expr, ctx, pdata_info)
+                    pdata_is_ref = pdata_info.is_ref
+                }
                 mut pdata_is_word := false
                 if payload_transfers.not().and(pdata_is_ref) {
                     pdata = heap_clone_by_type(payload_expr.til_type(), pdata, ctx)
-                } else if transferred_ident.not().and(pdata_eval_is_word) {
+                } else if transferred_ident.not().and(pdata_info.is_word) {
                     // A scalar payload word: park it in a ring slot so the
                     // flat-enum writer has bytes to copy from.
                     pdata = word_ring_slot(payload_expr.til_type(), pdata, ctx)
