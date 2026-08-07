@@ -2028,6 +2028,11 @@ priv infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, in_func: I3
             switch e.node_type {
             case .FCall(dyn_fcd):
                 dyn_fcd.own_args = 0
+                // #342: the call is now dyn_call with a wholly different
+                // argument list, so the parsed splat positions describe
+                // nothing here -- clear them with the own bits rather than
+                // leave a bitmap pointing at the new arguments.
+                dyn_fcd.splat_args = 0
             case:
             }
             infer_expr(scope, e, in_func, ctx)
@@ -2965,6 +2970,10 @@ priv generic_infer_subs := proc(scope: TypeScope, mut e: Expr, gfd: FunctionDef,
 priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(I64)) {
     mut new_ch := Vec(Expr).with_capacity(e.children.len())
     mut owned := Vec(Bool).new()
+    // #342: splat_args is indexed like own_args, so a dropped `Type` argument
+    // renumbers it too -- `gjoin(Str, "x", ..a)` otherwise left the bit on the
+    // position the Type argument used to hold.
+    mut splatted := Vec(Bool).new()
     new_ch.push(own Expr.new(ident_node(mono), e.children[0].line, e.children[0].col))
     for k in 1..e.children.len() {
         pidx := k - 1
@@ -2975,6 +2984,8 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
         if drop_arg { continue }
         kept : Bool = get_own_arg(e, k)
         owned.push(own kept)
+        kept_splat : Bool = get_splat_arg(e, k)
+        splatted.push(own kept_splat)
         new_ch.push(own e.children[k].clone())
     }
     e.children.move_from(own new_ch)
@@ -2982,10 +2993,14 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
     case .FCall(fcd):
         fcd.own_args = 0
         fcd.ref_args = 0
+        fcd.splat_args = 0
     case:
     }
     for bi in 0..owned.len() {
         if owned[bi] { set_own_arg(e, bi + 1) }
+    }
+    for si in 0..splatted.len() {
+        if splatted[si] { set_splat_arg(e, si + 1) }
     }
 }
 

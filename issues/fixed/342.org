@@ -44,6 +44,82 @@ from test/typer_errors.til (count 184 -> 183) and ~mv_variadic_callee~ is
 back to the direct ~format(mv_head, ..mv_rest)~ the stopgap had forced into
 a nested workaround.
 
+*** Follow-up: the three blocks the fix above did not reach
+
+The lowering was right; what was wrong was WHERE it was consulted. Three
+call shapes still produced the original garbage -- silently, since the
+stopgap that would have rejected them was gone -- and a fourth had never
+gone through any splat path at all. All four are one commit.
+
+~splat_args~ is indexed by CHILD POSITION, so every pass that inserts,
+drops or reorders call children has to renumber it exactly as it
+renumbers ~own_args~. Two did not, and each left the bit naming the
+argument beside the splat, so the splatted Array was wrapped as one
+element again (the first of the two was fixed on master in parallel --
+see below):
+
+- UFCS inserts the receiver at position 1 (~infer~'s method-call
+  rewrite). It shifted ~own_args~ and left ~splat_args~ on the parsed
+  positions, so ~h.join("x", ..a)~ was garbage while the written-out
+  ~Holder.join(h, "x", ..a)~ was correct. This one landed on master
+  independently while the work below was in flight: #326's
+  ~shift_fcall_bitmap_for_ufcs~ shifts every child-indexed bitmap,
+  ~splat_args~ among them, which is the same shift generalized. Only the
+  regression test for it comes from here.
+- Monomorphizing drops the ~Type~ argument (~generic_rewrite_call~ in
+  initer.til for the explicit application, ~generic_rewrite_call_in_place~
+  in typer.til for the deduced one). It carried ~is_splat~ and the own
+  bits across but not ~splat_args~, so ~gjoin(Str, "x", ..a)~ quietly lost
+  an element. (Deduced type arguments still reject any splat, pure or
+  mixed, with the pre-existing "pass it explicitly" error -- unchanged
+  here.)
+- The dyn-dispatch rewrite builds a wholly different ~dyn_call~; its
+  ~splat_args~ is now cleared with ~own_args~ rather than left pointing at
+  the new argument list.
+
+~get_splat_arg~ joins ~set_splat_arg~ in parser.til so these read the
+bitmap the way ~get_own_arg~ / ~get_ref_arg~ are read, instead of the
+desugar's own copy of the bit test.
+
+The fourth: ~array()~ and ~vec()~ are themselves declared variadic
+(~elements: ..Dynamic~), so their element list IS a variadic block -- but
+the collection-literal desugar predates the splat paths and indexed it as
+contiguous elements. ~array(I64, 1, ..xs, 9)~ and ~vec(...)~ alike stored
+the splatted Array as ONE element, in every position: literal in a
+declaration, literal as a call argument, splat alone in the block.
+~build_splat_folded_array~ (the fold factored out of
+~desugar_mixed_splat_variadic_call~) now serves both, and two things the
+variadic path never had to face turned up here:
+
+- A block that is nothing but one splat folds to a single piece, so there
+  is no concat to do the cloning. An Ident there is clone-wrapped, the way
+  the pure-splat path wraps its argument.
+- A Vec literal has to end at a Vec. ~Array.to_vec~ (src/core/array.til)
+  converts, cloning every element like ~concat~ does; the desugar folds to
+  an Array and calls it. Pushing element by element instead would have
+  meant a hand-built loop over a runtime length in a pass whose emitted
+  nodes are never re-inferred -- the same reason ~concat~ won the first
+  time. It is a method on Array rather than a ~Vec.extend~ taking an Array
+  because the dependency then runs Array -> Vec: the compiler instantiates
+  ~Vec__T~ for over a thousand types and ~Array__T~ for a few dozen.
+
+Two traps worth recording, both found by crashing:
+
+- ~_va_Array_~ is not a free name. The constfolder reads that prefix as
+  "an Array.new collector, interpret its build region" (~is_va_array_decl~
+  ignores the RHS shape entirely), so naming the Vec path's folded temp
+  that way made it interpret a concat chain in the fold scope, where the
+  hoisted temp of an inner concat is unbound. The temp uses ~_array_~,
+  the collection literals' own prefix.
+- A local moved on with ~own~ into a call is deleted again at the end of
+  the enclosing body unless the transfer leaves that body, so the fold is
+  handed to ~bind_folded_array_literal~ / ~bind_folded_vec_literal~ as an
+  ~own~ parameter rather than bound and moved in the caller.
+
+Tests: test_mixed_splat_ufcs / _generic in test/variadic.til, and
+test_to_vec / _empty, test_array_literal_splat, test_vec_literal_splat,
+test_collection_literal_splat_in_arg in test/arrays.til.
+
 A ~..~ splat passed alongside other arguments in the same variadic
 block is currently a type error:
 

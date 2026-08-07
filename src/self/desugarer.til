@@ -3924,6 +3924,11 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             if cn_str == "vec" {
                 vec_name := format("_vec_", ctx.coll_counter.to_str())
                 ctx.coll_counter++
+                if desugar_splat_collection_literal(ctx, fcall, new_ch, scope, elem_type,
+                        vec_name, true, true, OwnType.Own) {
+                    rewrite_collection_fcall_to_ident(fcall, vec_name, Type.Struct(format("Vec__", elem_type)))
+                    return true
+                }
                 mut vec_decl := fcall.build_builtin_vec_decl(elem_type, vec_name)
                 vec_type := format("Vec__", elem_type)
                 scope.set(vec_name, Type.Struct(vec_type.clone()), true, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
@@ -3938,6 +3943,11 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
             arr_name := format("_array_", ctx.coll_counter.to_str())
             ctx.coll_counter++
             array_type := variadic_array_type_name(scope, elem_type)
+            if desugar_splat_collection_literal(ctx, fcall, new_ch, scope, elem_type,
+                    arr_name, false, false, OwnType.Own) {
+                rewrite_collection_fcall_to_ident(fcall, arr_name, Type.Struct(array_type))
+                return true
+            }
             mut arr_decl := build_variadic_array_decl(fcall, scope, elem_type, arr_name, count, ctx)
             scope.set(arr_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
             new_ch.push(own arr_decl)
@@ -3957,7 +3967,7 @@ priv desugar_array_vec_fcall := func(mut ctx: Context, mut fcall: Expr, mut new_
     }
 }
 
-priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, ctx: Context) returns Bool {
+priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, mut ctx: Context) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { return false }
     ref rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.FCall).not() { return false }
@@ -3974,6 +3984,10 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             elem_type := resolve_type_alias_for_name(scope, array_vec_elem_type_name(rhs)).clone()
             if elem_type.len() == 0 { return false }
             count : USize = rhs.children.len() - 2
+            if desugar_splat_collection_literal(ctx, rhs, new_ch, scope, elem_type,
+                    var_name, true, true, OwnType.Shallow) {
+                return true
+            }
             mut vec_decl := rhs.build_builtin_vec_decl(elem_type, var_name)
             vec_type := format("Vec__", elem_type)
             vec_decl.set_til_type(Type.Struct(vec_type.clone()))
@@ -3996,6 +4010,10 @@ priv desugar_array_vec_decl := func(stmt: Expr, mut new_ch: Vec(Expr), mut scope
             if elem_type.len() == 0 { return false }
             count : USize = rhs.children.len() - 2
             array_type := variadic_array_type_name(scope, elem_type)
+            if desugar_splat_collection_literal(ctx, rhs, new_ch, scope, elem_type,
+                    var_name, false, true, OwnType.Shallow) {
+                return true
+            }
             mut arr_decl := build_variadic_array_decl(rhs, scope, elem_type, var_name, count, ctx)
             arr_decl.set_til_type(Type.Struct(array_type.clone()))
             scope.set(var_name, Type.Struct(array_type), true, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow)
@@ -4920,59 +4938,49 @@ priv derive_fcall_kwargs_index := func(_fcall: Expr, fdef_data: FunctionDef) ret
 
 // Returns true if it rewrote fcall in place. Caller is responsible for
 // pushing the (now mutated) stmt into new_ch.
-// #342: is the block argument at absolute index `idx` a `..` splat? Reads the
-// splat_args bitmap the parser records (is_splat only says SOME arg was).
-priv fcall_arg_is_splat := func(fcall: Expr, idx: USize) returns Bool {
+// #342: does any argument of the `count`-long block starting at absolute child
+// index `start` carry `..`? get_splat_arg reads the bitmap the parser records
+// (is_splat only says SOME argument did).
+priv block_has_splat := func(fcall: Expr, start: USize, count: USize) returns Bool {
     switch fcall.node_type {
     case .FCall(fcd):
-        mut bit : U64 = 1
-        for _ in 0..idx { bit = bit * 2 }
-        return fcd.splat_args.band(bit).neq(0)
+        if fcd.splat_args == 0 { return false }
     case:
         return false
     }
+    for k in 0..count {
+        if get_splat_arg(fcall, start.add(k)) { return true }
+    }
+    return false
 }
 
-// #342: lower a MIXED variadic block -- a `..` splat beside other arguments.
-// The block is walked in source order; each run of consecutive non-splat
-// arguments becomes its own collector Array (the ordinary machinery, just
-// filled from a subset), and each splatted Array is taken as is. The pieces
-// are then folded left to right with Array.concat, which clones every element
-// so no source is moved out from under its owner, and the call is handed the
-// single combined Array -- exactly the pure-splat shape the desugar already
-// knows how to pass. Returns false for a block with no splat, leaving the
-// ordinary path to it.
-priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
-        mut new_ch: Vec(Expr), mut scope: TypeScope, elem_type: Str,
-        array_type: Str, vi: I32, vc: USize) returns Bool {
-    if vc < 2 { return false }
-    mut has_splat := false
-    switch e.node_type {
-    case .FCall(fcd):
-        if fcd.is_splat.not() { return false }
-    case:
-        return false
-    }
-    vi_u := vi.to_usize()
-    for k in 0..vc {
-        if fcall_arg_is_splat(e, vi_u.add(k)) { has_splat = true }
-    }
-    if has_splat.not() { return false }
-
-    // Build the pieces, in source order.
+// #342: fold a block holding at least one `..` splat into ONE Array
+// expression. The block is walked in source order; each run of consecutive
+// non-splat arguments becomes its own collector Array (the ordinary
+// machinery, just filled from a subset), and each splatted Array is taken as
+// is. The pieces are then folded left to right with Array.concat, which
+// clones every element so no source is moved out from under its owner.
+//
+// A block that is nothing but one splat (`array(I64, ..xs)`) yields a single
+// piece and so no concat to do the cloning; an Ident there is clone-wrapped
+// exactly as desugar_pure_splat_variadic_call wraps its argument, or the
+// caller's array would be moved out from under it.
+priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec(Expr),
+        mut scope: TypeScope, elem_type: Str, array_type: Str, start: USize,
+        count: USize) returns Expr {
     mut pieces := Vec(Expr).new()
     mut k : USize = 0
-    while k < vc {
-        idx := vi_u.add(k)
-        if fcall_arg_is_splat(e, idx) {
+    while k < count {
+        idx := start.add(k)
+        if get_splat_arg(e, idx) {
             pieces.push(own e.children[idx].clone())
             k++
             continue
         }
         // A run of plain elements -> one collector Array.
         mut run : USize = 0
-        while k.add(run) < vc {
-            if fcall_arg_is_splat(e, vi_u.add(k).add(run)) { break }
+        while k.add(run) < count {
+            if get_splat_arg(e, start.add(k).add(run)) { break }
             run++
         }
         grp_name := format("_va_Array_", ctx.va_counter.to_str())
@@ -4982,13 +4990,21 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
         new_ch.push(own grp_decl)
         build_variadic_err_slots(grp_name, new_ch, scope, ctx, e.line, e.col)
         for r in 0..run {
-            mut setter := build_variadic_array_set(e, scope, elem_type, grp_name, vi_u.add(k).add(r), r, ctx)
+            mut setter := build_variadic_array_set(e, scope, elem_type, grp_name, start.add(k).add(r), r, ctx)
             new_ch.push(own setter)
         }
         mut grp_id := Expr.new(ident_node(grp_name), e.line, e.col)
         grp_id.set_til_type(Type.Struct(array_type.clone()))
         pieces.push(own grp_id)
         k = k.add(run)
+    }
+
+    if pieces.len() == 1 {
+        ref only : Expr = pieces[0]
+        if only.node_type.is(NodeType.Ident) {
+            return make_clone_call(array_type, Type.Struct(array_type.clone()), only, e)
+        }
+        return only.clone()
     }
 
     // Fold the pieces with concat.
@@ -5003,6 +5019,118 @@ priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
         cc.add_child(own pieces[pi].clone())
         combined = cc.clone()
     }
+    return combined
+}
+
+// #342: `<name> := <rhs>` for a collection the splat fold already built --
+// build_variadic_array_decl / build_builtin_vec_decl's declaration with the
+// collector construction swapped for the folded expression. Built fully
+// resolved for the same reason they are: this desugar runs inside infer_body,
+// so nodes emitted here are never re-inferred.
+priv build_collection_alias_decl := func(src: Expr, type_name: Str, name: Str,
+        is_mut: Bool, own rhs: Expr) returns Expr {
+    mut decl := Expr.new(NodeType.Decl(Declaration()), src.line, src.col)
+    ref dd : Declaration = decl_of(decl)
+    dd.name = name.clone()
+    dd.own_type = OwnType.Own
+    dd.is_mut = is_mut
+    decl.set_til_type(Type.Struct(type_name.clone()))
+    decl.add_child(own rhs)
+    return decl
+}
+
+// #342: `<name> := <folded>` -- the Array half of the literal lowering below.
+// The fold arrives as an `own` parameter rather than being bound in the
+// caller: a local moved on into the declaration is deleted again at the end of
+// the caller's body, so the transfer has to leave that body.
+priv bind_folded_array_literal := func(ctx: Context, fcall: Expr, mut new_ch: Vec(Expr),
+        mut scope: TypeScope, array_type: Str, name: Str, is_mut: Bool,
+        own_type: OwnType, own folded: Expr) returns Bool {
+    mut decl := build_collection_alias_decl(fcall, array_type, name, is_mut, own folded)
+    scope.set(name, Type.Struct(array_type.clone()), is_mut, ctx.path, fcall.line, fcall.col, false, own_type)
+    new_ch.push(own decl)
+    return true
+}
+
+// #342: `<name> := <folded>.to_vec()` -- the Vec half of the literal lowering
+// below. `to_vec`'s self is a borrow, so the folded Array is bound to an owned
+// local the garbager frees rather than passed as an inline temporary.
+priv bind_folded_vec_literal := func(mut ctx: Context, fcall: Expr, mut new_ch: Vec(Expr),
+        mut scope: TypeScope, elem_type: Str, array_type: Str, name: Str,
+        own_type: OwnType, own folded: Expr) returns Bool {
+    // `_array_`, not `_va_Array_`: the constfolder reads the latter prefix as
+    // "an Array.new collector, interpret its build region" (is_va_array_decl),
+    // and this holds the folded concat chain instead -- interpreting it in the
+    // fold scope hit the hoisted temp of an inner concat, unbound there.
+    tmp_name := format("_array_", ctx.coll_counter.to_str())
+    ctx.coll_counter++
+    mut tmp_decl := build_collection_alias_decl(fcall, array_type, tmp_name, false, own folded)
+    scope.set(tmp_name, Type.Struct(array_type.clone()), false, ctx.path, fcall.line, fcall.col, false, OwnType.Own)
+    new_ch.push(own tmp_decl)
+
+    vec_type := format("Vec__", elem_type)
+    mut to_vec := make_ns_call(array_type, "to_vec", Type.Struct(vec_type.clone()), fcall)
+    mut src_id := Expr.new(ident_node(tmp_name), fcall.line, fcall.col)
+    src_id.set_til_type(Type.Struct(array_type.clone()))
+    to_vec.add_child(own src_id)
+    sync_own_args_from_callee(to_vec, scope)
+    mut vec_decl := build_collection_alias_decl(fcall, vec_type, name, true, own to_vec)
+    scope.set(name, Type.Struct(vec_type.clone()), true, ctx.path, fcall.line, fcall.col, false, own_type)
+    new_ch.push(own vec_decl)
+    return true
+}
+
+// #342: lower an `array(T, ...)` / `vec(T, ...)` literal whose element block
+// holds a `..` splat, binding the result to `name`. `array` and `vec` are
+// declared variadic (`elements: ..Dynamic`), so their element list is a
+// variadic block like any other and the same fold applies -- without it the
+// splatted Array was stored as ONE element and the reader took its header
+// bytes for an element, the exact garbage this issue is about.
+//
+// A Vec literal folds to an Array first and converts, rather than pushing
+// element by element: the splat's length is a runtime value, and a push loop
+// built here would have to carry its own til_types and ownership because
+// emitted nodes are not re-inferred -- the reason the variadic lowering chose
+// a til-level helper over a hand-built loop.
+//
+// Returns false when the block holds no splat, leaving the contiguous fast
+// paths to it.
+priv desugar_splat_collection_literal := func(mut ctx: Context, fcall: Expr,
+        mut new_ch: Vec(Expr), mut scope: TypeScope, elem_type: Str, name: Str,
+        is_vec: Bool, is_mut: Bool, own_type: OwnType) returns Bool {
+    count : USize = fcall.children.len() - 2
+    if block_has_splat(fcall, 2, count).not() { return false }
+    array_type := variadic_array_type_name(scope, elem_type)
+    mut folded := build_splat_folded_array(ctx, fcall, new_ch, scope, elem_type,
+        array_type, 2, count)
+    if is_vec {
+        return bind_folded_vec_literal(ctx, fcall, new_ch, scope, elem_type,
+            array_type, name, own_type, own folded)
+    }
+    return bind_folded_array_literal(ctx, fcall, new_ch, scope, array_type, name,
+        is_mut, own_type, own folded)
+}
+
+// #342: lower a MIXED variadic block -- a `..` splat beside other arguments.
+// The block folds into the single combined Array that is exactly the
+// pure-splat shape the desugar already knows how to pass, so nothing
+// downstream learns about mixed blocks. Returns false for a block with no
+// splat, leaving the ordinary path to it.
+priv desugar_mixed_splat_variadic_call := func(mut ctx: Context, mut e: Expr,
+        mut new_ch: Vec(Expr), mut scope: TypeScope, elem_type: Str,
+        array_type: Str, vi: I32, vc: USize) returns Bool {
+    if vc < 2 { return false }
+    switch e.node_type {
+    case .FCall(fcd):
+        if fcd.is_splat.not() { return false }
+    case:
+        return false
+    }
+    vi_u := vi.to_usize()
+    if block_has_splat(e, vi_u, vc).not() { return false }
+
+    mut combined := build_splat_folded_array(ctx, e, new_ch, scope, elem_type,
+        array_type, vi_u, vc)
 
     // Replace the whole block with the single combined Array, in the shape
     // the pure-splat path produces: one owned array argument, no splat flag.

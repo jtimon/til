@@ -2831,6 +2831,16 @@ set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
     }
 }
 
+// #342: did the argument at `arg_index` carry `..`? Every pass that inserts,
+// drops or reorders call children must renumber this bitmap exactly as it
+// renumbers own_args, or the lowering reads the wrong argument's bit.
+get_splat_arg := func(fcall: Expr, arg_index: USize) returns Bool {
+    ref fcd : FCallData = fcall_of(fcall)
+    mut bit : U64 = 1
+    for _ in 0..arg_index { bit = bit * 2 }
+    return fcd.splat_args.band(bit) > 0
+}
+
 set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
     switch fcall.node_type {
     case .FCall(fcd):

@@ -5,6 +5,7 @@ import("bool")
 import("dyn")
 import("numbers")
 import("str")
+import("vec")
 
 array := ext_func(T: Type, elements: ..Dynamic) returns Array {}
 
@@ -85,6 +86,21 @@ namespace:
             adopt(T, ptr_add(new_data, self.cap.add(j).mul(T.size())), own ocloned)
         }
         return Array(T)(data = new_data, cap = total)
+    }
+
+    /// #342: a fresh Vec holding a clone of every element, `self` intact.
+    /// The `vec(T, x, ..arr)` lowering ends here: a splat's length is a
+    /// runtime value, so the literal's block is folded into one Array with
+    /// `concat` and converted, instead of the desugar hand-building a push
+    /// loop whose nodes no later pass would infer.
+    to_vec := func(self: Array(T)) returns Vec(T) {
+        mut out : Vec(T) = Vec(T).with_capacity(self.cap)
+        for i in 0..self.cap {
+            ref src : T = ptr_add(self.data, i.mul(T.size()))
+            mut cloned : T = T.clone(src)
+            out.push(own cloned)
+        }
+        return out
     }
 
     clone := func(self: Array(T)) returns Array(T) {

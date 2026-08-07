@@ -191,3 +191,72 @@ test_concat_empty := test() {
     d := e.concat(a)
     assert_eq(USize, d.len(), 2)
 }
+
+// #342: Array.to_vec -- a fresh Vec with a clone of every element, self
+// intact. The `vec(T, x, ..arr)` lowering ends here: the literal's block is
+// folded into one Array and converted.
+test_to_vec := test() {
+    a := array(Str, "a", "b")
+    v := a.to_vec()
+    assert_eq(USize, v.len(), 2)
+    assert_eq(Str, v[0], "a")
+    assert_eq(Str, v[1], "b")
+    ref a0 : Str = a[0]
+    assert_eq(Str, a0, "a")
+    assert_eq(USize, a.len(), 2)
+}
+
+test_to_vec_empty := test() {
+    e := Array(I64).new(0)
+    v := e.to_vec()
+    assert_eq(USize, v.len(), 0)
+}
+
+// #342: `array()` and `vec()` are declared variadic (`elements: ..Dynamic`),
+// so their element list is a variadic block and a `..` splat expands in place
+// among the other elements. Before this the splatted Array was stored as ONE
+// element and the reader took its header bytes for an element -- no error, no
+// crash, garbage output.
+test_array_literal_splat := test() {
+    inner := array(I64, 7, 8)
+    mixed := array(I64, 1, ..inner, 9)
+    assert_eq(USize, mixed.len(), 4)
+    assert_eq(I64, mixed[0], 1)
+    assert_eq(I64, mixed[1], 7)
+    assert_eq(I64, mixed[2], 8)
+    assert_eq(I64, mixed[3], 9)
+    // a lone splat has no concat to clone for it, so it is clone-wrapped
+    pure := array(I64, ..inner)
+    assert_eq(USize, pure.len(), 2)
+    assert_eq(I64, pure[0], 7)
+    // and the source survives both
+    assert_eq(USize, inner.len(), 2)
+    assert_eq(I64, inner[0], 7)
+    assert_eq(I64, inner[1], 8)
+}
+
+test_vec_literal_splat := test() {
+    inner := array(Str, "b", "c")
+    mixed := vec(Str, "a", ..inner, "d")
+    assert_eq(USize, mixed.len(), 4)
+    assert_eq(Str, mixed[0], "a")
+    assert_eq(Str, mixed[1], "b")
+    assert_eq(Str, mixed[3], "d")
+    pure := vec(Str, ..inner)
+    assert_eq(USize, pure.len(), 2)
+    assert_eq(Str, pure[0], "b")
+    ref i0 : Str = inner[0]
+    assert_eq(Str, i0, "b")
+}
+
+// The same literals away from a declaration's right-hand side: the decl fast
+// path binds the fold to the user's variable, the general path to a temp.
+priv arg_array_len := func(xs: Array(I64)) returns USize { return xs.len() }
+priv arg_vec_len := func(xs: Vec(I64)) returns USize { return xs.len() }
+
+test_collection_literal_splat_in_arg := test() {
+    inner := array(I64, 7, 8)
+    assert_eq(USize, arg_array_len(array(I64, 1, ..inner, 9)), 4)
+    assert_eq(USize, arg_vec_len(vec(I64, 1, ..inner, 9)), 4)
+    assert_eq(USize, inner.len(), 2)
+}

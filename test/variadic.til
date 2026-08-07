@@ -192,3 +192,40 @@ test_mixed_splat_source_intact := test() {
     assert_eq(Str, a0, "a")
     assert_eq(USize, a.len(), 2)
 }
+
+// #342: splat_args is indexed by child position, so every pass that inserts,
+// drops or reorders call children has to renumber it exactly as it renumbers
+// own_args. Two did not, and both lost the splat silently -- the bit named the
+// argument beside it, so the splatted Array was wrapped as one element again.
+
+// UFCS inserts the receiver at position 1.
+SplatHolder := struct {
+    tag := ""
+namespace:
+    join := func(self: SplatHolder, parts: ..Str) returns Str {
+        return format(self.tag, format(..parts))
+    }
+}
+
+test_mixed_splat_ufcs := test() {
+    h := SplatHolder(tag = "T:")
+    a := array(Str, "a", "b")
+    assert_eq(Str, h.join("x", ..a), "T:xab")
+    assert_eq(Str, h.join(..a, "x"), "T:abx")
+    // the receiver written out, which never went through the shift
+    assert_eq(Str, SplatHolder.join(h, "x", ..a), "T:xab")
+    // and the pure-splat form, which reads is_splat rather than the bitmap
+    assert_eq(Str, h.join(..a), "T:ab")
+}
+
+// Monomorphizing drops the `Type` argument, closing the gap it held.
+priv splat_generic_count := func(T: Type, parts: ..T) returns USize {
+    return parts.len()
+}
+
+test_mixed_splat_generic := test() {
+    a := array(Str, "a", "b")
+    assert_eq(USize, splat_generic_count(Str, "x", ..a), 3)
+    assert_eq(USize, splat_generic_count(Str, ..a, "x", "y"), 4)
+    assert_eq(USize, splat_generic_count(Str, ..a), 2)
+}

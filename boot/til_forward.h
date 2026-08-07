@@ -10,6 +10,7 @@ struct TilClosure {
 };
 
 typedef struct Mode Mode;
+typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Str Str;
 typedef struct OutOfBounds OutOfBounds;
 typedef struct KeyNotFound KeyNotFound;
@@ -269,7 +270,6 @@ enum {
     Option__ref_TypeBinding_TAG_Some
 };
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
-typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Map__Str_Mode Map__Str_Mode;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 enum {
@@ -421,6 +421,13 @@ typedef struct AnsiDecoder AnsiDecoder;
 typedef struct CliArgs CliArgs;
 
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
+
+typedef struct Vec__Dynamic {
+    U8 *data;
+    USize count;
+    USize cap;
+} Vec__Dynamic;
+
 
 typedef struct Str {
     I8 *c_str;
@@ -782,13 +789,6 @@ struct Option__ref_TypeScope {
 struct Option__ref_TypeBinding {
     TypeBinding *data;
 };
-
-typedef struct Vec__Dynamic {
-    U8 *data;
-    USize count;
-    USize cap;
-} Vec__Dynamic;
-
 
 struct Option__Scope {
     Scope *data;
@@ -1707,6 +1707,16 @@ typedef struct Scope {
 
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool call_free);
+Vec__Dynamic * Vec__Dynamic_new(void);
+USize Vec__Dynamic_len(Vec__Dynamic * self);
+void Vec__Dynamic_clear(Vec__Dynamic * self);
+void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
+void * Vec__Dynamic_unsafe_get(Vec__Dynamic * self, USize * i);
+void * Vec__Dynamic_get(Vec__Dynamic * self, USize * i, I64 * _err_kind);
+void Vec__Dynamic_remove_at(Vec__Dynamic * self, USize i, I64 * _err_kind);
+void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, USize i, void * val);
+void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
+Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
 void adopt__Dynamic(void * dest, void * src);
 Str * format(Array__Str * parts);
 Str * concat3(Str * a, Str * b, Str * c);
@@ -2080,6 +2090,7 @@ NodeType * field_access_node(Str * name);
 void set_own_arg(Expr * fcall, USize arg_index);
 Bool get_own_arg(Expr * fcall, USize arg_index);
 void set_splat_arg(Expr * fcall, USize arg_index);
+Bool get_splat_arg(Expr * fcall, USize arg_index);
 void set_ref_arg(Expr * fcall, USize arg_index);
 Bool get_ref_arg(Expr * fcall, USize arg_index);
 Bool fcall_has_ref_args(Expr * fcall);
@@ -2263,16 +2274,6 @@ Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self);
 Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
 Bool Option__ref_TypeBinding_is_none(Option__ref_TypeBinding self);
 TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
-Vec__Dynamic * Vec__Dynamic_new(void);
-USize Vec__Dynamic_len(Vec__Dynamic * self);
-void Vec__Dynamic_clear(Vec__Dynamic * self);
-void Vec__Dynamic_push(Vec__Dynamic * self, void * val);
-void * Vec__Dynamic_unsafe_get(Vec__Dynamic * self, USize * i);
-void * Vec__Dynamic_get(Vec__Dynamic * self, USize * i, I64 * _err_kind);
-void Vec__Dynamic_remove_at(Vec__Dynamic * self, USize i, I64 * _err_kind);
-void Vec__Dynamic_unsafe_set(Vec__Dynamic * self, USize i, void * val);
-void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free);
-Vec__Dynamic * Vec__Dynamic_clone(Vec__Dynamic * self);
 Map__Str_Mode * Map__Str_Mode_new(void);
 Bool Map__Str_Mode_has(Map__Str_Mode * self, Str * key);
 Mode * Map__Str_Mode_get(Map__Str_Mode * self, Str * key, I64 * _err_kind);
@@ -2971,7 +2972,12 @@ void priv___src_self_desugarer_til__hoist_field_assign_rhs(Context * ctx, Expr *
 void priv___src_self_desugarer_til__hoist_stmt_fcall(Context * ctx, Expr * stmt, Vec__Expr * hoisted, TypeScope * scope);
 void priv___src_self_desugarer_til__rewrite_variadic_fcall_args(Expr * fcall, Str * va_name, Str * array_type, I32 vi, USize vc);
 I32 priv___src_self_desugarer_til__derive_fcall_kwargs_index(Expr * _fcall, FunctionDef * fdef_data);
-Bool priv___src_self_desugarer_til__fcall_arg_is_splat(Expr * fcall, USize idx);
+Bool priv___src_self_desugarer_til__block_has_splat(Expr * fcall, USize start, USize count);
+Expr * priv___src_self_desugarer_til__build_splat_folded_array(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Str * elem_type, Str * array_type, USize start, USize count);
+Expr * priv___src_self_desugarer_til__build_collection_alias_decl(Expr * src, Str * type_name, Str * name, Bool is_mut, Expr * rhs);
+Bool priv___src_self_desugarer_til__bind_folded_array_literal(Context * ctx, Expr * fcall, Vec__Expr * new_ch, TypeScope * scope, Str * array_type, Str * name, Bool is_mut, OwnType * own_type, Expr * folded);
+Bool priv___src_self_desugarer_til__bind_folded_vec_literal(Context * ctx, Expr * fcall, Vec__Expr * new_ch, TypeScope * scope, Str * elem_type, Str * array_type, Str * name, OwnType * own_type, Expr * folded);
+Bool priv___src_self_desugarer_til__desugar_splat_collection_literal(Context * ctx, Expr * fcall, Vec__Expr * new_ch, TypeScope * scope, Str * elem_type, Str * name, Bool is_vec, Bool is_mut, OwnType * own_type);
 Bool priv___src_self_desugarer_til__desugar_mixed_splat_variadic_call(Context * ctx, Expr * e, Vec__Expr * new_ch, TypeScope * scope, Str * elem_type, Str * array_type, I32 vi, USize vc);
 Bool priv___src_self_desugarer_til__desugar_pure_splat_variadic_call(Expr * fcall, Str * array_type, I32 vi, USize vc);
 void priv___src_self_desugarer_til__rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name, I32 ki);
