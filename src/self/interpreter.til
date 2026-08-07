@@ -4441,6 +4441,7 @@ priv callable_storage_free := func(ptr: Dynamic) {
 priv callable_box_free := func(ptr: Dynamic) {
     if callable_box_is(ptr).not() { return }
     ref b : InterpCallableBox = to_ptr(ptr)
+    scope_drop_owned_bindings(callable_env(b))
     mut env_old := Option(Scope).None
     swap(Option(Scope), b.env, env_old)
     scope_free(own Option(Scope).take(own env_old))
@@ -6789,6 +6790,17 @@ priv h_til_closure_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Context) 
         hb_o := scope_lookup_heap_binding(s, id.ident_name())
         if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name()) }
         ref hb : HeapBinding = hb_o.unwrap()
+        if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
+            if hb.moved_out.not() {
+                ref stored : Dynamic = deref(hb.ptr)
+                if stored.is_null().not() { callable_storage_free(stored) }
+                mut owned_slot : Dynamic = hb.ptr
+                EvalHeap.heap_free(own owned_slot)
+                hb.ptr = bits_word(0)
+                hb.moved_out = true
+            }
+            return true
+        }
         if heap_type_is_callable(hb_type(hb)).not() { panic("til_closure_delete: non-callable ", id.ident_name()) }
         if hb.moved_out.not() {
             ref heap_data : Dynamic = to_ptr(hb.ptr)
@@ -6856,6 +6868,29 @@ priv h_til_closure_slot_delete := proc(s: Scope, e: Expr, _r: Dynamic, ctx: Cont
         callable_storage_free(stored)
         write_ptr(slot, bits_word(0))
     }
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
+    return true
+}
+
+priv h_til_closure_slot_clone := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    ref arg : Expr = e.children[1]
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    slot : Dynamic = raw_arg_pointer(raw, info, ctx)
+    holder : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(holder, callable_storage_clone(deref(slot)))
+    write_ptr(r, holder)
+    raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
+    return true
+}
+
+priv h_til_closure_slot_pop := proc(s: Scope, e: Expr, r: Dynamic, ctx: Context) returns Bool {
+    ref arg : Expr = e.children[1]
+    mut info := raw_result_info_new(ctx)
+    raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
+    slot : Dynamic = raw_arg_pointer(raw, info, ctx)
+    write_ptr(r, deref(slot))
+    write_ptr(slot, bits_word(0))
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
 }
@@ -7181,6 +7216,8 @@ priv dispatch_init := func(ctx: Context) {
     reg_dispatch("free", h_free, ctx)
     reg_dispatch("til_closure_delete", h_til_closure_delete, ctx)
     reg_dispatch("til_closure_slot_delete", h_til_closure_slot_delete, ctx)
+    reg_dispatch("til_closure_slot_clone", h_til_closure_slot_clone, ctx)
+    reg_dispatch("til_closure_slot_pop", h_til_closure_slot_pop, ctx)
     reg_dispatch("til_closure_slot_take", h_til_closure_slot_take, ctx)
     reg_dispatch("ptr_add", h_ptr_add, ctx)
     reg_dispatch("is_null", h_is_null, ctx)

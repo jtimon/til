@@ -1011,10 +1011,8 @@ main := proc(args: ..Str) {
         return
     }
 
-    // Issue #54: tell the typer whether we are headed for the C backend.
-    // Capturing closures run only under the interpreter for now, so the
-    // typer rejects them when compiling. `interpret`/`ast`/`doc` stay in
-    // interpret mode; every backend command compiles.
+    // Tell the typer whether this command emits C. `interpret`, `ast`, and
+    // `doc` stay in interpreter mode; every backend command compiles.
     lp.ctx.compile_mode = cli.command.eq("interpret").not()
         .and(cli.command.eq("ast").not())
         .and(cli.command.eq("doc").not())

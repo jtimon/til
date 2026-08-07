@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a783bc1db</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a class="current" href="../../src/core/str.html">src/core/str.til</a><ul><li><a href="#til.src.core.str.CAP_LIT">CAP_LIT</a></li><li><a href="#til.src.core.str.CAP_VIEW">CAP_VIEW</a></li><li><a href="#til.src.core.str.format">format</a></li><li><a href="#til.src.core.str.concat3">concat3</a></li><li><a href="#til.src.core.str.Str">Str</a></li><li><a href="#til.src.core.str.join">join</a></li><li><a href="#til.src.core.str.digit_value">digit_value</a></li><li><a href="#til.src.core.str.str_parse_f32">str_parse_f32</a></li><li><a href="#til.src.core.str.str_parse_f64">str_parse_f64</a></li><li><a href="#til.src.core.str.c_str_len">c_str_len</a></li><li><a href="#til.src.core.str.OutOfBounds">OutOfBounds</a></li><li><a href="#til.src.core.str.KeyNotFound">KeyNotFound</a></li><li><a href="#til.src.core.str.Array__Str">Array__Str</a></li><li><a href="#til.src.core.str.Vec__Str">Vec__Str</a></li><li><a href="#til.src.core.str.adopt__Str">adopt__Str</a></li></ul></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -71,6 +71,9 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Vendor bindings</h2><ul>
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+</ul>
+<h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
 <section class="doc-search" aria-label="Documentation search">
@@ -370,6 +373,13 @@ namespace:
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__Str, shallow i: USize, own val: Str, mut _err_kind: I64)
     func delete(own self: Array__Str, shallow call_free: Bool)
+    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
+    /// Both sources keep theirs -- every element is cloned, exactly as
+    /// `clone` does -- so neither is moved out from under its owner. The
+    /// mixed-splat variadic lowering builds its collector with this: the
+    /// fixed arguments become one Array, the splatted Array is the other,
+    /// and the call is then the pure-splat form the desugar already handles.
+    func concat(self: Array__Str, other: Array__Str) returns Array__Str
     func clone(self: Array__Str) returns Array__Str
     func size() returns shallow USize
 }
@@ -412,13 +422,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Str, own other: Vec__Str)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Str, mut other: Vec__Str)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__Str) returns Vec__Str
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__Str, mut dest: Vec__Str)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__Str, own other: Vec__Str)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it

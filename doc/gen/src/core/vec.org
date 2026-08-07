@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-a783bc1db
+#+SUBTITLE: til 0.0.1-7e89e5443
 #+OPTIONS: toc:t
 
 * vec
@@ -56,6 +56,13 @@ namespace:
     /// `arr[i] = val` (or `arr.set(i, own val)!`) to panic on a bad index.
     func set(self: Array__Dynamic, shallow i: USize, own val: Dynamic, mut _err_kind: I64)
     func delete(own self: Array__Dynamic, shallow call_free: Bool)
+    /// #342: a fresh Array holding `self`'s elements followed by `other`'s.
+    /// Both sources keep theirs -- every element is cloned, exactly as
+    /// `clone` does -- so neither is moved out from under its owner. The
+    /// mixed-splat variadic lowering builds its collector with this: the
+    /// fixed arguments become one Array, the splatted Array is the other,
+    /// and the call is then the pure-splat form the desugar already handles.
+    func concat(self: Array__Dynamic, other: Array__Dynamic) returns Array__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns shallow USize
 }

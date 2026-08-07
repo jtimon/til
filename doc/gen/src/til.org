@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-a783bc1db
+#+SUBTITLE: til 0.0.1-7e89e5443
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -59,7 +59,7 @@ ext_proc get_cwd_str() returns Str
 :END:
 
 #+begin_src til
-proc repl_read_block(mode_name: Str, mut eof: Bool) returns Str
+proc repl_read_block(mut ed: ReplEditor, mode_name: Str, mut eof: Bool) returns Str
 #+end_src
 
 * repl_typecheck
@@ -199,7 +199,7 @@ proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_d
 :END:
 
 #+begin_src til
-proc run_repl_session(mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
+proc run_repl_session(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_out: Str, extra_modes: Vec__Str)
 #+end_src
 
 * run_repl

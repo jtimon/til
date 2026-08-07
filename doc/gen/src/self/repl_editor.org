@@ -1,0 +1,594 @@
+#+TITLE: src/self/repl_editor.til
+#+SUBTITLE: til 0.0.1-7e89e5443
+#+OPTIONS: toc:t
+
+* repl_term_is_interactive
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_is_interactive
+:END:
+
+#+begin_src til
+ext_proc repl_term_is_interactive() returns shallow Bool
+#+end_src
+
+* repl_term_begin
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_begin
+:END:
+
+#+begin_src til
+ext_proc repl_term_begin() returns shallow Bool
+#+end_src
+
+* repl_term_end
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_end
+:END:
+
+#+begin_src til
+ext_proc repl_term_end()
+#+end_src
+
+* repl_term_flush
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_flush
+:END:
+
+#+begin_src til
+ext_proc repl_term_flush()
+#+end_src
+
+* repl_term_read_event
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_read_event
+:END:
+
+#+begin_src til
+ext_proc repl_term_read_event(shallow timeout_ms: I64) returns shallow I64
+#+end_src
+
+* repl_term_columns
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_term_columns
+:END:
+
+#+begin_src til
+ext_proc repl_term_columns() returns shallow I64
+#+end_src
+
+* repl_history_read
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_history_read
+:END:
+
+#+begin_src til
+ext_proc repl_history_read(path: Str, mut out: Str, mut err: Str) returns shallow I64
+#+end_src
+
+* repl_history_write
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_history_write
+:END:
+
+#+begin_src til
+ext_proc repl_history_write(path: Str, contents: Str, mut err: Str) returns shallow I64
+#+end_src
+
+* REPL_KEY_EOF
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_EOF
+:END:
+
+#+begin_src til
+REPL_KEY_EOF is a I64
+#+end_src
+
+* REPL_KEY_TIMEOUT
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_TIMEOUT
+:END:
+
+#+begin_src til
+REPL_KEY_TIMEOUT is a I64
+#+end_src
+
+* REPL_KEY_REDRAW
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_REDRAW
+:END:
+
+#+begin_src til
+REPL_KEY_REDRAW is a I64
+#+end_src
+
+* REPL_KEY_ERROR
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_ERROR
+:END:
+
+#+begin_src til
+REPL_KEY_ERROR is a I64
+#+end_src
+
+* REPL_KEY_UP
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_UP
+:END:
+
+#+begin_src til
+REPL_KEY_UP is a I64
+#+end_src
+
+* REPL_KEY_DOWN
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_DOWN
+:END:
+
+#+begin_src til
+REPL_KEY_DOWN is a I64
+#+end_src
+
+* REPL_KEY_RIGHT
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_RIGHT
+:END:
+
+#+begin_src til
+REPL_KEY_RIGHT is a I64
+#+end_src
+
+* REPL_KEY_LEFT
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_LEFT
+:END:
+
+#+begin_src til
+REPL_KEY_LEFT is a I64
+#+end_src
+
+* REPL_KEY_HOME
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_HOME
+:END:
+
+#+begin_src til
+REPL_KEY_HOME is a I64
+#+end_src
+
+* REPL_KEY_END
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_END
+:END:
+
+#+begin_src til
+REPL_KEY_END is a I64
+#+end_src
+
+* REPL_KEY_DELETE
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_DELETE
+:END:
+
+#+begin_src til
+REPL_KEY_DELETE is a I64
+#+end_src
+
+* REPL_KEY_PENDING
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_PENDING
+:END:
+
+#+begin_src til
+REPL_KEY_PENDING is a I64
+#+end_src
+
+* REPL_KEY_UNKNOWN
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_KEY_UNKNOWN
+:END:
+
+#+begin_src til
+REPL_KEY_UNKNOWN is a I64
+#+end_src
+
+* REPL_CTRL_A
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_A
+:END:
+
+#+begin_src til
+REPL_CTRL_A is a I64
+#+end_src
+
+* REPL_CTRL_B
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_B
+:END:
+
+#+begin_src til
+REPL_CTRL_B is a I64
+#+end_src
+
+* REPL_CTRL_D
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_D
+:END:
+
+#+begin_src til
+REPL_CTRL_D is a I64
+#+end_src
+
+* REPL_CTRL_E
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_E
+:END:
+
+#+begin_src til
+REPL_CTRL_E is a I64
+#+end_src
+
+* REPL_CTRL_F
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_F
+:END:
+
+#+begin_src til
+REPL_CTRL_F is a I64
+#+end_src
+
+* REPL_CTRL_G
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_G
+:END:
+
+#+begin_src til
+REPL_CTRL_G is a I64
+#+end_src
+
+* REPL_CTRL_H
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_H
+:END:
+
+#+begin_src til
+REPL_CTRL_H is a I64
+#+end_src
+
+* REPL_CTRL_K
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_K
+:END:
+
+#+begin_src til
+REPL_CTRL_K is a I64
+#+end_src
+
+* REPL_CTRL_L
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_L
+:END:
+
+#+begin_src til
+REPL_CTRL_L is a I64
+#+end_src
+
+* REPL_CTRL_N
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_N
+:END:
+
+#+begin_src til
+REPL_CTRL_N is a I64
+#+end_src
+
+* REPL_CTRL_P
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_P
+:END:
+
+#+begin_src til
+REPL_CTRL_P is a I64
+#+end_src
+
+* REPL_CTRL_R
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_R
+:END:
+
+#+begin_src til
+REPL_CTRL_R is a I64
+#+end_src
+
+* REPL_CTRL_U
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_U
+:END:
+
+#+begin_src til
+REPL_CTRL_U is a I64
+#+end_src
+
+* REPL_CTRL_W
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_CTRL_W
+:END:
+
+#+begin_src til
+REPL_CTRL_W is a I64
+#+end_src
+
+* REPL_BYTE_TAB
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_BYTE_TAB
+:END:
+
+#+begin_src til
+REPL_BYTE_TAB is a I64
+#+end_src
+
+* REPL_BYTE_LF
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_BYTE_LF
+:END:
+
+#+begin_src til
+REPL_BYTE_LF is a I64
+#+end_src
+
+* REPL_BYTE_CR
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_BYTE_CR
+:END:
+
+#+begin_src til
+REPL_BYTE_CR is a I64
+#+end_src
+
+* REPL_BYTE_ESC
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_BYTE_ESC
+:END:
+
+#+begin_src til
+REPL_BYTE_ESC is a I64
+#+end_src
+
+* REPL_BYTE_DEL
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_BYTE_DEL
+:END:
+
+#+begin_src til
+REPL_BYTE_DEL is a I64
+#+end_src
+
+* REPL_HISTORY_MAX
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_HISTORY_MAX
+:END:
+
+#+begin_src til
+REPL_HISTORY_MAX is a U32
+#+end_src
+
+* REPL_ESC_TIMEOUT_MS
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.REPL_ESC_TIMEOUT_MS
+:END:
+
+#+begin_src til
+REPL_ESC_TIMEOUT_MS is a I64
+#+end_src
+
+* EditAction
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.EditAction
+:END:
+
+What the outer read loop must do after one key was applied.
+
+#+begin_src til
+enum EditAction {
+    Continue
+    Submit
+    Eof
+    Bell
+    ClearScreen
+namespace:
+    Continue
+    Submit
+    Eof
+    Bell
+    ClearScreen
+    core_func is(self: EditAction, other: EditAction) returns shallow Bool
+    func eq(self: EditAction, other: EditAction) returns shallow Bool
+    func delete(own self: EditAction, shallow call_free: Bool)
+    func cmp(a: EditAction, b: EditAction) returns shallow I64
+    func to_str(self: EditAction) returns Str
+    func clone(self: EditAction) returns EditAction
+    func size() returns shallow USize
+    func lt(a: EditAction, b: EditAction) returns shallow Bool
+    func gt(a: EditAction, b: EditAction) returns shallow Bool
+    func neq(a: EditAction, b: EditAction) returns shallow Bool
+    func lte(a: EditAction, b: EditAction) returns shallow Bool
+    func gte(a: EditAction, b: EditAction) returns shallow Bool
+}
+#+end_src
+
+* ReplEditor
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.ReplEditor
+:END:
+
+Everything one interactive REPL owns: the line being edited, the
+history it recalls from, and the reverse-search sub-mode. Constructed
+once in run_repl and passed by mutation through every session, so a
+`mode X` restart keeps both the file's entries and this session's.
+
+#+begin_src til
+struct ReplEditor {
+    mut interactive : Bool
+    mut hist_path : Str
+    mut persist : Bool
+    own mut history : Vec__Str
+    mut prompt : Str
+    mut line : Str
+    mut cursor : USize
+    mut view_start : USize
+    mut hist_idx : USize
+    mut draft : Str
+    mut searching : Bool
+    mut search_query : Str
+    mut search_idx : I64
+    mut saved_line : Str
+    mut saved_cursor : USize
+namespace:
+    func clone(self: ReplEditor) returns ReplEditor
+    func delete(own self: ReplEditor, shallow call_free: Bool)
+    func size() returns shallow USize
+}
+#+end_src
+
+* AnsiDecoder
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.AnsiDecoder
+:END:
+
+#+begin_src til
+struct AnsiDecoder {
+    mut state : I64
+    mut params : Str
+namespace:
+    func clone(self: AnsiDecoder) returns AnsiDecoder
+    func delete(own self: AnsiDecoder, shallow call_free: Bool)
+    func hash(self: AnsiDecoder, hasher: HashFn) returns shallow U64
+    func cmp(a: AnsiDecoder, b: AnsiDecoder) returns shallow I64
+    func to_str(self: AnsiDecoder) returns Str
+    func size() returns shallow USize
+    func eq(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func lt(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func gt(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func neq(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func lte(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+    func gte(a: AnsiDecoder, b: AnsiDecoder) returns shallow Bool
+}
+#+end_src
+
+* repl_ansi_feed
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_ansi_feed
+:END:
+
+Feed one event to the decoder. Returns a normalized key, or
+REPL_KEY_PENDING when more bytes are needed to decide. An unknown or
+unsupported sequence is consumed WHOLE and reported as
+REPL_KEY_UNKNOWN, so no escape byte can ever reach the source buffer.
+
+#+begin_src til
+func repl_ansi_feed(mut d: AnsiDecoder, shallow ev: I64) returns shallow I64
+#+end_src
+
+* repl_ansi_timeout
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_ansi_timeout
+:END:
+
+No follow-up byte arrived within the ESC timeout. A bare ESC is the
+Escape key; a truncated sequence is unknown input, never source.
+
+#+begin_src til
+func repl_ansi_timeout(mut d: AnsiDecoder) returns shallow I64
+#+end_src
+
+* repl_editor_history_serialize
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_history_serialize
+:END:
+
+One newline-terminated PHYSICAL line per record. Entries cannot
+contain CR or LF (they are single physical lines), so no escaping and
+no second representation is needed.
+
+#+begin_src til
+func repl_editor_history_serialize(ed: ReplEditor) returns Str
+#+end_src
+
+* repl_editor_history_load_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_history_load_str
+:END:
+
+Parse a history file. A single trailing CR is stripped so a file
+written on Windows loads unchanged elsewhere.
+
+#+begin_src til
+func repl_editor_history_load_str(mut ed: ReplEditor, data: Str)
+#+end_src
+
+* repl_editor_history_add
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_history_add
+:END:
+
+Record one ACCEPTED physical line. Empty lines and consecutive
+duplicates are ignored. Called the moment Enter accepts a line --
+before parsing or evaluation -- so a syntax error or a typed
+`exit(0)` is still remembered.
+
+#+begin_src til
+proc repl_editor_history_add(mut ed: ReplEditor, line: Str)
+#+end_src
+
+* repl_editor_apply_key
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_apply_key
+:END:
+
+Apply one normalized key to the editor state. Deliberately free of
+terminal I/O: the whole state machine is exercised by
+test/repl_editor.til without a terminal.
+
+#+begin_src til
+func repl_editor_apply_key(mut ed: ReplEditor, shallow key: I64) returns EditAction
+#+end_src
+
+* repl_editor_viewport
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_viewport
+:END:
+
+Slide the horizontal viewport until `cursor` is visible in `avail`
+input columns, returning the new leftmost byte. Split out of the
+renderer so the scrolling arithmetic is testable at narrow widths
+without a terminal.
+
+#+begin_src til
+func repl_editor_viewport(shallow view_start: USize, shallow cursor: USize, shallow line_len: USize, shallow avail: USize) returns shallow USize
+#+end_src
+
+* repl_editor_start
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_start
+:END:
+
+Decide once, at REPL startup, whether this process edits interactively,
+and load the history file if it does. Redirect either standard stream
+(or set TERM=dumb) and nothing here touches the terminal or the disk.
+
+#+begin_src til
+proc repl_editor_start(mut ed: ReplEditor)
+#+end_src
+
+* repl_editor_read_line
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.repl_editor.repl_editor_read_line
+:END:
+
+Read one PHYSICAL line with editing and history. `eof` distinguishes
+end of input from an empty line, exactly as in_read_line's Bool does.
+Terminal mode is entered here and left before returning, so nothing
+the REPL evaluates inherits raw console settings.
+
+#+begin_src til
+proc repl_editor_read_line(mut ed: ReplEditor, prompt: Str, mut eof: Bool) returns Str
+#+end_src

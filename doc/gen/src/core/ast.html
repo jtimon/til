@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a783bc1db</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-7e89e5443</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -71,6 +71,9 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Vendor bindings</h2><ul>
 <li><a href="../../vendor/bindings/libffi.html">vendor/bindings/libffi.til</a></li>
+</ul>
+<h2>Ungrouped</h2><ul>
+<li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
 </nav></aside><main>
 <section class="doc-search" aria-label="Documentation search">
@@ -158,7 +161,7 @@ namespace:
     ext_func FuncPtr() returns Type
     ext_func Dynamic() returns Type
     ext_func Custom(own val: Str) returns Type
-    ext_func Primitive(own val: Primitive) returns Type
+    ext_func Primitive(val: Primitive) returns Type
     ext_func FuncPtrSig(own val: Str) returns Type
     ext_func Body() returns Type
     core_func is(self: Type, other: Type) returns shallow Bool
@@ -200,6 +203,7 @@ namespace:
     func is_core(self: FuncType) returns shallow Bool
     func is_lazy(self: FuncType) returns shallow Bool
     func is_plain(self: FuncType) returns shallow Bool
+    func is_proc(self: FuncType) returns shallow Bool
     func is_bodyless(self: FuncType) returns shallow Bool
     Func
     Proc
@@ -394,7 +398,10 @@ derive from the resolved callee's param layout plus the structural
 markers in fcall.children:</p>
 <ul>
 <li>kwargs_count : trailing-NamedArg count (fcall_kwargs_count).</li>
-<li>kwargs_index : derived position via fcall_kwargs_index_via_scope.</li>
+<li>kwargs_index : resolved FuncDef param count</li>
+</ul>
+<p>    (derive_fcall_kwargs_index).</p>
+<ul>
 <li>variadic_count : children layout + nparam + has-kwargs</li>
 </ul>
 <p>    (fcall_variadic_count).</p>
@@ -414,6 +421,7 @@ markers in fcall.children:</p>
     mut til_type : Type
     mut noreturn_call : Bool
     mut ref_args : U64
+    mut splat_args : U64
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns shallow Bool
     func to_str(_self: FCallData) returns Str
@@ -443,7 +451,7 @@ namespace:
     func to_u64(self: LiteralNumData) returns shallow U64
     func to_usize(self: LiteralNumData) returns shallow USize
     func to_f32(self: LiteralNumData) returns shallow F32
-    func literal_num_text(self: LiteralNumData) returns Str
+    func literal_num_text(self: LiteralNumData) returns ref Str
     /// Does the literal's TEXT spell a float? The lexer accepts a fractional
     /// part ('.' then a digit) and an exponent (e/E, optional sign, digits)
     /// only on the non-prefixed decimal path, so a 0x/0b/0o literal is an
@@ -1239,13 +1247,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__VariantDef, own other: Vec__VariantDef)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__VariantDef, mut other: Vec__VariantDef)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__VariantDef) returns Vec__VariantDef
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__VariantDef, mut dest: Vec__VariantDef)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__VariantDef, own other: Vec__VariantDef)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it
@@ -1328,13 +1355,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__FieldLayout, mut other: Vec__FieldLayout)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__FieldLayout) returns Vec__FieldLayout
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__FieldLayout, mut dest: Vec__FieldLayout)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__FieldLayout, own other: Vec__FieldLayout)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it
@@ -1417,13 +1463,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Declaration, own other: Vec__Declaration)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Declaration, mut other: Vec__Declaration)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__Declaration) returns Vec__Declaration
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__Declaration, mut dest: Vec__Declaration)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__Declaration, own other: Vec__Declaration)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it
@@ -1506,13 +1571,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__Expr, own other: Vec__Expr)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__Expr, mut other: Vec__Expr)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__Expr) returns Vec__Expr
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__Expr, mut dest: Vec__Expr)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__Expr, own other: Vec__Expr)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it
@@ -1595,13 +1679,32 @@ namespace:
     /// Consume the contents of `other` by appending them to `self`.
     /// `other` is taken by ownership and will be empty after the call.
     func append(mut self: Vec__USize, own other: Vec__USize)
-    /// Replace self's contents with other's via memcpy (no per-elem clone).
-    /// Avoids the Vec_clone + extra Vec_delete that plain `self = other` emits.
-    /// Takes `mut` (not `own`) so caller retains ownership of other; its
-    /// natural scope-end auto-delete frees other.data. Setting other.count = 0
-    /// prevents that auto-delete from re-running elem_delete on items whose
-    /// bytes were moved into self.
-    func move_from(mut self: Vec__USize, mut other: Vec__USize)
+    /// Take the contents out: the returned Vec owns self's buffer and
+    /// self is left lazy-empty. No element is copied or cloned.
+    /// 
+    /// This is how a struct FIELD hands its contents over
+    /// (`mut old := body.children.take()`): a field cannot be an `own`
+    /// argument or receiver, because the callee would then free the
+    /// ADDRESS OF THE FIELD -- the compiler dies with &quot;free(): invalid
+    /// pointer&quot; compiling itself. Everything the caller can give away
+    /// uses the two move forms below instead.
+    func take(mut self: Vec__USize) returns Vec__USize
+    /// Give self's contents to `dest`, which drops whatever it held.
+    /// SELF is consumed, so the receiver is the owned one and the call
+    /// spells the type out: `Vec(T).move_to(own src, dest)`.
+    /// 
+    /// The three fields move as BYTES on purpose: `dest.data =
+    /// self.data` drops dest's old pointer (right) and then
+    /// `self.data = 0` drops the pointer dest just adopted -- a double
+    /// free, which is what the emitted C does with field assignment.
+    /// Blanking the source leaves a genuinely valid lazy-empty Vec, so
+    /// a later push on it allocates afresh instead of reallocating a
+    /// buffer that now belongs to someone else.
+    func move_to(own self: Vec__USize, mut dest: Vec__USize)
+    /// Take `other`'s contents, dropping whatever self held. OTHER is
+    /// consumed -- it is the value being emptied, so it is the owned
+    /// argument: `dest.move_from(own src)`.
+    func move_from(mut self: Vec__USize, own other: Vec__USize)
     /// Unchecked element access: return a reference to the element at
     /// index `i` with NO bounds check. The caller must prove `i &lt; len()`.
     /// This is the unchecked core that `get` wraps; for-in uses it

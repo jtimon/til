@@ -629,6 +629,33 @@ void *to_ptr(void *a) { return a; }
 void *deref(void *slot) { return *(void **)slot; }
 void write_ptr(void *dest, void *val) { *(void **)dest = val; }
 void til_closure_slot_take(void *slot, void *closure) { *(void **)slot = closure; }
+void *til_closure_slot_pop(void *slot) {
+    void *closure = *(void **)slot;
+    *(void **)slot = NULL;
+    return closure;
+}
+typedef struct {
+    void *call;
+    void *env;
+    void (*drop)(void *);
+    void *(*clone)(void *);
+} TilClosureExt;
+
+void *til_closure_slot_clone(void *slot) {
+    TilClosureExt *src = *(TilClosureExt **)slot;
+    TilClosureExt **holder = malloc(sizeof(*holder));
+    if (src == NULL || src->drop == NULL) {
+        *holder = src;
+        return holder;
+    }
+    TilClosureExt *dst = malloc(sizeof(*dst));
+    dst->call = src->call;
+    dst->env = src->clone(src->env);
+    dst->drop = src->drop;
+    dst->clone = src->clone;
+    *holder = dst;
+    return holder;
+}
 /* #211 follow-up: write a typed primitive into raw bytes. Used by the
  * AST interpreter to mirror writes through a payload-aliased binding
  * into the underlying enum's payload memory. */

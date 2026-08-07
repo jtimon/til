@@ -27,7 +27,7 @@
 *** Neq
 *** Lt
 *** LtEq
-*** ... (56 more)
+*** ... (55 more)
 ** Token: StructDef
 *** const type := TokenType.Eof
 *** const start : USize = 0
@@ -118,6 +118,7 @@
 *** til_type := Type.Unknown
 *** noreturn_call := false
 *** ref_args : U64 = 0
+*** splat_args : U64 = 0
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -340,13 +341,6 @@
 *** imported := Map(Str, ImportUnit).new()
 *** check_unused_imports := false
 *** ... (64 more)
-** CollectionInfo: StructDef
-*** ref type_name : Str
-*** is_vec : I32 = 0
-** DynCallInfo: StructDef
-*** ref method : Str
-*** nargs : I32 = 1
-*** has_return := false
 * targets
 ** Lang: EnumDef
 *** C
@@ -475,6 +469,13 @@
 *** deprecated := ""
 ** DocCatalog: StructDef
 *** entries := Vec(DocEntry).new()
+** CollectionInfo: StructDef
+*** ref type_name : Str
+*** is_vec : I32 = 0
+** DynCallInfo: StructDef
+*** ref method : Str
+*** nargs : I32 = 1
+*** has_return := false
 * interpreter
 ** InterpCallableBox: StructDef
 *** magic : U64 = 0
@@ -503,6 +504,11 @@
 *** retained_programs := Vec(DynPtrBox).new()
 *** is_repl := false
 *** evaluated_units := Set(Str).new()
+** RawResultInfo: StructDef
+*** ref source_type_p : U8
+*** is_ref := false
+*** is_word := false
+*** arg_deref := false
 ** DynPtrBox: StructDef
 *** own p : U8 = 0
 ** ExtStr: StructDef
@@ -535,3 +541,29 @@
 * eval_heap
 ** EvalHeap: StructDef
 *** unused : U8 = 0
+* repl_editor
+** EditAction: EnumDef
+*** Continue
+*** Submit
+*** Eof
+*** Bell
+*** ClearScreen }
+** ReplEditor: StructDef
+*** interactive := false
+*** hist_path := ""
+*** persist := false
+*** own history := Vec(Str).new()
+*** prompt := ""
+*** line := ""
+*** cursor : USize = 0
+*** view_start : USize = 0
+*** hist_idx : USize = 0
+*** draft := ""
+*** searching := false
+*** search_query := ""
+*** search_idx : I64 = -1
+*** saved_line := ""
+*** saved_cursor : USize = 0
+** AnsiDecoder: StructDef
+*** state : I64 = 0
+*** params := ""

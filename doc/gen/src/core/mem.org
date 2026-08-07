@@ -1,5 +1,5 @@
 #+TITLE: src/core/mem.til
-#+SUBTITLE: til 0.0.1-a783bc1db
+#+SUBTITLE: til 0.0.1-7e89e5443
 #+OPTIONS: toc:t
 
 * free
@@ -30,6 +30,36 @@ ext_func til_closure_delete(closure: Dynamic)
 
 #+begin_src til
 ext_func til_closure_slot_delete(slot: Dynamic)
+#+end_src
+
+* til_closure_slot_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.til_closure_slot_take
+:group: Core
+:END:
+
+#+begin_src til
+ext_func til_closure_slot_take(slot: Dynamic, closure: Dynamic)
+#+end_src
+
+* til_closure_slot_pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.til_closure_slot_pop
+:group: Core
+:END:
+
+#+begin_src til
+ext_func til_closure_slot_pop(slot: Dynamic) returns Dynamic
+#+end_src
+
+* til_closure_slot_clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.mem.til_closure_slot_clone
+:group: Core
+:END:
+
+#+begin_src til
+ext_func til_closure_slot_clone(slot: Dynamic) returns Dynamic
 #+end_src
 
 * malloc

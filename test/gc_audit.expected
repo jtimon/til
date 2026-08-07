@@ -1768,12 +1768,12 @@ GC-CFG block 1 body=62:14 span=0..2 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-AUDIT body test/gc_audit.til:62:14 locals=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:103:5 blocks=2
+GC-CFG body test/gc_audit.til:108:5 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=103:5 span=0..3 succs=0
+GC-CFG block 1 body=108:5 span=0..3 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-FLOW local src entry=O exit=M out=M,M
-GC-AUDIT body test/gc_audit.til:103:5 locals=2
+GC-AUDIT body test/gc_audit.til:108:5 locals=2
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=I64 decl=-1 last_use=2 own_transfer=2 heap=1 skip=0
 GC-AUDIT site 2 free(src) own=1

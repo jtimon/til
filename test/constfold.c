@@ -12,6 +12,7 @@ struct TilClosure {
     void *call;
     void *env;
     void (*drop)(void *);
+    void *(*clone)(void *);
 };
 
 typedef struct Str Str;

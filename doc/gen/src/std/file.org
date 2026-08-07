@@ -1,5 +1,5 @@
 #+TITLE: src/std/file.til
-#+SUBTITLE: til 0.0.1-a783bc1db
+#+SUBTITLE: til 0.0.1-7e89e5443
 #+OPTIONS: toc:t
 
 * cfile_open
@@ -132,6 +132,76 @@ ext_proc cfile_read_n(handle: Dynamic, shallow count: I64) returns Str
 ext_proc cfile_remove(path: Str)
 #+end_src
 
+* cdir_open
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cdir_open
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cdir_open(path: Str) returns ref Dynamic
+#+end_src
+
+* cdir_next
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cdir_next
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cdir_next(handle: Dynamic) returns Str
+#+end_src
+
+* cdir_close
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cdir_close
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_func cdir_close(handle: Dynamic)
+#+end_src
+
+* cpath_is_dir
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cpath_is_dir
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cpath_is_dir(path: Str) returns shallow Bool
+#+end_src
+
+* cpath_is_file
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cpath_is_file
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cpath_is_file(path: Str) returns shallow Bool
+#+end_src
+
+* cremove_tree
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.cremove_tree
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc cremove_tree(path: Str) returns shallow I32
+#+end_src
+
+* crename_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.crename_path
+:group: Standard library
+:END:
+
+#+begin_src til
+ext_proc crename_path(src: Str, dst: Str) returns shallow I32
+#+end_src
+
 * File
 :PROPERTIES:
 :CUSTOM_ID: til.src.std.file.File
@@ -163,6 +233,24 @@ namespace:
     /// True when `path` names an existing directory entry. A directory,
     /// or a file the process has no permission to read, still exists.
     proc exists(path: Str) returns shallow Bool
+    /// True when `path` names a directory. False for a regular file, and
+    /// false for a path that does not exist -- "is a directory" is one
+    /// question, "exists" is another, and `File.exists` answers that one.
+    proc is_dir(path: Str) returns shallow Bool
+    /// True when `path` names a regular file -- not a directory, and not
+    /// a device, fifo or socket either.
+    proc is_file(path: Str) returns shallow Bool
+    /// Remove `path` and everything under it, like `rm -rf`: a file, or a
+    /// directory with its whole subtree. A path that does not exist is
+    /// already removed and reports success; a symlink is unlinked, never
+    /// followed. Any other failure is fatal.
+    proc remove_tree(path: Str)
+    /// Move `src` onto `dst`, replacing whatever `dst` was. On POSIX the
+    /// replacement is atomic, which is what makes it safe to build a new
+    /// executable beside the running one and swap it in. Fatal on
+    /// failure -- notably when the two paths are on different file
+    /// systems, where a rename cannot happen and a copy is the answer.
+    proc rename(src: Str, dst: Str)
     /// Open a file at `path` for reading or writing.
     proc new(path: Str, shallow is_write: Bool) returns File
     /// Open a file at `path` for in-place update: reads and writes are
@@ -211,6 +299,40 @@ namespace:
     func delete(own self: File, shallow call_free: Bool)
     proc fwrite(self: File, parts: ..Str) returns ref File
     func clone(self: File) returns File
+    func size() returns shallow USize
+}
+#+end_src
+
+* Dir
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.file.Dir
+:group: Standard library
+:END:
+
+A directory being read, entry by entry.
+
+#+begin_src til
+struct Dir {
+    ref mut handle : U8
+namespace:
+    /// Start reading the directory at `path`. Exits with an error if it
+    /// cannot be opened.
+    proc open(path: Str) returns Dir
+    /// The next entry's name (not its path), "" once every entry has
+    /// been reported. "." and ".." are never returned. The order is
+    /// whatever the file system gives -- sort if you need a stable one.
+    proc next(self: Dir) returns Str
+    /// Every entry in the directory at `path`, in file-system order.
+    /// The whole listing at once, for callers that want to sort or
+    /// filter it rather than stream it.
+    proc list(path: Str) returns Vec__Str
+    /// Close the underlying handle. Private: invoked only from `delete`,
+    /// which the garbager inserts after a Dir local's last use.
+    func close(self: Dir)
+    /// Release the Dir: close the handle, then free the struct shell
+    /// unless the caller still owns it.
+    func delete(own self: Dir, shallow call_free: Bool)
+    func clone(self: Dir) returns Dir
     func size() returns shallow USize
 }
 #+end_src

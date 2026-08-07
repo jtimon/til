@@ -69,6 +69,22 @@ Complete mapping of til qualifiers to generated C, by context.
 | ~own arg: Type~           | ~Type *arg~      | ownership transfer (callee frees)    |
 | ~shallow arg: Type~       | ~Type arg~       | pass by value (copy on stack)        |
 
+** Closure captures
+
+| til capture       | semantics                                      |
+|-------------------+------------------------------------------------|
+| ~[x]~             | read-only borrow of the outer binding          |
+| ~[mut x]~         | mutable borrow; writes reach the outer binding |
+| ~[shallow x]~     | private by-value copy                          |
+| ~[shallow mut x]~ | mutable private by-value copy                  |
+| ~[own x]~         | move the value into the closure                |
+| ~[own mut x]~     | move into mutable closure-owned storage        |
+
+The source must be mutable only for ~[mut x]~, because that form writes
+through a borrow. ~shallow mut~ and ~own mut~ modify private closure storage.
+See [[file:./ownership.org][doc/ownership.org]], "Closure captures", for
+escape and clone behavior.
+
 ** Return types
 
 | til                       | C return type    | semantics                            |

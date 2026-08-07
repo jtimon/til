@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-a783bc1db
+#+SUBTITLE: til 0.0.1-7e89e5443
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -77,6 +77,16 @@ ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 ext_func dyn_size_of(type_name: Str) returns shallow USize
 #+end_src
 
+* dyn_storage_kind
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.dyn_storage_kind
+:group: Core
+:END:
+
+#+begin_src til
+ext_func dyn_storage_kind(type_name: Str) returns shallow USize
+#+end_src
+
 * dyn_type_to_str
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.dyn.dyn_type_to_str
@@ -95,6 +105,26 @@ ext_func dyn_type_to_str(type: Type) returns Str
 
 #+begin_src til
 func til_type_name(t: Type) returns Str
+#+end_src
+
+* type_name_storage_kind
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.type_name_storage_kind
+:group: Core
+:END:
+
+#+begin_src til
+func type_name_storage_kind(type_name: Str) returns shallow USize
+#+end_src
+
+* type_storage_kind
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.type_storage_kind
+:group: Core
+:END:
+
+#+begin_src til
+func type_storage_kind(t: Type) returns shallow USize
 #+end_src
 
 * struct_field_count

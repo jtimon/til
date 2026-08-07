@@ -161,6 +161,43 @@ NOT a transfer (the local keeps its ownership and still needs its own delete):
 Use-after-transfer (~last_use > own_transfer~) is reported as
 "use of 'x' after ownership transfer" with a clone suggestion.
 
+** Closure captures
+
+A function literal or ~Body~ value lists captured outer locals between its
+signature and body. Captures are explicit: using an outer local that is not
+listed is a type error.
+
+#+begin_src til
+mut count := 0
+label := format("calls")
+step : Body = [mut count, own label] {
+    count = count.add(1)
+    print(label)
+}
+#+end_src
+
+The capture qualifiers choose both ownership and mutability:
+
+  - ~[x]~ borrows ~x~ read-only. The closure cannot escape the lifetime of
+    ~x~.
+  - ~[mut x]~ mutably borrows ~x~. The source binding must be mutable, and
+    writes in the closure update that source binding.
+  - ~[shallow x]~ stores a private by-value copy. Adding ~mut~ permits writes
+    to that private copy; it does not make the source mutable.
+  - ~[own x]~ moves ~x~ into the closure environment. The source cannot be
+    used afterward. Adding ~mut~ permits writes to the moved value.
+
+The same list follows a function signature, for example
+~func(n: I64) returns I64 [factor] { return n.mul(factor) }~. A bare capture
+block, such as ~[shallow mut x] { x++ }~, executes inline but applies the same
+qualifier rules.
+
+Cloning a capturing closure creates a new environment. Ref and mut-ref
+captures still point to the same borrowed bindings; shallow and own captures
+are cloned into independent storage. Static functions have no environment
+and remain shared. These rules also apply when callable elements are cloned
+through ~DynVec~, ~DynArray~, ~DynMap~, or ~DynHashMap~.
+
 ** Conditional transfer
 
 If a local is transferred inside ONE branch of an ~if~, the other branch

@@ -36,16 +36,17 @@ recommend, so leaving it broken would have made the advice a trap.
      blocks now parse (new NodeType.CaptureBlock), and the typer enforces
      that the body only references captured outer locals (plus globals,
      top-level funcs/types, and block-locals). Const (`[x]`) and mutable
-     (`[mut x]`) captures; `own`/`shallow` block modes rejected for now.
+     (`[mut x]`) captures; at this stage `own`/`shallow` block modes were
+     still pending and were completed later below.
      The block stays inline at runtime (no closure machinery), so it
      works in both interpret and compile mode. Tests: test/closures.til
      (positive, both modes) and test/capture_block_error.til (negative).
    - [X] Func-def capture lists parse + store: `func(a: I64) returns I64
      [scale] { ... }` (FuncDef form) and `= (a) [scale] { ... }` (FuncSig
      form) parse via a shared parse_capture_list helper and store onto
-     FunctionDef.captures (name + is_mut + own_type). For now the typer
-     rejects any capturing function/lambda with a clear "not yet
-     implemented" diagnostic (it does not yet build a closure value).
+     FunctionDef.captures (name + is_mut + own_type). At this stage the typer
+     rejected capturing functions/lambdas because closure values were not
+     implemented yet; the later items below completed them.
      Test: test/capture_func_error.til (negative, both forms).
    - [X] Function closures run under the interpreter. Capturing
      functions/lambdas are no longer lifted (typer) or hoisted (init), so
@@ -55,9 +56,9 @@ recommend, so leaving it broken would have made the advice a trap.
      captured outer locals + params + body-locals + globals/funcs/types).
      At runtime the interpreter already resolves free variables through
      the call chain, so a synchronously-called closure gets its captures
-     (const and `mut`) -- no closure-value type needed. The C backend has
-     no closure environment yet, so compile mode rejects capturing
-     functions with a clear message (typer gate on ctx.compile_mode).
+     (const and `mut`) -- no closure-value type needed. At this stage the C
+     backend had no closure environment, so compile mode rejected capturing
+     functions (the next item completed the backend).
      Tests: test/closures_interp.til (interpret-only positive),
      test/capture_func_error.til (validation negatives),
      test/capture_compile_error.til (compile-mode rejection).
@@ -68,8 +69,8 @@ recommend, so leaving it broken would have made the advice a trap.
       lambdas, direct FuncSig arguments, and mut captures work in compile
       mode. Tests: test/closures_interp.til and test/first_class.til.
     - [X] Escaping closure lifetimes for stored/returned closures. C closure
-       environments currently borrow captured locals, so a closure called
-       after its defining stack scope exits can dangle.
+       environments initially borrowed captured locals, so a closure called
+       after its defining stack scope exited could dangle.
       Progress: borrowed captures use parameter-like ref semantics, returned
       borrowed closures and borrowed closures passed to ~own~ parameters are
       rejected, and explicit ~own~ returned captures run through the closure

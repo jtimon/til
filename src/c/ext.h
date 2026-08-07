@@ -208,6 +208,8 @@ void *to_ptr(void *a);
 void *deref(void *slot);
 void write_ptr(void *dest, void *val);
 void til_closure_slot_take(void *slot, void *closure);
+void *til_closure_slot_pop(void *slot);
+void *til_closure_slot_clone(void *slot);
 /* #211 follow-up: typed primitive writers used by the AST interpreter
  * to mirror writes through payload-aliased bindings. */
 void write_i64(void *dest, I64 val);

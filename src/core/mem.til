@@ -7,7 +7,12 @@ import("numbers")
 free := ext_func(own elem: Dynamic) {}
 til_closure_delete := ext_func(closure: Dynamic) {}
 til_closure_slot_delete := ext_func(slot: Dynamic) {}
+// Unlike write_ptr, take transfers a callable out of its owned Dynamic box.
 til_closure_slot_take := ext_func(slot: Dynamic, closure: Dynamic) {}
+// Move a callable out of a slot, leaving the slot empty.
+til_closure_slot_pop := ext_func(slot: Dynamic) returns Dynamic {}
+// Return an owned pointer-sized box containing a deep clone of slot's callable.
+til_closure_slot_clone := ext_func(slot: Dynamic) returns Dynamic {}
 malloc := ext_func(shallow count: UPtr) returns Dynamic {}
 calloc := ext_func(shallow nmemb: UPtr, shallow size: UPtr) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, shallow count: UPtr) returns Dynamic {}

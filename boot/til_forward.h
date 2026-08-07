@@ -6,6 +6,7 @@ struct TilClosure {
     void *call;
     void *env;
     void (*drop)(void *);
+    void *(*clone)(void *);
 };
 
 typedef struct Mode Mode;
@@ -3497,6 +3498,7 @@ Str * priv___src_self_builder_til__cli_box_expr(Str * ttype, Str * arg, Bool by_
 void priv___src_self_builder_til__emit_cli_parse_value(File * f, Str * ind, Str * ttype, Str * var, Str * arg, Bool by_value);
 void priv___src_self_builder_til__emit_diverge_terminator(File * f, Str * ret, Expr * body);
 void priv___src_self_builder_til__emit_func_def(File * f, Str * name, Expr * func_def, Mode * mode, Bool is_static, LoadedProgram * lp);
+void priv___src_self_builder_til__emit_closure_env_clone(File * f, Str * closure_name, Str * env_type, Vec__Declaration * captures, LoadedProgram * lp);
 void emit_capturing_closure_func(File * f, Expr * closure_expr, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_in_expr(File * f, Expr * e, Set__Str * emitted, LoadedProgram * lp);
 void emit_capturing_closures_lp(File * f, LoadedProgram * lp);
@@ -4037,6 +4039,8 @@ ffi_type * priv___src_self_interpreter_til__build_struct_ffi_type(Expr * struct_
 Bool priv___src_self_interpreter_til__h_free(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_til_closure_delete(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_til_closure_slot_delete(Scope * s, Expr * e, void * _r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_til_closure_slot_clone(Scope * s, Expr * e, void * r, Context * ctx);
+Bool priv___src_self_interpreter_til__h_til_closure_slot_pop(Scope * s, Expr * e, void * r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_til_closure_slot_take(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_close(Scope * s, Expr * e, void * _r, Context * ctx);
 Bool priv___src_self_interpreter_til__h_cfile_write_str(Scope * s, Expr * e, void * _r, Context * ctx);

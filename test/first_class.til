@@ -1,6 +1,7 @@
 mode test
 
 import("../src/std/dyn_vec")
+import("../src/std/dyn_array")
 import("../src/std/dyn_map")
 import("../src/std/dyn_hashmap")
 
@@ -347,6 +348,205 @@ test_dyn_hashmap_body_value := test() {
     cast(raw2, Body)()
     assert_eq(I64, x, 13)
     bodies.remove("run")
+}
+
+test_dyn_vec_static_callable_clone := test() {
+    mut ops := DynVec.new(BinaryOp)
+    ops.push(own fn_add)
+    copied := ops.clone()
+    ref raw : Dynamic = copied[0]
+    assert_eq(I64, cast(raw, BinaryOp)(8, 5), 13)
+}
+
+test_dyn_vec_capturing_body_clone := test() {
+    mut calls := 0
+    mut bodies := DynVec.new(Body)
+    b : Body = [mut calls] { calls = calls.add(1) }
+    bodies.push(own b)
+    copied := bodies.clone()
+    ref original : Dynamic = bodies[0]
+    cast(original, Body)()
+    ref duplicate : Dynamic = copied[0]
+    cast(duplicate, Body)()
+    assert_eq(I64, calls, 2)
+}
+
+test_dyn_vec_body_clone_owned_capture := test() {
+    text := format("still alive")
+    mut bodies := DynVec.new(Body)
+    b : Body = [own text] { assert_eq(Str, text, "still alive") }
+    bodies.push(own b)
+    copied := bodies.clone()
+    bodies.clear()
+    ref duplicate : Dynamic = copied[0]
+    cast(duplicate, Body)()
+}
+
+test_dyn_vec_body_clone_owned_callable_capture := test() {
+    text := format("nested clone")
+    inner : Body = [own text] { assert_eq(Str, text, "nested clone") }
+    mut bodies := DynVec.new(Body)
+    outer : Body = [own inner] { inner() }
+    bodies.push(own outer)
+    copied := bodies.clone()
+    bodies.clear()
+    ref duplicate : Dynamic = copied[0]
+    cast(duplicate, Body)()
+}
+
+test_dyn_array_body_clone := test() {
+    mut calls := 0
+    bodies := DynArray.new(Body, 2)
+    b : Body = [mut calls] { calls = calls.add(2) }
+    bodies.set(0, own b)!
+    copied := bodies.clone()
+    ref original : Dynamic = bodies[0]
+    cast(original, Body)()
+    ref duplicate : Dynamic = copied[0]
+    cast(duplicate, Body)()
+    assert_eq(I64, calls, 4)
+}
+
+test_dyn_map_body_clone := test() {
+    text := format("map clone")
+    mut bodies := DynMap.new(Str, Body)
+    b : Body = [own text] { assert_eq(Str, text, "map clone") }
+    bodies.set("run", own b)
+    copied := bodies.clone()
+    bodies.clear()
+    ref duplicate : Dynamic = copied["run"]
+    cast(duplicate, Body)()
+}
+
+test_dyn_hashmap_body_clone := test() {
+    text := format("hash clone")
+    mut bodies := DynHashMap.new(Str, Body)
+    b : Body = [own text] { assert_eq(Str, text, "hash clone") }
+    bodies.set("run", own b)
+    copied := bodies.clone()
+    bodies.clear()
+    ref duplicate : Dynamic = copied.get("run")!
+    cast(duplicate, Body)()
+}
+
+test_dyn_vec_body_lifecycle := test() {
+    mut calls := 0
+
+    mut cleared := DynVec.new(Body)
+    clear_body : Body = [mut calls] { calls = calls.add(1) }
+    cleared.push(own clear_body)
+    cleared.clear()
+
+    mut removed := DynVec.new(Body)
+    remove_body : Body = [mut calls] { calls = calls.add(10) }
+    keep_after_remove : Body = [mut calls] { calls = calls.add(2) }
+    removed.push(own remove_body)
+    removed.push(own keep_after_remove)
+    removed.remove_at(0)!
+    ref remove_survivor : Dynamic = removed[0]
+    cast(remove_survivor, Body)()
+
+    mut truncated := DynVec.new(Body)
+    keep_after_truncate : Body = [mut calls] { calls = calls.add(4) }
+    truncate_body : Body = [mut calls] { calls = calls.add(10) }
+    truncated.push(own keep_after_truncate)
+    truncated.push(own truncate_body)
+    truncated.truncate(1)
+    ref truncate_survivor : Dynamic = truncated[0]
+    cast(truncate_survivor, Body)()
+
+    mut marked := DynVec.new(Body)
+    keep_marked : Body = [mut calls] { calls = calls.add(8) }
+    delete_marked_body : Body = [mut calls] { calls = calls.add(10) }
+    marked.push(own keep_marked)
+    marked.push(own delete_marked_body)
+    marks : U8 = malloc(2)
+    memset(marks, 0, 2)
+    memset(ptr_add(marks, 1), 1, 1)
+    marked.delete_marked(marks)
+    free(own marks)
+    ref marked_survivor : Dynamic = marked[0]
+    cast(marked_survivor, Body)()
+
+    mut appended := DynVec.new(Body)
+    append_left : Body = [mut calls] { calls = calls.add(16) }
+    appended.push(own append_left)
+    append_source := DynVec.new(Body)
+    append_right : Body = [mut calls] { calls = calls.add(32) }
+    append_source.push(own append_right)
+    appended.append(own append_source)
+    ref appended_right : Dynamic = appended[1]
+    cast(appended_right, Body)()
+
+    mut moved := DynVec.new(Body)
+    old_moved : Body = [mut calls] { calls = calls.add(10) }
+    moved.push(own old_moved)
+    mut move_source := DynVec.new(Body)
+    moved_body : Body = [mut calls] { calls = calls.add(64) }
+    move_source.push(own moved_body)
+    moved.move_from(move_source)
+    ref moved_value : Dynamic = moved[0]
+    cast(moved_value, Body)()
+
+    mut split := DynVec.new(Body)
+    prefix_body : Body = [mut calls] { calls = calls.add(128) }
+    tail_body : Body = [mut calls] { calls = calls.add(256) }
+    split.push(own prefix_body)
+    split.push(own tail_body)
+    prefix := split.take_prefix(1)
+    ref prefix_value : Dynamic = prefix[0]
+    cast(prefix_value, Body)()
+    ref tail_value : Dynamic = split[0]
+    cast(tail_value, Body)()
+
+    mut popped_vec := DynVec.new(Body)
+    pop_body : Body = [mut calls] { calls = calls.add(512) }
+    popped_vec.push(own pop_body)
+    popped : Body = popped_vec.pop()
+    popped()
+
+    mut oob := DynVec.new(Body)
+    oob_body : Body = [mut calls] { calls = calls.add(10) }
+    mut caught := false
+    oob.set(0, own oob_body)?
+    catch (_err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I64, calls, 1006)
+}
+
+test_dyn_array_body_set_oob := test() {
+    mut calls := 0
+    bodies := DynArray.new(Body, 1)
+    b : Body = [mut calls] { calls = calls.add(1) }
+    mut caught := false
+    bodies.set(1, own b)?
+    catch (_err: OutOfBounds) { caught = true }
+    assert(caught)
+    assert_eq(I64, calls, 0)
+}
+
+test_dyn_maps_body_remove_and_clear := test() {
+    mut calls := 0
+    mut ordered := DynMap.new(Str, Body)
+    ordered_drop : Body = [mut calls] { calls = calls.add(10) }
+    ordered_keep : Body = [mut calls] { calls = calls.add(1) }
+    ordered.set("drop", own ordered_drop)
+    ordered.set("keep", own ordered_keep)
+    assert(ordered.remove("drop"))
+    ref ordered_value : Dynamic = ordered["keep"]
+    cast(ordered_value, Body)()
+    ordered.clear()
+
+    mut hashed := DynHashMap.new(Str, Body)
+    hashed_drop : Body = [mut calls] { calls = calls.add(10) }
+    hashed_keep : Body = [mut calls] { calls = calls.add(2) }
+    hashed.set("drop", own hashed_drop)
+    hashed.set("keep", own hashed_keep)
+    assert(hashed.remove("drop"))
+    ref hashed_value : Dynamic = hashed.get("keep")!
+    cast(hashed_value, Body)()
+    hashed.clear()
+    assert_eq(I64, calls, 3)
 }
 
 // --- Explicit FuncDef / FunctionDef metatype annotation (issue #58) ---

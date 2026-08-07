@@ -208,6 +208,10 @@ namespace:
             panic("DynVec.pop: empty vec")
         }
         last := self.count - 1
+        if self.elem_kind == ELEM_FN {
+            self.count = last
+            return til_closure_slot_pop(self.unsafe_get(last))
+        }
         out : U8 = malloc(self.elem_size)
         memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
         self.count = last
@@ -344,15 +348,18 @@ namespace:
 
     /// Deep-copy the DynVec and all its elements via elem_clone.
     clone := func(self: DynVec) returns DynVec {
-        if self.elem_kind == ELEM_FN {
-            panic("DynVec.clone: callable element cloning is not supported")
-        }
         new_data : U8 = malloc(self.cap.mul(self.elem_size))
         if self.elem_kind == ELEM_BOXED {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
                 free(own cloned)
+            }
+        } else if self.elem_kind == ELEM_FN {
+            for i in 0..self.count {
+                cloned_fn : Dynamic = til_closure_slot_clone(ptr_add(self.data, i.mul(self.elem_size)))
+                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned_fn, self.elem_size)
+                free(own cloned_fn)
             }
         } else {
             memcpy(new_data, self.data, self.count.mul(self.elem_size))
