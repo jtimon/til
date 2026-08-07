@@ -106,58 +106,6 @@ struct Token {
     } data;
 };
 
-Str * format(Array__Str * parts);
-Bool Str_eq(Str * a, Str * b);
-Str * Str_with_capacity(USize n);
-void Str_push_str(Str * self, Str * s);
-Str * Str_clone(Str * val);
-Str * Str_to_str(Str * self);
-void Str_delete(Str * self, Bool call_free);
-Bool Str_neq(Str * a, Str * b);
-Array__Str * Array__Str_new(USize cap);
-void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val);
-void Array__Str_set(Array__Str * self, USize i, Str * val, I64 * _err_kind);
-void Array__Str_delete(Array__Str * self, Bool call_free);
-Array__Str * Array__Str_clone(Array__Str * self);
-void adopt__Str(void * dest, Str * src);
-Str * U64_to_str(U64 val);
-Str * I64_to_str(I64 val);
-void I64_delete(I64 * self, Bool call_free);
-__attribute__((noreturn)) void panic(Array__Str * parts, Str * loc);
-__attribute__((noreturn)) void UNREACHABLE(Array__Str * parts, Str * loc);
-void assert(Bool cond, Str * loc);
-void expect(Bool cond, Array__Str * parts, Str * loc);
-void println(Array__Str * parts);
-void test_simple_add(void);
-void test_nested_arithmetic(void);
-void test_deeply_nested(void);
-void test_string_concat(void);
-void test_variadic_fold(void);
-void test_variadic_direct_fold(void);
-void test_lolalalo(void);
-void test_fold_variable(void);
-void test_loc_folded(void);
-void test_fold_f32(void);
-void CfVec2_delete(CfVec2 * self, Bool call_free);
-void test_struct_fold_simple(void);
-void test_struct_fold_values(void);
-void CfRect_delete(CfRect * self, Bool call_free);
-void test_struct_fold_nested(void);
-void CfVec3f_delete(CfVec3f * self, Bool call_free);
-void test_struct_fold_f32(void);
-Bool Color_eq(Color * self, Color * other);
-void test_enum_fold(void);
-void Token_delete(Token * self, Bool call_free);
-void test_enum_payload_fold(void);
-void test_enum_return_fold(void);
-void test_enum_payload_return_fold(void);
-void test_const_and_or_fold(void);
-void assert_eq__I64(I64 a, I64 b, Str * loc);
-void assert_eq__Str(Str * a, Str * b, Str * loc);
-Bool Color_eq(Color *, Color *);
-Token *Token_Num(I64 *);
-#include "ext.h"
-
 
 void print_single(Str *s);
 void print_flush();

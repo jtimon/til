@@ -731,6 +731,24 @@ main := proc(args: ..Str) {
         format(til_bin, " run test/drain_only_delete.til"))
     add_count(tests, "enums_no_orphan_prototype", "build", "Color_is", 0,
         format(til_bin, " translate -c gen/c/enums_proto.c test/enums.til '&&' cat gen/c/enums_proto.c"))
+    // #302 stage 4 / #326: a FieldAssign marked `is_move` consumes the
+    // clone's ARGUMENT -- both back ends substitute it at consumption and
+    // store the value itself -- so the `Node.clone(val)` the garbager left
+    // in the AST is a call nobody makes. Counting it as a reachability
+    // edge kept the definition with no caller.
+    add_count(tests, "bug256_no_uncalled_move_clone", "build", "Node_clone", 0,
+        format(til_bin, " translate -c gen/c/bug256_mc.c test/bug256.til '&&' cat gen/c/bug256_mc.c"))
+    // The prelude used to define print_single/print_flush in every
+    // program. They are core ext_procs reached only through println/print,
+    // so a program that never prints must not get them -- nor their
+    // prototypes.
+    add_count(tests, "no_print_prelude_when_unused", "build", "print_single", 0,
+        format(til_bin, " translate -c gen/c/cce_pp.c test/capture_compile_error.til '&&' cat gen/c/cce_pp.c"))
+    // Every prototype used to be emitted twice: the monolithic header and
+    // emit_all_forward_declarations were two drifted copies of the same
+    // four walks. One prototype, one definition, one mention at the call.
+    add_count(tests, "hello_no_duplicate_prototypes", "build", "void println(Array__Str * parts)", 2,
+        format(til_bin, " translate -c gen/c/hs_dp.c examples/hello_script.til '&&' cat gen/c/hs_dp.c"))
     add_count(tests, "enums_no_uncalled_size", "build", "Color_size", 0,
         format(til_bin, " translate -c gen/c/enums_size.c test/enums.til '&&' cat gen/c/enums_size.c"))
     add_count(tests, "first_class_no_dead_field_default", "build", "unused_default_op", 0,

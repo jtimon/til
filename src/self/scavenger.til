@@ -325,8 +325,45 @@ collect_refs := func(e: Expr, mut refs: Vec(Str)) {
         }
     }
 
+    // #302 stage 4 / #326: a marked move CONSUMES the clone's argument.
+    // The garbager records the decision on the FieldAssign (is_move)
+    // instead of editing the shared AST, so a `T.clone(x)` FCall stays in
+    // the tree that NO back end runs: the builder (emit_stmt's FieldAssign
+    // arm) and the interpreter (eval_field_assign) both substitute
+    // `rhs = rhs.children[1]` at consumption and store the argument
+    // itself. Walking the ARGUMENT in the callee's place keeps the move's
+    // own edges and drops the call nobody makes -- otherwise the clone is
+    // reachable, survives the sweep, and gets a definition with no caller
+    // (Node_clone in test/bug256.til, Vec__Str_clone in
+    // examples/tilminal.til). Backend-agnostic on purpose: this is a fact
+    // about what the move MEANS, not about how C spells it.
+    //
+    // The Assign twin is deliberately NOT here. The builder substitutes
+    // there too, but the interpreter does not -- it still evaluates the
+    // clone -- so on that node the call is real for one back end and
+    // spliced for the other, and only the back end that splices may drop
+    // it. Dropping it here sweeps ErrorWithMessage.clone out from under
+    // test/errors.til's `throw my_error`.
+    mut cr_has_subst := false
+    switch e.node_type {
+    case .FieldAssign(cr_mfad):
+        if cr_mfad.is_move.and(e.children.len().gt(1)) {
+            if rhs_is_clone_fcall(e.children[1]).and(e.children[1].children.len().gte(2)) {
+                cr_has_subst = true
+            }
+        }
+    case:
+    }
+
     // Recurse into children
+    mut cr_ci : USize = 0
     for c : Expr in e.children {
+        cur_cr_ci := cr_ci
+        cr_ci = cr_ci + 1
+        if cr_has_subst.and(cur_cr_ci == 1) {
+            collect_refs(c.children[1], refs)
+            continue
+        }
         collect_refs(c, refs)
     }
 }

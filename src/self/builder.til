@@ -6830,7 +6830,22 @@ priv emit_top_level_func_forward := proc(f: File, rhs: Expr, dd: Declaration, mo
     }
 }
 
-priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
+// Does any surviving unit still declare this top-level name? The sweep
+// deletes the statement outright, so the question the emitters ask about a
+// hand-written prelude symbol -- "is anything left that could call it" --
+// is answered by looking for the declaration.
+priv builder_program_declares := func(name: Str, lp: LoadedProgram) returns Bool {
+    for upath : Str in lp.unit_paths() {
+        ref bpd_iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in bpd_iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if decl_of(stmt).name.eq(name) { return true }
+        }
+    }
+    return false
+}
+
+priv emit_monolithic_header_lp := proc(f: File, lp: LoadedProgram) {
     f.write("#include \"ext.h\"\n\n")
     emit_closure_runtime_types(f)
     emit_header_forward_decls_lp(f, lp)
@@ -6841,100 +6856,11 @@ priv emit_monolithic_header_lp := proc(f: File, mode: Mode, lp: LoadedProgram) {
     seed_primitive_names(emitted_mh)
     topo_emit_struct_enum_defs_lp(f, emitted_mh, lp)
 
-    // Emit function declarations
-    if lp.skip_core.not() {
-        for u : ProgramUnit in lp.core_units {
-            ref iu : ImportUnit = lp.ctx.imported[u.path]
-            for stmt : Expr in iu.ast.children {
-                if stmt.node_type.is(NodeType.Decl).not() { continue }
-                if stmt.children.len() == 0 { continue }
-                ref dd : Declaration = decl_of(stmt)
-                ref rhs : Expr = stmt.children[0]
-                if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                    ref fw2i_ns : Vec(Declaration) = def_ns_decls(rhs)
-                    mut fw2i : USize = 0
-                    for fdd : Declaration in fw2i_ns {
-                        cur_fw2i := fw2i
-                        fw2i = fw2i + 1
-                        if fdd.default_value.is_none() { continue }
-                        switch fdd.default_expr().node_type {
-                        case .FuncDef(fd):
-                            if fd.func_type.is_bodyless() { continue }
-                            if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw2i), lp.ctx) { continue }
-                            full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw2i))
-                            emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
-                        case:
-                        }
-                    }
-                } else {
-                    emit_top_level_func_forward(f, rhs, dd, mode, lp)
-                }
-            }
-        }
-    }
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if stmt.children.len() == 0 { continue }
-            ref dd : Declaration = decl_of(stmt)
-            ref rhs : Expr = stmt.children[0]
-            if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
-                ref fw3i_ns : Vec(Declaration) = def_ns_decls(rhs)
-                mut fw3i : USize = 0
-                for fdd : Declaration in fw3i_ns {
-                    cur_fw3i := fw3i
-                    fw3i = fw3i + 1
-                    if fdd.default_value.is_none() { continue }
-                    switch fdd.default_expr().node_type {
-                    case .FuncDef(fd):
-                        if fd.func_type.is_bodyless() { continue }
-                        if builder_ns_method_omitted(dd.name, def_ns_name_at(rhs, cur_fw3i), lp.ctx) { continue }
-                        full_name := dd.name.concat3("_", def_ns_name_at(rhs, cur_fw3i))
-                        emit_func_forward_decl(f, full_name, fdd.default_expr(), false, lp.ctx)
-                    case:
-                    }
-                }
-            } else {
-                switch rhs.node_type {
-                case .FuncDef(fd):
-                    if builder_is_type_gen_macro_def(rhs) { continue }
-                    if rhs.children.len() == 0 { continue }
-                    if fd.func_type.is_bodyless() { continue }
-                    if mode.needs_main {
-                        if dd.name == "main" { continue }
-                    }
-                    fc := func_to_c(dd.name)
-                    emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
-                    if lp.ctx.closure_value_names.has(dd.name) { emit_closure_forward_decl(f, fc, rhs, lp.ctx) }
-                case:
-                }
-            }
-        }
-    }
-
-    // Enum auto-helper declarations (user units only)
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            if stmt.children.len() == 0 { continue }
-            if stmt.children[0].node_type.is(NodeType.EnumDef).not() { continue }
-            ref dd : Declaration = decl_of(stmt)
-            if builder_ns_method_omitted(dd.name, "eq", lp.ctx).not() { emit_enum_eq_ext_decl(f, dd.name, stmt.children[0]) }
-            ref hdr_edd : EnumDef = enumdef_of(stmt.children[0])
-            ctor_ret := enum_ctor_ret_c(dd.name, stmt.children[0])
-            for hdr_vd : VariantDef in hdr_edd.variants {
-                if builder_variant_ctor_kept(dd.name, stmt.children[0], hdr_vd.name, lp.ctx).not() { continue }
-                if hdr_vd.payload_type.len() > 0 {
-                    tnc := type_name_to_c(hdr_vd.payload_type, lp.ctx)
-                    f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("(").write(tnc).write(");\n")
-                } else {
-                    f.write(ctor_ret).write(dd.name).write("_").write(hdr_vd.name).write("();\n")
-                }
-            }
-        }
-    }
+    // #326: the function prototypes used to be emitted HERE and again by
+    // emit_all_forward_declarations a few writes later in the same file --
+    // two drifted copies of the same four walks, so every generated .c
+    // carried every prototype twice. This header emits the types; the
+    // prototypes have a single emitter now.
 }
 
 priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgram) {
@@ -6964,18 +6890,10 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, lp: LoadedProgra
                         }
                     }
                 } else {
-                    switch rhs.node_type {
-                    case .FuncDef(fd):
-                        if builder_is_type_gen_macro_def(rhs) { continue }
-                        if rhs.children.len() == 0 { continue }
-                        if fd.func_type.is_bodyless() { continue }
-                        if mode.needs_main {
-                            if dd.name == "main" { continue }
-                        }
-                        fc := func_to_c(dd.name)
-                        emit_func_forward_decl(f, fc, rhs, true, lp.ctx)
-                    case:
-                    }
+                    // The copy this one absorbed forwarded a core closure
+                    // value's own prototype too; the inline switch here did
+                    // not, so route both unit loops through the same proc.
+                    emit_top_level_func_forward(f, rhs, dd, mode, lp)
                 }
             }
         }
@@ -8455,8 +8373,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
     // #326: the dyn/reflection inventory must be in place before the first
     // gated emission (the forward-declaration block).
 
-    emit_monolithic_header_lp(f, mode, lp)
-    f.write("#include \"ext.h\"\n\n")
+    emit_monolithic_header_lp(f, lp)
 
     // Ext decls from user units only.
     for u : ProgramUnit in lp.units {
@@ -8464,8 +8381,15 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
         emit_ext_func_declarations(f, iu.ast, lp.ctx)
     }
 
-    f.write("void print_single(Str *s);\n")
-    f.write("void print_flush();\n\n")
+    // #326: these two are core ext_procs (src/core/io.til) reached only
+    // through println/print, so a program that never prints sweeps their
+    // declarations -- and used to get the prototypes and the bodies
+    // anyway, in every generated file. Ask the surviving AST.
+    print_single_kept := builder_program_declares("print_single", lp)
+    print_flush_kept := builder_program_declares("print_flush", lp)
+    if print_single_kept { f.write("void print_single(Str *s);\n") }
+    if print_flush_kept { f.write("void print_flush();\n") }
+    if print_single_kept.or(print_flush_kept) { f.write("\n") }
 
     emit_all_forward_declarations(f, mode, lp)
 
@@ -8473,12 +8397,17 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, lp: LoadedPr
 
     f.write("#define TIL_CAP_LIT ((USize)-1)\n")
     f.write("#define TIL_CAP_VIEW ((USize)-2)\n")
-    f.write("void print_single(Str *s) {\n")
-    f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
-    f.write("}\n")
-    f.write("void print_flush() {\n")
-    f.write("    putchar('\\n');\n")
-    f.write("}\n\n")
+    if print_single_kept {
+        f.write("void print_single(Str *s) {\n")
+        f.write("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
+        f.write("}\n")
+    }
+    if print_flush_kept {
+        f.write("void print_flush() {\n")
+        f.write("    putchar('\\n');\n")
+        f.write("}\n")
+    }
+    f.write("\n")
 
     builder_register_str_lits(lp)
     builder_emit_str_lit_pool(f, lp.ctx)
@@ -10314,15 +10243,19 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
         case:
         }
     }
-    mut skip_child : USize = 99
+    // A sentinel index cannot say "skip nothing": any body with 100
+    // statements has a child 99, and the 99 this used to start from
+    // dropped it -- with it every call site underneath.
+    mut has_skip := false
+    mut skip_child : USize = 0
     if e.node_type.is(NodeType.FCall).and(e.children.len().gte(3)) {
         switch e.children[0].node_type {
         case .Ident(bvs_c):
-            if bvs_c.ident_name() == "is_n" { skip_child = 2 }
+            if bvs_c.ident_name() == "is_n" { has_skip = true skip_child = 2 }
         case:
         }
     }
-    if e.node_type.is(NodeType.Case) { skip_child = 0 }
+    if e.node_type.is(NodeType.Case) { has_skip = true skip_child = 0 }
     // Borrowed: the name lives in the Decl node, which outlives this
     // call, and `owner` is only read (by builder_ns_method_omitted).
     mut bvs_owner := ""
@@ -10334,7 +10267,7 @@ priv builder_collect_ns_member_sites := proc(e: Expr, mut sites: Set(Str), mut s
     for bvs_ch : Expr in e.children {
         cur_bvs := bvs_i
         bvs_i = bvs_i + 1
-        if cur_bvs == skip_child { continue }
+        if has_skip.and(cur_bvs == skip_child) { continue }
         builder_collect_ns_member_sites(bvs_ch, sites, stack_names, dup_names, param_names, bvs_owner, in_body, ctx)
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
